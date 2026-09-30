@@ -121,7 +121,7 @@ Disconnect, explicit release, MCP pause, authentication rotation, server stop, o
 
 **Hide from left sidebar** hides a workspace and its tabs from the left navigation while keeping the workspace active and accessible from Home. It does not change agent access. **Protect from deletion** blocks permanent removal by people and agents at the browser lifecycle boundary; archiving and restoring preserve both preferences. Only a person can change deletion protection. Archived cards expose this preference under Workspace options.
 
-Browser mute is independent of the number of open tabs. It persists across restart and applies to newly opened and restored tabs. Individual mute controls cannot override browser mute; disabling browser mute restores each tab’s own mute setting.
+Browser mute is independent of the number of open tabs. It persists across restart and applies to newly opened and restored tabs. Use a tab’s **Mute / Unmute** control to change that tab while browser mute remains on. These exceptions are temporary: turning browser mute on again clears them, and turning it off restores each tab’s saved mute preference.
 
 The workspace editor offers **Allow direct agent access**. Disabling it blocks direct agent actions and resume access to that original workspace. The normal agent workspace list still shows a metadata-only entry marked `forkOnly`, with a `forkWith` action containing the source ID, and the fork-source catalog also lists it. Agents can copy its cookies and local storage into an independent fork. This setting does not prevent cloning. Forks inherit site restrictions and start with one blank tab; they do not copy open tabs.
 
@@ -206,9 +206,13 @@ Browser CSV exports contain readable passwords. Delete the export after confirmi
 
 ## Prevent accidental human interaction
 
-Use **Tab** beside the address bar to lock the current tab, or **Hronaut** in the tab strip to lock every website tab. Both block human mouse, wheel, context-menu, and keyboard input inside websites. Trusted Hronaut controls remain usable, including the full-app unlock control and tab-close buttons, middle-click, context-menu actions, Delete, and `Ctrl/Cmd+W`. This lets you stop an unavailable page that an agent is repeatedly reloading without restoring page input. MCP inspection and interaction continue to work while human input is locked.
+Use **Lock input / Unlock input** beside the address bar to control the current tab, or the global lock icon in the tab strip to control every website tab. Both block human mouse, wheel, context-menu, and keyboard input inside websites. Trusted Hronaut controls remain usable, including the full-app unlock control and tab-close buttons, middle-click, context-menu actions, Delete, and `Ctrl/Cmd+W`. This lets you stop an unavailable page that an agent is repeatedly reloading without restoring page input. MCP inspection and interaction continue to work while human input is locked.
 
 While the Hronaut-wide input lock is on, use the current tab's lock button to temporarily allow human page input in that one tab. Other tabs remain locked. Turning the Hronaut-wide lock off and on again clears every temporary unlock. This exception is not saved across restarts and is unavailable in read-only public observer workspaces.
+
+The page controls are separate buttons: **Lock input / Unlock input** controls human page input, **Pause agents / Resume agents** controls agent access, **Live / Frozen** controls page execution, and **Mute / Unmute** controls audio. Global input lock, agent pause, and mute remain in the tab strip.
+
+A waiting spinner means a control change is queued or being applied. The affected button is temporarily disabled to prevent duplicate clicks; its accessible label includes **Waiting…**. Input-lock requests wait for an earlier lock change and any rollback to finish. If an input-lock request fails, Hronaut reports the error and makes the control available again; the spinner does not mean a failed request will be retried indefinitely.
 
 ## Right-click webpage actions
 
@@ -308,7 +312,7 @@ Press **Ctrl+H** on Linux/Windows, **Cmd+Y** on macOS, or use the history button
 
 ## Identify and mute tabs
 
-Website tabs display their real favicon after Hronaut safely normalizes it into a local 32px PNG; remote favicon URLs are never loaded inside the trusted shell. When a tab emits audio, a speaker appears beside its title. Click it to mute or unmute only that tab, press **M** while the tab is focused, or use the tab context menu. The speaker button in the global topbar mutes every currently open website tab and changes to **Unmute all tabs** when all of them are muted. These controls do not change site-wide sound permissions. Agents can use `browser_audio` for a specific tab, and `browser_tabs` reports each tab's audible and muted state.
+Website tabs display their real favicon after Hronaut safely normalizes it into a local 32px PNG; remote favicon URLs are never loaded inside the trusted shell. When a tab emits audio, a speaker appears beside its title. Click it to mute or unmute only that tab, press **M** while the tab is focused, or use the tab context menu. The speaker button in the global topbar controls browser mute for existing and future website tabs. It shows **Unmute all tabs** while browser mute is enabled, including when a tab has been temporarily unmuted. Turning browser mute off restores each tab’s saved mute preference. These controls do not change site-wide sound permissions. Agents can use `browser_audio` for a specific tab, and `browser_tabs` reports each tab's audible and muted state.
 
 ## Recover a failed page
 
@@ -748,7 +752,7 @@ Use **Archive Workspace** from that context menu when an investigation should le
 
 Every workspace receives its own persistent Electron partition for cookies, local storage, cache, service workers, and related website state. On `browser_workspaces` `create`, choose `storage: "scratch"` for clean storage or `storage: "fork-workspace"` with a `sourceWorkspaceId` from `list-fork-sources`. A fork copies cookies and local storage once, receives a new identity and private resume key, inherits the source navigation restrictions, and starts without copying source tabs. Sources with direct agent access disabled can still be forked; this never authorizes access to the original workspace. Only the human can change direct agent access or navigation policy. Use the human transfer controls to copy or move data between existing workspaces. Hronaut rejects overlapping copies and prevents a participating workspace from being renamed, archived, or deleted during a transfer. Bookmarks, history, download records, and remembered permissions remain application-wide.
 
-`browser_storage` inspects or edits local storage, tab-specific session storage, and non-HttpOnly cookies for one tab inside the caller's workspace. Lists default to metadata-only; request `includeValues` or use an explicit `get` when a bounded value is needed. Results are capped at 200 entries, 16 KiB per returned value, and 128 KiB of values in total; inputs are capped at 256 KiB. HttpOnly cookie values are never returned or edited. Use `browser_site_data` when the task requires clearing broader origin data such as caches or all cookies and storage.
+`browser_storage` inspects or edits local storage, tab-specific session storage, and non-HttpOnly cookies for one tab inside the caller's workspace. Lists default to metadata-only; request `includeValues` or use an explicit `get` when a bounded value is needed. Results are capped at 200 entries, 16 KiB per returned value, and 128 KiB of values in total; inputs are capped at 256 KiB. Local and session storage keys are matched exactly, including empty and whitespace-only keys; get, set, and delete still require an explicit key. HttpOnly cookie values are never returned or edited. Use `browser_site_data` when the task requires clearing broader origin data such as caches or all cookies and storage.
 
 Use `browser_storage_changes` to save a volatile baseline before reproducing an issue and compare it afterward. The report groups added, updated, and removed local-storage, session-storage, and cookie keys, includes byte sizes and cookie attribute changes, and omits values by default. `includeValues: true` returns only bounded non-HttpOnly values; HttpOnly values remain protected. Baselines are held only in memory, clear automatically when the tab changes origin, and never authorize access outside the caller's workspace.
 
@@ -979,7 +983,7 @@ recorder or encoder bridge.
   require `endX`/`endY`: the pointer target for a callout, or the opposite corner
   for a highlight/spotlight. Regions must have non-zero width and height.
 - `render`: prepare a local preview without writing a file.
-- `export`: render if necessary and save a silent `.webm` file. Returns its path,
+- `export`: render if necessary and save a `.webm` file with optional composed Opus audio. Returns its path,
   filename, bytes, codec, MIME type and edited duration. This action requires the
   capability's `external-request` operation class as well as workspace write access.
 
@@ -1045,3 +1049,7 @@ macOS ([WebKit compatibility notes](https://webkit.org/blog/15063/webkit-feature
 WebM is not a universal native-player/editor format; MP4/H.264 conversion is not
 included. The bundled WebCodecs encoder is checked at export time. Unsupported
 encoding reports an error while preserving the raw recording for review/retry.
+
+### Video sound and motion
+
+`browser_video` also supports original music/SFX, authorized local WAV imports, output-time audio mixing, source-time camera zoom/pan and restrained clip transitions. See [complete composition examples and limits](docs/VIDEO_COMPOSITION.md) and [audio provenance](docs/VIDEO_AUDIO_PROVENANCE.md). Existing silent exports remain supported.

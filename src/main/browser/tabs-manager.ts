@@ -1,6 +1,10 @@
+import { utf8Prefix } from '../../shared/utf8.js'
+import { boundStorageItems } from './storage-items.js'
 import { BrowserVideoRecorder } from './video-recorder.js'
 import { captureStableVideoImage } from './video-capture.js'
 import { renderBrowserVideo } from './video-export.js'
+import { readVideoAudioFile } from './video-audio-file.js'
+import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
 import { recordNetworkDebuggerMessage, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
@@ -39,9 +43,9 @@ import { decodeWebsiteFavicon } from './favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import { validateHeaderValue } from 'node:http'
-import { basename, dirname, extname, isAbsolute, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
   app,
@@ -131,6 +135,7 @@ import {
   PWA_INSPECTION_LIMITS,
   pwaRegistrationsPageScript,
   sanitizePwaManifest,
+  sanitizePwaHeaders,
   type CdpAppManifestResult,
   type CdpInstallabilityError
 } from '../../shared/pwa.js'
@@ -146,7 +151,7 @@ import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../
 import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../shared/page-url-wait.js'
 import { deriveNetworkTiming } from '../../shared/network-timing.js'
 import { parseServerTimingHeaders, serializeServerTimingMetrics } from '../../shared/server-timing.js'
-import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
+import { portableExportFilename } from '../../shared/portable-filename.js'
 import {
   buildSanitizedNetworkHar,
   filterNetworkRequests,
@@ -397,11 +402,8 @@ const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
 const MAX_TAB_OVERVIEW_PAGE_BYTES = 4 * 1024 * 1024
 const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
 const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
-const MAX_STORAGE_ITEMS = 200
 const MAX_STORAGE_KEY_CHARS = 512
 const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
-const MAX_STORAGE_OUTPUT_VALUE_BYTES = 16 * 1024
-const MAX_STORAGE_OUTPUT_TOTAL_BYTES = 128 * 1024
 const MIN_SHELL_HEIGHT = 44
 const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300] as const
 const ABORTED_LOAD_ERROR = -3
@@ -527,30 +529,7 @@ function headerValue(headers: Record<string, string | string[] | undefined> | un
 }
 
 function pdfFilename(requested: string | undefined, title: string): string {
-  if (requested !== undefined) {
-    const filename = requested.trim()
-    if (
-      !filename
-      || filename === '.'
-      || filename === '..'
-      || filename !== basename(filename)
-      || filename.includes('/')
-      || filename.includes('\\')
-      || filename.length > 180
-      || /[\u0000-\u001f<>:"|?*]/.test(filename)
-      || /[. ]$/.test(filename)
-      || isWindowsReservedFilename(filename)
-    ) throw new Error('PDF filename must be a portable file name without a directory path')
-    return filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`
-  }
-  const stem = title
-    .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '-')
-    .replace(/\s+/g, ' ')
-    .replace(/[. ]+$/g, '')
-    .trim()
-    .slice(0, 160) || 'page'
-  const portableStem = isWindowsReservedFilename(stem) ? `page-${stem}` : stem
-  return `${portableStem}.pdf`
+  return portableExportFilename(requested, title, 'pdf')
 }
 
 type BrowserConsoleCaptureSource = 'electron' | 'runtime-console' | 'runtime' | 'log' | 'preload' | 'lifecycle'
@@ -596,6 +575,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   // can invalidate the view's webContents getter during native-view teardown,
   // while the original handle remains safe to query with isDestroyed().
   webContents: WebContents
+  // Session cleanup must remain possible after the WebContents is destroyed.
+  browserSession: Session
   consoleMessages: BrowserConsoleMessageRecord[]
   pendingRuntimeConsoleMessages: BrowserConsoleMessage[]
   networkRoutes: BrowserNetworkRouteRecord[]
@@ -1053,6 +1034,7 @@ export class BrowserTabsManager {
   private readonly videoRecorder = new BrowserVideoRecorder({
     changed: () => this.changed(false),
     render: renderBrowserVideo,
+    loadAudio: readVideoAudioFile,
     save: async (data, validate) => {
       validate()
       const path = await this.writeUniqueDownload(`hronaut-video-${Date.now()}.webm`, Buffer.from(data), validate)
@@ -1121,7 +1103,6 @@ export class BrowserTabsManager {
   private readonly agentInputFocusGuardReleases = new Map<number, () => void>()
   private backgroundAgentInputFocusGuardDepth = 0
   private mainWindowFocusableBeforeAgentInput = true
-  private backgroundAgentFocusOwnerWindowId: number | null = null
   private readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
   private readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
   private readonly pendingHumanTabCloses = new Map<string, { tab: BrowserTab; operation: Promise<BrowserState> }>()
@@ -1133,6 +1114,7 @@ export class BrowserTabsManager {
   private memorySaverTimer: NodeJS.Timeout | null = null
   private initialized = false
   private readonly memorySaverSweeps = new MemorySaverSweepQueue()
+  private memorySaverSettingsGeneration = 0
   private memorySaverEnabled: boolean
   private memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
   private readonly mcpActivitiesByTab = new Map<string, Set<string>>()
@@ -1171,6 +1153,7 @@ export class BrowserTabsManager {
   private readonly browserCookieImportSessions = new Set<Session>()
   private readonly webContentsToTab = new Map<number, string>()
   private readonly debuggerQueue = new BrowserDebuggerQueue()
+  private interactionLockTail: Promise<void> = Promise.resolve()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
   private readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
     matchingRequest: (tab, options, minCaptureSequence) => {
@@ -2243,7 +2226,8 @@ export class BrowserTabsManager {
       throw new Error('Site storage is available only for HTTP and HTTPS tabs.')
     }
     const key = options.key
-    if ((action === 'get' || action === 'set' || action === 'delete') && !key?.trim()) {
+    if ((action === 'get' || action === 'set' || action === 'delete')
+      && (key === undefined || (options.kind === 'cookies' && !key.trim()))) {
       throw new TypeError(`key is required to ${action} ${options.kind}`)
     }
     if (key && key.length > MAX_STORAGE_KEY_CHARS) throw new TypeError(`Storage keys are limited to ${MAX_STORAGE_KEY_CHARS} characters.`)
@@ -2258,6 +2242,9 @@ export class BrowserTabsManager {
 
     const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
     const raw = await tab.webContents.executeJavaScript(`(() => {
+      if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
+        return { pageChanged: true };
+      }
       const storage = window[${JSON.stringify(storageName)}];
       const action = ${JSON.stringify(action)};
       const key = ${JSON.stringify(key)};
@@ -2267,27 +2254,46 @@ export class BrowserTabsManager {
       else if (action === 'delete') { changed = storage.getItem(key) !== null; storage.removeItem(key); }
       else if (action === 'clear') { changed = storage.length > 0; storage.clear(); }
       const items = [];
-      for (let index = 0; index < storage.length; index += 1) {
-        const itemKey = storage.key(index);
-        if (itemKey !== null && (action !== 'get' || itemKey === key)) items.push([itemKey, storage.getItem(itemKey) ?? '']);
+      if (action === 'get') {
+        const itemValue = storage.getItem(key);
+        if (itemValue !== null) items.push([key, itemValue]);
+      } else {
+        for (let index = 0; index < storage.length; index += 1) {
+          const itemKey = storage.key(index);
+          if (itemKey !== null) items.push([itemKey, storage.getItem(itemKey) ?? '']);
+        }
+        items.sort((left, right) => left[0].localeCompare(right[0]));
       }
-      items.sort((left, right) => left[0].localeCompare(right[0]));
       return { changed, itemCount: storage.length, items };
-    })()`, true) as { changed: boolean; itemCount: number; items: Array<[string, string]> }
-    const bounded = this.boundStorageItems(raw.items, options.includeValues === true || action === 'get')
+    })()`, true) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+    if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
+    const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
     return {
       tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
+      url: redactNetworkUrl(pageUrl.href),
       origin: pageUrl.origin,
       kind: options.kind,
       action,
       itemCount: raw.itemCount,
       items: bounded.items,
       changed: ['set', 'delete', 'clear'].includes(action) ? raw.changed : undefined,
-      truncated: raw.itemCount > MAX_STORAGE_ITEMS || bounded.truncated || undefined,
+      truncated: bounded.truncated || undefined,
       note: options.kind === 'session-storage'
         ? 'Session storage belongs to this tab. Local storage and cookies are shared by origin only inside this workspace.'
         : 'This storage belongs to the current workspace, so changes are visible to its tabs on this origin but isolated from other workspaces.'
+    }
+  }
+
+  private inspectionPageGuard(tab: BrowserTab, inspection: string): () => void {
+    const navigationGeneration = tab.navigationGeneration
+    const contents = tab.webContents
+    return () => {
+      if (this.tabs.get(tab.id) !== tab
+        || tab.webContents !== contents
+        || contents.isDestroyed()
+        || tab.navigationGeneration !== navigationGeneration) {
+        throw new Error(`The page changed during ${inspection}. Run a fresh inspection.`)
+      }
     }
   }
 
@@ -2297,12 +2303,14 @@ export class BrowserTabsManager {
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
       throw new Error('IndexedDB inspection is available only for HTTP and HTTPS tabs.')
     }
+    const requireCurrentPage = this.inspectionPageGuard(tab, 'IndexedDB inspection')
     const normalized = normalizeBrowserIndexedDbOptions(options)
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       INDEXED_DB_WORLD_ID,
       [{ code: indexedDbPageScript(normalized) }],
       false
     ) as Omit<BrowserIndexedDbReport, 'tabId' | 'url' | 'origin' | 'caveats'>
+    requireCurrentPage()
     return {
       tabId: tab.id,
       url: redactNetworkUrl(tab.url),
@@ -2328,15 +2336,18 @@ export class BrowserTabsManager {
       throw new Error('Storage usage inspection is available only for HTTP and HTTPS tabs.')
     }
 
+    const requireCurrentPage = this.inspectionPageGuard(tab, 'storage usage inspection')
     try {
-      const raw = await this.withDebugger(tab.webContents, () =>
-        tab.webContents.debugger.sendCommand('Storage.getUsageAndQuota', { origin: pageUrl.origin }) as Promise<{
+      const raw = await this.withDebugger(tab.webContents, () => {
+        requireCurrentPage()
+        return tab.webContents.debugger.sendCommand('Storage.getUsageAndQuota', { origin: pageUrl.origin }) as Promise<{
           usage?: number
           quota?: number
           overrideActive?: boolean
           usageBreakdown?: Array<{ storageType?: string; usage?: number }>
         }>
-      )
+      })
+      requireCurrentPage()
       return buildBrowserStorageUsageReport({
         tabId: tab.id,
         url: redactNetworkUrl(tab.url),
@@ -2345,6 +2356,7 @@ export class BrowserTabsManager {
         raw
       })
     } catch (error) {
+      requireCurrentPage()
       const estimate = await tab.webContents.executeJavaScriptInIsolatedWorld(
         STORAGE_USAGE_WORLD_ID,
         [{ code: `(() => navigator.storage?.estimate?.().then((value) => ({
@@ -2354,6 +2366,7 @@ export class BrowserTabsManager {
         })).catch(() => null) ?? Promise.resolve(null))()` }],
         false
       ).catch(() => null) as { usage?: number; quota?: number; usageDetails?: Record<string, number> } | null
+      requireCurrentPage()
       if (!estimate) throw error
       const reason = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)
       return buildBrowserStorageUsageReport({
@@ -2377,6 +2390,7 @@ export class BrowserTabsManager {
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
       throw new Error('Offline app inspection is available only for HTTP and HTTPS tabs.')
     }
+    const requireCurrentPage = this.inspectionPageGuard(tab, 'offline app inspection')
     const normalized = normalizeBrowserPwaOptions(options)
     const rawRegistrations = await tab.webContents.executeJavaScriptInIsolatedWorld(
       PWA_INSPECTOR_WORLD_ID,
@@ -2396,6 +2410,7 @@ export class BrowserTabsManager {
       }>
       truncated?: boolean
     }
+    requireCurrentPage()
     const worker = (value: { scriptUrl: string; state: string } | undefined) => value ? {
       scriptUrl: redactNetworkUrl(value.scriptUrl).slice(0, 4_096),
       state: redactDiagnosticText(value.state).slice(0, 64)
@@ -2439,8 +2454,10 @@ export class BrowserTabsManager {
 
     try {
       await this.withDebugger(tab.webContents, async () => {
+        requireCurrentPage()
         try {
           const manifestResult = await tab.webContents.debugger.sendCommand('Page.getAppManifest') as CdpAppManifestResult
+          requireCurrentPage()
           let installabilityErrors: CdpInstallabilityError[] = []
           try {
             const installabilityResult = await tab.webContents.debugger.sendCommand('Page.getInstallabilityErrors') as {
@@ -2453,24 +2470,27 @@ export class BrowserTabsManager {
               report.caveats.push(`Installability diagnostics were unavailable: ${redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)}`)
             }
           }
+          requireCurrentPage()
           report.manifest = sanitizePwaManifest(manifestResult, installabilityErrors)
         } catch (error) {
           report.manifestInspectionAvailable = false
           report.installabilityInspectionAvailable = false
           report.manifestInspectionError = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 1_000)
         }
+        requireCurrentPage()
         const cacheNames = await tab.webContents.debugger.sendCommand('CacheStorage.requestCacheNames', {
           securityOrigin: pageUrl.origin
         }) as {
           caches?: Array<{ cacheId: string; cacheName: string }>
         }
+        requireCurrentPage()
         const usableCaches = (cacheNames.caches ?? [])
           .filter((cache) => cache.cacheName.length <= PWA_INSPECTION_LIMITS.maxNameChars)
           .sort((left, right) => left.cacheName.localeCompare(right.cacheName))
         report.caches = usableCaches.slice(0, PWA_INSPECTION_LIMITS.maxCaches).map((cache) => ({
           name: sanitizeCacheStorageCacheName(cache.cacheName) ?? '(unnamed cache)'
         }))
-        report.cachesTruncated = usableCaches.length > report.caches.length || undefined
+        report.cachesTruncated = (cacheNames.caches?.length ?? 0) > report.caches.length || undefined
         if (!normalized.cacheName) return
         const selected = usableCaches.find((cache) => cache.cacheName === normalized.cacheName)
           ?? usableCaches.find((cache) => sanitizeCacheStorageCacheName(cache.cacheName) === normalized.cacheName)
@@ -2496,32 +2516,18 @@ export class BrowserTabsManager {
           }>
           returnCount?: number
         }
-        const headers = (values: Array<{ name: string; value: string }> | undefined) => {
-          const raw: Record<string, string | string[]> = {}
-          let remainingChars = PWA_INSPECTION_LIMITS.maxHeaderCharsTotal
-          for (const { name, value } of (values ?? []).slice(0, PWA_INSPECTION_LIMITS.maxHeaders)) {
-            const boundedName = redactDiagnosticText(name).slice(0, PWA_INSPECTION_LIMITS.maxHeaderNameChars)
-            const availableValueChars = remainingChars - boundedName.length
-            if (!boundedName || availableValueChars <= 0) break
-            const boundedValue = redactDiagnosticText(value).slice(0, Math.min(PWA_INSPECTION_LIMITS.maxHeaderValueChars, availableValueChars))
-            if (!boundedValue) continue
-            remainingChars -= boundedName.length + boundedValue.length
-            const previous = raw[boundedName]
-            raw[boundedName] = previous === undefined ? boundedValue : Array.isArray(previous) ? [...previous, boundedValue] : [previous, boundedValue]
-          }
-          return redactNetworkHeaders(raw)
-        }
+        requireCurrentPage()
         const entries = (entriesResult.cacheDataEntries ?? []).map((entry) => ({
           requestUrl: redactNetworkUrl(entry.requestURL).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars),
           requestMethod: redactDiagnosticText(entry.requestMethod).slice(0, 32),
-          ...(normalized.includeHeaders ? { requestHeaders: headers(entry.requestHeaders) } : {}),
+          ...(normalized.includeHeaders ? { requestHeaders: sanitizePwaHeaders(entry.requestHeaders) } : {}),
           responseStatus: entry.responseStatus,
           responseStatusText: redactDiagnosticText(entry.responseStatusText).slice(0, 256),
           responseType: redactDiagnosticText(entry.responseType).slice(0, 64),
           ...(entry.responseTime !== undefined && Number.isFinite(entry.responseTime)
             ? { responseTime: new Date(entry.responseTime * 1_000).toISOString() }
             : {}),
-          ...(normalized.includeHeaders ? { responseHeaders: headers(entry.responseHeaders) } : {})
+          ...(normalized.includeHeaders ? { responseHeaders: sanitizePwaHeaders(entry.responseHeaders) } : {})
         }))
         const totalEntries = Math.max(0, Math.floor(entriesResult.returnCount ?? entries.length))
         report.selectedCache = {
@@ -2542,6 +2548,7 @@ export class BrowserTabsManager {
       report.cacheInspectionAvailable = false
       report.cacheInspectionError = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 1_000)
     }
+    requireCurrentPage()
     return report
   }
 
@@ -2731,7 +2738,7 @@ export class BrowserTabsManager {
       if (remainingPreviewBytes <= 0) return value ? { valuePreviewTruncated: true } : { valuePreview: '' }
       const buffer = Buffer.from(value, 'utf8')
       const allowed = Math.min(MAX_STORAGE_CHANGE_VALUE_BYTES, remainingPreviewBytes)
-      const preview = buffer.subarray(0, allowed).toString('utf8')
+      const preview = utf8Prefix(buffer, allowed)
       const bytes = Buffer.byteLength(preview, 'utf8')
       remainingPreviewBytes -= bytes
       return {
@@ -2794,12 +2801,14 @@ export class BrowserTabsManager {
     value: string | undefined,
     includeValues: boolean
   ): Promise<BrowserStorageResult> {
-    const cookies = await tab.webContents.session.cookies.get({ url: tab.url })
+    const cookieStore = tab.webContents.session.cookies
+    const url = pageUrl.href
+    const cookies = await cookieStore.get({ url })
     let changed: boolean | undefined
     if (action === 'set') {
       const protectedMatch = cookies.some((cookie) => cookie.name === key && cookie.httpOnly)
       if (protectedMatch) throw new Error('HttpOnly cookies are protected and cannot be replaced by the storage manager.')
-      await tab.webContents.session.cookies.set({
+      await cookieStore.set({
         url: pageUrl.origin,
         name: key!,
         value: value!,
@@ -2812,14 +2821,14 @@ export class BrowserTabsManager {
       const matches = cookies.filter((cookie) => cookie.name === key)
       const editable = matches.filter((cookie) => !cookie.httpOnly)
       if (matches.length && !editable.length) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-      for (const cookie of editable) await tab.webContents.session.cookies.remove(this.cookieRemovalUrl(cookie), cookie.name)
+      for (const cookie of editable) await cookieStore.remove(this.cookieRemovalUrl(cookie), cookie.name)
       changed = editable.length > 0
     } else if (action === 'clear') {
       const editable = cookies.filter((cookie) => !cookie.httpOnly)
-      for (const cookie of editable) await tab.webContents.session.cookies.remove(this.cookieRemovalUrl(cookie), cookie.name)
+      for (const cookie of editable) await cookieStore.remove(this.cookieRemovalUrl(cookie), cookie.name)
       changed = editable.length > 0
     }
-    const next = await tab.webContents.session.cookies.get({ url: tab.url })
+    const next = await cookieStore.get({ url })
     const selected = action === 'get' ? next.filter((cookie) => cookie.name === key) : next
     const rawItems: Array<[string, string, Omit<BrowserStorageItem, 'key' | 'value' | 'valueBytes'>]> = selected.map((cookie) => [
       cookie.name,
@@ -2833,52 +2842,19 @@ export class BrowserTabsManager {
         sameSite: cookie.sameSite
       }
     ])
-    const bounded = this.boundStorageItems(rawItems, includeValues || action === 'get', true)
+    const bounded = boundStorageItems(rawItems, includeValues || action === 'get', true)
     return {
       tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
+      url: redactNetworkUrl(url),
       origin: pageUrl.origin,
       kind: 'cookies',
       action,
       itemCount: next.length,
       items: bounded.items,
       changed,
-      truncated: next.length > MAX_STORAGE_ITEMS || bounded.truncated || undefined,
+      truncated: bounded.truncated || undefined,
       note: 'HttpOnly cookie values are protected. Non-HttpOnly cookies and local storage are shared by origin only inside this workspace.'
     }
-  }
-
-  private boundStorageItems(
-    items: Array<[string, string, Omit<BrowserStorageItem, 'key' | 'value' | 'valueBytes'>?]>,
-    includeValues: boolean,
-    protectValues = false
-  ): { items: BrowserStorageItem[]; truncated: boolean } {
-    let remainingBytes = MAX_STORAGE_OUTPUT_TOTAL_BYTES
-    let truncated = items.length > MAX_STORAGE_ITEMS
-    const bounded = items.slice(0, MAX_STORAGE_ITEMS).map(([key, value, metadata]) => {
-      const valueBytes = Buffer.byteLength(value, 'utf8')
-      const protectedValue = protectValues && metadata?.protected === true
-      let returnedValue: string | undefined
-      let valueTruncated = false
-      if (includeValues && !protectedValue && remainingBytes > 0) {
-        const maxBytes = Math.min(MAX_STORAGE_OUTPUT_VALUE_BYTES, remainingBytes)
-        const buffer = Buffer.from(value, 'utf8')
-        returnedValue = buffer.subarray(0, maxBytes).toString('utf8')
-        valueTruncated = buffer.length > maxBytes
-        remainingBytes -= Buffer.byteLength(returnedValue, 'utf8')
-      } else if (includeValues && !protectedValue && valueBytes > 0) {
-        valueTruncated = true
-      }
-      if (valueTruncated) truncated = true
-      return {
-        key,
-        value: returnedValue,
-        valueBytes,
-        valueTruncated: valueTruncated || undefined,
-        ...metadata
-      }
-    })
-    return { items: bounded, truncated }
   }
 
   private cookieRemovalUrl(cookie: { domain?: string; path?: string; secure?: boolean }): string {
@@ -3002,6 +2978,9 @@ export class BrowserTabsManager {
 
   setMemorySaverSettings(enabled: boolean, timeoutMinutes: MemorySaverTimeoutMinutes): void {
     if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
+    if (this.memorySaverEnabled !== enabled || this.memorySaverTimeoutMinutes !== timeoutMinutes) {
+      this.memorySaverSettingsGeneration += 1
+    }
     this.memorySaverEnabled = enabled
     this.memorySaverTimeoutMinutes = timeoutMinutes
     if (!enabled) {
@@ -4082,6 +4061,13 @@ export class BrowserTabsManager {
       this.rememberClosedTab(candidate)
       this.removeTabRecord(candidate)
     }
+    if (!this.activeTabId) {
+      const replacement = this.orderedTabs().find(candidate => (
+        candidate.id !== tab.id && !candidate.webContents.isDestroyed()
+      ))
+      if (replacement) this.selectTab(replacement.id)
+      else if (!webContents.isDestroyed()) this.selectTab(tab.id)
+    }
     if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
@@ -4244,7 +4230,7 @@ export class BrowserTabsManager {
   }
 
   private removeTabRecord(tab: BrowserTab): void {
-    const browserSession = tab.webContents.isDestroyed() ? undefined : tab.webContents.session
+    const browserSession = tab.browserSession
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewPreviewCaptures.cancelPending(tab.id)
     this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -4255,8 +4241,8 @@ export class BrowserTabsManager {
     this.tabs.delete(tab.id)
     this.globallyUnlockedTabIds.delete(tab.id)
     this.globallyResumedAgentTabIds.delete(tab.id)
-    if (browserSession && ![...this.tabs.values()].some((candidate) => (
-      !candidate.webContents.isDestroyed() && candidate.webContents.session === browserSession
+    if (![...this.tabs.values()].some((candidate) => (
+      !candidate.webContents.isDestroyed() && candidate.browserSession === browserSession
     ))) {
       const listener = this.browserSessionAuthorityHooks.get(browserSession)
       if (listener) browserSession.cookies.removeListener('changed', listener)
@@ -4524,7 +4510,21 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
+  private enqueueInteractionLockMutation(operation: () => Promise<BrowserState>): Promise<BrowserState> {
+    const result = this.interactionLockTail.then(() => {
+      if (this.destroyed) throw new Error('Browser tabs manager has been destroyed')
+      return operation()
+    })
+    // Keep each mutation and any rollback together across tab and global requests.
+    this.interactionLockTail = result.then(() => undefined, () => undefined)
+    return result
+  }
+
+  setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
+    return this.enqueueInteractionLockMutation(() => this.applyTabHumanInteractionLocked(tabId, locked))
+  }
+
+  private async applyTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     if (!locked && tab.mcpGroupId && this.mcpTabGroups.get(tab.mcpGroupId)?.contextClass === 'public-observer') {
       throw new Error('Page input remains locked in a read-only public observer workspace.')
@@ -4562,7 +4562,11 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
+  setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
+    return this.enqueueInteractionLockMutation(() => this.applyAllHumanInteractionLocked(locked))
+  }
+
+  private async applyAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
     const previousLocked = this.allHumanInteractionLocked
     const previousGloballyUnlockedTabIds = new Set(this.globallyUnlockedTabIds)
     this.allHumanInteractionLocked = locked
@@ -5798,7 +5802,7 @@ export class BrowserTabsManager {
     return this.diagnosticLogState(tab.id)
   }
 
-  async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined): Promise<BrowserVideoState> {
+  async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined, signal?: AbortSignal): Promise<BrowserVideoState> {
     const tab = this.getTab(options.tabId)
     const origin = new URL(tab.url).origin
     const workspaceId = tab.mcpGroupId
@@ -5829,7 +5833,7 @@ export class BrowserTabsManager {
     const validateSource = (): void => {
       if (this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new Error('Return to the recording origin to access this video, or discard it')
     }
-    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource)
+    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal)
   }
 
   videoPreview(tabId: string): Uint8Array {
@@ -5965,6 +5969,10 @@ export class BrowserTabsManager {
       },
       response: {
         headers: responseHeaders,
+        ...(request.bodyAvailable && request.responseBodySizeBytes !== undefined
+          ? { bodySizeBytes: request.responseBodySizeBytes } : {}),
+        ...(request.bodyAvailable && request.responseContentSizeBytes !== undefined
+          ? { contentSizeBytes: request.responseContentSizeBytes } : {}),
         ...(request.mimeType ? { mimeType: request.mimeType } : {}),
         ...(request.protocol ? { protocol: request.protocol } : {}),
         ...(serverTiming.length ? { serverTiming } : {}),
@@ -6160,13 +6168,19 @@ export class BrowserTabsManager {
       const evaluated = await webContents.debugger.sendCommand('Runtime.evaluate', {
         expression: targetExpression(target),
         returnByValue: false
-      }) as { result?: { objectId?: string; subtype?: string } }
-      const objectId = evaluated.result?.objectId
-      if (!objectId || evaluated.result?.subtype === 'null') throw new Error('File input not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.')
+      }) as {
+        result?: { objectId?: string; subtype?: string }
+        exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
+      }
       try {
+        if (evaluated.exceptionDetails) {
+          throw new Error(evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text ?? 'File input lookup failed')
+        }
+        const objectId = evaluated.result?.objectId
+        if (!objectId || evaluated.result?.subtype === 'null') throw new Error('File input not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.')
         await webContents.debugger.sendCommand('DOM.setFileInputFiles', { files: paths, objectId })
       } finally {
-        await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId }).catch(() => undefined)
+        await this.releaseDebuggerEvaluationObjects(webContents, evaluated)
       }
     }))
     return { files: [...paths] }
@@ -7283,6 +7297,7 @@ export class BrowserTabsManager {
       muted: (this.allTabsMuted || options.muted === true) && !isHronautHomeUrl(url),
       view,
       webContents: view.webContents,
+      browserSession: view.webContents.session,
       consoleMessages: [],
       pendingRuntimeConsoleMessages: [],
       networkRequests: [],
@@ -8391,9 +8406,9 @@ export class BrowserTabsManager {
     })()`, true).catch(() => undefined)
   }
 
-  private async putTabToSleep(tab: BrowserTab, reportBlocked: boolean): Promise<boolean> {
+  private async putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent: () => boolean = () => true): Promise<boolean> {
     if (tab.wakePromise) await tab.wakePromise
-    if (tab.sleeping) return false
+    if (!isCurrent() || tab.sleeping) return false
     const blockReason = this.sleepBlockReason(tab)
     if (blockReason) {
       if (reportBlocked) throw new Error(blockReason)
@@ -8403,6 +8418,7 @@ export class BrowserTabsManager {
       if (reportBlocked) throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
       return false
     }
+    if (!isCurrent()) return false
     const latestBlockReason = this.sleepBlockReason(tab)
     if (latestBlockReason) {
       if (reportBlocked) throw new Error(latestBlockReason)
@@ -8475,10 +8491,13 @@ export class BrowserTabsManager {
 
   private async runMemorySaverSweep(force: boolean): Promise<void> {
     if (!this.memorySaverEnabled) return
+    const generation = this.memorySaverSettingsGeneration
+    const isCurrent = () => !this.destroyed && this.memorySaverEnabled && generation === this.memorySaverSettingsGeneration
     const cutoff = memorySaverCutoff(Date.now(), this.memorySaverTimeoutMinutes)
     for (const tab of this.tabs.values()) {
+      if (!isCurrent()) return
       if (tab.sleeping || (!force && tab.lastActiveAt > cutoff)) continue
-      await this.putTabToSleep(tab, false)
+      await this.putTabToSleep(tab, false, isCurrent)
     }
   }
 
@@ -8561,7 +8580,7 @@ export class BrowserTabsManager {
         index: tab.sleepNavigationHistory.index
       }
     }
-    return safeNavigationHistorySnapshot(tab.view?.webContents)
+    return safeNavigationHistorySnapshot(tab.webContents)
   }
 
   private validateTarget(target: { ref?: string; selector?: string }): void {
@@ -8739,6 +8758,9 @@ export class BrowserTabsManager {
   }
 
   private focusTabOrTrustedChrome(tab: BrowserTab): void {
+    // Tab creation, replacement and renderer recovery also run in the
+    // background. Only transfer keyboard focus inside an already active shell.
+    if (this.window.isDestroyed() || !this.window.isFocused()) return
     if (this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)) {
       this.window.webContents.focus()
       return
@@ -9142,7 +9164,6 @@ export class BrowserTabsManager {
     this.backgroundAgentInputFocusGuardDepth += 1
     if (this.backgroundAgentInputFocusGuardDepth !== 1 || this.window.isDestroyed()) return
     this.mainWindowFocusableBeforeAgentInput = this.window.isFocusable()
-    this.backgroundAgentFocusOwnerWindowId = BrowserWindow.getFocusedWindow()?.id ?? null
     if (this.mainWindowFocusableBeforeAgentInput) this.window.setFocusable(false)
   }
 
@@ -9159,18 +9180,14 @@ export class BrowserTabsManager {
     this.backgroundAgentInputFocusGuardDepth = Math.max(0, this.backgroundAgentInputFocusGuardDepth - 1)
     if (this.backgroundAgentInputFocusGuardDepth !== 0) return
     const restoreFocusable = this.mainWindowFocusableBeforeAgentInput
-    const focusOwnerWindowId = this.backgroundAgentFocusOwnerWindowId
     this.mainWindowFocusableBeforeAgentInput = true
-    this.backgroundAgentFocusOwnerWindowId = null
     const currentFocusOwner = BrowserWindow.getFocusedWindow()
     if (restoreFocusable && !this.window.isDestroyed() && !this.window.isFocusable()) {
       this.window.setFocusable(true)
     }
-    const focusOwner = currentFocusOwner && currentFocusOwner !== this.window
-      ? currentFocusOwner
-      : focusOwnerWindowId === null
-        ? null
-        : BrowserWindow.fromId(focusOwnerWindowId)
+    // No focused Electron window means the human may have switched to another
+    // application. Never revive an owner captured before the operation.
+    const focusOwner = currentFocusOwner
     if (focusOwner && focusOwner !== this.window && !focusOwner.isDestroyed()) {
       focusOwner.focus()
     } else if (!this.window.isDestroyed() && this.window.isFocused()) {
@@ -9663,13 +9680,37 @@ export class BrowserTabsManager {
       returnByValue: true,
       userGesture: true
     }) as {
-      result?: { value?: unknown; unserializableValue?: string }
-      exceptionDetails?: { text?: string; exception?: { description?: string } }
+      result?: { value?: unknown; unserializableValue?: string; objectId?: string }
+      exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
     }
-    if (response.exceptionDetails) {
-      throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Page script failed')
+    try {
+      if (response.exceptionDetails) {
+        throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Page script failed')
+      }
+      return response.result && Object.hasOwn(response.result, 'value')
+        ? response.result.value
+        : response.result?.unserializableValue
+    } finally {
+      await this.releaseDebuggerEvaluationObjects(webContents, response)
     }
-    return response.result?.value ?? response.result?.unserializableValue
+  }
+
+  private async releaseDebuggerEvaluationObjects(
+    webContents: BrowserTab['view']['webContents'],
+    response: {
+      result?: { objectId?: string }
+      exceptionDetails?: { exception?: { objectId?: string } }
+    }
+  ): Promise<void> {
+    // Exceptions can allocate separate result and exception handles, even with
+    // returnByValue enabled. Cleanup must not replace the operation's error.
+    const objectIds = new Set([
+      response.result?.objectId,
+      response.exceptionDetails?.exception?.objectId
+    ].filter((objectId): objectId is string => typeof objectId === 'string'))
+    await Promise.allSettled([...objectIds].map(async (objectId) => {
+      await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId })
+    }))
   }
 
   private async mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
@@ -9980,22 +10021,8 @@ export class BrowserTabsManager {
     this.downloadController.attachSession(browserSession)
   }
 
-  private async writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
-    await mkdir(this.options.downloadDirectory, { recursive: true })
-    const extension = extname(filename)
-    const stem = filename.slice(0, filename.length - extension.length)
-    for (let index = 0; index <= 9_999; index += 1) {
-      const candidateName = index === 0 ? filename : `${stem} (${index})${extension}`
-      const candidate = join(this.options.downloadDirectory, candidateName)
-      try {
-        validate()
-        await writeFile(candidate, data, { flag: 'wx' })
-        return candidate
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      }
-    }
-    throw new Error(`Could not allocate a unique download path for ${filename}`)
+  private writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
+    return writeUniqueDownloadFile(this.options.downloadDirectory, filename, data, validate)
   }
 
   private changed(persist = true): void {

@@ -56,6 +56,62 @@ afterEach(() => {
 })
 
 describe('Home action recovery', () => {
+  it('preserves selected readiness text when a status refresh has unchanged content', async () => {
+    const page = mount()
+    await settle()
+    const target = document.querySelector('#readiness-report')!
+    const selection = window.getSelection()!
+    const range = document.createRange()
+    range.selectNodeContents(target)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const selectedText = selection.toString()
+    expect(selectedText).not.toBe('')
+    page.update({ ...state, totalRequests: 1 })
+    expect(selection.toString()).toBe(selectedText)
+    selection.removeAllRanges()
+  })
+
+  it('selects the current copy target and reports its failure for manual copying', async () => {
+    mount({ copyText: vi.fn().mockRejectedValue(new Error('Clipboard unavailable')) })
+    const target = document.querySelector('#guide-code')!
+    button('[data-copy-target="guide-code"]').click()
+    await settle()
+    expect(document.querySelector('#copy-status')!.textContent).toMatch(/failed/i)
+    expect(window.getSelection()!.toString()).toBe(target.textContent)
+    window.getSelection()!.removeAllRanges()
+  })
+
+  it('does not let an older copy failure replace the selection or status of a newer copy', async () => {
+    let rejectFirst!: (error: Error) => void
+    let finishSecond!: () => void
+    const copyText = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>((_, reject) => { rejectFirst = reject }))
+      .mockImplementationOnce(() => new Promise<void>(resolve => { finishSecond = resolve }))
+    mount({ copyText })
+    const selection = window.getSelection()!
+    const range = document.createRange()
+    range.selectNodeContents(document.querySelector('#readiness-report')!)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const selectedText = selection.toString()
+    expect(selectedText).not.toBe('')
+
+    button('[data-copy-target="guide-code"]').click()
+    button('[data-copy-target="readiness-report"]').click()
+    rejectFirst(new Error('Older copy rejected'))
+    await settle()
+
+    expect(button('[data-copy-target="guide-code"]').title).toBe('Older copy rejected')
+    expect(document.querySelector('#copy-status')!.textContent).toBe('')
+    expect(selection.toString()).toBe(selectedText)
+    finishSecond()
+    await settle()
+    expect(button('[data-copy-target="readiness-report"]').textContent).toMatch(/copied/i)
+    expect(document.querySelector('#copy-status')!.textContent).toBe('')
+    selection.removeAllRanges()
+  })
+
   it('restores workspace actions after filtering during a pending action', async () => {
     let finish!: (value: HomeBootstrap['workspaces']) => void
     mount({ workspaceAction: () => new Promise(resolve => { finish = resolve }) })
@@ -487,6 +543,51 @@ describe('Home workspace hub', () => {
     expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
     expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project' })
     expect(document.querySelector('#workspace-notice')?.textContent).toBe('“Research <safe>” cleared.')
+  })
+
+  it.each([
+    ['hiddenFromSidebar', false, false], ['hiddenFromSidebar', true, false],
+    ['deletionProtected', false, false], ['deletionProtected', true, false],
+    ['hiddenFromSidebar', false, true], ['hiddenFromSidebar', true, true],
+    ['deletionProtected', false, true], ['deletionProtected', true, true]
+  ] as const)('restores %s=%s after a rejected preference change (archived=%s)', async (preference, stored, archived) => {
+    let reject!: (error: Error) => void
+    const action = vi.fn().mockImplementation(() => new Promise((_, fail) => { reject = fail }))
+    const group = { ...workspace, [preference]: stored, savedAt: workspace.lastUsedAt, tabs: [] }
+    const current = { ...inventory, mcpTabGroups: archived ? [] : [group], savedTabGroups: archived ? [group] : [] }
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(current), workspaceAction: action })
+    await settle()
+    if (archived) button('#workspaces-archived').click()
+    const card = document.querySelector<HTMLElement>('.home-workspace-card')!
+    const details = card.querySelector('details')!
+    details.open = true
+    const selector = `[data-workspace-preference="${preference}"]`
+    const input = card.querySelector<HTMLInputElement>(selector)!
+    input.checked = !stored
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(action).toHaveBeenCalledWith({ view: 'preferences', workspaceId: workspace.id, [preference]: !stored })
+    expect(input.disabled).toBe(true)
+    reject(new Error('Preference write failed'))
+    await settle()
+    expect(document.querySelector('#workspace-error')?.textContent).toBe('Preference write failed')
+    expect(card.querySelector(selector)).toBe(input)
+    expect(input.checked).toBe(stored)
+    expect(input.disabled).toBe(false)
+    expect(details.open).toBe(true)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(input.checked).toBe(stored)
+  })
+
+  it('reconciles a preference save that returns unchanged workspace state', async () => {
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory), workspaceAction: vi.fn().mockResolvedValue(inventory) })
+    await settle()
+    const input = document.querySelector<HTMLInputElement>('[data-workspace-preference="deletionProtected"]')!
+    input.checked = true
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    await settle()
+    expect(input.checked).toBe(false)
+    expect(input.disabled).toBe(false)
+    expect(document.querySelector('#workspace-error')?.textContent).toBe('')
   })
 
   it('does not let an older inventory read undo a completed preference change', async () => {

@@ -53,18 +53,28 @@ export class CommercialLicenseClient {
       throw new CommercialLicenseError('service_unavailable')
     }
 
-    let payload: Record<string, unknown> = {}
+    let parsed: unknown
     try {
-      payload = await response.json() as Record<string, unknown>
+      parsed = await response.json()
     } catch {
-      // A malformed upstream response is handled as a service failure below.
+      throw new CommercialLicenseError('service_unavailable', response.status)
     }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new CommercialLicenseError('service_unavailable', response.status)
+    }
+    const payload = parsed as Record<string, unknown>
     if (!response.ok) {
       const reason = typeof payload.reason === 'string' ? payload.reason : 'service_unavailable'
       throw new CommercialLicenseError(reason, response.status)
     }
-
-    const status = typeof payload.status === 'string' ? payload.status : 'inactive'
+    // A broken service response is not evidence that a stored license became
+    // inactive. Let the caller preserve the last successful validation.
+    if (typeof payload.valid !== 'boolean'
+      || typeof payload.status !== 'string' || !payload.status.trim()
+      || typeof payload.productId !== 'string' || !payload.productId.trim()) {
+      throw new CommercialLicenseError('service_unavailable', response.status)
+    }
+    const status = payload.status
     return {
       valid: payload.valid === true,
       status,

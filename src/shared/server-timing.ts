@@ -71,15 +71,19 @@ function parseMetric(value: string): BrowserServerTimingMetric | undefined {
   let descriptionSeen = false
   for (const rawParameter of rawParameters) {
     const separator = rawParameter.indexOf('=')
-    if (separator < 1) continue
-    const parameterName = rawParameter.slice(0, separator).trim().toLowerCase()
-    const value = parameterValue(rawParameter.slice(separator + 1))
+    const parameterName = (separator < 0 ? rawParameter : rawParameter.slice(0, separator)).trim().toLowerCase()
+    const value = separator < 0 ? undefined : parameterValue(rawParameter.slice(separator + 1))
     if (parameterName === 'dur' && !durationSeen) {
       durationSeen = true
+      if (value === undefined) continue
       const parsed = Number(value)
-      if (Number.isFinite(parsed) && parsed >= 0) durationMs = Math.round(parsed * 10) / 10
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        const rounded = Math.round(parsed * 10) / 10
+        durationMs = Number.isFinite(rounded) ? rounded : parsed
+      }
     } else if (parameterName === 'desc' && !descriptionSeen) {
       descriptionSeen = true
+      if (value === undefined) continue
       const sanitized = redactDiagnosticText(value)
         .replace(/[\u0000-\u001f\u007f]/g, ' ')
         .trim()

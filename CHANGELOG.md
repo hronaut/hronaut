@@ -4,7 +4,217 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.7] - 2026-09-30
+
+### Added
+
+- Compose complete browser clips with original music and sound effects, authorized WAV imports, timed volume/fades and Opus audio, camera zoom/pan and smooth cut transitions, with readable screen-anchored captions.
+
 ### Fixed
+
+- Update TronWeb’s HTTP dependency to patched Axios while retaining the existing TronWeb API and production dependency audit gate.
+
+- Settle canceled video exports immediately even when Electron leaves a destroyed export window’s page-load or encoder promise pending.
+
+- Reject obsolete CPU and code-coverage start completions without clearing newer recordings or reloading a detached coverage tab.
+
+- Reject obsolete CPU and code-coverage stop results after debugger detachment or tab replacement, preserving a newer recording instead of restoring or clearing stale profiling state.
+
+- Bound agent-follow activity to the latest 40 dispatches so abandoned older calls cannot accumulate or select an obsolete tab after recent work finishes.
+
+- Update build and lint brace parsers to patched versions that bound deeply nested glob expansion and address published recursion and rewrite advisories.
+
+- Update transitive URI and IP parsers to patched versions addressing published host-normalization, cross-family subnet, and oversized-input advisories.
+
+- Settle MCP activity history when saving a reviewed action outcome fails, preserving the reported storage error and allowing subsequent calls to be tracked.
+
+- Flush persisted state file contents before replacing the prior file, preserving the prior state if the storage flush fails.
+
+- Bound unfinished MCP activity metadata to the latest 40 dispatches so abandoned activities cannot accumulate throughout a long browser session.
+
+## [2.8.6] - 2026-09-30
+
+### Fixed
+
+- Sign hex-looking Solana and Tron message strings as their UTF-8 text, preserving EVM hex decoding and explicit binary message inputs.
+
+- Keep a live page selected when concurrent tab closing removes an already-destroyed active tab before its earlier close completes.
+
+- Show capability-profile validation errors for argument constraint keys that collide with JavaScript prototype names, allowing the form to be corrected and resubmitted.
+
+- Release workspace cookie listeners after the last tab closes, including when its native WebContents has already been destroyed.
+
+- Cancel docked-panel resizing when the panel closes or Escape is pressed, releasing the pointer and restoring the prior size preference without saving a partial drag.
+
+## [2.8.5] - 2026-09-30
+
+### Fixed
+
+- Restore workspace quick-setting checkboxes to their saved values after a rejected preference change, keeping open and archived cards accurate without rebuilding their controls.
+
+- Suppress errors from obsolete workspace editor lookups after a newer action, dismissal, or competing modal takes over, while retaining current lookup failures and the newer browser import destination.
+
+- Discard pending related network request selections when the panel context or selected request changes, preventing stale lookups and feedback in another tab.
+
+- Give recorded arrows and callout pointers rounded chevron heads, a matching contrast outline, and proportional heads for short arrows and drawing entrances.
+
+- Read navigation history through the retained tab handle so a native view being torn down cannot interrupt browser state snapshots.
+
+- Keep older HAR export completions from overwriting a newer clipboard copy or replacing its feedback with stale errors.
+
+- Track compressed response body bytes separately from decoded content bytes for accurate HAR sizes, without counting headers or sanitized text characters as body bytes.
+
+- Export HAR request body sizes from byte metadata, marking unavailable sizes as unknown instead of reporting character counts as bytes.
+
+- Copy HEAD requests with cURL header-only handling so valid responses do not hang or fail while waiting for a body.
+
+- Report file-upload selector errors directly and release their debugger handles instead of attempting to upload into an exception object.
+
+- Release remote debugger objects after script evaluation, including exception handles, so repeated failed evaluations do not retain extra references until navigation.
+
+- Preserve explicit null results from background and dialog-handled JavaScript evaluation instead of changing them to undefined.
+
+- Preserve thrown primitive values in console exception diagnostics instead of reporting only “Uncaught”, while retaining redaction and message limits.
+
+- Serialize native tab and global input-lock changes through rollback so a failed request cannot undo a newer successful lock.
+
+- Preserve regular-expression patterns and flags in IndexedDB previews, marking oversized patterns as truncated instead of displaying empty objects.
+
+- Keep keyboard focus moving between available modal controls when a fieldset or explicitly focusable button is disabled.
+
+- Show a waiting spinner while input-lock, mute, agent pause, or page lifecycle changes are queued or applying, and prevent duplicate clicks until they finish.
+
+- Do not restore an outdated window focus owner when an agent action finishes after the human has moved away from Hronaut.
+
+- Keep background tab replacement and page popups from requesting keyboard focus, and avoid raising an already visible window when an agent asks to show Hronaut.
+
+- Read only the bounded set of object property values needed for IndexedDB previews, avoiding full-record entry allocation for large objects.
+
+- Omit oversized IndexedDB field names with an explicit truncation marker instead of shortening them and overwriting another field in the preview.
+
+- Distinguish NaN and positive/negative infinity from null in IndexedDB record previews, including nested arrays and floating-point typed arrays.
+
+- Preserve complete empty storage values when diagnostic preview budgets are exhausted, instead of omitting them or marking them truncated.
+
+- Patch vulnerable undici dependencies used by Electron downloads and native-build tooling, including preservation of custom connection policies.
+
+- Preserve storage-change truncation markers when the snapshot preview budget omits a value completely.
+
+## [2.8.4] - 2026-09-29
+
+### Fixed
+
+- Read individual local/session storage keys directly instead of enumerating every entry on large sites.
+
+- Keep local/session storage results tied to the page where they ran, and reject operations if navigation changes the URL before execution.
+
+- Report complete single-key storage lookups accurately even when the site has more than 200 entries; retain truncation flags for capped lists and values.
+
+- Keep truncated storage previews out of the editor to prevent accidental replacement of complete values with partial text; explain how to enter a complete replacement.
+
+- Allow reading, editing, and deleting valid empty or whitespace-only local/session storage keys through MCP and the Site storage editor.
+
+- Preserve complete Unicode characters and byte limits in storage-change baselines and comparison values, sharing the storage preview decoder.
+
+- Preserve complete Unicode characters in bounded storage previews and keep multilingual values within per-value and total byte limits.
+
+- Keep cookie operations and their results scoped to the original page and browser session when the tab navigates during a storage request.
+
+- Reject IndexedDB and storage-usage reports collected across page changes, including the StorageManager fallback, using a shared inspection guard.
+
+- Reject offline-app inspections when the tab navigates or closes during collection, preventing reports that mix different pages.
+
+- Mark Cache Storage listings as incomplete when oversized cache names are omitted, instead of reporting only the remaining caches as a complete list.
+
+- Redact Cache Storage header values using complete header names before display limits, and preserve prototype-named headers as ordinary diagnostic data.
+
+- Resolve offline-app manifest URLs before redaction and truncation, protecting credentials in long protocol-relative URLs and preserving the correct base directory for relative fields.
+
+- Omit oversized page-metadata URLs explicitly instead of truncating credentials into misleading hostnames; keep relative links resolvable when the page URL is omitted.
+
+- Redact credentials in long console and network source URLs before truncating their display, preventing partial credentials from surviving a cut-off URL authority.
+
+- Avoid starting a stale memory measurement when allocation clearing finishes after switching tabs, reloading, or starting a newer diagnostic action.
+
+- Keep CPU-profile and code-coverage Stop results and errors visible when a background recording-state refresh arrives before the action completes.
+
+- Report offline-app diagnostic truncation accurately at the service-worker registration limit and when installability error arguments are omitted.
+
+- Identify omitted repeated references in IndexedDB previews without incorrectly calling shared objects circular, and mark these previews as truncated.
+
+- Limit IndexedDB Map and Set preview iteration to the displayed entries, avoiding a full temporary copy of large collections.
+
+- Preserve prototype-named fields in IndexedDB record previews instead of silently omitting them.
+
+- Report JSON-LD types independently for each metadata block, including types already present in other blocks or a full page summary.
+
+- Associate Open Graph image dimensions and alt text with the correct image when pages declare multiple images with optional metadata.
+
+- Avoid repeated full parameter rewrites when redacting duplicate secret fields in network URLs and form bodies.
+
+- Preserve prototype-named JSON fields and headers in network diagnostics as ordinary data keys while retaining secret redaction.
+
+- Omit deeply nested JSON network bodies when they cannot be safely redacted, preventing raw secret fields from appearing after a sanitizer failure.
+
+- Show IndexedDB BigInt typed-array previews without dropping the enclosing record, and limit array conversion to the previewed elements.
+
+- Preserve literal bracketed URL paths in copied cURL commands instead of rejecting them or expanding them into multiple requests.
+
+- Prevent repeated wildcards in Network domain filters from freezing the interface or blocking network diagnostics.
+
+- Keep Server-Timing diagnostics faithful to incomplete first parameters and preserve finite durations when rounding very large values.
+
+- Preserve the last successful license validation when the service returns malformed or incomplete data instead of incorrectly marking the license inactive.
+
+- Support arrow, Home, and End keys in the workspace color picker, with a single Tab stop and focus following the selected color.
+
+- Make the search-engine radio group navigable with arrow, Home, and End keys, with one Tab stop and stable focus while saving.
+
+- Release unused response streams when release-history requests fail, including rate limits that fall back to cached history.
+
+## [2.8.3] - 2026-09-29
+
+### Fixed
+
+- Cancel pending Memory Saver sweeps when its settings change, so disabling it during a form-safety check cannot put a tab to sleep afterward.
+
+- Clean up temporary MCP token files when startup persistence fails, preserving owner-only permissions and allowing a clean retry.
+
+- Remove partial PDF, HAR, and video export files after a failed write, allowing retries to reuse the filename without overwriting existing files or deleting files that replaced a moved export.
+
+- Close the hidden video export window and release its timeout and abort listener if renderer setup fails.
+
+- Support Up and Down as well as Left and Right in the preview scale selector, moving keyboard focus and selection together without scrolling the page.
+
+- Keep zoom controls usable after switching tabs while an earlier zoom request is pending, and prevent its late result from changing the new tab’s feedback or busy state.
+
+- Keep superseded address-navigation errors from replacing or suppressing the latest error after an intervening navigation completes.
+
+## [2.8.2] - 2026-09-29
+
+### Fixed
+
+- Preserve long download filenames when saving duplicates by making room for the numbered suffix without splitting Unicode characters or overwriting existing files.
+
+- Keep PDF and HAR export filenames within filesystem byte limits for long non-ASCII page titles, preserving whole Unicode characters and room for duplicate-file suffixes.
+
+- Keep an older Home copy failure from replacing shared feedback or selecting stale text after another copy action starts, and preserve selected text when status polling leaves its content unchanged.
+
+- Correct the browser-mute documentation to explain temporary per-tab exceptions and when saved mute preferences are restored.
+
+- Bound hostname title fallbacks so blank-title bookmarks and history entries on long hostnames survive restart.
+
+- Allow address suggestions to retry after native popup setup fails, closing the failed popup instead of retaining an unusable cached load.
+
+- Close workspace storage probes after setup failures and continue restoring cookies when a local-storage rollback probe cannot be created.
+
+- Discard delayed reproduction scroll captures after navigation so input from the previous document cannot create a scroll step on the new page.
+
+- Keep the MCP port field and confirmation aligned with newer settings events when an older port-change or reset response finishes.
+
+- Preserve newer settings events when a delayed download-folder or download-preference response arrives, preventing stale responses from reverting other preferences.
+
+- Update the rate limiter's transitive IP address dependency to 10.5.1, incorporating upstream IPv6 classification security fixes.
 
 - Bound MCP JSON-RPC batches to 100 messages with the SDK 1.30.1 patch, preventing one HTTP request from dispatching an oversized batch.
 

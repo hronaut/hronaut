@@ -1,7 +1,7 @@
 import type { BrowserPwaOptions } from './types.js'
 import type { BrowserPwaManifest } from './types.js'
 import { redactDiagnosticText } from './debug-report.js'
-import { redactNetworkUrl } from './network-details.js'
+import { redactNetworkHeaders, redactNetworkUrl } from './network-details.js'
 
 export const PWA_INSPECTION_LIMITS = {
   maxCaches: 100,
@@ -54,7 +54,8 @@ export function pwaRegistrationsPageScript(): string {
       scriptUrl: String(value.scriptURL || '').slice(0, 4096),
       state: String(value.state || 'parsed')
     } : undefined;
-    const registrations = (await navigator.serviceWorker.getRegistrations())
+    const allRegistrations = await navigator.serviceWorker.getRegistrations();
+    const registrations = allRegistrations
       .slice(0, maxRegistrations)
       .map((registration) => ({
         scope: String(registration.scope || '').slice(0, 4096),
@@ -69,7 +70,7 @@ export function pwaRegistrationsPageScript(): string {
       controller: worker(navigator.serviceWorker.controller),
       registrations,
       supported: true,
-      truncated: registrations.length >= maxRegistrations,
+      truncated: allRegistrations.length > maxRegistrations,
       maxNameChars
     };
   })()`
@@ -98,12 +99,12 @@ function stringValue(value: unknown, maxChars: number = PWA_INSPECTION_LIMITS.ma
 }
 
 function urlValue(value: unknown, baseUrl: string): string | undefined {
-  const text = stringValue(value, PWA_INSPECTION_LIMITS.maxUrlChars)
+  const text = typeof value === 'string' ? value.trim() : undefined
   if (!text) return undefined
   try {
-    return redactNetworkUrl(new URL(text, baseUrl).href).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars)
+    return redactNetworkUrl(redactDiagnosticText(new URL(text, baseUrl).href)).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars)
   } catch {
-    return redactNetworkUrl(text).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars)
+    return stringValue(redactNetworkUrl(text), PWA_INSPECTION_LIMITS.maxUrlChars)
   }
 }
 
@@ -127,7 +128,7 @@ export function sanitizePwaManifest(
   const source = sourceManifest(result)
   const value = source.value
   if (!manifestUrl && !value && !(result.errors?.length) && !installabilityErrors.length) return undefined
-  const baseUrl = manifestUrl || 'http://invalid.local/'
+  const baseUrl = result.url || 'http://invalid.local/'
   const field = (camelCase: string, snakeCase = camelCase) => value?.[camelCase] ?? value?.[snakeCase]
   const icons = Array.isArray(value?.icons) ? value.icons : []
   const shortcuts = Array.isArray(value?.shortcuts) ? value.shortcuts : []
@@ -181,6 +182,25 @@ export function sanitizePwaManifest(
       || shortcuts.length > PWA_INSPECTION_LIMITS.maxManifestShortcuts
       || (result.errors?.length ?? 0) > PWA_INSPECTION_LIMITS.maxManifestErrors
       || installabilityErrors.length > PWA_INSPECTION_LIMITS.maxManifestErrors
+      || installabilityErrors.some(error => (error.errorArguments?.length ?? 0) > PWA_INSPECTION_LIMITS.maxManifestErrorArguments)
       || undefined
   }
+}
+
+export function sanitizePwaHeaders(values: Array<{ name: string; value: string }> | undefined): Record<string, string | string[]> {
+  const headers = Object.create(null) as Record<string, string | string[]>
+  let remainingChars = PWA_INSPECTION_LIMITS.maxHeaderCharsTotal
+  for (const { name, value } of (values ?? []).slice(0, PWA_INSPECTION_LIMITS.maxHeaders)) {
+    const boundedName = redactDiagnosticText(name).slice(0, PWA_INSPECTION_LIMITS.maxHeaderNameChars)
+    const availableValueChars = remainingChars - boundedName.length
+    if (!boundedName || availableValueChars <= 0) break
+    // Detect sensitive names before shortening them for display.
+    const safeValue = String(redactNetworkHeaders({ [name]: value })[name])
+    const boundedValue = redactDiagnosticText(safeValue).slice(0, Math.min(PWA_INSPECTION_LIMITS.maxHeaderValueChars, availableValueChars))
+    if (!boundedValue) continue
+    remainingChars -= boundedName.length + boundedValue.length
+    const previous = headers[boundedName]
+    headers[boundedName] = previous === undefined ? boundedValue : Array.isArray(previous) ? [...previous, boundedValue] : [previous, boundedValue]
+  }
+  return headers
 }

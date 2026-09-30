@@ -19,6 +19,19 @@ async function createStore(): Promise<{ path: string; store: BookmarkStore }> {
 }
 
 describe('BookmarkStore', () => {
+  it('keeps blank-title bookmarks on long hostnames reloadable after add and rename', async () => {
+    const { path, store } = await createStore()
+    const hostname = `${'a'.repeat(60)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(40)}.test`
+    const saved = await store.add({ url: `https://${hostname}/`, title: '   ' })
+    expect(saved.title).toBe(hostname.slice(0, 200))
+    await expect(new BookmarkStore(path).load()).resolves.toEqual([saved])
+
+    await store.rename(saved.id, 'Explicit title')
+    const renamed = await store.rename(saved.id, '')
+    expect(renamed.title).toBe(hostname.slice(0, 200))
+    await expect(new BookmarkStore(path).load()).resolves.toEqual([renamed])
+  })
+
   it('keeps complete Unicode characters when adding and renaming bounded titles', async () => {
     const { path, store } = await createStore()
     const prefix = 'T'.repeat(199)

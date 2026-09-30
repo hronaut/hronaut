@@ -33,7 +33,7 @@ function move(event: KeyboardEvent, direction: number): void {
 </script>
 
 <template>
-  <div ref="root" class="ui-segmented" role="radiogroup" :aria-label="label" :aria-disabled="disabled || undefined" @keydown.left="move($event, -1)" @keydown.right="move($event, 1)">
+  <div ref="root" class="ui-segmented" role="radiogroup" :aria-label="label" :aria-disabled="disabled || undefined" @keydown.left="move($event, -1)" @keydown.up="move($event, -1)" @keydown.right="move($event, 1)" @keydown.down="move($event, 1)">
     <UiButton
       v-for="option in options"
       :key="option.value"

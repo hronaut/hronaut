@@ -86,7 +86,8 @@ function copyPayload(details: BrowserNetworkRequestDetails): CopyPayload {
 
   const requestBody = details.request.body
   const requestBodyText = requestBody?.text
-  const bodyIsOmittedPlaceholder = requestBodyText?.startsWith('[multipart body omitted]')
+  const bodyIsOmittedPlaceholder = requestBodyText?.startsWith('[JSON body omitted:')
+    || requestBodyText?.startsWith('[multipart body omitted]')
     || requestBodyText?.startsWith('[non-text body omitted]')
     || requestBodyText?.startsWith('[binary body omitted]')
   const body = requestBody
@@ -120,9 +121,10 @@ function safetySummary(payload: CopyPayload): string {
 }
 
 function formatCurl(payload: CopyPayload): string {
+  const methodOption = payload.method === 'HEAD' ? '--head' : `--request ${shellQuote(payload.method)}`
   const lines = [
     `# ${safetySummary(payload)}`,
-    `curl --request ${shellQuote(payload.method)} \\`,
+    `curl ${methodOption} --globoff \\`,
     `  --url ${shellQuote(payload.url)}`
   ]
   for (const header of payload.headers) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dockerInstallInputs } from '../scripts/docker-install-inputs.js'
+import { dependencyInstallManifest, dockerInstallInputs } from '../scripts/docker-install-inputs.js'
 import { dependencyLockHash } from '../scripts/docker-dependency-cache-key.js'
 
 const source = {
@@ -11,6 +11,16 @@ const source = {
 }
 
 describe('Docker install inputs', () => {
+  it('preserves package-only overrides in both full and focused Docker manifests', () => {
+    const packageJson = { version: '2.8.6', overrides: { tronweb: { axios: '1.20.0' } } }
+    const inputs = dockerInstallInputs(JSON.stringify(source), JSON.stringify(packageJson))
+    expect(JSON.parse(inputs.manifest).overrides).toEqual(packageJson.overrides)
+    expect(dependencyInstallManifest(packageJson)).toEqual({ overrides: packageJson.overrides })
+    expect(dockerInstallInputs(JSON.stringify(source), JSON.stringify({ ...packageJson, version: '2.8.7' })))
+      .toEqual(inputs)
+    expect(dockerInstallInputs(JSON.stringify(source), JSON.stringify({ overrides: { tronweb: { axios: '1.21.0' } } })).manifest)
+      .not.toBe(inputs.manifest)
+  })
   it('produces identical install inputs after a release-only version bump', () => {
     const next = structuredClone(source)
     next.version = next.packages[''].version = '2.5.20'

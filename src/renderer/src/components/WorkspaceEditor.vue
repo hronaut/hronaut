@@ -24,7 +24,8 @@ import type {
 import {
   BROWSER_TAB_GROUP_COLORS,
   BROWSER_TAB_GROUP_COLOR_HEX,
-  tabGroupColorLabel
+  tabGroupColorLabel,
+  isBrowserTabGroupColor
 } from '../../../shared/tab-groups.js'
 import { useWorkspaceEditorController } from '../composables/useWorkspaceEditorController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
@@ -115,6 +116,27 @@ function colorStyle(value: (typeof BROWSER_TAB_GROUP_COLORS)[number]): Record<st
   return { '--tab-group-color': BROWSER_TAB_GROUP_COLOR_HEX[value] }
 }
 
+function navigateColor(event: KeyboardEvent): void {
+  const current = event.currentTarget
+  if (!(current instanceof HTMLButtonElement)) return
+  const radios = [...(current.closest('[role="radiogroup"]')?.querySelectorAll<HTMLButtonElement>('[data-color]') ?? [])]
+  const index = radios.indexOf(current)
+  if (index < 0 || !radios.length) return
+  let targetIndex: number
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') targetIndex = (index + 1) % radios.length
+  else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') targetIndex = (index - 1 + radios.length) % radios.length
+  else if (event.key === 'Home') targetIndex = 0
+  else if (event.key === 'End') targetIndex = radios.length - 1
+  else return
+  event.preventDefault()
+  if (dismissBlocked.value) return
+  const target = radios[targetIndex]
+  const nextColor = target?.dataset.color
+  if (!target || !isBrowserTabGroupColor(nextColor)) return
+  color.value = nextColor
+  target.focus()
+}
+
 function formatAuditTime(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }
@@ -140,15 +162,15 @@ async function openExisting(id: string): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
   importTarget.value = null
   templateView.value = false
-  await openExistingEditor(id)
   importDestination.value = id
+  await openExistingEditor(id)
 }
 async function openNew(): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
   importTarget.value = null
   templateView.value = false
-  await openNewEditor()
   importDestination.value = ''
+  await openNewEditor()
 }
 async function openTransfer(sourceWorkspaceId?: string): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
@@ -217,6 +239,9 @@ onBeforeUnmount(dispose)
                 role="radio"
                 :aria-label="tabGroupColorLabel(option)"
                 :aria-checked="color === option"
+                :tabindex="color === option ? 0 : -1"
+                :data-color="option"
+                @keydown="navigateColor"
                 :title="tabGroupColorLabel(option)"
                 :disabled="dismissBlocked"
                 @click="color = option"

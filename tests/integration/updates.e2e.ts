@@ -3,6 +3,14 @@ import { join } from 'node:path'
 import { expect, test } from './fixtures.js'
 
 const injectedUpdateTest = test.extend({
+  appWindow: async ({ appWindow }, use) => {
+    // Startup publishes the authoritative update state after tab restoration.
+    // Inject synthetic events only after that publication has completed.
+    await expect.poll(() => appWindow.evaluate(
+      'window.hronautMcp.getState().then((state) => state.status)'
+    )).toBe('ready')
+    await use(appWindow)
+  },
   profileDirectory: async ({ profileDirectory }, use) => {
     await writeFile(join(profileDirectory, 'settings.json'), JSON.stringify({
       checkForUpdatesOnStartup: false,

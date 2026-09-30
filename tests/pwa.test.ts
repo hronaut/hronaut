@@ -1,12 +1,58 @@
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import {
   PWA_INSPECTION_LIMITS,
   normalizeBrowserPwaOptions,
   pwaRegistrationsPageScript,
+  sanitizePwaHeaders,
   sanitizePwaManifest
 } from '../src/shared/pwa.js'
 
 describe('offline app inspection options', () => {
+  it('redacts cache headers using their full names before display truncation', () => {
+    const name = `x-${'a'.repeat(PWA_INSPECTION_LIMITS.maxHeaderNameChars)}-token`
+    expect(sanitizePwaHeaders([{ name, value: 'synthetic-secret' }])).toEqual({
+      [name.slice(0, PWA_INSPECTION_LIMITS.maxHeaderNameChars)]: '[REDACTED]'
+    })
+  })
+
+  it('preserves prototype-named cache headers and repeated values as ordinary data', () => {
+    const headers = sanitizePwaHeaders([
+      { name: '__proto__', value: 'first' }, { name: '__proto__', value: 'second' },
+      { name: 'constructor', value: 'third' }
+    ])
+    expect(Object.getPrototypeOf(headers)).toBeNull()
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ ['__proto__']: ['first', 'second'], constructor: 'third' })
+  })
+
+  it('keeps cache header output within its total character budget', () => {
+    const headers = sanitizePwaHeaders(Array.from({ length: 60 }, (_, i) => ({ name: `x-${i}`, value: 'v'.repeat(2_000) })))
+    const chars = Object.entries(headers).reduce((total, [name, value]) => total + name.length + String(value).length, 0)
+    expect(chars).toBe(PWA_INSPECTION_LIMITS.maxHeaderCharsTotal)
+    expect(Object.values(headers).every(value => value.length <= PWA_INSPECTION_LIMITS.maxHeaderValueChars)).toBe(true)
+  })
+
+  it('resolves and redacts long protocol-relative manifest URLs before bounding them', () => {
+    const url = `//synthetic-private-${'x'.repeat(PWA_INSPECTION_LIMITS.maxUrlChars + 100)}@example.test/app?token=private`
+    const safe = 'https://%5BREDACTED%5D@example.test/app?token=%5BREDACTED%5D'
+    const manifest = sanitizePwaManifest({
+      url: 'https://example.test/app.webmanifest',
+      manifest: { id: url, start_url: url, scope: url, icons: [{ src: url }], shortcuts: [{ name: 'App', url }] }
+    })
+    expect(manifest).toMatchObject({
+      id: safe, startUrl: safe, scope: safe, icons: [{ url: safe }], shortcuts: [{ name: 'App', url: safe }]
+    })
+    expect(JSON.stringify(manifest)).not.toContain('synthetic-private')
+  })
+
+  it('resolves relative fields against the complete manifest URL while bounding public URLs', () => {
+    const url = `https://example.test/parent/${'x'.repeat(PWA_INSPECTION_LIMITS.maxUrlChars + 100)}/manifest.json`
+    const manifest = sanitizePwaManifest({ url, manifest: { start_url: '../start', icons: [{ src: 'icon.png' }] } })
+    expect(manifest?.startUrl).toBe('https://example.test/parent/start')
+    expect(manifest?.url).toHaveLength(PWA_INSPECTION_LIMITS.maxUrlChars)
+    expect(manifest?.icons[0]?.url).toBe(new URL('icon.png', url).href.slice(0, PWA_INSPECTION_LIMITS.maxUrlChars))
+  })
+
   it('normalizes paging and keeps headers opt-in', () => {
     expect(normalizeBrowserPwaOptions({ offset: -10, limit: 500 })).toEqual({
       cacheName: undefined,
@@ -36,6 +82,28 @@ describe('offline app inspection options', () => {
     expect(script).toContain('navigator.serviceWorker.controller')
     expect(script).not.toContain('.unregister(')
     expect(script).not.toContain('.update(')
+  })
+
+  it.each([49, 50, 51])('reports registration truncation accurately for %i registrations', async (count) => {
+    const registrations = Array.from({ length: count }, (_, index) => ({
+      scope: `https://example.test/app-${index}/`
+    }))
+    const report = await runInNewContext(pwaRegistrationsPageScript(), {
+      navigator: { serviceWorker: { getRegistrations: async () => registrations } }
+    }) as { registrations: Array<{ scope: string }>; truncated: boolean }
+    expect(report.registrations.map(registration => registration.scope)).toEqual(
+      registrations.slice(0, PWA_INSPECTION_LIMITS.maxRegistrations).map(registration => registration.scope)
+    )
+    expect(report.truncated).toBe(count > PWA_INSPECTION_LIMITS.maxRegistrations)
+  })
+
+  it.each([19, 20, 21])('reports omitted installability arguments accurately for %i arguments', (count) => {
+    const errorArguments = Array.from({ length: count }, (_, index) => ({ name: `field-${index}`, value: 'value' }))
+    const manifest = sanitizePwaManifest({}, [{ errorId: 'installability-error', errorArguments }])
+    expect(manifest?.installabilityErrors[0]?.arguments).toEqual(
+      errorArguments.slice(0, PWA_INSPECTION_LIMITS.maxManifestErrorArguments)
+    )
+    expect(manifest?.truncated ?? false).toBe(count > PWA_INSPECTION_LIMITS.maxManifestErrorArguments)
   })
 
   it('returns bounded manifest and installability diagnostics without raw source', () => {

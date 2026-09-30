@@ -21,6 +21,40 @@ function start(tab: BrowserNetworkRecordingState, requestId: string, extra: Reco
 afterEach(() => { vi.useRealTimers() })
 
 describe('network event recording', () => {
+  it('tracks compressed body and decoded content bytes separately from total transfer bytes', () => {
+    const tab = state()
+    start(tab, 'compressed')
+    record(tab, 'Network.dataReceived', { requestId: 'compressed', dataLength: 3_000, encodedDataLength: 30 })
+    record(tab, 'Network.dataReceived', { requestId: 'compressed', dataLength: 1_000, encodedDataLength: 10 })
+    record(tab, 'Network.loadingFinished', { requestId: 'compressed', encodedDataLength: 240 })
+    expect(tab.networkRequests[0]).toMatchObject({
+      responseBodySizeBytes: 40, responseContentSizeBytes: 4_000, responseSizeBytes: 240
+    })
+    record(tab, 'Network.dataReceived', { requestId: 'compressed', dataLength: 99, encodedDataLength: 99 })
+    expect(tab.networkRequests[0]?.responseContentSizeBytes).toBe(4_000)
+  })
+
+  it('ignores invalid and retired body counters while preserving valid zero byte counts', () => {
+    const tab = state()
+    start(tab, 'counts')
+    record(tab, 'Network.dataReceived', { requestId: 'counts', dataLength: NaN, encodedDataLength: -1 })
+    expect(tab.networkRequests[0]?.responseBodySizeBytes).toBeUndefined()
+    expect(tab.networkRequests[0]?.responseContentSizeBytes).toBeUndefined()
+    record(tab, 'Network.dataReceived', { requestId: 'counts', dataLength: 0, encodedDataLength: 0 })
+    tab.observationGeneration++
+    record(tab, 'Network.dataReceived', { requestId: 'counts', dataLength: 100, encodedDataLength: 100 })
+    expect(tab.networkRequests[0]).toMatchObject({ responseBodySizeBytes: 0, responseContentSizeBytes: 0 })
+  })
+
+  it('bounds accumulated body byte counts', () => {
+    const tab = state()
+    start(tab, 'large')
+    for (let index = 0; index < 2; index++) {
+      record(tab, 'Network.dataReceived', { requestId: 'large', dataLength: Number.MAX_SAFE_INTEGER, encodedDataLength: Number.MAX_SAFE_INTEGER })
+    }
+    expect(tab.networkRequests[0]).toMatchObject({ responseBodySizeBytes: Number.MAX_SAFE_INTEGER, responseContentSizeBytes: Number.MAX_SAFE_INTEGER })
+  })
+
   it('does not replace main-document security with an iframe response for the same URL', () => {
     const tab = Object.assign(state(), { mainFrameId: 'main' })
     start(tab, 'main')

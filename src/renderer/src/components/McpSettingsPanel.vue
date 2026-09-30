@@ -59,7 +59,7 @@ function lines(value: string): string[] | undefined {
 }
 
 function argumentConstraints(value: string): Record<string, unknown[]> | undefined {
-  const result: Record<string, unknown[]> = {}
+  const result = new Map<string, unknown[]>()
   for (const line of value.split(/\r?\n/u).map(entry => entry.trim()).filter(Boolean)) {
     const separator = line.indexOf('=')
     if (separator <= 0) return { '': [] }
@@ -69,9 +69,11 @@ function argumentConstraints(value: string): Record<string, unknown[]> | undefin
     if (serialized) {
       try { parsed = JSON.parse(serialized) } catch { /* Treat unquoted text as an exact string. */ }
     }
-    ;(result[path] ??= []).push(parsed)
+    const values = result.get(path) ?? []
+    values.push(parsed)
+    result.set(path, values)
   }
-  return Object.keys(result).length ? result : undefined
+  return result.size ? Object.fromEntries(result) : undefined
 }
 
 async function submitCapabilityProfile(): Promise<void> {

@@ -87,16 +87,18 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   }
 
   async function movePort(port: number, operationGeneration: number, startingDraftRevision: number): Promise<boolean> {
+    const startingSettings = options.settings.value
     portState.value = 'saving'
     portMessage.value = options.translate('runtimeActions.mcp.moving', { port })
     try {
       const next = await options.setPort(port)
       if (operationGeneration !== generation) return false
+      const currentPort = options.settings.value === startingSettings ? next.mcpPort : options.settings.value.mcpPort
       if (draftRevision === startingDraftRevision) {
-        portDraft.value = String(next.mcpPort)
+        portDraft.value = String(currentPort)
         dirtyPortDraft = false
         portState.value = 'saved'
-        portMessage.value = options.translate('runtimeActions.mcp.active', { port: next.mcpPort })
+        portMessage.value = options.translate('runtimeActions.mcp.active', { port: currentPort })
       } else {
         dirtyPortDraft = portDraft.value !== String(options.settings.value.mcpPort)
         portState.value = 'idle'
@@ -174,6 +176,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
 
   async function reset(): Promise<boolean> {
     if (busy.value) return false
+    const startingSettings = options.settings.value
     const operationGeneration = generation
     const startingDraftRevision = draftRevision + 1
     operation.value = 'reset'
@@ -185,11 +188,12 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const next = await options.resetSettings()
       if (operationGeneration !== generation) return false
+      const currentPort = options.settings.value === startingSettings ? next.mcpPort : options.settings.value.mcpPort
       if (draftRevision === startingDraftRevision) {
-        portDraft.value = String(next.mcpPort)
+        portDraft.value = String(currentPort)
         dirtyPortDraft = false
         portState.value = 'saved'
-        portMessage.value = options.translate('runtimeActions.mcp.active', { port: next.mcpPort })
+        portMessage.value = options.translate('runtimeActions.mcp.active', { port: currentPort })
       } else {
         dirtyPortDraft = portDraft.value !== String(options.settings.value.mcpPort)
         portState.value = 'idle'

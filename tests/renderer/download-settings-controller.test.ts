@@ -18,11 +18,11 @@ function createController() {
       canceled: false,
       settings: { ...settings.value, downloadDirectory: '/tmp/chosen' }
     })),
-    setAskWhereToSaveDownloads: vi.fn(async (enabled: boolean) => ({
+    setAskWhereToSaveDownloads: vi.fn(async (enabled: boolean): Promise<AppSettings> => ({
       ...settings.value,
       askWhereToSaveDownloads: enabled
     })),
-    resetDownloads: vi.fn(async () => ({
+    resetDownloads: vi.fn(async (): Promise<AppSettings> => ({
       ...settings.value,
       downloadDirectory: null,
       askWhereToSaveDownloads: false
@@ -41,6 +41,28 @@ function createController() {
 }
 
 describe('download settings controller', () => {
+  it.each(['choose', 'save', 'reset'] as const)('preserves newer settings events during %s', async action => {
+    const { api, applySettings, controller, settings } = createController()
+    const result = deferred<AppSettings>()
+    const stale = { ...settings.value, downloadDirectory: '/tmp/older' }
+    api.chooseDownloadDirectory.mockImplementationOnce(async () => ({ canceled: false, settings: await result.promise }))
+    api.setAskWhereToSaveDownloads.mockImplementationOnce(() => result.promise)
+    api.resetDownloads.mockImplementationOnce(() => result.promise)
+
+    const operation = action === 'choose' ? controller.chooseDirectory()
+      : action === 'save' ? controller.setAskWhereToSave(true) : controller.reset()
+    // The settings store replaces this object when main broadcasts a newer
+    // authoritative snapshot, including changes from another shell window.
+    settings.value = { ...settings.value, theme: 'dark', downloadDirectory: '/tmp/newer', askWhereToSaveDownloads: true }
+    result.resolve(stale)
+
+    await expect(operation).resolves.toBe(true)
+    expect(applySettings).not.toHaveBeenCalled()
+    expect(settings.value).toMatchObject({ theme: 'dark', downloadDirectory: '/tmp/newer', askWhereToSaveDownloads: true })
+    expect(controller.busy.value).toBe(false)
+    controller.dispose()
+  })
+
   it('rejects reset and other operations while the folder chooser is pending', async () => {
     const selection = deferred<DownloadDirectorySelection>()
     const { api, controller, settings } = createController()

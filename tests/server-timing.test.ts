@@ -29,6 +29,19 @@ describe('Server-Timing parsing', () => {
     expect(parseServerTimingHeaders({ 'server-timing': 'db;dur=invalid;dur=8' })).toEqual([{ name: 'db' }])
   })
 
+  it('does not replace incomplete first parameters with later duplicate values', () => {
+    expect(parseServerTimingHeaders({
+      'server-timing': 'db;dur;dur=8;desc;desc="Second description", cache;dur=2;desc="Hit"'
+    })).toEqual([{ name: 'db' }, { name: 'cache', durationMs: 2, description: 'Hit' }])
+  })
+
+  it.each(['1e308', String(Number.MAX_VALUE)])('keeps finite duration %s finite when rounding and serializing', value => {
+    const metrics = parseServerTimingHeaders({ 'server-timing': `db;dur=${value}` })
+    expect(metrics).toEqual([{ name: 'db', durationMs: Number(value) }])
+    expect(JSON.parse(JSON.stringify(metrics))).toEqual(metrics)
+    expect(serializeServerTimingMetrics(metrics)).toBe(`db;dur=${Number(value)}`)
+  })
+
   it('sanitizes descriptions and bounds the number of metrics', () => {
     const header = Array.from({ length: MAX_SERVER_TIMING_METRICS + 5 }, (_, index) => (
       `metric${index};dur=${index};desc="token=private"`

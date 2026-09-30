@@ -140,6 +140,34 @@ describe('browser tab actions controller', () => {
     expect(harness.onNavigateError).toHaveBeenCalledWith(newestFailure)
   })
 
+  it.each(['before', 'after'])('preserves the latest failure when an older request settles %s it after an intervening success', async (order) => {
+    const harness = createHarness()
+    const oldest = deferred<BrowserState>()
+    const latest = deferred<BrowserState>()
+    harness.browser.navigate
+      .mockReturnValueOnce(oldest.promise)
+      .mockResolvedValueOnce(harness.state.value)
+      .mockReturnValueOnce(latest.promise)
+
+    const oldNavigation = harness.controller.navigateAddress('https://old.test/')
+    await harness.controller.navigateAddress('https://successful.test/')
+    const latestNavigation = harness.controller.navigateAddress('https://latest.test/')
+    const latestFailure = new Error('latest navigation failed')
+
+    if (order === 'before') {
+      oldest.reject(new Error('superseded navigation failed'))
+      await oldNavigation
+      expect(harness.onNavigateError).not.toHaveBeenCalled()
+    }
+    latest.reject(latestFailure)
+    await latestNavigation
+    if (order === 'after') {
+      oldest.reject(new Error('superseded navigation failed'))
+      await oldNavigation
+    }
+    expect(harness.onNavigateError.mock.calls).toEqual([[latestFailure]])
+  })
+
   it('ignores a delayed navigation failure after disposal', async () => {
     const harness = createHarness()
     const pending = deferred<BrowserState>()
@@ -492,5 +520,54 @@ describe('browser tab actions controller', () => {
 
     expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
     expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
+  })
+})
+
+describe('pending tab control feedback', () => {
+  it('stays pending across queued tab and global locks until both settle', async () => {
+    const harness = createHarness()
+    let finishFirst!: (state: BrowserState) => void
+    let finishSecond!: (state: BrowserState) => void
+    harness.browser.setTabHumanInteractionLocked.mockReturnValueOnce(new Promise(resolve => { finishFirst = resolve }))
+    harness.browser.setAllHumanInteractionLocked.mockReturnValueOnce(new Promise(resolve => { finishSecond = resolve }))
+    const first = harness.controller.toggleTabHumanInteraction()
+    const second = harness.controller.toggleAllHumanInteraction()
+    expect(harness.controller.isTogglePending('interaction')).toBe(true)
+    expect(harness.controller.isTogglePending('audio')).toBe(false)
+    await vi.waitFor(() => expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledOnce())
+    finishFirst(harness.state.value)
+    await first
+    expect(harness.controller.isTogglePending('interaction')).toBe(true)
+    await vi.waitFor(() => expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledOnce())
+    finishSecond(harness.state.value)
+    await second
+    expect(harness.controller.isTogglePending('interaction')).toBe(false)
+  })
+
+  it('clears pending feedback on rejection without claiming the toggle succeeded', async () => {
+    const harness = createHarness()
+    const pending = deferred<BrowserState>()
+    harness.browser.setTabHumanInteractionLocked.mockReturnValueOnce(pending.promise)
+    const operation = harness.controller.toggleTabHumanInteraction()
+    const rejected = expect(operation).rejects.toThrow('Unable to lock')
+    expect(harness.controller.isTogglePending('interaction')).toBe(true)
+    pending.reject(new Error('Unable to lock'))
+    await rejected
+    expect(harness.controller.isTogglePending('interaction')).toBe(false)
+    expect(harness.state.value.tabs[0]?.humanInteractionLocked).toBe(false)
+  })
+
+  it('clears pending feedback when disposed while an operation is running', async () => {
+    const harness = createHarness()
+    let finish!: (state: BrowserState) => void
+    harness.browser.setTabMuted.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    const operation = harness.controller.toggleTabMuted(tab())
+    await vi.waitFor(() => expect(harness.browser.setTabMuted).toHaveBeenCalledOnce())
+    expect(harness.controller.isTogglePending('audio')).toBe(true)
+    harness.controller.dispose()
+    expect(harness.controller.isTogglePending('audio')).toBe(false)
+    finish(harness.state.value)
+    await operation
+    expect(harness.controller.isTogglePending('audio')).toBe(false)
   })
 })

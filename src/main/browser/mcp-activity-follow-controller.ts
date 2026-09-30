@@ -1,5 +1,7 @@
 import type { McpTabActivity } from '../../shared/types.js'
 
+const MAX_FOLLOW_ACTIVITIES = 40
+
 interface McpActivityFollowControllerOptions {
   isEnabled: () => boolean
   isOccluded: () => boolean
@@ -26,6 +28,11 @@ export class McpActivityFollowController {
     if (activity.phase === 'started') {
       this.activities.delete(activity.activityId)
       this.activities.set(activity.activityId, activity)
+      // Keep abandoned dispatches from retaining metadata or becoming a later
+      // follow target after the recent activity window finishes.
+      if (this.activities.size > MAX_FOLLOW_ACTIVITIES) {
+        this.activities.delete(this.activities.keys().next().value!)
+      }
       this.schedule(activity)
       return
     }

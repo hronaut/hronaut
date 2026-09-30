@@ -200,87 +200,95 @@ test('sleeps only eligible inactive tabs in the selected workspace', async ({
   }
 })
 
-test('keeps a tab awake when it becomes visible during the form-safety check', async ({
-  appWindow,
-  electronApp
-}) => {
-  const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(`<!doctype html>
-      <title>Memory Saver race fixture</title>
-      <input aria-label="Unchanged field" value="">
-      <script>window.__memorySaverDocumentIdentity = crypto.randomUUID()</script>`)
-  })
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => resolve())
-  })
-
-  try {
-    const address = server.address()
-    if (!address || typeof address === 'string') throw new Error('Memory Saver race fixture did not expose a port')
-    const websiteUrl = `http://127.0.0.1:${address.port}/`
-    await appWindow.evaluate(`(async () => {
-      await window.hronaut.newTab({ url: ${JSON.stringify(websiteUrl)}, active: true });
-      await window.hronaut.newTab({ url: 'about:blank', active: true });
-    })()`)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === "Memory Saver race fixture")?.id)')).toBeTruthy()
-    const tabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === "Memory Saver race fixture")?.id)') as string
-    const documentIdentity = await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
-      if (!page) throw new Error('Memory Saver race fixture WebContents was not found')
-      return page.executeJavaScript('window.__memorySaverDocumentIdentity') as Promise<string>
-    }, websiteUrl)
-
-    await electronApp.evaluate(({ webContents }, requestedUrl) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
-      if (!page) throw new Error('Memory Saver race fixture WebContents was not found')
-      const originalExecuteJavaScript = page.executeJavaScript.bind(page)
-      const control = { started: false, release: undefined as (() => void) | undefined }
-      ;(globalThis as typeof globalThis & { __hronautFormSafetyCheck?: typeof control }).__hronautFormSafetyCheck = control
-      Object.defineProperty(page, 'executeJavaScript', {
-        configurable: true,
-        value: (code: string, userGesture?: boolean) => {
-          if (code.includes('window.__hronautContentEditableDirty === true')) {
-            control.started = true
-            return new Promise<boolean>((resolve) => {
-              control.release = () => resolve(false)
-            })
-          }
-          return originalExecuteJavaScript(code, userGesture)
-        }
-      })
-    }, websiteUrl)
-
-    await appWindow.evaluate(`(() => {
-      window.__hronautMemorySaverRace = window.hronaut.sleepInactiveTabs();
-    })()`)
-    await expect.poll(() => electronApp.evaluate(() => (
-      (globalThis as typeof globalThis & { __hronautFormSafetyCheck?: { started: boolean } })
-        .__hronautFormSafetyCheck?.started ?? false
-    ))).toBe(true)
-    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
-    await electronApp.evaluate(() => {
-      const control = (globalThis as typeof globalThis & {
-        __hronautFormSafetyCheck?: { release?: () => void }
-      }).__hronautFormSafetyCheck
-      if (!control?.release) throw new Error('Memory Saver form-safety check was not waiting')
-      control.release()
+for (const interruption of ['tab activation', 'disabling Memory Saver', 'changing its timeout'] as const) {
+  test(`keeps a tab awake after ${interruption} during the form-safety check`, async ({
+    appWindow,
+    electronApp
+  }) => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end(`<!doctype html>
+        <title>Memory Saver race fixture</title>
+        <input aria-label="Unchanged field" value="">
+        <script>window.__memorySaverDocumentIdentity = crypto.randomUUID()</script>`)
     })
-    await appWindow.evaluate('window.__hronautMemorySaverRace')
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
 
-    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({
-      active: state.activeTabId === ${JSON.stringify(tabId)},
-      sleeping: state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.sleeping
-    }))`)).toEqual({ active: true, sleeping: false })
-    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
-      return page?.executeJavaScript('window.__memorySaverDocumentIdentity') ?? null
-    }, websiteUrl)).toBe(documentIdentity)
-  } finally {
-    await closeFixtureServer(server)
-  }
-})
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Memory Saver race fixture did not expose a port')
+      const websiteUrl = `http://127.0.0.1:${address.port}/`
+      await appWindow.evaluate(`(async () => {
+        await window.hronaut.newTab({ url: ${JSON.stringify(websiteUrl)}, active: true });
+        await window.hronaut.newTab({ url: 'about:blank', active: true });
+      })()`)
+      await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === "Memory Saver race fixture")?.id)')).toBeTruthy()
+      const tabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === "Memory Saver race fixture")?.id)') as string
+      const documentIdentity = await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+        if (!page) throw new Error('Memory Saver race fixture WebContents was not found')
+        return page.executeJavaScript('window.__memorySaverDocumentIdentity') as Promise<string>
+      }, websiteUrl)
+
+      await electronApp.evaluate(({ webContents }, requestedUrl) => {
+        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+        if (!page) throw new Error('Memory Saver race fixture WebContents was not found')
+        const originalExecuteJavaScript = page.executeJavaScript.bind(page)
+        const control = { started: false, release: undefined as (() => void) | undefined }
+        ;(globalThis as typeof globalThis & { __hronautFormSafetyCheck?: typeof control }).__hronautFormSafetyCheck = control
+        Object.defineProperty(page, 'executeJavaScript', {
+          configurable: true,
+          value: (code: string, userGesture?: boolean) => {
+            if (code.includes('window.__hronautContentEditableDirty === true')) {
+              control.started = true
+              return new Promise<boolean>((resolve) => {
+                control.release = () => resolve(false)
+              })
+            }
+            return originalExecuteJavaScript(code, userGesture)
+          }
+        })
+      }, websiteUrl)
+
+      await appWindow.evaluate(`(() => {
+        window.__hronautMemorySaverRace = window.hronaut.sleepInactiveTabs();
+      })()`)
+      await expect.poll(() => electronApp.evaluate(() => (
+        (globalThis as typeof globalThis & { __hronautFormSafetyCheck?: { started: boolean } })
+          .__hronautFormSafetyCheck?.started ?? false
+      ))).toBe(true)
+      if (interruption === 'tab activation') {
+        await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+      } else if (interruption === 'disabling Memory Saver') {
+        await appWindow.evaluate('window.hronautSettings.setMemorySaverEnabled(false)')
+      } else {
+        await appWindow.evaluate('window.hronautSettings.setMemorySaverTimeoutMinutes(120)')
+      }
+      await electronApp.evaluate(() => {
+        const control = (globalThis as typeof globalThis & {
+          __hronautFormSafetyCheck?: { release?: () => void }
+        }).__hronautFormSafetyCheck
+        if (!control?.release) throw new Error('Memory Saver form-safety check was not waiting')
+        control.release()
+      })
+      await appWindow.evaluate('window.__hronautMemorySaverRace')
+
+      await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({
+        active: state.activeTabId === ${JSON.stringify(tabId)},
+        sleeping: state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.sleeping
+      }))`)).toEqual({ active: interruption === 'tab activation', sleeping: false })
+      await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+        return page?.executeJavaScript('window.__memorySaverDocumentIdentity') ?? null
+      }, websiteUrl)).toBe(documentIdentity)
+    } finally {
+      await closeFixtureServer(server)
+    }
+  })
+}
 
 test('keeps a tab recoverably sleeping when Memory Saver rollback cannot restore its page', async ({
   appWindow,

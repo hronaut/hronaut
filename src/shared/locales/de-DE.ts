@@ -889,7 +889,7 @@ export const deDE = {
       "copyFailed": "Kopieren fehlgeschlagen",
       "clipboardFailed": "Die Systemzwischenablage hat den Text nicht angenommen."
     },
-    "locks": { lockInput: "Eingabe sperren", unlockInput: "Eingabe entsperren", controls: "Tab-Steuerung",
+    "locks": { waiting: "Warten…", lockInput: "Eingabe sperren", unlockInput: "Eingabe entsperren", controls: "Tab-Steuerung",
       "websiteOnly": "Tab-Sperre ist auf Websites verfügbar",
       "allLocked": "Menschliche Seiteneingabe ist blockiert; vertrauenswürdige Hronaut-Bedienelemente und Agenten arbeiten weiter",
       "unlockTab": "Seiteneingabe in diesem Tab entsperren",
@@ -2712,6 +2712,7 @@ export const deDE = {
     "noKindDescription": "Diese Website hat in dieser Kategorie nichts gespeichert.",
     "noMatches": "Keine passenden Einträge",
     "protectedTitle": "HttpOnly-Cookie-Wert ist geschützt",
+    "partialValueTitle": "Dies ist nur eine Vorschau des Werts. Geben Sie zum Aktualisieren einen vollständigen Ersatz im Editor ein.",
     "editTitle": "Diesen Eintrag bearbeiten",
     "protectedValue": "HttpOnly-Wert geschützt",
     "emptyValue": "(leer)",

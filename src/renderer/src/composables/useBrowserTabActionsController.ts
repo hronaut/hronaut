@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import { shallowRef, type Ref } from 'vue'
 import type {
   BrowserState,
   BrowserTabState,
@@ -35,7 +35,8 @@ export interface BrowserTabActionsControllerOptions {
 
 export function useBrowserTabActionsController(options: BrowserTabActionsControllerOptions) {
   const toggleOperations = new Map<string, Promise<void>>()
-  const navigationGenerations = new Map<string, number>()
+  const pendingToggleKeys = shallowRef<ReadonlySet<string>>(new Set())
+  const navigationTokens = new Map<string, symbol>()
   let disposed = false
 
   function enqueueToggle(key: string, action: () => Promise<void>): Promise<void> {
@@ -45,8 +46,12 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
       if (!disposed) await action()
     })
     toggleOperations.set(key, operation)
+    pendingToggleKeys.value = new Set(toggleOperations.keys())
     return operation.finally(() => {
-      if (toggleOperations.get(key) === operation) toggleOperations.delete(key)
+      if (toggleOperations.get(key) === operation) {
+        toggleOperations.delete(key)
+        pendingToggleKeys.value = new Set(toggleOperations.keys())
+      }
     })
   }
 
@@ -74,17 +79,17 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     if (disposed) return
     const tabId = options.state.value.activeTabId ?? undefined
     const navigationKey = tabId ?? 'active-tab'
-    const generation = (navigationGenerations.get(navigationKey) ?? 0) + 1
-    navigationGenerations.set(navigationKey, generation)
+    const token = Symbol('navigation')
+    navigationTokens.set(navigationKey, token)
     try {
       await options.syncState(options.browser.navigate({
         url: address,
         tabId
       }))
     } catch (error) {
-      if (!disposed && navigationGenerations.get(navigationKey) === generation) options.onNavigateError(error)
+      if (!disposed && navigationTokens.get(navigationKey) === token) options.onNavigateError(error)
     } finally {
-      if (navigationGenerations.get(navigationKey) === generation) navigationGenerations.delete(navigationKey)
+      if (navigationTokens.get(navigationKey) === token) navigationTokens.delete(navigationKey)
     }
   }
 
@@ -178,11 +183,13 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   function dispose(): void {
     if (disposed) return
     disposed = true
-    navigationGenerations.clear()
+    navigationTokens.clear()
     toggleOperations.clear()
+    pendingToggleKeys.value = new Set()
   }
 
   return {
+    isTogglePending: (key: string) => pendingToggleKeys.value.has(key),
     reorderTab,
     selectBrowserTab,
     navigateAddress,

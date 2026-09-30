@@ -255,6 +255,44 @@ describe('modal dialog focus lifecycle', () => {
     expect(dialog.contains(document.activeElement)).toBe(true)
   })
 
+  it.each([
+    '<fieldset disabled><button type="button">Unavailable</button></fieldset>',
+    '<button type="button" disabled tabindex="0">Unavailable</button>'
+  ])('skips disabled controls when wrapping modal focus: %s', async (markup) => {
+    const user = userEvent.setup()
+    render(ModalTrapHarness)
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Focus trap' })
+    dialog.insertAdjacentHTML('afterbegin', markup)
+    dialog.insertAdjacentHTML('beforeend', markup)
+    const first = screen.getByRole('button', { name: 'First action' })
+    const last = screen.getByRole('button', { name: 'Last action' })
+
+    dialog.focus()
+    await user.tab()
+    expect(first).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(last).toHaveFocus()
+    await user.tab()
+    expect(first).toHaveFocus()
+  })
+
+  it('keeps the first legend control available in a disabled fieldset', async () => {
+    const user = userEvent.setup()
+    render(ModalTrapHarness)
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Focus trap' })
+    dialog.insertAdjacentHTML('afterbegin', `
+      <fieldset disabled>
+        <legend><button type="button">Enable group</button></legend>
+        <button type="button">Unavailable</button>
+      </fieldset>
+    `)
+    dialog.focus()
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Enable group' })).toHaveFocus()
+  })
+
   it('preserves the original focus target across a modal handoff', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const user = userEvent.setup()

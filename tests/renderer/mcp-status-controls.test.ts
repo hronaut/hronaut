@@ -72,9 +72,14 @@ describe('McpStatusControls', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Pause agents' }))
 
-    expect(screen.getByRole('button', { name: 'Pause agents' })).toBeDisabled()
+    const waiting = screen.getByRole('button', { name: 'Waiting…: Pause agents' })
+    expect(waiting).toBeDisabled()
+    expect(waiting).toHaveAttribute('aria-busy', 'true')
+    expect(waiting.querySelector('.state-spinner')).not.toBeNull()
     pausing.resolve(control({ status: 'paused', paused: true }))
     await vi.waitFor(() => expect(controller.pauseBusy.value).toBe(false))
+    expect(screen.getByRole('button', { name: 'Resume agents' })).toHaveAttribute('aria-busy', 'false')
+    expect(waiting.querySelector('.state-spinner')).toBeNull()
     controller.dispose()
   })
 

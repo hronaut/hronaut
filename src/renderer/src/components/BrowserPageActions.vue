@@ -26,6 +26,10 @@ import SplitViewControl from './SplitViewControl.vue'
 type SplitViewBrowserApi = Pick<HronautApi, 'openSplitView' | 'updateSplitView' | 'closeSplitView'>
 
 const props = defineProps<{
+  interactionPending?: boolean
+  audioPending?: boolean
+  agentPending?: boolean
+  lifecyclePending?: boolean
   state: BrowserState
   activeTab?: BrowserTabState
   browser: SplitViewBrowserApi
@@ -74,42 +78,48 @@ function reportSplitError(cause: unknown, fallback: string): void {
     <UiButton appearance="application"
       class="interaction-lock-button tab-interaction-lock-button"
       :class="{ locked: tabHumanInteractionLocked }"
+      :aria-busy="Boolean(interactionPending)"
       type="button"
-      :title="tabInteractionLockLabel"
-      :aria-label="tabInteractionLockLabel"
+      :title="interactionPending ? t('runtime.locks.waiting') : tabInteractionLockLabel"
+      :aria-label="interactionPending ? t('runtime.locks.waiting') + ': ' + (tabInteractionLockLabel) : tabInteractionLockLabel"
       :aria-pressed="tabHumanInteractionLocked"
-      :disabled="activeTabIsInternal"
+      :disabled="interactionPending || activeTabIsInternal"
       @click="emit('toggleTabInteraction')"
     >
-      <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
+      <IconProgress v-if="interactionPending" class="state-spinner" aria-hidden="true" />
+      <IconLock v-else-if="tabHumanInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
       <span>{{ t(tabHumanInteractionLocked ? 'runtime.locks.unlockInput' : 'runtime.locks.lockInput') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button tab-agent-control-button"
       :class="{ locked: activeTab?.agentPaused }"
+      :aria-busy="Boolean(agentPending)"
       type="button"
-      :title="t(state.agentControlLocked ? 'runtime.agentControl.protected' : activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
-      :aria-label="t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
+      :title="agentPending ? t('runtime.locks.waiting') : t(state.agentControlLocked ? 'runtime.agentControl.protected' : activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
+      :aria-label="agentPending ? t('runtime.locks.waiting') + ': ' + (t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')) : t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
       :aria-pressed="Boolean(activeTab?.agentPaused)"
-      :disabled="activeTabIsInternal || state.agentControlLocked"
+      :disabled="agentPending || activeTabIsInternal || state.agentControlLocked"
       @click="activeTab && emit('toggleTabAgentPaused', activeTab)"
     >
-      <IconPlayCircle v-if="activeTab?.agentPaused" aria-hidden="true" />
+      <IconProgress v-if="agentPending" class="state-spinner" aria-hidden="true" />
+      <IconPlayCircle v-else-if="activeTab?.agentPaused" aria-hidden="true" />
       <IconPauseCircle v-else aria-hidden="true" />
       <span>{{ t(activeTab?.agentPaused ? 'runtime.mcp.resumeAgents' : 'runtime.mcp.pauseAgents') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button page-lifecycle-button"
       :class="{ frozen: activeTab?.pageLifecycleState === 'frozen', unknown: activeTab?.pageLifecycleState === 'unknown' }"
+      :aria-busy="Boolean(lifecyclePending)"
       type="button"
-      :title="t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
-      :aria-label="t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
+      :title="lifecyclePending ? t('runtime.locks.waiting') : t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
+      :aria-label="lifecyclePending ? t('runtime.locks.waiting') + ': ' + (t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')) : t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
       :aria-pressed="activeTab?.pageLifecycleState === 'frozen'"
-      :disabled="activeTabIsInternal || activeTab?.sleeping || activeTab?.loading || activeTab?.pageLifecycleState === 'unknown'"
+      :disabled="lifecyclePending || activeTabIsInternal || activeTab?.sleeping || activeTab?.loading || activeTab?.pageLifecycleState === 'unknown'"
       @click="activeTab && emit('togglePageLifecycle', activeTab)"
     >
-      <IconPlayCircle v-if="activeTab?.pageLifecycleState === 'frozen'" aria-hidden="true" />
+      <IconProgress v-if="lifecyclePending" class="state-spinner" aria-hidden="true" />
+      <IconPlayCircle v-else-if="activeTab?.pageLifecycleState === 'frozen'" aria-hidden="true" />
       <IconHelp v-else-if="activeTab?.pageLifecycleState === 'unknown'" aria-hidden="true" />
       <IconPauseCircle v-else aria-hidden="true" />
       <span>{{ t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.frozen' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknownShort' : 'runtime.pageLifecycle.active') }}</span>
@@ -117,14 +127,16 @@ function reportSplitError(cause: unknown, fallback: string): void {
     <UiButton appearance="application"
       class="interaction-lock-button tab-mute-button"
       :class="{ muted: activeTab?.muted }"
+      :aria-busy="Boolean(audioPending)"
       type="button"
-      :title="audioLabel"
-      :aria-label="t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')"
+      :title="audioPending ? t('runtime.locks.waiting') : audioLabel"
+      :aria-label="audioPending ? t('runtime.locks.waiting') + ': ' + (t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')) : t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')"
       :aria-pressed="Boolean(activeTab?.muted)"
-      :disabled="activeTabIsInternal"
+      :disabled="audioPending || activeTabIsInternal"
       @click="activeTab && emit('toggleTabMuted', activeTab)"
     >
-      <IconVolumeOff v-if="activeTab?.muted" aria-hidden="true" />
+      <IconProgress v-if="audioPending" class="state-spinner" aria-hidden="true" />
+      <IconVolumeOff v-else-if="activeTab?.muted" aria-hidden="true" />
       <IconVolumeUp v-else aria-hidden="true" />
       <span class="tab-mute-label">{{ t(activeTab?.muted ? 'shell.audioControl.unmute' : 'shell.audioControl.mute') }}</span>
     </UiButton>

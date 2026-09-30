@@ -140,7 +140,7 @@ test('exports bounded screenshots and PDFs and records downloads and activity', 
   }) as CallToolResult
   expect(invalidPdf.isError).toBe(true)
   expect(text(invalidPdf)).toContain('without a directory path')
-  for (const filename of ['CON.pdf', 'nul', 'COM1.report.pdf', 'LPT³.pdf']) {
+  for (const filename of ['CON.pdf', 'nul', 'COM1.report.pdf', 'LPT³.pdf', '界'.repeat(100) + '.pdf']) {
     const reservedPdf = await client.callTool({
       name: 'browser_pdf_save',
       arguments: { tabId, filename }

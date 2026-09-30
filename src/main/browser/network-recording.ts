@@ -53,6 +53,8 @@ export interface BrowserNetworkRequestRecord extends BrowserNetworkRequest {
   mimeType?: string
   protocol?: string
   bodyAvailable?: boolean
+  responseBodySizeBytes?: number
+  responseContentSizeBytes?: number
   resourceTiming?: CdpNetworkResourceTiming
   completedMonotonicSeconds?: number
   initiator?: BrowserNetworkInitiator
@@ -432,6 +434,16 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
           }
         } : {})
       }
+    }
+    return
+  }
+  if (method === 'Network.dataReceived') {
+    const { dataLength, encodedDataLength } = params as { dataLength?: number; encodedDataLength?: number }
+    if (typeof dataLength === 'number' && Number.isFinite(dataLength) && dataLength >= 0) {
+      request.responseContentSizeBytes = boundedNetworkByteCount((request.responseContentSizeBytes ?? 0) + dataLength)
+    }
+    if (typeof encodedDataLength === 'number' && Number.isFinite(encodedDataLength) && encodedDataLength >= 0) {
+      request.responseBodySizeBytes = boundedNetworkByteCount((request.responseBodySizeBytes ?? 0) + encodedDataLength)
     }
     return
   }

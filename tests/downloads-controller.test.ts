@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { DownloadItem, Session } from 'electron'
@@ -33,7 +33,7 @@ async function fixture(askWhereToSaveDownloads = false) {
   })
   cleanups.push(() => controller.destroy())
   controller.attachSession(session as Session)
-  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt') {
+  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt', filename = 'file.txt') {
     const item = new EventEmitter()
     let state: 'progressing' | 'interrupted' | 'completed' | 'cancelled' = 'progressing'
     let savePath = ''
@@ -46,7 +46,7 @@ async function fixture(askWhereToSaveDownloads = false) {
     })
     Object.assign(item, {
       getURL: () => url,
-      getFilename: () => 'file.txt',
+      getFilename: () => filename,
       getState: () => state,
       getReceivedBytes: () => 1,
       getTotalBytes: () => 100,
@@ -255,3 +255,29 @@ it('does not reassign a non-resumable interrupted transfer to a new observation 
     expect.objectContaining({ state: 'completed', observationGeneration: 1 })
   ])
 })
+
+it.each(['a'.repeat(251) + '.txt', '界'.repeat(83) + 'ab.txt', '😀'.repeat(62) + 'abc.txt'])(
+  'saves duplicate maximum-length download names without overwriting or splitting Unicode: %s',
+  async filename => {
+    const { controller, download } = await fixture()
+    const first = download(1, false, undefined, filename)
+    const second = download(1, false, undefined, filename)
+    const entries = controller.listDownloads()
+    expect(entries).toHaveLength(2)
+    const paths = entries.map(entry => entry.savePath!)
+    expect(new Set(paths).size).toBe(2)
+    expect(entries.some(entry => entry.filename === filename)).toBe(true)
+    expect(entries.some(entry => entry.filename.endsWith(' (1).txt'))).toBe(true)
+    for (const [index, entry] of entries.entries()) {
+      expect(Buffer.byteLength(entry.filename)).toBeLessThanOrEqual(255)
+      expect(Buffer.from(entry.filename).toString()).toBe(entry.filename)
+      await writeFile(entry.savePath!, String(index), { flag: 'wx' })
+    }
+    for (const [index, path] of paths.entries()) expect(await readFile(path, 'utf8')).toBe(String(index))
+    // Finished reservations must still be protected by the files on disk.
+    first.complete()
+    second.complete()
+    download(1, false, undefined, filename)
+    expect(controller.listDownloads().some(entry => entry.filename.endsWith(' (2).txt'))).toBe(true)
+  }
+)

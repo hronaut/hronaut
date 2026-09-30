@@ -42,14 +42,46 @@ describe('SearchSettingsPanel', () => {
     controller.dispose()
   })
 
-  it('disables every engine while a selection is being saved', async () => {
+  it.each([
+    ['ArrowRight', 'duckduckgo'],
+    ['ArrowDown', 'duckduckgo'],
+    ['ArrowLeft', 'startpage'],
+    ['ArrowUp', 'startpage'],
+    ['End', 'startpage']
+  ])('selects and focuses the next engine with %s', async (key, engine) => {
+    const { controller, setSearchEngine } = renderPanel()
+    const google = screen.getByTestId('search-engine-google')
+    expect(google).toHaveAttribute('tabindex', '0')
+    for (const option of screen.getAllByRole('radio').filter(option => option !== google)) {
+      expect(option).toHaveAttribute('tabindex', '-1')
+    }
+    google.focus()
+    await userEvent.setup().keyboard(`{${key}}`)
+    const selected = screen.getByTestId(`search-engine-${engine}`)
+    expect(selected).toHaveFocus()
+    expect(selected).toHaveAttribute('aria-checked', 'true')
+    expect(selected).toHaveAttribute('tabindex', '0')
+    expect(google).toHaveAttribute('tabindex', '-1')
+    expect(setSearchEngine).toHaveBeenCalledWith(engine)
+    await userEvent.setup().keyboard('{Home}')
+    expect(google).toHaveFocus()
+    expect(google).toHaveAttribute('aria-checked', 'true')
+    controller.dispose()
+  })
+
+  it('preserves focus and blocks another selection while a selection is being saved', async () => {
     const saving = deferred<AppSettings>()
     const { controller, setSearchEngine } = renderPanel()
     setSearchEngine.mockImplementationOnce(() => saving.promise)
 
     await userEvent.setup().click(screen.getByTestId('search-engine-brave'))
 
-    for (const option of screen.getAllByRole('radio')) expect(option).toBeDisabled()
+    for (const option of screen.getAllByRole('radio')) expect(option).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByTestId('search-engine-brave')).toHaveFocus()
+    await userEvent.setup().keyboard('{ArrowRight}')
+    expect(screen.getByTestId('search-engine-brave')).toHaveFocus()
+    await userEvent.setup().click(screen.getByTestId('search-engine-google'))
+    expect(setSearchEngine).toHaveBeenCalledTimes(1)
     saving.resolve({ ...DEFAULT_RENDERER_SETTINGS, searchEngine: 'brave' })
     await vi.waitFor(() => expect(controller.busy.value).toBe(false))
     controller.dispose()

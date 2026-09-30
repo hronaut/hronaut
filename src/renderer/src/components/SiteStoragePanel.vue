@@ -156,7 +156,7 @@ onBeforeUnmount(dispose)
         <form class="site-storage-editor" @submit.prevent="saveSiteStorageItem">
           <input v-model="siteStorageKey" type="text" :aria-label="t('siteStorage.key')" :disabled="siteStorageState === 'saving'" maxlength="512" :placeholder="t('siteStorage.keyPlaceholder')" autocomplete="off" spellcheck="false" />
           <textarea v-model="siteStorageValue" :aria-label="t('siteStorage.value')" :disabled="siteStorageState === 'saving'" maxlength="262144" rows="2" :placeholder="t('siteStorage.valuePlaceholder')" spellcheck="false" />
-          <UiButton appearance="application" type="submit" :disabled="!siteStorageKey.trim() || siteStorageState === 'saving'">{{ siteStorageResult?.items.some((item) => item.key === siteStorageKey) ? t('siteStorage.update') : t('siteStorage.add') }}</UiButton>
+          <UiButton appearance="application" type="submit" :disabled="(siteStorageKind === 'cookies' && !siteStorageKey.trim()) || siteStorageState === 'saving'">{{ siteStorageResult?.items.some((item) => item.key === siteStorageKey) ? t('siteStorage.update') : t('siteStorage.add') }}</UiButton>
         </form>
         <div class="site-storage-list" :aria-busy="siteStorageState === 'loading'">
           <div v-if="siteStorageState === 'loading'" class="site-storage-empty"><IconProgress class="state-spinner" aria-hidden="true" /><strong>{{ t('siteStorage.reading') }}</strong></div>
@@ -164,7 +164,7 @@ onBeforeUnmount(dispose)
           <div v-else-if="!filteredSiteStorageItems.length" class="site-storage-empty compact"><IconSearch aria-hidden="true" /><strong>{{ t('siteStorage.noMatches') }}</strong></div>
           <template v-else>
             <article v-for="(item, index) in filteredSiteStorageItems" :key="`${item.key}-${item.domain ?? ''}-${item.path ?? ''}-${index}`" class="site-storage-item" :class="{ protected: item.protected }">
-              <UiButton appearance="application" class="site-storage-item-main" type="button" :disabled="item.protected || siteStorageState === 'saving'" :title="item.protected ? t('siteStorage.protectedTitle') : t('siteStorage.editTitle')" @click="editSiteStorageItem(item)">
+              <UiButton appearance="application" class="site-storage-item-main" type="button" :disabled="item.protected || item.valueTruncated || siteStorageState === 'saving'" :title="item.protected ? t('siteStorage.protectedTitle') : item.valueTruncated ? t('siteStorage.partialValueTitle') : t('siteStorage.editTitle')" @click="editSiteStorageItem(item)">
                   <strong>{{ item.key }}</strong>
                   <code>{{ item.protected ? t('siteStorage.protectedValue') : (item.value || t('siteStorage.emptyValue')) }}</code>
                   <small>{{ localBytes(item.valueBytes) }}<template v-if="item.domain"> · {{ item.domain }}{{ item.path }}</template><template v-if="item.valueTruncated"> {{ t('siteStorage.previewTruncated') }}</template></small>

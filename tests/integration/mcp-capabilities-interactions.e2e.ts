@@ -244,3 +244,24 @@ test('fills forms and dispatches keyboard, pointer, upload and viewport actions'
     expect.arrayContaining([expect.objectContaining({ level: 'error', message: 'hronaut-console-marker' })])
   )
 })
+
+
+test('preserves null and falsy evaluation results with automatic dialog handling', async ({ capabilities }) => {
+  const { client, tabId } = capabilities
+  for (const dialogAction of ['accept', 'dismiss'] as const) {
+    for (const [script, expected] of [
+      ['null', 'null'],
+      ['Promise.resolve(null)', 'null'],
+      ['undefined', 'undefined'],
+      ['false', 'false'],
+      ['0', '0']
+    ]) {
+      const result = await client.callTool({
+        name: 'browser_evaluate',
+        arguments: { tabId, script, dialogAction }
+      }) as CallToolResult
+      expect(result.isError, text(result)).not.toBe(true)
+      expect(text(result), `${dialogAction}: ${script}`).toBe(expected)
+    }
+  }
+})

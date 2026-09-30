@@ -58,6 +58,7 @@ type Domain =
   | 'dom'
   | 'visual'
   | 'issues'
+type RecorderDomain = 'repro' | 'dom' | 'coverage' | 'cpu'
 type CopyFeedback = 'debug' | 'repro' | 'repro-playwright' | 'dom' | 'visual' | 'issues' | 'quality'
 
 export interface DiagnosticsControllerOptions {
@@ -151,7 +152,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     visual: 0,
     issues: 0
   }
-  const recorderMutations: Partial<Record<'repro' | 'dom', NonNullable<ReturnType<typeof begin>>>> = {}
+  const recorderMutations: Partial<Record<RecorderDomain, NonNullable<ReturnType<typeof begin>>>> = {}
   let domRefreshTimer: number | undefined
   let domChangesReadRequest: {
     tabId: string
@@ -175,19 +176,19 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       && options.activeTab.value.navigationGeneration === request.tab.navigationGeneration
   }
 
-  function beginRecorderRequest(domain: 'repro' | 'dom', action: BrowserDomChangesAction): ReturnType<typeof begin> {
+  function beginRecorderRequest(domain: RecorderDomain, action: BrowserDomChangesAction): ReturnType<typeof begin> {
     // Background reads must not supersede an in-flight user action on this page.
     const mutation = recorderMutations[domain]
     if (action === 'get' && mutation && current(domain, mutation)) return null
     const request = begin(domain)
     if (request && action !== 'get') {
       recorderMutations[domain] = request
-      recorderCopyGenerations[domain] += 1
+      if (domain === 'repro' || domain === 'dom') recorderCopyGenerations[domain] += 1
     }
     return request
   }
 
-  function finishRecorderRequest(domain: 'repro' | 'dom', request: NonNullable<ReturnType<typeof begin>>): void {
+  function finishRecorderRequest(domain: RecorderDomain, request: NonNullable<ReturnType<typeof begin>>): void {
     if (recorderMutations[domain] === request) delete recorderMutations[domain]
   }
 
@@ -300,7 +301,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function manageCodeCoverage(action: 'get' | 'start' | 'stop' | 'clear', reload = true): Promise<void> {
-    const request = begin('coverage')
+    const request = beginRecorderRequest('coverage', action)
     if (!request) return
     coverageState.value = 'loading'
     coverageError.value = ''
@@ -318,6 +319,8 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       if (!current('coverage', request)) return
       coverageState.value = 'error'
       coverageError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      finishRecorderRequest('coverage', request)
     }
   }
 
@@ -332,7 +335,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function manageCpuProfile(action: 'get' | 'start' | 'stop' | 'clear'): Promise<void> {
-    const request = begin('cpu')
+    const request = beginRecorderRequest('cpu', action)
     if (!request) return
     cpuProfileState.value = 'loading'
     cpuProfileError.value = ''
@@ -345,6 +348,8 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       if (!current('cpu', request)) return
       cpuProfileState.value = 'error'
       cpuProfileError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      finishRecorderRequest('cpu', request)
     }
   }
 
@@ -411,6 +416,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
         ? 'start-allocation-sampling'
         : action === 'stop' ? 'stop-allocation-sampling' : 'clear-allocation-sampling'
       let report = await options.browser.measureMemory({ tabId: request.tab.id, action: memoryAction })
+      if (!current('memory', request)) return
       if (action === 'clear') report = await options.browser.measureMemory({ tabId: request.tab.id, action: 'measure' })
       if (!current('memory', request)) return
       memoryReport.value = report

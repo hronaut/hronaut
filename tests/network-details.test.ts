@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../src/shared/network-details.js'
 
 describe('network detail redaction', () => {
@@ -24,6 +24,28 @@ describe('network detail redaction', () => {
     })
   })
 
+  it('preserves prototype-named JSON fields while redacting their nested secrets', () => {
+    const body = '{"__proto__":{"visible":"kept","password":"fixture-secret"},"constructor":{"token":"fixture-token"},"nested":[{"__proto__":"literal"}]}'
+    const result = sanitizeNetworkBody(body, 'application/json', 10_000)
+    const parsed = JSON.parse(result.text)
+
+    expect(Object.hasOwn(parsed, '__proto__')).toBe(true)
+    expect(parsed).toEqual(JSON.parse(
+      '{"__proto__":{"visible":"kept","password":"[REDACTED]"},"constructor":{"token":"[REDACTED]"},"nested":[{"__proto__":"literal"}]}'
+    ))
+    expect(result.redacted).toBe(true)
+    expect(result.text).not.toContain('fixture-')
+  })
+
+  it.each([{ value: 'literal' }, { value: ['first', 'second'] }])('preserves prototype-named headers as own data properties (%j)', ({ value }) => {
+    const headers = redactNetworkHeaders({ ['__proto__']: value, Authorization: 'fixture-secret' })
+
+    expect(Object.hasOwn(headers, '__proto__')).toBe(true)
+    expect(headers.__proto__).toEqual(value)
+    expect(Object.getPrototypeOf(headers)).toBeNull()
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ ['__proto__']: value, Authorization: '[REDACTED]' })
+  })
+
   it('redacts nested JSON secrets and bounds the formatted output', () => {
     const result = sanitizeNetworkBody(JSON.stringify({
       ok: true,
@@ -39,6 +61,22 @@ describe('network detail redaction', () => {
     expect(result).toMatchObject({ truncated: false, redacted: true })
   })
 
+  it.each(['text/plain', 'application/json', undefined])('omits deeply nested JSON instead of exposing secrets (%s)', (contentType) => {
+    for (const [open, close] of [['[', ']'], ['{"child":', '}']]) {
+      const body = '{"password":"fixture-secret","nested":'
+        + open!.repeat(12_000) + '0' + close!.repeat(12_000) + '}'
+      const result = sanitizeNetworkBody(body, contentType, 1_000)
+
+      expect(result.text).toBe('[JSON body omitted: could not safely redact]')
+      expect(result.text).not.toContain('fixture-secret')
+      expect(result).toMatchObject({ originalChars: body.length, redacted: true, truncated: false })
+    }
+  })
+
+  it('retains incomplete plain-text JSON as bounded text', () => {
+    expect(sanitizeNetworkBody('{"status":', 'text/plain', 1_000).text).toBe('{"status":')
+  })
+
   it('redacts form fields and omits binary or multipart bodies', () => {
     expect(sanitizeNetworkBody('name=Ada&password=private', 'application/x-www-form-urlencoded', 1_000).text)
       .toBe('name=Ada&password=%5BREDACTED%5D')
@@ -46,6 +84,26 @@ describe('network detail redaction', () => {
       .toBe('[binary body omitted]')
     expect(sanitizeNetworkBody('multipart-data', 'multipart/form-data; boundary=test', 1_000).text)
       .toBe('[multipart body omitted]')
+  })
+
+  it.each(['url', 'form'])('redacts repeated %s parameters without quadratic rewrites', (kind) => {
+    const input = Array(200).fill('token=fixture-secret').join('&') + '&view=full&password=p&token=last'
+    const append = vi.spyOn(URLSearchParams.prototype, 'append')
+    try {
+      const text = kind === 'url'
+        ? new URL(redactNetworkUrl(`https://example.test/?${input}`)).search.slice(1)
+        : sanitizeNetworkBody(input, 'application/x-www-form-urlencoded', 100_000).text
+      const result = new URLSearchParams(text)
+      expect(result.get('view')).toBe('full')
+      expect(result.get('password')).toBe('[REDACTED]')
+      expect(result.getAll('token')).toEqual(Array(201).fill('[REDACTED]'))
+      expect([...result.keys()].slice(0, 3)).toEqual(['view', 'password', 'token'])
+      expect(text).not.toContain('fixture-secret')
+      // Count work instead of relying on machine-dependent elapsed-time limits.
+      expect(append.mock.calls.length).toBeLessThanOrEqual(203)
+    } finally {
+      append.mockRestore()
+    }
   })
 
   it('marks long text responses as truncated', () => {

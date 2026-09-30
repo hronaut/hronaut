@@ -50,3 +50,27 @@ it('retains bounded outcome classifications and aggregates beyond recent history
   expect(snapshot.toolMetrics[0]?.outcomes).toEqual(snapshot.outcomeTotals)
   expect(snapshot.recentActivity.every(activity => !JSON.stringify(activity.result).includes('private'))).toBe(true)
 })
+
+it('evicts the oldest unfinished activities and settles the retained window once', () => {
+  const history = new McpActivityHistory()
+  const events = Array.from({ length: 100 }, (_, index) => ({
+    activityId: String(index), tabId: 'tab', toolName: 'browser_click', occurredAt: index * 100
+  }))
+  for (const event of events) history.track({ ...event, phase: 'started' })
+  for (const event of events) {
+    const completed = { ...event, occurredAt: event.occurredAt + 10, phase: 'finished' as const }
+    history.track(completed)
+    history.track(completed)
+  }
+  const snapshot = history.snapshot()
+  expect(snapshot.completedToolCalls).toBe(40)
+  expect(snapshot.recentActivity.map(activity => activity.activityId)).toEqual(
+    events.slice(-40).reverse().map(event => event.activityId)
+  )
+  expect(snapshot.toolMetrics).toMatchObject([{ count: 40, failures: 0, totalDurationMs: 400 }])
+  expect(snapshot.outcomeTotals).toEqual({ succeeded: 40 })
+  const next = { activityId: 'next', tabId: 'tab', toolName: 'browser_click', occurredAt: 10_000 }
+  history.track({ ...next, phase: 'started' })
+  history.track({ ...next, phase: 'finished', occurredAt: next.occurredAt + 10 })
+  expect(history.snapshot().completedToolCalls).toBe(41)
+})

@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib'
 import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { Socket } from 'node:net'
@@ -66,6 +67,17 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
   capabilities: async ({ appWindow, mcpPort, mcpToken }, use) => {
     const counters = { memorySaverTicks: 0, cacheProbeRequests: 0 }
     const server = createServer((request, response) => {
+      if (request.url === '/gzip-size-fixture') {
+        const body = gzipSync('😀'.repeat(1_000))
+        response.writeHead(200, {
+          'content-type': 'text/plain; charset=utf-8',
+          'content-encoding': 'gzip',
+          'content-length': body.length,
+          'cache-control': 'no-store'
+        })
+        response.end(body)
+        return
+      }
       if (request.url?.startsWith('/cpu-profile.js')) {
         response.writeHead(200, { 'content-type': 'application/javascript; charset=utf-8' })
         response.end(`

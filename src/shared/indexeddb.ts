@@ -57,7 +57,16 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
       const tag = Object.prototype.toString.call(value).slice(8, -1);
       return tag || typeof value;
     };
+    const takePreviewItems = (iterable) => {
+      const items = [];
+      for (const item of iterable) {
+        items.push(item);
+        if (items.length >= limits.maxCollectionItems) break;
+      }
+      return items;
+    };
     const normalize = (value, depth, seen, state) => {
+      if (typeof value === 'number' && !Number.isFinite(value)) return '[' + String(value) + ']';
       if (value === null || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
         if (typeof value === 'string' && value.length > 4096) {
           state.truncated = true;
@@ -73,24 +82,33 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
         state.truncated = true;
         return '[' + valueType(value) + ']';
       }
-      if (seen.has(value)) return '[Circular]';
+      if (seen.has(value)) {
+        state.truncated = true;
+        return '[Repeated reference]';
+      }
       seen.add(value);
       if (value instanceof Date) return Number.isNaN(value.getTime()) ? '[Invalid Date]' : value.toISOString();
+      if (value instanceof RegExp) return {
+        type: 'RegExp', source: normalize(value.source, depth + 1, seen, state), flags: value.flags
+      };
       if (value instanceof Blob) return { type: valueType(value), size: value.size, mimeType: boundedName(value.type) };
       if (value instanceof ArrayBuffer) return { type: 'ArrayBuffer', byteLength: value.byteLength };
       if (ArrayBuffer.isView(value)) {
-        const values = Array.from(value).slice(0, limits.maxCollectionItems);
+        const values = value instanceof DataView ? [] : Array.from(
+          value.subarray(0, limits.maxCollectionItems),
+          (item) => normalize(item, depth + 1, seen, state)
+        );
         if (value.length > values.length) state.truncated = true;
         return { type: valueType(value), byteLength: value.byteLength, values };
       }
       if (value instanceof Map) {
-        const entries = Array.from(value.entries()).slice(0, limits.maxCollectionItems)
+        const entries = takePreviewItems(value.entries())
           .map(([key, item]) => [normalize(key, depth + 1, seen, state), normalize(item, depth + 1, seen, state)]);
         if (value.size > entries.length) state.truncated = true;
         return { type: 'Map', entries };
       }
       if (value instanceof Set) {
-        const values = Array.from(value.values()).slice(0, limits.maxCollectionItems)
+        const values = takePreviewItems(value.values())
           .map((item) => normalize(item, depth + 1, seen, state));
         if (value.size > values.length) state.truncated = true;
         return { type: 'Set', values };
@@ -101,10 +119,21 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
         if (value.length > values.length) state.truncated = true;
         return values;
       }
-      const output = {};
-      const entries = Object.entries(value).slice(0, limits.maxCollectionItems);
-      if (Object.keys(value).length > entries.length) state.truncated = true;
-      for (const [key, item] of entries) output[boundedName(key)] = normalize(item, depth + 1, seen, state);
+      const output = Object.create(null);
+      let inspected = 0;
+      for (const key in value) {
+        if (!Object.hasOwn(value, key)) continue;
+        if (inspected >= limits.maxCollectionItems) {
+          state.truncated = true;
+          break;
+        }
+        inspected += 1;
+        if (key.length > limits.maxNameChars) {
+          state.truncated = true;
+          continue;
+        }
+        output[key] = normalize(value[key], depth + 1, seen, state);
+      }
       return output;
     };
     const preview = (value, maxBytes) => {

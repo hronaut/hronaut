@@ -127,6 +127,43 @@ describe('workspace data and agent access controls', () => {
   })
 })
 
+it.each(['success', 'failure'] as const)('keeps the current browser import destination after an older editor lookup %s', async (outcome) => {
+  const state = {
+    tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+    mcpUrl: '', profilePath: '', savedTabGroups: [],
+    mcpTabGroups: ['old', 'new'].map(id => ({ id, name: `${id} workspace`, description: '', color: 'purple',
+      createdAt: '', lastUsedAt: '', tabCount: 0, activeTabId: null, storageOriginCount: 0,
+      navigationPolicy: { mode: 'unrestricted', rules: [] } }))
+  } as BrowserState
+  let resolve!: (state: BrowserState) => void
+  let reject!: (error: Error) => void
+  const pending = new Promise<BrowserState>((finish, fail) => { resolve = finish; reject = fail })
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+    getState: vi.fn().mockReturnValueOnce(pending).mockResolvedValue(state),
+    listWorkspaceStorageOrigins: vi.fn(async () => []), listWorkspaceNavigationAudit: vi.fn(async () => [])
+  } })
+  const wrapper = mount(WorkspaceEditor, {
+    global: { plugins: [createHronautI18n('en-US')], stubs: {
+      WorkspaceContinuityPanel: true, HumanWaitingPanel: true
+    } },
+    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+  })
+  try {
+    const editor = wrapper.vm as unknown as { openExisting: (id: string) => Promise<void> }
+    const older = editor.openExisting('old')
+    await editor.openExisting('new')
+    await flushPromises()
+    expect(wrapper.get<HTMLSelectElement>('#browser-import-destination').element.value).toBe('new')
+    if (outcome === 'success') resolve(state)
+    else reject(new Error('Obsolete lookup failed'))
+    await expect(older).resolves.toBeUndefined()
+    await flushPromises()
+    expect(wrapper.get<HTMLInputElement>('#tab-group-name').element.value).toBe('new workspace')
+    expect(wrapper.get<HTMLSelectElement>('#browser-import-destination').element.value).toBe('new')
+  } finally { wrapper.unmount() }
+})
+
 it('keeps Home templates open when an older workspace editor read finishes', async () => {
   const state = {
     tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
@@ -181,5 +218,47 @@ it('keeps a busy template operation open when the native menu requests browser i
     expect(wrapper.get('#tab-group-editor-title').text()).toBe('Portable workspace templates')
     expect(wrapper.text()).toContain('Pending template')
     expect(wrapper.text()).not.toContain('Browser import')
+  } finally { wrapper.unmount() }
+})
+
+
+it.each([
+  ['ArrowRight', 'gray', 'blue'],
+  ['ArrowDown', 'purple', 'gray'],
+  ['ArrowLeft', 'gray', 'purple'],
+  ['ArrowUp', 'blue', 'gray'],
+  ['Home', 'purple', 'gray'],
+  ['End', 'gray', 'purple']
+])('selects and saves workspace colors with %s from %s to %s', async (key, start, target) => {
+  const state = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+    mcpUrl: '', profilePath: '', savedTabGroups: [], mcpTabGroups: [] } as BrowserState
+  const createWorkspace = vi.fn(async () => state)
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+    getState: vi.fn(async () => state), createWorkspace,
+    listWorkspaceStorageOrigins: vi.fn(async () => []),
+    listWorkspaceNavigationAudit: vi.fn(async () => [])
+  } })
+  const wrapper = mount(WorkspaceEditor, {
+    attachTo: document.body,
+    global: { plugins: [createHronautI18n('en-US')] },
+    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async next => { await next },
+      'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+  })
+  try {
+    await (wrapper.vm as unknown as { openNew: () => Promise<void> }).openNew()
+    await flushPromises()
+    await wrapper.get('#tab-group-name').setValue('Keyboard colors')
+    const initial = wrapper.get<HTMLButtonElement>(`[data-color="${start}"]`)
+    await initial.trigger('click')
+    initial.element.focus()
+    await initial.trigger('keydown', { key })
+    const selected = wrapper.get(`[data-color="${target}"]`)
+    expect(selected.attributes('aria-checked')).toBe('true')
+    expect(document.activeElement).toBe(selected.element)
+    expect(wrapper.findAll('[data-color][tabindex="0"]')).toHaveLength(1)
+    expect(selected.attributes('tabindex')).toBe('0')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(createWorkspace).toHaveBeenCalledWith(expect.objectContaining({ color: target }))
   } finally { wrapper.unmount() }
 })

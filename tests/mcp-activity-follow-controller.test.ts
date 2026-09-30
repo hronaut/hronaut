@@ -142,6 +142,31 @@ describe('MCP activity follow controller', () => {
     }
   })
 
+  it('does not resume abandoned activities outside the latest 40 dispatches', () => {
+    const harness = createHarness()
+    try {
+      for (let index = 0; index < 100; index += 1) {
+        harness.controller.accept(activity(`call-${index}`, index < 60 ? 'tab-a' : 'tab-b'))
+      }
+      harness.enable()
+      expect(harness.selectTabPassively).toHaveBeenCalledWith('tab-b')
+
+      for (let index = 99; index >= 60; index -= 1) {
+        harness.controller.accept(activity(`call-${index}`, 'tab-b', 'finished'))
+      }
+      expect(harness.selectTabPassively).toHaveBeenCalledTimes(40)
+      expect(harness.selectTabPassively.mock.calls.every(([tabId]) => tabId === 'tab-b')).toBe(true)
+      harness.controller.refresh()
+      expect(harness.selectTabPassively).toHaveBeenCalledTimes(40)
+
+      harness.controller.accept(activity('fresh', 'tab-a'))
+      expect(harness.selectTabPassively).toHaveBeenCalledTimes(41)
+      expect(harness.selectTabPassively).toHaveBeenLastCalledWith('tab-a')
+    } finally {
+      harness.controller.dispose()
+    }
+  })
+
   it('reports wake failures without leaking an unhandled rejection', async () => {
     const harness = createHarness()
     const failure = new Error('wake failed')

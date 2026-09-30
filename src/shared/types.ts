@@ -1562,6 +1562,10 @@ export interface BrowserNetworkRequestDetails extends BrowserNetworkRequest {
     mimeType?: string
     protocol?: string
     serverTiming?: BrowserServerTimingMetric[]
+    /** Completed response body bytes, excluding headers, before decompression. */
+    bodySizeBytes?: number
+    /** Completed response content bytes after decompression, before text decoding. */
+    contentSizeBytes?: number
     body: BrowserNetworkBody
   }
   timing?: BrowserNetworkTiming
@@ -2473,6 +2477,7 @@ export interface HronautApi {
   createDebugReport(options?: BrowserDebugReportOptions): Promise<BrowserDebugReport>
   setDiagnosticLogPreservation(tabId: string, preserve: boolean): Promise<BrowserState>
   manageVideo(options: BrowserVideoOptions): Promise<BrowserVideoState>
+  importVideoAudio(tabId: string, provenance: string): Promise<BrowserVideoState>
   videoPreview(tabId: string): Promise<Uint8Array>
   manageRepro(action: BrowserReproAction, tabId?: string): Promise<BrowserReproRecording>
   manageDomChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport>

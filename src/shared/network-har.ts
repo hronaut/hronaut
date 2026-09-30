@@ -10,7 +10,7 @@ import {
   networkResponseSourceLabel,
   serviceWorkerResponseSourceLabel
 } from './network-response-source.js'
-import { isWindowsReservedFilename } from './portable-filename.js'
+import { portableExportFilename } from './portable-filename.js'
 
 export const DEFAULT_NETWORK_HAR_REQUESTS = 100
 export const MAX_NETWORK_HAR_REQUESTS = 200
@@ -18,29 +18,7 @@ export const DEFAULT_NETWORK_HAR_BODY_CHARS = 5_000
 export const MAX_NETWORK_HAR_BODY_CHARS = 20_000
 
 export function networkHarFilename(requested: string | undefined, title: string): string {
-  if (requested !== undefined) {
-    const filename = requested.trim()
-    if (
-      !filename
-      || filename === '.'
-      || filename === '..'
-      || filename.includes('/')
-      || filename.includes('\\')
-      || filename.length > 180
-      || /[\u0000-\u001f<>:"|?*]/.test(filename)
-      || /[. ]$/.test(filename)
-      || isWindowsReservedFilename(filename)
-    ) throw new Error('HAR filename must be a portable file name without a directory path')
-    return filename.toLowerCase().endsWith('.har') ? filename : `${filename}.har`
-  }
-  const stem = title
-    .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '-')
-    .replace(/\s+/g, ' ')
-    .replace(/[. ]+$/g, '')
-    .trim()
-    .slice(0, 150) || 'network'
-  const portableStem = isWindowsReservedFilename(stem) ? `network-${stem}` : stem
-  return `${portableStem}.sanitized.har`
+  return portableExportFilename(requested, title, 'har')
 }
 
 export interface NormalizedNetworkHarOptions {
@@ -124,10 +102,23 @@ function networkFilterSize(value: string): number | undefined {
 }
 
 function wildcardMatch(value: string, pattern: string): boolean {
-  const source = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*')
-  return new RegExp(`^${source}$`, 'i').test(value)
+  const normalized = value.toLowerCase()
+  const parts = pattern.toLowerCase().split('*')
+  if (parts.length === 1) return normalized === parts[0]
+  const first = parts[0]!
+  const last = parts[parts.length - 1]!
+  if (!normalized.startsWith(first) || !normalized.endsWith(last)) return false
+  let position = first.length
+  const suffixStart = normalized.length - last.length
+  // Search literal chunks once in order. A generated .* expression can take
+  // exponential time on repeated wildcard prefixes and a nonmatching suffix.
+  for (const part of parts.slice(1, -1)) {
+    const found = normalized.indexOf(part, position)
+    if (found < 0) return false
+    position = found + part.length
+    if (position > suffixStart) return false
+  }
+  return position <= suffixStart
 }
 
 function requestMatchesPropertyFilter(request: BrowserNetworkRequest, property: string, expected: string): boolean {
@@ -213,6 +204,19 @@ function headerValue(headers: Record<string, string | string[]>, target: string)
   return Array.isArray(match[1]) ? match[1][0] ?? '' : match[1]
 }
 
+function requestBodySize(headers: Record<string, string | string[]>): number {
+  const values = Object.entries(headers)
+    .filter(([name]) => name.toLowerCase() === 'content-length')
+    .flatMap(([, value]) => Array.isArray(value) ? value : [value])
+  if (values.length !== 1) return -1
+  const value = values[0]?.trim() ?? ''
+  if (!/^\d+$/.test(value)) return -1
+  const bytes = Number(value)
+  // Captured body previews count UTF-16 characters and can be sanitized or
+  // incomplete. Only an unambiguous byte count can populate HAR bodySize.
+  return Number.isSafeInteger(bytes) ? bytes : -1
+}
+
 function queryEntries(input: string): BrowserNetworkHarHeader[] {
   try {
     const url = new URL(input)
@@ -252,7 +256,7 @@ function harEntry(details: BrowserNetworkRequestDetails, includeBodies: boolean)
       queryString: queryEntries(details.url),
       cookies: [],
       headersSize: -1,
-      bodySize: details.request.body?.originalChars ?? -1,
+      bodySize: requestBodySize(details.request.headers),
       ...(requestText !== undefined ? { postData: { mimeType: requestMimeType, text: requestText } } : {})
     },
     response: {
@@ -262,13 +266,13 @@ function harEntry(details: BrowserNetworkRequestDetails, includeBodies: boolean)
       headers: headerEntries(details.response.headers),
       cookies: [],
       content: {
-        size: details.responseSizeBytes ?? details.response.body.originalChars ?? -1,
+        size: details.response.contentSizeBytes ?? -1,
         mimeType: responseMimeType,
         ...(responseText !== undefined ? { text: responseText } : {})
       },
       redirectURL: headerValue(details.response.headers, 'location'),
       headersSize: -1,
-      bodySize: details.responseSizeBytes ?? -1
+      bodySize: details.response.bodySizeBytes ?? -1
     },
     cache: {},
     timings: {

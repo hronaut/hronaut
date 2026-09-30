@@ -55,6 +55,8 @@ const details: BrowserNetworkRequestDetails = {
     }
   },
   response: {
+    bodySizeBytes: 30,
+    contentSizeBytes: 42,
     headers: {
       'set-cookie': '[REDACTED]',
       'x-request-id': 'visible-42',
@@ -77,6 +79,47 @@ const details: BrowserNetworkRequestDetails = {
 }
 
 describe('sanitized network HAR', () => {
+  const requestSizeCases: [Record<string, string | string[]>, number][] = [
+    [{ 'Content-Length': '4' }, 4],
+    [{ 'content-length': ' 0 ' }, 0],
+    [{ 'content-length': ['4'] }, 4],
+    [{}, -1],
+    [{ 'content-length': '' }, -1],
+    [{ 'content-length': '-1' }, -1],
+    [{ 'content-length': '4.5' }, -1],
+    [{ 'content-length': '9007199254740992' }, -1],
+    [{ 'content-length': ['4', '8'] }, -1],
+    [{ 'content-length': '4', 'Content-Length': '8' }, -1]
+  ]
+  it.each(requestSizeCases)('uses known byte metadata for request headers %j', (headers, expectedBytes) => {
+    const har = buildSanitizedNetworkHar({
+      appVersion: '1.0.0', tabId: 'tab-1', title: 'Example', url: details.url,
+      availableRequestCount: 1, includeBodies: false, truncated: false,
+      details: [{
+        ...details,
+        request: {
+          headers,
+          body: { text: '😀', originalChars: 2, truncated: false, redacted: false }
+        }
+      }]
+    })
+    expect(har.log.entries[0]?.request.bodySize).toBe(expectedBytes)
+    expect(har.log.entries[0]?.request.postData).toBeUndefined()
+  })
+
+  it('does not substitute transfer bytes or character counts for unknown response body sizes', () => {
+    const har = buildSanitizedNetworkHar({
+      appVersion: '1.0.0', tabId: 'tab-1', title: 'Example', url: details.url,
+      availableRequestCount: 1, includeBodies: true, truncated: false,
+      details: [{
+        ...details,
+        response: { ...details.response, bodySizeBytes: undefined, contentSizeBytes: undefined }
+      }]
+    })
+    expect(har.log.entries[0]?.response.bodySize).toBe(-1)
+    expect(har.log.entries[0]?.response.content.size).toBe(-1)
+  })
+
   it('creates portable sanitized filenames and rejects paths', () => {
     expect(networkHarFilename(undefined, 'Example: account / overview.')).toBe('Example- account - overview.sanitized.har')
     expect(networkHarFilename(undefined, '  ...  ')).toBe('network.sanitized.har')
@@ -89,6 +132,13 @@ describe('sanitized network HAR', () => {
     ]) {
       expect(() => networkHarFilename(filename, 'Ignored')).toThrow('portable file name')
     }
+  })
+
+  it('bounds generated Unicode filenames and rejects oversized requested names', () => {
+    const filename = networkHarFilename(undefined, '界'.repeat(150))
+    expect(Buffer.byteLength(filename)).toBeLessThanOrEqual(248)
+    expect(filename.endsWith('.sanitized.har')).toBe(true)
+    expect(() => networkHarFilename('界'.repeat(100), '')).toThrow('portable file name')
   })
 
   it('exports standard request metadata without sensitive headers or cookie collections', () => {
@@ -112,7 +162,7 @@ describe('sanitized network HAR', () => {
         cookies: [],
         postData: { mimeType: 'application/json' }
       },
-      response: { status: 200, cookies: [], content: { size: 42, mimeType: 'application/json' } },
+      response: { status: 200, cookies: [], bodySize: 30, content: { size: 42, mimeType: 'application/json' } },
       timings: { blocked: 5, dns: 5, connect: 10, ssl: 7, send: 2, wait: 90, receive: 13 },
       _hronaut: {
         fromCache: true,
@@ -186,6 +236,25 @@ describe('sanitized network HAR', () => {
     expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: 'larger-than:42' }))).toEqual([])
     expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: 'status-code:404' }))).toEqual([])
     expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: 'larger-than:nope' }))).toEqual([])
+  })
+
+  it.each([
+    ['EXAMPLE.TEST', true], ['*', true], ['**example**.test**', true],
+    ['ex*pl*.test', true], ['*example.test*', true],
+    ['example.test*example.test', false], ['example.test*test', false],
+    ['example?test', false], ['example.test.', false], ['example.*.test', false]
+  ])('matches domain wildcard %s with literal anchored chunks', (pattern, matches) => {
+    expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: `domain:${pattern}` })))
+      .toEqual(matches ? [details] : [])
+  })
+
+  it('handles repeated wildcard prefixes without exponential regular-expression backtracking', () => {
+    const request = { ...details, url: `https://${'a'.repeat(60)}.test/` }
+    for (const suffix of ['b.test', 'b*.test', 'a.test']) {
+      const query = `domain:${'*a'.repeat(24)}${suffix}`
+      expect(filterNetworkRequests([request], normalizeNetworkHarOptions({ query })))
+        .toEqual(suffix === 'a.test' ? [request] : [])
+    }
   })
 
   it('exports only a payload-free WebSocket summary', () => {

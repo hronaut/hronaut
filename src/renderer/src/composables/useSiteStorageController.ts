@@ -506,7 +506,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   function editItem(item: BrowserStorageItem): void {
-    if (item.protected || state.value === 'saving') return
+    if (item.protected || item.valueTruncated || state.value === 'saving') return
     key.value = item.key
     value.value = item.value ?? ''
   }
@@ -516,7 +516,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     if (
       !tab
       || state.value === 'saving'
-      || (action === 'set' && !key.value.trim())
+      || (action === 'set' && kind.value === 'cookies' && !key.value.trim())
       || (action === 'delete' && (!item || item.protected))
     ) return
     const expectedGeneration = generation

@@ -1526,7 +1526,11 @@ test('switches detached panels exclusively without resurrecting the previous sur
   appWindow,
   electronApp
 }) => {
+  // Electron reports website views as pages too. Consume the new-tab event
+  // before waiting for the detached BrowserWindow.
+  const newTabPagePromise = electronApp.waitForEvent('window')
   await appWindow.getByRole('button', { name: 'New tab' }).click()
+  await newTabPagePromise
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   const detachedPagePromise = electronApp.waitForEvent('window')
   await appWindow.getByRole('dialog', { name: 'Page tools' })
@@ -1534,6 +1538,7 @@ test('switches detached panels exclusively without resurrecting the previous sur
     .selectOption('window')
   const detachedPage = await detachedPagePromise
   await detachedPage.waitForLoadState('domcontentloaded')
+  await expect(detachedPage).toHaveURL(/hronautPanel=page-tools/)
   await expect(detachedPage.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
 
   await detachedPage.getByRole('button', { name: 'Open Console' }).click()
@@ -4000,6 +4005,10 @@ test('focuses the selected website after direct and visual-overview tab selectio
   const alphaUrl = fixtureUrl('Tab focus alpha')
   const betaUrl = fixtureUrl('Tab focus beta')
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(alphaUrl)}, active: true })`)
+  // newTab returns before navigation commits. Finish loading the first fixture
+  // before moving it into the background and looking it up by committed URL.
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
+    .toBe('Tab focus alpha')
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(betaUrl)}, active: true })`)
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
     .toBe('Tab focus beta')

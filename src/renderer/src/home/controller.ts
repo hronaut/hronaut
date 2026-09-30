@@ -16,7 +16,11 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     const timer = setTimeout(() => { timers.delete(timer); if (!signal.aborted) callback() }, delay)
     timers.add(timer); return timer
   }
-  const text = (id: string, value: string | number): void => { element(id).textContent = String(value) }
+  const text = (id: string, value: string | number): void => {
+    const target = element(id)
+    const next = String(value)
+    if (target.textContent !== next) target.textContent = next
+  }
   const count = (one: string, other: string, value: number): string => interpolate(value === 1 ? one : other, { count: new Intl.NumberFormat(locale).format(value) })
   let selectedGuide = guides.find(guide => guide.id === remember('hronaut.home.guide'))?.id ?? guides[0]!.id
   let guideSequence = 0
@@ -25,8 +29,10 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   const vscodeButton = document.querySelector<HTMLButtonElement>('[data-vscode-install]')
   type CopyState = { label: string; title: string; sequence: number; timer?: ReturnType<typeof setTimeout> }
   const copyStates = new Map<HTMLButtonElement, CopyState>()
+  let copyFeedbackSequence = 0
   const guideLabel = (): string => interpolate(messages.connect.openGuide, { name: guides.find(guide => guide.id === selectedGuide)!.name })
   const resetCopies = (): void => {
+    copyFeedbackSequence++
     copyStates.forEach((state, button) => {
       if (!button.dataset.copyTarget?.startsWith('guide-')) return
       state.sequence++; clearTimeout(state.timer)
@@ -109,6 +115,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       const target = element(button.dataset.copyTarget!)
       const value = target.textContent ?? ''
       const sequence = ++state.sequence
+      const feedbackSequence = ++copyFeedbackSequence
       clearTimeout(state.timer); button.title = state.title; text('copy-status', '')
       try {
         if (!api?.copyText) throw new Error(messages.copy.unavailable)
@@ -119,9 +126,11 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
         if (signal.aborted || sequence !== state.sequence || target.textContent !== value) return
         button.textContent = messages.copy.failed
         button.title = error instanceof Error ? error.message : messages.copy.rejected
-        text('copy-status', `${messages.copy.failed} ${messages.copy.rejected}`)
-        const selection = window.getSelection(); const range = document.createRange()
-        range.selectNodeContents(target); selection?.removeAllRanges(); selection?.addRange(range)
+        if (feedbackSequence === copyFeedbackSequence) {
+          text('copy-status', `${messages.copy.failed} ${messages.copy.rejected}`)
+          const selection = window.getSelection(); const range = document.createRange()
+          range.selectNodeContents(target); selection?.removeAllRanges(); selection?.addRange(range)
+        }
       }
       state.timer = later(() => { if (sequence === state.sequence) { button.textContent = state.label; button.title = state.title } }, 1200)
     }, { signal })

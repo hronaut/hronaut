@@ -1,9 +1,34 @@
 import { createServer, get } from 'node:http'
-import { readdir, readFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { _electron as electron, type ElectronApplication } from '@playwright/test'
 import { describe, expect, it, vi } from 'vitest'
-import { closeFixtureServer, closeHronaut } from './integration/fixtures.js'
+import { closeFixtureServer, closeHronaut, collectRendererDiagnostics, launchHronaut } from './integration/fixtures.js'
 
 describe('integration fixture teardown', () => {
+  it.each(['monitor', 'window', 'renderer'] as const)('closes a launched app when %s initialization fails', async (stage) => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-failed-launch-'))
+    const failure = new Error(`simulated ${stage} startup failure`)
+    const evaluate = vi.fn(async () => undefined)
+    const firstWindow = vi.fn(async () => ({
+      on: vi.fn(),
+      waitForLoadState: vi.fn(async () => { throw failure })
+    }))
+    if (stage === 'monitor') evaluate.mockRejectedValueOnce(failure)
+    if (stage === 'window') firstWindow.mockRejectedValueOnce(failure)
+    const close = vi.fn(async () => undefined)
+    const app = { evaluate, firstWindow, close, process: () => ({ exitCode: 0 }) } as unknown as ElectronApplication
+    const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
+    try {
+      await expect(launchHronaut(directory)).rejects.toBe(failure)
+      expect(close).toHaveBeenCalledOnce()
+    } finally {
+      launch.mockRestore()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('routes every HTTP fixture shutdown through the connection-draining helper', async () => {
     const integrationDirectory = 'tests/integration'
     const files = (await readdir(integrationDirectory))
@@ -48,6 +73,33 @@ describe('integration fixture teardown', () => {
 
     expect(server.listening).toBe(false)
     client.destroy()
+  })
+
+  it('bounds failed-test diagnostics so an unresponsive main process cannot prevent teardown', async () => {
+    vi.useFakeTimers()
+    try {
+      const app = { evaluate: () => new Promise<never>(() => undefined) } as unknown as ElectronApplication
+      const diagnostics = collectRendererDiagnostics(app)
+      await vi.advanceTimersByTimeAsync(1_000)
+      await expect(diagnostics).resolves.toEqual({
+        unavailable: 'Main process did not respond to diagnostics within 1000ms'
+      })
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retains successful renderer diagnostics and clears the fallback timer', async () => {
+    vi.useFakeTimers()
+    try {
+      const result = { rendererExits: [], nativeContents: [] }
+      const app = { evaluate: async () => result } as unknown as ElectronApplication
+      await expect(collectRendererDiagnostics(app)).resolves.toEqual(result)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not let an unresponsive Electron evaluation block forced shutdown', async () => {

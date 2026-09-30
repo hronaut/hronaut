@@ -442,7 +442,7 @@ export function mcpCapabilityOperationClass(
   toolName: string,
   input: Record<string, unknown>
 ): McpCapabilityOperationClass {
-  if (toolName === 'browser_video' && input.action === 'export') return 'external-request'
+  if (toolName === 'browser_video' && (input.action === 'export' || input.action === 'import-audio')) return 'external-request'
   const action = mcpCapabilityAction(toolName, input)
   if (toolDefinition(toolName).annotations.readOnlyHint
     || (action !== undefined && READ_ONLY_MULTI_ACTIONS[toolName]?.has(action))) return 'read'
@@ -1697,9 +1697,14 @@ function createBrowserMcpServer(
           if (!reviewAttempt || !humanWaiting) return
           const attempt = reviewAttempt
           reviewAttempt = undefined
-          return humanWaiting.finishReviewedDispatch(workspaceId, attempt.id, attempt.revision, outcome, () => {
-            requireAgentWorkspace(workspaceId)
-          })
+          try {
+            return await humanWaiting.finishReviewedDispatch(workspaceId, attempt.id, attempt.revision, outcome, () => {
+              requireAgentWorkspace(workspaceId)
+            })
+          } catch (error) {
+            finishActivity(undefined, true, error)
+            throw error
+          }
         }
         const operation = async (): Promise<CallToolResult> => {
           const admissionRejection = authorityRejection()
@@ -1777,7 +1782,8 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
-                ...(name === 'browser_video' ? { validateRecording: () => {
+                ...(name === 'browser_video' ? { recordingSignal: extra?.signal, validateRecording: () => {
+                  if (extra?.signal?.aborted) throw new Error('Video operation was cancelled')
                   requireCurrentControl()
                   requireActiveCapabilityDispatch(name, actionInput)
                   requireAgentWorkspace(workspaceId)
@@ -3933,8 +3939,8 @@ function createBrowserMcpServer(
   registerWorkspaceTool(
     'browser_video',
     { description: toolDescription('browser_video'), inputSchema: videoOptionsShape },
-    tabTool('browser_video', async ({ validateRecording, ...input }: BrowserVideoOptions & { validateRecording?: () => void }) =>
-      textResult(await manager.videoRecording({ tabId: input.tabId, action: input.action, annotations: input.annotations, clips: input.clips }, validateRecording)), 'never')
+    tabTool('browser_video', async ({ validateRecording, recordingSignal, ...input }: BrowserVideoOptions & { validateRecording?: () => void; recordingSignal?: AbortSignal }) =>
+      textResult(await manager.videoRecording({ tabId: input.tabId, action: input.action, annotations: input.annotations, clips: input.clips, audio: input.audio, cameras: input.cameras, transition: input.transition, audioPath: input.audioPath, audioName: input.audioName, audioProvenance: input.audioProvenance, assetId: input.assetId }, validateRecording, recordingSignal)), 'never')
   )
   registerWorkspaceTool(
     'browser_repro',

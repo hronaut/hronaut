@@ -144,3 +144,18 @@ describe('AppTopbarActions', () => {
     rendered.mcpStatusController.dispose()
   })
 })
+
+it.each([
+  ['interactionPending', '.all-lock-button'],
+  ['audioPending', '.all-tabs-audio-button']
+])('shows waiting feedback for global %s', async (pending, selector) => {
+  const view = renderActions({ [pending]: true })
+  const button = view.container.querySelector(selector) as HTMLButtonElement
+  expect(button).toBeDisabled()
+  expect(button).toHaveAttribute('aria-busy', 'true')
+  expect(button.getAttribute('aria-label')).toContain('Waiting…')
+  expect(button.querySelector('.state-spinner')).not.toBeNull()
+  await view.rerender({ [pending]: false })
+  expect(button).toBeEnabled()
+  expect(button.querySelector('.state-spinner')).toBeNull()
+})

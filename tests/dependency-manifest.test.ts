@@ -11,10 +11,10 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })))
 })
 
-async function runVerifier(packageDependencies: Record<string, string>, lockDependencies: Record<string, string>) {
+async function runVerifier(packageDependencies: Record<string, string>, lockDependencies: Record<string, string>, overrides?: unknown) {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-dependency-manifest-'))
   temporaryDirectories.push(directory)
-  await writeFile(join(directory, 'package.json'), JSON.stringify({ dependencies: packageDependencies }))
+  await writeFile(join(directory, 'package.json'), JSON.stringify({ dependencies: packageDependencies, overrides }))
   await writeFile(join(directory, 'package-lock.json'), JSON.stringify({
     packages: { '': { dependencies: lockDependencies } }
   }))
@@ -22,6 +22,10 @@ async function runVerifier(packageDependencies: Record<string, string>, lockDepe
 }
 
 describe('Docker dependency manifest verification', () => {
+  it('accepts overrides supplied separately to Docker install inputs', async () => {
+    const result = await runVerifier({ tronweb: '^6.5.1' }, { tronweb: '^6.5.1' }, { tronweb: { axios: '1.20.0' } })
+    expect(result.status).toBe(0)
+  })
   it('accepts matching dependency declarations', async () => {
     const result = await runVerifier({ vue: '^3.5.0' }, { vue: '^3.5.0' })
     expect(result.status).toBe(0)

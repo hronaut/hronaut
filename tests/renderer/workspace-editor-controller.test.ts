@@ -317,6 +317,48 @@ describe('workspace editor controller', () => {
     }
   })
 
+  it.each(['create', 'close', 'dispose', 'competing-modal'] as const)('discards a failed workspace lookup superseded by %s', async (action) => {
+    const { open, canPresent, browser, controller } = createController()
+    const pending = deferred<BrowserState>()
+    browser.getState.mockReturnValueOnce(pending.promise)
+    const opening = controller.openExisting('agent')
+    if (action === 'create') await controller.openNew()
+    else if (action === 'close') controller.close()
+    else if (action === 'dispose') controller.dispose()
+    else canPresent.value = false
+    pending.reject(new Error('Obsolete workspace lookup failed'))
+    await expect(opening).resolves.toBeUndefined()
+    expect(open.value).toBe(action === 'create')
+    expect(controller.workspaceId.value).toBeNull()
+    expect(controller.error.value).toBe('')
+    if (action === 'create') expect(controller.mode.value).toBe('create')
+    controller.dispose()
+  })
+
+  it('discards an obsolete workspace state synchronization failure', async () => {
+    const { syncState, controller } = createController()
+    const pending = deferred<void>()
+    syncState.mockImplementationOnce(() => pending.promise)
+    const opening = controller.openExisting('agent')
+    await nextTick()
+    expect(syncState).toHaveBeenCalledOnce()
+    await controller.openNew()
+    pending.reject(new Error('Obsolete state synchronization failed'))
+    await expect(opening).resolves.toBeUndefined()
+    expect(controller.mode.value).toBe('create')
+    expect(controller.error.value).toBe('')
+    controller.dispose()
+  })
+
+  it('propagates a current workspace lookup failure for shell feedback', async () => {
+    const { open, browser, controller } = createController()
+    const cause = new Error('Current workspace lookup failed')
+    browser.getState.mockRejectedValueOnce(cause)
+    await expect(controller.openExisting('agent')).rejects.toBe(cause)
+    expect(open.value).toBe(false)
+    controller.dispose()
+  })
+
   it('keeps the latest workspace when editor state requests resolve out of order', async () => {
     const { state, open, browser, controller } = createController()
     state.value = {

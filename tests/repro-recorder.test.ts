@@ -26,9 +26,34 @@ function fixture() {
   return { tab, recorder, executeJavaScript, changed, isAgentInput }
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('reproduction recorder data contracts', () => {
+  it('discards a delayed scroll from the previous document and records new-page scrolling', async () => {
+    vi.useFakeTimers()
+    const f = fixture()
+    try {
+      await f.recorder.manage(f.tab, 'start')
+      f.executeJavaScript.mockClear()
+      f.executeJavaScript.mockResolvedValue({ x: 0, y: 300 })
+      f.recorder.observeReproMouse(f.tab, { type: 'mouseWheel', x: 10, y: 10 })
+      f.tab.navigationGeneration += 1
+      f.tab.url = 'https://example.test/next'
+      f.recorder.navigated(f.tab, f.tab.url, false)
+      await vi.advanceTimersByTimeAsync(250)
+      await f.tab.reproRecording!.queue
+      expect(f.executeJavaScript).not.toHaveBeenCalled()
+      expect((await f.recorder.manage(f.tab, 'get')).steps.map(step => step.kind)).toEqual(['navigate', 'navigate'])
+
+      f.recorder.observeReproMouse(f.tab, { type: 'mouseWheel', x: 10, y: 10 })
+      await vi.advanceTimersByTimeAsync(250)
+      await f.tab.reproRecording!.queue
+      expect((await f.recorder.manage(f.tab, 'get')).steps.at(-1)).toMatchObject({ kind: 'scroll', scroll: { x: 0, y: 300 } })
+    } finally {
+      f.recorder.clearReproRecording(f.tab)
+    }
+  })
+
   it('retains unresolved input targets without merging separate edits', async () => {
     const f = fixture()
     await f.recorder.manage(f.tab, 'start')

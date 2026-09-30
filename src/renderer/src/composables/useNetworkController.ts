@@ -113,6 +113,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let routeMutationSequence = 0
   let requestDetailsSequence = 0
   let detailsCopySequence = 0
+  let harCopySequence = 0
   let replaySequence = 0
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
@@ -167,6 +168,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     routeMutationSequence += 1
     requestDetailsSequence += 1
     detailsCopySequence += 1
+    harCopySequence += 1
   }
 
   function beginRouteMutation(): number {
@@ -480,10 +482,15 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   async function selectRelatedRequest(request: BrowserNetworkRequest): Promise<void> {
+    const tab = options.activeTab.value
+    if (!tab) return
+    const expectedGeneration = generation
+    const sequence = ++requestDetailsSequence
     search.value = ''
     resourceFilter.value = ''
     failuresOnly.value = false
     await nextTick()
+    if (sequence !== requestDetailsSequence || !isCurrent(tab.id, expectedGeneration)) return
     await selectRequest(request)
   }
 
@@ -574,16 +581,19 @@ export function useNetworkController(options: NetworkControllerOptions) {
     const tab = options.activeTab.value
     if (!tab) return
     const expectedGeneration = generation
+    const sequence = ++harCopySequence
+    harCopied.value = false
+    feedbackTimers.clear('har')
     monitorError.value = ''
     try {
       const har: BrowserNetworkHar = await options.browser.createNetworkHar(harOptions(tab.id))
-      if (!isCurrent(tab.id, expectedGeneration)) return
+      if (sequence !== harCopySequence || !isCurrent(tab.id, expectedGeneration)) return
       if (!await options.copyText(JSON.stringify(har, null, 2))) return
-      if (!isCurrent(tab.id, expectedGeneration)) return
+      if (sequence !== harCopySequence || !isCurrent(tab.id, expectedGeneration)) return
       harCopied.value = true
       feedbackTimers.schedule('har', () => (harCopied.value = false))
     } catch (cause) {
-      if (!isCurrent(tab.id, expectedGeneration)) return
+      if (sequence !== harCopySequence || !isCurrent(tab.id, expectedGeneration)) return
       monitorError.value = cause instanceof Error ? cause.message : String(cause)
     }
   }

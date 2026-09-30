@@ -26,7 +26,7 @@ export interface CdpRuntimeExceptionDetails {
   columnNumber?: number
   url?: string
   stackTrace?: CdpRuntimeStackTrace
-  exception?: { description?: string }
+  exception?: CdpRuntimeRemoteObject
 }
 
 export interface CdpRuntimeRemoteObject {
@@ -71,7 +71,8 @@ function boundedText(value: string | undefined, maxChars: number): string | unde
 }
 
 function safeSourceUrl(value: string | undefined): string | undefined {
-  const normalized = boundedText(value, MAX_CONSOLE_SOURCE_CHARS)
+  // Preserve the complete authority until credentials have been redacted.
+  const normalized = value?.replace(/[\u0000-\u001f\u007f]/g, ' ').trim()
   if (!normalized || /^(?:data|javascript):/i.test(normalized)) return undefined
   return redactNetworkUrl(normalized).slice(0, MAX_CONSOLE_SOURCE_CHARS)
 }
@@ -121,7 +122,8 @@ export function normalizeConsoleStack(stack: CdpRuntimeStackTrace | undefined): 
 }
 
 function exceptionMessage(details: CdpRuntimeExceptionDetails): string {
-  const description = details.exception?.description?.split(/\r?\n/, 1)[0]
+  const value = details.exception ? runtimeConsoleArgument(details.exception) : undefined
+  const description = value === '' ? '""' : value
   const text = description || details.text || 'Unhandled JavaScript exception'
   const withContext = details.text && /^uncaught/i.test(details.text) && description && !/^uncaught/i.test(description)
     ? `${details.text.replace(/\s*$/, '')}: ${description}`

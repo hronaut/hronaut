@@ -4,6 +4,7 @@ import { useDiagnosticsController } from '../../src/renderer/src/composables/use
 import type {
   BrowserDebugReport,
   BrowserDomChangesReport,
+  BrowserMemoryReport,
   BrowserPerformanceReport,
   BrowserQualityAudit,
   BrowserInspectorIssuesReport,
@@ -36,6 +37,19 @@ function deferred<Value>() {
   let resolve!: (value: Value) => void
   const promise = new Promise<Value>((next) => (resolve = next))
   return { promise, resolve }
+}
+
+function memoryReport(action: BrowserMemoryReport['action'] = 'measure'): BrowserMemoryReport {
+  return {
+    tabId: 'tab-1',
+    url: 'https://example.test/app',
+    title: 'Example',
+    action,
+    forcedGarbageCollection: false,
+    cleared: action === 'clear-allocation-sampling',
+    allocationStatus: 'idle',
+    caveats: []
+  }
 }
 
 function performanceReport(tabId = 'tab-1'): BrowserPerformanceReport {
@@ -149,6 +163,48 @@ afterEach(() => {
 })
 
 describe('diagnostics controller', () => {
+  it.each(['switch', 'reload', 'dispose'] as const)('does not measure after allocation clear loses its context through %s', async (change) => {
+    const pending = deferred<BrowserMemoryReport>()
+    const { activeTab, browser, controller } = createController()
+    browser.measureMemory.mockReturnValueOnce(pending.promise)
+    const clearing = controller.manageMemoryAllocation('clear')
+    if (change === 'dispose') controller.dispose()
+    else activeTab.value = change === 'switch' ? tab('tab-2') : { ...tab(), navigationGeneration: 1 }
+    await nextTick()
+    pending.resolve(memoryReport('clear-allocation-sampling'))
+    await clearing
+    expect(browser.measureMemory).toHaveBeenCalledTimes(1)
+    expect(controller.memoryReport.value).toBeNull()
+    if (change !== 'dispose') controller.dispose()
+  })
+
+  it('does not measure again after a newer memory request supersedes allocation clear', async () => {
+    const pending = deferred<BrowserMemoryReport>()
+    const { browser, controller } = createController()
+    const newer = memoryReport('set-baseline')
+    browser.measureMemory.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(newer)
+    const clearing = controller.manageMemoryAllocation('clear')
+    await controller.runMemoryReport('set-baseline')
+    pending.resolve(memoryReport('clear-allocation-sampling'))
+    await clearing
+    expect(browser.measureMemory).toHaveBeenCalledTimes(2)
+    expect(controller.memoryReport.value).toEqual(newer)
+    expect(controller.memoryState.value).toBe('complete')
+    controller.dispose()
+  })
+
+  it('refreshes memory after allocation clear when the request still owns its context', async () => {
+    const { browser, controller } = createController()
+    const measured = memoryReport()
+    browser.measureMemory.mockResolvedValueOnce(memoryReport('clear-allocation-sampling')).mockResolvedValueOnce(measured)
+    await controller.manageMemoryAllocation('clear')
+    expect(browser.measureMemory).toHaveBeenNthCalledWith(1, { tabId: 'tab-1', action: 'clear-allocation-sampling' })
+    expect(browser.measureMemory).toHaveBeenNthCalledWith(2, { tabId: 'tab-1', action: 'measure' })
+    expect(controller.memoryReport.value).toEqual(measured)
+    expect(controller.memoryState.value).toBe('complete')
+    controller.dispose()
+  })
+
   it('invalidates a pending report after a same-URL reload', async () => {
     const pending = deferred<BrowserPerformanceReport>()
     const { activeTab, browser, controller } = createController()
@@ -377,6 +433,60 @@ describe('diagnostics controller', () => {
       controller.dispose()
     }
   )
+
+  it.each([
+    ['coverage', 'success'], ['coverage', 'failure'], ['cpu', 'success'], ['cpu', 'failure']
+  ] as const)('keeps %s stop %s authoritative during a recording-state refresh', async (domain, outcome) => {
+    const pending = deferred<void>()
+    const { activeTab, browser, controller } = createController()
+    const coverage = domain === 'coverage'
+    const api = coverage ? browser.manageCodeCoverage : browser.manageCpuProfile
+    const manage = coverage ? controller.manageCodeCoverage : controller.manageCpuProfile
+    const panel = coverage ? controller.coveragePanelOpen : controller.cpuProfilePanelOpen
+    const state = coverage ? controller.coverageState : controller.cpuProfileState
+    const error = coverage ? controller.coverageError : controller.cpuProfileError
+    const result = coverage ? controller.coverageResult : controller.cpuProfileResult
+    const completed = { tabId: 'tab-1', url: tab().url, title: 'Example', action: 'stop' as const, status: 'complete' as const }
+    activeTab.value = {
+      ...tab(),
+      ...(coverage
+        ? { codeCoverageRecording: { startedAt: '2026-08-21T12:00:00Z', mode: 'function' as const } }
+        : { cpuProfileRecording: { startedAt: '2026-08-21T12:00:00Z' } })
+    }
+    await nextTick()
+    panel.value = true
+    result.value = { ...completed, status: 'recording' }
+    api.mockImplementationOnce(async () => {
+      await pending.promise
+      if (outcome === 'failure') throw new Error('Profiler stop failed')
+      return completed
+    })
+    api.mockResolvedValue({ ...completed, action: 'get', status: 'idle' })
+    try {
+      const stopping = manage('stop')
+      activeTab.value = tab()
+      await nextTick()
+      await nextTick()
+      expect(api).toHaveBeenCalledTimes(1)
+      expect(state.value).toBe('loading')
+      pending.resolve()
+      await stopping
+      if (outcome === 'failure') {
+        expect(state.value).toBe('error')
+        expect(error.value).toBe('Profiler stop failed')
+      } else {
+        expect(state.value).toBe('ready')
+        expect(result.value).toEqual(completed)
+      }
+      await manage('get')
+      expect(api).toHaveBeenCalledTimes(2)
+      expect(state.value).toBe('ready')
+      expect(result.value?.status).toBe('idle')
+    } finally {
+      pending.resolve()
+      controller.dispose()
+    }
+  })
 
   it('keeps a recorder stop authoritative while tab updates request a refresh', async () => {
     const pending = deferred<BrowserReproRecording>()

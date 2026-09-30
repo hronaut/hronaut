@@ -56,6 +56,41 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   expect(JSON.parse(text(localStorageValue)).items).toEqual([
     expect.objectContaining({ key: 'hronaut-mcp-site-data', value: 'stored' })
   ])
+  const unicodeValue = await client.callTool({
+    name: 'browser_storage',
+    arguments: { tabId, kind: 'local-storage', action: 'set', key: 'unicode-preview', value: '€'.repeat(6_000), includeValues: true }
+  }) as CallToolResult
+  expect(unicodeValue.isError, text(unicodeValue)).not.toBe(true)
+  expect(JSON.parse(text(unicodeValue)).items).toContainEqual(expect.objectContaining({
+    key: 'unicode-preview', value: '€'.repeat(5_461), valueBytes: 18_000, valueTruncated: true
+  }))
+  const removeUnicode = await client.callTool({
+    name: 'browser_storage',
+    arguments: { tabId, kind: 'local-storage', action: 'delete', key: 'unicode-preview' }
+  }) as CallToolResult
+  expect(removeUnicode.isError, text(removeUnicode)).not.toBe(true)
+  for (const kind of ['local-storage', 'session-storage'] as const) {
+    for (const key of ['', '   ']) {
+      for (const value of ['first', 'updated']) {
+        const set = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'set', key, value } }) as CallToolResult
+        expect(set.isError, text(set)).not.toBe(true)
+        const get = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'get', key } }) as CallToolResult
+        expect(get.isError, text(get)).not.toBe(true)
+        expect(JSON.parse(text(get)).items).toEqual([expect.objectContaining({ key, value })])
+      }
+      const deleted = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'delete', key } }) as CallToolResult
+      expect(deleted.isError, text(deleted)).not.toBe(true)
+      expect(JSON.parse(text(deleted))).toMatchObject({ changed: true })
+      const missing = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'get', key } }) as CallToolResult
+      expect(missing.isError, text(missing)).not.toBe(true)
+      expect(JSON.parse(text(missing)).items).toEqual([])
+    }
+  }
+  for (const args of [{ kind: 'local-storage' }, { kind: 'cookies', key: '' }]) {
+    const invalid = await client.callTool({ name: 'browser_storage', arguments: { tabId, action: 'get', ...args } }) as CallToolResult
+    expect(invalid.isError).toBe(true)
+    expect(text(invalid)).toContain('key is required')
+  }
   const storedDebugValue = await client.callTool({
     name: 'browser_storage',
     arguments: { tabId, kind: 'session-storage', action: 'set', key: 'debug-session', value: 'step-one' }
@@ -81,11 +116,29 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   ]))
   expect(text(cookieStorage)).not.toContain('server-secret')
 
+  const largeEntry = await client.callTool({
+    name: 'browser_storage',
+    arguments: { tabId, kind: 'local-storage', action: 'set', key: 'preview-only', value: 'x'.repeat(18_000) }
+  }) as CallToolResult
+  expect(largeEntry.isError, text(largeEntry)).not.toBe(true)
   await openPageTool('Site storage for 127.0.0.1')
   const storagePanel = appWindow.getByRole('dialog', { name: /Site storage/ })
   await expect(storagePanel).toBeVisible()
   await expect(storagePanel).toContainText('hronaut-mcp-site-data')
   await expect(storagePanel).toContainText('Shared by origin in this workspace')
+  const partialEntry = storagePanel.getByRole('button', { name: /^preview-only / })
+  await expect(partialEntry).toBeDisabled()
+  await expect(partialEntry).toHaveAttribute('title', 'This value is only a preview. Enter a complete replacement in the editor to update it.')
+  await storagePanel.getByRole('textbox', { name: 'Storage key', exact: true }).fill('preview-only')
+  await storagePanel.getByRole('textbox', { name: 'Storage value', exact: true }).fill('complete replacement')
+  await storagePanel.getByRole('button', { name: 'Update', exact: true }).click()
+  await expect(partialEntry).toBeEnabled()
+  const replacement = await client.callTool({
+    name: 'browser_storage', arguments: { tabId, kind: 'local-storage', action: 'get', key: 'preview-only' }
+  }) as CallToolResult
+  expect(replacement.isError, text(replacement)).not.toBe(true)
+  expect(JSON.parse(text(replacement)).items).toEqual([expect.objectContaining({ key: 'preview-only', value: 'complete replacement' })])
+
   await storagePanel.getByRole('button', { name: 'Session', exact: true }).click()
   await expect(storagePanel).toContainText('first-tab-only')
 
@@ -209,3 +262,73 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   }) as CallToolResult
   expect(JSON.parse(text(removedBookmarks))).toEqual([])
 })
+
+for (const kind of ['local-storage', 'session-storage'] as const) {
+  test(`reports single-key completeness independently of the ${kind} listing limit`, async ({ capabilities, electronApp }) => {
+    const { client, tabId, fixtureUrl } = capabilities
+    const storageName = kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
+    const seeded = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: `(() => {
+          const storage = window[${JSON.stringify(storageName)}];
+          storage.clear();
+          for (let i = 0; i < 201; i++) storage.setItem('key-' + i, 'complete');
+          storage.setItem('large', 'x'.repeat(18000));
+          return true;
+        })()`
+      }
+    }) as CallToolResult
+    expect(seeded.isError, text(seeded)).not.toBe(true)
+    const call = async (args: Record<string, unknown>) => {
+      const response = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, ...args } }) as CallToolResult
+      expect(response.isError, text(response)).not.toBe(true)
+      return JSON.parse(text(response)) as {
+        itemCount: number; truncated?: boolean; items: Array<{ key: string; value?: string; valueTruncated?: boolean }>
+      }
+    }
+    const list = await call({ action: 'list' })
+    expect(list).toMatchObject({ itemCount: 202, truncated: true })
+    expect(list.items).toHaveLength(200)
+    await electronApp.evaluate(async ({ webContents }, fixtureUrl) => {
+      const page = webContents.getAllWebContents().find(page => page.getURL() === fixtureUrl)!
+      await page.executeJavaScript(`(() => {
+        const original = Storage.prototype.key;
+        window.__storageKeyReads = 0;
+        window.__restoreStorageKey = () => { Storage.prototype.key = original; };
+        Storage.prototype.key = function (...args) {
+          window.__storageKeyReads++;
+          return original.apply(this, args);
+        };
+      })()`)
+    }, fixtureUrl)
+    try {
+      const single = await call({ action: 'get', key: 'key-200' })
+      expect(single.itemCount).toBe(202)
+      expect(single.items).toEqual([expect.objectContaining({ key: 'key-200', value: 'complete' })])
+      expect(single.truncated).toBeUndefined()
+      const missing = await call({ action: 'get', key: 'missing' })
+      expect(missing.items).toEqual([])
+      expect(missing.truncated).toBeUndefined()
+      const large = await call({ action: 'get', key: 'large' })
+      expect(large.truncated).toBe(true)
+      expect(large.items[0]?.valueTruncated).toBe(true)
+      expect(large.items[0]?.value).toHaveLength(16_384)
+      const keyReads = await electronApp.evaluate(async ({ webContents }, fixtureUrl) => {
+        const page = webContents.getAllWebContents().find(page => page.getURL() === fixtureUrl)!
+        return page.executeJavaScript('window.__storageKeyReads') as Promise<number>
+      }, fixtureUrl)
+      expect(keyReads).toBe(0)
+    } finally {
+      await electronApp.evaluate(async ({ webContents }, fixtureUrl) => {
+        const page = webContents.getAllWebContents().find(page => page.getURL() === fixtureUrl)!
+        await page.executeJavaScript(`(() => {
+          window.__restoreStorageKey();
+          delete window.__restoreStorageKey;
+          delete window.__storageKeyReads;
+        })()`)
+      }, fixtureUrl)
+    }
+  })
+}

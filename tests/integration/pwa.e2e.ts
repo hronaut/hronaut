@@ -56,8 +56,12 @@ test('inspects service workers and Cache Storage for people and grouped agents',
       response.end("self.addEventListener('fetch', () => {});")
       return
     }
-    if (request.url === '/asset.txt') {
-      response.writeHead(200, { 'content-type': 'text/plain', 'x-cache-fixture': 'visible' })
+    if (request.url?.startsWith('/asset.txt')) {
+      response.writeHead(200, {
+        'content-type': 'text/plain', 'x-cache-fixture': 'visible',
+        [`x-${'a'.repeat(256)}-token`]: 'private-cache-header',
+        ['__proto__']: 'prototype-header'
+      })
       response.end('cached response body must stay private')
       return
     }
@@ -70,6 +74,7 @@ test('inspects service workers and Cache Storage for people and grouped agents',
           await navigator.serviceWorker.ready;
           const cache = await caches.open('offline-v1');
           await cache.add('/asset.txt?token=secret-value');
+          await caches.open('z'.repeat(512));
           document.querySelector('h1').textContent = 'Offline app ready';
         })().catch((error) => { document.querySelector('h1').textContent = 'Offline failed: ' + error.message; });
       </script>
@@ -134,6 +139,7 @@ test('inspects service workers and Cache Storage for people and grouped agents',
     const overview = JSON.parse(text(overviewResult)) as {
       registrations: Array<{ scope: string; active?: { scriptUrl: string } }>
       caches: Array<{ name: string }>
+      cachesTruncated?: boolean
       cacheInspectionAvailable: boolean
       manifestInspectionAvailable: boolean
       manifest?: { name?: string; startUrl?: string; icons: Array<{ url: string }> }
@@ -149,6 +155,20 @@ test('inspects service workers and Cache Storage for people and grouped agents',
       expect.objectContaining({ scope: `http://127.0.0.1:${address.port}/` })
     ]))
     expect(overview.caches).toContainEqual({ name: 'offline-v1' })
+    expect(overview.caches).toHaveLength(2)
+    expect(overview.caches).toContainEqual({ name: 'z'.repeat(256) })
+    expect(overview.cachesTruncated).toBeUndefined()
+
+    const oversizedCache = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { workspaceId, tabId, script: "(async () => { await caches.open('z'.repeat(513)); return true; })()" }
+    }) as CallToolResult
+    expect(oversizedCache.isError, text(oversizedCache)).not.toBe(true)
+    const limitedResult = await client.callTool({ name: 'browser_pwa', arguments: { workspaceId, tabId } }) as CallToolResult
+    expect(limitedResult.isError, text(limitedResult)).not.toBe(true)
+    const limited = JSON.parse(text(limitedResult)) as { caches: Array<{ name: string }>; cachesTruncated?: boolean }
+    expect(limited.caches).toEqual(overview.caches)
+    expect(limited.cachesTruncated).toBe(true)
 
     const cacheResult = await client.callTool({
       name: 'browser_pwa',
@@ -163,6 +183,21 @@ test('inspects service workers and Cache Storage for people and grouped agents',
     expect(report.selectedCache.entries[0]).not.toHaveProperty('requestHeaders')
     expect(text(cacheResult)).not.toContain('cached response body must stay private')
     expect(text(cacheResult)).not.toContain('secret-value')
+
+    const headersResult = await client.callTool({
+      name: 'browser_pwa',
+      arguments: { workspaceId, tabId, cacheName: 'offline-v1', query: 'asset.txt', includeHeaders: true }
+    }) as CallToolResult
+    expect(headersResult.isError, text(headersResult)).not.toBe(true)
+    const headerReport = JSON.parse(text(headersResult)) as {
+      selectedCache: { entries: Array<{ responseHeaders: Record<string, string> }> }
+    }
+    expect(headerReport.selectedCache.entries[0]?.responseHeaders).toMatchObject({
+      ['__proto__']: 'prototype-header',
+      [`x-${'a'.repeat(254)}`]: '[REDACTED]'
+    })
+    expect(text(headersResult)).not.toContain('private-cache-header')
+    expect(text(headersResult)).not.toContain('cached response body must stay private')
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
@@ -203,3 +238,67 @@ test('inspects service workers and Cache Storage for people and grouped agents',
     await closeFixtureServer(server)
   }
 })
+
+for (const stage of ['registrations', 'cache names'] as const) {
+  test(`rejects offline inspection when navigation occurs during ${stage}`, async ({ electronApp, mcpPort, mcpToken }) => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end('<!doctype html><title>Offline navigation fixture</title><main>Ready</main>')
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    const client = await connectClient(mcpPort, mcpToken)
+    const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+    try {
+      const workspace = await call('browser_workspaces', { action: 'create', name: 'Offline navigation', storage: 'scratch' })
+      expect(workspace.isError, text(workspace)).not.toBe(true)
+      const workspaceId = (JSON.parse(text(workspace)) as { id: string }).id
+      const opened = await call('browser_new_tab', { workspaceId, url: `${origin}/before` })
+      expect(opened.isError, text(opened)).not.toBe(true)
+      const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+      await expect.poll(() => electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents()
+        .some(page => page.getURL() === `${origin}/before` && !page.isLoading()), origin)).toBe(true)
+      await electronApp.evaluate(({ webContents }, { origin, stage }) => {
+        const page = webContents.getAllWebContents().find(page => page.getURL() === `${origin}/before`)!
+        const state = globalThis as typeof globalThis & { __pwaRestore?: () => void }
+        if (stage === 'registrations') {
+          const original = page.executeJavaScriptInIsolatedWorld
+          state.__pwaRestore = () => { page.executeJavaScriptInIsolatedWorld = original }
+          page.executeJavaScriptInIsolatedWorld = async function (...args) {
+            const result = await original.apply(this, args)
+            if (args[0] === 1008) {
+              state.__pwaRestore?.()
+              await page.loadURL(`${origin}/after`)
+            }
+            return result
+          }
+        } else {
+          const original = page.debugger.sendCommand
+          state.__pwaRestore = () => { page.debugger.sendCommand = original }
+          page.debugger.sendCommand = async function (...args) {
+            const result = await original.apply(this, args)
+            if (args[0] === 'CacheStorage.requestCacheNames') {
+              state.__pwaRestore?.()
+              await page.loadURL(`${origin}/after`)
+            }
+            return result
+          }
+        }
+      }, { origin, stage })
+      const stale = await call('browser_pwa', { workspaceId, tabId })
+      expect(stale.isError, text(stale)).toBe(true)
+      expect(text(stale)).toContain('The page changed during offline app inspection')
+      const fresh = await call('browser_pwa', { workspaceId, tabId })
+      expect(fresh.isError, text(fresh)).not.toBe(true)
+      expect(JSON.parse(text(fresh))).toMatchObject({ url: `${origin}/after`, origin })
+    } finally {
+      await electronApp.evaluate(() => {
+        const state = globalThis as typeof globalThis & { __pwaRestore?: () => void }
+        state.__pwaRestore?.()
+        delete state.__pwaRestore
+      })
+      await client.close()
+      await closeFixtureServer(server)
+    }
+  })
+}

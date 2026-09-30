@@ -189,6 +189,42 @@ describe('ReleaseHistoryService', () => {
     await expect(service.getPage(1)).rejects.toThrow('Could not load release history from GitHub')
   })
 
+  it.each([false, true])('cancels HTTP error bodies before returning with cached fallback %s', async (cached) => {
+    const cancel = vi.fn()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode('rate limited')) },
+      cancel
+    })
+    const fetch = vi.fn()
+    if (cached) fetch.mockResolvedValueOnce(new Response(JSON.stringify([release()])))
+    fetch.mockResolvedValueOnce(new Response(stream, { status: 429 }))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+    if (cached) await service.getPage(1)
+
+    if (cached) {
+      await expect(service.getPage(1, true)).resolves.toMatchObject({
+        releases: [expect.objectContaining({ version: '1.11.4' })]
+      })
+    } else {
+      await expect(service.getPage(1)).rejects.toMatchObject({
+        cause: { message: 'GitHub release history request failed with status 429.' }
+      })
+    }
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(stream.locked).toBe(false)
+  })
+
+  it('preserves the HTTP error when cancelling its response body fails', async () => {
+    const cancel = vi.fn(() => { throw new Error('stream cleanup failed') })
+    const fetch = vi.fn(async () => new Response(new ReadableStream({ cancel }), { status: 503 }))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+
+    await expect(service.getPage(1)).rejects.toMatchObject({
+      cause: { message: 'GitHub release history request failed with status 503.' }
+    })
+    expect(cancel).toHaveBeenCalledOnce()
+  })
+
   it('stops an oversized response without a length header before consuming the whole stream', async () => {
     let pulls = 0
     let cancelled = false

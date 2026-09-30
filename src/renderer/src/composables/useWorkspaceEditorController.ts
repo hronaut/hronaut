@@ -146,9 +146,15 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     error.value = ''
     storageState.value = 'idle'
     storageMessage.value = ''
-    const next = await options.browser.getState()
-    if (!isPresentationCurrent(presentation)) return
-    await options.syncState(next)
+    let next: BrowserState
+    try {
+      next = await options.browser.getState()
+      if (!isPresentationCurrent(presentation)) return
+      await options.syncState(next)
+    } catch (cause) {
+      if (!isPresentationCurrent(presentation) || !options.canPresent()) return
+      throw cause
+    }
     if (!isPresentationCurrent(presentation)) return
     const group = next.mcpTabGroups.find((candidate) => candidate.id === id)
     if (!group || !options.canPresent()) return

@@ -505,7 +505,9 @@ function showWindow(): void {
 
 function showWindowInactive(): void {
   if (!mainWindow) return
-  mainWindow.showInactive()
+  // showInactive can raise an already visible window above another app.
+  // Agent requests ensure visibility without changing the current stacking.
+  if (!mainWindow.isVisible() || mainWindow.isMinimized()) mainWindow.showInactive()
   if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.showInactive()
 }
 
@@ -1755,7 +1757,7 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
     addressSuggestionSurface.sessionId = sessionId
     return addressSuggestionSurface
   }
-  addressSuggestionSurfaceLoad = (async () => {
+  const opening = (async () => {
     const expectedUrl = trustedAddressOverlayUrl()
     const view = new WebContentsView({
       webPreferences: {
@@ -1773,28 +1775,28 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
     const webContents = view.webContents
     const surface: AddressSuggestionSurface = { view, webContents, sessionId }
     addressSuggestionSurface = surface
-    view.setBackgroundColor('#00000000')
-    view.setVisible(false)
-    webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    webContents.on('will-navigate', (event, url) => {
-      if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
-    })
-    webContents.on('destroyed', () => {
-      if (addressSuggestionSurface !== surface) return
-      addressSuggestionOverlayGeneration += 1
-      addressSuggestionOverlayDismissalPending = true
-      hideAddressSuggestionOverlay()
-      addressSuggestionSurface = null
-      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send('address-overlay:dismissed', surface.sessionId)
-      }
-    })
-    webContents.on('render-process-gone', () => {
-      // A crashed renderer leaves its WebContents alive. Destroy that cached
-      // surface so the existing dismissal path allows fresh input to recreate it.
-      if (!webContents.isDestroyed()) webContents.close()
-    })
     try {
+      view.setBackgroundColor('#00000000')
+      view.setVisible(false)
+      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      webContents.on('will-navigate', (event, url) => {
+        if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
+      })
+      webContents.on('destroyed', () => {
+        if (addressSuggestionSurface !== surface) return
+        addressSuggestionOverlayGeneration += 1
+        addressSuggestionOverlayDismissalPending = true
+        hideAddressSuggestionOverlay()
+        addressSuggestionSurface = null
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.webContents.send('address-overlay:dismissed', surface.sessionId)
+        }
+      })
+      webContents.on('render-process-gone', () => {
+        // A crashed renderer leaves its WebContents alive. Destroy that cached
+        // surface so the existing dismissal path allows fresh input to recreate it.
+        if (!webContents.isDestroyed()) webContents.close()
+      })
       await webContents.loadURL(expectedUrl)
       // Initial navigation resets the view's zoom. Apply the latest shell
       // scale after loading, before sending state or measuring the popup.
@@ -1804,11 +1806,14 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
       if (!webContents.isDestroyed()) webContents.close()
       if (addressSuggestionSurface === surface) addressSuggestionSurface = null
       throw error
-    } finally {
-      addressSuggestionSurfaceLoad = null
     }
   })()
-  return addressSuggestionSurfaceLoad
+  addressSuggestionSurfaceLoad = opening
+  try {
+    return await opening
+  } finally {
+    if (addressSuggestionSurfaceLoad === opening) addressSuggestionSurfaceLoad = null
+  }
 }
 
 function isDetachablePanelId(value: unknown): value is DetachablePanelId {
@@ -2909,7 +2914,12 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     tabs: () => tabsManager!,
     pngDataUrl: (data) => nativeImage.createFromBuffer(data).toDataURL(),
-    copyPng: copyPngToClipboard
+    copyPng: copyPngToClipboard,
+    pickVideoAudio: async () => {
+      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Browser window is unavailable')
+      const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'PCM WAV audio', extensions: ['wav'] }] })
+      return selection.canceled ? undefined : selection.filePaths[0]
+    }
   })
   ipcMain.handle('browser:console', (event, value: unknown) => {
     assertTrustedShellSender(event)

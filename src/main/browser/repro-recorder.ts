@@ -356,12 +356,13 @@ export class BrowserReproRecorder<T extends ReproTab> {
   private scheduleReproScroll(tab: T): void {
     const recording = tab.reproRecording
     if (!recording?.active) return
+    const navigationGeneration = tab.navigationGeneration
     if (recording.scrollTimer) clearTimeout(recording.scrollTimer)
     recording.scrollTimer = setTimeout(() => {
       recording.scrollTimer = undefined
       this.queueReproTask(tab, async () => {
         await this.captureReproScroll(tab)
-      })
+      }, navigationGeneration)
     }, 250)
     recording.scrollTimer.unref()
   }
