@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Update TronWeb’s HTTP dependency to patched Axios while retaining the existing TronWeb API and production dependency audit gate.
+
 - Settle canceled video exports immediately even when Electron leaves a destroyed export window’s page-load or encoder promise pending.
 
 - Reject obsolete CPU and code-coverage start completions without clearing newer recordings or reloading a detached coverage tab.
