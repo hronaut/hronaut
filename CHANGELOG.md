@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Flush persisted state file contents before replacing the prior file, preserving the prior state if the storage flush fails.
+
 - Bound unfinished MCP activity metadata to the latest 40 dispatches so abandoned activities cannot accumulate throughout a long browser session.
 
 ## [2.8.6] - 2026-09-30

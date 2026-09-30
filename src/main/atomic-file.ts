@@ -13,7 +13,8 @@ export async function writeTextFileAtomically(
     await writeFile(temporaryPath, contents, {
       encoding: 'utf8',
       mode,
-      flag: 'wx'
+      flag: 'wx',
+      flush: true
     })
     await rename(temporaryPath, path)
   } finally {
