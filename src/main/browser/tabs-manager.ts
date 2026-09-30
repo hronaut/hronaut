@@ -3039,7 +3039,7 @@ export class BrowserTabsManager {
           await tab.webContents.loadURL(restoreUrl)
         }
       } catch (error) {
-        const wakeWasSuperseded = this.tabs.get(tab.id) !== tab
+        const wakeWasSuperseded = () => this.tabs.get(tab.id) !== tab
           || tab.webContents.isDestroyed()
           || (tab.navigationGeneration !== navigationGeneration
             && (tab.webContents.isLoading() || tab.webContents.getURL() !== SLEEPING_PAGE_URL))
@@ -3047,10 +3047,13 @@ export class BrowserTabsManager {
         // starting any replacement navigation. Retry the durable URL in that
         // case; otherwise the tab is marked awake while still showing the
         // internal sleeping page. A real newer navigation remains authoritative.
-        if (isAbortedLoad(error) && wakeWasSuperseded) return
+        if (isAbortedLoad(error) && wakeWasSuperseded()) return
         try {
           await tab.webContents.loadURL(restoreUrl)
         } catch (fallbackError) {
+          // A newer navigation can also interrupt the fallback. Preserve its
+          // live document instead of restoring the obsolete sleeping state.
+          if (isAbortedLoad(fallbackError) && wakeWasSuperseded()) return
           if (this.tabs.get(tab.id) === tab) {
             tab.sleeping = true
             tab.sleepNavigationHistory = navigationHistory
