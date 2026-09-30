@@ -21,6 +21,12 @@ test('closes stale site controls after a same-URL page navigation', async ({ app
       return state.tabs.find((tab) => tab.id === id)
     }, initial.activeTabId)
     await expect.poll(async () => (await currentTab())?.url).toBe(url)
+    // Tab state exposes the requested URL before Electron commits the page.
+    // Wait for the real fixture document before opening its site controls.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, target) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === target)
+      return !!page && !page.isLoadingMainFrame() && page.getTitle() === 'Same URL context'
+    }, url)).toBe(true)
     await appWindow.getByRole('button', { name: /Site controls for 127\.0\.0\.1/ }).click()
     const panel = appWindow.getByRole('dialog', { name: '127.0.0.1' })
     await expect(panel).toBeVisible()
