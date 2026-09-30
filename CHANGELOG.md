@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Sign hex-looking Solana and Tron message strings as their UTF-8 text, preserving EVM hex decoding and explicit binary message inputs.
+
 - Keep a live page selected when concurrent tab closing removes an already-destroyed active tab before its earlier close completes.
 
 - Show capability-profile validation errors for argument constraint keys that collide with JavaScript prototype names, allowing the form to be corrected and resubmitted.

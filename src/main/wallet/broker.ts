@@ -741,7 +741,7 @@ export class WalletBroker {
         return this.messageRequest(context, selected, { kind: 'typed-data', typedData })
       }
       return this.messageRequest(context, selected, {
-        kind: 'message', message: this.messageBytes(values[messageIndex])
+        kind: 'message', message: this.messageBytes(values[messageIndex], 'hex-or-utf8')
       }, method === 'eth_sign')
     }
     throw new Error(`Unsupported EVM wallet method: ${method}`)
@@ -1747,13 +1747,13 @@ export class WalletBroker {
     return wallet
   }
 
-  private messageBytes(value: unknown): Uint8Array {
+  private messageBytes(value: unknown, encoding: 'utf8' | 'hex-or-utf8' = 'utf8'): Uint8Array {
     if (value instanceof Uint8Array) {
       if (!value.length || value.length > 1_048_576) throw new Error('Wallet message is invalid')
       return Uint8Array.from(value)
     }
     if (typeof value !== 'string' || !value.length) throw new Error('Wallet message is invalid')
-    if (/^0x(?:[a-fA-F0-9]{2})+$/.test(value)) return Buffer.from(value.slice(2), 'hex')
+    if (encoding === 'hex-or-utf8' && /^0x(?:[a-fA-F0-9]{2})+$/.test(value)) return Buffer.from(value.slice(2), 'hex')
     const bytes = Buffer.from(value, 'utf8')
     if (bytes.length > 1_048_576) throw new Error('Wallet message is invalid')
     return bytes

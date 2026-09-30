@@ -1,8 +1,11 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createPublicKey, verify } from 'node:crypto'
+import { address, getAddressEncoder } from '@solana/kit'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { verifyMessage } from 'viem'
+import { TronWeb } from 'tronweb'
 import {
   WalletBroker as BaseWalletBroker,
   type WalletBrokerContext,
@@ -2989,6 +2992,58 @@ describe('WalletBroker', () => {
     })
     expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'expired' })
     expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+  })
+
+  it.each(['evm', 'solana', 'tron'] as const)('signs %s messages with chain-specific string bytes and preserves binary input', async (family) => {
+    const initial = await setup('testnet')
+    const { service } = initial
+    const wallet = family === 'evm' ? initial.wallet : await service.confirmRecovery((await service.generate({
+      name: `${family} message wallet`, chainFamily: family,
+      network: family === 'solana'
+        ? { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' }
+        : { id: 'nile', name: 'Tron Nile', environment: 'testnet', rpcUrl: 'http://127.0.0.1:9090' },
+      workspaceIds: ['workspace-1']
+    })).wallet.id)
+    await service.permissions.grant({
+      walletId: wallet.id, workspaceId: 'workspace-1', origin: 'https://dapp.example',
+      account: wallet.publicAddress, chainFamily: family, networkId: wallet.network.id,
+      capabilities: ['read', 'sign'], requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter(), solana: adapter('solana'), tron: adapter('tron') } })
+    for (const message of ['0x1234', Uint8Array.from([0x12, 0x34])]) {
+      const expected = typeof message === 'string'
+        ? family === 'evm' ? Buffer.from('1234', 'hex') : Buffer.from(message, 'utf8')
+        : Buffer.from(message)
+      const signing = settle(broker.providerRequest(context(), family === 'evm'
+        ? { family, method: 'personal_sign', params: [message, wallet.publicAddress] }
+        : family === 'solana'
+          ? { family, method: 'signMessage', params: [{ account: { address: wallet.publicAddress }, message }] }
+          : { family, method: 'tron_signMessage', params: [wallet.publicAddress, message] }))
+      const pending = await broker.waitForPending(request => request.operation === 'sign-message' && request.status === 'awaiting-human')
+      expect(pending.details?.raw).toMatchObject({ message: { encoding: 'base64', value: expected.toString('base64') } })
+      await broker.approve(pending.id)
+      const outcome = await signing
+      expect(outcome.status).toBe('fulfilled')
+      if (outcome.status !== 'fulfilled') throw outcome.reason
+      const result = outcome.value
+      if (family === 'solana') {
+        const output = (result as Array<{ signature: Uint8Array; signedMessage: Uint8Array }>)[0]!
+        expect(Buffer.from(output.signedMessage)).toEqual(expected)
+        const publicKey = createPublicKey({
+          key: Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(getAddressEncoder().encode(address(wallet.publicAddress)))]),
+          format: 'der', type: 'spki'
+        })
+        expect(verify(null, expected, publicKey, Buffer.from(output.signature))).toBe(true)
+      } else if (family === 'tron') {
+        const tron = new TronWeb({ fullHost: 'http://127.0.0.1:9090' })
+        await expect(tron.trx.verifyMessageV2(expected, result as string)).resolves.toBe(wallet.publicAddress)
+      } else {
+        await expect(verifyMessage({
+          address: wallet.publicAddress as `0x${string}`, message: { raw: `0x${expected.toString('hex')}` }, signature: result as `0x${string}`
+        })).resolves.toBe(true)
+      }
+    }
   })
 
   it('always routes message signing through trusted human approval and validates the requested account', async () => {
