@@ -6,12 +6,19 @@ import { VIDEO_LIMITS, videoSourceTime, videoFrameTiming, type VideoFrame, type 
 export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void, assets: readonly { id: string; data: Uint8Array }[] = []): Promise<Uint8Array> {
   const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, partition: `video-export-${crypto.randomUUID()}` } })
   const stop = (): void => { if (!window.isDestroyed()) window.destroy() }
-  signal.addEventListener('abort', stop, { once: true })
-  const timer = setTimeout(stop, 5 * 60_000)
+  // Electron may leave load/executeJavaScript promises pending when their window
+  // is destroyed. Cancellation must settle our caller independently of Electron.
+  let interrupt!: () => void
+  const interrupted = new Promise<never>((_resolve, reject) => {
+    interrupt = () => { reject(new Error('Video export cancelled or timed out')); stop() }
+  })
+  void interrupted.catch(() => undefined)
+  signal.addEventListener('abort', interrupt, { once: true })
+  const timer = setTimeout(interrupt, 5 * 60_000)
   const assertCurrent = (): void => { if (signal.aborted || window.isDestroyed()) throw new Error('Video export cancelled or timed out'); validate() }
   const call = async (method: 'begin' | 'frame' | 'finish', args: unknown[] = []): Promise<unknown> => {
     assertCurrent()
-    const result: unknown = await window.webContents.executeJavaScript(`window.hronautVideoExport.${method}(...${JSON.stringify(args)})`)
+    const result: unknown = await Promise.race([window.webContents.executeJavaScript(`window.hronautVideoExport.${method}(...${JSON.stringify(args)})`), interrupted])
     assertCurrent()
     return result
   }
@@ -20,8 +27,8 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
     window.webContents.on('will-navigate', event => event.preventDefault())
     assertCurrent()
     if (process.env.ELECTRON_RENDERER_URL) {
-      await window.loadURL(`${process.env.ELECTRON_RENDERER_URL}/video-export.html`)
-    } else await window.loadFile(join(__dirname, '../renderer/video-export.html'))
+      await Promise.race([window.loadURL(`${process.env.ELECTRON_RENDERER_URL}/video-export.html`), interrupted])
+    } else await Promise.race([window.loadFile(join(__dirname, '../renderer/video-export.html')), interrupted])
     await call('begin', [plan, assets.map(asset => ({ id: asset.id, base64: Buffer.from(asset.data).toString('base64') }))])
     const { frameCount, frameDurationMs } = videoFrameTiming(plan.clips)
     let frameIndex = 0
@@ -40,7 +47,7 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
     return data
   } finally {
     clearTimeout(timer)
-    signal.removeEventListener('abort', stop)
+    signal.removeEventListener('abort', interrupt)
     stop()
   }
 }
