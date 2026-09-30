@@ -86,6 +86,36 @@ describe('formatNetworkRequestCopy', () => {
     }
   })
 
+  it.skipIf(process.platform === 'win32')('replays HEAD without expecting the advertised response body', async () => {
+    const received: string[] = []
+    const server = createServer((request, response) => {
+      received.push(request.method ?? '')
+      response.writeHead(200, {
+        'Content-Length': '20',
+        Connection: 'close',
+        'X-Fixture': 'head-response'
+      })
+      response.end()
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Missing fixture server address')
+      const command = formatNetworkRequestCopy(requestDetails({
+        url: `http://127.0.0.1:${address.port}/head`,
+        method: 'HEAD', request: { headers: {} }
+      }), 'curl')
+      const { stdout } = await promisify(execFile)('sh', ['-c', command], { timeout: 5_000 })
+      expect(stdout).toContain('HTTP/1.1 200 OK')
+      expect(stdout).toContain('Content-Length: 20')
+      expect(stdout).toContain('X-Fixture: head-response')
+      expect(received).toEqual(['HEAD'])
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    }
+  })
+
   it('escapes single quotes without allowing shell command injection', () => {
     const result = formatNetworkRequestCopy(requestDetails({
       url: "https://example.com/search?q=it's-safe",

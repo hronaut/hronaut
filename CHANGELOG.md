@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Copy HEAD requests with cURL header-only handling so valid responses do not hang or fail while waiting for a body.
+
 - Report file-upload selector errors directly and release their debugger handles instead of attempting to upload into an exception object.
 
 - Release remote debugger objects after script evaluation, including exception handles, so repeated failed evaluations do not retain extra references until navigation.
