@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.5] - 2026-09-30
+
 ### Fixed
 
 - Restore workspace quick-setting checkboxes to their saved values after a rejected preference change, keeping open and archived cards accurate without rebuilding their controls.
