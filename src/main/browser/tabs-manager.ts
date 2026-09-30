@@ -6153,13 +6153,19 @@ export class BrowserTabsManager {
       const evaluated = await webContents.debugger.sendCommand('Runtime.evaluate', {
         expression: targetExpression(target),
         returnByValue: false
-      }) as { result?: { objectId?: string; subtype?: string } }
-      const objectId = evaluated.result?.objectId
-      if (!objectId || evaluated.result?.subtype === 'null') throw new Error('File input not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.')
+      }) as {
+        result?: { objectId?: string; subtype?: string }
+        exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
+      }
       try {
+        if (evaluated.exceptionDetails) {
+          throw new Error(evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text ?? 'File input lookup failed')
+        }
+        const objectId = evaluated.result?.objectId
+        if (!objectId || evaluated.result?.subtype === 'null') throw new Error('File input not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.')
         await webContents.debugger.sendCommand('DOM.setFileInputFiles', { files: paths, objectId })
       } finally {
-        await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId }).catch(() => undefined)
+        await this.releaseDebuggerEvaluationObjects(webContents, evaluated)
       }
     }))
     return { files: [...paths] }
@@ -9669,15 +9675,26 @@ export class BrowserTabsManager {
         ? response.result.value
         : response.result?.unserializableValue
     } finally {
-      // Exceptions can allocate remote handles even with returnByValue enabled.
-      const objectIds = new Set([
-        response.result?.objectId,
-        response.exceptionDetails?.exception?.objectId
-      ].filter((objectId): objectId is string => typeof objectId === 'string'))
-      await Promise.allSettled([...objectIds].map(async (objectId) => {
-        await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId })
-      }))
+      await this.releaseDebuggerEvaluationObjects(webContents, response)
     }
+  }
+
+  private async releaseDebuggerEvaluationObjects(
+    webContents: BrowserTab['view']['webContents'],
+    response: {
+      result?: { objectId?: string }
+      exceptionDetails?: { exception?: { objectId?: string } }
+    }
+  ): Promise<void> {
+    // Exceptions can allocate separate result and exception handles, even with
+    // returnByValue enabled. Cleanup must not replace the operation's error.
+    const objectIds = new Set([
+      response.result?.objectId,
+      response.exceptionDetails?.exception?.objectId
+    ].filter((objectId): objectId is string => typeof objectId === 'string'))
+    await Promise.allSettled([...objectIds].map(async (objectId) => {
+      await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId })
+    }))
   }
 
   private async mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
