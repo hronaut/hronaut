@@ -4059,6 +4059,13 @@ export class BrowserTabsManager {
       this.rememberClosedTab(candidate)
       this.removeTabRecord(candidate)
     }
+    if (!this.activeTabId) {
+      const replacement = this.orderedTabs().find(candidate => (
+        candidate.id !== tab.id && !candidate.webContents.isDestroyed()
+      ))
+      if (replacement) this.selectTab(replacement.id)
+      else if (!webContents.isDestroyed()) this.selectTab(tab.id)
+    }
     if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined

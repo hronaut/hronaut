@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep a live page selected when concurrent tab closing removes an already-destroyed active tab before its earlier close completes.
+
 - Show capability-profile validation errors for argument constraint keys that collide with JavaScript prototype names, allowing the form to be corrected and resubmitted.
 
 - Release workspace cookie listeners after the last tab closes, including when its native WebContents has already been destroyed.
