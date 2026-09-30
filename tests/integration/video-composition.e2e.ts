@@ -25,7 +25,7 @@ function originalTone(frequency: number, durationMs: number, silentLeadMs = 0): 
   return bytes
 }
 
-test('exports original mixed audio, camera motion and transitions with decoded sound and frame evidence', async ({ capabilities, appWindow, profileDirectory }, testInfo) => {
+test('exports original mixed audio, camera motion and transitions with decoded sound and frame evidence', async ({ capabilities, appWindow, electronApp, profileDirectory }, testInfo) => {
   const { client, tabId, openPageTool } = capabilities
   const video = async (action: string, extra: Record<string, unknown> = {}): Promise<BrowserVideoState> => {
     const result = await client.callTool({ name: 'browser_video', arguments: { tabId, action, ...extra } }) as CallToolResult
@@ -37,6 +37,21 @@ test('exports original mixed audio, camera motion and transitions with decoded s
     script: `document.body.innerHTML = '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#e4edf7}.target{position:absolute;left:70%;top:40%;width:10%;height:20%;background:#174fc7}</style><div class="target"></div>'; true`
   } }) as CallToolResult
   expect(prepared.isError, text(prepared)).not.toBe(true)
+  // DOM evaluation can complete before Chromium paints. Observe the actual
+  // captured scene so the first recording frame cannot contain the old fixture.
+  await expect.poll(async () => {
+    const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId } }) as CallToolResult
+    const image = screenshot.content.find(item => item.type === 'image')
+    if (!image || image.type !== 'image') return false
+    return electronApp.evaluate(({ nativeImage }, data) => {
+      const captured = nativeImage.createFromBuffer(Buffer.from(data, 'base64'))
+      const { width, height } = captured.getSize()
+      const bitmap = captured.toBitmap()
+      const index = (Math.floor(height * 0.5) * width + Math.floor(width * 0.75)) * 4
+      // NativeImage bitmap is BGRA: verify the blue target, not just DOM state.
+      return bitmap[index]! > 170 && bitmap[index + 1]! < 110 && bitmap[index + 2]! < 60
+    }, image.data)
+  }).toBe(true)
   await video('start')
   await expect.poll(async () => (await video('get')).durationMs).toBeGreaterThan(3050)
   const stopped = await video('stop')
