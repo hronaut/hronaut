@@ -117,3 +117,35 @@ it.each(['edit', 'clear'] as const)('removes an invalidated preview after an age
   expect(videoPreview).toHaveBeenCalledOnce()
   expect(screen.getByRole('button', { name: action === 'clear' ? 'Start video recording' : 'Preview video' })).toBeEnabled()
 })
+
+it('adds a restrained music bed and camera move using the shared agent contract', async () => {
+  const current = { ...state('tab'), audioAssets: [{ id: 'builtin:ambient', name: 'Gentle ambient', durationMs: 8000, provenance: 'Original', builtin: true }] }
+  const manageVideo = vi.fn().mockResolvedValue(current)
+  Object.assign(window, { hronaut: { manageVideo } })
+  render(VideoRecorder, { props: { tabId: 'tab' }, global: { plugins: [createHronautI18n('en-US')] } })
+  await flushPromises()
+  await fireEvent.click(screen.getByText('Music and sound'))
+  await fireEvent.click(screen.getByRole('button', { name: 'Add audio event' }))
+  await flushPromises()
+  expect(manageVideo).toHaveBeenCalledWith(expect.objectContaining({ action: 'edit', audio: [expect.objectContaining({ assetId: 'builtin:ambient', volume: 0.25, loop: true, startMs: 0, endMs: 2000 })] }))
+  await fireEvent.click(screen.getByText('Camera and transitions'))
+  await fireEvent.click(screen.getByRole('button', { name: 'Add camera move' }))
+  await flushPromises()
+  expect(manageVideo).toHaveBeenCalledWith(expect.objectContaining({ action: 'edit', cameras: [expect.objectContaining({ x: 0.5, y: 0.5, zoom: 1.5, easeMs: 300 })] }))
+})
+
+it('ignores a native import result after switching tabs', async () => {
+  let finish!: (value: BrowserVideoState) => void
+  const manageVideo = vi.fn(({ tabId }: { tabId: string }) => Promise.resolve(state(tabId)))
+  const importVideoAudio = vi.fn(() => new Promise<BrowserVideoState>(resolve => { finish = resolve }))
+  Object.assign(window, { hronaut: { manageVideo, importVideoAudio } })
+  const view = render(VideoRecorder, { props: { tabId: 'first' }, global: { plugins: [createHronautI18n('en-US')] } })
+  await flushPromises()
+  await fireEvent.click(screen.getByText('Music and sound'))
+  await fireEvent.update(screen.getByLabelText('Audio source and usage rights'), 'Original composition')
+  await fireEvent.click(screen.getByRole('button', { name: 'Choose WAV audio…' }))
+  await view.rerender({ tabId: 'second' }); await flushPromises()
+  finish({ ...state('first'), notice: 'Old import result' }); await flushPromises()
+  expect(screen.queryByText('Old import result')).toBeNull()
+  expect(importVideoAudio).toHaveBeenCalledWith('first', 'Original composition')
+})

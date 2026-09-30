@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { VIDEO_LIMITS, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan } from '../../shared/video.js'
+import { VIDEO_AUDIO_BUILTINS, VIDEO_AUDIO_LIMITS, normalizeVideoAudioWav } from '../../shared/video-audio.js'
 
 interface CapturedFrame { data: Uint8Array; width: number; height: number }
 interface Recording {
@@ -16,11 +17,13 @@ interface Recording {
   preview?: Uint8Array
   abort: AbortController
   busy: boolean
+  audioAssets: Map<string, Uint8Array>
 }
 export interface VideoRecorderHost {
   changed(): void
-  render(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void): Promise<Uint8Array>
+  render(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void, assets?: readonly { id: string; data: Uint8Array }[]): Promise<Uint8Array>
   save(data: Uint8Array, validate: () => void): Promise<{ filename: string; path: string }>
+  loadAudio?(path: string, validate: () => void): Promise<Uint8Array>
   now?: () => number
 }
 
@@ -32,7 +35,7 @@ export class BrowserVideoRecorder {
 
   state(tabId: string): BrowserVideoState {
     const r = this.recordings.get(tabId)
-    const state = r?.state ?? { tabId, status: 'idle', durationMs: 0, width: 0, height: 0, frameCount: 0, bytes: 0, annotations: [], clips: [], previewReady: false }
+    const state = r?.state ?? { tabId, status: 'idle', durationMs: 0, width: 0, height: 0, frameCount: 0, bytes: 0, annotations: [], clips: [], audio: [], cameras: [], audioAssets: [...VIDEO_AUDIO_BUILTINS], previewReady: false }
     return structuredClone({ ...state, ...(r ? { durationMs: this.duration(r) } : {}) })
   }
 
@@ -48,7 +51,7 @@ export class BrowserVideoRecorder {
     return Math.min(VIDEO_LIMITS.durationMs, Math.round(r.elapsedMs + (r.state.status === 'recording' ? this.now() - r.runningSince : 0)))
   }
 
-  async manage(tabId: string, input: BrowserVideoOptions, capture: () => Promise<CapturedFrame | null>, validate: () => void, validateSource: () => void = validate): Promise<BrowserVideoState> {
+  async manage(tabId: string, input: BrowserVideoOptions, capture: () => Promise<CapturedFrame | null>, validate: () => void, validateSource: () => void = validate, signal?: AbortSignal): Promise<BrowserVideoState> {
     const options = videoOptionsSchema.parse(input)
     if (options.action === 'get') { this.recordings.get(tabId)?.validateSource(); return this.state(tabId) }
     if (options.action === 'clear') { this.clear(tabId); return this.state(tabId) }
@@ -59,7 +62,7 @@ export class BrowserVideoRecorder {
       if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new Error('Clear a retained recording first (maximum three)')
       if ([...this.recordings.values()].some(item => item.state.status === 'recording')) throw new Error('Pause or stop the current recording first')
       validate()
-      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], elapsedMs: 0, runningSince: this.now(), capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
+      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], audioAssets: new Map(), elapsedMs: 0, runningSince: this.now(), capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
       this.recordings.set(tabId, r)
       this.host.changed()
       await this.sample(tabId, r)
@@ -68,6 +71,13 @@ export class BrowserVideoRecorder {
       return this.state(tabId)
     }
     if (!r) throw new Error('Start a recording first')
+    validate()
+    const recording = r
+    const current = (): void => {
+      if (this.recordings.get(tabId) !== recording || recording.abort.signal.aborted || signal?.aborted) throw new Error('Video operation was cancelled')
+      recording.validateSource()
+      validate()
+    }
     if (options.action === 'pause' || options.action === 'stop') {
       if (options.action === 'pause' && r.state.status === 'stopped') throw new Error('Stopped recordings cannot resume; start a new recording after clearing')
       this.halt(r, options.action === 'pause' ? 'paused' : 'stopped')
@@ -82,14 +92,56 @@ export class BrowserVideoRecorder {
       r.state.status = 'recording'
       r.state.notice = undefined
       this.schedule(tabId, r)
+    } else if (options.action === 'import-audio') {
+      current()
+      if (r.state.status !== 'stopped') throw new Error('Stop recording before importing audio')
+      if (!options.audioPath || !options.audioProvenance) throw new Error('Audio import requires an absolute path and source/usage rights')
+      if (!this.host.loadAudio) throw new Error('Audio import is unavailable')
+      if (r.audioAssets.size >= VIDEO_AUDIO_LIMITS.assets) throw new Error('Remove an imported audio asset first (maximum eight)')
+      r.busy = true
+      try {
+        const bytes = await this.host.loadAudio(options.audioPath, current)
+        current()
+        const asset = normalizeVideoAudioWav(bytes)
+        if (asset.data.byteLength + [...r.audioAssets.values()].reduce((sum, data) => sum + data.byteLength, 0) > VIDEO_AUDIO_LIMITS.totalBytes) throw new Error('Imported audio exceeds the 32 MiB recording limit')
+        current()
+        const id = randomUUID()
+        r.audioAssets.set(id, asset.data)
+        r.state.audioAssets = [...(r.state.audioAssets ?? []), { id, name: options.audioName ?? `Imported audio ${r.audioAssets.size}`, durationMs: asset.durationMs, provenance: options.audioProvenance, builtin: false }]
+      } finally { r.busy = false; this.host.changed() }
+    } else if (options.action === 'remove-audio') {
+      current()
+      if (r.state.status !== 'stopped') throw new Error('Stop recording before removing audio')
+      if (!options.assetId || !r.audioAssets.has(options.assetId)) throw new Error('Imported audio asset is unavailable')
+      if (r.state.audio?.some(event => event.assetId === options.assetId)) throw new Error('Remove this asset from the audio timeline first')
+      r.audioAssets.delete(options.assetId)
+      r.state.audioAssets = r.state.audioAssets?.filter(asset => asset.id !== options.assetId)
     } else if (options.action === 'edit') {
       r.validateSource()
       if (r.state.status !== 'stopped') throw new Error('Stop recording before editing')
       const annotations = options.annotations ?? r.state.annotations
       const clips = options.clips ?? r.state.clips
       validateVideoEdit(this.duration(r), annotations, clips)
+      const audio = options.audio ?? r.state.audio ?? []
+      const cameras = options.cameras ?? r.state.cameras ?? []
+      const duration = clips.length ? clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) : this.duration(r)
+      for (const event of audio) {
+        const asset = r.state.audioAssets?.find(asset => asset.id === event.assetId)
+        if (!asset) throw new Error('Audio asset is unavailable in this recording')
+        if (event.endMs > duration) throw new Error('Audio events must fit inside the finished video')
+        if (event.offsetMs >= asset.durationMs || (!event.loop && event.offsetMs + event.endMs - event.startMs > asset.durationMs + 0.01)) throw new Error('Audio event exceeds its asset; shorten it or enable looping')
+      }
+      let previousEnd = 0
+      for (const camera of cameras) {
+        if (camera.startMs < previousEnd || camera.endMs > this.duration(r)) throw new Error('Camera moves must be ordered, non-overlapping and inside the recording')
+        previousEnd = camera.endMs
+      }
+      current()
       r.state.annotations = annotations
       r.state.clips = clips
+      r.state.audio = audio
+      r.state.cameras = cameras
+      r.state.transition = options.transition ?? r.state.transition
       r.preview = undefined
       r.state.previewReady = false
       r.state.exported = undefined
@@ -98,22 +150,20 @@ export class BrowserVideoRecorder {
       r.busy = true
       r.state.status = 'rendering'
       this.host.changed()
-      const recording = r
-      const current = (): void => {
-        if (this.recordings.get(tabId) !== recording || recording.abort.signal.aborted) throw new Error('Video operation was cancelled')
-        recording.validateSource()
-        validate()
-      }
       try {
         current()
         const clips = r.state.clips.length ? r.state.clips : [{ startMs: 0, endMs: r.elapsedMs }]
-        if (!r.preview) r.preview = await this.host.render({ ...r.state, durationMs: r.elapsedMs, clips }, r.frames, r.abort.signal, current)
+        if (!r.preview) {
+          const preview = await this.host.render({ width: r.state.width, height: r.state.height, annotations: r.state.annotations, audio: r.state.audio, cameras: r.state.cameras, transition: r.state.transition, durationMs: r.elapsedMs, clips }, r.frames, signal ? AbortSignal.any([r.abort.signal, signal]) : r.abort.signal, current, [...r.audioAssets].filter(([id]) => r.state.audio?.some(event => event.assetId === id)).map(([id, data]) => ({ id, data })))
+          current()
+          r.preview = preview
+        }
         current()
         r.state.previewReady = true
         if (options.action === 'export') {
           const saved = await this.host.save(r.preview, current)
           current()
-          r.state.exported = { ...saved, bytes: r.preview.byteLength, mimeType: 'video/webm', codec: 'vp9', durationMs: clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) }
+          r.state.exported = { ...saved, bytes: r.preview.byteLength, mimeType: 'video/webm', codec: 'vp9', ...(r.state.audio?.length ? { audioCodec: 'opus' as const } : {}), durationMs: clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0) }
         }
       } finally {
         r.busy = false
@@ -176,6 +226,7 @@ export class BrowserVideoRecorder {
     if (r.timer) clearTimeout(r.timer)
     r.abort.abort()
     r.frames.length = 0
+    r.audioAssets.clear()
     r.preview = undefined
     this.host.changed()
   }

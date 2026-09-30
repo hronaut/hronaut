@@ -3,6 +3,7 @@ import { boundStorageItems } from './storage-items.js'
 import { BrowserVideoRecorder } from './video-recorder.js'
 import { captureStableVideoImage } from './video-capture.js'
 import { renderBrowserVideo } from './video-export.js'
+import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
@@ -1033,6 +1034,7 @@ export class BrowserTabsManager {
   private readonly videoRecorder = new BrowserVideoRecorder({
     changed: () => this.changed(false),
     render: renderBrowserVideo,
+    loadAudio: readVideoAudioFile,
     save: async (data, validate) => {
       validate()
       const path = await this.writeUniqueDownload(`hronaut-video-${Date.now()}.webm`, Buffer.from(data), validate)
@@ -5800,7 +5802,7 @@ export class BrowserTabsManager {
     return this.diagnosticLogState(tab.id)
   }
 
-  async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined): Promise<BrowserVideoState> {
+  async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined, signal?: AbortSignal): Promise<BrowserVideoState> {
     const tab = this.getTab(options.tabId)
     const origin = new URL(tab.url).origin
     const workspaceId = tab.mcpGroupId
@@ -5831,7 +5833,7 @@ export class BrowserTabsManager {
     const validateSource = (): void => {
       if (this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new Error('Return to the recording origin to access this video, or discard it')
     }
-    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource)
+    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal)
   }
 
   videoPreview(tabId: string): Uint8Array {

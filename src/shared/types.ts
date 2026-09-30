@@ -2477,6 +2477,7 @@ export interface HronautApi {
   createDebugReport(options?: BrowserDebugReportOptions): Promise<BrowserDebugReport>
   setDiagnosticLogPreservation(tabId: string, preserve: boolean): Promise<BrowserState>
   manageVideo(options: BrowserVideoOptions): Promise<BrowserVideoState>
+  importVideoAudio(tabId: string, provenance: string): Promise<BrowserVideoState>
   videoPreview(tabId: string): Promise<Uint8Array>
   manageRepro(action: BrowserReproAction, tabId?: string): Promise<BrowserReproRecording>
   manageDomChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport>
