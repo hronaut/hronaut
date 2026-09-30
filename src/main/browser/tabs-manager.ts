@@ -1,3 +1,4 @@
+import { PageFindController } from './page-find-controller.js'
 import { utf8Prefix } from '../../shared/utf8.js'
 import { boundStorageItems } from './storage-items.js'
 import { BrowserVideoRecorder } from './video-recorder.js'
@@ -800,6 +801,7 @@ export interface TabsManagerOptions {
 }
 
 export class BrowserTabsManager {
+  private readonly pageFind = new PageFindController()
   private readonly metadata = new PageMetadataController<BrowserTab>({
     getTab: (tabId) => this.getTab(tabId),
     findTab: (tabId) => this.tabs.get(tabId)
@@ -4393,44 +4395,15 @@ export class BrowserTabsManager {
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
     if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new Error('Find query must contain between 1 and 1,000 characters')
     const webContents = this.getTab(options.tabId).webContents
-    return new Promise((resolve, reject) => {
-      let requestId = -1
-      const cleanup = (): void => {
-        clearTimeout(timer)
-        webContents.removeListener('found-in-page', onFound)
-        webContents.removeListener('destroyed', onDestroyed)
-      }
-      const onFound = (_event: Electron.Event, result: Electron.Result): void => {
-        if (result.requestId !== requestId || !result.finalUpdate) return
-        cleanup()
-        resolve({ activeMatchOrdinal: result.activeMatchOrdinal, matches: result.matches })
-      }
-      const onDestroyed = (): void => {
-        cleanup()
-        reject(new Error('Tab was closed while searching the page'))
-      }
-      const timer = setTimeout(() => {
-        cleanup()
-        reject(new Error('Timed out while searching the page'))
-      }, 5_000)
-      webContents.on('found-in-page', onFound)
-      webContents.once('destroyed', onDestroyed)
-      try {
-        requestId = webContents.findInPage(query, {
-          forward: options.forward ?? true,
-          findNext: options.findNext ?? true,
-          matchCase: options.caseSensitive ?? false
-        })
-      } catch (error) {
-        cleanup()
-        reject(error)
-      }
+    return this.pageFind.search(webContents, query, {
+      forward: options.forward ?? true,
+      findNext: options.findNext ?? true,
+      matchCase: options.caseSensitive ?? false
     })
   }
 
   stopFindInPage(tabId?: string): void {
-    const webContents = this.getTab(tabId).webContents
-    webContents.stopFindInPage('clearSelection')
+    this.pageFind.stop(this.getTab(tabId).webContents)
   }
 
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {

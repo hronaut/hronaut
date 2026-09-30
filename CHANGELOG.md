@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Release pending find-in-page requests immediately when superseded or cancelled, preventing accumulated listeners during rapid searches.
+
 - Recheck agent licensing before delayed dispatch and show a non-modal expiry notice with license settings and purchase/renewal actions. Update elapsed expiry promptly while preserving manual controls, saved data, and existing trial/offline-grace terms.
 
 - Keep audio composition controls within cue and imported-asset capacity, showing usage and preserving edits and removals when full.
