@@ -5069,8 +5069,11 @@ export class BrowserTabsManager {
       if (this.elementPickerSessions.get(webContents.id) === session) {
         session.canceled = true
         await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
-        this.elementPickerSessions.delete(webContents.id)
-        if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
+        // Cleanup can finish after a replacement selection starts.
+        if (this.elementPickerSessions.get(webContents.id) === session) {
+          this.elementPickerSessions.delete(webContents.id)
+          if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
+        }
       }
     }
   }
@@ -5152,8 +5155,11 @@ export class BrowserTabsManager {
       if (this.screenshotAreaSessions.get(webContents.id) === session) {
         session.canceled = true
         await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
-        this.screenshotAreaSessions.delete(webContents.id)
-        if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
+        // Cleanup can finish after a replacement selection starts.
+        if (this.screenshotAreaSessions.get(webContents.id) === session) {
+          this.screenshotAreaSessions.delete(webContents.id)
+          if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
+        }
       }
     }
   }

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep replacement element and area selections cancellable when an earlier selection’s page cleanup completes late.
+
 - Release pending find-in-page requests immediately when superseded or cancelled, preventing accumulated listeners during rapid searches.
 
 - Preserve a newer page navigation when it interrupts Memory Saver’s fallback wake, instead of incorrectly marking the live page as sleeping.
