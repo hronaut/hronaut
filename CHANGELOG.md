@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Flush the containing directory after replacing persisted state on supported POSIX filesystems, strengthening rename durability while preserving Windows and unsupported-filesystem behavior.
+
 ## [2.8.7] - 2026-09-30
 
 ### Added
