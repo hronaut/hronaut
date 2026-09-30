@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Release remote debugger objects after script evaluation, including exception handles, so repeated failed evaluations do not retain extra references until navigation.
+
 - Preserve explicit null results from background and dialog-handled JavaScript evaluation instead of changing them to undefined.
 
 - Preserve thrown primitive values in console exception diagnostics instead of reporting only “Uncaught”, while retaining redaction and message limits.

@@ -9658,15 +9658,26 @@ export class BrowserTabsManager {
       returnByValue: true,
       userGesture: true
     }) as {
-      result?: { value?: unknown; unserializableValue?: string }
-      exceptionDetails?: { text?: string; exception?: { description?: string } }
+      result?: { value?: unknown; unserializableValue?: string; objectId?: string }
+      exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
     }
-    if (response.exceptionDetails) {
-      throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Page script failed')
+    try {
+      if (response.exceptionDetails) {
+        throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Page script failed')
+      }
+      return response.result && Object.hasOwn(response.result, 'value')
+        ? response.result.value
+        : response.result?.unserializableValue
+    } finally {
+      // Exceptions can allocate remote handles even with returnByValue enabled.
+      const objectIds = new Set([
+        response.result?.objectId,
+        response.exceptionDetails?.exception?.objectId
+      ].filter((objectId): objectId is string => typeof objectId === 'string'))
+      await Promise.allSettled([...objectIds].map(async (objectId) => {
+        await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId })
+      }))
     }
-    return response.result && Object.hasOwn(response.result, 'value')
-      ? response.result.value
-      : response.result?.unserializableValue
   }
 
   private async mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
