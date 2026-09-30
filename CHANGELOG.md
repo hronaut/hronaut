@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Settle MCP activity history when saving a reviewed action outcome fails, preserving the reported storage error and allowing subsequent calls to be tracked.
+
 - Flush persisted state file contents before replacing the prior file, preserving the prior state if the storage flush fails.
 
 - Bound unfinished MCP activity metadata to the latest 40 dispatches so abandoned activities cannot accumulate throughout a long browser session.

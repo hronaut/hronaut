@@ -1697,9 +1697,14 @@ function createBrowserMcpServer(
           if (!reviewAttempt || !humanWaiting) return
           const attempt = reviewAttempt
           reviewAttempt = undefined
-          return humanWaiting.finishReviewedDispatch(workspaceId, attempt.id, attempt.revision, outcome, () => {
-            requireAgentWorkspace(workspaceId)
-          })
+          try {
+            return await humanWaiting.finishReviewedDispatch(workspaceId, attempt.id, attempt.revision, outcome, () => {
+              requireAgentWorkspace(workspaceId)
+            })
+          } catch (error) {
+            finishActivity(undefined, true, error)
+            throw error
+          }
         }
         const operation = async (): Promise<CallToolResult> => {
           const admissionRejection = authorityRejection()
