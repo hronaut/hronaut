@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.7] - 2026-09-30
+
 ### Fixed
 
 - Update build and lint brace parsers to patched versions that bound deeply nested glob expansion and address published recursion and rewrite advisories.
