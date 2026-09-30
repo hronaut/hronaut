@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Release workspace cookie listeners after the last tab closes, including when its native WebContents has already been destroyed.
+
 - Cancel docked-panel resizing when the panel closes or Escape is pressed, releasing the pointer and restoring the prior size preference without saving a partial drag.
 
 ## [2.8.5] - 2026-09-30

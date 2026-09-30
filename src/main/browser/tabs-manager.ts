@@ -574,6 +574,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   // can invalidate the view's webContents getter during native-view teardown,
   // while the original handle remains safe to query with isDestroyed().
   webContents: WebContents
+  // Session cleanup must remain possible after the WebContents is destroyed.
+  browserSession: Session
   consoleMessages: BrowserConsoleMessageRecord[]
   pendingRuntimeConsoleMessages: BrowserConsoleMessage[]
   networkRoutes: BrowserNetworkRouteRecord[]
@@ -4219,7 +4221,7 @@ export class BrowserTabsManager {
   }
 
   private removeTabRecord(tab: BrowserTab): void {
-    const browserSession = tab.webContents.isDestroyed() ? undefined : tab.webContents.session
+    const browserSession = tab.browserSession
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewPreviewCaptures.cancelPending(tab.id)
     this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -4230,8 +4232,8 @@ export class BrowserTabsManager {
     this.tabs.delete(tab.id)
     this.globallyUnlockedTabIds.delete(tab.id)
     this.globallyResumedAgentTabIds.delete(tab.id)
-    if (browserSession && ![...this.tabs.values()].some((candidate) => (
-      !candidate.webContents.isDestroyed() && candidate.webContents.session === browserSession
+    if (![...this.tabs.values()].some((candidate) => (
+      !candidate.webContents.isDestroyed() && candidate.browserSession === browserSession
     ))) {
       const listener = this.browserSessionAuthorityHooks.get(browserSession)
       if (listener) browserSession.cookies.removeListener('changed', listener)
@@ -7286,6 +7288,7 @@ export class BrowserTabsManager {
       muted: (this.allTabsMuted || options.muted === true) && !isHronautHomeUrl(url),
       view,
       webContents: view.webContents,
+      browserSession: view.webContents.session,
       consoleMessages: [],
       pendingRuntimeConsoleMessages: [],
       networkRequests: [],
