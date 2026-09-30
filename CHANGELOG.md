@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Bound unfinished MCP activity metadata to the latest 40 dispatches so abandoned activities cannot accumulate throughout a long browser session.
+
 ## [2.8.6] - 2026-09-30
 
 ### Fixed

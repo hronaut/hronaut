@@ -21,6 +21,8 @@ export interface McpToolMetric {
   lastUsedAt: string
 }
 
+const ACTIVITY_HISTORY_LIMIT = 40
+
 /** Bounded in-memory activity metadata shared across endpoint replacements.
  * No command arguments, page contents, or results are retained.
  */
@@ -45,6 +47,10 @@ export class McpActivityHistory {
   track(activity: McpTabActivity): void {
     if (activity.phase === 'started') {
       this.activityStarts.set(activity.activityId, activity)
+      // Abandoned dispatches must not retain metadata for the entire app session.
+      if (this.activityStarts.size > ACTIVITY_HISTORY_LIMIT) {
+        this.activityStarts.delete(this.activityStarts.keys().next().value!)
+      }
       return
     }
     const started = this.activityStarts.get(activity.activityId)
@@ -71,7 +77,7 @@ export class McpActivityHistory {
     }
     this.completedToolCalls += 1
     this.recentActivity.unshift(completed)
-    if (this.recentActivity.length > 40) this.recentActivity.length = 40
+    if (this.recentActivity.length > ACTIVITY_HISTORY_LIMIT) this.recentActivity.length = ACTIVITY_HISTORY_LIMIT
     const metric = this.toolMetrics.get(activity.toolName) ?? {
       toolName: activity.toolName,
       count: 0,
