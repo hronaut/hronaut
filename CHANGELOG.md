@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Settle canceled video exports immediately even when Electron leaves a destroyed export window’s page-load or encoder promise pending.
+
 - Reject obsolete CPU and code-coverage start completions without clearing newer recordings or reloading a detached coverage tab.
 
 - Reject obsolete CPU and code-coverage stop results after debugger detachment or tab replacement, preserving a newer recording instead of restoring or clearing stale profiling state.
