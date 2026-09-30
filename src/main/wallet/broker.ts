@@ -78,6 +78,7 @@ interface AccountProviderSession {
 }
 
 export interface WalletBrokerOptions {
+  assertAgentAccess?: () => void
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
   now?: () => Date
   requestTtlMs?: number
@@ -1290,6 +1291,7 @@ export class WalletBroker {
   }
 
   private assertAgentOperationActive(context: WalletBrokerContext): void {
+    if (context.requester.type === 'agent') this.options.assertAgentAccess?.()
     if (!this.isAgentOperationActive(context)) throw new Error('Wallet requester session is no longer active')
   }
 
@@ -1311,6 +1313,7 @@ export class WalletBroker {
   }
 
   private assertRecordPageActive(record: WalletApprovalRecord): void {
+    if (record.request.requester.type === 'agent') this.options.assertAgentAccess?.()
     const minimumGeneration = this.minimumNavigationGeneration.get(record.request.tabId)
     if (
       this.closedTabs.has(record.request.tabId)

@@ -3539,6 +3539,10 @@ async function createWindow(startMinimized = false): Promise<void> {
     await candidateWalletService.initialize()
     walletService = candidateWalletService
     walletBroker = new WalletBroker(candidateWalletService, {
+      assertAgentAccess: () => {
+        if (!commercialLicenseStore) throw new Error('License storage is unavailable')
+        commercialLicenseStore.assertAutomationAccess()
+      },
       onPendingChanged: (requests) => sendToMainWindow('wallets:requests-changed', requests),
       onProviderEvent: (tabId, event) => tabsManager?.sendWalletProviderEvent(tabId, event)
     })
@@ -4292,6 +4296,7 @@ app.whenReady().then(async () => {
         console.error('[license] Background refresh failed:', error)
       })
     }
+    publishCommercialLicenseState()
     setTimeout(refreshLicense, 7_500).unref()
     setInterval(refreshLicense, 60 * 60 * 1000).unref()
   }

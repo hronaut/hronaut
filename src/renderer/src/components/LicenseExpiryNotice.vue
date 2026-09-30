@@ -25,5 +25,6 @@ defineEmits<{ manage: []; purchase: [] }>()
   background: var(--toolbar);
   border-top: 1px solid var(--border-soft);
 }
+:global(.vertical-tabs-shell) .license-expiry-notice { margin-left: var(--tab-rail-width); }
 .license-expiry-notice span { flex: 1 1 240px; }
 </style>

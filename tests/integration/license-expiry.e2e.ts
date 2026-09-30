@@ -1,3 +1,4 @@
+import type { HronautLicenseApi } from '../../src/shared/types.js'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -99,7 +100,7 @@ paidTest('refreshes a renewed paid grant through main and unlocks the same MCP s
     // Headless Linux intentionally has no protected keyring; invoke the trusted
     // preload refresh with the synthetic decrypt fixture, without weakening UI
     // activation restrictions or changing production credential-storage policy.
-    await appWindow.evaluate(() => window.hronautLicense.refresh())
+    await appWindow.evaluate(() => (window as unknown as { hronautLicense: HronautLicenseApi }).hronautLicense.refresh())
     await expect(notice).toBeHidden()
     expect((await call()).isError).not.toBe(true)
     // No tool call or provider refresh drives this next transition.
