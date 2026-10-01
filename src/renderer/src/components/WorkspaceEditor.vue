@@ -252,11 +252,11 @@ onBeforeUnmount(dispose)
         <section v-if="mode === 'create'" class="workspace-storage-section workspace-starting-data">
           <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.startingData') }}</strong><span>{{ t('workspaceEditor.startingDescription') }}</span></div></div>
           <label class="workspace-storage-choice">
-            <input v-model="storageMode" type="radio" value="scratch" :disabled="dismissBlocked" />
+            <input v-model="storageMode" type="radio" name="workspace-storage-mode" value="scratch" :disabled="dismissBlocked" />
             <span><strong>{{ t('workspaceEditor.scratch') }}</strong><small>{{ t('workspaceEditor.scratchDescription') }}</small></span>
           </label>
           <label class="workspace-storage-choice">
-            <input v-model="storageMode" type="radio" value="fork-workspace" :disabled="dismissBlocked" />
+            <input v-model="storageMode" type="radio" name="workspace-storage-mode" value="fork-workspace" :disabled="dismissBlocked" />
             <span><strong>{{ t('workspaceEditor.forkWorkspace') }}</strong><small>{{ t('workspaceEditor.forkDescription') }}</small></span>
           </label>
           <div v-if="storageMode !== 'scratch'" class="workspace-transfer-fields">
@@ -289,11 +289,11 @@ onBeforeUnmount(dispose)
         <section class="workspace-site-access-section">
           <div class="workspace-storage-heading"><IconShield aria-hidden="true" /><div><strong>{{ t('workspaceEditor.siteAccess') }}</strong><span>{{ t('workspaceEditor.siteAccessDescription') }}</span></div></div>
           <label class="workspace-storage-choice">
-            <input v-model="navigationMode" type="radio" value="unrestricted" :disabled="dismissBlocked" />
+            <input v-model="navigationMode" type="radio" name="workspace-navigation-mode" value="unrestricted" :disabled="dismissBlocked" />
             <span><strong>{{ t('workspaceEditor.unrestricted') }}</strong><small>{{ t('workspaceEditor.unrestrictedDescription') }}</small></span>
           </label>
           <label class="workspace-storage-choice">
-            <input v-model="navigationMode" type="radio" value="restricted" :disabled="dismissBlocked" />
+            <input v-model="navigationMode" type="radio" name="workspace-navigation-mode" value="restricted" :disabled="dismissBlocked" />
             <span><strong>{{ t('workspaceEditor.restricted') }}</strong><small>{{ t('workspaceEditor.restrictedDescription') }}</small></span>
           </label>
           <div v-if="navigationMode === 'restricted'" class="workspace-navigation-rules">
@@ -342,8 +342,8 @@ onBeforeUnmount(dispose)
             </select>
           </div>
           <div class="workspace-transfer-direction" role="radiogroup" :aria-label="t('workspaceEditor.transferMode')">
-            <label><input v-model="transferMode" type="radio" value="copy" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.copy') }}</span></label>
-            <label><input v-model="transferMode" type="radio" value="move" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.move') }}</span></label>
+            <label><input v-model="transferMode" type="radio" name="workspace-transfer-mode" value="copy" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.copy') }}</span></label>
+            <label><input v-model="transferMode" type="radio" name="workspace-transfer-mode" value="move" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.move') }}</span></label>
           </div>
           <p class="workspace-transfer-help">{{ t(transferMode === 'move' ? 'workspaceEditor.moveDescription' : 'workspaceEditor.copyDescription') }}</p>
           <p v-if="transferMode === 'move' && (!sourceArchived || !targetArchived)" class="workspace-transfer-help" role="status">{{ t('workspaceEditor.archiveBeforeMove') }}</p>
