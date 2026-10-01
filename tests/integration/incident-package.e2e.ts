@@ -48,12 +48,17 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await panel.getByLabel('Replace with').fill('[REDACTED]')
     await panel.getByLabel('Exact text to replace (optional)').fill('private-canary')
     await panel.getByLabel('Exact JSON field name to omit (optional)').fill('url')
+    await panel.getByRole('button', { name: 'Add field omission' }).click()
+    const secondOmission = panel.getByLabel('Exact JSON field name to omit (optional)').nth(1)
+    await expect(secondOmission).toBeFocused()
+    await secondOmission.fill('method')
     await panel.getByRole('button', { name: 'Preview exact package' }).click()
     const iframe = panel.locator('iframe[title="Preview exact package"]')
     await expect(iframe).toBeVisible()
     const previewHtml = (await iframe.getAttribute('srcdoc'))!
     expect(previewHtml).not.toContain('private-canary')
     expect(previewHtml).not.toContain('&quot;url&quot;:')
+    expect(previewHtml).not.toContain('&quot;method&quot;:')
     expect(previewHtml).toContain('exact-field-omission')
     expect(previewHtml).not.toContain('credential-secret')
     expect(previewHtml).not.toContain('cookie-secret')
@@ -75,9 +80,10 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     expect(html).not.toContain('later-live-evidence')
     const hash = createHash('sha256').update(html).digest('hex')
     await expect(panel).toContainText(hash)
-    const source = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)
+    const source = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId, includeSuccessfulRequests: true }), tabId)
     expect(source.console.some(entry => entry.message.includes('private-canary'))).toBe(true)
     expect(JSON.stringify(source)).toContain('field-path-canary')
+    expect(source.network.some(request => request.method === 'GET')).toBe(true)
 
     // A separate fresh browser context opens only the saved file, with no Hronaut state.
     let remoteRequests = 0
