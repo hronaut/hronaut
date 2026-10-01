@@ -2592,6 +2592,8 @@ export const plPL = {
     }
   },
   "find": {
+    "failed": "Wyszukiwanie nie powiodło się",
+    "retry": "Ponów wyszukiwanie na stronie",
     "region": "Znajdź na stronie",
     "text": "Znajdź tekst",
     "placeholder": "Znajdź na stronie",

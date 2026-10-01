@@ -6,6 +6,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconKeyboardArrowDown from '~icons/material-symbols/keyboard-arrow-down-rounded'
 import IconKeyboardArrowUp from '~icons/material-symbols/keyboard-arrow-up-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
+import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import {
   MAX_FIND_QUERY_LENGTH,
   type BrowserFindResult,
@@ -26,6 +27,7 @@ const { t } = useI18n({ useScope: 'global' })
 const input = ref<HTMLInputElement | null>(null)
 const query = ref('')
 const caseSensitive = ref(false)
+const searchFailed = ref(false)
 const result = ref<BrowserFindResult>({ activeMatchOrdinal: 0, matches: 0 })
 let targetTabId: string | undefined
 let requestSequence = 0
@@ -35,6 +37,7 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
   const normalizedQuery = query.value.slice(0, MAX_FIND_QUERY_LENGTH)
   if (normalizedQuery !== query.value) query.value = normalizedQuery
   const sequence = ++requestSequence
+  searchFailed.value = false
   if (!tabId) return
   if (!normalizedQuery) {
     result.value = { activeMatchOrdinal: 0, matches: 0 }
@@ -53,6 +56,7 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
   } catch {
     if (sequence === requestSequence && tabId === targetTabId) {
       result.value = { activeMatchOrdinal: 0, matches: 0 }
+      searchFailed.value = true
     }
   }
 }
@@ -66,6 +70,11 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event) || event.key !== 'Enter') return
   event.preventDefault()
   void search(!event.shiftKey, false)
+}
+
+function retrySearch(): void {
+  input.value?.focus()
+  void search(true, true)
 }
 
 function toggleCaseSensitive(): void {
@@ -100,6 +109,7 @@ async function cleanup(): Promise<void> {
   const tabId = targetTabId
   requestSequence += 1
   targetTabId = undefined
+  searchFailed.value = false
   result.value = { activeMatchOrdinal: 0, matches: 0 }
   if (tabId) await props.browser.stopFindInPage(tabId).catch(() => undefined)
 }
@@ -144,8 +154,11 @@ defineExpose({ close, openForTab })
       />
     </div>
     <output class="find-count" aria-live="polite">
-      {{ query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
+      {{ searchFailed ? t('find.failed') : query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
     </output>
+    <UiButton v-if="searchFailed" appearance="application" class="find-action" type="button" :title="t('find.retry')" :aria-label="t('find.retry')" @click="retrySearch">
+      <IconRefresh aria-hidden="true" />
+    </UiButton>
     <UiButton appearance="application"
       class="find-action find-option"
       type="button"
