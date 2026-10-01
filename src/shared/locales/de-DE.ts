@@ -2592,6 +2592,8 @@ export const deDE = {
     }
   },
   "find": {
+    "failed": "Suche fehlgeschlagen",
+    "retry": "Seitensuche wiederholen",
     "region": "Auf Seite suchen",
     "text": "Text suchen",
     "placeholder": "Auf Seite suchen",

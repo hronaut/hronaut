@@ -2592,6 +2592,8 @@ export const esES = {
     }
   },
   "find": {
+    "failed": "La búsqueda falló",
+    "retry": "Reintentar búsqueda en la página",
     "region": "Buscar en la página",
     "text": "Buscar texto",
     "placeholder": "Buscar en la página",

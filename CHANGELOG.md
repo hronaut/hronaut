@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Distinguish failed find-in-page searches from zero matches and offer a retry that preserves the query.
+
 - Reject stalled Repro checkpoint page reads after five seconds so Stop and retry can recover; ignore late results without recording an expectation.
 
 - Clear stale incident-package previews and approval when a replacement capture or review fails; recovery requires reviewing the new package.

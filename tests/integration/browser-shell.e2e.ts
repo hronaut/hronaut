@@ -6908,25 +6908,22 @@ test('invalidates page matches after same-tab navigation and cleans up failed na
       }
       return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed') }
     }, url)
-    const failure = await appWindow.evaluate(async (tabId) => {
-      try {
-        await (window as unknown as { hronaut: HronautApi }).hronaut.findInPage({ tabId, query: 'needle' })
-        return null
-      } catch (error) {
-        return String(error)
-      }
-    }, tabId)
-    expect(failure).toContain('Synthetic native find failure')
+    const findBar = appWindow.getByRole('search', { name: 'Find in page' })
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await findBar.getByRole('searchbox', { name: 'Find text' }).fill('needle')
+    await expect(findBar.locator('.find-count')).toHaveText('Search failed')
+    await expect(findBar).not.toContainText('Synthetic native find failure')
+    await expect(findBar.getByRole('searchbox', { name: 'Find text' })).toHaveValue('needle')
+    await expect(findBar.getByRole('button', { name: 'Next match' })).toBeDisabled()
     expect(await electronApp.evaluate(({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
       if (!page) throw new Error('Find navigation page was not found')
       return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed') }
     }, url)).toEqual(listenersBefore)
 
-    const findBar = appWindow.getByRole('search', { name: 'Find in page' })
-    await appWindow.getByRole('button', { name: 'Find in page' }).click()
-    await findBar.getByRole('searchbox', { name: 'Find text' }).fill('needle')
+    await findBar.getByRole('button', { name: 'Retry page search' }).click()
     await expect(findBar.locator('.find-count')).toHaveText('1 / 1')
+    await expect(findBar.getByRole('searchbox', { name: 'Find text' })).toBeFocused()
 
     await appWindow.evaluate(async (tabId) => (window as unknown as { hronaut: HronautApi }).hronaut.reload(tabId), tabId)
     await expect(findBar).toBeHidden()
