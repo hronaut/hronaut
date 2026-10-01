@@ -1,3 +1,4 @@
+import type { IncidentCaptureInput, IncidentDraft, IncidentReviewInput, IncidentPreview } from './incident-package.js'
 import type { BrowserReproCheckpointInput, BrowserReproExpectation } from './repro-checkpoint.js'
 import type { BrowserImportApi } from './browser-import.js'
 import type { BrowserVideoOptions, BrowserVideoState } from './video.js'
@@ -2389,6 +2390,11 @@ export interface BrowserStorageChangesReport {
 }
 
 export interface HronautApi {
+  captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
+  reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
+  discardIncident(): Promise<void>
+  saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
+
   browserImport: BrowserImportApi
   getState(): Promise<BrowserState>
   getUserAttention(): Promise<UserAttentionRequest | null>

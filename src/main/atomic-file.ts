@@ -27,7 +27,8 @@ async function flushDirectory(path: string): Promise<void> {
 export async function writeTextFileAtomically(
   path: string,
   contents: string,
-  mode = 0o600
+  mode = 0o600,
+  beforeCommit?: () => void
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const temporaryPath = `${path}.${randomUUID()}.tmp`
@@ -38,6 +39,7 @@ export async function writeTextFileAtomically(
       flag: 'wx',
       flush: true
     })
+    beforeCommit?.()
     await rename(temporaryPath, path)
     await flushDirectory(dirname(path))
   } finally {

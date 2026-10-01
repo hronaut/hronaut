@@ -47,6 +47,7 @@ import type {
 import type { DiagnosticsController } from '../composables/useDiagnosticsController'
 import PanelDockPicker from './PanelDockPicker.vue'
 import ReproTimeline from './ReproTimeline.vue'
+import IncidentPackageReview from './IncidentPackageReview.vue'
 import PageMetadataPanel from '../features/diagnostics/page-metadata/PageMetadataPanel.vue'
 
 const props = defineProps<{
@@ -1290,6 +1291,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('debugReport.close')" @click="debugReportPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
+      <IncidentPackageReview v-if="activeTab" :key="`${activeTab.id}:${activeTab.navigationGeneration}:${activeTab.observationGeneration ?? 0}`" :tab-id="activeTab.id" />
       <div v-if="debugReportState === 'running'" class="accessibility-audit-loading" role="status">
         <IconProgress class="state-spinner" aria-hidden="true" />
         <strong>{{ t('debugReport.loading') }}</strong>

@@ -2,6 +2,7 @@ import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
+  incident: {"hash": "SHA-256: {hash}", "title": "Sprawdzony pakiet incydentu", "privacy": "Tylko lokalny tekst. Może nadal zawierać dane prywatne; brak gwarancji anonimizacji. Bez zrzutów, treści żądań, ZIP i wysyłania.", "select": "Wybierz dowody do zebrania", "repro": "Kroki Repro", "network": "Oczyszczone wpisy sieciowe", "diagnostics": "Konsola i diagnostyka", "minutes": "Ostatnie minuty (1–60)", "capture": "Zbierz wybrane dowody", "expires": "Przegląd wygasa", "include": "Zachowaj lub pomiń artefakty", "available": "Dostępne", "empty": "Brak zachowanych wpisów w tym okresie", "unavailable": "Niedostępne", "oversize": "Pominięto: limit rozmiaru", "truncated": "Źródło skrócone", "find": "Dokładny tekst do zastąpienia (opcjonalnie)", "replacement": "Zastąp przez", "preview": "Podgląd dokładnego pakietu", "reviewed": "Sprawdzono ten pakiet i zatwierdzam lokalny zapis tych danych.", "save": "Zapisz sprawdzony HTML", "discard": "Odrzuć przegląd", "working": "Przetwarzanie…", "saved": "Sprawdzony pakiet zapisano lokalnie."},
   licenseNotice: {"expired": "Automatyzacja agentów jest zablokowana. Aktywuj lub odnów licencję. Zapisane dane pozostają dostępne.", "manage": "Ustawienia licencji", "purchase": "Kup lub odnów ↗"},
   browserImport: browserImportMessages['pl-PL'],
   video: enUS.video,

@@ -198,6 +198,10 @@ const api: HronautApi = {
   manageVideo: options => ipcRenderer.invoke('browser:video', options),
   importVideoAudio: (tabId, provenance) => ipcRenderer.invoke('browser:video-import-audio', tabId, provenance),
   videoPreview: tabId => ipcRenderer.invoke('browser:video-preview', tabId),
+  captureIncident: input => ipcRenderer.invoke('browser:incident-capture', input),
+  reviewIncident: input => ipcRenderer.invoke('browser:incident-review', input),
+  discardIncident: () => ipcRenderer.invoke('browser:incident-discard'),
+  saveIncident: input => ipcRenderer.invoke('browser:incident-save', input),
   manageRepro: (action, tabId, checkpoint) =>
     ipcRenderer.invoke('browser:repro-recording', { action, tabId, ...(checkpoint ? { checkpoint } : {}) }),
   manageDomChanges: (action: BrowserDomChangesAction, tabId?: string) =>

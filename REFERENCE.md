@@ -1063,3 +1063,13 @@ encoding reports an error while preserving the raw recording for review/retry.
 ### Video sound and motion
 
 `browser_video` also supports original music/SFX, authorized local WAV imports, output-time audio mixing, source-time camera zoom/pan and restrained clip transitions. See [complete composition examples and limits](docs/VIDEO_COMPOSITION.md) and [audio provenance](docs/VIDEO_AUDIO_PROVENANCE.md). Existing silent exports remain supported.
+
+### Human-reviewed local incident package
+
+Open **Page tools → Create debug report → Reviewed incident package**. Explicitly select Repro steps, sanitized network entries, and/or console diagnostics, then capture a recent 1–60 minute window. This first increment exports one self-contained HTML file, not a ZIP archive. It uses existing retained evidence and redaction; request/response bodies, cookies, profiles, screenshots, receipt collection and replay are excluded. Missing historical data cannot be reconstructed.
+
+The trusted main process freezes the selected sources. Choose which captured artifacts to keep, optionally apply literal text replacement, and preview the exact package. Replacement search text is not embedded in the manifest. Check the review acknowledgement before choosing a local destination. Changing review options invalidates the preview and acknowledgement. Cancelling the file dialog creates no export; navigating or closing the review discards its draft. Drafts expire after ten minutes. Saving uses the frozen preview, never a fresh capture of live data. Manual review/export remains available under the existing manual-access licensing policy.
+
+The package contains a static manifest and escaped JSON text, with capture/window timestamps, artifact states, source truncation flags, replacement occurrence counts and SHA-256 hashes. Empty means no retained entries in the selected window, not proof that no event occurred. Unavailable, oversized and omitted artifacts remain labelled. Capture is bounded to 30 seconds, three artifacts, 256 KiB per artifact and 4 MiB for the complete HTML file; excess artifacts are labelled rather than silently clipped. Hashes establish byte integrity, not factual truth or anonymization. Arbitrary private text may remain: review before sharing.
+
+The offline file contains no executable captured content or remote resources and uses a restrictive Content Security Policy. The preview is additionally sandboxed. There is no automatic upload or external sharing, and original evidence is not edited. This UI-only review path adds no MCP export bypass. Screenshot masking, field-level omission, ZIP packaging and additional evidence types remain follow-up work on #336.
