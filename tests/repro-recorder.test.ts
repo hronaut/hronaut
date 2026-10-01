@@ -152,3 +152,36 @@ describe('reproduction recorder data contracts', () => {
   })
 
 })
+
+describe('Repro checkpoint authority', () => {
+  it('records explicit failed expectations and returns independent values', async () => {
+    const f = fixture()
+    const report = await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValue({ selector: 'p', tag: 'p', observedMatch: false } as never)
+    const result = await f.recorder.manage(f.tab, 'checkpoint', { context: report.checkpointContext, selector: '#result', condition: 'text', text: 'Saved', reviewed: true })
+    expect(result.steps.at(-1)).toMatchObject({ kind: 'expect', expectation: { text: 'Saved', observedMatch: false } })
+    result.steps.at(-1)!.expectation!.text = 'mutated'
+    expect((await f.recorder.manage(f.tab, 'get')).steps.at(-1)!.expectation!.text).toBe('Saved')
+  })
+  it.each(['navigationGeneration', 'observationGeneration'] as const)('rejects stale %s before page evaluation', async generation => {
+    const f = fixture()
+    const report = await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockClear()
+    f.tab[generation] += 1
+    await expect(f.recorder.manage(f.tab, 'checkpoint', { context: report.checkpointContext, selector: 'p', condition: 'visible', reviewed: true })).rejects.toThrow('context changed')
+    expect(f.executeJavaScript).not.toHaveBeenCalled()
+  })
+  it('rejects a late checkpoint after recording replacement', async () => {
+    const f = fixture()
+    const report = await f.recorder.manage(f.tab, 'start')
+    let finish!: (value: never) => void
+    f.executeJavaScript.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const pending = f.recorder.manage(f.tab, 'checkpoint', { context: report.checkpointContext, selector: 'p', condition: 'visible', reviewed: true })
+    const rejected = expect(pending).rejects.toThrow('context changed')
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    await f.recorder.manage(f.tab, 'start')
+    finish({ selector: 'p', tag: 'p', observedMatch: true } as never)
+    await rejected
+    expect((await f.recorder.manage(f.tab, 'get')).steps.every(step => step.kind !== 'expect')).toBe(true)
+  })
+})

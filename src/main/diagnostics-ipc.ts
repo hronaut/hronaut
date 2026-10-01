@@ -191,12 +191,14 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
   ipcMain.handle('browser:repro-recording', (event, value: unknown) => {
     host.assertTrustedSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid repro recording options')
-    const { action, tabId } = value as Record<string, unknown>
+    const { action, tabId, checkpoint } = value as Record<string, unknown>
     if (
-      !isAllowedString(action, ['start', 'get', 'stop', 'clear'])
+      !isAllowedString(action, ['start', 'get', 'stop', 'clear', 'checkpoint'])
       || (tabId !== undefined && typeof tabId !== 'string')
     ) throw new TypeError('Invalid repro recording options')
-    return host.tabs().reproRecording(action as BrowserReproAction, tabId as string | undefined)
+    return action === 'checkpoint'
+      ? host.tabs().reproRecording(action, tabId as string | undefined, checkpoint)
+      : host.tabs().reproRecording(action as BrowserReproAction, tabId as string | undefined)
   })
   ipcMain.handle('browser:dom-changes', (event, value: unknown) => {
     host.assertTrustedSender(event)

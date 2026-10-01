@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { reproCheckpointSchema } from '../../shared/repro-checkpoint.js'
+import { reproCheckpointScript } from './repro-checkpoint-script.js'
 import type { WebContents, WebContentsView } from 'electron'
 import type { BrowserReproAction, BrowserReproRecording, BrowserReproStep, BrowserReproTarget } from '../../shared/types.js'
 import { redactDiagnosticText } from '../../shared/debug-report.js'
@@ -9,6 +12,9 @@ const MAX_REPRO_STEPS = 200
 
 export interface BrowserReproRecordingInternal {
   active: boolean
+  checkpointContext?: string
+  checkpointNavigation?: number
+  checkpointObservation?: number
   startedAt: string
   startedAtMonotonicMs: number
   stoppedAt?: string
@@ -54,7 +60,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
 
   constructor(private readonly host: ReproRecorderHost<T>) {}
 
-  async manage(tab: T, action: BrowserReproAction): Promise<BrowserReproRecording> {
+  async manage(tab: T, action: BrowserReproAction, checkpoint?: unknown): Promise<BrowserReproRecording> {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before recording reproduction steps')
 
     if (action === 'start') {
@@ -78,6 +84,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       }
       tab.reproRecording = {
         active: true,
+        checkpointContext: randomUUID(),
         startedAt: new Date(startedAtMs).toISOString(),
         startedAtMonotonicMs,
         steps: [],
@@ -102,11 +109,51 @@ export class BrowserReproRecorder<T extends ReproTab> {
       return this.reproRecordingResult(tab)
     }
 
+    if (action === 'checkpoint') return this.checkpoint(tab, checkpoint)
     if (action === 'stop') this.pendingReproStarts.delete(tab)
     const recording = tab.reproRecording
     if (!recording) return this.reproRecordingResult(tab)
     if (action === 'get') return this.reproRecordingResult(tab)
     return this.stopReproRecording(tab, recording)
+  }
+
+  private async checkpoint(tab: T, input: unknown): Promise<BrowserReproRecording> {
+    const request = reproCheckpointSchema.parse(input)
+    const recording = tab.reproRecording
+    const navigation = tab.navigationGeneration
+    const observation = tab.observationGeneration
+    const page = tab.webContents
+    const assertCurrent = () => {
+      if (!recording?.active || tab.reproRecording !== recording
+        || recording.checkpointContext !== request.context
+        || recording.checkpointNavigation !== navigation || recording.checkpointObservation !== observation
+        || !this.host.isCurrent(tab)
+        || page !== tab.webContents || page.isDestroyed()
+        || tab.navigationGeneration !== navigation || tab.observationGeneration !== observation) {
+        throw new Error('Checkpoint context changed; refresh the recording and review the target again')
+      }
+      if (recording.steps.length >= MAX_REPRO_STEPS) throw new Error('Reproduction timeline is full')
+    }
+    assertCurrent()
+    const operation = recording!.queue.catch(() => undefined).then(async () => {
+      assertCurrent()
+      const result = await page.executeJavaScript(reproCheckpointScript(request), true) as {
+        selector: string; tag: string; observedMatch: boolean
+      }
+      assertCurrent()
+      if (!result || typeof result.selector !== 'string' || !result.selector || result.selector.length > 500
+        || typeof result.tag !== 'string' || typeof result.observedMatch !== 'boolean') {
+        throw new Error('Checkpoint target could not be represented safely')
+      }
+      this.addReproStep(tab, {
+        kind: 'expect', description: `Expected result: ${request.condition}`,
+        target: { selector: result.selector, tag: result.tag.slice(0, 64) },
+        expectation: { condition: request.condition, ...(request.text !== undefined ? { text: request.text } : {}), observedMatch: result.observedMatch }
+      })
+    })
+    recording!.queue = operation.catch(() => undefined)
+    await operation
+    return this.reproRecordingResult(tab)
   }
 
   private async stopReproRecording(tab: T, recording: BrowserReproRecordingInternal): Promise<BrowserReproRecording> {
@@ -147,6 +194,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
 
   navigated(tab: T, url: string, sameDocument: boolean): void {
     if (!tab.reproRecording?.active) return
+    tab.reproRecording.checkpointContext = randomUUID()
     // A new document has its own scroll coordinate space.
     if (!sameDocument) tab.reproRecording.scrollPosition = { x: 0, y: 0 }
     this.addReproStep(tab, {
@@ -169,7 +217,15 @@ export class BrowserReproRecorder<T extends ReproTab> {
 
   private reproRecordingResult(tab: T): BrowserReproRecording {
     const recording = tab.reproRecording
+    if (recording && (recording.checkpointNavigation !== tab.navigationGeneration
+      || recording.checkpointObservation !== tab.observationGeneration)) {
+      recording.checkpointContext = randomUUID()
+      recording.checkpointNavigation = tab.navigationGeneration
+      recording.checkpointObservation = tab.observationGeneration
+    }
     return {
+      formatVersion: 2,
+      ...(recording?.active ? { checkpointContext: recording.checkpointContext } : {}),
       tabId: tab.id,
       title: redactDiagnosticText(tab.title).slice(0, 500),
       ...(recording ? { startedAt: recording.startedAt } : {}),
@@ -179,6 +235,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       steps: (recording?.steps ?? []).map((step) => ({
         ...step,
         ...(step.target ? { target: { ...step.target } } : {}),
+        ...(step.expectation ? { expectation: { ...step.expectation } } : {}),
         ...(step.scroll ? { scroll: { ...step.scroll } } : {})
       })),
       truncated: recording?.truncated === true,
@@ -194,7 +251,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
   private addReproStep(
     tab: T,
     value: Pick<BrowserReproStep, 'kind' | 'description'>
-      & Partial<Pick<BrowserReproStep, 'target' | 'key' | 'scroll' | 'valueRedacted'>>,
+      & Partial<Pick<BrowserReproStep, 'target' | 'key' | 'scroll' | 'valueRedacted' | 'expectation'>>,
     expectedContext?: BrowserReproStepContext
   ): void {
     const recording = tab.reproRecording
@@ -232,6 +289,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       ...(target ? { target: { ...target } } : {}),
       ...(value.key ? { key: value.key } : {}),
       ...(value.scroll ? { scroll: { ...value.scroll } } : {}),
+      ...(value.expectation ? { expectation: { ...value.expectation } } : {}),
       ...(value.valueRedacted ? { valueRedacted: true } : {})
     })
     this.host.changed()

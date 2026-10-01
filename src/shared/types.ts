@@ -1,3 +1,4 @@
+import type { BrowserReproCheckpointInput, BrowserReproExpectation } from './repro-checkpoint.js'
 import type { BrowserImportApi } from './browser-import.js'
 import type { BrowserVideoOptions, BrowserVideoState } from './video.js'
 import type { SearchEngineName } from './search-engine.js'
@@ -1825,8 +1826,8 @@ export interface BrowserDebugReport {
   caveats: string[]
 }
 
-export type BrowserReproAction = 'start' | 'get' | 'stop' | 'clear'
-export type BrowserReproStepKind = 'navigate' | 'click' | 'input' | 'key' | 'scroll'
+export type BrowserReproAction = 'start' | 'get' | 'stop' | 'clear' | 'checkpoint'
+export type BrowserReproStepKind = 'navigate' | 'click' | 'input' | 'key' | 'scroll' | 'expect'
 
 export interface BrowserReproTarget {
   /** Empty when no bounded, unique top-level light-DOM selector represents the target; export as a manual step. */
@@ -1848,9 +1849,12 @@ export interface BrowserReproStep {
   key?: string
   scroll?: { x: number; y: number }
   valueRedacted?: boolean
+  expectation?: BrowserReproExpectation
 }
 
 export interface BrowserReproRecording {
+  formatVersion?: 2
+  checkpointContext?: string
   tabId: string
   title: string
   startedAt?: string
@@ -2479,7 +2483,7 @@ export interface HronautApi {
   manageVideo(options: BrowserVideoOptions): Promise<BrowserVideoState>
   importVideoAudio(tabId: string, provenance: string): Promise<BrowserVideoState>
   videoPreview(tabId: string): Promise<Uint8Array>
-  manageRepro(action: BrowserReproAction, tabId?: string): Promise<BrowserReproRecording>
+  manageRepro(action: BrowserReproAction, tabId?: string, checkpoint?: BrowserReproCheckpointInput): Promise<BrowserReproRecording>
   manageDomChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport>
   visualCompare(options: BrowserVisualCompareOptions): Promise<BrowserVisualCompareView>
   copyVisualDiff(tabId?: string): Promise<{ copied: true; width: number; height: number }>

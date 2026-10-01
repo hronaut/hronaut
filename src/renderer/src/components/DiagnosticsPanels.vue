@@ -1405,7 +1405,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="reproState === 'loading'" @click="startReproRecording"><IconRecord aria-hidden="true" /> {{ t('repro.start') }}</UiButton>
         </div>
         <div v-else class="repro-timeline" :aria-label="t('repro.timelineAria')">
-          <ReproTimeline :recording="reproRecording" :locale="locale" />
+          <ReproTimeline :recording="reproRecording" :locale="locale" :busy="reproState === 'loading'" @checkpoint="manageRepro('checkpoint', $event)" />
           <p v-if="reproRecording.truncated" class="inspector-issues-truncated"><IconInfo aria-hidden="true" /> {{ t('repro.truncated') }}</p>
           <details class="debug-report-caveats">
             <summary>{{ t('repro.privacyScope') }}</summary>

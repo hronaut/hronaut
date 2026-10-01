@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { BrowserReproCheckpointInput } from '../../../shared/repro-checkpoint'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatDuration } from '../../../shared/format'
@@ -6,9 +7,22 @@ import type { BrowserReproRecording, BrowserReproStep, SupportedLocale } from '.
 import UiButton from '../ui/UiButton.vue'
 
 const props = defineProps<{
+  busy?: boolean
   locale: SupportedLocale
   recording: BrowserReproRecording
 }>()
+const emit = defineEmits<{ checkpoint: [value: BrowserReproCheckpointInput] }>()
+const selector = ref('')
+const condition = ref<'visible' | 'hidden' | 'text'>('visible')
+const expectedText = ref('')
+const reviewed = ref(false)
+watch([selector, condition, expectedText, () => props.recording.checkpointContext], () => { reviewed.value = false })
+function addCheckpoint(): void {
+  const context = props.recording.checkpointContext
+  if (!context || !reviewed.value || !selector.value.trim() || props.busy) return
+  emit('checkpoint', { context, selector: selector.value.trim(), condition: condition.value, reviewed: true, ...(condition.value === 'text' ? { text: expectedText.value } : {}) })
+  reviewed.value = false
+}
 const { t } = useI18n({ useScope: 'global' })
 const timeline = ref<HTMLElement | null>(null)
 const selectedIndex = ref<number | null>(null)
@@ -71,6 +85,18 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
 
 <template>
   <div class="repro-review">
+    <form v-if="recording.active && recording.checkpointContext" class="repro-checkpoint" @submit.prevent="addCheckpoint">
+      <strong>{{ t('repro.checkpoint.title') }}</strong>
+      <label>{{ t('repro.selector') }}<input v-model="selector" maxlength="500" required></label>
+      <label>{{ t('repro.checkpoint.condition') }}<select v-model="condition">
+        <option value="visible">{{ t('repro.checkpoint.visible') }}</option>
+        <option value="hidden">{{ t('repro.checkpoint.hidden') }}</option>
+        <option value="text">{{ t('repro.checkpoint.text') }}</option>
+      </select></label>
+      <label v-if="condition === 'text'">{{ t('repro.checkpoint.text') }}<input v-model="expectedText" maxlength="240"></label>
+      <label><input v-model="reviewed" type="checkbox">{{ t('repro.checkpoint.review') }}</label>
+      <UiButton appearance="application" type="submit" :disabled="busy || !reviewed || !selector.trim()">{{ t('repro.checkpoint.add') }}</UiButton>
+    </form>
     <div ref="timeline" class="repro-step-list" role="listbox" :aria-label="t('repro.timelineAria')">
       <UiButton
         v-for="step in recording.steps"
@@ -110,7 +136,14 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
         <div v-if="selectedStep.scroll"><dt>{{ t('repro.position') }}</dt><dd><code>x={{ selectedStep.scroll.x }}, y={{ selectedStep.scroll.y }}</code></dd></div>
         <div><dt>{{ t('repro.page') }}</dt><dd><code>{{ selectedStep.url }}</code></dd></div>
       </dl>
+      <p v-if="selectedStep.expectation">{{ t('repro.checkpoint.condition') }}: {{ selectedStep.expectation.condition }} <span v-if="selectedStep.expectation.text !== undefined">{{ selectedStep.expectation.text }}</span> — {{ t(selectedStep.expectation.observedMatch ? 'repro.checkpoint.matched' : 'repro.checkpoint.notMatched') }}</p>
       <p v-if="selectedStep.valueRedacted" class="repro-step-redacted">{{ t('repro.valueRedacted') }}</p>
     </section>
   </div>
 </template>
+
+<style scoped>
+.repro-checkpoint { display: grid; gap: 8px; padding: 12px; }
+.repro-checkpoint label { display: grid; gap: 4px; }
+.repro-checkpoint input, .repro-checkpoint select { min-width: 0; max-width: 100%; }
+</style>
