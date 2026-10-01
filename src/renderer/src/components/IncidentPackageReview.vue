@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { incidentKinds, type IncidentDraft, type IncidentKind, type IncidentPreview } from '../../../shared/incident-package'
 import UiButton from '../ui/UiButton.vue'
+import UiInput from '../ui/UiInput.vue'
 
 const props = defineProps<{ tabId: string }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -67,26 +68,26 @@ onBeforeUnmount(reset)
     <fieldset :disabled="busy">
       <legend>{{ t('incident.select') }}</legend>
       <label v-for="kind in incidentKinds" :key="kind"><input v-model="selected" type="checkbox" :value="kind">{{ t(`incident.${kind}`) }}</label>
-      <label>{{ t('incident.minutes') }}<input v-model.number="minutes" type="number" min="1" max="60" step="1"></label>
-      <UiButton appearance="application" type="button" :disabled="!selected.length" @click="capture">{{ t('incident.capture') }}</UiButton>
+      <label>{{ t('incident.minutes') }}<UiInput v-model.number="minutes" type="number" min="1" max="60" step="1" /></label>
+      <UiButton type="button" :disabled="!selected.length" @click="capture">{{ t('incident.capture') }}</UiButton>
     </fieldset>
     <template v-if="draft">
       <p>{{ t('incident.expires') }} {{ draft.expiresAt }}</p>
       <fieldset :disabled="busy">
         <legend>{{ t('incident.include') }}</legend>
         <label v-for="artifact in draft.artifacts" :key="artifact.kind"><input v-model="included" type="checkbox" :value="artifact.kind">{{ t(`incident.${artifact.kind}`) }} — {{ t(`incident.${artifact.status}`) }} <span v-if="artifact.truncated">{{ t('incident.truncated') }}</span></label>
-        <label>{{ t('incident.find') }}<input v-model="find" maxlength="256" autocomplete="off"></label>
-        <label>{{ t('incident.replacement') }}<input v-model="replacement" maxlength="256" autocomplete="off"></label>
-        <UiButton appearance="application" type="button" :disabled="!included.length" @click="preparePreview">{{ t('incident.preview') }}</UiButton>
+        <label>{{ t('incident.find') }}<UiInput v-model="find" maxlength="256" autocomplete="off" /></label>
+        <label>{{ t('incident.replacement') }}<UiInput v-model="replacement" maxlength="256" autocomplete="off" /></label>
+        <UiButton type="button" :disabled="!included.length" @click="preparePreview">{{ t('incident.preview') }}</UiButton>
       </fieldset>
     </template>
     <template v-if="preview">
       <iframe :title="t('incident.preview')" sandbox="" :srcdoc="preview.html" class="incident-preview" />
       <p class="incident-hash">{{ t('incident.hash', { hash: preview.sha256 }) }}</p>
       <label><input v-model="reviewed" type="checkbox" :disabled="busy">{{ t('incident.reviewed') }}</label>
-      <UiButton appearance="application" type="button" :disabled="busy || !reviewed" @click="save">{{ t('incident.save') }}</UiButton>
+      <UiButton type="button" :disabled="busy || !reviewed" @click="save">{{ t('incident.save') }}</UiButton>
     </template>
-    <UiButton v-if="draft || busy" appearance="application" type="button" @click="reset">{{ t('incident.discard') }}</UiButton>
+    <UiButton v-if="draft || busy" type="button" @click="reset">{{ t('incident.discard') }}</UiButton>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="busy" role="status">{{ t('incident.working') }}</p>
     <p v-if="saved" role="status">{{ t('incident.saved') }}</p>
@@ -94,8 +95,8 @@ onBeforeUnmount(reset)
 </template>
 
 <style scoped>
-.incident-review { margin: 12px; padding: 12px; border: 1px solid currentColor; border-radius: 8px; }
-.incident-review fieldset { display: grid; gap: 8px; margin-block: 12px; }
+.incident-review { margin: 12px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 8px; }
+.incident-review fieldset { display: grid; gap: 8px; margin-block: 12px; border: 1px solid var(--border-soft); border-radius: 8px; }
 .incident-review label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .incident-review input { min-width: 0; max-width: 100%; }
 .incident-preview { width: 100%; min-height: 280px; background: white; }

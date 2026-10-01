@@ -96,6 +96,7 @@ export class IncidentPackages {
     const artifacts = stored.draft.artifacts.map(artifact => {
       if (!request.include.includes(artifact.kind)) return { kind: artifact.kind, status: 'omitted', truncated: artifact.truncated }
       if (!artifact.text) return { ...artifact }
+      let transformedBytes = 0
       const data = transformStrings(JSON.parse(artifact.text), value => {
         let next = value
         request.replacements.forEach((rule, index) => {
@@ -106,7 +107,10 @@ export class IncidentPackages {
           counts[index]! += occurrences
           next = pieces.join(rule.replacement)
         })
-        return redactDiagnosticText(next)
+        const sanitized = redactDiagnosticText(next)
+        transformedBytes += Buffer.byteLength(sanitized)
+        if (transformedBytes > ARTIFACT_LIMIT) throw new Error('Reviewed artifact exceeds the size limit')
+        return sanitized
       })
       const text = JSON.stringify(data, null, 2)
       if (Buffer.byteLength(text) > ARTIFACT_LIMIT) throw new Error('Reviewed artifact exceeds the size limit')

@@ -88,3 +88,10 @@ it('bounds replacement expansion before allocating an oversized result', async (
   const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
   expect(() => service.review(1, { draftId: draft.draftId, include: ['repro'], replacements: [{ find: 'a', replacement: 'a'.repeat(256) }] })).toThrow('size limit')
 })
+
+it('bounds aggregate expansion across many individually small strings', async () => {
+  const { service, source } = fixture()
+  source.steps = Array.from({ length: 100 }, (_, index) => ({ occurredAt: new Date(now).toISOString(), index, description: 'a'.repeat(100) }))
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  expect(() => service.review(1, { draftId: draft.draftId, include: ['repro'], replacements: [{ find: 'a', replacement: 'b'.repeat(256) }] })).toThrow('size limit')
+})
