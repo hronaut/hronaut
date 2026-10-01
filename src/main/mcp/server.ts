@@ -3221,6 +3221,8 @@ function createBrowserMcpServer(
       description: toolDescription('browser_find'),
       inputSchema: {
         tabId: tabIdSchema.optional(),
+        rootSelector: z.string().trim().min(1).max(512).optional()
+          .describe('Search only this unique non-editable light-DOM component, plus page URL/title context. No whole-page fallback; absence is scoped.'),
         query: z.string().trim().min(1).max(200),
         caseSensitive: z.boolean().optional(),
         maxMatches: z.number().int().min(1).max(50).optional(),
@@ -3229,6 +3231,7 @@ function createBrowserMcpServer(
     },
     tabTool('browser_find', async (options: {
       tabId?: string
+      rootSelector?: string
       query: string
       caseSensitive?: boolean
       maxMatches?: number

@@ -6,7 +6,7 @@ import type { BrowserState } from '../../src/shared/types.js'
 import type { BrowserSnapshot } from '../../src/shared/snapshot.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('captures a component through MCP without unrelated content or silent scope fallback', async ({ electronApp, mcpPort, mcpToken }) => {
+test('captures and searches a component through MCP without unrelated content or silent scope fallback', async ({ electronApp, mcpPort, mcpToken }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<html><title>Scope fixture</title><main>' + '<section><h2>Outside component</h2><button>Save</button></section>'.repeat(100)
@@ -57,13 +57,31 @@ test('captures a component through MCP without unrelated content or silent scope
     expect(scoped.returnedChars).toBeLessThan(whole.returnedChars)
     const found = parse<{ matches: unknown[] }>(await call('browser_find', { ...args, query: 'private-rich-' }))
     expect(found.matches).toEqual([])
+    type Search = { matches: Array<{ snippet: string }>; sourceChars: number; sourceSnapshot: Omit<BrowserSnapshot, 'text'>; caveats: string[] }
+    const wholeSearch = parse<Search>(await call('browser_find', { ...args, query: 'Outside component' }))
+    expect(wholeSearch.matches.length).toBeGreaterThan(0)
+    const outsideSearch = parse<Search>(await call('browser_find', { ...args, rootSelector: '#target', query: 'Outside component' }))
+    expect(outsideSearch.matches).toEqual([])
+    expect(outsideSearch.sourceSnapshot).toMatchObject({ captureId: expect.any(String), scope: { kind: 'component', outsideScopeOmitted: true }, truncated: false })
+    expect(outsideSearch.caveats.join(' ')).toContain('absence elsewhere')
+    expect(outsideSearch.sourceChars).toBeLessThan(wholeSearch.sourceChars)
+    expect(outsideSearch.sourceSnapshot).not.toHaveProperty('text')
+    const scopedSearch = parse<Search>(await call('browser_find', { ...args, rootSelector: '#target', query: 'Nested action', maxMatches: 1, contextChars: 20 }))
+    expect(scopedSearch.matches).toHaveLength(1)
+    expect(scopedSearch.matches[0]!.snippet).toContain('Nested action')
+    expect(JSON.stringify(scopedSearch)).not.toContain('Outside component')
+    expect(JSON.stringify(scopedSearch)).not.toContain('#target')
+    expect(parse<Search>(await call('browser_find', { ...args, rootSelector: '#target', query: 'private-rich-' })).matches).toEqual([])
     expect(await page.evaluate(() => {
       const audit = (window as unknown as { snapshotAudit: { count: number; observer: MutationObserver } }).snapshotAudit
       audit.observer.disconnect()
       return audit.count
     })).toBe(0)
     await page.locator('#rich-editor').evaluate(element => { element.innerHTML = '<h3>changed-rich-heading</h3><button>changed-rich-control</button>' })
-    for (const rootSelector of ['#missing', 'section', '[', '#private-editor']) expect((await call('browser_snapshot', { ...args, rootSelector })).isError).toBe(true)
+    for (const rootSelector of ['#missing', 'section', '[', '#private-editor']) {
+      expect((await call('browser_snapshot', { ...args, rootSelector })).isError).toBe(true)
+      expect((await call('browser_find', { ...args, rootSelector, query: 'Outside component' })).isError).toBe(true)
+    }
     expect((await call('browser_snapshot', { ...args, action: 'set-baseline', rootSelector: '#target' })).isError).toBe(true)
     expect((await call('browser_snapshot', { ...args, action: 'delta', baselineId: baseline.baselineId, advanceBaseline: false })).structuredContent).toMatchObject({ status: 'unchanged' })
     await page.locator('#target').evaluate(element => { element.outerHTML = '<form id="target"><button>Replacement</button></form>' })
@@ -71,31 +89,35 @@ test('captures a component through MCP without unrelated content or silent scope
     expect(replaced.captureId).not.toBe(scoped.captureId)
     expect(replaced.text).toContain('Replacement')
     expect(replaced.text).not.toContain('Chosen component')
+    expect(parse<Search>(await call('browser_find', { ...args, rootSelector: '#target', query: 'Chosen component' })).matches).toEqual([])
     await page.locator('#target').evaluate(element => element.remove())
     expect((await call('browser_snapshot', { ...args, rootSelector: '#target' })).isError).toBe(true)
-    await page.reload()
-    await electronApp.evaluate(({ webContents }, url) => {
-      const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
-      const original = contents.executeJavaScript.bind(contents)
-      let release!: () => void
-      const gate = new Promise<void>(resolve => { release = resolve })
-      const state = { held: false, release, restore: () => { contents.executeJavaScript = original } }
-      ;(globalThis as typeof globalThis & { __scopedCapture?: typeof state }).__scopedCapture = state
-      contents.executeJavaScript = async (code: string, userGesture?: boolean) => {
-        const result = await original(code, userGesture)
-        if (code.includes('const MAX_CHARS =')) {
-          state.held = true
-          await gate
-          state.restore()
+    for (const tool of ['browser_snapshot', 'browser_find']) {
+      await page.goto(url)
+      await expect(page.locator('#target')).toBeVisible()
+      await electronApp.evaluate(({ webContents }, url) => {
+        const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
+        const original = contents.executeJavaScript.bind(contents)
+        let release!: () => void
+        const gate = new Promise<void>(resolve => { release = resolve })
+        const state = { held: false, release, restore: () => { contents.executeJavaScript = original } }
+        ;(globalThis as typeof globalThis & { __scopedCapture?: typeof state }).__scopedCapture = state
+        contents.executeJavaScript = async (code: string, userGesture?: boolean) => {
+          const result = await original(code, userGesture)
+          if (code.includes('const MAX_CHARS =')) {
+            state.held = true
+            await gate
+            state.restore()
+          }
+          return result
         }
-        return result
-      }
-    }, url)
-    const pending = call('browser_snapshot', { ...args, rootSelector: '#target' })
-    await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __scopedCapture?: { held: boolean } }).__scopedCapture?.held)).toBe(true)
-    await page.goto(url + '?changed=1')
-    await electronApp.evaluate(() => (globalThis as typeof globalThis & { __scopedCapture?: { release: () => void } }).__scopedCapture?.release())
-    expect((await pending).isError).toBe(true)
+      }, url)
+      const pending = call(tool, { ...args, rootSelector: '#target', ...(tool === 'browser_find' ? { query: 'Nested action' } : {}) })
+      await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __scopedCapture?: { held: boolean } }).__scopedCapture?.held)).toBe(true)
+      await page.goto(url + '?changed=' + tool)
+      await electronApp.evaluate(() => (globalThis as typeof globalThis & { __scopedCapture?: { release: () => void } }).__scopedCapture?.release())
+      expect((await pending).isError).toBe(true)
+    }
   } finally {
     await electronApp.evaluate(() => {
       const root = globalThis as typeof globalThis & { __scopedCapture?: { release: () => void; restore: () => void } }
