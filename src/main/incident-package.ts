@@ -92,12 +92,13 @@ export class IncidentPackages {
     const stored = this.current(owner, request.draftId)
     stored.preview = undefined
     if (request.include.some(kind => !stored.draft.artifacts.some(a => a.kind === kind))) throw new Error('Incident artifact was not captured')
+    const omitted = new Map((request.omitFields ?? []).map(name => [name, 0]))
     const counts = request.replacements.map(() => 0)
     const artifacts = stored.draft.artifacts.map(artifact => {
       if (!request.include.includes(artifact.kind)) return { kind: artifact.kind, status: 'omitted', truncated: artifact.truncated }
       if (!artifact.text) return { ...artifact }
       let transformedBytes = 0
-      const data = transformStrings(JSON.parse(artifact.text), value => {
+      const data = transformStrings(omitObjectFields(JSON.parse(artifact.text), omitted), value => {
         let next = value
         request.replacements.forEach((rule, index) => {
           const pieces = next.split(rule.find)
@@ -122,7 +123,10 @@ export class IncidentPackages {
       localOnly: true, reviewRequired: true,
       limits: { maxArtifacts: 3, maxArtifactBytes: ARTIFACT_LIMIT, maxPackageBytes: PACKAGE_LIMIT, maxWindowMinutes: 60 },
       limitations: ['Selected retained text only; not a complete session or anonymization guarantee.', 'No screenshots, request/response bodies, profiles, replay, external uploads or receipt collection.', 'Missing or evicted historical evidence cannot be reconstructed; empty means no retained entries in the window.', 'Hashes establish byte integrity, not factual truth.'],
-      transformations: counts.map(occurrences => ({ type: 'literal-text-replacement', occurrences })),
+      transformations: [
+        ...[...omitted.values()].map(occurrences => ({ type: 'exact-field-omission', occurrences })),
+        ...counts.map(occurrences => ({ type: 'literal-text-replacement', occurrences }))
+      ],
       artifacts: artifacts.map(a => ({ kind: a.kind, status: a.status, truncated: a.truncated, ...('text' in a && a.text ? { bytes: Buffer.byteLength(a.text), sha256: hash(a.text) } : {}) }))
     }
     const sections = artifacts.filter(a => 'text' in a && a.text).map(a => `<section><h2>${a.kind}</h2><pre>${escapeHtml('text' in a ? a.text! : '')}</pre></section>`).join('\n')
@@ -137,6 +141,21 @@ export class IncidentPackages {
     if (!stored.preview || stored.preview.previewId !== previewId) throw new Error('Incident preview changed; review again')
     return { ...stored.preview }
   }
+}
+
+/** Remove own object fields only; array indexes and original evidence stay intact. */
+function omitObjectFields(value: unknown, counts: Map<string, number>): unknown {
+  if (Array.isArray(value)) return value.map(item => omitObjectFields(item, counts))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).flatMap(([key, item]) => {
+      if (counts.has(key)) {
+        counts.set(key, counts.get(key)! + 1)
+        return []
+      }
+      return [[key, omitObjectFields(item, counts)]]
+    }))
+  }
+  return value
 }
 
 function transformStrings(value: unknown, transform: (value: string) => string): unknown {

@@ -111,3 +111,47 @@ it('rejects replacement key collisions without losing evidence or retaining an o
   expect(corrected.html).toContain('&quot;index&quot;')
   expect(corrected.html).not.toContain('private-canary')
 })
+
+it('omits exact fields recursively before replacement without retaining names or source values', async () => {
+  const { service, source } = fixture()
+  const original = structuredClone(source)
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const preview = service.review(1, { draftId: draft.draftId, include: ['repro'], omitFields: ['description'], replacements: [] })
+  expect(preview.html).not.toContain('private-canary')
+  expect(preview.html).not.toContain('description')
+  expect(preview.html).toContain('exact-field-omission')
+  expect(preview.html).toContain('&quot;occurrences&quot;: 1')
+  expect(preview.html).toContain('&quot;index&quot;: 1')
+  expect(source).toEqual(original)
+  expect(service.export(1, draft.draftId, preview.previewId)).toEqual(preview)
+})
+
+it('preserves array positions and case-sensitive unmatched fields while omitting nested containers', async () => {
+  const { service, source } = fixture()
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const unmatched = service.review(1, { draftId: draft.draftId, include: ['repro'], omitFields: ['Description', '0'], replacements: [] })
+  expect(unmatched.html).toContain('private-canary')
+  const omitted = service.review(1, { draftId: draft.draftId, include: ['repro'], omitFields: ['steps'], replacements: [{ find: 'private-canary', replacement: 'must-not-reappear' }] })
+  expect(omitted.html).not.toContain('private-canary')
+  expect(omitted.html).not.toContain('must-not-reappear')
+  expect(source.steps).toHaveLength(1)
+})
+
+it('bounds exact field omissions and rejects empty or duplicate names', async () => {
+  const { service } = fixture()
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  for (const omitFields of [[''], ['description', 'description'], ['a'.repeat(257)], Array.from({ length: 11 }, (_, i) => String(i))]) {
+    expect(() => service.review(1, { draftId: draft.draftId, include: ['repro'], omitFields, replacements: [] })).toThrow()
+  }
+})
+
+it('treats prototype-like names as literal own fields without changing object prototypes', async () => {
+  const { service, source } = fixture()
+  Object.defineProperty(source.steps[0], '__proto__', { value: { secret: 'prototype-canary' }, enumerable: true })
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const preview = service.review(1, { draftId: draft.draftId, include: ['repro'], omitFields: ['__proto__'], replacements: [] })
+  expect(preview.html).not.toContain('prototype-canary')
+  expect(preview.html).not.toContain('__proto__')
+  expect(Object.getPrototypeOf(source.steps[0])).toBe(Object.prototype)
+  expect(Object.hasOwn(source.steps[0]!, '__proto__')).toBe(true)
+})

@@ -17,7 +17,7 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing fixture port')
   const origin = `http://127.0.0.1:${address.port}`
-  const url = `${origin}/?token=network-secret`
+  const url = `${origin}/field-path-canary?token=network-secret`
   const destination = join(profileDirectory, 'incident.html')
   const offline = await browser.newContext({ offline: true })
   try {
@@ -47,11 +47,14 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await expect(panel.locator('iframe')).toHaveCount(0)
     await panel.getByLabel('Replace with').fill('[REDACTED]')
     await panel.getByLabel('Exact text to replace (optional)').fill('private-canary')
+    await panel.getByLabel('Exact JSON field name to omit (optional)').fill('url')
     await panel.getByRole('button', { name: 'Preview exact package' }).click()
     const iframe = panel.locator('iframe[title="Preview exact package"]')
     await expect(iframe).toBeVisible()
     const previewHtml = (await iframe.getAttribute('srcdoc'))!
     expect(previewHtml).not.toContain('private-canary')
+    expect(previewHtml).not.toContain('&quot;url&quot;:')
+    expect(previewHtml).toContain('exact-field-omission')
     expect(previewHtml).not.toContain('credential-secret')
     expect(previewHtml).not.toContain('cookie-secret')
     expect(previewHtml).not.toContain('network-secret')
@@ -74,6 +77,7 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await expect(panel).toContainText(hash)
     const source = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)
     expect(source.console.some(entry => entry.message.includes('private-canary'))).toBe(true)
+    expect(JSON.stringify(source)).toContain('field-path-canary')
 
     // A separate fresh browser context opens only the saved file, with no Hronaut state.
     let remoteRequests = 0

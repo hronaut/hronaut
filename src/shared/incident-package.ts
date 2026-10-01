@@ -10,6 +10,7 @@ export const incidentCaptureSchema = z.object({
 export const incidentReviewSchema = z.object({
   draftId: z.string().uuid(),
   include: z.array(z.enum(incidentKinds)).min(1).max(3).refine(values => new Set(values).size === values.length),
+  omitFields: z.array(z.string().min(1).max(256)).max(10).refine(values => new Set(values).size === values.length).optional(),
   replacements: z.array(z.object({ find: z.string().min(1).max(256), replacement: z.string().max(256) }).strict()).max(10)
 }).strict()
 export interface IncidentArtifact {
