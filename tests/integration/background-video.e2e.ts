@@ -63,7 +63,9 @@ test('two agents export distinct progressing background tabs while the human kee
           expect(pixel[index ? 2 : 0]).toBeGreaterThan(180)
           expect(pixel[index ? 0 : 2]).toBeLessThan(60)
         }
-        expect(new Set(samples.map(pixel => Math.round(pixel[4]! / 16))).size).toBeGreaterThan(2)
+        const distinctAnimationLevels = new Set(samples.map(pixel => Math.round(pixel[4]! / 16))).size
+        expect(distinctAnimationLevels).toBeGreaterThan(2)
+        console.info('Background video decoded QA', JSON.stringify({ follow, source: index ? 'blue' : 'red', sampleCount: samples.length, distinctAnimationLevels }))
         await testInfo.attach(`decoded-${follow}-${index}`, { body: JSON.stringify(samples), contentType: 'application/json' })
       }
       expect(await selected()).toBe(humanId)
@@ -135,6 +137,7 @@ test('background capture pauses for hidden chrome, hidden window and suspend wit
       probe.__restoreVideoMinimize?.(); delete probe.__restoreVideoMinimize
       window.restore(); window.showInactive()
     })
+    console.info('Background video window QA', JSON.stringify({ nativeMinimized, minimizedStateGuard: true, realHiddenWindow: true, physicalSystemSleep: false }))
     await testInfo.attach('window-power-scope', { body: JSON.stringify({ nativeMinimized, minimizedStateGuard: true, realHiddenWindow: true, physicalSystemSleep: false }), contentType: 'application/json' })
     expect((await video('get')).status).toBe('paused')
     await video('resume')
