@@ -100,3 +100,47 @@ test('exports checked-state assertions without form values and detects both brok
     await expect(page.locator('#radio')).not.toBeChecked()
   } finally { await closeFixtureServer(server) }
 })
+
+test('records rendered visibility consistent with exported Playwright assertions', async ({ appWindow, electronApp }) => {
+  let broken = false
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<html><title>Visibility fixture</title><h1>Ready</h1><main style="content-visibility:${broken ? 'visible' : 'hidden'}"><p id="suppressed" style="width:100px;height:30px">Suppressed</p></main><section id="contents" style="display:contents"><span>Visible child</span></section><article id="text-contents" style="display:contents">Visible text</article><div id="transparent" style="opacity:0">Transparent but laid out</div></html>`)
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('No fixture port')
+  const url = `http://127.0.0.1:${address.port}/`
+  try {
+    const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
+    const tabId = state.activeTabId!
+    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
+    const page = electronApp.context().pages().find(page => page.url() === url)!
+    await expect(page.getByRole('heading', { name: 'Ready' })).toBeVisible()
+    const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
+    for (const [selector, condition] of [['#suppressed', 'hidden'], ['#contents', 'visible'], ['#text-contents', 'visible'], ['#transparent', 'visible']] as const) {
+      expect(await page.locator(selector).isVisible()).toBe(condition === 'visible')
+      const report = await appWindow.evaluate(({ tabId, checkpoint }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, checkpoint), { tabId, checkpoint: { context: initial.checkpointContext!, selector, condition, reviewed: true as const } })
+      expect(report.steps.at(-1)?.expectation).toEqual({ condition, observedMatch: true })
+    }
+    await page.evaluate(() => {
+      const element = document.createElement('aside'); element.id = 'bounded'; element.style.display = 'contents'
+      for (let index = 0; index < 1001; index++) element.append(document.createComment(''))
+      document.body.append(element)
+    })
+    await expect(appWindow.evaluate(({ tabId, context }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, { context, selector: '#bounded', condition: 'hidden', reviewed: true }), { tabId, context: initial.checkpointContext! })).rejects.toThrow('select a smaller target')
+    const stopped = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('stop', tabId), tabId)
+    expect(stopped.steps.filter(step => step.kind === 'expect')).toHaveLength(4)
+    const code = formatReproAsPlaywright(stopped).replace(/^import .*\n/, '')
+    const run = () => {
+      let execution: Promise<void> | undefined
+      const register = (_title: string, body: (context: { page: Page }) => Promise<void>) => { execution = body({ page }) }
+      new Function('test', 'expect', code)(register, expect.configure({ timeout: 500 }))
+      if (!execution) throw new Error('Generated test did not register')
+      return execution
+    }
+    await run()
+    broken = true
+    await expect(run()).rejects.toThrow('toBeHidden')
+  } finally { await closeFixtureServer(server) }
+})

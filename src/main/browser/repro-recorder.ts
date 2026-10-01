@@ -148,6 +148,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       if (result?.error === 'excluded-target') {
         throw new Error('Choose a non-editable result element; form values and frame contents are excluded')
       }
+      if (result?.error === 'visibility-limit') throw new Error('Checkpoint visibility observation exceeded its limit; select a smaller target')
       if (result?.error === 'ambiguous-target') throw new Error('Checkpoint requires exactly one current light-DOM element')
       if (result?.error === 'invalid-selector') throw new Error('Checkpoint selector is not valid CSS')
       if (!result || typeof result.selector !== 'string' || !result.selector || result.selector.length > 500
