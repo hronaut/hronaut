@@ -962,20 +962,29 @@ Dependabot checks npm packages and GitHub Actions weekly and groups related Elec
 ## Record product walkthroughs
 
 Open **Page tools → Video recorder**, or use `browser_video` in any MCP tool set.
-Recording is explicitly started for one visible HTTP(S) tab. It captures page
+Recording is explicitly started for a specific HTTP(S) tab, including a background tab. It captures page
 pixels (including any personal data on screen), without browser chrome or audio.
 Use a demo account and review the result before sharing. Nothing is uploaded.
 
 The first version captures up to 12 frames per second, fitting the viewport
 inside 1280 × 720 without upscaling. Each recording is limited to two minutes and
-64 MiB of JPEG frames; at most three recordings are retained, with one actively
-capturing at a time. Raw frames and rendered previews stay in memory and disappear
+64 MiB of JPEG frames; at most three recordings are retained and may capture
+concurrently. Each recording keeps its original tab and workspace; Follow agent
+does not select or retarget it. Separate authorized agents can record separate
+workspaces while the human uses another tab. Raw frames and rendered previews stay in memory and disappear
 on discard, tab closure, workspace closure/archive, or application exit. Explicit
 exports remain in the configured download directory with collision-safe filenames.
 
-Keep the tab selected, visible and at a fixed viewport size while recording.
+Keep Hronaut visible and each recording viewport at a fixed size. The source tab
+need not be selected. Background frames reuse the existing per-tab rendering
+surface and queue; this remains bounded sampled video, not a guaranteed frame rate.
 Same-origin navigation is supported; a frame spanning a navigation is discarded.
-Switching tabs, resizing, loss of access, or an unavailable renderer pauses capture. Return
+Resizing, loss of access, a hidden/minimized Hronaut window, trusted UI occlusion,
+a held/sleeping page, or an unavailable renderer pauses capture. Active recordings
+are protected from Memory Saver. System suspend pauses them without automatic
+resume; recording during OS sleep is unsupported. A gap of more than three seconds
+without usable frames pauses and trims the unsampled tail, rather than claiming
+a healthy frozen video. Return
 to the original origin and restore the viewport before resuming. Pause time is
 excluded from the timeline. When agent control or its write lease changes, resume
 requires a fresh authorized call. Reading or exporting retained content requires

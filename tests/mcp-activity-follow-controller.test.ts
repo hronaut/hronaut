@@ -180,3 +180,17 @@ describe('MCP activity follow controller', () => {
     expect(harness.selectTabPassively).not.toHaveBeenCalled()
   })
 })
+
+
+it('never wakes or follows video controls, including after toggling Follow agent', () => {
+  const harness = createHarness()
+  harness.requireWake('tab-a')
+  harness.enable()
+  harness.controller.accept({ ...activity('video', 'tab-a'), toolName: 'browser_video' })
+  harness.disable(); harness.enable()
+  harness.controller.accept({ ...activity('video', 'tab-a', 'finished'), toolName: 'browser_video' })
+  expect(harness.wakeTab).not.toHaveBeenCalled()
+  expect(harness.selectTabPassively).not.toHaveBeenCalled()
+  harness.controller.accept(activity('normal', 'tab-b'))
+  expect(harness.selectTabPassively).toHaveBeenCalledWith('tab-b')
+})

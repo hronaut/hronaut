@@ -25,6 +25,9 @@ export class McpActivityFollowController {
   constructor(private readonly options: McpActivityFollowControllerOptions) {}
 
   accept(activity: McpTabActivity): void {
+    // Recording controls target a fixed tab without taking the human away from
+    // another page. The manager still publishes their ordinary activity state.
+    if (activity.toolName === 'browser_video') return
     if (activity.phase === 'started') {
       this.activities.delete(activity.activityId)
       this.activities.set(activity.activityId, activity)

@@ -2,12 +2,12 @@ import { readFile } from 'node:fs/promises'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { HronautApi, HronautSettingsApi } from '../../src/shared/types.js'
+import type { HronautApi, HronautSettingsApi, HronautShellApi } from '../../src/shared/types.js'
 import type { BrowserVideoState } from '../../src/shared/video.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { test, expect, text } from './capability-fixtures.js'
 
-type TestWindow = Window & { hronaut: HronautApi; hronautSettings: HronautSettingsApi }
+type TestWindow = Window & { hronaut: HronautApi; hronautSettings: HronautSettingsApi; hronautShell: HronautShellApi }
 
 test('two agents export distinct progressing background tabs while the human keeps a third selected', async ({ capabilities, appWindow, mcpPort, mcpToken }, testInfo) => {
   const { client, tabId, fixtureOrigin } = capabilities
@@ -21,9 +21,9 @@ test('two agents export distinct progressing background tabs while the human kee
   try {
     await useMcpWorkspace(other, 'Second background recorder', false)
     await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: `${fixtureOrigin}/background-video?red` } })
-    const opened = await other.callTool({ name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/background-video?blue`, active: true } }) as CallToolResult
+    const opened = await other.callTool({ name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/background-video?blue`, active: false } }) as CallToolResult
     expect(opened.isError, text(opened)).not.toBe(true)
-    const secondId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    const secondId = (JSON.parse(text(opened)) as { tabs: { id: string; url: string }[] }).tabs.find(tab => tab.url.includes('/background-video?blue'))!.id
     await other.callTool({ name: 'browser_wait', arguments: { tabId: secondId } })
     const human = await appWindow.evaluate(async url => (window as unknown as TestWindow).hronaut.newTab({ url, active: true }), `${fixtureOrigin}/?human`)
     const humanId = human.activeTabId
@@ -68,5 +68,51 @@ test('two agents export distinct progressing background tabs while the human kee
       expect(await selected()).toBe(humanId)
       await Promise.all([call(client, tabId, 'clear'), call(other, secondId, 'clear')])
     }
-  } finally { await other.close() }
+    await Promise.all([call(client, tabId, 'start'), call(other, secondId, 'start')])
+    await other.close()
+    await expect.poll(() => appWindow.evaluate(async id => (await (window as unknown as TestWindow).hronaut.manageVideo({ tabId: id, action: 'get' })).status, secondId)).toBe('paused')
+    const before = (await call(client, tabId, 'get')).frameCount
+    await expect.poll(async () => (await call(client, tabId, 'get')).frameCount).toBeGreaterThan(before)
+    const denied = await client.callTool({ name: 'browser_video', arguments: { tabId: secondId, action: 'get' } }) as CallToolResult
+    expect(denied.isError).toBe(true)
+    await Promise.all([
+      call(client, tabId, 'clear'),
+      appWindow.evaluate(id => (window as unknown as TestWindow).hronaut.closeTab(id), secondId)
+    ])
+    expect(await selected()).toBe(humanId)
+  } finally { await other.close().catch(() => undefined) }
+})
+
+
+test('background capture pauses for hidden chrome, hidden window and suspend without silently resuming', async ({ capabilities, appWindow, electronApp }) => {
+  const { tabId, fixtureOrigin } = capabilities
+  const humanId = (await appWindow.evaluate(url => (window as unknown as TestWindow).hronaut.newTab({ url, active: true }), `${fixtureOrigin}/?human`)).activeTabId
+  const video = (action: 'start' | 'get' | 'resume' | 'clear') => appWindow.evaluate(({ id, action }) => (window as unknown as TestWindow).hronaut.manageVideo({ tabId: id, action }), { id: tabId, action })
+  const windowHandle = await electronApp.browserWindow(appWindow)
+  try {
+    await video('start')
+    await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThan(1)
+    await expect(appWindow.evaluate(id => (window as unknown as TestWindow).hronaut.setTabSleeping(id, true), tabId)).rejects.toThrow('recording video')
+    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(true))
+    await expect.poll(async () => (await video('get')).status).toBe('paused')
+    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false))
+    expect((await video('get')).status).toBe('paused')
+    await video('resume')
+    await windowHandle.evaluate(window => window.hide())
+    await expect.poll(async () => (await video('get')).status).toBe('paused')
+    await windowHandle.evaluate(window => window.showInactive())
+    expect((await video('get')).status).toBe('paused')
+    await video('resume')
+    // Exercise the real main-process suspend listener without sleeping the CI host.
+    await electronApp.evaluate(({ powerMonitor }) => powerMonitor.emit('suspend'))
+    await expect.poll(async () => (await video('get')).status).toBe('paused')
+    expect((await video('get')).notice).toContain('system sleep')
+    await electronApp.evaluate(({ powerMonitor }) => powerMonitor.emit('resume'))
+    expect((await video('get')).status).toBe('paused')
+    expect(await appWindow.evaluate(async () => (await (window as unknown as TestWindow).hronaut.getState()).activeTabId)).toBe(humanId)
+  } finally {
+    await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false))
+    await windowHandle.evaluate(window => window.showInactive())
+    await video('clear')
+  }
 })

@@ -53,6 +53,7 @@ import {
   BrowserWindow,
   Menu,
   nativeImage,
+  powerMonitor,
   screen,
   session,
   webContents as electronWebContents,
@@ -1033,6 +1034,7 @@ export class BrowserTabsManager {
     isAgentInput: webContents => this.agentInputWebContents.has(webContents.id),
     changed: () => this.changed(false)
   })
+  private readonly pauseVideoForSuspend = (): void => { this.videoRecorder.pauseAll('Capture paused for system sleep; resume explicitly') }
   private readonly videoRecorder = new BrowserVideoRecorder({
     changed: () => this.changed(false),
     render: renderBrowserVideo,
@@ -1187,6 +1189,7 @@ export class BrowserTabsManager {
     private readonly window: BrowserWindow,
     private readonly options: TabsManagerOptions
   ) {
+    powerMonitor.on('suspend', this.pauseVideoForSuspend)
     this.store = new TabStateStore(options.storePath)
     this.toolbarHeight = options.toolbarHeight ?? 104
     this.mcpUrl = options.mcpUrl
@@ -7176,6 +7179,7 @@ export class BrowserTabsManager {
   }
 
   destroy(): void {
+    powerMonitor.removeListener('suspend', this.pauseVideoForSuspend)
     this.videoRecorder.destroy()
     if (this.destroyed) return
     this.splitDivider.cancel()
