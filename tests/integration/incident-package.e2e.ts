@@ -71,7 +71,12 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     expect(previewHtml).toContain('&lt;script&gt;')
     const save = panel.getByRole('button', { name: 'Save reviewed HTML' })
     await expect(save).toBeDisabled()
-    await panel.getByRole('checkbox', { name: /I reviewed this package/ }).check()
+    const approval = panel.getByRole('checkbox', { name: /I reviewed this package/ })
+    await approval.scrollIntoViewIfNeeded()
+    // Long review forms must scroll inside their own editor, preserving the panel header.
+    await expect.poll(() => panel.locator('.incident-review').evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+    await expect.poll(() => panel.evaluate(element => element.scrollTop)).toBe(0)
+    await approval.check()
     await electronApp.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' }) })
     await save.click()
     await expect(save).toBeEnabled()
