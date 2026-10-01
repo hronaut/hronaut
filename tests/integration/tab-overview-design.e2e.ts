@@ -128,6 +128,12 @@ test('keeps sparse overview controls at the bottom and all viewport corners visi
     const tabId = await openFixture(appWindow, fixture.url, 'Viewport corner markers')
     const closedTabId = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${fixture.url}/task-closed`)}, active: false }).then(state => state.tabs.find(tab => tab.url === ${JSON.stringify(`${fixture.url}/task-closed`)})?.id)`) as string
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(closedTabId)})?.title)`)).toBe('Project task closed')
+    // A title can arrive before the initial navigation settles. This visual
+    // fixture closes a loaded page, not a navigation being interrupted.
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => {
+      const tab = state.tabs.find(tab => tab.id === ${JSON.stringify(closedTabId)});
+      return tab ? { loading: tab.loading, failed: Boolean(tab.pageProblem) } : null;
+    })`)).toEqual({ loading: false, failed: false })
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(closedTabId)})`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
     await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
