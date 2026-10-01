@@ -168,8 +168,13 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     }
 
     if (action === 'clear') {
-      const cleared = Boolean(tab.codeCoverage?.recording || tab.codeCoverage?.report)
-      if (tab.codeCoverage?.recording) await this.discardCodeCoverageRecording(tab)
+      const current = tab.codeCoverage
+      const cleared = Boolean(current?.recording || current?.report)
+      if (current?.recording) await this.discardCodeCoverageRecording(tab)
+      if (this.host.findTab(tab.id) !== tab || tab.webContents.isDestroyed()
+        || tab.codeCoverage !== current) {
+        throw new Error('Code coverage changed while clearing. Run the requested action again.')
+      }
       tab.codeCoverage = undefined
       this.host.changed()
       return this.codeCoverageResult(tab, action, cleared)
@@ -402,8 +407,13 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     }
 
     if (action === 'clear') {
-      const cleared = Boolean(tab.cpuProfile?.recording || tab.cpuProfile?.report)
-      if (tab.cpuProfile?.recording) await this.discardCpuProfileRecording(tab)
+      const current = tab.cpuProfile
+      const cleared = Boolean(current?.recording || current?.report)
+      if (current?.recording) await this.discardCpuProfileRecording(tab)
+      if (this.host.findTab(tab.id) !== tab || tab.webContents.isDestroyed()
+        || tab.cpuProfile !== current) {
+        throw new Error('JavaScript CPU profiling changed while clearing. Run the requested action again.')
+      }
       tab.cpuProfile = undefined
       this.host.changed()
       return this.cpuProfileResult(tab, action, cleared)
