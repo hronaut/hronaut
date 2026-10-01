@@ -30,7 +30,7 @@ test('discovers Electron logpoint side effects and coverage domain ownership', a
     const state = (globalThis as unknown as { __logpointDiscovery: ProbeState }).__logpointDiscovery
     return { count: state.count, values: state.values, pauses: state.pauses }
   })
-  const install = () => electronApp.evaluate(async url => {
+  const install = () => electronApp.evaluate(async (_electron, url) => {
     const state = (globalThis as unknown as { __logpointDiscovery: ProbeState }).__logpointDiscovery
     await state.debugger.sendCommand('Debugger.enable')
     const result = await state.debugger.sendCommand('Debugger.setBreakpointByUrl', {
