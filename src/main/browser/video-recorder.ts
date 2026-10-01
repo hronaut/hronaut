@@ -60,7 +60,6 @@ export class BrowserVideoRecorder {
     if (options.action === 'start') {
       if (r) throw new Error('Clear the previous recording before starting another')
       if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new Error('Clear a retained recording first (maximum three)')
-      if ([...this.recordings.values()].some(item => item.state.status === 'recording')) throw new Error('Pause or stop the current recording first')
       validate()
       r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], audioAssets: new Map(), elapsedMs: 0, runningSince: this.now(), capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
       this.recordings.set(tabId, r)
@@ -84,7 +83,6 @@ export class BrowserVideoRecorder {
     } else if (options.action === 'resume') {
       if (r.state.status !== 'paused') throw new Error('Only a paused recording can resume')
       if (r.elapsedMs >= VIDEO_LIMITS.durationMs || r.state.bytes >= VIDEO_LIMITS.bytes) throw new Error('Recording limit reached')
-      if ([...this.recordings.values()].some(item => item.state.status === 'recording')) throw new Error('Pause or stop the current recording first')
       validate()
       r.validateSource()
       r.validate = validate
@@ -204,7 +202,7 @@ export class BrowserVideoRecorder {
       Object.assign(r.state, { width: frame.width, height: frame.height, frameCount: r.frames.length, bytes: r.state.bytes + frame.data.byteLength })
       if (r.frames.length % VIDEO_LIMITS.framesPerSecond === 0) this.host.changed()
     } catch {
-      if (this.recordings.get(tabId) === r && r.state.status === 'recording' && revision === r.captureRevision) this.halt(r, 'paused', 'Capture paused: keep this tab visible, at the original origin and size, with recording access available')
+      if (this.recordings.get(tabId) === r && r.state.status === 'recording' && revision === r.captureRevision) this.halt(r, 'paused', 'Capture paused: keep Hronaut visible and the source tab awake, at its original origin and size, with recording access available')
     } finally { if (timeout) clearTimeout(timeout) }
   }
 

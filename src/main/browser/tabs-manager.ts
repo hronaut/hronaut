@@ -5809,14 +5809,14 @@ export class BrowserTabsManager {
     let initialSize: { width: number; height: number } | undefined
     const capture = async () => {
       if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
-      if (!/^https?:/.test(tab.url) || new URL(tab.url).origin !== origin || tab.sleeping || tab.id !== this.activeTabId || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('Keep the recording tab visible at its original origin')
+      if (!/^https?:/.test(tab.url) || new URL(tab.url).origin !== origin || tab.sleeping || tab.pageLifecycleState !== 'active' || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('Keep Hronaut visible and the recording tab awake at its original origin')
       const image = await captureStableVideoImage(
-        () => tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true }),
+        () => this.withRenderableTab(tab, () => tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })),
         () => tab.navigationGeneration,
         () => tab.webContents.isLoadingMainFrame()
       )
       if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
-      if (new URL(tab.url).origin !== origin || tab.id !== this.activeTabId || this.browserContentOccluded) throw new Error('The tab changed during capture')
+      if (new URL(tab.url).origin !== origin || tab.sleeping || tab.pageLifecycleState !== 'active' || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('The tab changed during capture')
       if (!image) return null
       const size = image.getSize()
       if (initialSize && (size.width !== initialSize.width || size.height !== initialSize.height)) throw new Error('Restore the original viewport size before resuming')
@@ -8351,6 +8351,7 @@ export class BrowserTabsManager {
     ) {
       return 'A tab with an active interaction stays active.'
     }
+    if (this.videoRecorder.state(tab.id).status === 'recording') return 'A tab recording video stays active.'
     if (tab.reproRecording?.active) return 'A tab recording reproduction steps stays active.'
     if (tab.domChangesRecording?.active) return 'A tab recording DOM changes stays active.'
     if (tab.codeCoverage?.recording) return 'A tab recording code coverage stays active.'

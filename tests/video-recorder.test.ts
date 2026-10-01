@@ -190,3 +190,24 @@ it('cancels a request render without caching a late result or discarding the rec
   expect(host.render).toHaveBeenCalledTimes(2)
   recorder.destroy()
 })
+
+
+it('records three independent targets concurrently and revokes only the affected target', async () => {
+  const { recorder, capture, validate } = fixture()
+  const a = vi.fn()
+  await Promise.all(['one', 'two', 'three'].map(id => recorder.manage(id, { action: 'start' }, capture, id === 'one' ? a : validate, validate)))
+  await expect(recorder.manage('four', { action: 'start' }, capture, validate)).rejects.toThrow('maximum three')
+  await vi.advanceTimersByTimeAsync(300)
+  a.mockImplementation(() => { throw new Error('disconnected') })
+  await vi.advanceTimersByTimeAsync(100)
+  expect(recorder.state('one').status).toBe('paused')
+  expect(recorder.state('two').status).toBe('recording')
+  const before = recorder.state('two').frameCount
+  recorder.clear('three')
+  await vi.advanceTimersByTimeAsync(200)
+  expect(recorder.state('two').frameCount).toBeGreaterThan(before)
+  expect(recorder.state('three').status).toBe('idle')
+  await recorder.manage('one', { action: 'resume' }, capture, validate)
+  expect(recorder.state('one').status).toBe('recording')
+  recorder.destroy()
+})
