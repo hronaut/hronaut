@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep page URL waits pending when only an iframe changes its route; match the main frame for both full-document and same-document navigation.
+
 - Reset live screenshot and element-picker feedback when the current tab navigates or reloads, ignoring late results from the previous page while preserving frozen area selections.
 
 ## [2.11.3] - 2026-10-01
