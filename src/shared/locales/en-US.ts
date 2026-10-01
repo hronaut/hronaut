@@ -24,8 +24,8 @@ export const enUS = {
       transitions: 'Clip transitions', transitionHelp: 'Fade through black at kept-range cuts. Timing stays unchanged. Zero disables transitions.', fade: 'Transition duration (milliseconds)', apply: 'Apply transitions'
     },
     title: 'Video recorder', description: 'Compose clips with sound, captions and camera moves',
-    privacy: 'Starting records visible page content, including personal data. Use a demo account and review before sharing.',
-    limits: 'WebM / VP9 + optional Opus audio · up to 2 minutes · 1280 × 720 · up to 12 fps. Keep the tab visible and its size unchanged. Raw recordings disappear when the tab closes.',
+    privacy: 'Starting records the target tab’s page content, including personal data. Use a demo account and review before sharing.',
+    limits: 'WebM / VP9 + optional Opus audio · up to 2 minutes · 1280 × 720 · up to 12 fps. Up to three tabs can record independently. Keep Hronaut visible and each source size unchanged. Hidden windows, trusted overlays and sleep pause capture. Raw recordings disappear when the tab closes.',
     status: { idle: 'Ready to record', recording: 'Recording video', paused: 'Recording paused', stopped: 'Recording stopped', rendering: 'Rendering video…' },
     seconds: 'seconds', start: 'Start video recording', pause: 'Pause video', resume: 'Resume video', stop: 'Stop video', clear: 'Discard recording',
     annotation: 'Add an annotation', kind: 'Annotation type', caption: 'Caption text', kinds: { text: 'Text', callout: 'Step callout', arrow: 'Arrow', highlight: 'Highlight', spotlight: 'Spotlight', click: 'Click marker' },

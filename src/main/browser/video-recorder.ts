@@ -8,6 +8,7 @@ interface Recording {
   frames: VideoFrame[]
   elapsedMs: number
   runningSince: number
+  lastFrameAt: number
   timer?: ReturnType<typeof setTimeout>
   pending?: Promise<void>
   validate: () => void
@@ -60,9 +61,8 @@ export class BrowserVideoRecorder {
     if (options.action === 'start') {
       if (r) throw new Error('Clear the previous recording before starting another')
       if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new Error('Clear a retained recording first (maximum three)')
-      if ([...this.recordings.values()].some(item => item.state.status === 'recording')) throw new Error('Pause or stop the current recording first')
       validate()
-      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], audioAssets: new Map(), elapsedMs: 0, runningSince: this.now(), capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
+      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], audioAssets: new Map(), elapsedMs: 0, runningSince: this.now(), lastFrameAt: this.now(), capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
       this.recordings.set(tabId, r)
       this.host.changed()
       await this.sample(tabId, r)
@@ -84,11 +84,11 @@ export class BrowserVideoRecorder {
     } else if (options.action === 'resume') {
       if (r.state.status !== 'paused') throw new Error('Only a paused recording can resume')
       if (r.elapsedMs >= VIDEO_LIMITS.durationMs || r.state.bytes >= VIDEO_LIMITS.bytes) throw new Error('Recording limit reached')
-      if ([...this.recordings.values()].some(item => item.state.status === 'recording')) throw new Error('Pause or stop the current recording first')
       validate()
       r.validateSource()
       r.validate = validate
       r.runningSince = this.now()
+      r.lastFrameAt = this.now()
       r.state.status = 'recording'
       r.state.notice = undefined
       this.schedule(tabId, r)
@@ -191,6 +191,7 @@ export class BrowserVideoRecorder {
     try {
       r.validateSource()
       r.validate()
+      if (this.now() - r.lastFrameAt > 3000) { this.pauseAtLastFrame(r, 'Capture paused after a gap without frames; resume explicitly'); return }
       if (timeMs >= VIDEO_LIMITS.durationMs) { this.halt(r, 'stopped', 'Recording reached its two-minute limit'); return }
       const frame = await Promise.race([r.capture(), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Capture timeout')), 3000) })])
       if (this.recordings.get(tabId) !== r || r.state.status !== 'recording' || revision !== r.captureRevision) return
@@ -200,12 +201,26 @@ export class BrowserVideoRecorder {
       if (r.state.bytes + frame.data.byteLength > VIDEO_LIMITS.bytes) { this.halt(r, 'stopped', 'Recording reached its 64 MiB limit'); return }
       if (!frame.data.byteLength || !frame.width || !frame.height) throw new Error('Empty frame')
       if (r.frames.length && (frame.width !== r.state.width || frame.height !== r.state.height)) throw new Error('Viewport changed')
+      r.lastFrameAt = this.now()
       r.frames.push({ timeMs: r.frames.length ? timeMs : 0, data: frame.data })
       Object.assign(r.state, { width: frame.width, height: frame.height, frameCount: r.frames.length, bytes: r.state.bytes + frame.data.byteLength })
       if (r.frames.length % VIDEO_LIMITS.framesPerSecond === 0) this.host.changed()
     } catch {
-      if (this.recordings.get(tabId) === r && r.state.status === 'recording' && revision === r.captureRevision) this.halt(r, 'paused', 'Capture paused: keep this tab visible, at the original origin and size, with recording access available')
+      if (this.recordings.get(tabId) === r && r.state.status === 'recording' && revision === r.captureRevision) this.pauseAtLastFrame(r, 'Capture paused: keep Hronaut visible and the source tab awake, at its original origin and size, with recording access available')
     } finally { if (timeout) clearTimeout(timeout) }
+  }
+
+  private pauseAtLastFrame(r: Recording, notice: string): void {
+    // No multi-second stale-frame tail when capture stalls or the machine sleeps.
+    r.elapsedMs = Math.min(this.duration(r), (r.frames.at(-1)?.timeMs ?? 0) + 1000 / VIDEO_LIMITS.framesPerSecond)
+    r.runningSince = this.now()
+    this.halt(r, 'paused', notice)
+  }
+
+  pauseAll(notice: string): void {
+    for (const r of this.recordings.values()) {
+      if (r.state.status === 'recording') this.pauseAtLastFrame(r, notice)
+    }
   }
 
   private halt(r: Recording, status: 'paused' | 'stopped', notice?: string): void {

@@ -67,6 +67,22 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
   capabilities: async ({ appWindow, mcpPort, mcpToken }, use) => {
     const counters = { memorySaverTicks: 0, cacheProbeRequests: 0 }
     const server = createServer((request, response) => {
+      if (request.url?.startsWith('/background-video')) {
+        const blue = request.url.includes('blue')
+        response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+        response.end(`<html><body style="margin:0"><canvas id="animation"></canvas><script>
+          const canvas=document.getElementById('animation'), ctx=canvas.getContext('2d');
+          let frame=0;
+          function paint() {
+            canvas.width=innerWidth; canvas.height=innerHeight; frame++;
+            ctx.fillStyle='${blue ? '#0000ff' : '#ff0000'}';ctx.fillRect(0,0,canvas.width/2,canvas.height);
+            ctx.fillStyle='rgb('+((frame%16)*16)+','+((frame%16)*16)+','+((frame%16)*16)+')';ctx.fillRect(canvas.width/2,0,canvas.width/2,canvas.height);
+            ctx.fillStyle='#00ff00';ctx.font='40px sans-serif';ctx.fillText(String(frame),20,60);
+            requestAnimationFrame(paint);
+          } paint();
+        </script></body></html>`)
+        return
+      }
       if (request.url === '/gzip-size-fixture') {
         const body = gzipSync('😀'.repeat(1_000))
         response.writeHead(200, {

@@ -7,7 +7,7 @@ afterEach(() => vi.useRealTimers())
 function fixture() {
   const host = { changed: vi.fn(), render: vi.fn<VideoRecorderHost['render']>(async () => new Uint8Array([1, 2, 3])), save: vi.fn<VideoRecorderHost['save']>(async () => ({ filename: 'video.webm', path: '/downloads/video.webm' })), now: () => Date.now() }
   const recorder = new BrowserVideoRecorder(host)
-  const capture = vi.fn(async () => ({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 }))
+  const capture = vi.fn(async (): Promise<{ data: Uint8Array; width: number; height: number } | null> => ({ data: new Uint8Array([4, 5, 6]), width: 640, height: 360 }))
   const validate = vi.fn()
   const source = vi.fn()
   const manage = (action: 'get' | 'start' | 'pause' | 'resume' | 'stop' | 'render' | 'export' | 'clear') => recorder.manage('tab', { action }, capture, validate, source)
@@ -99,6 +99,10 @@ it('bounds memory, duration and number of retained recordings', async () => {
   await manage('clear'); await manage('start')
   vi.setSystemTime(Date.now() + VIDEO_LIMITS.durationMs)
   await vi.advanceTimersByTimeAsync(100)
+  expect(recorder.state('tab').status).toBe('paused')
+  expect(recorder.state('tab').durationMs).toBeLessThan(1000)
+  await manage('clear'); await manage('start')
+  await vi.advanceTimersByTimeAsync(VIDEO_LIMITS.durationMs + 100)
   expect(recorder.state('tab').status).toBe('stopped')
   for (const id of ['two', 'three']) { await recorder.manage(id, { action: 'start' }, capture, validate); await recorder.manage(id, { action: 'stop' }, capture, validate) }
   await expect(recorder.manage('four', { action: 'start' }, capture, validate)).rejects.toThrow('maximum three')
@@ -188,5 +192,51 @@ it('cancels a request render without caching a late result or discarding the rec
   expect(recorder.state('tab')).toMatchObject({ status: 'stopped', previewReady: false })
   await manage('render')
   expect(host.render).toHaveBeenCalledTimes(2)
+  recorder.destroy()
+})
+
+
+it('records three independent targets concurrently and revokes only the affected target', async () => {
+  const { recorder, capture, validate } = fixture()
+  const a = vi.fn()
+  await Promise.all(['one', 'two', 'three'].map(id => recorder.manage(id, { action: 'start' }, capture, id === 'one' ? a : validate, validate)))
+  await expect(recorder.manage('four', { action: 'start' }, capture, validate)).rejects.toThrow('maximum three')
+  await vi.advanceTimersByTimeAsync(300)
+  a.mockImplementation(() => { throw new Error('disconnected') })
+  await vi.advanceTimersByTimeAsync(100)
+  expect(recorder.state('one').status).toBe('paused')
+  expect(recorder.state('two').status).toBe('recording')
+  const before = recorder.state('two').frameCount
+  recorder.clear('three')
+  await vi.advanceTimersByTimeAsync(200)
+  expect(recorder.state('two').frameCount).toBeGreaterThan(before)
+  expect(recorder.state('three').status).toBe('idle')
+  await recorder.manage('one', { action: 'resume' }, capture, validate)
+  expect(recorder.state('one').status).toBe('recording')
+  recorder.destroy()
+})
+
+
+it('pauses all active captures at the last real frame on suspend without resuming them automatically', async () => {
+  const { recorder, capture, validate } = fixture()
+  await Promise.all(['one', 'two'].map(id => recorder.manage(id, { action: 'start' }, capture, validate)))
+  await vi.advanceTimersByTimeAsync(300)
+  recorder.pauseAll('System suspend')
+  const states = ['one', 'two'].map(id => recorder.state(id))
+  await vi.advanceTimersByTimeAsync(10_000)
+  for (const [index, id] of ['one', 'two'].entries()) {
+    expect(recorder.state(id)).toEqual(states[index])
+    expect(recorder.state(id).status).toBe('paused')
+  }
+  recorder.destroy()
+})
+
+it('pauses a sustained unavailable frame stream rather than recording a healthy-looking frozen tail', async () => {
+  const { recorder, manage, capture } = fixture()
+  await manage('start')
+  capture.mockImplementation(async () => null)
+  await vi.advanceTimersByTimeAsync(3200)
+  expect(recorder.state('tab')).toMatchObject({ status: 'paused', frameCount: 1 })
+  expect(recorder.state('tab').durationMs).toBeLessThan(100)
   recorder.destroy()
 })

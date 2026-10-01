@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Record up to three independent tab videos while the human uses another tab, with fixed source/workspace authority, existing memory limits, and explicit pause behavior for unavailable rendering or suspend.
+
 ### Fixed
 
 - Prevent global input unlock from waiting indefinitely behind an already-busy debugger queue. Failed preflight keeps locks unchanged and reports how to retry without applying a late unlock.
