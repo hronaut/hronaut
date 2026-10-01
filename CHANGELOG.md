@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-10-01
+
 ### Added
 
 - Review up to ten ordered text replacements in incident packages, with bounded accessible rows, a scrollable review editor and explicit order before approving the exact export.
