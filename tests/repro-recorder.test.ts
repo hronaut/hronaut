@@ -185,3 +185,19 @@ describe('Repro checkpoint authority', () => {
     expect((await f.recorder.manage(f.tab, 'get')).steps.every(step => step.kind !== 'expect')).toBe(true)
   })
 })
+
+describe('Repro checkpoint page error boundary', () => {
+  it.each([
+    ['excluded-target', 'form values'],
+    ['ambiguous-target', 'exactly one'],
+    ['invalid-selector', 'valid CSS'],
+    ['unsupported-target', 'represented safely'],
+    ['private page-authored error', 'represented safely']
+  ])('maps %s to a fixed main-process error without adding a step', async (error, message) => {
+    const f = fixture()
+    const before = await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValue({ error } as never)
+    await expect(f.recorder.manage(f.tab, 'checkpoint', { context: before.checkpointContext, selector: 'p', condition: 'visible', reviewed: true })).rejects.toThrow(message)
+    expect((await f.recorder.manage(f.tab, 'get')).steps).toEqual(before.steps)
+  })
+})

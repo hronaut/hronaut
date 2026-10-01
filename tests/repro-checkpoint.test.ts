@@ -28,8 +28,8 @@ describe('explicit Repro checkpoints', () => {
   it('rejects missing, ambiguous and editable targets', () => {
     document.body.innerHTML = '<main><p></p><p></p><input value="private"><div contenteditable="true">private</div></main>'
     try {
-      for (const selector of ['#missing', 'p', 'input', 'main']) {
-        expect(() => window.eval(reproCheckpointScript({ ...input, selector }))).toThrow()
+      for (const [selector, error] of [['#missing', 'ambiguous-target'], ['p', 'ambiguous-target'], ['input', 'excluded-target'], ['main', 'excluded-target'], ['[contenteditable]', 'excluded-target'], ['[', 'invalid-selector']]) {
+        expect(window.eval(reproCheckpointScript({ ...input, selector: selector! }))).toEqual({ error })
       }
     } finally { document.body.replaceChildren() }
   })

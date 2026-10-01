@@ -4,12 +4,14 @@ import { javascriptLiteral } from '../../shared/javascript-literal.js'
 export function reproCheckpointScript(request: BrowserReproCheckpointInput): string {
   return `(() => {
     const request = ${javascriptLiteral(request)};
-    const matches = document.querySelectorAll(request.selector);
-    if (matches.length !== 1) throw new Error('Checkpoint requires exactly one current light-DOM element');
+    let matches;
+    try { matches = document.querySelectorAll(request.selector); }
+    catch { return { error: 'invalid-selector' }; }
+    if (matches.length !== 1) return { error: 'ambiguous-target' };
     const element = matches[0];
-    if (element.matches('iframe,frame,input,textarea,select') || element.isContentEditable
+    if (element.matches('iframe,frame,input,textarea,select,[contenteditable]') || element.isContentEditable
       || element.querySelector('input,textarea,select,[contenteditable]')) {
-      throw new Error('Choose a non-editable result element; form values and frame contents are excluded');
+      return { error: 'excluded-target' };
     }
     const parts = [];
     let node = element;
@@ -28,7 +30,7 @@ export function reproCheckpointScript(request: BrowserReproCheckpointInput): str
       if (selected.length === 1 && selected[0] === element) { selector = candidate; break; }
       node = parent;
     }
-    if (!selector) throw new Error('No safe unique checkpoint selector is available');
+    if (!selector) return { error: 'unsupported-target' };
     const rect = element.getBoundingClientRect();
     const style = getComputedStyle(element);
     const visible = style.visibility !== 'hidden' && style.visibility !== 'collapse' && rect.width > 0 && rect.height > 0;

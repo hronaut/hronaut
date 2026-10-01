@@ -138,9 +138,14 @@ export class BrowserReproRecorder<T extends ReproTab> {
     const operation = recording!.queue.catch(() => undefined).then(async () => {
       assertCurrent()
       const result = await page.executeJavaScript(reproCheckpointScript(request), true) as {
-        selector: string; tag: string; observedMatch: boolean
+        selector: string; tag: string; observedMatch: boolean; error?: string
       }
       assertCurrent()
+      if (result?.error === 'excluded-target') {
+        throw new Error('Choose a non-editable result element; form values and frame contents are excluded')
+      }
+      if (result?.error === 'ambiguous-target') throw new Error('Checkpoint requires exactly one current light-DOM element')
+      if (result?.error === 'invalid-selector') throw new Error('Checkpoint selector is not valid CSS')
       if (!result || typeof result.selector !== 'string' || !result.selector || result.selector.length > 500
         || typeof result.tag !== 'string' || typeof result.observedMatch !== 'boolean') {
         throw new Error('Checkpoint target could not be represented safely')
