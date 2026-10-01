@@ -112,3 +112,20 @@ it('bounds wide editor-containing traversal and reports the omitted tail', () =>
   expect(result.text).not.toContain('private-editor-canary')
   expect(result.text).not.toContain('late-public-sibling')
 })
+
+it('accepts a boxless component when its descendants are rendered', () => {
+  fixture()
+  const root = document.querySelector<HTMLElement>('#target')!
+  root.style.display = 'contents'
+  Object.defineProperty(root, 'getBoundingClientRect', { value: () => ({ width: 0, height: 0 }) })
+  expect(capture('#target')).toMatchObject({ scope: { kind: 'component' } })
+  expect(capture('#target').text).toContain('Inside')
+})
+
+it('rejects incomplete visibility walks without a whole-page fallback', () => {
+  fixture()
+  const root = document.querySelector<HTMLElement>('#target')!
+  root.style.display = 'contents'
+  root.innerHTML = '<span style="display:contents"></span>'.repeat(1001)
+  expect(capture('#target')).toEqual({ scopeError: 'visibility-limit' })
+})

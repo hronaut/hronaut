@@ -4631,6 +4631,7 @@ export class BrowserTabsManager {
         'ambiguous-root': 'Snapshot root must match exactly one element',
         'unsupported-root': 'Snapshot root must be a non-editable light-DOM component, not a form control or frame',
         'hidden-root': 'Snapshot root is not visible; choose a visible component',
+        'visibility-limit': 'Snapshot root visibility exceeded its observation limit; choose a smaller component',
         'detached-root': 'Snapshot root detached during capture; capture a fresh target'
       }
       throw new Error(messages[snapshot.scopeError] ?? 'Snapshot root could not be captured')
