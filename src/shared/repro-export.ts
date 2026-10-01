@@ -45,7 +45,8 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
       } else if (expectation.condition === 'checked' || expectation.condition === 'unchecked') {
         lines.push(`  await expect(${target}).${expectation.condition === 'unchecked' ? 'not.' : ''}toBeChecked()`)
       } else {
-        lines.push(`  // TODO: Recreate unsupported expectation at step ${step.index}`)
+        const todo = `TODO: Recreate unsupported expectation at step ${step.index}`
+        lines.push(`  // ${todo}`, `  throw new Error(${quoted(todo)})`)
       }
     } else if (step.kind === 'navigate') {
       lines.push(`  await page.goto(${quoted(step.url)})`)
@@ -65,7 +66,8 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
     } else if (step.kind === 'scroll' && step.scroll) {
       lines.push(`  await page.evaluate(({ x, y }) => window.scrollTo(x, y), ${javascriptLiteral(step.scroll)})`)
     } else {
-      lines.push(`  // TODO: Recreate step ${step.index}: ${step.kind}`)
+      const todo = `TODO: Recreate step ${step.index}: ${step.kind}`
+      lines.push(`  // ${todo}`, `  throw new Error(${quoted(todo)})`)
     }
   }
 

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Stop generated Repro tests at unresolved manual steps instead of allowing another passing checkpoint to hide a skipped action.
+
 - Clear MCP endpoint copy feedback when the address changes, so a newly configured endpoint is not shown as already copied.
 
 - Show a pending state in Find in page instead of stale match counts, and disable match navigation until the current search completes.

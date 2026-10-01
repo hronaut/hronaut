@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { formatReproAsPlaywright } from '../src/shared/repro-export.js'
-import type { BrowserReproRecording } from '../src/shared/types.js'
+import type { BrowserReproRecording, BrowserReproStep } from '../src/shared/types.js'
 
 const recording: BrowserReproRecording = {
   tabId: 'tab-1',
@@ -35,6 +35,36 @@ describe('Playwright repro export', () => {
     expect(result).toContain('TODO: replace this line with an assertion')
     expect(result).not.toContain('card-secret')
   })
+
+  it.each(['click', 'input', 'key', 'scroll', 'expect', 'incomplete text expectation'] as const)(
+    'does not let a passing checkpoint hide an unresolved %s step', async kind => {
+      const checkpoint: BrowserReproStep = {
+        ...recording.steps[0]!, kind: 'expect',
+        target: { selector: '#ready', tag: 'p' },
+        expectation: { condition: 'text', text: 'Ready', observedMatch: true }
+      }
+      const unresolved: BrowserReproStep = {
+        ...recording.steps[0]!, index: 2, kind: kind === 'incomplete text expectation' ? 'expect' : kind,
+        target: { selector: kind === 'incomplete text expectation' ? '#ready' : '', tag: 'button' },
+        ...(kind === 'incomplete text expectation' ? { expectation: { condition: 'text' as const, observedMatch: true } } : {})
+      }
+      const code = formatReproAsPlaywright({ ...recording, steps: [checkpoint, unresolved], stepCount: 2 })
+      let execution: Promise<void> | undefined
+      const page = { locator: () => ({}) }
+      let assertions = 0
+      const assert = () => ({ toHaveText: async () => { assertions += 1 } })
+      const register = (_name: string, body: (context: { page: typeof page }) => Promise<void>) => {
+        execution = body({ page })
+      }
+      new Function('test', 'expect', code.replace(/^import[^\n]*\n/u, ''))(register, assert)
+
+      expect(execution).toBeDefined()
+      await expect(execution).rejects.toThrow(kind === 'incomplete text expectation'
+        ? 'TODO: Recreate unsupported expectation at step 2'
+        : `TODO: Recreate step 2: ${kind}`)
+      expect(assertions).toBe(1)
+    }
+  )
 
   it('warns when the exported timeline is active or truncated', () => {
     const result = formatReproAsPlaywright({ ...recording, active: true, truncated: true })

@@ -1,5 +1,5 @@
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
-import type { BrowserReproRecording } from '../../src/shared/types.js'
+import type { BrowserReproRecording, HronautApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 import type { Page } from '@playwright/test'
 
@@ -49,11 +49,14 @@ for (const unresolved of [false, true]) {
   test(`records ${unresolved ? 'an explicit manual target beyond the selector bound' : 'a unique target in repeated deep layouts'}`, async ({ appWindow, electronApp }) => {
     const wrapper = unresolved ? `custom-${'a'.repeat(510)}` : 'div'
     const nested = `<${wrapper}>`.repeat(9) + '<button>Continue</button>' + `</${wrapper}>`.repeat(9)
-    const html = `<!doctype html><title>Recorder selectors</title><section>${nested}</section><section>${nested}</section>`
+    const html = `<!doctype html><title>Recorder selectors</title><p id="ready">Ready</p><section>${nested}</section><section>${nested}</section>`
     const url = `data:text/html,${encodeURIComponent(html)}`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)')).toBe('Recorder selectors')
-    await appWindow.evaluate("window.hronaut.manageRepro('start')")
+    const initial = await appWindow.evaluate("window.hronaut.manageRepro('start')") as BrowserReproRecording
+    await appWindow.evaluate(context => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', undefined, {
+      context, selector: '#ready', condition: 'text', text: 'Ready', reviewed: true
+    }), initial.checkpointContext!)
     await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getTitle() === 'Recorder selectors')!
       const point = await page.executeJavaScript(`(() => {
@@ -69,10 +72,23 @@ for (const unresolved of [false, true]) {
     await expect.poll(() => appWindow.evaluate("window.hronaut.manageRepro('get').then(report => report.steps.some(step => step.kind === 'click'))")).toBe(true)
     const recording = await appWindow.evaluate("window.hronaut.manageRepro('stop')") as BrowserReproRecording
     const click = recording.steps.find(step => step.kind === 'click')!
+    const checkpoint = recording.steps.find(step => step.kind === 'expect')!
+    expect(checkpoint.expectation?.observedMatch).toBe(true)
+    const page = electronApp.context().pages().find(page => page.url() === url)!
+    // Omit redacted data-URL navigation; execute the actual recorded checkpoint
+    // and action against the existing fixture.
+    const exported = formatReproAsPlaywright({ ...recording, steps: [checkpoint, click], stepCount: 2 })
+    let replay: Promise<void> | undefined
+    new Function('test', 'expect', exported.replace(/^import[^\n]*\n/u, ''))(
+      (_name: string, body: (context: { page: Page }) => Promise<void>) => { replay = body({ page }) },
+      expect
+    )
     if (unresolved) {
+      await expect(replay).rejects.toThrow(`TODO: Recreate step ${click.index}: click`)
       expect(click.target).toMatchObject({ selector: '', tag: 'button' })
       expect(formatReproAsPlaywright(recording)).toContain(`// TODO: Recreate step ${click.index}: click`)
     } else {
+      await replay
       expect(await electronApp.evaluate(async ({ webContents }, selector) => {
         const page = webContents.getAllWebContents().find(contents => contents.getTitle() === 'Recorder selectors')!
         return page.executeJavaScript(`(() => { const matches = document.querySelectorAll(${JSON.stringify(selector)}); return matches.length === 1 && matches[0] === document.querySelectorAll('button')[1]; })()`)
