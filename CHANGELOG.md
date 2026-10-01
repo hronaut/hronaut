@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add explicit checked/unchecked Repro checkpoints for native checkboxes and radios, exporting Playwright assertions without capturing form values.
+
 - Record up to three independent tab videos while the human uses another tab, with fixed source/workspace authority, existing memory limits, and explicit pause behavior for unavailable rendering or suspend.
 
 ### Fixed

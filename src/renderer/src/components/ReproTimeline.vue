@@ -13,7 +13,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ checkpoint: [value: BrowserReproCheckpointInput] }>()
 const selector = ref('')
-const condition = ref<'visible' | 'hidden' | 'text'>('visible')
+const condition = ref<BrowserReproCheckpointInput['condition']>('visible')
 const expectedText = ref('')
 const reviewed = ref(false)
 watch([selector, condition, expectedText, () => props.recording.checkpointContext], () => { reviewed.value = false })
@@ -91,6 +91,8 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
       <label>{{ t('repro.checkpoint.condition') }}<select v-model="condition">
         <option value="visible">{{ t('repro.checkpoint.visible') }}</option>
         <option value="hidden">{{ t('repro.checkpoint.hidden') }}</option>
+        <option value="checked">{{ t('repro.checkpoint.checked') }}</option>
+        <option value="unchecked">{{ t('repro.checkpoint.unchecked') }}</option>
         <option value="text">{{ t('repro.checkpoint.text') }}</option>
       </select></label>
       <label v-if="condition === 'text'">{{ t('repro.checkpoint.text') }}<input v-model="expectedText" maxlength="240"></label>

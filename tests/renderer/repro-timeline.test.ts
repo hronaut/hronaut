@@ -123,3 +123,19 @@ it('requires fresh review after checkpoint fields or context change', async () =
   expect(view.emitted('checkpoint')?.[0]).toEqual([{ context: 'c9a69713-c421-4d51-913e-0f7e74248acd', selector: 'p', condition: 'hidden', reviewed: true }])
   expect(add).toBeDisabled()
 })
+
+
+it('requires explicit review for checked expectations and emits no text field', async () => {
+  const view = render(ReproTimeline, { global, props: { locale: 'en-US', recording: { ...recording('2026-10-01T00:00:00Z', [step(1)]), active: true, checkpointContext: 'c9a69713-c421-4d51-913e-0f7e74248acd' } } })
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText('Selector', { selector: 'input' }), '#checkbox')
+  await user.selectOptions(screen.getByLabelText('Condition'), 'checked')
+  const add = screen.getByRole('button', { name: 'Add checkpoint' })
+  expect(add).toBeDisabled()
+  expect(screen.queryByLabelText('Exact text', { selector: 'input' })).not.toBeInTheDocument()
+  await user.click(screen.getByRole('checkbox'))
+  await user.click(add)
+  expect(view.emitted('checkpoint')?.[0]).toEqual([{ context: 'c9a69713-c421-4d51-913e-0f7e74248acd', selector: '#checkbox', condition: 'checked', reviewed: true }])
+  await user.selectOptions(screen.getByLabelText('Condition'), 'unchecked')
+  expect(add).toBeDisabled()
+})

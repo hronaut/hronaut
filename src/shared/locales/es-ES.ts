@@ -2375,7 +2375,9 @@ export const esES = {
     }
   },
   "repro": {
-    "checkpoint": {"title": "Punto de control del resultado esperado", "condition": "Condición", "visible": "Visible", "hidden": "Oculto", "text": "Texto exacto", "review": "He revisado el destino y el texto para compartir; es el resultado esperado, no una prueba de éxito.", "add": "Añadir punto de control", "matched": "Coincide actualmente", "notMatched": "No coincide actualmente"},
+    "checkpoint": {
+      "checked": "Marcado (casilla/botón de opción)",
+      "unchecked": "Sin marcar (casilla/botón de opción)","title": "Punto de control del resultado esperado", "condition": "Condición", "visible": "Visible", "hidden": "Oculto", "text": "Texto exacto", "review": "He revisado el destino y el texto para compartir; es el resultado esperado, no una prueba de éxito.", "add": "Añadir punto de control", "matched": "Coincide actualmente", "notMatched": "No coincide actualmente"},
     "selectorUnavailable": "No hay un selector único; recrea este paso manualmente.",
     "kicker": "Cronología con privacidad",
     "heading": "Grabador de reproducción",
