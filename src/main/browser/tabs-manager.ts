@@ -4486,6 +4486,26 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  private async prepareInteractionLock(tabs: readonly BrowserTab[]): Promise<void> {
+    // Do not mutate lock state or enqueue guard writes behind an indefinitely
+    // pending native command. A late queue completion cannot apply this request.
+    const pending = tabs.flatMap(tab => [
+      this.debuggerQueue.pending(tab.webContents.id),
+      this.dialogMonitorAttachPromises.get(tab.webContents.id)
+    ].filter((value): value is Promise<void> => value !== undefined))
+    if (pending.length) {
+      let timer: NodeJS.Timeout | undefined
+      try {
+        await Promise.race([
+          Promise.allSettled(pending),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('A page is busy. Input locks were not changed. Wait for its operation to finish, then try again.')), 2000)
+          })
+        ])
+      } finally { if (timer) clearTimeout(timer) }
+    }
+  }
+
   private enqueueInteractionLockMutation(operation: () => Promise<BrowserState>): Promise<BrowserState> {
     const result = this.interactionLockTail.then(() => {
       if (this.destroyed) throw new Error('Browser tabs manager has been destroyed')
@@ -4505,6 +4525,8 @@ export class BrowserTabsManager {
     if (!locked && tab.mcpGroupId && this.mcpTabGroups.get(tab.mcpGroupId)?.contextClass === 'public-observer') {
       throw new Error('Page input remains locked in a read-only public observer workspace.')
     }
+    await this.prepareInteractionLock([tab])
+    if (this.tabs.get(tabId) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab closed before its input lock changed.')
     const previousLocked = tab.humanInteractionLocked
     const wasGloballyUnlocked = this.globallyUnlockedTabIds.has(tabId)
     if (this.allHumanInteractionLocked) {
@@ -4543,6 +4565,8 @@ export class BrowserTabsManager {
   }
 
   private async applyAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
+    await this.prepareInteractionLock([...this.tabs.values()])
+    if (this.destroyed) throw new Error('Browser tabs manager has been destroyed')
     const previousLocked = this.allHumanInteractionLocked
     const previousGloballyUnlockedTabIds = new Set(this.globallyUnlockedTabIds)
     this.allHumanInteractionLocked = locked
