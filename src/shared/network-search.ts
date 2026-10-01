@@ -71,33 +71,21 @@ function normalizedSearchText(value: string): string {
   return redactDiagnosticText(value).replace(/\s+/g, ' ').trim()
 }
 
-function occurrenceCount(text: string, query: string, caseSensitive: boolean): number {
-  const haystack = caseSensitive ? text : text.toLocaleLowerCase()
-  const needle = caseSensitive ? query : query.toLocaleLowerCase()
-  let count = 0
-  let offset = 0
-  while (offset <= haystack.length - needle.length) {
-    const index = haystack.indexOf(needle, offset)
-    if (index === -1) break
-    count += 1
-    offset = index + Math.max(needle.length, 1)
+function fieldMatch(text: string, matcher: RegExp): { occurrences: number; snippet: string } | null {
+  let occurrences = 0
+  let first: RegExpExecArray | undefined
+  for (const match of text.matchAll(matcher)) {
+    first ??= match
+    occurrences += 1
   }
-  return count
-}
-
-function firstMatchIndex(text: string, query: string, caseSensitive: boolean): number {
-  return caseSensitive
-    ? text.indexOf(query)
-    : text.toLocaleLowerCase().indexOf(query.toLocaleLowerCase())
-}
-
-function matchingSnippet(text: string, query: string, caseSensitive: boolean): string {
-  const index = firstMatchIndex(text, query, caseSensitive)
-  if (index < 0) return ''
-  const context = Math.floor((NETWORK_SEARCH_LIMITS.snippetChars - query.length) / 2)
-  const start = Math.max(0, index - context)
-  const end = Math.min(text.length, index + query.length + context)
-  return `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`
+  if (!first) return null
+  const context = Math.floor((NETWORK_SEARCH_LIMITS.snippetChars - first[0].length) / 2)
+  const start = Math.max(0, first.index - context)
+  const end = Math.min(text.length, first.index + first[0].length + context)
+  return {
+    occurrences,
+    snippet: `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`
+  }
 }
 
 function headerFields(
@@ -144,6 +132,10 @@ function searchableFields(details: BrowserNetworkRequestDetails): SearchableFiel
 
 export function searchNetworkDetails(input: SearchInput): BrowserNetworkSearchResult {
   const { options } = input
+  // Match the original sanitized text so Unicode case folding cannot shift
+  // snippet offsets. Escape the query: this remains literal search, not regex.
+  const escapedQuery = options.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const matcher = new RegExp(escapedQuery, options.caseSensitive ? 'gu' : 'giu')
   const matches: BrowserNetworkSearchMatch[] = []
   let totalOccurrences = 0
   let truncated = input.availableRequestCount > input.details.length
@@ -151,8 +143,8 @@ export function searchNetworkDetails(input: SearchInput): BrowserNetworkSearchRe
   for (const details of input.details) {
     for (const field of searchableFields(details)) {
       const text = normalizedSearchText(field.text)
-      const occurrences = occurrenceCount(text, options.query, options.caseSensitive)
-      if (!occurrences) continue
+      const match = fieldMatch(text, matcher)
+      if (!match) continue
       if (matches.length >= options.maxResults) {
         truncated = true
         continue
@@ -165,10 +157,10 @@ export function searchNetworkDetails(input: SearchInput): BrowserNetworkSearchRe
         ...(details.status !== undefined ? { status: details.status } : {}),
         field: field.field,
         label: field.label,
-        snippet: matchingSnippet(text, options.query, options.caseSensitive),
-        occurrenceCount: occurrences
+        snippet: match.snippet,
+        occurrenceCount: match.occurrences
       })
-      totalOccurrences += occurrences
+      totalOccurrences += match.occurrences
     }
   }
 

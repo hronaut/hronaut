@@ -751,4 +751,19 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
   expect(JSON.parse(copiedDebugReport)).toMatchObject({ tabId, summary: { failedRequests: expect.any(Number) } })
   expect(copiedDebugReport).not.toContain('url-secret')
   await debugReportPanel.getByRole('button', { name: 'Close debug report' }).click()
+  const unicodeQuery = 'unicode[a+b]-marker'
+  const unicodeBody = 'İ'.repeat(300) + ` ${unicodeQuery.toUpperCase()} ${unicodeQuery} ` + 'x'.repeat(300)
+  const sentUnicode = await client.callTool({ name: 'browser_evaluate', arguments: {
+    tabId, script: `fetch('/api-details?unicode-search=1', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ${JSON.stringify(JSON.stringify({ message: unicodeBody }))} }).then(response => response.status)`
+  } }) as CallToolResult
+  expect(sentUnicode.isError, text(sentUnicode)).not.toBe(true)
+  await expect.poll(async () => {
+    const searched = await client.callTool({ name: 'browser_network_search', arguments: { tabId, query: unicodeQuery } }) as CallToolResult
+    expect(searched.isError, text(searched)).not.toBe(true)
+    return JSON.parse(text(searched)).matches
+  }).toEqual(expect.arrayContaining([expect.objectContaining({
+    field: 'request-body', occurrenceCount: 2,
+    snippet: expect.stringContaining(`${unicodeQuery.toUpperCase()} ${unicodeQuery}`)
+  })]))
+
 })

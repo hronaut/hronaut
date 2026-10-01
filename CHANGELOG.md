@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Network search snippets aligned with matching Unicode text instead of slicing at offsets shifted by lowercasing.
+
 - Clear previous Network content-search matches when starting a new search, so pending or failed searches cannot display stale results.
 
 - Recheck generated CSS locator uniqueness for deeply nested elements, reuse a unique supplied target when needed, and reject selectors that cannot be preserved within bounds.
