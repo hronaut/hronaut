@@ -12,7 +12,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
       catch { return { scopeError: 'invalid-selector' }; }
       if (matches.length !== 1) return { scopeError: matches.length ? 'ambiguous-root' : 'missing-root' };
       root = matches[0];
-      if (root.matches('iframe,frame')) return { scopeError: 'unsupported-root' };
+      if (root.matches('iframe,frame,input,textarea,select,[contenteditable]') || root.isContentEditable) return { scopeError: 'unsupported-root' };
     }
     const select = selector => root === document ? [...document.querySelectorAll(selector)]
       : [...(root.matches(selector) ? [root] : []), ...root.querySelectorAll(selector)];

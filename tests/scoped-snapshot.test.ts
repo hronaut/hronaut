@@ -48,3 +48,9 @@ it('does not expose hidden root text or inspect frame contents', () => {
   root.outerHTML = '<iframe id="target"></iframe>'
   expect(capture('#target')).toEqual({ scopeError: 'unsupported-root' })
 })
+
+it.each(['<textarea id="target">private-form-canary</textarea>', '<select id="target"><option>private-form-canary</option></select>', '<div id="target" contenteditable>private-form-canary</div>'])('rejects editable roots without returning their text', (html) => {
+  fixture()
+  document.querySelector('#target')!.outerHTML = html
+  expect(capture('#target')).toEqual({ scopeError: 'unsupported-root' })
+})

@@ -4602,7 +4602,7 @@ export class BrowserTabsManager {
         'invalid-selector': 'Snapshot root selector is not valid CSS',
         'missing-root': 'Snapshot root was not found; capture a fresh target',
         'ambiguous-root': 'Snapshot root must match exactly one element',
-        'unsupported-root': 'Snapshot root must be in the current light DOM, not a frame',
+        'unsupported-root': 'Snapshot root must be a non-editable light-DOM component, not a form control or frame',
         'hidden-root': 'Snapshot root is not visible; choose a visible component',
         'detached-root': 'Snapshot root detached during capture; capture a fresh target'
       }
