@@ -4858,20 +4858,20 @@ export class BrowserTabsManager {
     this.snapshotBaselineIdsByTab.delete(tabId)
   }
 
-  async findSnapshot(options: SnapshotSearchOptions & { tabId?: string }): Promise<SnapshotSearchResult & { tabId: string; sourceSnapshot: Omit<BrowserSnapshot, 'text'> }> {
+  async findSnapshot(options: SnapshotSearchOptions & { tabId?: string; rootSelector?: string }): Promise<SnapshotSearchResult & { tabId: string; sourceSnapshot: Omit<BrowserSnapshot, 'text'> }> {
     const tab = this.getTab(options.tabId)
-    const snapshot = await this.snapshotDetails(tab.id, 100_000)
+    const snapshot = options.rootSelector === undefined
+      ? await this.snapshotDetails(tab.id, 100_000)
+      : await this.snapshotDetails(tab.id, 100_000, options.rootSelector)
     const { text, ...sourceSnapshot } = snapshot
-    return {
-      tabId: tab.id,
-      sourceSnapshot,
-      ...searchSnapshot(text, {
-        query: options.query,
-        caseSensitive: options.caseSensitive,
-        maxMatches: options.maxMatches,
-        contextChars: options.contextChars
-      })
-    }
+    const result = searchSnapshot(text, {
+      query: options.query,
+      caseSensitive: options.caseSensitive,
+      maxMatches: options.maxMatches,
+      contextChars: options.contextChars
+    })
+    if (snapshot.scope) result.caveats.push('Matches describe only the selected component plus page URL/title context; absence does not establish absence elsewhere on the page.')
+    return { tabId: tab.id, sourceSnapshot, ...result }
   }
 
   async accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {

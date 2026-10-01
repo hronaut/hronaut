@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Search a selected component with `browser_find.rootSelector`, preserving bounded snippets, scope metadata and existing privacy/workspace checks.
+
 - Omit exact JSON field names from reviewed incident text artifacts before export, with bounded rules, omission counts and fresh preview approval.
 
 ### Fixed

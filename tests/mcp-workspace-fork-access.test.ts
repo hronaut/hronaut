@@ -64,6 +64,7 @@ describe('MCP workspace fork sources and direct access', () => {
       wakeTab: vi.fn(async () => undefined),
       click: vi.fn(async () => 'Clicked'),
       closeTab: vi.fn(async () => 'Closed'),
+      findSnapshot: vi.fn(async () => ({ matches: [], sourceSnapshot: { scope: { kind: 'component', outsideScopeOmitted: true } } })),
       snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
         truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } })),
       renameMcpTabGroup: vi.fn(() => workspace),
@@ -286,6 +287,19 @@ describe('MCP workspace fork sources and direct access', () => {
     disable()
     expect((await call('browser_snapshot', { workspaceId: ownId, rootSelector: '#component' })).isError).toBe(true)
     expect(manager.snapshotDetails).toHaveBeenCalledTimes(1)
+  })
+
+  it('forwards optional component scope to snapshot search and preserves workspace authority', async () => {
+    const { manager, call, disable } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    expect((await call('browser_find', { workspaceId: ownId, query: 'Needle', rootSelector: '#component' })).isError).not.toBe(true)
+    expect(manager.findSnapshot).toHaveBeenLastCalledWith(expect.objectContaining({ tabId: targetId, query: 'Needle', rootSelector: '#component' }))
+    for (const rootSelector of ['', 'x'.repeat(513)]) {
+      expect((await call('browser_find', { workspaceId: ownId, query: 'Needle', rootSelector })).isError).toBe(true)
+    }
+    disable()
+    expect((await call('browser_find', { workspaceId: ownId, query: 'Needle', rootSelector: '#component' })).isError).toBe(true)
+    expect(manager.findSnapshot).toHaveBeenCalledTimes(1)
   })
 
   it('rechecks direct access after an asynchronous page wake', async () => {
