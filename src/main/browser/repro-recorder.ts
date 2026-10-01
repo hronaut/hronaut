@@ -9,6 +9,7 @@ import { reproScrollScript, reproTargetScript } from './repro-page-scripts.js'
 import { isHronautHomeUrl } from './url.js'
 
 const MAX_REPRO_STEPS = 200
+const CHECKPOINT_READ_TIMEOUT_MS = 5_000
 
 export interface BrowserReproRecordingInternal {
   active: boolean
@@ -137,7 +138,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     assertCurrent()
     const operation = recording!.queue.catch(() => undefined).then(async () => {
       assertCurrent()
-      const result = await page.executeJavaScript(reproCheckpointScript(request), true) as {
+      const result = await this.readCheckpoint(page, reproCheckpointScript(request)) as {
         selector: string; tag: string; observedMatch: boolean; error?: string
       }
       assertCurrent()
@@ -162,6 +163,20 @@ export class BrowserReproRecorder<T extends ReproTab> {
     recording!.queue = operation.catch(() => undefined)
     await operation
     return this.reproRecordingResult(tab)
+  }
+
+  private async readCheckpoint(page: WebContents, script: string): Promise<unknown> {
+    let timer: NodeJS.Timeout | undefined
+    try {
+      return await Promise.race([
+        page.executeJavaScript(script, true),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Checkpoint page read timed out; expectation was not recorded. Check the page and retry.')), CHECKPOINT_READ_TIMEOUT_MS)
+        })
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
   }
 
   private async stopReproRecording(tab: T, recording: BrowserReproRecordingInternal): Promise<BrowserReproRecording> {
