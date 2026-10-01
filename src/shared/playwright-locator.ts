@@ -88,11 +88,11 @@ export function normalizeBrowserGeneratedLocator(
   }
   return {
     tabId,
-    locator: `page.locator(${JSON.stringify(selector)})`,
+    locator: `page.locator(${JSON.stringify(`css:light=${selector}`)})`,
     strategy: 'css',
     selector,
     caveats: [
-      'No unique semantic locator was available, so this uses a unique current-document CSS selector that may be more sensitive to DOM changes.'
+      'No unique semantic locator was available, so this uses a unique current-document light-DOM CSS selector that may be more sensitive to DOM changes.'
     ]
   }
 }

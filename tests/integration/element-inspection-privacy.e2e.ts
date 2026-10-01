@@ -42,7 +42,7 @@ test('keeps editable values out of MCP inspection, locators and the live human p
       const generated = await call('browser_generate_locator', { tabId, selector })
       expect(JSON.stringify(generated)).not.toMatch(/private-(rich|label)-canary/)
       expect(generated.strategy).toBe('css')
-      expect(generated.locator).toBe(`page.locator(${JSON.stringify(selector)})`)
+      expect(generated.locator).toBe(`page.locator(${JSON.stringify(`css:light=${selector}`)})`)
       await expect(page.locator(generated.selector)).toHaveCount(1)
     }
     expect(await page.locator('#group').innerHTML()).toBe(original)

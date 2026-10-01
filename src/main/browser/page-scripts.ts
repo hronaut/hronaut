@@ -614,6 +614,12 @@ export function playwrightLocatorScript(target: { ref?: string; selector?: strin
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
     if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+    // The inspected target and uniqueness checks use the light DOM, while
+    // Playwright's semantic locators also traverse open shadow roots. Do not
+    // claim semantic uniqueness across roots we have not inspected.
+    if ([...document.querySelectorAll('*')].some(candidate => candidate.shadowRoot)) {
+      return { selector: hronautSelectorFor(element), candidates: [] };
+    }
     const candidates = [];
     const uniqueElements = (predicate) => [...document.querySelectorAll('*')].filter(predicate).length === 1;
     const role = hronautRole(element);

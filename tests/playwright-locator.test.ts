@@ -31,7 +31,7 @@ describe('Playwright locator generation', () => {
 
     expect(result).toMatchObject({
       strategy: 'css',
-      locator: 'page.locator("main > button:nth-of-type(2)")'
+      locator: 'page.locator("css:light=main > button:nth-of-type(2)")'
     })
     expect(result.caveats[0]).toContain('DOM changes')
   })
@@ -109,4 +109,20 @@ describe('Playwright locator generation', () => {
       document.body.innerHTML = ''
     }
   })
+})
+
+
+it('uses a light-DOM fallback when open shadow roots make semantic uniqueness unverified', () => {
+  document.body.innerHTML = '<button id="save">Save changes</button><div id="host"></div>'
+  document.querySelector('#host')!.attachShadow({ mode: 'open' }).innerHTML = '<button>Save changes</button>'
+  const originalCss = globalThis.CSS
+  Object.defineProperty(globalThis, 'CSS', { configurable: true, value: { ...originalCss, escape: (value: string) => value } })
+  try {
+    const raw = globalThis.eval(playwrightLocatorScript({ selector: '#save' }))
+    expect(raw.candidates).toEqual([])
+    expect(normalizeBrowserGeneratedLocator('tab', raw)).toMatchObject({ strategy: 'css', locator: 'page.locator("css:light=#save")' })
+  } finally {
+    Object.defineProperty(globalThis, 'CSS', { configurable: true, value: originalCss })
+    document.body.replaceChildren()
+  }
 })

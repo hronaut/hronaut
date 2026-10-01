@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep generated Playwright locators in the inspected light DOM when open shadow roots could introduce additional matches.
+
 - Keep editable values out of element inspection, live picker copies and generated locator names, while preserving public text and layout evidence.
 
 ## [2.11.1] - 2026-10-01
