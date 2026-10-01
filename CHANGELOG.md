@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-10-01
+
 ### Added
 
 - Add explicit checked/unchecked Repro checkpoints for native checkboxes and radios, exporting Playwright assertions without capturing form values.

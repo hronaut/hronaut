@@ -101,7 +101,12 @@ it('reports bounded traversal omission instead of overflowing on deeply nested e
 
 it('bounds wide editor-containing traversal and reports the omitted tail', () => {
   fixture()
-  document.querySelector('#target')!.innerHTML = '<span></span>'.repeat(12000) + '<div contenteditable="true">private-editor-canary</div><p>late-public-sibling</p>'
+  const root = document.querySelector('#target')!
+  root.innerHTML = '<div contenteditable="true">private-editor-canary</div><p>late-public-sibling</p>'
+  // Exercise the visit bound without thousands of unrelated CSS computations.
+  const emptyNodes = document.createDocumentFragment()
+  for (let index = 0; index < 12000; index++) emptyNodes.append(document.createTextNode(''))
+  root.prepend(emptyNodes)
   const result = capture('#target')
   expect(result).toMatchObject({ truncated: true, omitted: { characters: true } })
   expect(result.text).not.toContain('private-editor-canary')
