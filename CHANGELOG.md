@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear rejected incident-package save previews and require fresh review on recovery, while preserving approval when the file dialog is cancelled.
+
 ## [2.11.0] - 2026-10-01
 
 ### Added

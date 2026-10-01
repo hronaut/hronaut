@@ -105,6 +105,18 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await expect(panel.locator('iframe')).toBeVisible()
     await expect(panel.getByRole('checkbox', { name: /I reviewed this package/ })).not.toBeChecked()
     await expect(panel.getByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
+    // A save rejected by main must also retire the stale approved preview.
+    await panel.getByRole('checkbox', { name: /I reviewed this package/ }).check()
+    await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.discardIncident())
+    await panel.getByRole('button', { name: 'Save reviewed HTML' }).click()
+    await expect(panel.getByRole('alert')).toContainText('missing or replaced')
+    await expect(panel.locator('iframe')).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: 'Save reviewed HTML' })).toHaveCount(0)
+    await panel.getByRole('button', { name: 'Capture selected evidence' }).click()
+    await panel.getByRole('button', { name: 'Preview exact package' }).click()
+    await expect(panel.locator('iframe')).toBeVisible()
+    await expect(panel.getByRole('checkbox', { name: /I reviewed this package/ })).not.toBeChecked()
+    await expect(panel.getByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
     expect(await readFile(destination, 'utf8')).toBe(html)
   } finally {
     await offline.close()
