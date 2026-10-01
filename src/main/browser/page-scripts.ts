@@ -95,6 +95,8 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
 
 function elementInspectionHelpersSource(): string {
   return `
+    const MAX_CHARS = 500;
+    ${snapshotTextHelpersSource({ excludeFormControls: true, textContentFallback: true })}
     const hronautCompact = (value, limit) => String(value || '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const hronautUnique = (selector) => {
       try { return document.querySelectorAll(selector).length === 1; } catch { return false; }
@@ -179,10 +181,10 @@ function elementInspectionHelpersSource(): string {
     const hronautAccessibleName = (element) => {
       const labelledBy = element.getAttribute('aria-labelledby');
       const referenced = labelledBy
-        ? labelledBy.split(/\\s+/).map((id) => document.getElementById(id)?.textContent || '').join(' ')
+        ? labelledBy.split(/\\s+/).map((id) => snapshotSafeText(document.getElementById(id))).join(' ')
         : '';
       const labels = 'labels' in element && element.labels
-        ? [...element.labels].map((label) => label.innerText || label.textContent || '').join(' ')
+        ? [...element.labels].map((label) => snapshotSafeText(label)).join(' ')
         : '';
       const formControl = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement;
       return hronautCompact(
@@ -192,7 +194,7 @@ function elementInspectionHelpersSource(): string {
           || element.getAttribute('alt')
           || element.getAttribute('title')
           || element.getAttribute('placeholder')
-          || (formControl ? '' : (element.innerText || element.textContent || '')),
+          || (formControl ? '' : snapshotSafeText(element)),
         500
       );
     };
@@ -217,6 +219,7 @@ function elementInspectionHelpersSource(): string {
       return Math.round(((Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)) * 100) / 100;
     };
     const hronautInspectElement = (element) => {
+      resetSnapshotText();
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
       const padding = hronautEdges(style, 'padding');
@@ -224,7 +227,7 @@ function elementInspectionHelpersSource(): string {
       const formControl = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement;
       const text = hronautCompact(formControl
         ? (element.getAttribute('aria-label') || element.getAttribute('placeholder') || '')
-        : (element.innerText || element.textContent || ''), 500);
+        : snapshotSafeText(element), 500);
       const ariaChecked = element.getAttribute('aria-checked');
       const nativeChecked = element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')
         ? element.checked
@@ -417,11 +420,12 @@ export function elementPickerScript(): string {
       });
     };
     const describe = (element) => {
+      resetSnapshotText();
       const selector = selectorFor(element);
       const attributes = safeAttributes(element);
       const text = compact(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
         ? (element.getAttribute('aria-label') || element.getAttribute('placeholder') || '')
-        : (element.innerText || element.textContent || ''), 500);
+        : snapshotSafeText(element), 500);
       const rect = element.getBoundingClientRect();
       const tag = element.localName || element.tagName.toLowerCase();
       const voidElement = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'].includes(tag);
@@ -619,10 +623,10 @@ export function playwrightLocatorScript(target: { ref?: string; selector?: strin
       candidates.push({ strategy: 'role', role, value: name });
     }
     const labels = 'labels' in element && element.labels
-      ? [...element.labels].map((label) => hronautCompact(label.innerText || label.textContent || '', 500)).filter(Boolean)
+      ? [...element.labels].map((label) => hronautCompact(snapshotSafeText(label), 500)).filter(Boolean)
       : [];
     for (const label of labels) {
-      if (uniqueElements((candidate) => 'labels' in candidate && candidate.labels && [...candidate.labels].some((item) => hronautCompact(item.innerText || item.textContent || '', 500) === label))) {
+      if (uniqueElements((candidate) => 'labels' in candidate && candidate.labels && [...candidate.labels].some((item) => hronautCompact(snapshotSafeText(item), 500) === label))) {
         candidates.push({ strategy: 'label', value: label });
         break;
       }
@@ -644,7 +648,12 @@ export function playwrightLocatorScript(target: { ref?: string; selector?: strin
         candidates.push({ strategy, value });
       }
     }
-    return { selector: hronautSelectorFor(element), candidates };
+    // Filtered names need not equal Playwright's actual accessible name.
+    // Keep non-text strategies, or let the caller use the unique CSS fallback.
+    const safeCandidates = snapshotTextExcluded || snapshotTextLimited
+      ? candidates.filter(candidate => candidate.strategy !== 'role' && candidate.strategy !== 'label')
+      : candidates;
+    return { selector: hronautSelectorFor(element), candidates: safeCandidates };
   })()`
 }
 

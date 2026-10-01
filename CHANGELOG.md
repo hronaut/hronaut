@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep editable values out of element inspection, live picker copies and generated locator names, while preserving public text and layout evidence.
+
 ## [2.11.1] - 2026-10-01
 
 ### Added
