@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Fail a stalled Repro startup page read after five seconds, leave the recording inactive, and allow retry without accepting the late result.
+
 - Keep page URL waits pending when only an iframe changes its route; match the main frame for both full-document and same-document navigation.
 
 - Reset live screenshot and element-picker feedback when the current tab navigates or reloads, ignoring late results from the previous page while preserving frozen area selections.
