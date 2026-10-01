@@ -57,8 +57,13 @@ async function save(): Promise<void> {
   if (!reviewed.value || !draft.value || !preview.value) return
   const input = { draftId: draft.value.draftId, previewId: preview.value.previewId, reviewed: true as const }
   await run(async current => {
-    const result = await window.hronaut.saveIncident(input)
-    if (current()) saved.value = result.saved
+    try {
+      const result = await window.hronaut.saveIncident(input)
+      if (current()) saved.value = result.saved
+    } catch (cause) {
+      if (current()) { preview.value = null; reviewed.value = false }
+      throw cause
+    }
   })
 }
 onBeforeUnmount(reset)
