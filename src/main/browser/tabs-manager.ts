@@ -6929,7 +6929,7 @@ export class BrowserTabsManager {
       const cleanup = (): void => {
         clearTimeout(timer)
         webContents.removeListener('did-navigate', onNavigate)
-        webContents.removeListener('did-navigate-in-page', onNavigate)
+        webContents.removeListener('did-navigate-in-page', onNavigateInPage)
         webContents.removeListener('render-process-gone', onRenderProcessGone)
         webContents.removeListener('destroyed', onDestroyed)
       }
@@ -6949,6 +6949,9 @@ export class BrowserTabsManager {
         if (pageUrlMatchesWait(pattern, url)) finish(url)
       }
       const onNavigate = (_event: Electron.Event, url: string): void => match(url)
+      const onNavigateInPage = (_event: Electron.Event, url: string, isMainFrame: boolean): void => {
+        if (isMainFrame) match(url)
+      }
       const onRenderProcessGone = (): void => {
         // Intentional renderer replacement during unresponsive-page recovery
         // leaves the renderer-gone problem clear and the URL wait active.
@@ -6959,7 +6962,7 @@ export class BrowserTabsManager {
       const onDestroyed = (): void => fail(new Error('The tab closed while waiting for the page URL.'))
       const timer = setTimeout(() => finish(null), timeout)
       webContents.on('did-navigate', onNavigate)
-      webContents.on('did-navigate-in-page', onNavigate)
+      webContents.on('did-navigate-in-page', onNavigateInPage)
       webContents.on('render-process-gone', onRenderProcessGone)
       webContents.once('destroyed', onDestroyed)
       // Register every listener before checking the current URL so a route
