@@ -85,6 +85,26 @@ describe('FindInPageBar', () => {
     })
   })
 
+  it.each(['query', 'case'] as const)('hides old counts and disables match navigation while a new %s search is pending', async (change) => {
+    const pending = deferred<BrowserFindResult>()
+    const { browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await fireEvent.update(search, 'needle')
+    await screen.findByText('1 / 3')
+    browser.findInPage.mockImplementationOnce(() => pending.promise)
+    if (change === 'query') await fireEvent.update(search, 'different')
+    else await fireEvent.click(screen.getByRole('button', { name: 'Match case' }))
+
+    expect(screen.queryByText('1 / 3')).not.toBeInTheDocument()
+    expect(screen.getByText('Searching…')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Next match' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Previous match' })).toBeDisabled()
+    pending.resolve({ activeMatchOrdinal: 1, matches: 2 })
+    await screen.findByText('1 / 2')
+    expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next match' })).toBeEnabled()
+  })
+
   it('restarts the current search when match case changes', async () => {
     const { browser } = renderBar()
     const user = userEvent.setup()
@@ -129,6 +149,22 @@ describe('FindInPageBar', () => {
     await fireEvent.keyDown(search, { key: 'Enter', isComposing: true })
 
     expect(browser.findInPage).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the current pending state when an older search completes', async () => {
+    const first = deferred<BrowserFindResult>()
+    const second = deferred<BrowserFindResult>()
+    renderBar({ browser: { findInPage: options => options.query === 'first' ? first.promise : second.promise } })
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await fireEvent.update(search, 'first')
+    await fireEvent.update(search, 'second')
+    first.resolve({ activeMatchOrdinal: 1, matches: 9 })
+    await first.promise
+    await vi.waitFor(() => expect(screen.getByText('Searching…')).toBeVisible())
+    expect(screen.queryByText('1 / 9')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next match' })).toBeDisabled()
+    second.resolve({ activeMatchOrdinal: 1, matches: 2 })
+    await screen.findByText('1 / 2')
   })
 
   it('keeps a stale search response from replacing the latest result', async () => {
