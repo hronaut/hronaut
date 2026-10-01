@@ -3,9 +3,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
+import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('generates usable light-DOM locators instead of ambiguous shadow-piercing matches', async ({ electronApp, mcpPort, mcpToken }) => {
+test('generates usable light-DOM locators instead of ambiguous shadow-piercing matches', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<html><title>Locator scope fixture</title><div id="region">Public region</div><button id="save">Save changes</button><div id="host"></div></html>')
@@ -18,13 +19,14 @@ test('generates usable light-DOM locators instead of ambiguous shadow-piercing m
   try {
     await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
-    await useMcpWorkspace(client, 'Locator scope')
+    await useMcpWorkspace(client, 'Locator scope', false)
     const call = async (name: string, args: Record<string, unknown>) => {
       const result = await client.callTool({ name, arguments: args }) as CallToolResult
       expect(result.isError).not.toBe(true)
       return JSON.parse(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n'))
     }
-    const { activeTabId: tabId } = await call('browser_new_tab', { url })
+    const { activeTabId: tabId } = await call('browser_new_tab', { url, active: true })
+    await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(tabId), tabId)
     await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
     const page = electronApp.context().pages().find(page => page.url() === url)!
     await expect(page.locator('#save')).toBeVisible()
