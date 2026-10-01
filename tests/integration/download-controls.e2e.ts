@@ -90,6 +90,10 @@ test('pauses through the panel, resumes through MCP, isolates workspaces, and ca
     return text.startsWith('{') || text.startsWith('[') ? JSON.parse(text) : text
   }
   try {
+    // The shell and token file can be ready before the HTTP listener starts.
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false }
+    }).toBe(true)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
     const workspace = await call('browser_workspaces', { action: 'create', name: 'Download controls' })
     const other = await call('browser_workspaces', { action: 'create', name: 'Other downloads' })
