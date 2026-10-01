@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Exclude editable drafts from Repro target labels and descriptions before they enter the timeline, MCP output or reviewed incident packages, while retaining public labels and structural selectors.
+
 ### Documentation
 
 - Add an incident handoff checklist and companion-note example for reviewed setup, safe replacement inputs and bounded observation conditions.

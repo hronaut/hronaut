@@ -1,5 +1,5 @@
 /** Browser-side text collection. Never clear or clone editors into the live page. */
-export function snapshotTextHelpersSource(options: { excludeFormControls?: boolean; textContentFallback?: boolean } = {}): string {
+export function snapshotTextHelpersSource(options: { excludeFormControls?: boolean; textContentFallback?: boolean; collapseWhitespace?: boolean } = {}): string {
   const excluded = '[contenteditable=""],[contenteditable="true" i],[contenteditable="plaintext-only" i]' + (options.excludeFormControls ? ',input,textarea,select' : '')
   return String.raw`
     const snapshotEditorSelector = ${JSON.stringify(excluded)};
@@ -42,6 +42,7 @@ export function snapshotTextHelpersSource(options: { excludeFormControls?: boole
           text = snapshotEditingContext(child) ? ' ' : snapshotSafeText(child, depth + 1, true);
           if (child.localName === 'br' || /^(block|flow-root|flex|grid|list-item|table)/.test(childStyle.display)) text = ' ' + text + ' ';
         }
+        ${options.collapseWhitespace ? "text = text.replace(/\\s+/g, ' ');" : ''}
         const remaining = MAX_CHARS + 1 - length;
         parts.push(text.slice(0, remaining));
         length += Math.min(text.length, remaining);
