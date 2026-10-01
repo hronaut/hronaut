@@ -54,3 +54,17 @@ it.each(['<textarea id="target">private-form-canary</textarea>', '<select id="ta
   document.querySelector('#target')!.outerHTML = html
   expect(capture('#target')).toEqual({ scopeError: 'unsupported-root' })
 })
+
+
+it.each([undefined, '#target'])('omits editable descendant values from snapshot %s without losing public neighbors', selector => {
+  fixture()
+  document.querySelector('#target')!.innerHTML = '<p>Public before</p><div contenteditable="true" aria-label="Message editor"><h2>private-rich-heading</h2><button>private-rich-control</button></div><p>Public after</p>'
+  const original = document.querySelector('#target')!.textContent
+  const result = capture(selector)
+  expect(result.text).toContain('Public before')
+  expect(result.text).toContain('Public after')
+  expect(result.text).toContain('Message editor')
+  expect(result.text).not.toContain('private-rich-heading')
+  expect(result.text).not.toContain('private-rich-control')
+  expect(document.querySelector('#target')!.textContent).toBe(original)
+})
