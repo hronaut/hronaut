@@ -273,6 +273,21 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.click).toHaveBeenCalledTimes(1)
   })
 
+  it('limits component scope to capture and preserves workspace authority', async () => {
+    const { manager, call, disable } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    expect((await call('browser_snapshot', { workspaceId: ownId, rootSelector: '#component' })).isError).not.toBe(true)
+    expect(manager.snapshotDetails).toHaveBeenLastCalledWith(targetId, undefined, '#component')
+    for (const action of ['set-baseline', 'delta', 'clear-baseline', 'assess-quality']) {
+      const result = await call('browser_snapshot', { workspaceId: ownId, action, rootSelector: '#component' })
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result)).toContain('supported only for capture')
+    }
+    disable()
+    expect((await call('browser_snapshot', { workspaceId: ownId, rootSelector: '#component' })).isError).toBe(true)
+    expect(manager.snapshotDetails).toHaveBeenCalledTimes(1)
+  })
+
   it('rechecks direct access after an asynchronous page wake', async () => {
     const { manager, call, disable } = await setup()
     await call('browser_workspaces', { action: 'create', name: 'Task' })

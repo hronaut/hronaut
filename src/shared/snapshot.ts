@@ -2,6 +2,8 @@ export const BROWSER_SNAPSHOT_FORMAT_VERSION = 1
 
 /** Completeness of the bounded snapshot representation, not the entire DOM. */
 export interface BrowserSnapshot {
+  captureId?: string
+  scope?: { kind: 'component'; rootTag: string; outsideScopeOmitted: true }
   formatVersion: number
   text: string
   maxChars: number

@@ -2985,6 +2985,8 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional(),
         maxChars: z.number().int().min(1_000).max(100_000).optional()
           .describe('Bounded snapshot size for capture or set-baseline.'),
+        rootSelector: z.string().trim().min(1).max(512).optional()
+          .describe('Capture only: unique CSS selector for a light-DOM component. Out-of-scope content is omitted; no whole-page fallback.'),
         baselineId: z.string().uuid().optional()
           .describe('Opaque baseline handle required by delta and optional for clear-baseline.'),
         maxOutputChars: z.number().int().min(1_000).max(50_000).optional()
@@ -2999,10 +3001,11 @@ function createBrowserMcpServer(
           .describe('Private required visible CSS selector checked during assess-quality and never returned.')
       }
     },
-    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector }: {
+    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector, rootSelector }: {
       action: 'capture' | 'set-baseline' | 'delta' | 'clear-baseline' | 'assess-quality'
       tabId?: string
       maxChars?: number
+      rootSelector?: string
       baselineId?: string
       maxOutputChars?: number
       advanceBaseline?: boolean
@@ -3010,6 +3013,9 @@ function createBrowserMcpServer(
       expectedText?: string
       expectedSelector?: string
     }) => {
+      if (rootSelector !== undefined && action !== 'capture') {
+        throw new TypeError('rootSelector is supported only for capture; scoped baselines and deltas are not supported')
+      }
       if (action === 'assess-quality') {
         const assessment = await manager.observationQuality({ tabId, expectedOrigin, expectedText, expectedSelector })
         return { ...textResult(assessment), structuredContent: { ...assessment } }
@@ -3027,7 +3033,9 @@ function createBrowserMcpServer(
         const cleared = manager.clearSnapshotBaseline(tabId, baselineId)
         return { ...textResult(cleared), structuredContent: cleared }
       }
-      const snapshot = await manager.snapshotDetails(tabId, maxChars)
+      const snapshot = rootSelector === undefined
+        ? await manager.snapshotDetails(tabId, maxChars)
+        : await manager.snapshotDetails(tabId, maxChars, rootSelector)
       return { ...textResult(snapshot.text), structuredContent: { ...snapshot } }
     })
   )
