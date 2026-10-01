@@ -84,3 +84,47 @@ it('rejects mixed checkbox state instead of presenting it as binary', () => {
     expect(window.eval(reproCheckpointScript({ ...input, selector: 'input', condition: 'checked', text: undefined }))).toEqual({ error: 'unsupported-checked-target' })
   } finally { document.body.replaceChildren() }
 })
+
+it('honors native rendering suppression even when an element has a layout box', () => {
+  document.body.innerHTML = '<p id="result">Public text</p>'
+  const element = document.querySelector('p')!
+  Object.defineProperty(element, 'getBoundingClientRect', { value: () => ({ width: 100, height: 30 }) })
+  Object.defineProperty(element, 'checkVisibility', { value: () => false })
+  try {
+    expect(window.eval(reproCheckpointScript({ ...input, condition: 'visible', text: undefined })).observedMatch).toBe(false)
+    expect(window.eval(reproCheckpointScript({ ...input, condition: 'hidden', text: undefined })).observedMatch).toBe(true)
+  } finally { document.body.replaceChildren() }
+})
+
+it('observes visible descendants of a display-contents target without returning their text', () => {
+  document.body.innerHTML = '<div id="result" style="display:contents"><p>Public child</p></div>'
+  Object.defineProperty(document.querySelector('p')!, 'getBoundingClientRect', { value: () => ({ width: 100, height: 30 }) })
+  try {
+    expect(window.eval(reproCheckpointScript({ ...input, condition: 'visible', text: undefined }))).toEqual({ selector: 'div', tag: 'div', observedMatch: true })
+    document.querySelector('p')!.style.visibility = 'hidden'
+    expect(window.eval(reproCheckpointScript({ ...input, condition: 'visible', text: undefined })).observedMatch).toBe(false)
+  } finally { document.body.replaceChildren() }
+})
+
+it('rejects an incomplete display-contents walk instead of asserting hidden', () => {
+  document.body.innerHTML = '<div id="result" style="display:contents"></div>'
+  const target = document.querySelector('div')!
+  for (let index = 0; index < 1001; index++) target.append(document.createComment(''))
+  try {
+    expect(window.eval(reproCheckpointScript({ ...input, condition: 'hidden', text: undefined }))).toEqual({ error: 'visibility-limit' })
+    // Text expectations do not need a visibility traversal.
+    expect(window.eval(reproCheckpointScript({ ...input, text: '' })).observedMatch).toBe(true)
+  } finally { document.body.replaceChildren() }
+})
+
+it('bounds display-contents nesting before observing a deep descendant', () => {
+  document.body.innerHTML = '<div id="result" style="display:contents"></div>'
+  let parent = document.querySelector('div')!
+  for (let depth = 0; depth < 102; depth++) {
+    const child = document.createElement('div'); child.style.display = 'contents'
+    parent.append(child); parent = child
+  }
+  try {
+    expect(window.eval(reproCheckpointScript({ ...input, condition: 'hidden', text: undefined }))).toEqual({ error: 'visibility-limit' })
+  } finally { document.body.replaceChildren() }
+})
