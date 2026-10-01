@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Review up to ten ordered text replacements in incident packages, with bounded accessible rows, a scrollable review editor and explicit order before approving the exact export.
+
 - Review up to ten exact field omissions in the incident-package editor, with bounded add/remove controls, keyboard focus and fresh approval after edits.
 
 ### Fixed

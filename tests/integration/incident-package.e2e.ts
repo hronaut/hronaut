@@ -26,7 +26,7 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
     const page = electronApp.context().pages().find(page => page.url() === url)!
     await expect(page.getByRole('heading', { name: 'Ready' })).toBeVisible()
-    const hostile = `private-canary </pre><script>globalThis.__incidentAttack=true;fetch('${origin}/should-not-run')</script><img src="${origin}/should-not-run"> password=credential-secret`
+    const hostile = `private-canary private-second-canary </pre><script>globalThis.__incidentAttack=true;fetch('${origin}/should-not-run')</script><img src="${origin}/should-not-run"> password=credential-secret`
     await page.evaluate(value => console.error(value), hostile)
     await expect.poll(async () => {
       const report = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)
@@ -47,6 +47,10 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await expect(panel.locator('iframe')).toHaveCount(0)
     await panel.getByLabel('Replace with').fill('[REDACTED]')
     await panel.getByLabel('Exact text to replace (optional)').fill('private-canary')
+    await panel.getByRole('button', { name: 'Add text replacement' }).click()
+    const secondReplacement = panel.getByLabel('Exact text to replace (optional)').nth(1)
+    await expect(secondReplacement).toBeFocused()
+    await secondReplacement.fill('private-second-canary')
     await panel.getByLabel('Exact JSON field name to omit (optional)').fill('url')
     await panel.getByRole('button', { name: 'Add field omission' }).click()
     const secondOmission = panel.getByLabel('Exact JSON field name to omit (optional)').nth(1)
@@ -57,6 +61,7 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await expect(iframe).toBeVisible()
     const previewHtml = (await iframe.getAttribute('srcdoc'))!
     expect(previewHtml).not.toContain('private-canary')
+    expect(previewHtml).not.toContain('private-second-canary')
     expect(previewHtml).not.toContain('&quot;url&quot;:')
     expect(previewHtml).not.toContain('&quot;method&quot;:')
     expect(previewHtml).toContain('exact-field-omission')
@@ -66,7 +71,12 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     expect(previewHtml).toContain('&lt;script&gt;')
     const save = panel.getByRole('button', { name: 'Save reviewed HTML' })
     await expect(save).toBeDisabled()
-    await panel.getByRole('checkbox', { name: /I reviewed this package/ }).check()
+    const approval = panel.getByRole('checkbox', { name: /I reviewed this package/ })
+    await approval.scrollIntoViewIfNeeded()
+    // Long review forms must scroll inside their own editor, preserving the panel header.
+    await expect.poll(() => panel.locator('.incident-review').evaluate(element => element.scrollTop)).toBeGreaterThan(0)
+    await expect.poll(() => panel.evaluate(element => element.scrollTop)).toBe(0)
+    await approval.check()
     await electronApp.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' }) })
     await save.click()
     await expect(save).toBeEnabled()
@@ -81,7 +91,7 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     const hash = createHash('sha256').update(html).digest('hex')
     await expect(panel).toContainText(hash)
     const source = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId, includeSuccessfulRequests: true }), tabId)
-    expect(source.console.some(entry => entry.message.includes('private-canary'))).toBe(true)
+    expect(source.console.some(entry => entry.message.includes('private-canary') && entry.message.includes('private-second-canary'))).toBe(true)
     expect(JSON.stringify(source)).toContain('field-path-canary')
     expect(source.network.some(request => request.method === 'GET')).toBe(true)
 
