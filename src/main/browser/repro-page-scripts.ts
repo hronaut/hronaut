@@ -1,3 +1,5 @@
+import { snapshotTextHelpersSource } from './snapshot-text.js'
+
 export function reproTargetScript(point?: {
   x: number
   y: number
@@ -5,6 +7,8 @@ export function reproTargetScript(point?: {
   viewportHeight: number
 }): string {
   return `(() => {
+    const MAX_CHARS = 180;
+    ${snapshotTextHelpersSource({ excludeFormControls: true, textContentFallback: true, collapseWhitespace: true })}
     const compact = (value, limit) => String(value || '').replace(/\\s+/g, ' ').trim().slice(0, limit);
     const point = ${JSON.stringify(point)};
     const x = point ? Number(point.x) * innerWidth / Math.max(1, Number(point.viewportWidth)) : 0;
@@ -45,7 +49,7 @@ export function reproTargetScript(point?: {
     };
     const input = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement;
     const associatedLabel = input && 'labels' in element && element.labels?.length
-      ? [...element.labels].map((label) => label.innerText || label.textContent || '').join(' ')
+      ? [...element.labels].map((label) => snapshotSafeText(label)).join(' ')
       : '';
     const label = compact(
       element.getAttribute('aria-label')
@@ -53,7 +57,7 @@ export function reproTargetScript(point?: {
         || element.getAttribute('title')
         || element.getAttribute('alt')
         || element.getAttribute('placeholder')
-        || (input ? '' : element.innerText || element.textContent || ''),
+        || (input ? '' : snapshotSafeText(element)),
       180
     );
     return {
