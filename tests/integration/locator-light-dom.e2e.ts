@@ -53,6 +53,31 @@ test('generates usable light-DOM locators instead of ambiguous shadow-piercing m
     }
     await page.locator('#host').evaluate(host => host.remove())
     expect((await call('browser_generate_locator', { tabId, selector: '#save' })).strategy).toBe('role')
+
+    await page.evaluate(() => {
+      const branch = '<div>'.repeat(10) + '<button>Repeated deep action</button>' + '</div>'.repeat(10)
+      document.body.insertAdjacentHTML('beforeend', `<main><section>${branch}</section><section>${branch}</section></main>`)
+      document.querySelectorAll('main button').forEach(button => button.addEventListener('click', () => button.setAttribute('data-clicked', 'true')))
+    })
+    const requested = 'main > section:nth-of-type(1) button'
+    const deep = await call('browser_generate_locator', { tabId, selector: requested })
+    expect(deep.strategy).toBe('css')
+    expect(deep.locator).toBe(`page.locator(${JSON.stringify(`css:light=${requested}`)})`)
+    const deepLocator = page.locator(JSON.parse(deep.locator.slice('page.locator('.length, -1)) as string)
+    await expect(deepLocator).toHaveCount(1)
+    await deepLocator.click()
+    await expect(deepLocator).toHaveAttribute('data-clicked', 'true')
+    await expect(page.locator('main > section:nth-of-type(2) button')).not.toHaveAttribute('data-clicked', 'true')
+    const ambiguous = await client.callTool({ name: 'browser_generate_locator', arguments: { tabId, selector: 'main button' } }) as CallToolResult
+    expect(ambiguous.isError).toBe(true)
+    const snapshot = await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult
+    expect(snapshot.isError).not.toBe(true)
+    const ref = await page.locator(requested).getAttribute('data-hronaut-ref')
+    expect(ref).toBeTruthy()
+    const fromRef = await call('browser_generate_locator', { tabId, ref })
+    expect(fromRef.strategy).toBe('css')
+    await expect(page.locator(JSON.parse(fromRef.locator.slice('page.locator('.length, -1)) as string)).toHaveCount(1)
+    await expect(page.locator(fromRef.selector)).toHaveAttribute('data-clicked', 'true')
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)

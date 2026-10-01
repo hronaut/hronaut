@@ -614,11 +614,23 @@ export function playwrightLocatorScript(target: { ref?: string; selector?: strin
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
     if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+    // A depth-limited structural path may still be ambiguous. Reuse the
+    // supplied target only after checking the exact selected element again.
+    const requestedSelector = target.ref
+      ? '[data-hronaut-ref="' + CSS.escape(target.ref) + '"]' : target.selector;
+    const selector = [hronautSelectorFor(element), requestedSelector].find(value => {
+      if (typeof value !== 'string' || !value || value.length > 1000 || /[\\u0000-\\u001f\\u007f]/.test(value)) return false;
+      try {
+        const matches = document.querySelectorAll(value);
+        return matches.length === 1 && matches[0] === element;
+      } catch { return false; }
+    });
+    if (!selector) throw new Error('The selected element did not produce a unique bounded selector. Take a fresh snapshot or provide a more specific CSS selector.');
     // The inspected target and uniqueness checks use the light DOM, while
     // Playwright's semantic locators also traverse open shadow roots. Do not
     // claim semantic uniqueness across roots we have not inspected.
     if ([...document.querySelectorAll('*')].some(candidate => candidate.shadowRoot)) {
-      return { selector: hronautSelectorFor(element), candidates: [] };
+      return { selector, candidates: [] };
     }
     const candidates = [];
     const uniqueElements = (predicate) => [...document.querySelectorAll('*')].filter(predicate).length === 1;
@@ -659,7 +671,7 @@ export function playwrightLocatorScript(target: { ref?: string; selector?: strin
     const safeCandidates = snapshotTextExcluded || snapshotTextLimited
       ? candidates.filter(candidate => candidate.strategy !== 'role' && candidate.strategy !== 'label')
       : candidates;
-    return { selector: hronautSelectorFor(element), candidates: safeCandidates };
+    return { selector, candidates: safeCandidates };
   })()`
 }
 

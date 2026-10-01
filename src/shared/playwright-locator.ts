@@ -57,8 +57,8 @@ export function normalizeBrowserGeneratedLocator(
   tabId: string,
   raw: RawBrowserLocatorResult
 ): BrowserGeneratedLocator {
-  const selector = boundedText(raw.selector, 1_000)
-  if (!selector) throw new Error('The selected element did not produce a usable selector')
+  const selector = raw.selector
+  if (typeof selector !== 'string' || !selector.trim() || selector.length > 1_000 || /[\u0000-\u001f\u007f]/.test(selector)) throw new Error('The selected element did not produce a usable selector')
   const candidates = Array.isArray(raw.candidates)
     ? raw.candidates.flatMap((value): BrowserLocatorCandidate[] => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return []
