@@ -84,6 +84,29 @@ test('captures and searches a component through MCP without unrelated content or
     }
     expect((await call('browser_snapshot', { ...args, action: 'set-baseline', rootSelector: '#target' })).isError).toBe(true)
     expect((await call('browser_snapshot', { ...args, action: 'delta', baselineId: baseline.baselineId, advanceBaseline: false })).structuredContent).toMatchObject({ status: 'unchanged' })
+    // A component can be rendered through its children without having a box.
+    await page.locator('#target').evaluate(element => {
+      ;(element as HTMLElement).style.display = 'contents'
+      element.insertAdjacentHTML('beforeend', '<span style="display:none">hidden-component-canary</span>')
+    })
+    await expect(page.locator('#target button').first()).toBeVisible()
+    const boxless = (await call('browser_snapshot', { ...args, rootSelector: '#target' })).structuredContent as unknown as BrowserSnapshot
+    expect(boxless.scope).toMatchObject({ kind: 'component', outsideScopeOmitted: true })
+    expect(boxless.text).toContain('Chosen component')
+    expect(boxless.text).not.toContain('Outside component')
+    expect(boxless.text).not.toContain('hidden-component-canary')
+    expect(boxless.text).not.toContain('changed-rich-')
+    const boxlessSearch = parse<Search>(await call('browser_find', { ...args, rootSelector: '#target', query: 'Nested action' }))
+    expect(boxlessSearch.matches.length).toBeGreaterThan(0)
+    await page.locator('#target').evaluate(element => { (element as HTMLElement).style.visibility = 'hidden' })
+    expect((await call('browser_snapshot', { ...args, rootSelector: '#target' })).isError).toBe(true)
+    await page.locator('#target').evaluate(element => { element.outerHTML = '<section id="target" style="display:contents">Visible text-only component</section>' })
+    const textOnly = (await call('browser_snapshot', { ...args, rootSelector: '#target' })).structuredContent as unknown as BrowserSnapshot
+    expect(textOnly.text).toContain('Visible text-only component')
+    await page.locator('#target').evaluate(element => { element.innerHTML = '<span style="display:contents"></span>'.repeat(1001) })
+    const limited = await call('browser_snapshot', { ...args, rootSelector: '#target' })
+    expect(limited.isError).toBe(true)
+    expect(JSON.stringify(limited)).toContain('visibility exceeded its observation limit')
     await page.locator('#target').evaluate(element => { element.outerHTML = '<form id="target"><button>Replacement</button></form>' })
     const replaced = (await call('browser_snapshot', { ...args, rootSelector: '#target' })).structuredContent as unknown as BrowserSnapshot
     expect(replaced.captureId).not.toBe(scoped.captureId)

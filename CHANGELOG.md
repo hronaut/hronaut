@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Capture and search visible `display: contents` components without mistaking their boxless roots for hidden content; keep visibility checks bounded and explicit.
+
 - Align Repro visibility checkpoint observations with rendered visibility, including suppressed content and bounded display-contents descendants.
 
 - Clear rejected incident-package save previews and require fresh review on recovery, while preserving approval when the file dialog is cancelled.

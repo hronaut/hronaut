@@ -1,3 +1,4 @@
+import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
 import { snapshotTextHelpersSource } from './snapshot-text.js'
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../../shared/snapshot.js'
@@ -41,7 +42,14 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
       const rect = element.getBoundingClientRect();
       return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
     };
-    if (root !== document && !visible(root)) return { scopeError: 'hidden-root' };
+    if (root !== document) {
+      ${renderedVisibilityHelpersSource()}
+      // Boxless component roots can have visible descendants. Keep explicit
+      // hidden roots excluded and reject an incomplete bounded observation.
+      if (getComputedStyle(root).visibility !== 'visible') return { scopeError: 'hidden-root' };
+      try { if (!renderedVisible(root)) return { scopeError: 'hidden-root' }; }
+      catch (error) { if (error === renderedVisibilityLimit) return { scopeError: 'visibility-limit' }; throw error; }
+    }
     let refIndex = 0;
     for (const element of document.querySelectorAll('[data-hronaut-ref]')) element.removeAttribute('data-hronaut-ref');
     const lines = [];
