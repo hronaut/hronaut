@@ -51,6 +51,21 @@ describe('network search', () => {
     expect(JSON.stringify(result)).not.toContain('password')
   })
 
+  it.each([false, true])('keeps snippets aligned with original Unicode text (caseSensitive=%s)', (caseSensitive) => {
+    const result = searchNetworkDetails({
+      tabId: 'tab-1', availableRequestCount: 1,
+      details: [details({ request: { headers: {}, body: {
+        text: 'İ'.repeat(300) + ' NEEDLE[a+b] needle[a+b] ' + 'x'.repeat(300), truncated: false
+      } } })],
+      options: normalizeNetworkSearchOptions({ query: 'needle[a+b]', caseSensitive })
+    })
+    expect(result.matches).toEqual([expect.objectContaining({
+      field: 'request-body', occurrenceCount: caseSensitive ? 1 : 2,
+      snippet: expect.stringContaining('NEEDLE[a+b] needle[a+b]')
+    })])
+    expect(result.matches[0]!.snippet.length).toBeLessThanOrEqual(222)
+  })
+
   it('supports case-sensitive matching and reports unavailable bodies', () => {
     const sensitive = searchNetworkDetails({
       tabId: 'tab-1',
