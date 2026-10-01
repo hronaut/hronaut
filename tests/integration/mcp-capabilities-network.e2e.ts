@@ -524,6 +524,43 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
   await expect(networkContentSearch).not.toContainText('request-secret')
   await networkContentSearch.getByRole('button', { name: /Inspect matching request .*x-request-id/ }).first().click()
   await expect(networkPanel).toContainText('network-detail-42')
+  // Defer a real trusted search reply, then fail delivery to exercise the UI's
+  // pending/error boundary without changing captured evidence or authorization.
+  await electronApp.evaluate(({ ipcMain }) => {
+    type Handler = (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
+    const original = (ipcMain as typeof ipcMain & { _invokeHandlers: Map<string, Handler> })._invokeHandlers.get('browser:network-search')!
+    let release: (() => void) | undefined
+    ipcMain.removeHandler('browser:network-search')
+    ipcMain.handle('browser:network-search', async (event, ...args: unknown[]) => {
+      await original(event, ...args)
+      await new Promise<void>(resolve => { release = resolve; ipcMain.once('qa:fail-network-search', resolve) })
+      throw new Error('Synthetic network search delivery failure')
+    })
+    ipcMain.once('qa:restore-network-search', () => {
+      release?.()
+      ipcMain.removeAllListeners('qa:fail-network-search')
+      ipcMain.removeHandler('browser:network-search')
+      ipcMain.handle('browser:network-search', original)
+    })
+  })
+  try {
+    await networkContentSearch.getByRole('searchbox').fill('different-fixture-query')
+    await networkContentSearch.getByRole('button', { name: 'Search', exact: true }).click()
+    await expect(networkContentSearch.getByRole('button', { name: /Searching/ })).toBeDisabled()
+    await expect(networkContentSearch.getByRole('button', { name: /Inspect matching request/ })).toHaveCount(0)
+    await expect(networkContentSearch.locator('header')).toHaveCount(0)
+    await expect.poll(() => electronApp.evaluate(({ ipcMain }) => ipcMain.listenerCount('qa:fail-network-search'))).toBe(1)
+    await electronApp.evaluate(({ ipcMain }) => ipcMain.emit('qa:fail-network-search'))
+    await expect(networkContentSearch.getByRole('alert')).toContainText('Synthetic network search delivery failure')
+    await expect(networkContentSearch.getByRole('button', { name: /Inspect matching request/ })).toHaveCount(0)
+    await expect(networkContentSearch.locator('header')).toHaveCount(0)
+  } finally {
+    await electronApp.evaluate(({ ipcMain }) => ipcMain.emit('qa:restore-network-search'))
+  }
+  await networkContentSearch.getByRole('searchbox').fill('network-detail-42')
+  await networkContentSearch.getByRole('button', { name: 'Search', exact: true }).click()
+  await expect(networkContentSearch.getByText('x-request-id', { exact: true }).first()).toBeVisible()
+  await expect(networkContentSearch.getByRole('alert')).toHaveCount(0)
   await networkContentSearch.getByRole('button', { name: 'Close request content search' }).click()
   await expect(networkContentSearch).toHaveCount(0)
   await networkPanel.getByRole('searchbox', { name: 'Filter network requests' }).fill('/socket')

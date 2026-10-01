@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clear previous Network content-search matches when starting a new search, so pending or failed searches cannot display stale results.
+
 - Recheck generated CSS locator uniqueness for deeply nested elements, reuse a unique supplied target when needed, and reject selectors that cannot be preserved within bounds.
 
 - Keep generated Playwright locators in the inspected light DOM when open shadow roots could introduce additional matches.

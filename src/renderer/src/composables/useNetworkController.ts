@@ -514,6 +514,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     const expectedGeneration = generation
     const sequence = ++contentSearchSequence
     contentSearchState.value = 'searching'
+    contentSearchResult.value = null
     contentSearchError.value = ''
     try {
       const result = await options.browser.searchNetwork({

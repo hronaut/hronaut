@@ -369,6 +369,30 @@ describe('network controller', () => {
     controller.dispose()
   })
 
+  it('retires previous content matches while a new search is pending and after failure', async () => {
+    const { browser, controller } = createController()
+    controller.contentSearchQuery.value = 'example'
+    browser.searchNetwork.mockResolvedValueOnce(searchResult())
+    await controller.runContentSearch()
+    expect(controller.contentSearchResult.value?.matches).toHaveLength(1)
+    const pending = deferred<BrowserNetworkSearchResult>()
+    browser.searchNetwork.mockImplementationOnce(() => pending.promise)
+    controller.contentSearchQuery.value = 'different'
+    const searching = controller.runContentSearch()
+    const during = controller.contentSearchResult.value
+    pending.reject(new Error('Search unavailable'))
+    await searching
+    expect(during).toBeNull()
+    expect(controller.contentSearchResult.value).toBeNull()
+    expect(controller.contentSearchState.value).toBe('error')
+    expect(controller.contentSearchError.value).toBe('Search unavailable')
+    browser.searchNetwork.mockResolvedValueOnce({ ...searchResult(), query: 'different' })
+    await controller.runContentSearch()
+    expect(controller.contentSearchResult.value?.query).toBe('different')
+    expect(controller.contentSearchState.value).toBe('complete')
+    controller.dispose()
+  })
+
   it('keeps only the latest selected request details', async () => {
     const first = deferred<BrowserNetworkRequestDetails>()
     const second = deferred<BrowserNetworkRequestDetails>()
