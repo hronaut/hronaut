@@ -22,6 +22,9 @@ test('listener startup preserves the initialized Home document and setup draft',
   }, source)
   try {
     await expect.poll(() => home('Boolean(document.querySelector("#server-state .dot.starting"))')).toBe(true)
+    // Home can render its starting state before Server.listen reaches our hold.
+    // Wait for the intercepted boundary, rather than treating that UI state as it.
+    await expect.poll(() => app.evaluate(() => typeof (globalThis as typeof globalThis & { __completeMcpStartup?: () => void }).__completeMcpStartup)).toBe('function')
     await home(`
       document.querySelector('[data-home-view="connect"]').click();
       const search = document.getElementById('agent-search');
