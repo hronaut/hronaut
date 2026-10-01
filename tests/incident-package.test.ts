@@ -155,3 +155,22 @@ it('treats prototype-like names as literal own fields without changing object pr
   expect(Object.getPrototypeOf(source.steps[0])).toBe(Object.prototype)
   expect(Object.hasOwn(source.steps[0]!, '__proto__')).toBe(true)
 })
+
+it('applies multiple literal replacements in order without modifying source evidence', async () => {
+  const { service, source } = fixture()
+  source.steps[0]!.description = 'private-first private-second'
+  const original = structuredClone(source)
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const replacements = [
+    { find: 'private-first', replacement: 'intermediate-marker' },
+    { find: 'intermediate-marker', replacement: '' },
+    { find: 'private-second', replacement: '[REMOVED]' }
+  ]
+  const preview = service.review(1, { draftId: draft.draftId, include: ['repro'], replacements })
+  expect(preview.html).not.toContain('private-first')
+  expect(preview.html).not.toContain('private-second')
+  expect(preview.html).not.toContain('intermediate-marker')
+  expect(preview.html).toContain('[REMOVED]')
+  expect(source).toEqual(original)
+  expect(() => service.review(1, { draftId: draft.draftId, include: ['repro'], replacements: Array.from({ length: 11 }, () => ({ find: 'x', replacement: '' })) })).toThrow()
+})
