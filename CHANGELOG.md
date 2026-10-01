@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.5] - 2026-10-01
+
 ### Fixed
 
 - Exclude editable drafts from Repro target labels and descriptions before they enter the timeline, MCP output or reviewed incident packages, while retaining public labels and structural selectors.
