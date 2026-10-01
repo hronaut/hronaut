@@ -3,7 +3,7 @@ import { expect, test, text } from './capability-fixtures.js'
 
 for (const tool of ['browser_cpu_profile', 'browser_code_coverage'] as const) {
   for (const action of ['start', 'stop', 'clear'] as const) {
-    test(`does not restore ${tool} after debugger detachment while ${action === 'start' ? 'starting' : action === 'stop' ? 'stopping' : 'clearing'}`, async ({ capabilities, electronApp }) => {
+    test(`does not restore ${tool} after debugger detachment while ${action === 'start' ? 'starting' : action === 'stop' ? 'stopping' : 'clearing'}`, async ({ capabilities, electronApp, appWindow }) => {
       const { client, tabId, fixtureUrl } = capabilities
       if (action !== 'start') {
         const started = await client.callTool({
@@ -12,7 +12,7 @@ for (const tool of ['browser_cpu_profile', 'browser_code_coverage'] as const) {
         expect(started.isError, text(started)).not.toBe(true)
       }
       let stopping: Promise<CallToolResult> | undefined
-      let restarting: Promise<CallToolResult> | undefined
+      let restarting: Promise<{ status: string }> | undefined
       await electronApp.evaluate(({ webContents }, { url, command }) => {
         const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
         if (!page) throw new Error('Profiler fixture page was not found')
@@ -42,11 +42,14 @@ for (const tool of ['browser_cpu_profile', 'browser_code_coverage'] as const) {
           page.debugger.detach()
         }, fixtureUrl)
         if (action === 'clear') {
-          restarting = client.callTool({ name: tool, arguments: { tabId, action: 'start', ...(tool === 'browser_code_coverage' ? { reload: false } : {}) } }) as Promise<CallToolResult>
-          await expect.poll(async () => {
-            const result = await client.callTool({ name: tool, arguments: { tabId, action: 'get' } }) as CallToolResult
-            return JSON.parse(text(result)).status
-          }).toBe('recording')
+          // MCP keeps the tab busy; the human shell remains an independent supported entrypoint.
+          const busy = await client.callTool({ name: tool, arguments: { tabId, action: 'get' } }) as CallToolResult
+          expect(JSON.parse(text(busy))).toMatchObject({ status: 'BUSY' })
+          const method = tool === 'browser_cpu_profile' ? 'manageCpuProfile' : 'manageCodeCoverage'
+          restarting = appWindow.evaluate(`window.hronaut.${method}(${JSON.stringify({ tabId, action: 'start', reload: false })})`)
+          await expect.poll(() => appWindow.evaluate(
+            `window.hronaut.${method}(${JSON.stringify({ tabId, action: 'get' })}).then(result => result.status)`
+          )).toBe('recording')
         }
         await electronApp.evaluate(() => {
           ;(globalThis as typeof globalThis & { __hronautProfilerStopGate?: { release: () => void } })
@@ -57,8 +60,7 @@ for (const tool of ['browser_cpu_profile', 'browser_code_coverage'] as const) {
         expect(text(stopped)).toContain(`changed while ${action === 'start' ? 'starting' : action === 'stop' ? 'stopping' : 'clearing'}`)
         if (restarting) {
           const restarted = await restarting
-          expect(restarted.isError, text(restarted)).not.toBe(true)
-          expect(JSON.parse(text(restarted))).toMatchObject({ status: 'recording' })
+          expect(restarted).toMatchObject({ status: 'recording' })
         }
         const current = await client.callTool({ name: tool, arguments: { tabId, action: 'get' } }) as CallToolResult
         expect(current.isError, text(current)).not.toBe(true)
