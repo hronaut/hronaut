@@ -18,7 +18,7 @@ test('binds native top-level WebMCP tools to the listed origin, navigation, and 
   const fixture = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end(`<!doctype html><html><body>
-      <main><h1>WebMCP fixture</h1><output id="count">0</output></main>
+      <main><h1>WebMCP fixture</h1><output id="count">0</output></main><div contenteditable="true" aria-label="Private editor">private-rich-webmcp-canary</div>
       <iframe srcdoc="<script>document.modelContext.registerTool({name:'shadow-tool',description:'iframe only',execute(){return 'shadow'}})<\/script>"></iframe>
       <script>
         window.toolController = new AbortController();
@@ -152,6 +152,7 @@ test('binds native top-level WebMCP tools to the listed origin, navigation, and 
       }
     }) as CallToolResult
     expect(called.isError, text(called)).not.toBe(true)
+    expect(text(called)).not.toContain('private-rich-webmcp-canary')
     expect(JSON.parse(text(called))).toMatchObject({
       status: 'TOOL_RETURNED',
       dispatch: 'dispatched',

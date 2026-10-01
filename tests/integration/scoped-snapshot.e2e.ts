@@ -10,7 +10,7 @@ test('captures a component through MCP without unrelated content or silent scope
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<html><title>Scope fixture</title><main>' + '<section><h2>Outside component</h2><button>Save</button></section>'.repeat(100)
-      + '<form id="target"><h2>Chosen component</h2><button type="button">Save</button><div><button type="button">Nested action</button></div><input value="private-canary"><textarea id="private-editor">private-editor-canary</textarea></form></main></html>')
+      + '<form id="target"><h2>Chosen component</h2><button type="button">Save</button><div><button type="button">Nested action</button></div><input value="private-canary"><textarea id="private-editor">private-editor-canary</textarea><div id="rich-editor" contenteditable="true" aria-label="Message editor"><h3>private-rich-heading</h3><button>private-rich-control</button></div><p>Public after editor</p></form></main></html>')
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -31,8 +31,14 @@ test('captures a component through MCP without unrelated content or silent scope
     await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
     const page = electronApp.context().pages().find(page => page.url() === url)!
     await expect(page.locator('#target')).toBeVisible()
+    await page.evaluate(() => {
+      const audit = { count: 0, observer: new MutationObserver(records => { audit.count += records.length }) }
+      audit.observer.observe(document.body, { subtree: true, childList: true, characterData: true })
+      ;(window as unknown as { snapshotAudit: typeof audit }).snapshotAudit = audit
+    })
     const whole = (await call('browser_snapshot', args)).structuredContent as unknown as BrowserSnapshot
     expect(whole.text).toContain('Outside component')
+    for (const secret of ['private-rich-heading', 'private-rich-control']) expect(whole.text).not.toContain(secret)
     const baseline = (await call('browser_snapshot', { ...args, action: 'set-baseline' })).structuredContent as { baselineId: string }
     const scopedResult = await call('browser_snapshot', { ...args, rootSelector: '#target' })
     expect(scopedResult.isError).not.toBe(true)
@@ -40,10 +46,23 @@ test('captures a component through MCP without unrelated content or silent scope
     expect(scoped).toMatchObject({ captureId: expect.any(String), truncated: false, scope: { kind: 'component', rootTag: 'form', outsideScopeOmitted: true } })
     expect(scoped.text).toContain('Chosen component')
     expect(scoped.text).toContain('Nested action')
+    expect(scoped.text).toContain('Public after editor')
+    expect(scoped.text).toContain('Message editor')
+    for (const secret of ['private-rich-heading', 'private-rich-control']) expect(JSON.stringify(scopedResult)).not.toContain(secret)
+    await expect(page.locator('#rich-editor h3')).toHaveText('private-rich-heading')
+    await expect(page.locator('#rich-editor button')).toHaveText('private-rich-control')
     expect(scoped.text).not.toContain('Outside component')
     expect(JSON.stringify(scopedResult)).not.toContain('private-canary')
     expect(JSON.stringify(scopedResult)).not.toContain('private-editor-canary')
     expect(scoped.returnedChars).toBeLessThan(whole.returnedChars)
+    const found = parse<{ matches: unknown[] }>(await call('browser_find', { ...args, query: 'private-rich-' }))
+    expect(found.matches).toEqual([])
+    expect(await page.evaluate(() => {
+      const audit = (window as unknown as { snapshotAudit: { count: number; observer: MutationObserver } }).snapshotAudit
+      audit.observer.disconnect()
+      return audit.count
+    })).toBe(0)
+    await page.locator('#rich-editor').evaluate(element => { element.innerHTML = '<h3>changed-rich-heading</h3><button>changed-rich-control</button>' })
     for (const rootSelector of ['#missing', 'section', '[', '#private-editor']) expect((await call('browser_snapshot', { ...args, rootSelector })).isError).toBe(true)
     expect((await call('browser_snapshot', { ...args, action: 'set-baseline', rootSelector: '#target' })).isError).toBe(true)
     expect((await call('browser_snapshot', { ...args, action: 'delta', baselineId: baseline.baselineId, advanceBaseline: false })).structuredContent).toMatchObject({ status: 'unchanged' })

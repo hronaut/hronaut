@@ -6,7 +6,7 @@ import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../src/shared/snapshot.js'
 const capture = (body: string, limit = 1000) => runInNewContext(snapshotScript(limit, true), {
   URL,
   location: { href: 'https://example.test/?token=private-canary#private-fragment' },
-  document: { title: 'Snapshot', body: { innerText: body }, querySelectorAll: () => [] }
+  document: { title: 'Snapshot', body: { innerText: body, closest: () => null, querySelector: () => null }, querySelectorAll: () => [] }
 })
 
 it('reports an under-limit snapshot without exposing redacted URL values', () => {
@@ -35,12 +35,12 @@ it.each(['headings', 'controls'])('reports the %s cap even below the character l
   const elements = Array.from({ length: kind === 'headings' ? 81 : 501 }, () => ({
     tagName: kind === 'headings' ? 'H1' : 'BUTTON', innerText: 'x',
     getBoundingClientRect: () => ({ width: 1, height: 1 }),
-    getAttribute: () => null, setAttribute: () => undefined
+    getAttribute: () => null, setAttribute: () => undefined, closest: () => null, querySelector: () => null
   }))
   const result = runInNewContext(snapshotScript(100000, true), {
     URL, location: { href: 'https://example.test/' }, HTMLAnchorElement: class {},
     getComputedStyle: () => ({ visibility: 'visible', display: 'block' }),
-    document: { title: 'Caps', body: { innerText: '' }, querySelectorAll: (selector: string) =>
+    document: { title: 'Caps', body: { innerText: '', closest: () => null, querySelector: () => null }, querySelectorAll: (selector: string) =>
       selector === '[data-hronaut-ref]' ? [] : (selector === 'h1,h2,h3') === (kind === 'headings') ? elements : [] }
   })
   expect(result.returnedChars).toBeLessThan(100000)
