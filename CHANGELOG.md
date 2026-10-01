@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-10-01
+
 ### Added
 
 - Add human-reviewed local incident HTML packages with bounded text evidence, artifact omission, exact-text replacement, frozen previews and integrity hashes.
@@ -11,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - Add opt-in component-scoped MCP snapshots with unique CSS roots, explicit outside-scope omission and fresh capture identities.
 
 - Add reviewed visibility and exact-text checkpoints to Repro recordings, with intended outcomes separate from observed matches and Playwright assertion exports.
+
 ### Fixed
 
 - Restore arrow-key selection within workspace starting-data, site-access and data-transfer radio groups.
