@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.3] - 2026-10-01
+
 ### Fixed
 
 - Mark Network searches as bounded when request or response bodies, stream messages, or retained stream history were truncated, including searches with no matches.
