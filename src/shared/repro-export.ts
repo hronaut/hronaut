@@ -20,7 +20,7 @@ function targetExpression(step: BrowserReproStep): string | null {
 
 export function formatReproAsPlaywright(recording: BrowserReproRecording): string {
   const supportedExpectation = (step: BrowserReproStep) => step.kind === 'expect' && Boolean(step.target?.selector)
-    && (step.expectation?.condition === 'visible' || step.expectation?.condition === 'hidden'
+    && (step.expectation?.condition === 'visible' || step.expectation?.condition === 'hidden' || step.expectation?.condition === 'checked' || step.expectation?.condition === 'unchecked'
       || (step.expectation?.condition === 'text' && typeof step.expectation.text === 'string'))
   const lines = [
     recording.steps.some(step => step.expectation) ? "import { test, expect } from '@playwright/test'" : "import { test } from '@playwright/test'",
@@ -42,6 +42,8 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
         lines.push(`  await expect(${target}).toHaveText(${quoted(expectation.text)})`)
       } else if (expectation.condition === 'visible' || expectation.condition === 'hidden') {
         lines.push(`  await expect(${target}).${expectation.condition === 'visible' ? 'toBeVisible' : 'toBeHidden'}()`)
+      } else if (expectation.condition === 'checked' || expectation.condition === 'unchecked') {
+        lines.push(`  await expect(${target}).${expectation.condition === 'unchecked' ? 'not.' : ''}toBeChecked()`)
       } else {
         lines.push(`  // TODO: Recreate unsupported expectation at step ${step.index}`)
       }

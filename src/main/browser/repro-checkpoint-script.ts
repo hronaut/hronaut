@@ -9,8 +9,12 @@ export function reproCheckpointScript(request: BrowserReproCheckpointInput): str
     catch { return { error: 'invalid-selector' }; }
     if (matches.length !== 1) return { error: 'ambiguous-target' };
     const element = matches[0];
-    if (element.matches('iframe,frame,input,textarea,select,[contenteditable]') || element.isContentEditable
-      || element.querySelector('input,textarea,select,[contenteditable]')) {
+    const checkedCondition = request.condition === 'checked' || request.condition === 'unchecked';
+    if (checkedCondition && (!(element instanceof HTMLInputElement)
+      || !['checkbox', 'radio'].includes(element.type) || element.indeterminate
+      || element.closest('[contenteditable]'))) return { error: 'unsupported-checked-target' };
+    if (!checkedCondition && (element.matches('iframe,frame,input,textarea,select,[contenteditable]') || element.isContentEditable
+      || element.querySelector('input,textarea,select,[contenteditable]'))) {
       return { error: 'excluded-target' };
     }
     const parts = [];
@@ -35,7 +39,8 @@ export function reproCheckpointScript(request: BrowserReproCheckpointInput): str
     const style = getComputedStyle(element);
     const visible = style.visibility !== 'hidden' && style.visibility !== 'collapse' && rect.width > 0 && rect.height > 0;
     const normalized = value => String(value).replace(/\\s+/g, ' ').trim();
-    const observedMatch = request.condition === 'visible' ? visible
+    const observedMatch = checkedCondition ? element.checked === (request.condition === 'checked')
+      : request.condition === 'visible' ? visible
       : request.condition === 'hidden' ? !visible
       : normalized(element.textContent || '') === normalized(request.text);
     return { selector, tag: element.localName, observedMatch };

@@ -44,3 +44,43 @@ describe('explicit Repro checkpoints', () => {
     expect(formatReproAsPlaywright({ ...recording, steps: [{ ...recording.steps[0]!, target: { selector: '', tag: 'p' } }] })).toContain('TODO: replace this line')
   })
 })
+
+
+it.each(['checkbox', 'radio'])('records only the explicit %s checked state, not its value', type => {
+  document.body.innerHTML = `<input type="${type}" value="private-value-canary" checked>`
+  try {
+    Object.defineProperty(document.querySelector('input')!, 'value', { get() { throw new Error('Form value must not be read') } })
+    const request = { ...input, selector: 'input', condition: 'checked' as const, text: undefined }
+    expect(reproCheckpointSchema.safeParse(request).success).toBe(true)
+    expect(window.eval(reproCheckpointScript(request))).toEqual({ selector: 'input', tag: 'input', observedMatch: true })
+    expect(window.eval(reproCheckpointScript({ ...request, condition: 'unchecked' }))).toEqual({ selector: 'input', tag: 'input', observedMatch: false })
+    document.querySelector('input')!.checked = false
+    expect(window.eval(reproCheckpointScript({ ...request, condition: 'unchecked' })).observedMatch).toBe(true)
+    expect(window.eval(reproCheckpointScript({ ...input, selector: 'input' }))).toEqual({ error: 'excluded-target' })
+    expect(reproCheckpointSchema.safeParse({ ...request, text: 'private-value-canary' }).success).toBe(false)
+  } finally { document.body.replaceChildren() }
+})
+
+it.each(['<input>', '<textarea></textarea>', '<div role="checkbox" aria-checked="true"></div>', '<div contenteditable><input type="checkbox"></div>'])('rejects unsupported checked-state targets: %s', html => {
+  document.body.innerHTML = html
+  try {
+    expect(window.eval(reproCheckpointScript({ ...input, selector: html.includes('input') ? 'input' : html.includes('textarea') ? 'textarea' : 'div', condition: 'checked', text: undefined }))).toEqual({ error: 'unsupported-checked-target' })
+  } finally { document.body.replaceChildren() }
+})
+
+it('exports checked and unchecked assertions without form values', () => {
+  const steps = (['checked', 'unchecked'] as const).map((condition, index) => ({ ...recording.steps[0]!, index: index + 1, target: { selector: 'input', tag: 'input' }, expectation: { condition, observedMatch: false } }))
+  const code = formatReproAsPlaywright({ ...recording, steps })
+  expect(code).toContain('.toBeChecked()')
+  expect(code).toContain('.not.toBeChecked()')
+  expect(code).not.toContain('TODO: replace this line')
+})
+
+
+it('rejects mixed checkbox state instead of presenting it as binary', () => {
+  document.body.innerHTML = '<input type="checkbox">'
+  try {
+    document.querySelector('input')!.indeterminate = true
+    expect(window.eval(reproCheckpointScript({ ...input, selector: 'input', condition: 'checked', text: undefined }))).toEqual({ error: 'unsupported-checked-target' })
+  } finally { document.body.replaceChildren() }
+})
