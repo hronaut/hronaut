@@ -126,3 +126,23 @@ it('uses a light-DOM fallback when open shadow roots make semantic uniqueness un
     document.body.replaceChildren()
   }
 })
+
+it('uses the unique requested selector when the bounded structural path is ambiguous', () => {
+  const branch = '<div>'.repeat(10) + '<span>Repeated region</span>' + '</div>'.repeat(10)
+  document.body.innerHTML = `<main><section>${branch}</section><section>${branch}</section></main>`
+  try {
+    const requested = 'main > section:nth-of-type(1) span'
+    const raw = globalThis.eval(playwrightLocatorScript({ selector: requested }))
+    const result = normalizeBrowserGeneratedLocator('tab', raw)
+    expect(document.querySelectorAll(result.selector)).toHaveLength(1)
+    expect(document.querySelector(result.selector)).toBe(document.querySelector(requested))
+    expect(result.locator).toBe(`page.locator(${JSON.stringify(`css:light=${requested}`)})`)
+    expect(() => globalThis.eval(playwrightLocatorScript({ selector: 'span' }))).toThrow(/unique bounded selector/)
+  } finally { document.body.replaceChildren() }
+})
+
+it('does not truncate or remove characters from a selector after its uniqueness check', () => {
+  for (const selector of ['#' + 'a'.repeat(1000), '#private\u0001name']) {
+    expect(() => normalizeBrowserGeneratedLocator('tab', { selector, candidates: [] })).toThrow(/usable selector/)
+  }
+})
