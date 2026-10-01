@@ -1,3 +1,4 @@
+import { registerIncidentPackageIpc } from './incident-package-ipc.js'
 import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
@@ -2912,6 +2913,20 @@ function registerIpc(): void {
   ipcMain.handle('browser:cancel-element-picker', (event, tabId) => {
     assertTrustedShellSender(event)
     return tabsManager!.cancelElementPicker(tabId)
+  })
+  registerIncidentPackageIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    tabs: () => tabsManager!,
+    version: app.getVersion(),
+    pickDestination: async () => {
+      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Browser window is unavailable')
+      const selection = await dialog.showSaveDialog(mainWindow, {
+        title: text('incident.save'), defaultPath: 'hronaut-incident.html',
+        filters: [{ name: 'HTML', extensions: ['html'] }],
+        properties: ['showOverwriteConfirmation', 'dontAddToRecent']
+      })
+      return selection.canceled ? undefined : selection.filePath
+    }
   })
   registerDiagnosticsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,

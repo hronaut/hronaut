@@ -2,6 +2,7 @@ import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
+  incident: {"hash": "SHA-256: {hash}", "title": "Geprüftes Vorfallpaket", "select": "Zu erfassende Nachweise auswählen", "repro": "Repro-Schritte", "network": "Bereinigte Netzwerkeinträge", "diagnostics": "Konsole und Diagnose", "minutes": "Letzte Minuten (1–60)", "capture": "Ausgewählte Nachweise erfassen", "expires": "Prüfung läuft ab am", "include": "Erfasste Artefakte behalten oder auslassen", "available": "Verfügbar", "empty": "Keine gespeicherten Einträge in diesem Zeitraum", "unavailable": "Nicht verfügbar", "oversize": "Ausgelassen: Größenlimit", "truncated": "Quelle gekürzt", "find": "Exakt zu ersetzender Text (optional)", "replacement": "Ersetzen durch", "preview": "Exaktes Paket prüfen", "reviewed": "Ich habe dieses Paket geprüft und genehmige das lokale Speichern dieser Daten.", "save": "Geprüftes HTML speichern", "discard": "Prüfung verwerfen", "working": "Wird bearbeitet…", "saved": "Geprüftes Paket lokal gespeichert.", "privacy": "Nur lokaler Text. Die Prüfung kann weiterhin private Informationen enthalten; keine Anonymisierungsgarantie. Screenshots, Inhalte, ZIP und Uploads sind nicht enthalten."},
   licenseNotice: {"expired": "Die Agentenautomatisierung ist gesperrt. Aktivieren oder erneuern Sie Ihre Lizenz. Gespeicherte Daten bleiben verfügbar.", "manage": "Lizenzeinstellungen", "purchase": "Kaufen oder verlängern ↗"},
   browserImport: browserImportMessages['de-DE'],
   video: enUS.video,

@@ -123,3 +123,14 @@ it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('preserves s
     await chmod(directory, 0o700)
   }
 })
+
+it('preserves the destination and removes staged bytes when authorization is revoked before commit', async () => {
+  directory = await mkdtemp(join(tmpdir(), 'hronaut-atomic-guard-'))
+  const path = join(directory, 'reviewed.html')
+  await writeFile(path, 'prior reviewed package', 'utf8')
+  await expect(writeTextFileAtomically(path, 'cancelled package', 0o600, () => {
+    throw new Error('Review discarded')
+  })).rejects.toThrow('Review discarded')
+  expect(await readFile(path, 'utf8')).toBe('prior reviewed package')
+  expect(await readdir(directory)).toEqual(['reviewed.html'])
+})

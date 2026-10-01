@@ -2,6 +2,7 @@ import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
+  incident: {"hash": "SHA-256: {hash}", "title": "Dossier d’incident vérifié", "privacy": "Texte local uniquement. Des informations privées peuvent subsister : aucune garantie d’anonymisation. Captures, corps, ZIP et téléversements exclus.", "select": "Choisir les éléments à capturer", "repro": "Étapes Repro", "network": "Entrées réseau filtrées", "diagnostics": "Console et diagnostics", "minutes": "Dernières minutes (1–60)", "capture": "Capturer la sélection", "expires": "La vérification expire le", "include": "Conserver ou omettre les éléments", "available": "Disponible", "empty": "Aucune entrée conservée dans cette période", "unavailable": "Indisponible", "oversize": "Omis : taille maximale", "truncated": "Source tronquée", "find": "Texte exact à remplacer (facultatif)", "replacement": "Remplacer par", "preview": "Prévisualiser le dossier exact", "reviewed": "J’ai vérifié ce dossier et j’autorise l’enregistrement local de ces données.", "save": "Enregistrer le HTML vérifié", "discard": "Abandonner la vérification", "working": "Traitement…", "saved": "Dossier vérifié enregistré localement."},
   licenseNotice: {"expired": "L’automatisation par les agents est bloquée. Activez ou renouvelez votre licence. Les données enregistrées restent disponibles.", "manage": "Paramètres de licence", "purchase": "Acheter ou renouveler ↗"},
   browserImport: browserImportMessages['fr-FR'],
   video: enUS.video,

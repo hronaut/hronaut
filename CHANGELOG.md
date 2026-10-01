@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add human-reviewed local incident HTML packages with bounded text evidence, artifact omission, exact-text replacement, frozen previews and integrity hashes.
+
 - Add opt-in component-scoped MCP snapshots with unique CSS roots, explicit outside-scope omission and fresh capture identities.
 
 - Add reviewed visibility and exact-text checkpoints to Repro recordings, with intended outcomes separate from observed matches and Playwright assertion exports.
