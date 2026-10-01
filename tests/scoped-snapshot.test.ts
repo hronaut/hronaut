@@ -68,3 +68,42 @@ it.each([undefined, '#target'])('omits editable descendant values from snapshot 
   expect(result.text).not.toContain('private-rich-control')
   expect(document.querySelector('#target')!.textContent).toBe(original)
 })
+
+
+it.each(['', 'true', 'plaintext-only'])('omits %s editors while preserving inline words, block text and visible overrides', mode => {
+  fixture()
+  document.querySelector('#target')!.innerHTML = `<span>Hel</span><b>lo</b><div contenteditable="${mode}">private-editor-canary</div><p>Public after</p><div style="display:none">hidden-canary</div><div style="visibility:hidden">hidden-parent-canary<span style="visibility:visible">Visible override</span></div>`
+  const result = capture('#target')
+  expect(result.text).toContain('Hello')
+  expect(result.text).toContain('Public after')
+  expect(result.text).toContain('Visible override')
+  expect(result.text).not.toContain('private-editor-canary')
+  expect(result.text).not.toContain('hidden-canary')
+  expect(result.text).not.toContain('hidden-parent-canary')
+})
+
+it('preserves non-editable false regions outside editors', () => {
+  fixture()
+  document.querySelector('#target')!.innerHTML = '<div contenteditable="false">Public readonly content</div><div contenteditable="true">private-editor-canary</div>'
+  expect(capture('#target').text).toContain('Public readonly content')
+  expect(capture('#target').text).not.toContain('private-editor-canary')
+})
+
+it('reports bounded traversal omission instead of overflowing on deeply nested editor containers', () => {
+  fixture()
+  document.querySelector('#target')!.innerHTML = '<div>'.repeat(150) + '<div contenteditable="true">private-editor-canary</div>' + '</div>'.repeat(150) + '<p>Public sibling</p>'
+  const result = capture('#target')
+  expect(result).toMatchObject({ truncated: true, omitted: { characters: true } })
+  expect(result.text).toContain('Public sibling')
+  expect(result.text).not.toContain('private-editor-canary')
+})
+
+
+it('bounds wide editor-containing traversal and reports the omitted tail', () => {
+  fixture()
+  document.querySelector('#target')!.innerHTML = '<span></span>'.repeat(12000) + '<div contenteditable="true">private-editor-canary</div><p>late-public-sibling</p>'
+  const result = capture('#target')
+  expect(result).toMatchObject({ truncated: true, omitted: { characters: true } })
+  expect(result.text).not.toContain('private-editor-canary')
+  expect(result.text).not.toContain('late-public-sibling')
+})

@@ -1,9 +1,11 @@
+import { snapshotTextHelpersSource } from './snapshot-text.js'
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../../shared/snapshot.js'
 
 export function snapshotScript(maxChars: number, includeMetadata = false, rootSelector?: string): string {
   return `(() => {
     const MAX_CHARS = ${maxChars};
+    ${snapshotTextHelpersSource()}
     const rootSelector = ${javascriptLiteral(rootSelector ?? null)};
     let root = document;
     if (rootSelector !== null) {
@@ -12,7 +14,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
       catch { return { scopeError: 'invalid-selector' }; }
       if (matches.length !== 1) return { scopeError: matches.length ? 'ambiguous-root' : 'missing-root' };
       root = matches[0];
-      if (root.matches('iframe,frame,input,textarea,select,[contenteditable]') || root.isContentEditable) return { scopeError: 'unsupported-root' };
+      if (root.matches('iframe,frame,input,textarea,select,[contenteditable]') || snapshotEditingContext(root)) return { scopeError: 'unsupported-root' };
     }
     const select = selector => root === document ? [...document.querySelectorAll(selector)]
       : [...(root.matches(selector) ? [root] : []), ...root.querySelectorAll(selector)];
@@ -51,30 +53,31 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
     if (rootSelector !== null) add('SCOPE: component; content outside the root is omitted, including global dialogs and navigation controls');
     add('URL: ' + safeUrl(location.href));
     add('TITLE: ' + document.title);
-    const visibleHeadings = select('h1,h2,h3').filter(visible);
+    const visibleHeadings = select('h1,h2,h3').filter(element => visible(element) && !snapshotEditingContext(element));
     omitted.headings = visibleHeadings.length > 80;
     const headings = visibleHeadings.slice(0, 80);
     for (const heading of headings) {
-      const text = (heading.innerText || '').replace(/\\s+/g, ' ').trim();
+      const text = snapshotSafeText(heading).replace(/\\s+/g, ' ').trim();
       if (text.length > 300) omitted.headings = true;
       if (text) add(heading.tagName.toLowerCase() + ': ' + text.slice(0, 300));
     }
-    const visibleElements = select(interactive).filter(visible);
+    const visibleElements = select(interactive).filter(element => visible(element) && !snapshotEditingContext(element.parentElement));
     omitted.controls = visibleElements.length > 500;
     const elements = visibleElements.slice(0, 500);
     for (const element of elements) {
       const ref = 'e' + (++refIndex);
       element.setAttribute('data-hronaut-ref', ref);
       const role = element.getAttribute('role') || element.tagName.toLowerCase();
-      const label = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || element.innerText || '';
+      const label = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || snapshotSafeText(element);
       if (String(label).replace(/\\s+/g, ' ').trim().length > 300) omitted.controls = true;
       const href = element instanceof HTMLAnchorElement ? ' href=' + JSON.stringify(safeUrl(element.href)) : '';
       const state = element.disabled ? ' disabled' : element.checked ? ' checked' : '';
       add('[' + ref + '] ' + role + ' ' + JSON.stringify(String(label).replace(/\\s+/g, ' ').trim().slice(0, 300)) + href + state);
     }
-    const bodyText = ((root === document ? document.body : root)?.innerText || '').replace(/\\s+/g, ' ').trim();
+    const bodyText = snapshotSafeText(root === document ? document.body : root).replace(/\\s+/g, ' ').trim();
     omitted.bodyText = bodyText.length > Math.max(0, MAX_CHARS - lines.join('\\n').length - (lines.length ? 1 : 0) - 6);
     if (bodyText) add('TEXT: ' + bodyText.slice(0, Math.max(0, MAX_CHARS - lines.join('\\n').length)));
+    if (snapshotTextLimited) omitted.characters = true;
     const text = lines.join('\\n').slice(0, MAX_CHARS);
     if (root !== document && !root.isConnected) return { scopeError: 'detached-root' };
     return ${includeMetadata} ? { ...(rootSelector === null ? {} : { scope: { kind: 'component', rootTag: root.localName, outsideScopeOmitted: true } }), formatVersion: ${BROWSER_SNAPSHOT_FORMAT_VERSION}, text, maxChars: MAX_CHARS, returnedChars: text.length,
