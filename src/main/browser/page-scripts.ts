@@ -1,8 +1,21 @@
+import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../../shared/snapshot.js'
 
-export function snapshotScript(maxChars: number, includeMetadata = false): string {
+export function snapshotScript(maxChars: number, includeMetadata = false, rootSelector?: string): string {
   return `(() => {
     const MAX_CHARS = ${maxChars};
+    const rootSelector = ${javascriptLiteral(rootSelector ?? null)};
+    let root = document;
+    if (rootSelector !== null) {
+      let matches;
+      try { matches = document.querySelectorAll(rootSelector); }
+      catch { return { scopeError: 'invalid-selector' }; }
+      if (matches.length !== 1) return { scopeError: matches.length ? 'ambiguous-root' : 'missing-root' };
+      root = matches[0];
+      if (root.matches('iframe,frame,input,textarea,select,[contenteditable]') || root.isContentEditable) return { scopeError: 'unsupported-root' };
+    }
+    const select = selector => root === document ? [...document.querySelectorAll(selector)]
+      : [...(root.matches(selector) ? [root] : []), ...root.querySelectorAll(selector)];
     const interactive = 'a,button,input,textarea,select,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="tab"],[contenteditable="true"]';
     const safeUrl = (value) => {
       try {
@@ -26,6 +39,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false): strin
       const rect = element.getBoundingClientRect();
       return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
     };
+    if (root !== document && !visible(root)) return { scopeError: 'hidden-root' };
     let refIndex = 0;
     for (const element of document.querySelectorAll('[data-hronaut-ref]')) element.removeAttribute('data-hronaut-ref');
     const lines = [];
@@ -34,9 +48,10 @@ export function snapshotScript(maxChars: number, includeMetadata = false): strin
       if (lines.join('\\n').length + (lines.length ? 1 : 0) + line.length > MAX_CHARS) omitted.characters = true;
       if (lines.join('\\n').length < MAX_CHARS) lines.push(line);
     };
+    if (rootSelector !== null) add('SCOPE: component; content outside the root is omitted, including global dialogs and navigation controls');
     add('URL: ' + safeUrl(location.href));
     add('TITLE: ' + document.title);
-    const visibleHeadings = [...document.querySelectorAll('h1,h2,h3')].filter(visible);
+    const visibleHeadings = select('h1,h2,h3').filter(visible);
     omitted.headings = visibleHeadings.length > 80;
     const headings = visibleHeadings.slice(0, 80);
     for (const heading of headings) {
@@ -44,7 +59,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false): strin
       if (text.length > 300) omitted.headings = true;
       if (text) add(heading.tagName.toLowerCase() + ': ' + text.slice(0, 300));
     }
-    const visibleElements = [...document.querySelectorAll(interactive)].filter(visible);
+    const visibleElements = select(interactive).filter(visible);
     omitted.controls = visibleElements.length > 500;
     const elements = visibleElements.slice(0, 500);
     for (const element of elements) {
@@ -57,11 +72,12 @@ export function snapshotScript(maxChars: number, includeMetadata = false): strin
       const state = element.disabled ? ' disabled' : element.checked ? ' checked' : '';
       add('[' + ref + '] ' + role + ' ' + JSON.stringify(String(label).replace(/\\s+/g, ' ').trim().slice(0, 300)) + href + state);
     }
-    const bodyText = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim();
+    const bodyText = ((root === document ? document.body : root)?.innerText || '').replace(/\\s+/g, ' ').trim();
     omitted.bodyText = bodyText.length > Math.max(0, MAX_CHARS - lines.join('\\n').length - (lines.length ? 1 : 0) - 6);
     if (bodyText) add('TEXT: ' + bodyText.slice(0, Math.max(0, MAX_CHARS - lines.join('\\n').length)));
     const text = lines.join('\\n').slice(0, MAX_CHARS);
-    return ${includeMetadata} ? { formatVersion: ${BROWSER_SNAPSHOT_FORMAT_VERSION}, text, maxChars: MAX_CHARS, returnedChars: text.length,
+    if (root !== document && !root.isConnected) return { scopeError: 'detached-root' };
+    return ${includeMetadata} ? { ...(rootSelector === null ? {} : { scope: { kind: 'component', rootTag: root.localName, outsideScopeOmitted: true } }), formatVersion: ${BROWSER_SNAPSHOT_FORMAT_VERSION}, text, maxChars: MAX_CHARS, returnedChars: text.length,
       truncated: Object.values(omitted).some(Boolean), omitted } : text;
   })()`
 }

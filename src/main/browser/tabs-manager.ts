@@ -4587,13 +4587,27 @@ export class BrowserTabsManager {
     return (await this.snapshotDetails(tabId, maxChars)).text
   }
 
-  async snapshotDetails(tabId?: string, maxChars = 30_000): Promise<BrowserSnapshot> {
+  async snapshotDetails(tabId?: string, maxChars = 30_000, rootSelector?: string): Promise<BrowserSnapshot> {
     const tab = this.getTab(tabId)
+    if (rootSelector !== undefined && (!rootSelector.trim() || rootSelector.length > 512)) {
+      throw new TypeError('Snapshot root must be a non-empty CSS selector of at most 512 characters')
+    }
     const context = this.snapshotDeltaContext(tab)
     const snapshot = await tab.webContents.executeJavaScript(
-      snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true),
+      snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true, rootSelector),
       true
-    ) as BrowserSnapshot
+    ) as BrowserSnapshot & { scopeError?: string }
+    if (snapshot.scopeError) {
+      const messages: Record<string, string> = {
+        'invalid-selector': 'Snapshot root selector is not valid CSS',
+        'missing-root': 'Snapshot root was not found; capture a fresh target',
+        'ambiguous-root': 'Snapshot root must match exactly one element',
+        'unsupported-root': 'Snapshot root must be a non-editable light-DOM component, not a form control or frame',
+        'hidden-root': 'Snapshot root is not visible; choose a visible component',
+        'detached-root': 'Snapshot root detached during capture; capture a fresh target'
+      }
+      throw new Error(messages[snapshot.scopeError] ?? 'Snapshot root could not be captured')
+    }
     if (snapshot.formatVersion !== BROWSER_SNAPSHOT_FORMAT_VERSION) {
       throw new Error('The page snapshot format changed during capture. Capture a fresh snapshot.')
     }
@@ -4605,7 +4619,7 @@ export class BrowserTabsManager {
     if (invalidation) {
       throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
     }
-    return snapshot
+    return rootSelector === undefined ? snapshot : { ...snapshot, captureId: randomUUID() }
   }
 
   async observationQuality(options: {
