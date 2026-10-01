@@ -80,7 +80,7 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     expect(html).not.toContain('later-live-evidence')
     const hash = createHash('sha256').update(html).digest('hex')
     await expect(panel).toContainText(hash)
-    const source = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)
+    const source = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId, includeSuccessfulRequests: true }), tabId)
     expect(source.console.some(entry => entry.message.includes('private-canary'))).toBe(true)
     expect(JSON.stringify(source)).toContain('field-path-canary')
     expect(source.network.some(request => request.method === 'GET')).toBe(true)
