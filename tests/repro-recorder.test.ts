@@ -238,3 +238,30 @@ describe('Repro checkpoint stalled page reads', () => {
     }
   })
 })
+
+it('times out a stalled start without accepting its late result or blocking a retry', async () => {
+  vi.useFakeTimers()
+  const f = fixture()
+  let release!: (value: { x: number; y: number }) => void
+  f.executeJavaScript.mockImplementationOnce(() => new Promise(resolve => { release = resolve }))
+  let outcome = 'pending'
+  const pending = f.recorder.manage(f.tab, 'start').then(
+    () => { outcome = 'accepted' },
+    error => { outcome = String(error) }
+  )
+  try {
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(outcome).toContain('Reproduction start timed out')
+    expect((await f.recorder.manage(f.tab, 'get')).active).toBe(false)
+    const restarted = await f.recorder.manage(f.tab, 'start')
+    expect(restarted).toMatchObject({ active: true, stepCount: 1 })
+    release({ x: 0, y: 999 })
+    await pending
+    expect(await f.recorder.manage(f.tab, 'get')).toEqual(restarted)
+    expect(f.tab.reproRecording!.scrollPosition).toEqual({ x: 0, y: 0 })
+  } finally {
+    release({ x: 0, y: 999 })
+    await pending
+    f.recorder.clearReproRecording(f.tab)
+  }
+})
