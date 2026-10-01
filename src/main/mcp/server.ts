@@ -1,3 +1,4 @@
+import { reproCheckpointSchema } from '../../shared/repro-checkpoint.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
 import { videoOptionsShape, type BrowserVideoOptions } from '../../shared/video.js'
@@ -3952,20 +3953,22 @@ function createBrowserMcpServer(
       description: toolDescription('browser_repro'),
       inputSchema: {
         tabId: tabIdSchema.optional(),
-        action: z.enum(['start', 'get', 'stop', 'clear']).default('get'),
-        format: z.enum(['json', 'playwright']).default('json')
+        action: z.enum(['start', 'get', 'stop', 'clear', 'checkpoint']).default('get'),
+        format: z.enum(['json', 'playwright']).default('json'),
+        checkpoint: reproCheckpointSchema.optional()
       }
     },
     tabTool('browser_repro', async ({
       tabId,
       action,
-      format
+      format, checkpoint
     }: {
       tabId?: string
-      action: 'start' | 'get' | 'stop' | 'clear'
+      action: 'start' | 'get' | 'stop' | 'clear' | 'checkpoint'
       format: 'json' | 'playwright'
+      checkpoint?: z.infer<typeof reproCheckpointSchema>
     }) => {
-      const recording = await manager.reproRecording(action, tabId)
+      const recording = await manager.reproRecording(action, tabId, checkpoint)
       return textResult(format === 'playwright' ? formatReproAsPlaywright(recording) : recording)
     })
   )

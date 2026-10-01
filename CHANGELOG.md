@@ -4,6 +4,9 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add reviewed visibility and exact-text checkpoints to Repro recordings, with intended outcomes separate from observed matches and Playwright assertion exports.
 ### Fixed
 
 - Restore arrow-key selection within workspace starting-data, site-access and data-transfer radio groups.

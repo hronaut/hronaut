@@ -2374,6 +2374,7 @@ export const deDE = {
     }
   },
   "repro": {
+    "checkpoint": {"title": "Prüfpunkt für das erwartete Ergebnis", "condition": "Bedingung", "visible": "Sichtbar", "hidden": "Verborgen", "text": "Exakter Text", "review": "Ich habe Ziel und Text zur Weitergabe geprüft; dies ist das gewünschte Ergebnis, kein Erfolgsnachweis.", "add": "Prüfpunkt hinzufügen", "matched": "Stimmt derzeit überein", "notMatched": "Stimmt derzeit nicht überein"},
     "selectorUnavailable": "Kein eindeutiger Selektor; diesen Schritt manuell nachbilden.",
     "kicker": "Datenschutzfreundliche Zeitleiste",
     "heading": "Reproduktionsaufzeichnung",

@@ -2374,6 +2374,7 @@ export const plPL = {
     }
   },
   "repro": {
+    "checkpoint": {"title": "Punkt kontrolny oczekiwanego wyniku", "condition": "Warunek", "visible": "Widoczny", "hidden": "Ukryty", "text": "Dokładny tekst", "review": "Sprawdzono cel i tekst do udostępnienia; to oczekiwany wynik, a nie dowód powodzenia.", "add": "Dodaj punkt kontrolny", "matched": "Obecnie zgodny", "notMatched": "Obecnie niezgodny"},
     "selectorUnavailable": "Brak unikalnego selektora; odtwórz ten krok ręcznie.",
     "kicker": "Oś czasu chroniąca prywatność",
     "heading": "Rejestrator odtwarzania",

@@ -5822,8 +5822,8 @@ export class BrowserTabsManager {
     return this.videoRecorder.preview(this.getTab(tabId).id)
   }
 
-  async reproRecording(action: BrowserReproAction, tabId?: string): Promise<BrowserReproRecording> {
-    return this.reproRecorder.manage(this.getTab(tabId), action)
+  async reproRecording(action: BrowserReproAction, tabId?: string, checkpoint?: unknown): Promise<BrowserReproRecording> {
+    return this.reproRecorder.manage(this.getTab(tabId), action, checkpoint)
   }
 
   async domChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport> {

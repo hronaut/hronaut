@@ -1,3 +1,4 @@
+import type { BrowserReproCheckpointInput } from '../../../shared/repro-checkpoint.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { ref, watch, type Ref } from 'vue'
 import { formatReproAsPlaywright } from '../../../shared/repro-export.js'
@@ -176,7 +177,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       && options.activeTab.value.navigationGeneration === request.tab.navigationGeneration
   }
 
-  function beginRecorderRequest(domain: RecorderDomain, action: BrowserDomChangesAction): ReturnType<typeof begin> {
+  function beginRecorderRequest(domain: RecorderDomain, action: BrowserDomChangesAction | 'checkpoint'): ReturnType<typeof begin> {
     // Background reads must not supersede an in-flight user action on this page.
     const mutation = recorderMutations[domain]
     if (action === 'get' && mutation && current(domain, mutation)) return null
@@ -468,7 +469,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     await copyWithFeedback('debug', JSON.stringify(debugReport.value, null, 2), debugReportCopied)
   }
 
-  async function manageRepro(action: 'start' | 'get' | 'stop' | 'clear'): Promise<void> {
+  async function manageRepro(action: 'start' | 'get' | 'stop' | 'clear' | 'checkpoint', checkpoint?: BrowserReproCheckpointInput): Promise<void> {
     const request = beginRecorderRequest('repro', action)
     if (!request) return
     reproState.value = 'loading'
@@ -478,7 +479,9 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       reproPlaywrightCopied.value = false
     }
     try {
-      const recording = await options.browser.manageRepro(action, request.tab.id)
+      const recording = await (checkpoint
+        ? options.browser.manageRepro(action, request.tab.id, checkpoint)
+        : options.browser.manageRepro(action, request.tab.id))
       if (!current('repro', request)) return
       reproRecording.value = recording
       reproState.value = 'ready'
