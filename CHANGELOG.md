@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Stop truncated Repro exports before replay so retained checkpoints cannot hide steps omitted at the recording limit.
+
 - Fail a stalled Repro startup page read after five seconds, leave the recording inactive, and allow retry without accepting the late result.
 
 - Keep page URL waits pending when only an iframe changes its route; match the main frame for both full-document and same-document navigation.

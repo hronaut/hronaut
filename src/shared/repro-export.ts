@@ -32,6 +32,10 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
     `test(${quoted(`reproduce: ${recording.title || 'recorded issue'}`)}, async ({ page }) => {`
   ]
 
+  if (recording.truncated) {
+    lines.push(`  throw new Error(${quoted('TODO: Complete the truncated recording before running this test')})`)
+  }
+
   if (!recording.steps.length) lines.push('  // TODO: Record the reproduction steps before running this test.')
 
   for (const step of recording.steps) {

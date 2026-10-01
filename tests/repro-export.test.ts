@@ -66,6 +66,32 @@ describe('Playwright repro export', () => {
     }
   )
 
+  it.each([false, true])('requires review before replaying a truncated timeline (truncated=%s)', async truncated => {
+    const checkpoint: BrowserReproStep = {
+      ...recording.steps[0]!, index: 2, kind: 'expect',
+      target: { selector: '#ready', tag: 'p' },
+      expectation: { condition: 'text', text: 'Ready', observedMatch: true }
+    }
+    const code = formatReproAsPlaywright({ ...recording, truncated, steps: [recording.steps[0]!, checkpoint], stepCount: 2 })
+    let execution: Promise<void> | undefined
+    let actions = 0
+    const page = { goto: async () => { actions += 1 }, locator: () => ({}) }
+    const assert = () => ({ toHaveText: async () => { actions += 1 } })
+    new Function('test', 'expect', code.replace(/^import[^\n]*\n/u, ''))(
+      (_name: string, body: (context: { page: typeof page }) => Promise<void>) => { execution = body({ page }) }, assert
+    )
+    expect(execution).toBeDefined()
+    if (truncated) {
+      await expect(execution).rejects.toThrow('TODO: Complete the truncated recording before running this test')
+      expect(actions).toBe(0)
+    } else {
+      await execution
+      expect(actions).toBe(2)
+    }
+    expect(code).toContain('await page.goto(')
+    expect(code).toContain('.toHaveText("Ready")')
+  })
+
   it('warns when the exported timeline is active or truncated', () => {
     const result = formatReproAsPlaywright({ ...recording, active: true, truncated: true })
     expect(result).toContain('recording was still active')
