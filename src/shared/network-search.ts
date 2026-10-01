@@ -139,6 +139,14 @@ export function searchNetworkDetails(input: SearchInput): BrowserNetworkSearchRe
   const matches: BrowserNetworkSearchMatch[] = []
   let totalOccurrences = 0
   let truncated = input.availableRequestCount > input.details.length
+    || input.details.some(details => (
+      details.request.body?.truncated === true
+      || details.response.body.truncated === true
+      || (details.webSocket?.droppedMessages ?? 0) > 0
+      || details.webSocket?.messages.some(message => message.truncated === true)
+      || (details.eventSource?.droppedMessages ?? 0) > 0
+      || details.eventSource?.messages.some(message => message.truncated)
+    ))
 
   for (const details of input.details) {
     for (const field of searchableFields(details)) {
@@ -183,6 +191,7 @@ export function searchNetworkDetails(input: SearchInput): BrowserNetworkSearchRe
       'Search covers bounded sanitized URLs, errors, request and response headers, request and response text bodies, retained WebSocket text messages, and retained server-sent events.',
       'Known secret fields are redacted before matching. Arbitrary text receives best-effort filtering and snippets must still be reviewed before sharing.',
       'Binary and multipart payloads are omitted, and Chromium may no longer retain older response bodies.',
+      'Truncation includes clipped request/response bodies, clipped stream messages, and dropped retained stream messages; zero matches do not prove absence from omitted content.',
       `Only the most recent ${options.maxRequests} retained requests and up to ${options.maxResults} matching fields are included.`
     ]
   }
