@@ -110,6 +110,7 @@ describe('network search', () => {
       snippet: 'event-ready'
     })])
     expect(result.unavailableResponseBodyCount).toBe(0)
+    expect(result.truncated).toBe(false)
   })
 
   it('searches retained server-sent event names, IDs, and sanitized data', () => {
@@ -143,6 +144,26 @@ describe('network search', () => {
       snippet: expect.stringContaining('progress-kept')
     })])
     expect(result.unavailableResponseBodyCount).toBe(0)
+    expect(result.truncated).toBe(false)
+  })
+
+  it.each([
+    { name: 'request body', value: { request: { headers: {}, body: { text: 'retained-marker', truncated: true } } } },
+    { name: 'response body', value: { response: { headers: {}, body: { available: true, text: 'retained-marker', truncated: true } } } },
+    { name: 'WebSocket text', value: { webSocket: { open: false, droppedMessages: 0, messages: [{ direction: 'received' as const, kind: 'text' as const, timestamp: '', sizeBytes: 100, text: 'retained-marker', truncated: true }] } } },
+    { name: 'dropped WebSocket messages', value: { webSocket: { open: false, droppedMessages: 1, messages: [] } } },
+    { name: 'event text', value: { eventSource: { open: false, droppedMessages: 0, messages: [{ timestamp: '', eventName: 'message', sizeBytes: 100, data: 'retained-marker', originalChars: 100, truncated: true, redacted: false }] } } },
+    { name: 'dropped events', value: { eventSource: { open: false, droppedMessages: 1, messages: [] } } }
+  ])('reports an incomplete search when $name was truncated', ({ value }) => {
+    for (const query of ['retained-marker', 'omitted-marker']) {
+      const result = searchNetworkDetails({
+        tabId: 'tab-1', availableRequestCount: 1, details: [details(value)],
+        options: normalizeNetworkSearchOptions({ query })
+      })
+      expect(result.truncated).toBe(true)
+      expect(result.searchedRequestCount).toBe(1)
+      if (query === 'omitted-marker') expect(result.resultCount).toBe(0)
+    }
   })
 
   it('bounds requests, results, bodies, and query input', () => {

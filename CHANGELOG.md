@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Mark Network searches as bounded when request or response bodies, stream messages, or retained stream history were truncated, including searches with no matches.
+
 - Stop generated Repro tests at unresolved manual steps instead of allowing another passing checkpoint to hide a skipped action.
 
 - Clear MCP endpoint copy feedback when the address changes, so a newly configured endpoint is not shown as already copied.

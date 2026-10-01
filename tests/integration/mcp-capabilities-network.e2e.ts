@@ -766,4 +766,27 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
     snippet: expect.stringContaining(`${unicodeQuery.toUpperCase()} ${unicodeQuery}`)
   })]))
 
+  const omittedMarker = 'bounded-network-tail-marker'
+  const boundedBody = JSON.stringify({ message: 'x'.repeat(1500) + omittedMarker })
+  const sentBounded = await client.callTool({ name: 'browser_evaluate', arguments: {
+    tabId, script: `fetch('/api-details?bounded-search=1', { method: 'POST', headers: { 'content-type': 'application/json' }, body: ${JSON.stringify(boundedBody)} }).then(response => response.text())`
+  } }) as CallToolResult
+  expect(sentBounded.isError, text(sentBounded)).not.toBe(true)
+  await expect.poll(async () => {
+    const searched = await client.callTool({ name: 'browser_network_search', arguments: {
+      tabId, query: omittedMarker, maxBodyChars: 1000, maxRequests: 100
+    } }) as CallToolResult
+    expect(searched.isError, text(searched)).not.toBe(true)
+    const result = JSON.parse(text(searched))
+    expect(result.searchedRequestCount).toBe(result.availableRequestCount)
+    return { resultCount: result.resultCount, truncated: result.truncated }
+  }).toEqual({ resultCount: 0, truncated: true })
+  const expandedSearch = await client.callTool({ name: 'browser_network_search', arguments: {
+    tabId, query: omittedMarker, maxBodyChars: 4000, maxRequests: 100
+  } }) as CallToolResult
+  expect(expandedSearch.isError, text(expandedSearch)).not.toBe(true)
+  expect(JSON.parse(text(expandedSearch)).matches).toEqual([
+    expect.objectContaining({ field: 'request-body', snippet: expect.stringContaining(omittedMarker) })
+  ])
+
 })
