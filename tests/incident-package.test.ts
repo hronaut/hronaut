@@ -95,3 +95,19 @@ it('bounds aggregate expansion across many individually small strings', async ()
   const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
   expect(() => service.review(1, { draftId: draft.draftId, include: ['repro'], replacements: [{ find: 'a', replacement: 'b'.repeat(256) }] })).toThrow('size limit')
 })
+
+
+it('rejects replacement key collisions without losing evidence or retaining an older export approval', async () => {
+  const { service, source } = fixture()
+  const original = structuredClone(source)
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const request = { draftId: draft.draftId, include: ['repro'], replacements: [] }
+  const previous = service.review(1, request)
+  expect(() => service.review(1, { ...request, replacements: [{ find: 'description', replacement: 'index' }] })).toThrow('merge fields')
+  expect(() => service.export(1, draft.draftId, previous.previewId)).toThrow('changed')
+  expect(source).toEqual(original)
+  const corrected = service.review(1, { ...request, replacements: [{ find: 'private-canary', replacement: '[REMOVED]' }] })
+  expect(corrected.html).toContain('&quot;description&quot;')
+  expect(corrected.html).toContain('&quot;index&quot;')
+  expect(corrected.html).not.toContain('private-canary')
+})

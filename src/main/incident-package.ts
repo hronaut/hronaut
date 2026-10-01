@@ -142,7 +142,15 @@ export class IncidentPackages {
 function transformStrings(value: unknown, transform: (value: string) => string): unknown {
   if (typeof value === 'string') return transform(value)
   if (Array.isArray(value)) return value.map(item => transformStrings(item, transform))
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [transform(key), transformStrings(item, transform)]))
+  if (value && typeof value === 'object') {
+    const keys = new Set<string>()
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+      const transformedKey = transform(key)
+      if (keys.has(transformedKey)) throw new Error('Text replacement or redaction would merge fields; use a narrower rule')
+      keys.add(transformedKey)
+      return [transformedKey, transformStrings(item, transform)]
+    }))
+  }
   return value
 }
 
