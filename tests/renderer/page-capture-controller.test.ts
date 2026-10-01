@@ -280,3 +280,36 @@ describe('page capture controller', () => {
     expect(controller.captureState.value).toBe('idle')
   })
 })
+
+it.each(['url', 'reload'] as const)('invalidates screenshot feedback on same-tab %s navigation', async change => {
+  const { activeTab, browser, controller, onCaptureCopied } = createController()
+  const pending = deferred<BrowserPageCaptureResult>()
+  browser.capturePage.mockImplementationOnce(() => pending.promise)
+  const capturing = controller.capturePage('viewport')
+  expect(controller.captureState.value).toBe('capturing')
+  activeTab.value = { ...activeTab.value!, ...(change === 'url'
+    ? { url: 'https://example.test/next' }
+    : { navigationGeneration: 1 }) }
+  expect(controller.captureState.value).toBe('idle')
+  pending.resolve({ copied: true, width: 100, height: 80 })
+  await capturing
+  expect(onCaptureCopied).not.toHaveBeenCalled()
+  expect(controller.captureState.value).toBe('idle')
+  controller.dispose()
+})
+
+it('cancels a pending element picker when the same tab reloads', async () => {
+  const { activeTab, browser, controller, onElementCopied, onCaptureCopied } = createController()
+  const pending = deferred<BrowserElementSelection>()
+  browser.pickElement.mockImplementationOnce(() => pending.promise)
+  const picking = controller.toggleElementPicker()
+  activeTab.value = { ...activeTab.value!, navigationGeneration: 1 }
+  expect(browser.cancelElementPicker).toHaveBeenCalledWith('tab-1')
+  pending.resolve({ copied: true, canceled: false })
+  await picking
+  expect(onElementCopied).not.toHaveBeenCalled()
+  expect(onCaptureCopied).not.toHaveBeenCalled()
+  expect(controller.elementState.value).toBe('idle')
+  expect(controller.captureState.value).toBe('idle')
+  controller.dispose()
+})

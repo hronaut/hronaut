@@ -263,9 +263,12 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   const stopContextWatcher = watch(
-    () => options.activeTab.value?.id,
-    (tabId, previousTabId) => {
-      if (tabId === previousTabId) return
+    () => [options.activeTab.value?.id, options.activeTab.value?.url, options.activeTab.value?.navigationGeneration] as const,
+    ([tabId, url, navigationGeneration], previousContext) => {
+      if (previousContext && tabId === previousContext[0] && url === previousContext[1]
+        && navigationGeneration === previousContext[2]) return
+      // Area selection owns a frozen image and intentionally survives navigation.
+      if (previousContext && tabId === previousContext[0] && captureState.value === 'picking') return
       invalidateContext()
     },
     { immediate: true, flush: 'sync' }
