@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Documentation
+
+- Add an incident handoff checklist and companion-note example for reviewed setup, safe replacement inputs and bounded observation conditions.
+
 ## [2.11.4] - 2026-10-01
 
 ### Fixed
