@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type { HronautMcpApi, McpControlState } from '../../../shared/types.js'
 
 export interface McpStatusControllerOptions {
@@ -140,7 +140,15 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     }
   }
 
+  const stopEndpointTracking = watch(options.endpoint, () => {
+    copySequence += 1
+    if (copiedTimer !== undefined) window.clearTimeout(copiedTimer)
+    copiedTimer = undefined
+    copied.value = false
+  }, { flush: 'sync' })
+
   function dispose(): void {
+    stopEndpointTracking()
     summaryOpen.value = false
     generation += 1
     listenerGeneration += 1

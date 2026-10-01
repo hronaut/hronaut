@@ -201,6 +201,38 @@ describe('MCP status controller', () => {
     controller.dispose()
   })
 
+  it('clears copied feedback immediately when the endpoint changes', async () => {
+    vi.useFakeTimers()
+    const { controller, endpoint } = createController()
+    await controller.copyEndpoint()
+    expect(controller.copied.value).toBe(true)
+
+    endpoint.value = 'http://127.0.0.1:49000/mcp'
+
+    expect(controller.copied.value).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+    await controller.copyEndpoint()
+    expect(controller.copied.value).toBe(true)
+    controller.dispose()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('ignores a pending copy when the endpoint changes away and back', async () => {
+    const copying = deferred<boolean>()
+    const { controller, copyText, endpoint } = createController()
+    copyText.mockReturnValueOnce(copying.promise)
+    const originalEndpoint = endpoint.value
+    const operation = controller.copyEndpoint()
+
+    endpoint.value = 'http://127.0.0.1:49000/mcp'
+    endpoint.value = originalEndpoint
+    copying.resolve(true)
+
+    await expect(operation).resolves.toBe(false)
+    expect(controller.copied.value).toBe(false)
+    controller.dispose()
+  })
+
   it('reports the MCP source error when listener cleanup also fails', async () => {
     const initial = deferred<McpControlState>()
     const sourceError = new Error('MCP status unavailable')
