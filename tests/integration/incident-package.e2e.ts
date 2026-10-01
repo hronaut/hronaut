@@ -88,6 +88,20 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     expect(manifest.artifacts.filter(a => a.sha256).map(a => a.sha256)).toEqual(texts.slice(1).map(text => createHash('sha256').update(text).digest('hex')))
     expect(remoteRequests).toBe(0)
     expect(unsafeRequests).toBe(0)
+
+    // Main may invalidate a reviewed draft before the renderer's next operation.
+    // A failed refresh must not leave old approved bytes looking saveable.
+    await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.discardIncident())
+    await panel.getByRole('button', { name: 'Preview exact package' }).click()
+    await expect(panel.getByRole('alert')).toContainText('missing or replaced')
+    await expect(panel.locator('iframe')).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: 'Save reviewed HTML' })).toHaveCount(0)
+    await panel.getByRole('button', { name: 'Capture selected evidence' }).click()
+    await panel.getByRole('button', { name: 'Preview exact package' }).click()
+    await expect(panel.locator('iframe')).toBeVisible()
+    await expect(panel.getByRole('checkbox', { name: /I reviewed this package/ })).not.toBeChecked()
+    await expect(panel.getByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
+    expect(await readFile(destination, 'utf8')).toBe(html)
   } finally {
     await offline.close()
     await closeFixtureServer(server)

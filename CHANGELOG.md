@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear stale incident-package previews and approval when a replacement capture or review fails; recovery requires reviewing the new package.
+
 ## [2.10.0] - 2026-10-01
 
 ### Added
