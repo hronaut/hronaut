@@ -10,6 +10,7 @@ const { t } = useI18n({ useScope: 'global' })
 const selected = ref<IncidentKind[]>([])
 const minutes = ref(10)
 const included = ref<IncidentKind[]>([])
+const omitField = ref('')
 const find = ref('')
 const replacement = ref('[REDACTED]')
 const draft = ref<IncidentDraft | null>(null)
@@ -19,7 +20,7 @@ const busy = ref(false)
 const error = ref('')
 const saved = ref(false)
 let generation = 0
-watch([included, find, replacement], () => { generation += 1; busy.value = false; preview.value = null; reviewed.value = false; saved.value = false }, { deep: true })
+watch([included, omitField, find, replacement], () => { generation += 1; busy.value = false; preview.value = null; reviewed.value = false; saved.value = false }, { deep: true })
 watch([selected, minutes], () => { reset() }, { deep: true })
 function reset(): void {
   generation += 1
@@ -47,7 +48,7 @@ async function preparePreview(): Promise<void> {
   if (!id) return
   await run(async current => {
     preview.value = null; reviewed.value = false
-    const result = await window.hronaut.reviewIncident({ draftId: id, include: [...included.value], replacements: find.value ? [{ find: find.value, replacement: replacement.value }] : [] })
+    const result = await window.hronaut.reviewIncident({ draftId: id, include: [...included.value], omitFields: omitField.value ? [omitField.value] : [], replacements: find.value ? [{ find: find.value, replacement: replacement.value }] : [] })
     if (!current()) return
     preview.value = result; reviewed.value = false
   })
@@ -78,6 +79,8 @@ onBeforeUnmount(reset)
       <fieldset :disabled="busy">
         <legend>{{ t('incident.include') }}</legend>
         <label v-for="artifact in draft.artifacts" :key="artifact.kind"><input v-model="included" type="checkbox" :value="artifact.kind">{{ t(`incident.${artifact.kind}`) }} — {{ t(`incident.${artifact.status}`) }} <span v-if="artifact.truncated">{{ t('incident.truncated') }}</span></label>
+        <label>{{ t('incident.omitField') }}<UiInput v-model="omitField" maxlength="256" autocomplete="off" /></label>
+        <p>{{ t('incident.omitFieldHint') }}</p>
         <label>{{ t('incident.find') }}<UiInput v-model="find" maxlength="256" autocomplete="off" /></label>
         <label>{{ t('incident.replacement') }}<UiInput v-model="replacement" maxlength="256" autocomplete="off" /></label>
         <UiButton type="button" :disabled="!included.length" @click="preparePreview">{{ t('incident.preview') }}</UiButton>

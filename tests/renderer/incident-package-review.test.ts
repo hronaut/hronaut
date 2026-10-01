@@ -63,3 +63,17 @@ it.each(['capture', 'preview'] as const)('clears stale review when a replacement
   expect(await screen.findByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
   expect(screen.getByRole('checkbox', { name: /I reviewed this package/ })).not.toBeChecked()
 })
+
+it('sends exact field omission and invalidates an approved preview when it changes', async () => {
+  const { api, user } = setup()
+  await user.click(screen.getByText('Reviewed incident package'))
+  await user.click(screen.getByRole('checkbox', { name: 'Repro steps' }))
+  await user.click(screen.getByRole('button', { name: 'Capture selected evidence' }))
+  await user.type(screen.getByLabelText('Exact JSON field name to omit (optional)'), 'url')
+  await user.click(screen.getByRole('button', { name: 'Preview exact package' }))
+  expect(api.reviewIncident).toHaveBeenLastCalledWith({ draftId: 'draft', include: ['repro'], omitFields: ['url'], replacements: [] })
+  await user.click(screen.getByRole('checkbox', { name: /I reviewed this package/ }))
+  await user.clear(screen.getByLabelText('Exact JSON field name to omit (optional)'))
+  expect(screen.queryByTitle('Preview exact package')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Save reviewed HTML' })).toBeNull()
+})

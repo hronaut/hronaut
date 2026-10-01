@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Omit exact JSON field names from reviewed incident text artifacts before export, with bounded rules, omission counts and fresh preview approval.
+
 ### Fixed
 
 - Clear stale incident-package previews and approval when a replacement capture or review fails; recovery requires reviewing the new package.
