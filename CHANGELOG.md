@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Wrap incident-package JSON lines and long tokens in preview and offline exports without changing artifact text or hashes.
+
 - Stop truncated Repro exports before replay so retained checkpoints cannot hide steps omitted at the recording limit.
 
 - Fail a stalled Repro startup page read after five seconds, leave the recording inactive, and allow retry without accepting the late result.

@@ -6,6 +6,8 @@ import type { BrowserTabsManager } from './browser/tabs-manager.js'
 const ARTIFACT_LIMIT = 256 * 1024
 const PACKAGE_LIMIT = 4 * 1024 * 1024
 const TTL = 10 * 60 * 1000
+const PRESENTATION_CSS = 'pre { white-space: pre-wrap; overflow-wrap: anywhere; }'
+const PRESENTATION_STYLE_HASH = createHash('sha256').update(PRESENTATION_CSS).digest('base64')
 const hash = (value: string) => createHash('sha256').update(value, 'utf8').digest('hex')
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 type Host = Pick<BrowserTabsManager, 'getState' | 'debugReport' | 'networkHar' | 'reproRecording'>
@@ -130,7 +132,7 @@ export class IncidentPackages {
       artifacts: artifacts.map(a => ({ kind: a.kind, status: a.status, truncated: a.truncated, ...('text' in a && a.text ? { bytes: Buffer.byteLength(a.text), sha256: hash(a.text) } : {}) }))
     }
     const sections = artifacts.filter(a => 'text' in a && a.text).map(a => `<section><h2>${a.kind}</h2><pre>${escapeHtml('text' in a ? a.text! : '')}</pre></section>`).join('\n')
-    const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Hronaut reviewed incident</title><body><h1>Hronaut reviewed incident</h1><p>Local text evidence. Review does not guarantee anonymization. No replay or remote resources.</p><section><h2>Manifest</h2><pre>${escapeHtml(JSON.stringify(manifest, null, 2))}</pre></section>${sections}</body></html>\n`
+    const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'sha256-${PRESENTATION_STYLE_HASH}'; base-uri 'none'; form-action 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Hronaut reviewed incident</title><style>${PRESENTATION_CSS}</style><body><h1>Hronaut reviewed incident</h1><p>Local text evidence. Review does not guarantee anonymization. No replay or remote resources.</p><section><h2>Manifest</h2><pre>${escapeHtml(JSON.stringify(manifest, null, 2))}</pre></section>${sections}</body></html>\n`
     const bytes = Buffer.byteLength(html)
     if (bytes > PACKAGE_LIMIT) throw new Error('Incident package exceeds the size limit')
     stored.preview = { previewId: randomUUID(), html, bytes, sha256: hash(html) }
