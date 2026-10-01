@@ -39,3 +39,27 @@ it('discards and ignores a late capture when closed', async () => {
   await waitFor(() => expect(api.discardIncident).toHaveBeenCalled())
   expect(api.reviewIncident).not.toHaveBeenCalled()
 })
+
+it.each(['capture', 'preview'] as const)('clears stale review when a replacement %s fails and requires fresh approval on recovery', async action => {
+  const { api, user } = setup()
+  await user.click(screen.getByText('Reviewed incident package'))
+  await user.click(screen.getByRole('checkbox', { name: 'Repro steps' }))
+  await user.click(screen.getByRole('button', { name: 'Capture selected evidence' }))
+  await user.click(await screen.findByRole('button', { name: 'Preview exact package' }))
+  await user.click(screen.getByRole('checkbox', { name: /I reviewed this package/ }))
+  expect(screen.getByRole('button', { name: 'Save reviewed HTML' })).toBeEnabled()
+  const method = action === 'capture' ? api.captureIncident : api.reviewIncident
+  method.mockRejectedValueOnce(new Error('Replacement unavailable'))
+  await user.click(screen.getByRole('button', { name: action === 'capture' ? 'Capture selected evidence' : 'Preview exact package' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Replacement unavailable')
+  expect(screen.queryByTitle('Preview exact package')).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Save reviewed HTML' })).toBeNull()
+  expect(api.saveIncident).not.toHaveBeenCalled()
+  if (action === 'capture') {
+    expect(screen.queryByRole('button', { name: 'Preview exact package' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Capture selected evidence' }))
+  }
+  await user.click(await screen.findByRole('button', { name: 'Preview exact package' }))
+  expect(await screen.findByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
+  expect(screen.getByRole('checkbox', { name: /I reviewed this package/ })).not.toBeChecked()
+})

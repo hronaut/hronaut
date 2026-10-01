@@ -36,6 +36,7 @@ async function run(action: (current: () => boolean) => Promise<void>): Promise<v
 }
 async function capture(): Promise<void> {
   await run(async current => {
+    draft.value = null; preview.value = null; reviewed.value = false
     const result = await window.hronaut.captureIncident({ tabId: props.tabId, minutes: minutes.value, kinds: [...selected.value] })
     if (!current()) return
     draft.value = result; included.value = result.artifacts.map(a => a.kind); preview.value = null; reviewed.value = false
@@ -45,6 +46,7 @@ async function preparePreview(): Promise<void> {
   const id = draft.value?.draftId
   if (!id) return
   await run(async current => {
+    preview.value = null; reviewed.value = false
     const result = await window.hronaut.reviewIncident({ draftId: id, include: [...included.value], replacements: find.value ? [{ find: find.value, replacement: replacement.value }] : [] })
     if (!current()) return
     preview.value = result; reviewed.value = false
