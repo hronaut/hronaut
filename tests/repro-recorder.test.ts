@@ -201,3 +201,40 @@ describe('Repro checkpoint page error boundary', () => {
     expect((await f.recorder.manage(f.tab, 'get')).steps).toEqual(before.steps)
   })
 })
+
+describe('Repro checkpoint stalled page reads', () => {
+  it.each(['stop', 'retry'] as const)('rejects a stalled read, permits %s, and ignores its late result', async action => {
+    vi.useFakeTimers()
+    const f = fixture()
+    const report = await f.recorder.manage(f.tab, 'start')
+    const request = { context: report.checkpointContext, selector: 'p', condition: 'visible', reviewed: true }
+    let finish!: (value: never) => void
+    f.executeJavaScript.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    let outcome: string | undefined
+    const pending = f.recorder.manage(f.tab, 'checkpoint', request).then(() => { outcome = 'accepted' }, error => { outcome = String(error) })
+    await vi.advanceTimersByTimeAsync(0)
+    let stopped: Awaited<ReturnType<typeof f.recorder.manage>> | undefined
+    const stop = action === 'stop' ? f.recorder.manage(f.tab, 'stop').then(value => { stopped = value }) : Promise.resolve()
+    try {
+      await vi.advanceTimersByTimeAsync(5001)
+      expect(outcome).toContain('Checkpoint page read timed out')
+      if (action === 'stop') expect(stopped).toMatchObject({ active: false, stepCount: 1 })
+      else {
+        f.executeJavaScript.mockResolvedValueOnce({ selector: 'p', tag: 'p', observedMatch: true } as never)
+        const retried = await f.recorder.manage(f.tab, 'checkpoint', request)
+        expect(retried.steps.filter(step => step.kind === 'expect')).toHaveLength(1)
+      }
+      const beforeLateResult = await f.recorder.manage(f.tab, 'get')
+      finish({ selector: 'p', tag: 'p', observedMatch: true } as never)
+      await pending
+      await stop
+      expect(await f.recorder.manage(f.tab, 'get')).toEqual(beforeLateResult)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      finish?.({ selector: 'p', tag: 'p', observedMatch: true } as never)
+      await pending
+      await stop
+      f.recorder.clearReproRecording(f.tab)
+    }
+  })
+})
