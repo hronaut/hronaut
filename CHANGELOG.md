@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reset live screenshot and element-picker feedback when the current tab navigates or reloads, ignoring late results from the previous page while preserving frozen area selections.
+
 ## [2.11.3] - 2026-10-01
 
 ### Fixed
