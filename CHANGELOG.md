@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve replacement CPU and code-coverage recordings when an older Clear operation finishes after debugger detachment.
+
 ## [2.11.2] - 2026-10-01
 
 ### Fixed

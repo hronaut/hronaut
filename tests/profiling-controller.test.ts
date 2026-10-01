@@ -1,5 +1,6 @@
 import type { WebContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+import { BrowserDebuggerQueue } from '../src/main/browser/debugger-queue.js'
 import { BrowserProfilingController, type BrowserProfilingTab } from '../src/main/browser/profiling-controller.js'
 
 function deferred<T>() {
@@ -8,7 +9,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function fixture() {
+function fixture(serialized = false) {
   const sendCommand = vi.fn(async (method: string): Promise<unknown> => {
     if (method === 'Runtime.getHeapUsage') {
       return { usedSize: 100, totalSize: 200, embedderHeapUsedSize: 30, backingStorageSize: 40 }
@@ -38,17 +39,48 @@ function fixture() {
   const changed = vi.fn()
   const prepareNavigation = vi.fn()
   const withDebugger = vi.fn<(contents: WebContents) => Promise<void>>(async () => undefined)
+  const queue = new BrowserDebuggerQueue()
   const controller = new BrowserProfilingController({
     getTab, findTab: (id) => tabs.get(id), changed, prepareNavigation,
     withDebugger: async (contents, operation) => {
       await withDebugger(contents)
-      return operation()
+      return serialized ? queue.run(1, operation) : operation()
     }
   })
   return { controller, tab, tabs, getTab, sendCommand, isDestroyed, reloadIgnoringCache, changed, prepareNavigation, withDebugger }
 }
 
 describe('browser profiling controller', () => {
+  for (const kind of ['cpu', 'coverage'] as const) {
+    it(`preserves a replacement ${kind} recording queued behind an obsolete clear`, async () => {
+      const f = fixture(true)
+      const run = (action: 'start' | 'clear' | 'get') => kind === 'cpu'
+        ? f.controller.cpuProfile({ action })
+        : f.controller.codeCoverage({ action, reload: false })
+      await run('start')
+      const entered = deferred<void>()
+      const pending = deferred<void>()
+      f.sendCommand.mockImplementation(async (method) => {
+        if (method === 'Profiler.disable') {
+          entered.resolve()
+          await pending.promise
+        }
+        return {}
+      })
+      const clearing = run('clear')
+      const rejected = expect(clearing).rejects.toThrow('changed while clearing')
+      await entered.promise
+      f.controller.handleDebuggerDetached(f.tab)
+      const restarting = run('start')
+      const replacement = kind === 'cpu' ? f.tab.cpuProfile : f.tab.codeCoverage
+      const completed = Promise.all([rejected, expect(restarting).resolves.toMatchObject({ status: 'recording' })])
+      pending.resolve()
+      await completed
+      expect(kind === 'cpu' ? f.tab.cpuProfile : f.tab.codeCoverage).toBe(replacement)
+      expect(await run('get')).toMatchObject({ status: 'recording' })
+    })
+  }
+
   for (const kind of ['cpu', 'coverage'] as const) {
     it.each(['detached', 'closed', 'replaced', 'destroyed', 'newer-recording'] as const)(
       `does not publish an obsolete ${kind} stop after its recording is %s`, async (change) => {
