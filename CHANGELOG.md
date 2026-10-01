@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.2] - 2026-10-01
+
 ### Fixed
 
 - Keep Network search snippets aligned with matching Unicode text instead of slicing at offsets shifted by lowercasing.
