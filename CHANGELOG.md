@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.4] - 2026-10-01
+
 ### Fixed
 
 - Wrap incident-package JSON lines and long tokens in preview and offline exports without changing artifact text or hashes.
