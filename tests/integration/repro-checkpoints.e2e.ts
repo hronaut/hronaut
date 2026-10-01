@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { stripVTControlCharacters } from 'node:util'
 import type { Page } from '@playwright/test'
 import { formatReproAsPlaywright } from '../../src/shared/repro-export.js'
 import type { HronautApi } from '../../src/shared/types.js'
@@ -89,7 +90,10 @@ test('exports checked-state assertions without form values and detects both brok
     }
     await expect(run()).rejects.toThrow('toBeChecked')
     outcome = 'partial'
-    await expect(run()).rejects.toThrow('not.toBeChecked')
+    const partialFailure = await run().then(() => '', error => stripVTControlCharacters(String(error)))
+    expect(partialFailure).toContain('not.toBeChecked()')
+    await expect(page.locator('#checkbox')).toBeChecked()
+    await expect(page.locator('#radio')).toBeChecked()
     outcome = 'fixed'
     await run()
     await expect(page.locator('#checkbox')).toBeChecked()
