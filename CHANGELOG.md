@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject incident-package text replacements that merge JSON field names, preserving evidence instead of silently overwriting a field.
+
 - Prevent global input unlock from waiting indefinitely behind an already-busy debugger queue. Failed preflight keeps locks unchanged and reports how to retry without applying a late unlock.
 
 ## [2.9.0] - 2026-10-01
