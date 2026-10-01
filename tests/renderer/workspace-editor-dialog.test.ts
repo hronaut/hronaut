@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import WorkspaceEditor from '../../src/renderer/src/components/WorkspaceEditor.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -260,5 +261,60 @@ it.each([
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(createWorkspace).toHaveBeenCalledWith(expect.objectContaining({ color: target }))
+  } finally { wrapper.unmount() }
+})
+
+
+it('keeps native arrow-key navigation within each workspace radio group', async () => {
+  const state = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+    mcpUrl: '', profilePath: '', savedTabGroups: [], mcpTabGroups: [] } as BrowserState
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+    getState: vi.fn(async () => state),
+    listWorkspaceStorageOrigins: vi.fn(async () => []),
+    listWorkspaceNavigationAudit: vi.fn(async () => [])
+  } })
+  const wrapper = mount(WorkspaceEditor, {
+    attachTo: document.body,
+    global: { plugins: [createHronautI18n('en-US')] },
+    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async next => { await next },
+      'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+  })
+  try {
+    await (wrapper.vm as unknown as { openNew: () => Promise<void> }).openNew()
+    await flushPromises()
+    const user = userEvent.setup()
+    const scratch = wrapper.get<HTMLInputElement>('input[value="scratch"]')
+    const fork = wrapper.get<HTMLInputElement>('input[value="fork-workspace"]')
+    scratch.element.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(fork.element).toBeChecked()
+    expect(fork.element).toHaveFocus()
+    await user.keyboard('{ArrowRight}')
+    expect(scratch.element).toBeChecked()
+    expect(scratch.element).toHaveFocus()
+
+    await user.click(wrapper.get('.workspace-access-disclosure > summary').element)
+    const unrestricted = wrapper.get<HTMLInputElement>('input[value="unrestricted"]')
+    const restricted = wrapper.get<HTMLInputElement>('input[value="restricted"]')
+    unrestricted.element.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(restricted.element).toBeChecked()
+    expect(restricted.element).toHaveFocus()
+    expect(wrapper.find('#workspace-navigation-rules').exists()).toBe(true)
+    expect(scratch.element).toBeChecked()
+    await user.keyboard('{ArrowUp}')
+    expect(unrestricted.element).toBeChecked()
+    expect(wrapper.find('#workspace-navigation-rules').exists()).toBe(false)
+    await (wrapper.vm as unknown as { openTransfer: () => Promise<void> }).openTransfer()
+    await flushPromises()
+    const copy = wrapper.get<HTMLInputElement>('input[value="copy"]')
+    const move = wrapper.get<HTMLInputElement>('input[value="move"]')
+    copy.element.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(move.element).toBeChecked()
+    expect(move.element).toHaveFocus()
+    await user.keyboard('{ArrowRight}')
+    expect(copy.element).toBeChecked()
+    expect(copy.element).toHaveFocus()
   } finally { wrapper.unmount() }
 })

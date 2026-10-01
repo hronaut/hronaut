@@ -7,6 +7,11 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Add reviewed visibility and exact-text checkpoints to Repro recordings, with intended outcomes separate from observed matches and Playwright assertion exports.
+### Fixed
+
+- Restore arrow-key selection within workspace starting-data, site-access and data-transfer radio groups.
+
+- Keep native disclosure controls in the modal keyboard focus loop, so wallet approval raw details can be reached and expanded before choosing an action.
 
 ## [2.8.8] - 2026-10-01
 

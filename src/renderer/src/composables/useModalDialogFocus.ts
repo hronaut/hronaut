@@ -14,6 +14,7 @@ interface ActiveDialog {
 }
 
 const FOCUSABLE_SELECTOR = [
+  'summary',
   'a[href]',
   'area[href]',
   'button:not([disabled])',

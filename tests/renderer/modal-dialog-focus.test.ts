@@ -236,6 +236,31 @@ describe('modal dialog focus lifecycle', () => {
     }
   })
 
+  it('includes native disclosure summaries in the modal keyboard loop', async () => {
+    const user = userEvent.setup()
+    const view = render(ModalTrapHarness)
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    const dialog = screen.getByRole('dialog', { name: 'Focus trap' })
+    const disclosure = document.createElement('details')
+    disclosure.innerHTML = '<summary>Raw request details</summary><pre>Synthetic request</pre>'
+    dialog.prepend(disclosure)
+    const summary = disclosure.querySelector('summary')!
+    const first = screen.getByRole('button', { name: 'First action' })
+    const last = screen.getByRole('button', { name: 'Last action' })
+
+    dialog.focus()
+    await user.tab()
+    expect(summary).toHaveFocus()
+    first.focus()
+    await user.tab({ shift: true })
+    expect(summary).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(last).toHaveFocus()
+    await user.tab()
+    expect(summary).toHaveFocus()
+    view.unmount()
+  })
+
   it('wraps keyboard focus inside the active modal and redirects escaped focus', async () => {
     const user = userEvent.setup()
     render(ModalTrapHarness)

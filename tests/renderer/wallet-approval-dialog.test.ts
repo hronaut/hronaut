@@ -75,6 +75,8 @@ describe('WalletApprovalDialog', () => {
     await user.tab({ shift: true })
     expect(approve).toHaveFocus()
     await user.tab()
+    expect(screen.getByText('Raw unsigned request')).toHaveFocus()
+    await user.tab()
     expect(reject).toHaveFocus()
     background.focus()
     expect(dialog.contains(document.activeElement)).toBe(true)
