@@ -533,7 +533,7 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
     ipcMain.removeHandler('browser:network-search')
     ipcMain.handle('browser:network-search', async (event, ...args: unknown[]) => {
       await original(event, ...args)
-      await new Promise<void>(resolve => { release = resolve; ipcMain.once('qa:fail-network-search', resolve) })
+      await new Promise<void>(resolve => { release = resolve; ipcMain.once('qa:fail-network-search', () => resolve()) })
       throw new Error('Synthetic network search delivery failure')
     })
     ipcMain.once('qa:restore-network-search', () => {
