@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-10-01
+
 ### Added
 
 - Search a selected component with `browser_find.rootSelector`, preserving bounded snippets, scope metadata and existing privacy/workspace checks.
