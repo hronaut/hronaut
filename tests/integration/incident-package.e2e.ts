@@ -27,7 +27,8 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     const page = electronApp.context().pages().find(page => page.url() === url)!
     await expect(page.getByRole('heading', { name: 'Ready' })).toBeVisible()
     const hostile = `private-canary private-second-canary </pre><script>globalThis.__incidentAttack=true;fetch('${origin}/should-not-run')</script><img src="${origin}/should-not-run"> password=credential-secret`
-    await page.evaluate(value => console.error(value), hostile)
+    const longToken = `long-token-${'x'.repeat(600)}`
+    await page.evaluate(value => console.error(value), `${hostile} ${longToken}`)
     await expect.poll(async () => {
       const report = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)
       return report.console.some(entry => entry.message.includes('private-canary'))
@@ -60,6 +61,10 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     const iframe = panel.locator('iframe[title="Preview exact package"]')
     await expect(iframe).toBeVisible()
     const previewHtml = (await iframe.getAttribute('srcdoc'))!
+    const previewDocument = panel.frameLocator('iframe[title="Preview exact package"]')
+    await expect(previewDocument.getByRole('heading', { name: 'Hronaut reviewed incident', exact: true })).toBeVisible()
+    expect(await previewDocument.locator('html').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    expect(await previewDocument.locator('pre').allTextContents()).toEqual(expect.arrayContaining([expect.stringContaining(longToken)]))
     expect(previewHtml).not.toContain('private-canary')
     expect(previewHtml).not.toContain('private-second-canary')
     expect(previewHtml).not.toContain('&quot;url&quot;:')
@@ -106,6 +111,35 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     const texts = await opened.locator('pre').allTextContents()
     const manifest = JSON.parse(texts[0]!) as { artifacts: Array<{ sha256?: string }> }
     expect(manifest.artifacts.filter(a => a.sha256).map(a => a.sha256)).toEqual(texts.slice(1).map(text => createHash('sha256').update(text).digest('hex')))
+
+    for (const width of [480, 1280]) {
+      await opened.setViewportSize({ width, height: 800 })
+      expect(await opened.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+      expect(await opened.locator('pre').allTextContents()).toEqual(texts)
+      // Visual wrapping must not insert newlines into selected/copied evidence.
+      for (const pre of await opened.locator('pre').all()) {
+        expect(await pre.evaluate(element => {
+          const range = document.createRange()
+          range.selectNodeContents(element)
+          const selection = window.getSelection()!
+          selection.removeAllRanges(); selection.addRange(range)
+          const selected = selection.toString()
+          selection.removeAllRanges()
+          return selected === element.textContent
+        })).toBe(true)
+      }
+    }
+    expect(texts).toEqual(expect.arrayContaining([expect.stringContaining(longToken)]))
+    expect(await opened.locator('html').getAttribute('lang')).toBe('en')
+    await expect(opened.getByRole('heading', { name: 'Manifest', exact: true })).toBeVisible()
+    // Only the package's fixed stylesheet is allowed; arbitrary inline styles stay blocked.
+    const beforeColor = await opened.locator('body').evaluate(element => getComputedStyle(element).color)
+    await opened.evaluate(() => {
+      const style = document.createElement('style')
+      style.textContent = 'body { color: rgb(1, 2, 3) !important }'
+      document.head.append(style)
+    })
+    expect(await opened.locator('body').evaluate(element => getComputedStyle(element).color)).toBe(beforeColor)
     expect(remoteRequests).toBe(0)
     expect(unsafeRequests).toBe(0)
 
