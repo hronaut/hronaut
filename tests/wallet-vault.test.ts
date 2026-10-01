@@ -380,6 +380,8 @@ describe('WalletVault', () => {
 })
 
 describe('WalletWatchOnlyStore', () => {
+  // Like the managed-vault capacity case, this exercises real 10,000-record
+  // parsing and disk round trips that can exceed five seconds on shared CI.
   it('keeps the persisted store loadable when concurrent additions reach its capacity', async () => {
     const path = await vaultPath()
     const wallets = Array.from({ length: 9_999 }, (_, index) => descriptor({
@@ -406,7 +408,7 @@ describe('WalletWatchOnlyStore', () => {
     const reloaded = new WalletWatchOnlyStore(path)
     await expect(reloaded.load()).resolves.toHaveLength(10_000)
     expect(reloaded.list().some(wallet => wallet.id === overflow.id)).toBe(true)
-  })
+  }, 15_000)
 
   it('preserves public read-only wallets without requiring a managed vault backend', async () => {
     const path = await vaultPath()
