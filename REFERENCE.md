@@ -969,8 +969,9 @@ Use a demo account and review the result before sharing. Nothing is uploaded.
 The first version captures up to 12 frames per second, fitting the viewport
 inside 1280 × 720 without upscaling. Each recording is limited to two minutes and
 64 MiB of JPEG frames; at most three recordings are retained and may capture
-concurrently. Each recording keeps its original tab and workspace; Follow agent
-does not select or retarget it. Separate authorized agents can record separate
+concurrently. Each recording keeps its original tab and workspace. Video control calls do not
+trigger Follow agent; other tools retain their normal follow behavior without
+retargeting the recording. Separate authorized agents can record separate
 workspaces while the human uses another tab. Raw frames and rendered previews stay in memory and disappear
 on discard, tab closure, workspace closure/archive, or application exit. Explicit
 exports remain in the configured download directory with collision-safe filenames.
@@ -987,7 +988,11 @@ without usable frames pauses and trims the unsampled tail, rather than claiming
 a healthy frozen video. Return
 to the original origin and restore the viewport before resuming. Pause time is
 excluded from the timeline. When agent control or its write lease changes, resume
-requires a fresh authorized call. Reading or exporting retained content requires
+requires a fresh authorized call. Explicit MCP session termination revokes its
+recording authority. Merely closing an HTTP client locally or losing network
+connectivity is not an observable session termination; a previously authorized
+recording can continue within its two-minute limit until stopped or revoked.
+Reading or exporting retained content requires
 the original tab, workspace and origin. Website content has no access to the
 recorder or encoder bridge.
 
