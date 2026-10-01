@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Review up to ten exact field omissions in the incident-package editor, with bounded add/remove controls, keyboard focus and fresh approval after edits.
+
 ### Fixed
 
 - Align Repro visibility checkpoint observations with rendered visibility, including suppressed content and bounded display-contents descendants.

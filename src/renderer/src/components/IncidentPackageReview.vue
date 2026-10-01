@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { incidentKinds, type IncidentDraft, type IncidentKind, type IncidentPreview } from '../../../shared/incident-package'
+import { incidentKinds, incidentOmissionLimit, type IncidentDraft, type IncidentKind, type IncidentPreview } from '../../../shared/incident-package'
 import UiButton from '../ui/UiButton.vue'
 import UiInput from '../ui/UiInput.vue'
 
@@ -10,7 +10,10 @@ const { t } = useI18n({ useScope: 'global' })
 const selected = ref<IncidentKind[]>([])
 const minutes = ref(10)
 const included = ref<IncidentKind[]>([])
-const omitField = ref('')
+const omissionRows = ref([{ id: 0, value: '' }])
+let nextOmissionId = 1
+const omissionList = ref<HTMLElement | null>(null)
+const omittedFields = computed(() => [...new Set(omissionRows.value.map(row => row.value).filter(value => value !== ''))])
 const find = ref('')
 const replacement = ref('[REDACTED]')
 const draft = ref<IncidentDraft | null>(null)
@@ -20,7 +23,7 @@ const busy = ref(false)
 const error = ref('')
 const saved = ref(false)
 let generation = 0
-watch([included, omitField, find, replacement], () => { generation += 1; busy.value = false; preview.value = null; reviewed.value = false; saved.value = false }, { deep: true })
+watch([included, omissionRows, find, replacement], () => { generation += 1; busy.value = false; preview.value = null; reviewed.value = false; saved.value = false }, { deep: true })
 watch([selected, minutes], () => { reset() }, { deep: true })
 function reset(): void {
   generation += 1
@@ -43,12 +46,29 @@ async function capture(): Promise<void> {
     draft.value = result; included.value = result.artifacts.map(a => a.kind); preview.value = null; reviewed.value = false
   })
 }
+async function focusOmission(id: number): Promise<void> {
+  await nextTick()
+  if (draft.value && !busy.value) omissionList.value?.querySelector<HTMLInputElement>(`[data-omission-id="${id}"] input`)?.focus()
+}
+function addOmission(): void {
+  if (busy.value || omissionRows.value.length >= incidentOmissionLimit) return
+  const id = nextOmissionId++
+  omissionRows.value.push({ id, value: '' })
+  void focusOmission(id)
+}
+function removeOmission(id: number): void {
+  if (busy.value || omissionRows.value.length <= 1) return
+  const index = omissionRows.value.findIndex(row => row.id === id)
+  if (index < 0) return
+  omissionRows.value.splice(index, 1)
+  void focusOmission(omissionRows.value[Math.min(index, omissionRows.value.length - 1)].id)
+}
 async function preparePreview(): Promise<void> {
   const id = draft.value?.draftId
   if (!id) return
   await run(async current => {
     preview.value = null; reviewed.value = false
-    const result = await window.hronaut.reviewIncident({ draftId: id, include: [...included.value], omitFields: omitField.value ? [omitField.value] : [], replacements: find.value ? [{ find: find.value, replacement: replacement.value }] : [] })
+    const result = await window.hronaut.reviewIncident({ draftId: id, include: [...included.value], omitFields: omittedFields.value, replacements: find.value ? [{ find: find.value, replacement: replacement.value }] : [] })
     if (!current()) return
     preview.value = result; reviewed.value = false
   })
@@ -84,7 +104,14 @@ onBeforeUnmount(reset)
       <fieldset :disabled="busy">
         <legend>{{ t('incident.include') }}</legend>
         <label v-for="artifact in draft.artifacts" :key="artifact.kind"><input v-model="included" type="checkbox" :value="artifact.kind">{{ t(`incident.${artifact.kind}`) }} — {{ t(`incident.${artifact.status}`) }} <span v-if="artifact.truncated">{{ t('incident.truncated') }}</span></label>
-        <label>{{ t('incident.omitField') }}<UiInput v-model="omitField" maxlength="256" autocomplete="off" /></label>
+        <div ref="omissionList" class="incident-omissions">
+          <div v-for="(row, index) in omissionRows" :key="row.id" :data-omission-id="row.id" class="incident-omission-row" role="group" :aria-label="t('incident.omissionRow', { index: index + 1 })">
+            <label>{{ t('incident.omitField') }}<UiInput v-model="row.value" maxlength="256" autocomplete="off" /></label>
+            <UiButton v-if="omissionRows.length > 1" type="button" @click="removeOmission(row.id)">{{ t('incident.removeOmission', { index: index + 1 }) }}</UiButton>
+          </div>
+          <UiButton type="button" :disabled="omissionRows.length >= incidentOmissionLimit" @click="addOmission">{{ t('incident.addOmission') }}</UiButton>
+          <p>{{ t('incident.omissionLimit', { count: incidentOmissionLimit }) }}</p>
+        </div>
         <p>{{ t('incident.omitFieldHint') }}</p>
         <label>{{ t('incident.find') }}<UiInput v-model="find" maxlength="256" autocomplete="off" /></label>
         <label>{{ t('incident.replacement') }}<UiInput v-model="replacement" maxlength="256" autocomplete="off" /></label>
@@ -109,6 +136,8 @@ onBeforeUnmount(reset)
 .incident-review fieldset { display: grid; gap: 8px; margin-block: 12px; border: 1px solid var(--border-soft); border-radius: 8px; }
 .incident-review label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .incident-review input { min-width: 0; max-width: 100%; }
+.incident-omissions { display: grid; gap: 8px; }
+.incident-omission-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .incident-preview { width: 100%; min-height: 280px; background: white; }
 .incident-hash { overflow-wrap: anywhere; }
 </style>
