@@ -212,6 +212,8 @@ While the Hronaut-wide input lock is on, use the current tab's lock button to te
 
 The page controls are separate buttons: **Lock input / Unlock input** controls human page input, **Pause agents / Resume agents** controls agent access, **Live / Frozen** controls page execution, and **Mute / Unmute** controls audio. Global input lock, agent pause, and mute remain in the tab strip.
 
+If an existing native/debugger operation stays busy for two seconds, the control reports that locks were not changed and becomes available to retry after that operation finishes. The rejected request is not queued to unlock later.
+
 A waiting spinner means a control change is queued or being applied. The affected button is temporarily disabled to prevent duplicate clicks; its accessible label includes **Waiting…**. Input-lock requests wait for an earlier lock change and any rollback to finish. If an input-lock request fails, Hronaut reports the error and makes the control available again; the spinner does not mean a failed request will be retried indefinitely.
 
 ## Right-click webpage actions
