@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Show a pending state in Find in page instead of stale match counts, and disable match navigation until the current search completes.
+
 - Preserve replacement CPU and code-coverage recordings when an older Clear operation finishes after debugger detachment.
 
 ## [2.11.2] - 2026-10-01

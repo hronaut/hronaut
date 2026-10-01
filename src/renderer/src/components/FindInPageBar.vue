@@ -28,6 +28,7 @@ const input = ref<HTMLInputElement | null>(null)
 const query = ref('')
 const caseSensitive = ref(false)
 const searchFailed = ref(false)
+const searching = ref(false)
 const result = ref<BrowserFindResult>({ activeMatchOrdinal: 0, matches: 0 })
 let targetTabId: string | undefined
 let requestSequence = 0
@@ -38,6 +39,7 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
   if (normalizedQuery !== query.value) query.value = normalizedQuery
   const sequence = ++requestSequence
   searchFailed.value = false
+  searching.value = Boolean(tabId && normalizedQuery)
   if (!tabId) return
   if (!normalizedQuery) {
     result.value = { activeMatchOrdinal: 0, matches: 0 }
@@ -58,6 +60,8 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
       result.value = { activeMatchOrdinal: 0, matches: 0 }
       searchFailed.value = true
     }
+  } finally {
+    if (sequence === requestSequence && tabId === targetTabId) searching.value = false
   }
 }
 
@@ -109,6 +113,7 @@ async function cleanup(): Promise<void> {
   const tabId = targetTabId
   requestSequence += 1
   targetTabId = undefined
+  searching.value = false
   searchFailed.value = false
   result.value = { activeMatchOrdinal: 0, matches: 0 }
   if (tabId) await props.browser.stopFindInPage(tabId).catch(() => undefined)
@@ -153,8 +158,8 @@ defineExpose({ close, openForTab })
         @keydown="handleSearchKeydown"
       />
     </div>
-    <output class="find-count" aria-live="polite">
-      {{ searchFailed ? t('find.failed') : query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
+    <output class="find-count" aria-live="polite" :aria-busy="searching">
+      {{ searching ? t('find.searching') : searchFailed ? t('find.failed') : query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
     </output>
     <UiButton v-if="searchFailed" appearance="application" class="find-action" type="button" :title="t('find.retry')" :aria-label="t('find.retry')" @click="retrySearch">
       <IconRefresh aria-hidden="true" />
@@ -172,7 +177,7 @@ defineExpose({ close, openForTab })
       type="button"
       :title="t('find.previousTitle')"
       :aria-label="t('find.previous')"
-      :disabled="!query || !result.matches"
+      :disabled="searching || !query || !result.matches"
       @click="search(false, false)"
     >
       <IconKeyboardArrowUp aria-hidden="true" />
@@ -182,7 +187,7 @@ defineExpose({ close, openForTab })
       type="button"
       :title="t('find.nextTitle')"
       :aria-label="t('find.next')"
-      :disabled="!query || !result.matches"
+      :disabled="searching || !query || !result.matches"
       @click="search(true, false)"
     >
       <IconKeyboardArrowDown aria-hidden="true" />

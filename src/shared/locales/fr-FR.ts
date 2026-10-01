@@ -2592,6 +2592,7 @@ export const frFR = {
     }
   },
   "find": {
+    "searching": "Recherche…",
     "failed": "Échec de la recherche",
     "retry": "Réessayer la recherche dans la page",
     "region": "Rechercher dans la page",

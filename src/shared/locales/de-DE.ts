@@ -2592,6 +2592,7 @@ export const deDE = {
     }
   },
   "find": {
+    "searching": "Suche läuft…",
     "failed": "Suche fehlgeschlagen",
     "retry": "Seitensuche wiederholen",
     "region": "Auf Seite suchen",
