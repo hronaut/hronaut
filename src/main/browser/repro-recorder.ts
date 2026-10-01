@@ -141,6 +141,9 @@ export class BrowserReproRecorder<T extends ReproTab> {
         selector: string; tag: string; observedMatch: boolean; error?: string
       }
       assertCurrent()
+      if (result?.error === 'unsupported-checked-target') {
+        throw new Error('Checked expectations require one native checkbox or radio outside editable regions, without a mixed state')
+      }
       if (result?.error === 'excluded-target') {
         throw new Error('Choose a non-editable result element; form values and frame contents are excluded')
       }

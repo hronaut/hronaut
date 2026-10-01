@@ -2375,7 +2375,9 @@ export const frFR = {
     }
   },
   "repro": {
-    "checkpoint": {"title": "Point de contrôle du résultat attendu", "condition": "Condition", "visible": "Visible", "hidden": "Masqué", "text": "Texte exact", "review": "J’ai vérifié la cible et le texte à partager ; c’est le résultat attendu, pas une preuve de réussite.", "add": "Ajouter un point de contrôle", "matched": "Correspond actuellement", "notMatched": "Ne correspond pas actuellement"},
+    "checkpoint": {
+      "checked": "Coché (case/bouton radio)",
+      "unchecked": "Non coché (case/bouton radio)","title": "Point de contrôle du résultat attendu", "condition": "Condition", "visible": "Visible", "hidden": "Masqué", "text": "Texte exact", "review": "J’ai vérifié la cible et le texte à partager ; c’est le résultat attendu, pas une preuve de réussite.", "add": "Ajouter un point de contrôle", "matched": "Correspond actuellement", "notMatched": "Ne correspond pas actuellement"},
     "selectorUnavailable": "Aucun sélecteur unique ; recréez cette étape manuellement.",
     "kicker": "Chronologie respectueuse de la vie privée",
     "heading": "Enregistreur de reproduction",

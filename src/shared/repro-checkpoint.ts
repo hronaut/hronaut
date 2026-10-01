@@ -4,7 +4,7 @@ import { z } from 'zod'
 export const reproCheckpointSchema = z.object({
   context: z.string().uuid(),
   selector: z.string().trim().min(1).max(500),
-  condition: z.enum(['visible', 'hidden', 'text']),
+  condition: z.enum(['visible', 'hidden', 'text', 'checked', 'unchecked']),
   text: z.string().max(240).optional(),
   reviewed: z.literal(true)
 }).strict().superRefine((value, ctx) => {
@@ -16,7 +16,7 @@ export const reproCheckpointSchema = z.object({
 export type BrowserReproCheckpointInput = z.infer<typeof reproCheckpointSchema>
 
 export interface BrowserReproExpectation {
-  condition: 'visible' | 'hidden' | 'text'
+  condition: BrowserReproCheckpointInput['condition']
   text?: string
   observedMatch: boolean
 }
