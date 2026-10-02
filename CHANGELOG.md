@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Record Space activation on native checkboxes and radio buttons as a key action so exported Repro tests replay it without trying to fill the control.
+
 ## [2.11.7] - 2026-10-02
 
 ### Fixed

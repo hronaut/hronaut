@@ -423,7 +423,10 @@ export class BrowserReproRecorder<T extends ReproTab> {
     this.queueReproTask(tab, async (context) => {
       const target = await this.reproTarget(tab).catch(() => null)
       if (!target) return
-      if (editsValue) {
+      // Space activates native checkable controls; it does not edit their value.
+      const togglesChecked = input.key === ' ' && target.tag === 'input'
+        && (target.inputType === 'checkbox' || target.inputType === 'radio')
+      if (editsValue && !togglesChecked) {
         this.addReproStep(tab, {
           kind: 'input',
           description: `Type in ${this.reproTargetName(target)} (value not recorded)`,
