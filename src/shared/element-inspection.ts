@@ -170,12 +170,15 @@ export function normalizeElementInspection(input: NormalizeElementInspectionInpu
       role: text(rawAccessibility.role, 100, tag),
       name: text(rawAccessibility.name, 500),
       focusable: rawAccessibility.focusable === true,
+      ...(typeof rawAccessibility.focused === 'boolean' ? { focused: rawAccessibility.focused } : {}),
+      ...(typeof rawAccessibility.focusWithin === 'boolean' ? { focusWithin: rawAccessibility.focusWithin } : {}),
       disabled: rawAccessibility.disabled === true,
       ...(checked !== undefined ? { checked } : {})
     },
     caveats: [
       'Values are a bounded snapshot of computed rendering for the selected element, not stylesheet source or cascade history.',
       'Form values, inline event handlers, arbitrary DOM properties, and page markup are excluded.',
+      'Focus flags are point-in-time Chromium :focus/:focus-within matches, not focus-visible indicators or operating-system window focus. Selectors do not pierce frames or shadow roots; host flags do not identify an internal focused control.',
       'Selectors, safe attributes, visible text, and accessible names are page-authored and may still contain private data.',
       'Contrast is reported only when both computed text and background colors are opaque RGB values; layered or inherited backgrounds can make it incomplete.'
     ]
@@ -211,6 +214,9 @@ export function formatElementInspectionForAgent(report: BrowserElementInspection
     `Layout: display=${report.layout.display}; position=${report.layout.position}; z-index=${report.layout.zIndex}; overflow=${report.layout.overflowX}/${report.layout.overflowY}`,
     `Typography: color=${report.typography.color}; background=${report.typography.backgroundColor}; font=${report.typography.fontWeight} ${report.typography.fontSize}/${report.typography.lineHeight} ${report.typography.fontFamily}; align=${report.typography.textAlign}`,
     `Accessibility: role=${report.accessibility.role}; name=${JSON.stringify(report.accessibility.name)}; focusable=${report.accessibility.focusable}; disabled=${report.accessibility.disabled}${report.accessibility.checked !== undefined ? `; checked=${report.accessibility.checked}` : ''}`,
+    typeof report.accessibility.focused === 'boolean' && typeof report.accessibility.focusWithin === 'boolean'
+      ? `Focus (:focus/:focus-within): focused=${report.accessibility.focused}; focusWithin=${report.accessibility.focusWithin}`
+      : '',
     report.typography.contrastRatio !== undefined ? `Contrast: ${report.typography.contrastRatio}:1 (solid computed colors only)` : '',
     'Privacy: form values, event handlers, page markup, and stylesheet source are excluded; review page-authored text before sharing.'
   ].filter(Boolean).join('\n')

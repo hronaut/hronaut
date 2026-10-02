@@ -5128,11 +5128,20 @@ export class BrowserTabsManager {
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')
     this.validateTarget(options)
+    const context = this.snapshotDeltaContext(tab)
     const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(
       ELEMENT_INSPECTION_WORLD_ID,
       [{ code: elementInspectionScript(options) }],
       false
     )
+    const current = this.tabs.get(tab.id)
+    if (!current || current !== tab || current.webContents.isDestroyed()) {
+      throw new Error('The tab changed during element inspection. Inspect the element again.')
+    }
+    const invalidation = snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(current))
+    if (invalidation) {
+      throw new Error(`The observation context changed during element inspection (${invalidation}). Inspect the element again.`)
+    }
     return normalizeElementInspection({
       tabId: tab.id,
       title: tab.title,

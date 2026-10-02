@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Extend real page zoom through 400% in the toolbar, keyboard controls and MCP for reflow QA; existing zoom levels and reset remain available.
+- Report point-in-time `focused` and `focusWithin` state in element inspection and copied element reports for keyboard and dialog-restoration checks, with explicit frame/shadow limits. Reject inspection results invalidated by navigation or observation-context changes.
 
 ## [2.11.6] - 2026-10-02
 

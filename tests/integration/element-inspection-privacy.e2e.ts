@@ -69,6 +69,7 @@ test('keeps editable values out of MCP inspection, locators and the live human p
     await expect(appWindow.getByRole('button', { name: 'Element copied for agent' })).toBeVisible()
     const copied = await electronApp.evaluate(({ clipboard }) => clipboard.readText())
     expect(copied).toContain('Selector: #live')
+    expect(copied).toMatch(/Focus \(:focus\/:focus-within\): focused=(true|false); focusWithin=(true|false)/)
     expect(copied).toContain('Public live label')
     expect(copied).not.toContain('private-late-canary')
     expect(await page.locator('#live [contenteditable]').textContent()).toBe('private-late-canary')

@@ -285,6 +285,8 @@ function elementInspectionHelpersSource(): string {
           role: hronautRole(element),
           name: hronautAccessibleName(element),
           focusable,
+          focused: element.matches(':focus'),
+          focusWithin: element.matches(':focus-within'),
           disabled: element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true',
           ...(checked !== undefined ? { checked } : {})
         }
