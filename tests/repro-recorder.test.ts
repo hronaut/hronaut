@@ -29,6 +29,60 @@ function fixture() {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('reproduction recorder data contracts', () => {
+  it.each(['click', 'key'] as const)('drains a failed %s capture into one private-data-free unresolved step', async kind => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    let reject!: (error: Error) => void
+    f.executeJavaScript.mockReturnValueOnce(new Promise((_resolve, rejectRead) => { reject = rejectRead }))
+    if (kind === 'click') {
+      f.recorder.observeReproMouse(f.tab, { type: 'mouseDown', x: 10, y: 10 })
+      f.recorder.observeReproMouse(f.tab, { type: 'mouseUp', x: 10, y: 10 })
+    } else f.recorder.observeReproKeyboard(f.tab, enterKey)
+    await Promise.resolve().then(() => undefined)
+    let stopped = false
+    const stop = f.recorder.manage(f.tab, 'stop').then(report => { stopped = true; return report })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    reject(new Error('private-failure-value'))
+    const report = await stop
+    expect(report.steps.map(step => step.kind)).toEqual(['navigate', kind])
+    expect(report.steps[1]).toMatchObject({ description: expect.stringContaining('could not be captured') })
+    expect(report.steps[1]).not.toHaveProperty('target')
+    expect(report.steps[1]).not.toHaveProperty('key')
+    expect(JSON.stringify(report)).not.toContain('private-failure-value')
+  })
+
+  it.each(['navigate', 'restart', 'clear'] as const)('handles rejected capture after %s without duplicates or replacement contamination', async change => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    let reject!: (error: Error) => void
+    f.executeJavaScript.mockReturnValueOnce(new Promise((_resolve, rejectRead) => { reject = rejectRead }))
+    f.recorder.observeReproKeyboard(f.tab, enterKey)
+    await Promise.resolve().then(() => undefined)
+    const pending = f.tab.reproRecording!.queue
+    if (change === 'navigate') {
+      f.tab.navigationGeneration++
+      f.recorder.navigated(f.tab, f.tab.url, false)
+    } else await f.recorder.manage(f.tab, change === 'restart' ? 'start' : 'clear')
+    reject(new Error('failed-target'))
+    await pending
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps.map(step => step.kind)).toEqual(change === 'navigate' ? ['navigate', 'navigate', 'key'] : change === 'restart' ? ['navigate'] : [])
+  })
+
+  it('keeps failed capture bounded and leaves intentional no-target reads empty', async () => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValueOnce(null)
+    f.recorder.observeReproKeyboard(f.tab, enterKey)
+    await f.tab.reproRecording!.queue
+    expect((await f.recorder.manage(f.tab, 'get')).stepCount).toBe(1)
+    for (let i = 1; i < 200; i++) f.recorder.navigated(f.tab, f.tab.url, false)
+    f.executeJavaScript.mockRejectedValueOnce(new Error('failed-target'))
+    f.recorder.observeReproKeyboard(f.tab, enterKey)
+    expect(await f.recorder.manage(f.tab, 'stop')).toMatchObject({ stepCount: 200, truncated: true })
+  })
+
   it.each(['queued', 'in-flight'] as const)('retains a target-free review step for %s actions invalidated by navigation', async phase => {
     const f = fixture()
     await f.recorder.manage(f.tab, 'start')

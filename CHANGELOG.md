@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Require manual review of Repro actions whose target capture fails, including failures that settle before navigation, instead of silently omitting the action from exported tests.
+
 - Keep an explicit manual-review step when navigation interrupts Repro click or keyboard capture, so a destination checkpoint cannot hide the missing action in an exported test.
 
 - Replay redacted native-select type-ahead using explicitly supplied safe text and keyboard events instead of an invalid fill action; selected values remain unrecorded.

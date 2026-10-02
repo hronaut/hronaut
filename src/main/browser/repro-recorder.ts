@@ -28,7 +28,8 @@ export interface BrowserReproRecordingInternal {
     x: number
     y: number
     navigationGeneration: number
-    target: Promise<BrowserReproTarget | null>
+    // false distinguishes a rejected read from an intentional no-target result.
+    target: Promise<BrowserReproTarget | null | false>
   }
 }
 
@@ -339,13 +340,15 @@ export class BrowserReproRecorder<T extends ReproTab> {
     const recording = tab.reproRecording
     if (!recording?.active) return
     const context = { recording, navigationGeneration }
-    const retainUnresolvedAction = () => {
+    const retainUnresolvedAction = (failed = false) => {
       if (actionKind && recording.active && tab.reproRecording === recording) {
         // Keep evidence of the accepted action without reusing a stale target or
         // key. The exporter requires manual review of this target-free step.
         this.addReproStep(tab, {
           kind: actionKind,
-          description: 'Action capture interrupted by navigation; recreate this action manually.'
+          description: failed
+            ? 'Action target could not be captured; recreate this action manually.'
+            : 'Action capture interrupted by navigation; recreate this action manually.'
         })
       }
     }
@@ -355,10 +358,15 @@ export class BrowserReproRecorder<T extends ReproTab> {
         retainUnresolvedAction()
         return
       }
+      let failed = false
       try {
         await task(context)
+      } catch (error) {
+        if (!actionKind) throw error
+        // Do not retain page error details, which may contain private data.
+        failed = true
       } finally {
-        if (tab.navigationGeneration !== navigationGeneration) retainUnresolvedAction()
+        if (failed || tab.navigationGeneration !== navigationGeneration) retainUnresolvedAction(failed)
       }
     })
     recording.queue = queued
@@ -409,7 +417,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
           y: mouse.y,
           viewportWidth: Math.max(1, bounds.width),
           viewportHeight: Math.max(1, bounds.height)
-        }).catch(() => null)
+        }).catch(() => false as const)
       }
     } else if (mouse.type === 'mouseUp' && (mouse.button === undefined || mouse.button === 'left')) {
       const pending = recording.pendingPointer
@@ -417,6 +425,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       if (pending && Math.hypot(mouse.x - pending.x, mouse.y - pending.y) <= 8) {
         this.queueReproTask(tab, async (context) => {
           const target = await pending.target
+          if (target === false) throw new Error('Reproduction target read failed')
           if (target) this.addReproStep(tab, {
             kind: 'click',
             description: `Click ${this.reproTargetName(target)}`,
@@ -438,7 +447,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     const allowedKey = ['Enter', 'Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', ' ']
     if (!editsValue && !hasCommandModifier && !allowedKey.includes(input.key)) return
     this.queueReproTask(tab, async (context) => {
-      const target = await this.reproTarget(tab).catch(() => null)
+      const target = await this.reproTarget(tab)
       if (!target) return
       // Space activates native checkable controls; it does not edit their value.
       const togglesChecked = input.key === ' ' && target.tag === 'input'
