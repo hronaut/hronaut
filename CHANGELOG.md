@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve complete visual-comparison edge pixels when native zoom introduces floating-point rounding near integer bitmap boundaries, including 400% zoom.
+
 ### Added
 
 - Expose recording-scoped video timing observations with source time, capture-attempt bounds and revision changes, while explicitly leaving pixel timing unknown.

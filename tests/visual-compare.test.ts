@@ -48,6 +48,22 @@ describe('visual comparison region mapping', () => {
     expect(visualCompareBitmapClip({ x: 40, y: 40, width: 80, height: 60 }, viewport, source)).toEqual(expected)
   })
 
+  it.each([3.9999999999999996, 4, 4.000000000000001])('retains complete edge pixels at native zoom %s', zoom => {
+    const viewport = { width: 800 / zoom, height: 600 / zoom }
+    expect(visualCompareBitmapClip({ x: 40, y: 40, width: 80, height: 60 }, viewport, { width: 800, height: 600 }))
+      .toEqual({ x: 160, y: 160, width: 320, height: 240 })
+    expect(visualCompareBitmapClip({ x: 0, y: 0, width: 200, height: 150 }, viewport, { width: 800, height: 600 }))
+      .toEqual({ x: 0, y: 0, width: 800, height: 600 })
+  })
+
+  it('keeps genuine subpixel clipping and out-of-bounds rejection after rounding numerical noise', () => {
+    const size = { width: 800, height: 600 }
+    expect(visualCompareBitmapClip({ x: 160 + 1e-8, y: 160 + 1e-8, width: 320 - 2e-8, height: 240 - 2e-8 }, size, size))
+      .toEqual({ x: 161, y: 161, width: 318, height: 238 })
+    expect(() => visualCompareBitmapClip({ x: 0, y: 0, width: 800 + 1e-8, height: 600 }, size, size)).toThrow('fit inside')
+    expect(() => visualCompareBitmapClip({ x: 0, y: 0, width: 800, height: 600 + 1e-8 }, size, size)).toThrow('fit inside')
+  })
+
   it('excludes partially covered pixels and rejects subpixel or out-of-viewport regions', () => {
     const viewport = { width: 100, height: 100 }
     expect(visualCompareBitmapClip({ x: 0.25, y: 0.75, width: 4, height: 4 }, viewport, viewport)).toEqual({ x: 1, y: 1, width: 3, height: 3 })
