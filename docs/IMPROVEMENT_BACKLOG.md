@@ -32,19 +32,24 @@ and shared audit contracts. Entries distinguish proposals from completed work.
    Cross-restart recovery needs a separate persistence and partial-file validation
    design; it is not implied by this proposal.
 
-3. **Explicit recorder assertions — proposed after the maintenance release.**
-   [Playwright's generator](https://playwright.dev/docs/codegen) lets users select
-   visibility, text, and value assertions. Hronaut's Playwright export deliberately
-   ends with a TODO error until an expected result is added. A user-selected
-   visibility assertion could reduce that manual work while keeping expected
-   behavior explicit. Reuse the element picker, retain bounded selectors and
-   recording limits, and reject results from obsolete page/recording contexts.
-   Cover hidden/removed elements, duplicate selectors, frame support, export
-   escaping, and concurrent stop. Text/value capture needs a separate explicit
-   privacy contract. This is research, not an implemented assertion or replay
-   feature; the current TODO remains appropriate for action-only recordings.
-   See [the implementation proposal](RECORDER_ASSERTIONS_PLAN.md) for picker
-   boundaries, cancellation rules, and required end-to-end evidence.
+3. **Explicit recorder assertions — selector-based checkpoints shipped; native picker deferred.**
+   As of v2.11.7, the Repro panel and MCP support reviewed, unique-selector
+   checkpoints for visible, hidden, user-authored exact text, checked and unchecked
+   expectations. Supported checkpoints export deterministic Playwright assertions;
+   intended conditions remain separate from the observed match. Action-only
+   recordings retain the expected-result TODO, while unresolved or dropped steps
+   still prevent an incomplete export from silently passing. See the current
+   [Repro contract](../REFERENCE.md#mcp-tools) and
+   [executed-export regression coverage](../tests/integration/repro-checkpoints.e2e.ts).
+   Text is supplied and reviewed by the user, not harvested from page content;
+   checked-state expectations do not capture input values or imply consent.
+   Native-picker assistance, additional conditions and selected network context
+   remain follow-up proposals under #335, requiring concrete evaluator evidence
+   before expansion. The [native-picker proposal](RECORDER_ASSERTIONS_PLAN.md)
+   retains selection, cancellation and verification requirements; it does not
+   describe the availability of the shipped selector-based workflow. Separate
+   evidence and privacy gates for incident packages (#336), scoped snapshot
+   identity (#337) and production logpoints (#340) remain unchanged.
 
 ## Developer feedback speed
 
