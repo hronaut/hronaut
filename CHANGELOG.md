@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep an explicit manual-review step when navigation interrupts Repro click or keyboard capture, so a destination checkpoint cannot hide the missing action in an exported test.
+
 - Replay redacted native-select type-ahead using explicitly supplied safe text and keyboard events instead of an invalid fill action; selected values remain unrecorded.
 
 - Render supported primitive Console substitutions as readable plain text and omit CSS styling arguments, while preserving raw capture matching and redacting the assembled presentation.

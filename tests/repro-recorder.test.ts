@@ -29,6 +29,39 @@ function fixture() {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('reproduction recorder data contracts', () => {
+  it.each(['queued', 'in-flight'] as const)('retains a target-free review step for %s actions invalidated by navigation', async phase => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    let release!: (value: unknown) => void
+    const held = new Promise(resolve => { release = resolve })
+    f.executeJavaScript.mockReturnValueOnce(held)
+    f.recorder.observeReproKeyboard(f.tab, enterKey)
+    if (phase === 'in-flight') await Promise.resolve().then(() => undefined)
+    f.tab.navigationGeneration++
+    f.recorder.navigated(f.tab, f.tab.url, false)
+    release({ selector: 'private-target', tag: 'input', label: 'Obsolete label' })
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps.at(-1)).toMatchObject({ kind: 'key', description: expect.stringContaining('navigation') })
+    expect(report.steps.at(-1)).not.toHaveProperty('target')
+    expect(report.steps.at(-1)).not.toHaveProperty('key')
+    expect(JSON.stringify(report)).not.toMatch(/private-target|Obsolete label/)
+  })
+
+  it('does not carry an invalidated action into a replacement recording', async () => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    let release!: (value: unknown) => void
+    f.executeJavaScript.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    f.recorder.observeReproKeyboard(f.tab, enterKey)
+    await Promise.resolve().then(() => undefined)
+    const previousQueue = f.tab.reproRecording!.queue
+    f.tab.navigationGeneration++
+    await f.recorder.manage(f.tab, 'start')
+    release({ selector: 'old', tag: 'button' })
+    await previousQueue
+    expect((await f.recorder.manage(f.tab, 'stop')).steps.map(step => step.kind)).toEqual(['navigate'])
+  })
+
   it.each(['checkbox', 'radio'])('records Space activation on a native %s as a key without a replacement value', async (inputType) => {
     const f = fixture()
     await f.recorder.manage(f.tab, 'start')

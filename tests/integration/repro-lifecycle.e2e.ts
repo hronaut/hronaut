@@ -355,7 +355,10 @@ test('contains rejected and obsolete delayed Repro page captures', async ({
     }) as CallToolResult
     expect(navigatedState.isError, text(navigatedState)).not.toBe(true)
     expect((JSON.parse(text(navigatedState)) as { steps: Array<{ kind: string }> }).steps.map((step) => step.kind))
-      .toEqual(['navigate', 'navigate'])
+      .toEqual(['navigate', 'navigate', 'click'])
+    expect(JSON.parse(text(navigatedState)).steps.at(-1)).toMatchObject({ description: expect.stringContaining('navigation') })
+    expect(JSON.parse(text(navigatedState)).steps.at(-1)).not.toHaveProperty('target')
+    expect(text(navigatedState)).not.toContain('Obsolete page target')
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
