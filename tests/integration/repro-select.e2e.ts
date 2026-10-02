@@ -6,9 +6,10 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 
 for (const variant of ['', 'size=3', 'multiple size=3']) {
   test(`replays redacted native select type-ahead (${variant || 'closed'})`, async ({ appWindow, electronApp }) => {
+    let unavailable: '' | 'disabled' | 'hidden' = ''
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
-      response.end(`<title>Select fixture</title><label>Choice<select ${variant} onchange="document.querySelector('p').textContent='Chosen: '+this.selectedOptions[0].label"><option value="private-alpha">Alpha</option><option value="private-beta">Beta</option><option value="private-gamma">Gamma</option></select></label><p>Chosen: Alpha</p>`)
+      response.end(`<title>Select fixture</title><input autofocus value="unchanged"><label>Choice<select ${variant} ${unavailable} onchange="document.querySelector('p').textContent='Chosen: '+this.selectedOptions[0].label"><option value="private-alpha">Alpha</option><option value="private-beta">Beta</option><option value="private-gamma">Gamma</option></select></label><p>Chosen: Alpha</p>`)
     })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()
@@ -50,6 +51,13 @@ for (const variant of ['', 'size=3', 'multiple size=3']) {
       }
       await expect(run()).rejects.toThrow('Set HRONAUT_REPRO_INPUT_')
       try {
+        process.env[names[0]!] = 'b'
+        for (const state of ['disabled', 'hidden'] as const) {
+          unavailable = state
+          await expect(run()).rejects.toThrow(state === 'disabled' ? 'toBeEnabled' : 'toBeFocused')
+          await expect(page.locator('input')).toHaveValue('unchanged')
+        }
+        unavailable = ''
         process.env[names[0]!] = 'g'
         await expect(run()).rejects.toThrow('toHaveText')
         process.env[names[0]!] = 'b'
