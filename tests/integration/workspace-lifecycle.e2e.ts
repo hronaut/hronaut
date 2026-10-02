@@ -13,6 +13,8 @@ for (const empty of [false, true]) {
     const url = `http://127.0.0.1:${address.port}/workspace`
     let instance = await launchHronaut(profileDirectory)
     try {
+      // DOM readiness precedes profile restoration. The state API waits for initialization.
+      await instance.window.evaluate('window.hronaut.getState()')
       await instance.window.evaluate(`window.hronaut.newTab({url:${JSON.stringify(url)},mcpGroupId:${JSON.stringify(workspaceId)}})`)
       await expect.poll(() => instance.app.evaluate(({ webContents }, target) => webContents.getAllWebContents().some(entry => entry.getURL() === target), url)).toBe(true)
       await instance.app.evaluate(async ({ webContents }, url) => {
@@ -31,6 +33,7 @@ for (const empty of [false, true]) {
       }, url)
       await closeHronaut(instance.app)
       instance = await launchHronaut(profileDirectory)
+      await instance.window.evaluate('window.hronaut.getState()')
       await instance.window.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(workspaceId)},{name:'My existing profile',agentAccess:false})`)
       if (empty) {
         await instance.window.evaluate(async id => {
