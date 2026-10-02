@@ -178,6 +178,55 @@ function runtimeConsoleLevel(type: string): string | undefined {
   return undefined
 }
 
+/** Presentation only: matching continues to use the original sanitized argument join. */
+export function normalizeRuntimeConsolePresentation(input: CdpRuntimeConsoleCall): {
+  match: BrowserConsoleMessage
+  presentation: string
+} | undefined {
+  const args = input.args ?? []
+  if (args.length < 2 || args.length > 100 || args[0]?.type !== 'string'
+    || typeof args[0].value !== 'string') return undefined
+  if (/%[oO]/.test(args[0].value)) return undefined
+  // Never coerce remote objects, retrieve properties, or guess their Chromium text.
+  if (args.some(arg => !['string', 'number', 'boolean', 'undefined'].includes(arg.type ?? '')
+    && arg.subtype !== 'null')) return undefined
+  const values = args.map(runtimeConsoleArgument)
+  if (values.reduce((size, value) => size + value.length, 0) > 64_000) return undefined
+  let next = 1
+  let substituted = false
+  const rendered = values[0]!.replace(/%[%sdifc]/g, token => {
+    if (token === '%%') return '%'
+    if (next >= values.length) return token
+    substituted = true
+    const value = values[next++]!
+    if (token === '%c') return ''
+    if (token === '%d' || token === '%i') return String(Number.parseInt(value, 10))
+    if (token === '%f') return String(Number.parseFloat(value))
+    return value
+  })
+  if (!substituted) return undefined
+  const type = input.type ?? ''
+  const stacked = normalizeRuntimeConsoleCall(input)
+  const top = normalizeConsoleStack(input.stackTrace).frames[0]
+  if (!stacked && (!top || !['log', 'info', 'debug'].includes(type))) return undefined
+  const clean = (value: string) => redactDiagnosticText(value)
+    .replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+    .slice(0, MAX_CONSOLE_EXCEPTION_CHARS)
+  const text = [rendered, ...values.slice(next)].join(' ')
+  return {
+    match: stacked ?? {
+      timestamp: new Date(Number.isFinite(input.timestamp) ? input.timestamp! : Date.now()).toISOString(),
+      level: type === 'debug' ? 'verbose' : 'info',
+      message: clean(values.join(' ')),
+      lineNumber: top!.lineNumber,
+      sourceId: top!.url ?? '',
+      kind: 'console'
+    },
+    // Redact after substitution, before either queue or history retains the presentation.
+    presentation: clean(type === 'assert' ? `Assertion failed${text ? `: ${text}` : ''}` : text)
+  }
+}
+
 export function normalizeRuntimeConsoleCall(input: CdpRuntimeConsoleCall | undefined): BrowserConsoleMessage | undefined {
   const type = input?.type ?? ''
   const level = runtimeConsoleLevel(type)

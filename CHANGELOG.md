@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Render supported primitive Console substitutions as readable plain text and omit CSS styling arguments, while preserving raw capture matching and redacting the assembled presentation.
+
 - Record Space activation on native checkboxes and radio buttons as a key action so exported Repro tests replay it without trying to fill the control.
 
 ## [2.11.7] - 2026-10-02
