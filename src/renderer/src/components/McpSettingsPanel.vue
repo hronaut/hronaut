@@ -26,6 +26,7 @@ const {
   editPort,
   setRemoteAccess,
   setAuthentication,
+  setChallengeDetectionEnabled,
   setToolSet,
   applyPort,
   capabilityProfiles,
@@ -107,6 +108,11 @@ async function changeAuthentication(event: Event): Promise<void> {
   if (!(await setAuthentication(input.checked))) input.checked = settings.value.mcpAuthentication
 }
 
+async function changeChallengeDetection(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await setChallengeDetectionEnabled(input.checked))) input.checked = settings.value.challengeDetectionEnabled
+}
+
 async function changeToolSet(event: Event): Promise<void> {
   const select = event.target as HTMLSelectElement
   if (!isMcpToolSet(select.value) || !(await setToolSet(select.value))) {
@@ -156,6 +162,14 @@ function handlePortKeydown(event: KeyboardEvent): void {
           :disabled="busy"
           @change="changeAuthentication"
         />
+      </label>
+      <label class="settings-row" for="setting-challenge-detection">
+        <span>
+          <strong>{{ t('settings.mcp.challengeDetection') }}</strong>
+          <small>{{ t('settings.mcp.challengeDetectionDescription') }}</small>
+        </span>
+        <UiCheckbox bare id="setting-challenge-detection" :checked="settings.challengeDetectionEnabled"
+          :disabled="busy" @change="changeChallengeDetection" />
       </label>
       <label class="settings-row" for="setting-mcp-tool-set">
         <span>

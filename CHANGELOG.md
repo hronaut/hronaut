@@ -8,7 +8,11 @@ All notable changes to Hronaut are documented in this file.
 
 - Extend real page zoom through 400% in the toolbar, keyboard controls and MCP for reflow QA; existing zoom levels and reset remain available.
 
+## [2.11.6] - 2026-10-02
+
 ### Fixed
+
+- Ignore hidden background CAPTCHA controls during observation-quality checks; add a persisted human-controlled “Detect visible challenges” setting, off by default, with the effective state in assessments. Other quality and permission checks remain active.
 
 - Exclude editable drafts from Repro target labels and descriptions before they enter the timeline, MCP output or reviewed incident packages, while retaining public labels and structural selectors.
 

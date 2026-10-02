@@ -39,6 +39,7 @@ interface AppSettingsFeatureStore {
   resetAppearance(): Promise<RendererSettingsState>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
+  setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
@@ -212,6 +213,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     listenerFailed: computed(() => mcpStatusController.state.value.status === 'error'),
     setRemoteAccess: (enabled) => options.settingsStore.setMcpRemoteAccess(enabled),
     setAuthentication: (enabled) => options.settingsStore.setMcpAuthentication(enabled),
+    setChallengeDetectionEnabled: (enabled) => options.settingsStore.setChallengeDetectionEnabled(enabled),
     setToolSet: (toolSet) => options.settingsStore.setMcpToolSet(toolSet),
     setPort: (port) => options.settingsStore.setMcpPort(port),
     resetSettings: () => options.settingsStore.resetMcp(),

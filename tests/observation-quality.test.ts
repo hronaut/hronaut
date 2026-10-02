@@ -29,7 +29,22 @@ describe('browser observation quality', () => {
     ['soft_404', signals({ soft404Signals: ['not-found-title'] })],
     ['needs_review', signals({ visibleTextChars: 360, primaryTextChars: 20, noiseTextChars: 320, headingCount: 0, interactiveCount: 18, cookieSignals: ['cookie-consent'] })]
   ] as const)('classifies %s without treating readable text as proof', (status, input) => {
-    expect(classifyBrowserObservationQuality(input, {})).toMatchObject({ status, decision: status === 'needs_review' ? 'review' : 'stop' })
+    expect(classifyBrowserObservationQuality(input, { challengeDetectionEnabled: true })).toMatchObject({ status, decision: status === 'needs_review' ? 'review' : 'stop' })
+  })
+
+  it.each([undefined, false, true])('reports the effective challenge setting %s without skipping other gates', (challengeDetectionEnabled) => {
+    const options = { challengeDetectionEnabled, expectedTextProvided: true }
+    const input = signals({ primaryTextChars: 30, expectedTextMatched: true, challengeSignals: ['challenge-control'] })
+    expect(classifyBrowserObservationQuality(input, options)).toMatchObject({
+      status: challengeDetectionEnabled ? 'challenge' : 'candidate',
+      challengeDetectionEnabled: challengeDetectionEnabled === true
+    })
+    expect(classifyBrowserObservationQuality({ ...input, loginSignals: ['password-field'] }, { ...options, challengeDetectionEnabled: false }))
+      .toMatchObject({ status: 'login_wall', decision: 'stop' })
+    expect(classifyBrowserObservationQuality(input, { ...options, expectedOrigin: 'https://other.test' }))
+      .toMatchObject({ status: 'wrong_origin', decision: 'stop' })
+    expect(classifyBrowserObservationQuality({ ...input, expectedTextMatched: false }, { ...options, challengeDetectionEnabled: false }))
+      .toMatchObject({ status: 'needs_review', decision: 'stop' })
   })
 
   it('requires every caller-provided task marker before returning candidate', () => {
@@ -62,9 +77,9 @@ describe('browser observation quality', () => {
   })
 
   it('does not mistake an article discussing login or challenge copy for a gate', () => {
-    expect(classifyBrowserObservationQuality(signals({ challengeSignals: ['challenge-title'] }), {}))
+    expect(classifyBrowserObservationQuality(signals({ challengeSignals: ['challenge-title'] }), { challengeDetectionEnabled: true }))
       .toMatchObject({ status: 'candidate', evidenceClass: 'semantic_content' })
-    expect(classifyBrowserObservationQuality(signals({ challengeSignals: ['human-verification'] }), {}))
+    expect(classifyBrowserObservationQuality(signals({ challengeSignals: ['human-verification'] }), { challengeDetectionEnabled: true }))
       .toMatchObject({ status: 'candidate', evidenceClass: 'semantic_content' })
     expect(classifyBrowserObservationQuality(signals({ loginSignals: ['sign-in-copy'] }), {}))
       .toMatchObject({ status: 'candidate', evidenceClass: 'semantic_content' })
@@ -73,7 +88,7 @@ describe('browser observation quality', () => {
   it('still treats a long page with both a challenge title and control as a challenge', () => {
     expect(classifyBrowserObservationQuality(signals({
       challengeSignals: ['challenge-title', 'challenge-control']
-    }), {})).toMatchObject({ status: 'challenge', decision: 'stop', evidenceClass: 'automated_challenge' })
+    }), { challengeDetectionEnabled: true })).toMatchObject({ status: 'challenge', decision: 'stop', evidenceClass: 'automated_challenge' })
   })
 
   it('returns only bounded evidence metadata for useful content', () => {

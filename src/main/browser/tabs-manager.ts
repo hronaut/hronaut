@@ -776,6 +776,7 @@ export interface TabsManagerOptions {
   memorySaverEnabled?: boolean
   memorySaverTimeoutMinutes?: MemorySaverTimeoutMinutes
   followAgentActivity?: boolean
+  getChallengeDetectionEnabled?: () => boolean
   getSearchEngine?: () => SearchEngineName
   getLocale: () => SupportedLocale
   getTabPosition: () => TabPosition
@@ -4658,6 +4659,7 @@ export class BrowserTabsManager {
   } = {}): Promise<BrowserObservationQualityResult> {
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before assessing observation quality')
+    const challengeDetectionEnabled = this.options.getChallengeDetectionEnabled?.() === true
     const expectedOrigin = normalizeObservationExpectedOrigin(options.expectedOrigin)
     const unavailableState = tab.pageProblem
       ? 'unavailable' as const
@@ -4677,6 +4679,7 @@ export class BrowserTabsManager {
         soft404Signals: [],
         cookieSignals: []
       }, {
+        challengeDetectionEnabled,
         expectedOrigin,
         expectedTextProvided: options.expectedText !== undefined,
         expectedSelectorProvided: options.expectedSelector !== undefined
@@ -4685,7 +4688,7 @@ export class BrowserTabsManager {
     const context = this.snapshotDeltaContext(tab)
     const signals = await tab.webContents.executeJavaScriptInIsolatedWorld(
       OBSERVATION_QUALITY_WORLD_ID,
-      [{ code: observationQualityPageScript({ expectedText: options.expectedText, expectedSelector: options.expectedSelector }) }],
+      [{ code: observationQualityPageScript({ challengeDetectionEnabled, expectedText: options.expectedText, expectedSelector: options.expectedSelector }) }],
       false
     ) as BrowserObservationQualitySignals
     const current = this.tabs.get(tab.id)
@@ -4699,6 +4702,7 @@ export class BrowserTabsManager {
     return classifyBrowserObservationQuality(
       { ...signals, resolvedUrl: redactNetworkUrl(signals.resolvedUrl) },
       {
+        challengeDetectionEnabled,
         expectedOrigin,
         expectedTextProvided: options.expectedText !== undefined,
         expectedSelectorProvided: options.expectedSelector !== undefined

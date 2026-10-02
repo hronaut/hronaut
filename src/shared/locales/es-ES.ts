@@ -354,7 +354,7 @@ export const esES = {
       "description": "Controla qué aplicaciones locales pueden conectarse a este perfil.",
       "require": "Requerir autenticación MCP",
       "requireDescription": "Requerir el token bearer privado del perfil para MCP y las consultas de estado.",
-      "toolSet": "Conjunto de herramientas MCP",
+      challengeDetection: "Detectar desafíos visibles", challengeDetectionDescription: "Desactivado por defecto. Permite que la evaluación detecte CAPTCHA y verificaciones humanas visibles. Las demás comprobaciones de calidad y permisos siguen activas. No resuelve ni evita desafíos.", "toolSet": "Conjunto de herramientas MCP",
       "toolSetDescription": "Elige el catálogo específico de la tarea para las nuevas conexiones MCP.",
       "toolSetEssentials": "Fundamentos del navegador",
       "toolSetQa": "QA web",

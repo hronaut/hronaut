@@ -12,6 +12,7 @@ function assessment(
   evidenceClass: BrowserObservationQualityResult['evidenceClass'] = 'expected_marker'
 ): BrowserObservationQualityResult {
   return {
+    challengeDetectionEnabled: false,
     status,
     decision: status === 'candidate' ? 'continue' : 'stop',
     evidenceClass,
@@ -74,6 +75,7 @@ describe('public outcome classification', () => {
     const summary = summarizePublicOutcomeAssessment(assessment('candidate', true))
 
     expect(summary).toEqual({
+      challengeDetectionEnabled: false,
       status: 'candidate',
       evidenceClass: 'expected_marker',
       expectedEvidence: { provided: true, matched: true, textProvided: true, selectorProvided: false }
