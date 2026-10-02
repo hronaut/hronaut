@@ -26,6 +26,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   launchMinimized: false,
   attentionSound: true,
   attentionSoundCue: 'warning',
+  challengeDetectionEnabled: false,
   followAgentActivity: false,
   mcpRemoteAccess: false,
   mcpAuthentication: false,
@@ -169,6 +170,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setAttentionSound = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSound(enabled))
   const setAttentionSoundCue = (cue: AttentionSoundCue): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSoundCue(cue))
   const setFollowAgentActivity = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setFollowAgentActivity(enabled))
+  const setChallengeDetectionEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setChallengeDetectionEnabled(enabled))
   const setMcpRemoteAccess = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpRemoteAccess(enabled))
   const setMcpAuthentication = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpAuthentication(enabled))
   const setMcpPort = (port: number): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpPort(port))
@@ -227,6 +229,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setAttentionSound,
     setAttentionSoundCue,
     setFollowAgentActivity,
+    setChallengeDetectionEnabled,
     setMcpRemoteAccess,
     setMcpAuthentication,
     setMcpPort,

@@ -354,7 +354,7 @@ export const deDE = {
       "description": "Lege fest, welche lokalen Anwendungen auf dieses Browserprofil zugreifen dürfen.",
       "require": "MCP-Authentifizierung verlangen",
       "requireDescription": "Das private Bearer-Token des Profils für MCP- und Statusanfragen verlangen.",
-      "toolSet": "MCP-Werkzeugsatz",
+      challengeDetection: "Sichtbare Challenges erkennen", challengeDetectionDescription: "Standardmäßig aus. Die Beobachtungsqualität kann sichtbare CAPTCHA- und menschliche Verifizierungsaufgaben melden. Andere Qualitäts- und Berechtigungsprüfungen bleiben aktiv. Challenges werden weder gelöst noch umgangen.", "toolSet": "MCP-Werkzeugsatz",
       "toolSetDescription": "Wähle den aufgabenbezogenen Katalog für neue MCP-Verbindungen.",
       "toolSetEssentials": "Browser-Grundlagen",
       "toolSetQa": "Web-QA",

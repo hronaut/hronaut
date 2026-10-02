@@ -8,6 +8,7 @@ export type PublicObservationOutcome =
   | 'reconciliation_required'
 
 export interface PublicOutcomeAssessmentSummary {
+  challengeDetectionEnabled: boolean
   status: BrowserObservationQualityResult['status']
   evidenceClass: BrowserObservationQualityResult['evidenceClass']
   expectedEvidence: BrowserObservationQualityResult['expectedEvidence']
@@ -17,6 +18,7 @@ export function summarizePublicOutcomeAssessment(
   assessment: BrowserObservationQualityResult
 ): PublicOutcomeAssessmentSummary {
   return {
+    challengeDetectionEnabled: assessment.challengeDetectionEnabled,
     status: assessment.status,
     evidenceClass: assessment.evidenceClass,
     expectedEvidence: structuredClone(assessment.expectedEvidence)

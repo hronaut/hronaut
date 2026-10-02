@@ -25,6 +25,10 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     settings.value = { ...settings.value, mcpPort: port }
     return settings.value
   })
+  const setChallengeDetectionEnabled = vi.fn(async (challengeDetectionEnabled: boolean) => {
+    settings.value = { ...settings.value, challengeDetectionEnabled }
+    return settings.value
+  })
   const setToolSet = vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => {
     settings.value = { ...settings.value, mcpToolSet }
     return settings.value
@@ -57,6 +61,7 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     listenerFailed: ref(false),
     setRemoteAccess: async (enabled: boolean) => (settings.value = { ...settings.value, mcpRemoteAccess: enabled }),
     setAuthentication,
+    setChallengeDetectionEnabled,
     setToolSet,
     setPort,
     resetSettings,
@@ -73,10 +78,24 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     global: { plugins: [createHronautI18n('en-US')] },
     props: { controller }
   })
-  return { controller, confirmDisableAuthentication, createCapabilityProfile, setAuthentication, setPort, setToolSet, settings }
+  return { controller, confirmDisableAuthentication, createCapabilityProfile, setAuthentication, setPort, setToolSet, setChallengeDetectionEnabled, settings }
 }
 
 describe('McpSettingsPanel', () => {
+  it('keeps challenge detection off until the human enables it and allows disabling it again', async () => {
+    const { controller, setChallengeDetectionEnabled } = renderPanel()
+    const user = userEvent.setup()
+    const toggle = screen.getByRole('checkbox', { name: /Detect visible challenges/ })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    expect(setChallengeDetectionEnabled).toHaveBeenLastCalledWith(true)
+    expect(toggle).toBeChecked()
+    await user.click(toggle)
+    expect(setChallengeDetectionEnabled).toHaveBeenLastCalledWith(false)
+    expect(toggle).not.toBeChecked()
+    controller.dispose()
+  })
+
   it('renders the active endpoint and security warning', () => {
     const { controller } = renderPanel()
 

@@ -30,6 +30,18 @@ describe('SettingsStore', () => {
     expect((await store.load()).mcpRemoteAccess).toBe(false)
   })
 
+  it.each([undefined, false, true, 'true', 1])('loads and persists strict challenge detection preference %s', async (value) => {
+    const { path, store } = await createStore()
+    await store.save({ ...DEFAULT_SETTINGS })
+    await writeFile(path, JSON.stringify({ challengeDetectionEnabled: value }))
+    const loaded = await store.load()
+    expect(loaded.challengeDetectionEnabled).toBe(value === true)
+    await store.save({ ...loaded, challengeDetectionEnabled: true })
+    expect((await store.load()).challengeDetectionEnabled).toBe(true)
+    await store.save({ ...loaded, challengeDetectionEnabled: false })
+    expect((await store.load()).challengeDetectionEnabled).toBe(false)
+  })
+
   it('preserves optional authentication when restoring a remote-access profile', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
@@ -50,6 +62,7 @@ describe('SettingsStore', () => {
       launchMinimized: true,
       attentionSound: false,
       attentionSoundCue: 'bell',
+      challengeDetectionEnabled: false,
       followAgentActivity: true,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
@@ -73,6 +86,7 @@ describe('SettingsStore', () => {
       launchMinimized: true,
       attentionSound: false,
       attentionSoundCue: 'bell',
+      challengeDetectionEnabled: false,
       followAgentActivity: true,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
@@ -96,6 +110,7 @@ describe('SettingsStore', () => {
       launchMinimized: true,
       attentionSound: false,
       attentionSoundCue: 'bell',
+      challengeDetectionEnabled: false,
       followAgentActivity: true,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
@@ -159,6 +174,7 @@ describe('SettingsStore', () => {
       launchMinimized: false,
       attentionSound: true,
       attentionSoundCue: 'warning',
+      challengeDetectionEnabled: false,
       followAgentActivity: false,
       mcpRemoteAccess: false,
       mcpAuthentication: false,

@@ -14,7 +14,7 @@ import {
 } from '../../../shared/mcp-port.js'
 
 type McpPortState = 'idle' | 'saving' | 'saved' | 'error'
-type McpOperation = 'idle' | 'remote-access' | 'authentication' | 'tool-set' | 'port' | 'reset'
+type McpOperation = 'idle' | 'remote-access' | 'authentication' | 'tool-set' | 'challenge-detection' | 'port' | 'reset'
 
 export interface McpSettingsControllerOptions {
   settings: Readonly<Ref<AppSettings>>
@@ -22,6 +22,7 @@ export interface McpSettingsControllerOptions {
   listenerFailed: Readonly<Ref<boolean>>
   setRemoteAccess: (enabled: boolean) => Promise<AppSettings>
   setAuthentication: (enabled: boolean) => Promise<AppSettings>
+  setChallengeDetectionEnabled: (enabled: boolean) => Promise<AppSettings>
   setToolSet: (toolSet: McpToolSet) => Promise<AppSettings>
   setPort: (port: number) => Promise<AppSettings>
   resetSettings: () => Promise<AppSettings>
@@ -135,6 +136,21 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     operation.value = 'authentication'
     try {
       await options.setAuthentication(enabled)
+      return operationGeneration === generation
+    } catch (error) {
+      if (operationGeneration === generation) options.onAuthenticationError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) operation.value = 'idle'
+    }
+  }
+
+  async function setChallengeDetectionEnabled(enabled: boolean): Promise<boolean> {
+    if (busy.value) return false
+    const operationGeneration = generation
+    operation.value = 'challenge-detection'
+    try {
+      await options.setChallengeDetectionEnabled(enabled)
       return operationGeneration === generation
     } catch (error) {
       if (operationGeneration === generation) options.onAuthenticationError(error)
@@ -348,6 +364,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     editPort,
     setRemoteAccess,
     setAuthentication,
+    setChallengeDetectionEnabled,
     setToolSet,
     applyPort,
     capabilityProfiles,
