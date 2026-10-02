@@ -21,6 +21,29 @@ const recording: BrowserReproRecording = {
 }
 
 describe('Playwright repro export', () => {
+  it('replays native select input as explicitly supplied type-ahead text', () => {
+    const step = { ...recording.steps[1]!, target: { selector: 'select', tag: 'select' } }
+    const code = formatReproAsPlaywright({ ...recording, steps: [step] })
+    expect(code).toContain('process.env.HRONAUT_REPRO_INPUT_2')
+    expect(code).toContain('page.locator("css:light=select").pressSequentially(reproInput2)')
+    expect(code).not.toContain('.fill(')
+    expect(code).not.toContain('.selectOption(')
+  })
+
+  it.each(['text', 'password'])('keeps redacted %s inputs as safe replacement fills', (inputType) => {
+    const step = { ...recording.steps[1]!, target: { selector: 'input', tag: 'input', inputType } }
+    const code = formatReproAsPlaywright({ ...recording, steps: [step] })
+    expect(code).toContain('page.locator("css:light=input").fill(reproInput2)')
+    expect(code).not.toContain('.pressSequentially(')
+  })
+
+  it('keeps unresolved select targets as explicit manual steps', () => {
+    const step = { ...recording.steps[1]!, target: { selector: '', tag: 'select' } }
+    const code = formatReproAsPlaywright({ ...recording, steps: [step] })
+    expect(code).toContain('throw new Error("TODO: Recreate step 2: input")')
+    expect(code).not.toContain('.pressSequentially(')
+  })
+
   it('produces a reviewable test without inventing redacted input values', () => {
     const result = formatReproAsPlaywright(recording)
 

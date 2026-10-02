@@ -59,10 +59,12 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
     } else if (step.kind === 'input' && target) {
       const variable = `reproInput${step.index}`
       const environmentName = `HRONAUT_REPRO_INPUT_${step.index}`
+      const selectTypeAhead = step.target?.tag === 'select'
+      if (selectTypeAhead) lines.push('  // Supply reviewed type-ahead text for this native select, not an option value; review timing and selection state.')
       lines.push(
         `  const ${variable} = process.env.${environmentName}`,
         `  if (${variable} === undefined) throw new Error(${quoted(`Set ${environmentName} to a safe test value before running this reproduction`)})`,
-        `  await ${target}.fill(${variable})`
+        `  await ${target}.${selectTypeAhead ? 'pressSequentially' : 'fill'}(${variable})`
       )
     } else if (step.kind === 'key' && step.key && (!step.target || target)) {
       const action = `${target ?? 'page.keyboard'}.press(${quoted(playwrightKey(step.key))})`
