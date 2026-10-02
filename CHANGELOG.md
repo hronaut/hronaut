@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.8] - 2026-10-02
+
 ### Fixed
 
 - Require manual review of Repro actions whose target capture fails, including failures that settle before navigation, instead of silently omitting the action from exported tests.
