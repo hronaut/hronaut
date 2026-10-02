@@ -2474,7 +2474,7 @@ export const frFR = {
       "navigation": "Une navigation complète du document efface l’enregistrement, car elle crée un nouveau DOM."
     }
   },
-  "visualCompare": {
+  "visualCompare": { region: "Zone : {x}, {y} · {width}×{height} pixels CSS. Seule cette zone est comparée.", regionPrivacy: "La zone est recadrée avant redimensionnement. Les dimensions et les nombres de pixels concernent uniquement cette image. Le recadrage ne rend pas anonyme ; vérifiez avant de partager.", newViewportBaseline: "Nouvelle référence de la fenêtre",
     "kicker": "Avant et après",
     "heading": "Comparaison visuelle",
     "close": "Fermer la comparaison visuelle",

@@ -1,5 +1,32 @@
+import type { BrowserScreenshotClip } from './types.js'
+
 export const DEFAULT_VISUAL_COMPARE_THRESHOLD = 24
 export const MAX_VISUAL_COMPARE_THRESHOLD = 255
+
+export function normalizeVisualCompareClip(value: BrowserScreenshotClip | undefined): BrowserScreenshotClip | undefined {
+  if (value === undefined) return undefined
+  if (!value || ![value.x, value.y, value.width, value.height].every(Number.isFinite)
+    || value.x < 0 || value.y < 0 || value.width <= 0 || value.height <= 0) {
+    throw new TypeError('Visual comparison clip must have finite nonnegative coordinates and positive dimensions')
+  }
+  return { x: value.x, y: value.y, width: value.width, height: value.height }
+}
+
+/** Retain only complete native pixels inside the requested CSS rectangle. */
+export function visualCompareBitmapClip(clip: BrowserScreenshotClip, viewport: { width: number; height: number }, source: { width: number; height: number }): BrowserScreenshotClip {
+  normalizeVisualCompareClip(clip)
+  if (![viewport.width, viewport.height, source.width, source.height].every(value => Number.isFinite(value) && value > 0)
+    || !Number.isInteger(source.width) || !Number.isInteger(source.height)) throw new Error('Invalid visual comparison viewport or bitmap dimensions')
+  if (clip.x + clip.width > viewport.width || clip.y + clip.height > viewport.height) {
+    throw new Error('Visual comparison clip must fit inside the visible viewport')
+  }
+  const x = Math.ceil(clip.x * (source.width / viewport.width))
+  const y = Math.ceil(clip.y * (source.height / viewport.height))
+  const right = Math.floor((clip.x + clip.width) * (source.width / viewport.width))
+  const bottom = Math.floor((clip.y + clip.height) * (source.height / viewport.height))
+  if (right <= x || bottom <= y) throw new Error('Visual comparison clip contains no complete bitmap pixels; choose a larger region')
+  return { x, y, width: right - x, height: bottom - y }
+}
 
 export interface VisualPixelDiff {
   changedPixels: number

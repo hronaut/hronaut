@@ -1972,11 +1972,30 @@ export interface BrowserScreenshotOptions {
 export type BrowserVisualCompareAction = 'get' | 'set-baseline' | 'compare' | 'clear'
 export type BrowserVisualCompareStatus = 'empty' | 'baseline' | 'compared'
 
+export type BrowserVisualCompareScope = { kind: 'viewport' } | {
+  kind: 'region'
+  clip: BrowserScreenshotClip
+  bitmapClip: BrowserScreenshotClip
+  viewport: { width: number; height: number }
+  source: { width: number; height: number }
+}
+
+export interface BrowserVisualCompareContext {
+  viewportWidth: number
+  viewportHeight: number
+  devicePixelRatio: number
+  zoomFactor: number
+  scrollX: number
+  scrollY: number
+}
+
 export interface BrowserVisualSnapshot {
   capturedAt: string
   url: string
   width: number
   height: number
+  scope?: BrowserVisualCompareScope
+  context?: BrowserVisualCompareContext
 }
 
 export interface BrowserVisualCompareReport {
@@ -1986,6 +2005,7 @@ export interface BrowserVisualCompareReport {
   title: string
   url: string
   threshold: number
+  scope?: BrowserVisualCompareScope
   baseline?: BrowserVisualSnapshot
   current?: BrowserVisualSnapshot
   identical?: boolean
@@ -2002,6 +2022,7 @@ export interface BrowserVisualCompareOptions {
   action: BrowserVisualCompareAction
   threshold?: number
   settleMs?: number
+  clip?: BrowserScreenshotClip
 }
 
 export interface BrowserVisualCompareView extends BrowserVisualCompareReport {

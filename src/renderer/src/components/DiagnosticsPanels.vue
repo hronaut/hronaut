@@ -1558,6 +1558,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
               <strong v-if="visualCompareReport.status === 'baseline'">{{ t('visualCompare.baselineReady') }}</strong>
               <strong v-else-if="visualCompareReport.identical">{{ t('visualCompare.identical') }}</strong>
               <strong v-else>{{ t('visualCompare.changed', { percent: localPercent(visualCompareReport.changedPercent ?? 0, 2) }) }}</strong>
+              <span v-if="visualCompareReport.scope?.kind === 'region'">{{ t('visualCompare.region', visualCompareReport.scope.clip) }}</span>
               <span v-if="visualCompareReport.baseline">{{ visualCompareReport.baseline.width }}×{{ visualCompareReport.baseline.height }} · {{ debugTimestamp(visualCompareReport.baseline.capturedAt) }}</span>
             </div>
           </div>
@@ -1576,7 +1577,8 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <details class="debug-report-caveats">
             <summary>{{ t('visualCompare.accuracy') }}</summary>
             <ul>
-              <li>{{ t('visualCompare.caveats.viewport') }}</li>
+              <li v-if="visualCompareReport.scope?.kind === 'region'">{{ t('visualCompare.regionPrivacy') }}</li>
+              <li v-else>{{ t('visualCompare.caveats.viewport') }}</li>
               <li>{{ t('visualCompare.caveats.threshold', { threshold: localNumber(visualCompareReport.threshold) }) }}</li>
               <li>{{ t('visualCompare.caveats.environment') }}</li>
               <li>{{ t('visualCompare.caveats.memory') }}</li>
@@ -1588,7 +1590,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <span>{{ t('visualCompare.storage') }}</span>
           <div class="debug-report-actions">
             <UiButton appearance="application" type="button" @click="manageVisualCompare('clear')"><IconDelete aria-hidden="true" /> {{ t('visualCompare.clear') }}</UiButton>
-            <UiButton appearance="application" type="button" @click="manageVisualCompare('set-baseline')"><IconScreenshotRegion aria-hidden="true" /> {{ t('visualCompare.newBaseline') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="manageVisualCompare('set-baseline')"><IconScreenshotRegion aria-hidden="true" /> {{ t(visualCompareReport.scope?.kind === 'region' ? 'visualCompare.newViewportBaseline' : 'visualCompare.newBaseline') }}</UiButton>
             <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageVisualCompare('compare')"><IconDifference aria-hidden="true" /> {{ t('visualCompare.compare') }}</UiButton>
             <UiButton appearance="application" v-if="visualCompareReport.status === 'compared'" type="button" @click="copyVisualDiff">
               <IconCheck v-if="visualCompareCopied" aria-hidden="true" />
