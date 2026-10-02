@@ -2474,7 +2474,7 @@ export const deDE = {
       "navigation": "Eine vollständige Dokumentnavigation löscht die Aufzeichnung, da sie ein neues DOM erstellt."
     }
   },
-  "visualCompare": {
+  "visualCompare": { region: "Bereich: {x}, {y} · {width}×{height} CSS-Pixel. Nur dieser Bereich wird verglichen.", regionPrivacy: "Der Bereich wird vor der Skalierung zugeschnitten. Differenzmaße und Pixelzahlen gelten nur für den Ausschnitt. Zuschneiden anonymisiert nicht; vor dem Teilen prüfen.", newViewportBaseline: "Neue Basis des Ansichtsbereichs",
     "kicker": "Vorher und nachher",
     "heading": "Visueller Vergleich",
     "close": "Visuellen Vergleich schließen",

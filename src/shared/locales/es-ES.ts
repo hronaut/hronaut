@@ -2474,7 +2474,7 @@ export const esES = {
       "navigation": "Una navegación completa del documento borra el registro porque crea un DOM nuevo."
     }
   },
-  "visualCompare": {
+  "visualCompare": { region: "Región: {x}, {y} · {width}×{height} píxeles CSS. Solo se compara esta región.", regionPrivacy: "La región se recorta antes de redimensionarla. Las dimensiones y el recuento de píxeles corresponden solo al recorte. Recortar no anonimiza; revisa antes de compartir.", newViewportBaseline: "Nueva referencia de la ventana",
     "kicker": "Antes y después",
     "heading": "Comparación visual",
     "close": "Cerrar la comparación visual",

@@ -2474,7 +2474,7 @@ export const plPL = {
       "navigation": "Pełna nawigacja dokumentu czyści nagranie, ponieważ tworzy nowy DOM."
     }
   },
-  "visualCompare": {
+  "visualCompare": { region: "Obszar: {x}, {y} · {width}×{height} pikseli CSS. Porównywany jest tylko ten obszar.", regionPrivacy: "Obszar jest przycinany przed zmianą rozmiaru. Wymiary różnicy i liczby pikseli dotyczą tylko wycinka. Przycinanie nie anonimizuje; sprawdź przed udostępnieniem.", newViewportBaseline: "Nowy wzorzec widocznego obszaru",
     "kicker": "Przed i po",
     "heading": "Porównanie wizualne",
     "close": "Zamknij porównanie wizualne",

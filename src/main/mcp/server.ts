@@ -1787,6 +1787,15 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
+                ...(name === 'browser_visual_compare' ? { validateCapture: () => {
+                  if (extra?.signal?.aborted) throw new Error('Visual comparison was cancelled')
+                  requireCurrentControl()
+                  requireCurrentHumanInput()
+                  requireActiveCapabilityDispatch(name, actionInput)
+                  requireAgentWorkspace(workspaceId)
+                  if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
+                  if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+                } } : {}),
                 ...(name === 'browser_video' ? { recordingSignal: extra?.signal, validateRecording: () => {
                   if (extra?.signal?.aborted) throw new Error('Video operation was cancelled')
                   requireCurrentControl()
@@ -4008,21 +4017,29 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional(),
         action: z.enum(['get', 'set-baseline', 'compare', 'clear']).default('get'),
         threshold: z.number().int().min(0).max(255).optional(),
-        settleMs: z.number().int().min(0).max(2_000).optional()
+        settleMs: z.number().int().min(0).max(2_000).optional(),
+        clip: z.object({
+          x: z.number().finite().min(0), y: z.number().finite().min(0),
+          width: z.number().finite().positive(), height: z.number().finite().positive()
+        }).optional()
       }
     },
     tabTool('browser_visual_compare', async ({
       tabId,
       action,
       threshold,
-      settleMs
+      settleMs,
+      clip,
+      validateCapture
     }: {
       tabId?: string
       action: 'get' | 'set-baseline' | 'compare' | 'clear'
       threshold?: number
       settleMs?: number
+      clip?: { x: number; y: number; width: number; height: number }
+      validateCapture?: () => void
     }) => {
-      const result = await manager.visualCompare({ tabId, action, threshold, settleMs })
+      const result = await manager.visualCompare({ tabId, action, threshold, settleMs, clip }, validateCapture)
       return {
         content: [
           { type: 'text', text: JSON.stringify(result.report, null, 2) },
