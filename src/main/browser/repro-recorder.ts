@@ -333,16 +333,33 @@ export class BrowserReproRecorder<T extends ReproTab> {
   private queueReproTask(
     tab: T,
     task: (context: BrowserReproStepContext) => Promise<void>,
-    navigationGeneration = tab.navigationGeneration
+    navigationGeneration = tab.navigationGeneration,
+    actionKind?: 'click' | 'key'
   ): void {
     const recording = tab.reproRecording
     if (!recording?.active) return
     const context = { recording, navigationGeneration }
+    const retainUnresolvedAction = () => {
+      if (actionKind && recording.active && tab.reproRecording === recording) {
+        // Keep evidence of the accepted action without reusing a stale target or
+        // key. The exporter requires manual review of this target-free step.
+        this.addReproStep(tab, {
+          kind: actionKind,
+          description: 'Action capture interrupted by navigation; recreate this action manually.'
+        })
+      }
+    }
     const queued = recording.queue.catch(() => undefined).then(async () => {
-      if (!recording.active
-        || tab.reproRecording !== recording
-        || tab.navigationGeneration !== navigationGeneration) return
-      await task(context)
+      if (!recording.active || tab.reproRecording !== recording) return
+      if (tab.navigationGeneration !== navigationGeneration) {
+        retainUnresolvedAction()
+        return
+      }
+      try {
+        await task(context)
+      } finally {
+        if (tab.navigationGeneration !== navigationGeneration) retainUnresolvedAction()
+      }
     })
     recording.queue = queued
     void queued.catch((error) => {
@@ -405,7 +422,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
             description: `Click ${this.reproTargetName(target)}`,
             target
           }, context)
-        }, pending.navigationGeneration)
+        }, pending.navigationGeneration, 'click')
       }
       this.scheduleReproScroll(tab)
     } else if (mouse.type === 'mouseWheel') {
@@ -445,7 +462,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
         target,
         key
       }, context)
-    })
+    }, tab.navigationGeneration, 'key')
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(input.key)) this.scheduleReproScroll(tab)
   }
 
