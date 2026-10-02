@@ -1031,6 +1031,44 @@ recorder or encoder bridge.
   filename, bytes, codec, MIME type and edited duration. This action requires the
   capability's `external-request` operation class as well as workspace write access.
 
+### Video timing observations
+
+Recording responses include optional `timing` metadata. Older consumers can
+continue using `durationMs`; idle/cleared states have no timing observation.
+Pair every observation with the response's `recordingId`:
+
+- `clock: "recording-monotonic"` means milliseconds since this recording was
+  created, measured in the main process. `observedAtMs` includes explicit pause
+  time; it is neither Unix time nor the caller's clock. `sourceTimeMs` is the
+  response's `durationMs`, sampled at that same instant, with paused time excluded.
+- `revision` changes on pause, resume, stop, interruption recovery and successful
+  timeline edits. Recheck identity/revision before using a prior observation or
+  derived output mapping. Clear/start creates a new recording identity and clock.
+- Optional `lastFrame` describes only the latest retained frame: its one-based
+  `sequence`, source timestamp, capture-attempt `captureStartedAtMs` and
+  `captureCompletedAtMs`, and the revision under which it was captured. Its
+  revision can be older than the current observation after pause/resume or edits.
+  Bounds use the same recording clock and include asynchronous capture work.
+  They do not prove when Chromium presented or sampled the pixels;
+  `pixelTime: "unknown"` states that limitation explicitly. No last frame is
+  reported until one is retained, and dropped/late frames do not advance it.
+
+Source zero remains the first retained frame's timestamp. Later frames retain
+capture-attempt source timestamps. This metadata does not change frame placement,
+recover missing frames or promise precise event-to-pixel alignment. A response is
+already historical when received: bracket calls with a caller-local monotonic
+clock to bound round-trip transport uncertainty, but do not subtract timestamps
+from unrelated clocks or extrapolate through a revision change. Even within one
+revision, sparse capture can leave a substantial gap between source time and the
+last retained frame. Re-observe after pause/resume or interruption: stale-tail
+recovery can shorten source duration and invalidate a previously observed moment.
+
+Observations stay on the source timeline after edits; they are not output-time
+anchors. For a moment inside a retained clip, output time is the sum of preceding
+clip lengths plus its offset within that clip. A trimmed-out moment has no output
+time. Existing origin/workspace access checks and memory-only retention apply;
+no pixel bytes, captured text, persistent markers or wall-clock history are added.
+
 Up to 100 annotations and 30 kept ranges are supported. Clip ranges are ordered,
 non-overlapping source `startMs`/`endMs` pairs. With no clip edits, the whole
 recording is kept. Overlay times refer to original footage, so trimming preserves

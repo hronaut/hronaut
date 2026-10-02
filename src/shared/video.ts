@@ -70,11 +70,27 @@ export type VideoCamera = z.output<typeof videoCameraSchema>
 export type VideoTransition = z.output<typeof videoTransitionSchema>
 export interface VideoAudioAsset { id: string; name: string; durationMs: number; provenance: string; builtin: boolean }
 export type BrowserVideoOptions = z.input<typeof videoOptionsSchema>
+/** Recording-relative monotonic milliseconds, not wall time or compositor timestamps. */
+export interface VideoTimingObservation {
+  clock: 'recording-monotonic'
+  observedAtMs: number
+  sourceTimeMs: number
+  revision: number
+  pixelTime: 'unknown'
+  lastFrame?: {
+    sequence: number
+    sourceTimeMs: number
+    captureStartedAtMs: number
+    captureCompletedAtMs: number
+    revision: number
+  }
+}
 export interface BrowserVideoState {
   tabId: string
   recordingId?: string
   status: 'idle' | 'recording' | 'paused' | 'stopped' | 'rendering'
   durationMs: number
+  timing?: VideoTimingObservation
   width: number
   height: number
   frameCount: number

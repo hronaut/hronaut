@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Expose recording-scoped video timing observations with source time, capture-attempt bounds and revision changes, while explicitly leaving pixel timing unknown.
+
 - Compare an explicit viewport region with a retained visual baseline, cropped diff and clear coverage labels; reject incompatible region captures while preserving the whole-viewport default.
 
 - Extend real page zoom through 400% in the toolbar, keyboard controls and MCP for reflow QA; existing zoom levels and reset remain available.
