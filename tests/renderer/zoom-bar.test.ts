@@ -143,13 +143,18 @@ describe('ZoomBar', () => {
     expect(home.view.emitted()['update:open']?.at(-1)).toEqual([false])
   })
 
+  it('allows increasing the previous 300 percent maximum', () => {
+    renderBar({ activeTab: tab('previous-maximum', { zoomPercent: 300 }) })
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeEnabled()
+  })
+
   it('respects page zoom limits and clears open state on unmount', () => {
     const minimum = renderBar({ activeTab: tab('minimum', { zoomPercent: 50 }) })
     expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
     minimum.view.unmount()
     expect(minimum.view.emitted()['update:open']?.at(-1)).toEqual([false])
 
-    renderBar({ activeTab: tab('maximum', { zoomPercent: 300 }) })
+    renderBar({ activeTab: tab('maximum', { zoomPercent: 400 }) })
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
   })
 })

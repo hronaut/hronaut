@@ -3666,7 +3666,7 @@ function createBrowserMcpServer(
       inputSchema: {
         tabId: tabIdSchema.optional(),
         action: z.enum(['in', 'out', 'reset', 'set']).default('reset'),
-        percent: z.number().int().min(50).max(300).optional()
+        percent: z.number().int().min(50).max(400).optional()
       }
     },
     tabTool('browser_zoom', async ({ tabId, action, percent }: {

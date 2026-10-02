@@ -407,7 +407,7 @@ const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
 const MAX_STORAGE_KEY_CHARS = 512
 const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
 const MIN_SHELL_HEIGHT = 44
-const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300] as const
+const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
 const ABORTED_LOAD_ERROR = -3
 const ACCESSIBILITY_AUDIT_WORLD_ID = 1001
 const PERFORMANCE_AUDIT_WORLD_ID = 1002
@@ -4420,8 +4420,8 @@ export class BrowserTabsManager {
     else if (options.action === 'in') percent = PAGE_ZOOM_STEPS.find((step) => step > current) ?? PAGE_ZOOM_STEPS.at(-1)!
     else if (options.action === 'out') percent = [...PAGE_ZOOM_STEPS].reverse().find((step) => step < current) ?? PAGE_ZOOM_STEPS[0]
     else {
-      if (options.percent === undefined || !Number.isInteger(options.percent) || options.percent < 50 || options.percent > 300) {
-        throw new Error('Page zoom percent must be an integer from 50 to 300')
+      if (options.percent === undefined || !Number.isInteger(options.percent) || options.percent < 50 || options.percent > 400) {
+        throw new Error('Page zoom percent must be an integer from 50 to 400')
       }
       percent = options.percent
     }

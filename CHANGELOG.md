@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Extend real page zoom through 400% in the toolbar, keyboard controls and MCP for reflow QA; existing zoom levels and reset remain available.
+
 ### Fixed
 
 - Exclude editable drafts from Repro target labels and descriptions before they enter the timeline, MCP output or reviewed incident packages, while retaining public labels and structural selectors.
