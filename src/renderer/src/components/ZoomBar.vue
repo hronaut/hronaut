@@ -104,7 +104,7 @@ defineExpose({ close, openForTab, setZoom })
       type="button"
       :title="t('zoom.inTitle')"
       :aria-label="t('zoom.in')"
-      :disabled="busy || (activeTab?.zoomPercent ?? 100) >= 300"
+      :disabled="busy || (activeTab?.zoomPercent ?? 100) >= 400"
       @click="setZoom('in')"
     ><IconZoomIn aria-hidden="true" /></UiButton>
     <UiButton appearance="application"

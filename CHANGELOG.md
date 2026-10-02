@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Extend real page zoom through 400% in the toolbar, keyboard controls and MCP for reflow QA; existing zoom levels and reset remain available.
+
 ## [2.11.6] - 2026-10-02
 
 ### Fixed
