@@ -22,6 +22,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       launchMinimized: false,
       attentionSound: true,
       attentionSoundCue: 'warning',
+      challengeDetectionEnabled: false,
       followAgentActivity: false,
       mcpRemoteAccess: false,
       mcpAuthentication: false,

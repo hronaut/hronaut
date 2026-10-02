@@ -354,7 +354,7 @@ export const frFR = {
       "description": "Contrôlez quelles applications locales peuvent se connecter à ce profil.",
       "require": "Exiger l’authentification MCP",
       "requireDescription": "Exiger le jeton bearer privé du profil pour MCP et les contrôles d’état.",
-      "toolSet": "Ensemble d’outils MCP",
+      challengeDetection: "Détecter les défis visibles", challengeDetectionDescription: "Désactivé par défaut. Permet de signaler les CAPTCHA et vérifications humaines visibles dans la qualité des observations. Les autres contrôles de qualité et de permissions restent actifs. Ne résout ni ne contourne les défis.", "toolSet": "Ensemble d’outils MCP",
       "toolSetDescription": "Choisissez le catalogue adapté à la tâche pour les nouvelles connexions MCP.",
       "toolSetEssentials": "Essentiels du navigateur",
       "toolSetQa": "QA Web",

@@ -113,3 +113,26 @@ test('resets launch-at-startup preferences with the rest of Appearance', async (
     await closeHronaut(app)
   }
 })
+
+for (const enabled of [true, false]) {
+  test(`persists the human challenge setting ${enabled} across restart`, async ({ mcpPort, profileDirectory }) => {
+    let launched = await launchHronaut(profileDirectory, mcpPort)
+    try {
+      await launched.window.getByRole('button', { name: 'Settings' }).click()
+      await launched.window.getByRole('button', { name: /MCP security/ }).click()
+      const toggle = launched.window.locator('#setting-challenge-detection')
+      await expect(toggle).not.toBeChecked()
+      await toggle.check()
+      if (!enabled) await toggle.uncheck()
+      await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).challengeDetectionEnabled).toBe(enabled)
+      await closeHronaut(launched.app)
+      launched = await launchHronaut(profileDirectory, mcpPort)
+      expect(await launched.window.evaluate('window.hronautSettings.get()')).toMatchObject({ challengeDetectionEnabled: enabled })
+      await launched.window.getByRole('button', { name: 'Settings' }).click()
+      await launched.window.getByRole('button', { name: /MCP security/ }).click()
+      await expect(launched.window.locator('#setting-challenge-detection')).toBeChecked({ checked: enabled })
+    } finally {
+      await closeHronaut(launched.app)
+    }
+  })
+}

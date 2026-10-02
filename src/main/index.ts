@@ -3233,6 +3233,13 @@ function registerIpc(): void {
     publishSettings()
     return { ...settings }
   })
+  ipcMain.handle('settings:set-challenge-detection', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Challenge detection must be a boolean')
+    await updateSettings({ challengeDetectionEnabled: enabled })
+    publishSettings()
+    return { ...settings }
+  })
   ipcMain.handle('settings:set-mcp-remote-access', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Remote MCP access must be a boolean')
@@ -3630,6 +3637,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     memorySaverEnabled: settings.memorySaverEnabled,
     memorySaverTimeoutMinutes: settings.memorySaverTimeoutMinutes,
     followAgentActivity: settings.followAgentActivity,
+    getChallengeDetectionEnabled: () => settings.challengeDetectionEnabled,
     getSearchEngine: () => settings.searchEngine,
     getLocale: () => resolvedLocale,
     getTabPosition: () => settings.tabPosition,
@@ -4145,7 +4153,8 @@ async function resetMcpSettings(): Promise<AppSettings> {
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: DEFAULT_MCP_PORT,
-      mcpToolSet: DEFAULT_MCP_TOOL_SET
+      mcpToolSet: DEFAULT_MCP_TOOL_SET,
+      challengeDetectionEnabled: false
     })
     mcpServer?.setAuthenticationToken(settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
     mcpServer?.setToolSet(DEFAULT_MCP_TOOL_SET)
@@ -4174,7 +4183,8 @@ async function resetMcpSettings(): Promise<AppSettings> {
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: DEFAULT_MCP_PORT,
-      mcpToolSet: DEFAULT_MCP_TOOL_SET
+      mcpToolSet: DEFAULT_MCP_TOOL_SET,
+      challengeDetectionEnabled: false
     })
   } catch (error) {
     await candidate.stop().catch(() => undefined)

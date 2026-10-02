@@ -41,12 +41,14 @@ export interface BrowserObservationQualitySignals {
 }
 
 export interface BrowserObservationQualityOptions {
+  challengeDetectionEnabled?: boolean
   expectedOrigin?: string
   expectedTextProvided?: boolean
   expectedSelectorProvided?: boolean
 }
 
 export interface BrowserObservationQualityResult {
+  challengeDetectionEnabled: boolean
   status: BrowserObservationQualityStatus
   decision: BrowserObservationQualityDecision
   evidenceClass: BrowserObservationQualityEvidenceClass
@@ -110,7 +112,9 @@ export function classifyBrowserObservationQuality(
     headingCount: boundedCount(signals.headingCount),
     interactiveCount: boundedCount(signals.interactiveCount)
   }
+  const challengeDetectionEnabled = options.challengeDetectionEnabled === true
   const base = {
+    challengeDetectionEnabled,
     resolvedUrl: signals.resolvedUrl,
     resolvedOrigin,
     contentType: signals.contentType.slice(0, 128),
@@ -139,7 +143,7 @@ export function classifyBrowserObservationQuality(
   }
   const challengeTitleAndControl = signals.challengeSignals.includes('challenge-title')
     && signals.challengeSignals.includes('challenge-control')
-  if (challengeTitleAndControl || (signals.challengeSignals.length > 0 && shape.primaryTextChars < 160)) {
+  if (challengeDetectionEnabled && (challengeTitleAndControl || (signals.challengeSignals.length > 0 && shape.primaryTextChars < 160))) {
     return result('challenge', 'stop', 'automated_challenge', 'The page contains an automated-access or human-verification challenge.')
   }
   const passwordGate = signals.loginSignals.includes('password-field')
@@ -175,6 +179,7 @@ export function classifyBrowserObservationQuality(
 }
 
 export function observationQualityPageScript(options: {
+  challengeDetectionEnabled?: boolean
   expectedText?: string
   expectedSelector?: string
 }): string {
@@ -203,9 +208,42 @@ export function observationQualityPageScript(options: {
     const interactiveCount = [...document.querySelectorAll('a[href],button,input,textarea,select,summary,[role="button"],[role="link"],[contenteditable="true"]')]
       .filter(visible).slice(0, 1001).length;
     const challengeSignals = [];
-    if (/just a moment|attention required|checking your browser/.test(title)) challengeSignals.push('challenge-title');
-    if (/verify (?:that )?you are human|complete (?:the )?captcha|checking your browser|enable javascript and cookies to continue/.test(lowerBody)) challengeSignals.push('human-verification');
-    if (document.querySelector('.cf-turnstile,[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i],iframe[src*="challenge" i]')) challengeSignals.push('challenge-control');
+    if (${options.challengeDetectionEnabled === true}) {
+      // Check the rendered control and its ancestors, including transparent and
+      // clipped background widgets. Do not change the other quality heuristics.
+      const challengeVisible = (element, rect = element.getBoundingClientRect()) => {
+        if (!visible(element)) return false;
+        let left = rect.left, right = rect.right, top = rect.top, bottom = rect.bottom;
+        for (let node = element; node; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          if (style.display === 'none' || style.contentVisibility === 'hidden' || Number(style.opacity) === 0) return false;
+          const bounds = node.getBoundingClientRect();
+          if (/hidden|clip|scroll|auto/.test(style.overflowX)) {
+            left = Math.max(left, bounds.left); right = Math.min(right, bounds.right);
+          }
+          if (/hidden|clip|scroll|auto/.test(style.overflowY)) {
+            top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom);
+          }
+          if (right <= left || bottom <= top) return false;
+        }
+        return getComputedStyle(element).visibility !== 'collapse';
+      };
+      if (/just a moment|attention required|checking your browser/.test(title)) challengeSignals.push('challenge-title');
+      const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+      const challengeText = [];
+      let length = 0, visited = 0;
+      for (let text = walker.nextNode(); text && length < 100000 && visited++ < 10000; text = walker.nextNode()) {
+        const element = text.parentElement;
+        if (!element || !text.textContent.trim() || !challengeVisible(element)) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        if (![...range.getClientRects()].some(rect => rect.width > 0 && rect.height > 0 && challengeVisible(element, rect))) continue;
+        const value = text.textContent.slice(0, 100000 - length);
+        challengeText.push(value); length += value.length;
+      }
+      if (/verify (?:that )?you are human|complete (?:the )?captcha|checking your browser|enable javascript and cookies to continue/.test(compact(challengeText.join(' ')).toLocaleLowerCase('en-US'))) challengeSignals.push('human-verification');
+      if ([...document.querySelectorAll('.cf-turnstile,[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i],iframe[src*="challenge" i]')].some(element => challengeVisible(element))) challengeSignals.push('challenge-control');
+    }
     const loginSignals = [];
     const passwordField = [...document.querySelectorAll('input[type="password"]')].some(visible);
     if (passwordField) loginSignals.push('password-field');

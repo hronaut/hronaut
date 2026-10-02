@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   launchMinimized: false,
   attentionSound: true,
   attentionSoundCue: 'warning',
+  challengeDetectionEnabled: false,
   followAgentActivity: false,
   mcpRemoteAccess: false,
   mcpAuthentication: false,
@@ -87,6 +88,7 @@ export class SettingsStore {
           typeof value.followAgentActivity === 'boolean'
             ? value.followAgentActivity
             : DEFAULT_SETTINGS.followAgentActivity,
+        challengeDetectionEnabled: value.challengeDetectionEnabled === true,
         mcpRemoteAccess: value.mcpRemoteAccess === true,
         mcpAuthentication:
           typeof value.mcpAuthentication === 'boolean'
