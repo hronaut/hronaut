@@ -10,7 +10,7 @@ const enterKey: Input = {
 }
 
 function fixture() {
-  const executeJavaScript = vi.fn(async (script: string) => script === reproScrollScript()
+  const executeJavaScript = vi.fn(async (script: string): Promise<unknown> => script === reproScrollScript()
     ? { x: 0, y: 0 }
     : { selector: 'main > button', tag: 'button', label: 'Continue' })
   const tab = {
@@ -29,6 +29,30 @@ function fixture() {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('reproduction recorder data contracts', () => {
+  it.each(['checkbox', 'radio'])('records Space activation on a native %s as a key without a replacement value', async (inputType) => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValue({ selector: 'input', tag: 'input', inputType })
+    f.recorder.observeReproKeyboard(f.tab, { ...enterKey, key: ' ', code: 'Space' })
+    await f.tab.reproRecording!.queue
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps[1]).toMatchObject({ kind: 'key', key: 'Space', target: { inputType } })
+    expect(report.steps[1]).not.toHaveProperty('valueRedacted')
+    f.recorder.clearReproRecording(f.tab)
+  })
+
+  it.each(['text', 'password'])('keeps Space in a %s input redacted', async (inputType) => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValue({ selector: 'input', tag: 'input', inputType })
+    f.recorder.observeReproKeyboard(f.tab, { ...enterKey, key: ' ', code: 'Space' })
+    await f.tab.reproRecording!.queue
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps[1]).toMatchObject({ kind: 'input', valueRedacted: true })
+    expect(report.steps[1]).not.toHaveProperty('key')
+    f.recorder.clearReproRecording(f.tab)
+  })
+
   it('discards a delayed scroll from the previous document and records new-page scrolling', async () => {
     vi.useFakeTimers()
     const f = fixture()
