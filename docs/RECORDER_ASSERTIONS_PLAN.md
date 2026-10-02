@@ -1,7 +1,14 @@
 # Explicit recorder assertions
 
-Status: implementation proposal, reviewed September 24, 2026 against `a342a10`.
-This feature is not implemented or included in a release.
+Status: native-picker proposal, originally reviewed September 24, 2026 against
+`a342a10`; delivery status reconciled October 2, 2026 against v2.11.7.
+
+Selector-based visible, hidden, user-authored exact-text, checked and unchecked
+checkpoints have shipped in the Repro panel and MCP, with deterministic Playwright
+assertions. See the current [Repro contract](../REFERENCE.md#mcp-tools).
+The native-picker route described below remains deferred; these design and
+verification requirements do not imply that all assertion support is unimplemented.
+Further expansion still requires concrete evaluator evidence under #335.
 
 ## Intended behavior
 
@@ -27,7 +34,8 @@ step is a separate follow-up candidate, not a reason to record every pointer mov
 The current Hronaut recorder now validates selector uniqueness within a
 500-character bound and preserves unresolved targets as manual export steps.
 Assertion selection must reject unresolved targets rather than count them as
-exportable expectations. This groundwork does not implement assertion capture.
+exportable expectations. The proposed picker must preserve the shipped checkpoint
+and export guarantees.
 Existing recorder capture now keeps detected iframe/frame and open-shadow targets as manual steps. This does not add cross-root replay or closed-shadow detection.
 Exported locators must retain the same light-DOM scope used to validate captured
 selectors. A unique document button can become ambiguous if plain Playwright CSS
@@ -99,5 +107,6 @@ executed Playwright assertion.
    passes initially and fails after the fixture violates it. This proves the
    exported assertion executes; inspecting its string alone does not.
 5. Run full static checks and immutable Docker/native-dialog gates. Publish only
-   after release validation passes. Text/value assertions and in-app replay
-   remain separate product and privacy decisions.
+   after release validation passes. Automatic page-text/value capture and in-app
+   replay remain separate product and privacy decisions; shipped text expectations
+   are explicitly user-authored and reviewed.
