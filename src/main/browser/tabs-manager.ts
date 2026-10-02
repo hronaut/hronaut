@@ -102,6 +102,7 @@ import {
   normalizeConsoleLogEntry,
   normalizePageException,
   normalizeRuntimeConsoleCall,
+  normalizeRuntimeConsolePresentation,
   normalizeRuntimeException,
   type CdpLogEntry,
   type PageExceptionPayload,
@@ -540,7 +541,11 @@ function pdfFilename(requested: string | undefined, title: string): string {
 
 type BrowserConsoleCaptureSource = 'electron' | 'runtime-console' | 'runtime' | 'log' | 'preload' | 'lifecycle'
 
-interface BrowserConsoleMessageRecord extends BrowserConsoleMessage {
+interface ConsoleCapture extends BrowserConsoleMessage {
+  presentation?: string
+}
+
+interface BrowserConsoleMessageRecord extends ConsoleCapture {
   captureSources: Set<BrowserConsoleCaptureSource>
   observationGeneration: number
 }
@@ -584,7 +589,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   // Session cleanup must remain possible after the WebContents is destroyed.
   browserSession: Session
   consoleMessages: BrowserConsoleMessageRecord[]
-  pendingRuntimeConsoleMessages: BrowserConsoleMessage[]
+  pendingRuntimeConsoleMessages: ConsoleCapture[]
   networkRoutes: BrowserNetworkRouteRecord[]
   inspectorIssues: BrowserInspectorIssue[]
   inspectorIssuesTruncated: boolean
@@ -5549,10 +5554,11 @@ export class BrowserTabsManager {
     const messages = tab.consoleMessages
       .filter(message => message.observationGeneration === tab.observationGeneration)
       .map((message) => {
-        const { captureSources: _captureSources, ...publicMessage } = message
+        const { captureSources: _captureSources, presentation, ...publicMessage } = message
         return {
           ...sanitizeConsoleMessage({
             ...publicMessage,
+            ...(presentation !== undefined ? { message: presentation } : {}),
             ...(publicMessage.stack ? { stack: publicMessage.stack.map((frame) => ({ ...frame })) } : {})
           }),
           observationGeneration: message.observationGeneration
@@ -5598,7 +5604,7 @@ export class BrowserTabsManager {
     tab.consoleMessages.splice(index, 1)
   }
 
-  private retainRuntimeConsoleMessage(tab: BrowserTab, input: BrowserConsoleMessage): void {
+  private retainRuntimeConsoleMessage(tab: BrowserTab, input: ConsoleCapture): void {
     const message = sanitizeConsoleMessage(input)
     const existing = [...tab.consoleMessages].reverse().slice(0, 8).find((candidate) => (
       candidate.observationGeneration === tab.observationGeneration
@@ -5608,6 +5614,7 @@ export class BrowserTabsManager {
     ))
     if (existing) {
       Object.assign(existing, {
+        ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
         ...(message.columnNumber !== undefined ? { columnNumber: message.columnNumber } : {}),
         ...(message.stack ? { stack: message.stack.map((frame) => ({ ...frame })) } : {}),
         ...(message.stackTruncated ? { stackTruncated: true } : {})
@@ -5627,7 +5634,7 @@ export class BrowserTabsManager {
   }
 
   private withPendingRuntimeConsoleMessage(tab: BrowserTab, input: BrowserConsoleMessage): {
-    message: BrowserConsoleMessage
+    message: ConsoleCapture
     runtimeMatched: boolean
   } {
     const message = sanitizeConsoleMessage(input)
@@ -5641,6 +5648,7 @@ export class BrowserTabsManager {
       runtimeMatched: true,
       message: {
         ...message,
+        ...(runtimeMessage.presentation !== undefined ? { presentation: runtimeMessage.presentation } : {}),
         ...(runtimeMessage.columnNumber !== undefined ? { columnNumber: runtimeMessage.columnNumber } : {}),
         ...(runtimeMessage.stack ? { stack: runtimeMessage.stack.map((frame) => ({ ...frame })) } : {}),
         ...(runtimeMessage.stackTruncated ? { stackTruncated: true } : {})
@@ -5650,7 +5658,7 @@ export class BrowserTabsManager {
 
   private appendConsoleMessage(
     tab: BrowserTab,
-    input: BrowserConsoleMessage,
+    input: ConsoleCapture,
     source: BrowserConsoleCaptureSource
   ): void {
     const message = sanitizeConsoleMessage(input)
@@ -5792,7 +5800,7 @@ export class BrowserTabsManager {
       ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
       ...(hasEmulationOverrides(tab.emulation) ? { emulation: cloneEmulationState(tab.emulation) } : {}),
       networkRouteCount: tab.networkRoutes.length,
-      consoleMessages: tab.consoleMessages.filter(message => message.observationGeneration === tab.observationGeneration),
+      consoleMessages: this.consoleMessages(tab.id),
       networkRequests: this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
       options
     })
@@ -7831,8 +7839,12 @@ export class BrowserTabsManager {
         })
         if (message) this.appendConsoleMessage(tab, message, 'runtime')
       } else if (method === 'Runtime.consoleAPICalled') {
-        const message = normalizeRuntimeConsoleCall(params as CdpRuntimeConsoleCall)
-        if (message) this.retainRuntimeConsoleMessage(tab, message)
+        const call = params as CdpRuntimeConsoleCall
+        const formatted = normalizeRuntimeConsolePresentation(call)
+        const message = formatted?.match ?? normalizeRuntimeConsoleCall(call)
+        if (message) this.retainRuntimeConsoleMessage(tab, { ...message,
+          ...(formatted ? { presentation: formatted.presentation } : {})
+        })
       } else if (method === 'Runtime.exceptionRevoked') {
         const exceptionId = (params as { exceptionId?: number }).exceptionId
         if (Number.isFinite(exceptionId)) {
