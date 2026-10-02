@@ -744,6 +744,8 @@ export interface BrowserElementInspection {
     role: string
     name: string
     focusable: boolean
+    focused?: boolean
+    focusWithin?: boolean
     disabled: boolean
     checked?: boolean | 'mixed'
   }

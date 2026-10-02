@@ -5,6 +5,27 @@ import {
 } from '../src/shared/element-inspection.js'
 
 describe('element inspection', () => {
+  it.each([
+    [true, false], [false, true], [true, true], [false, false]
+  ])('preserves explicit focused=%s and focusWithin=%s evidence', (focused, focusWithin) => {
+    const report = normalizeElementInspection({
+      tabId: 'tab', title: '', url: 'about:blank',
+      raw: { selector: 'button', accessibility: { focused, focusWithin } }
+    })
+    expect(report.accessibility).toMatchObject({ focused, focusWithin })
+    expect(formatElementInspectionForAgent(report)).toContain(`focused=${focused}; focusWithin=${focusWithin}`)
+  })
+
+  it.each([undefined, null, 'true', 'false', 0, 1, {}, []])('omits unavailable or malformed focus evidence (%j)', value => {
+    const report = normalizeElementInspection({
+      tabId: 'tab', title: '', url: 'about:blank',
+      raw: { selector: 'button', accessibility: { focused: value, focusWithin: value } }
+    })
+    expect(report.accessibility).not.toHaveProperty('focused')
+    expect(report.accessibility).not.toHaveProperty('focusWithin')
+    expect(formatElementInspectionForAgent(report)).not.toContain('Focus (')
+  })
+
   it('normalizes bounded computed evidence and formats agent-ready context', () => {
     const report = normalizeElementInspection({
       tabId: 'tab-1',
