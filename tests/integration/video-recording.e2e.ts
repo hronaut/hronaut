@@ -24,6 +24,7 @@ test('records, annotates, trims and decodes a WebM tutorial through MCP and the 
   await video('resume')
   await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThanOrEqual(paused.frameCount + 6)
   const stopped = await video('stop')
+  expect(stopped.timing).toMatchObject({ sourceTimeMs: stopped.durationMs, pixelTime: 'unknown' })
   const clipEnd = Math.floor(stopped.durationMs / 2)
   await video('edit', {
     clips: [{ startMs: 0, endMs: clipEnd }],
@@ -34,6 +35,10 @@ test('records, annotates, trims and decodes a WebM tutorial through MCP and the 
     ]
   })
   const exported = await video('export')
+  expect(exported.recordingId).toBe(stopped.recordingId)
+  expect(exported.timing?.sourceTimeMs).toBe(stopped.durationMs)
+  expect(exported.timing!.revision).toBeGreaterThan(stopped.timing!.revision)
+  expect(exported.timing?.lastFrame).toEqual(stopped.timing?.lastFrame)
   expect(exported.exported).toMatchObject({ mimeType: 'video/webm', codec: 'vp9', durationMs: clipEnd })
   expect(exported.exported?.path).toMatch(/\.webm$/)
   const bytes = await readFile(exported.exported!.path)

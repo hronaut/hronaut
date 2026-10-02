@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { VIDEO_LIMITS, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan } from '../../shared/video.js'
+import { VIDEO_LIMITS, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan, type VideoTimingObservation } from '../../shared/video.js'
 import { VIDEO_AUDIO_BUILTINS, VIDEO_AUDIO_LIMITS, normalizeVideoAudioWav } from '../../shared/video-audio.js'
 
 interface CapturedFrame { data: Uint8Array; width: number; height: number }
@@ -7,6 +7,8 @@ interface Recording {
   state: BrowserVideoState
   frames: VideoFrame[]
   elapsedMs: number
+  clockOrigin: number
+  lastFrameTiming?: VideoTimingObservation['lastFrame']
   runningSince: number
   lastFrameAt: number
   timer?: ReturnType<typeof setTimeout>
@@ -37,7 +39,19 @@ export class BrowserVideoRecorder {
   state(tabId: string): BrowserVideoState {
     const r = this.recordings.get(tabId)
     const state = r?.state ?? { tabId, status: 'idle', durationMs: 0, width: 0, height: 0, frameCount: 0, bytes: 0, annotations: [], clips: [], audio: [], cameras: [], audioAssets: [...VIDEO_AUDIO_BUILTINS], previewReady: false }
-    return structuredClone({ ...state, ...(r ? { durationMs: this.duration(r) } : {}) })
+    const now = this.now()
+    const sourceTimeMs = r ? this.duration(r, now) : 0
+    return structuredClone({ ...state, ...(r ? {
+      durationMs: sourceTimeMs,
+      timing: {
+        clock: 'recording-monotonic' as const,
+        observedAtMs: Math.round(now - r.clockOrigin),
+        sourceTimeMs,
+        revision: r.captureRevision,
+        pixelTime: 'unknown' as const,
+        ...(r.lastFrameTiming ? { lastFrame: r.lastFrameTiming } : {})
+      }
+    } : {}) })
   }
 
   preview(tabId: string): Uint8Array {
@@ -48,8 +62,8 @@ export class BrowserVideoRecorder {
     return data
   }
 
-  private duration(r: Recording): number {
-    return Math.min(VIDEO_LIMITS.durationMs, Math.round(r.elapsedMs + (r.state.status === 'recording' ? this.now() - r.runningSince : 0)))
+  private duration(r: Recording, now = this.now()): number {
+    return Math.min(VIDEO_LIMITS.durationMs, Math.round(r.elapsedMs + (r.state.status === 'recording' ? now - r.runningSince : 0)))
   }
 
   async manage(tabId: string, input: BrowserVideoOptions, capture: () => Promise<CapturedFrame | null>, validate: () => void, validateSource: () => void = validate, signal?: AbortSignal): Promise<BrowserVideoState> {
@@ -62,7 +76,8 @@ export class BrowserVideoRecorder {
       if (r) throw new Error('Clear the previous recording before starting another')
       if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new Error('Clear a retained recording first (maximum three)')
       validate()
-      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], audioAssets: new Map(), elapsedMs: 0, runningSince: this.now(), lastFrameAt: this.now(), capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
+      const now = this.now()
+      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], audioAssets: new Map(), elapsedMs: 0, clockOrigin: now, runningSince: now, lastFrameAt: now, capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
       this.recordings.set(tabId, r)
       this.host.changed()
       await this.sample(tabId, r)
@@ -87,6 +102,7 @@ export class BrowserVideoRecorder {
       validate()
       r.validateSource()
       r.validate = validate
+      r.captureRevision += 1
       r.runningSince = this.now()
       r.lastFrameAt = this.now()
       r.state.status = 'recording'
@@ -137,6 +153,7 @@ export class BrowserVideoRecorder {
         previousEnd = camera.endMs
       }
       current()
+      r.captureRevision += 1
       r.state.annotations = annotations
       r.state.clips = clips
       r.state.audio = audio
@@ -187,13 +204,15 @@ export class BrowserVideoRecorder {
   private async sample(tabId: string, r: Recording): Promise<void> {
     let timeout: ReturnType<typeof setTimeout> | undefined
     const revision = r.captureRevision
-    const timeMs = this.duration(r)
+    const startedAt = this.now()
+    const timeMs = this.duration(r, startedAt)
     try {
       r.validateSource()
       r.validate()
       if (this.now() - r.lastFrameAt > 3000) { this.pauseAtLastFrame(r, 'Capture paused after a gap without frames; resume explicitly'); return }
       if (timeMs >= VIDEO_LIMITS.durationMs) { this.halt(r, 'stopped', 'Recording reached its two-minute limit'); return }
       const frame = await Promise.race([r.capture(), new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('Capture timeout')), 3000) })])
+      const completedAt = this.now()
       if (this.recordings.get(tabId) !== r || r.state.status !== 'recording' || revision !== r.captureRevision) return
       r.validateSource()
       r.validate()
@@ -203,6 +222,13 @@ export class BrowserVideoRecorder {
       if (r.frames.length && (frame.width !== r.state.width || frame.height !== r.state.height)) throw new Error('Viewport changed')
       r.lastFrameAt = this.now()
       r.frames.push({ timeMs: r.frames.length ? timeMs : 0, data: frame.data })
+      r.lastFrameTiming = {
+        sequence: r.frames.length,
+        sourceTimeMs: r.frames.at(-1)!.timeMs,
+        captureStartedAtMs: Math.round(startedAt - r.clockOrigin),
+        captureCompletedAtMs: Math.round(completedAt - r.clockOrigin),
+        revision
+      }
       Object.assign(r.state, { width: frame.width, height: frame.height, frameCount: r.frames.length, bytes: r.state.bytes + frame.data.byteLength })
       if (r.frames.length % VIDEO_LIMITS.framesPerSecond === 0) this.host.changed()
     } catch {

@@ -21,7 +21,7 @@ it('excludes paused time, keeps source frames immutable, and exports edited clip
   await manage('pause')
   const paused = recorder.state('tab')
   await vi.advanceTimersByTimeAsync(5000)
-  expect(recorder.state('tab')).toEqual(paused)
+  expect({ ...recorder.state('tab'), timing: undefined }).toEqual({ ...paused, timing: undefined })
   await manage('resume')
   await vi.advanceTimersByTimeAsync(1000)
   await manage('stop')
@@ -225,7 +225,7 @@ it('pauses all active captures at the last real frame on suspend without resumin
   const states = ['one', 'two'].map(id => recorder.state(id))
   await vi.advanceTimersByTimeAsync(10_000)
   for (const [index, id] of ['one', 'two'].entries()) {
-    expect(recorder.state(id)).toEqual(states[index])
+    expect({ ...recorder.state(id), timing: undefined }).toEqual({ ...states[index], timing: undefined })
     expect(recorder.state(id).status).toBe('paused')
   }
   recorder.destroy()
