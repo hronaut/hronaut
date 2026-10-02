@@ -17,13 +17,23 @@ export function visualCompareBitmapClip(clip: BrowserScreenshotClip, viewport: {
   normalizeVisualCompareClip(clip)
   if (![viewport.width, viewport.height, source.width, source.height].every(value => Number.isFinite(value) && value > 0)
     || !Number.isInteger(source.width) || !Number.isInteger(source.height)) throw new Error('Invalid visual comparison viewport or bitmap dimensions')
-  if (clip.x + clip.width > viewport.width || clip.y + clip.height > viewport.height) {
+  // Native zoom can round-trip as 3.9999999999999996. Remove only a few
+  // floating-point rounding units before ceil/floor, not real partial pixels.
+  const pixelBoundary = (value: number): number => {
+    const integer = Math.round(value)
+    return Math.abs(value - integer) <= Number.EPSILON * Math.max(1, Math.abs(value)) * 4 ? integer : value
+  }
+  const left = pixelBoundary(clip.x * (source.width / viewport.width))
+  const top = pixelBoundary(clip.y * (source.height / viewport.height))
+  const rightBoundary = pixelBoundary((clip.x + clip.width) * (source.width / viewport.width))
+  const bottomBoundary = pixelBoundary((clip.y + clip.height) * (source.height / viewport.height))
+  if (rightBoundary > source.width || bottomBoundary > source.height) {
     throw new Error('Visual comparison clip must fit inside the visible viewport')
   }
-  const x = Math.ceil(clip.x * (source.width / viewport.width))
-  const y = Math.ceil(clip.y * (source.height / viewport.height))
-  const right = Math.floor((clip.x + clip.width) * (source.width / viewport.width))
-  const bottom = Math.floor((clip.y + clip.height) * (source.height / viewport.height))
+  const x = Math.ceil(left)
+  const y = Math.ceil(top)
+  const right = Math.floor(rightBoundary)
+  const bottom = Math.floor(bottomBoundary)
   if (right <= x || bottom <= y) throw new Error('Visual comparison clip contains no complete bitmap pixels; choose a larger region')
   return { x, y, width: right - x, height: bottom - y }
 }
