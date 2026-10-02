@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -6,8 +8,9 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 
 const parse = <T>(result: CallToolResult): T => JSON.parse(result.content.find((entry) => entry.type === 'text')!.text) as T
 
-test('classifies bounded observation quality without leaking task evidence', async ({ mcpPort, mcpToken }) => {
+test('classifies bounded observation quality without leaking task evidence', async ({ appWindow, mcpPort, mcpToken, profileDirectory }) => {
   const pages: Record<string, string> = {
+    '/hidden-challenge': '<!doctype html><title>Community</title><main><h1>Hronaut community</h1><p>No posts yet.</p></main><div style="visibility:hidden"><div class="grecaptcha-badge" style="width:256px;height:60px"><iframe title="captcha" src="about:blank"></iframe></div></div>',
     '/empty': '<!doctype html><title>App</title><div id="root"></div>',
     '/login': '<!doctype html><title>Sign in</title><main><h1>Sign in to continue</h1><form><input name="email"><input type="password"><button>Sign in</button></form></main>',
     '/challenge': '<!doctype html><title>Just a moment...</title><main><h1>Verify you are human</h1><div class="cf-turnstile"></div></main>',
@@ -16,6 +19,21 @@ test('classifies bounded observation quality without leaking task evidence', asy
     '/missing': '<!doctype html><title>404 - Page not found</title><main><h1>Page not found</h1><p>The requested page does not exist.</p></main>',
     '/useful': '<!doctype html><title>Migration guide</title><main><article><h1>Migration guide</h1><p>This guide explains the supported migration procedure, preparation steps, validation checks, rollback conditions, and final verification for a production workspace.</p><p>Expected evidence marker: release-ready-canary.</p></article></main>'
   }
+  const hiddenControls = {
+    inherited: '<div style="visibility:hidden"><div class="grecaptcha-badge" style="width:256px;height:60px">Verify you are human</div></div>',
+    display: '<div style="display:none"><iframe title="captcha" src="about:blank" class="captcha"></iframe></div>',
+    transparent: '<div style="opacity:0"><div class="captcha" style="width:256px;height:60px">Complete the captcha</div></div>',
+    zero: '<div class="captcha" style="width:0;height:0;overflow:hidden">Verify you are human</div>',
+    clipped: '<div style="width:0;height:0;overflow:hidden"><div class="captcha" style="width:256px;height:60px">Verify you are human</div></div>',
+    contentVisibility: '<div style="content-visibility:hidden"><div class="captcha" style="width:256px;height:60px">Verify you are human</div></div>',
+    response: '<textarea class="g-recaptcha-response" style="display:none">private-form-canary</textarea>'
+  }
+  for (const [name, control] of Object.entries(hiddenControls)) {
+    pages[`/hidden-${name}`] = `<!doctype html><title>Community</title><main><h1>Hronaut community</h1><p>No posts yet.</p></main>${control}`
+  }
+  pages['/visible-control'] = '<!doctype html><title>Community</title><main><h1>Hronaut community</h1><div class="captcha" style="width:256px;height:60px">Check this box</div></main>'
+  pages['/long-challenge'] = '<!doctype html><title>Just a moment...</title><main><h1>Hronaut community</h1><p>' + 'Preparation and information about the community. '.repeat(8) + '</p><div class="captcha" style="width:256px;height:60px">Check this box</div></main>'
+  pages['/hidden-before-visible'] = pages['/hidden-inherited'] + '<div class="captcha" style="width:256px;height:60px">Check this box</div>'
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end(pages[new URL(request.url ?? '/', 'http://fixture').pathname] ?? pages['/missing'])
@@ -48,9 +66,11 @@ test('classifies bounded observation quality without leaking task evidence', asy
       return parse<Record<string, unknown>>(result)
     }
 
+    expect(await assess('/hidden-challenge', { expectedText: 'Hronaut community' })).toMatchObject({ status: 'candidate', decision: 'continue' })
+    expect(await appWindow.evaluate('window.hronautSettings.get()')).toMatchObject({ challengeDetectionEnabled: false })
     expect(await assess('/empty')).toMatchObject({ status: 'empty_content', decision: 'stop' })
     expect(await assess('/login')).toMatchObject({ status: 'login_wall', decision: 'stop' })
-    expect(await assess('/challenge')).toMatchObject({ status: 'challenge', decision: 'stop' })
+    expect(await assess('/challenge', { expectedText: 'Verify you are human' })).toMatchObject({ status: 'candidate', decision: 'continue', challengeDetectionEnabled: false })
     expect(await assess('/challenge-article')).toMatchObject({ status: 'candidate', decision: 'continue' })
     expect(await assess('/noise')).toMatchObject({ status: 'needs_review', decision: 'review' })
     expect(await assess('/missing')).toMatchObject({ status: 'soft_404', decision: 'stop' })
@@ -66,6 +86,30 @@ test('classifies bounded observation quality without leaking task evidence', asy
     expect(JSON.stringify(marked)).not.toContain('release-ready-canary')
     expect(JSON.stringify(marked)).not.toContain('observation-secret')
     expect(JSON.stringify(marked)).not.toContain('private-fragment')
+    const setDetection = async (enabled: boolean) => {
+      await appWindow.evaluate(`window.hronautSettings.setChallengeDetectionEnabled(${enabled})`)
+      expect(JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({ challengeDetectionEnabled: enabled })
+    }
+    for (const enabled of [true, false]) {
+      await setDetection(enabled)
+      for (const name of Object.keys(hiddenControls)) {
+        const result = await assess(`/hidden-${name}`, { expectedText: 'Hronaut community' })
+        expect(result, name).toMatchObject({ status: 'candidate', decision: 'continue', challengeDetectionEnabled: enabled })
+        expect(JSON.stringify(result)).not.toContain('private-form-canary')
+      }
+      for (const path of ['/visible-control', '/hidden-before-visible', '/long-challenge']) {
+        expect(await assess(path, { expectedText: 'Hronaut community' })).toMatchObject({
+          status: enabled ? 'challenge' : 'candidate', decision: enabled ? 'stop' : 'continue', challengeDetectionEnabled: enabled
+        })
+      }
+      expect(await assess('/challenge-article')).toMatchObject({ status: 'candidate', decision: 'continue' })
+      expect(await assess('/challenge', { expectedText: 'Verify you are human' })).toMatchObject({ status: enabled ? 'challenge' : 'candidate' })
+      expect(await assess('/login')).toMatchObject({ status: 'login_wall', decision: 'stop', challengeDetectionEnabled: enabled })
+      expect(await assess('/missing')).toMatchObject({ status: 'soft_404', decision: 'stop', challengeDetectionEnabled: enabled })
+      expect(await assess('/useful', { expectedOrigin: 'https://unexpected.example' })).toMatchObject({ status: 'wrong_origin', decision: 'stop' })
+      expect(await assess('/useful', { expectedText: 'absent' })).toMatchObject({ status: 'needs_review', decision: 'stop' })
+      expect(await assess('/empty')).toMatchObject({ status: 'empty_content', decision: 'stop' })
+    }
   } finally {
     await client.close()
     await closeFixtureServer(server)

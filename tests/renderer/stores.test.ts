@@ -49,6 +49,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       launchMinimized: false,
       attentionSound: true,
       attentionSoundCue: 'warning',
+      challengeDetectionEnabled: false,
       followAgentActivity: false,
       mcpRemoteAccess: false,
       mcpAuthentication: false,

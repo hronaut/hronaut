@@ -566,6 +566,7 @@ export interface AppSettings {
   launchMinimized: boolean
   attentionSound: boolean
   attentionSoundCue: AttentionSoundCue
+  challengeDetectionEnabled: boolean
   followAgentActivity: boolean
   mcpRemoteAccess: boolean
   mcpAuthentication: boolean
@@ -2606,6 +2607,7 @@ export interface HronautSettingsApi {
   setAttentionSound(enabled: boolean): Promise<AppSettings>
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
+  setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
