@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.7] - 2026-10-02
+
 ### Fixed
 
 - Preserve complete visual-comparison edge pixels when native zoom introduces floating-point rounding near integer bitmap boundaries, including 400% zoom.
