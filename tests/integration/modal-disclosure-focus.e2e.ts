@@ -31,3 +31,27 @@ test('modal keyboard wrapping skips controls inside collapsed disclosures', asyn
   await nested.press('Tab')
   await expect(first).toBeFocused()
 })
+
+test('modal keyboard wrapping respects visibility overrides and collapsed controls', async ({ appWindow }) => {
+  await appWindow.getByRole('button', { name: 'Create workspace', exact: true }).click()
+  const editor = appWindow.getByRole('dialog', { name: 'Create workspace', exact: true })
+  await expect(editor).toBeVisible()
+  await editor.evaluate(panel => {
+    panel.insertAdjacentHTML('beforeend', `
+      <div style="visibility:hidden">
+        <button data-testid="visible-override" style="visibility:visible">Visible fixture action</button>
+        <button>Inherited hidden fixture action</button>
+      </div>
+      <button style="visibility:collapse">Collapsed fixture action</button>
+      <div style="display:none"><button style="visibility:visible">Display hidden fixture action</button></div>
+    `)
+  })
+  const first = editor.locator('button:not(:disabled)').first()
+  const visible = editor.getByTestId('visible-override')
+  await expect(visible).toBeVisible()
+  await first.focus()
+  await first.press('Shift+Tab')
+  await expect(visible).toBeFocused()
+  await visible.press('Tab')
+  await expect(first).toBeFocused()
+})
