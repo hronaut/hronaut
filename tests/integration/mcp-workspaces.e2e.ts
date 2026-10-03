@@ -326,6 +326,12 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
         .map(({ label }) => `${tab.getAttribute('aria-label')} intersects ${label}`)
     })
   })).toEqual([])
+  // Closing the Settings tab restores keyboard focus to the selected page tab.
+  // First verify the rail stays usable, then leave it before checking compact
+  // native page bounds: keyboard focus must keep an expanded rail available.
+  await appWindow.getByRole('combobox', { name: 'Address' }).hover()
+  await appWindow.getByRole('combobox', { name: 'Address' }).focus()
+  await expect(verticalNavigation).toHaveClass(/rail-collapsed/)
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]
