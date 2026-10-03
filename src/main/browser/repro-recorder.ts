@@ -449,10 +449,11 @@ export class BrowserReproRecorder<T extends ReproTab> {
     this.queueReproTask(tab, async (context) => {
       const target = await this.reproTarget(tab)
       if (!target) return
-      // Space activates native checkable controls; it does not edit their value.
-      const togglesChecked = input.key === ' ' && target.tag === 'input'
-        && (target.inputType === 'checkbox' || target.inputType === 'radio')
-      if (editsValue && !togglesChecked) {
+      // Space activates these native controls; it does not edit their value.
+      // A role alone does not supply native keyboard activation behavior.
+      const activatesControl = input.key === ' ' && (target.tag === 'button'
+        || (target.tag === 'input' && ['checkbox', 'radio', 'button', 'submit', 'reset', 'image'].includes(target.inputType ?? '')))
+      if (editsValue && !activatesControl) {
         this.addReproStep(tab, {
           kind: 'input',
           description: `Type in ${this.reproTargetName(target)} (value not recorded)`,

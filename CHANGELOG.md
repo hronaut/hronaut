@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Record Space activation on native buttons, submit/reset controls, and image buttons as a key action so Repro exports replay activation instead of trying to fill a non-editable control.
+
 ## [2.11.8] - 2026-10-02
 
 ### Fixed

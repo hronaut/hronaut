@@ -116,7 +116,7 @@ describe('reproduction recorder data contracts', () => {
     expect((await f.recorder.manage(f.tab, 'stop')).steps.map(step => step.kind)).toEqual(['navigate'])
   })
 
-  it.each(['checkbox', 'radio'])('records Space activation on a native %s as a key without a replacement value', async (inputType) => {
+  it.each(['checkbox', 'radio', 'button', 'submit', 'reset', 'image'])('records Space activation on a native %s as a key without a replacement value', async (inputType) => {
     const f = fixture()
     await f.recorder.manage(f.tab, 'start')
     f.executeJavaScript.mockResolvedValue({ selector: 'input', tag: 'input', inputType })
@@ -126,6 +126,26 @@ describe('reproduction recorder data contracts', () => {
     expect(report.steps[1]).toMatchObject({ kind: 'key', key: 'Space', target: { inputType } })
     expect(report.steps[1]).not.toHaveProperty('valueRedacted')
     f.recorder.clearReproRecording(f.tab)
+  })
+
+  it('records native button Space as a key without inferring a text edit', async () => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValue({ selector: 'button', tag: 'button' })
+    f.recorder.observeReproKeyboard(f.tab, { ...enterKey, key: ' ', code: 'Space' })
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps[1]).toMatchObject({ kind: 'key', key: 'Space', target: { tag: 'button' } })
+    expect(report.steps[1]).not.toHaveProperty('valueRedacted')
+  })
+
+  it.each(['a', 'div'])('does not infer native Space activation from a %s role', async tag => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValue({ selector: tag, tag, role: 'button' })
+    f.recorder.observeReproKeyboard(f.tab, { ...enterKey, key: ' ', code: 'Space' })
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps[1]).toMatchObject({ kind: 'input', valueRedacted: true })
+    expect(report.steps[1]).not.toHaveProperty('key')
   })
 
   it.each(['text', 'password'])('keeps Space in a %s input redacted', async (inputType) => {
