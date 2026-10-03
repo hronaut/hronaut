@@ -42,7 +42,7 @@ export function reproCheckpointScript(request: BrowserReproCheckpointInput): str
       try { visible = renderedVisible(element); }
       catch (error) { if (error === renderedVisibilityLimit) return { error: 'visibility-limit' }; throw error; }
     }
-    const normalized = value => String(value).replace(/\\s+/g, ' ').trim();
+    const normalized = value => String(value).replace(/[\\u200b\\u00ad]/g, '').replace(/\\s+/g, ' ').trim();
     const observedMatch = checkedCondition ? element.checked === (request.condition === 'checked')
       : request.condition === 'visible' ? visible
       : request.condition === 'hidden' ? !visible

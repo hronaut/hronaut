@@ -8,8 +8,8 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 test('exports explicit Repro expectations that fail broken CRUD and pass the corrected page', async ({ appWindow, electronApp }) => {
   let fixed = false
   const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(`<html><title>Checkpoint fixture</title><main><button onclick="document.querySelector('p').textContent='${fixed ? 'Item created' : 'Create failed'}'">Create item</button><p id="result">Ready</p><input value="private-input"></main></html>`)
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end(`<html><title>Checkpoint fixture</title><main><button onclick="document.querySelector('p').textContent='${fixed ? 'Item cre\u200b\u00adated' : 'Create failed'}'">Create item</button><p id="result">Ready</p><input value="private-input"></main></html>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -47,6 +47,10 @@ test('exports explicit Repro expectations that fail broken CRUD and pass the cor
     await run()
     await expect(page.locator('p')).toHaveText('Item created')
     const next = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
+    const normalized = await appWindow.evaluate(({ tabId, checkpoint }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, checkpoint), {
+      tabId, checkpoint: { ...checkpoint, context: next.checkpointContext! }
+    })
+    expect(normalized.steps.at(-1)?.expectation?.observedMatch).toBe(true)
     await page.reload()
     await expect(appWindow.evaluate(({ tabId, context }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, { context, selector: 'p', condition: 'visible', reviewed: true }), { tabId, context: next.checkpointContext! })).rejects.toThrow('context changed')
   } finally { await closeFixtureServer(server) }
