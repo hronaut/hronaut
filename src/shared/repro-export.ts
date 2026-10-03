@@ -46,6 +46,9 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
       if (expectation.condition === 'text' && typeof expectation.text === 'string') {
         lines.push(`  await expect(${target}).toHaveText(${quoted(expectation.text)})`)
       } else if (expectation.condition === 'visible' || expectation.condition === 'hidden') {
+        // A recorded hidden checkpoint refers to an existing, unique element.
+        // Playwright's toBeHidden also passes when the locator finds nothing.
+        if (expectation.condition === 'hidden') lines.push(`  await expect(${target}).toHaveCount(1)`)
         lines.push(`  await expect(${target}).${expectation.condition === 'visible' ? 'toBeVisible' : 'toBeHidden'}()`)
       } else if (expectation.condition === 'checked' || expectation.condition === 'unchecked') {
         lines.push(`  await expect(${target}).${expectation.condition === 'unchecked' ? 'not.' : ''}toBeChecked()`)

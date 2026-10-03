@@ -103,9 +103,10 @@ test('exports checked-state assertions without form values and detects both brok
 
 test('records rendered visibility consistent with exported Playwright assertions', async ({ appWindow, electronApp }) => {
   let broken = false
+  let missing = false
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(`<html><title>Visibility fixture</title><h1>Ready</h1><main style="content-visibility:${broken ? 'visible' : 'hidden'}"><p id="suppressed" style="width:100px;height:30px">Suppressed</p></main><section id="contents" style="display:contents"><span>Visible child</span></section><article id="text-contents" style="display:contents">Visible text</article><div id="transparent" style="opacity:0">Transparent but laid out</div></html>`)
+    response.end(`<html><title>Visibility fixture</title><h1>Ready</h1><main style="content-visibility:${broken ? 'visible' : 'hidden'}">${missing ? '' : '<p id="suppressed" style="width:100px;height:30px">Suppressed</p>'}</main><section id="contents" style="display:contents"><span>Visible child</span></section><article id="text-contents" style="display:contents">Visible text</article><div id="transparent" style="opacity:0">Transparent but laid out</div></html>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -140,6 +141,9 @@ test('records rendered visibility consistent with exported Playwright assertions
       return execution
     }
     await run()
+    missing = true
+    await expect(run()).rejects.toThrow('toHaveCount')
+    missing = false
     broken = true
     await expect(run()).rejects.toThrow('toBeHidden')
   } finally { await closeFixtureServer(server) }
