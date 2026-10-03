@@ -76,6 +76,11 @@ for (const kind of ['click', 'key'] as const) {
         if (rejected) expect(unresolved[0]!.description).toContain('could not be captured')
         expect(JSON.stringify(recording) + code).not.toContain('Synthetic target failure')
         posts = 0
+        // During replay, the recorded navigation owns the transition to /done.
+        // Hold the fetch response so its callback cannot race page.goto; the
+        // request count still proves the accepted interaction was retained.
+        holdPost = true
+        releasePost = undefined
         let error: string | undefined
         try {
           let execution: Promise<void> | undefined
@@ -88,9 +93,7 @@ for (const kind of ['click', 'key'] as const) {
           expect(posts).toBe(0)
         } else {
           expect(posts).toBe(1)
-          // Direct exported navigation can race the fixture's fetch completion.
-          // This comparison establishes the accepted action was retained and sent.
-          if (error) expect(error).toContain('net::ERR_ABORTED')
+          expect(error).toBeUndefined()
         }
       } finally { releasePost?.(); await closeFixtureServer(server) }
     })
