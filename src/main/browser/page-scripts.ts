@@ -1179,6 +1179,27 @@ export function targetPointScript(target: { ref?: string; selector?: string }): 
   })()`
 }
 
+export function dragPointsScript(
+  source: { ref?: string; selector?: string },
+  target: { ref?: string; selector?: string }
+): string {
+  return `(() => {
+    const source = ${targetExpression(source)};
+    const target = ${targetExpression(target)};
+    if (!source || !target) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+    source.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    // Destination scrolling can move the source. Measure both only after all
+    // scrolling, in one evaluation, so native input uses one viewport.
+    const point = (element) => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) throw new Error('Element has no visible bounds.');
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, tag: element.tagName.toLowerCase() };
+    };
+    return { from: point(source), to: point(target) };
+  })()`
+}
+
 export function agentPointerScript(
   point: { x: number; y: number },
   effect: 'move' | 'click' | 'drag-start' | 'drag-end',

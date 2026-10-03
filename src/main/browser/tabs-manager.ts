@@ -315,6 +315,7 @@ import {
   dialogAwareClickScript,
   dialogAwareCoordinateClickScript,
   dialogAwareEvaluateScript,
+  dragPointsScript,
   elementPickerInspectionAtPointScript,
   elementPickerNativeInputScript,
   elementPickerScript,
@@ -5464,10 +5465,11 @@ export class BrowserTabsManager {
     const target = { ref: options.targetRef, selector: options.targetSelector }
     const coordinatePoints = this.coordinateDragPointsOrValidateTargets(options, source, target)
     const webContents = this.getTab(options.tabId).webContents
-    const from = coordinatePoints?.from
-      ?? await webContents.executeJavaScript(targetPointScript(source), true) as { x: number; y: number; tag: string }
-    const to = coordinatePoints?.to
-      ?? await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
+    const { from, to } = coordinatePoints
+      ?? await webContents.executeJavaScript(dragPointsScript(source, target), true) as {
+        from: { x: number; y: number; tag: string }
+        to: { x: number; y: number; tag: string }
+      }
     if (coordinatePoints) {
       await this.assertPointInsideVisibleViewport(webContents, from, 'drag')
       await this.assertPointInsideVisibleViewport(webContents, to, 'drag')
