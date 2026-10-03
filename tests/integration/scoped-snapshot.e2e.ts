@@ -82,7 +82,7 @@ test('captures and searches a component through MCP without unrelated content or
       expect((await call('browser_snapshot', { ...args, rootSelector })).isError).toBe(true)
       expect((await call('browser_find', { ...args, rootSelector, query: 'Outside component' })).isError).toBe(true)
     }
-    expect((await call('browser_snapshot', { ...args, action: 'set-baseline', rootSelector: '#target' })).isError).toBe(true)
+    expect((await call('browser_snapshot', { ...args, action: 'clear-baseline', rootSelector: '#target' })).isError).toBe(true)
     expect((await call('browser_snapshot', { ...args, action: 'delta', baselineId: baseline.baselineId, advanceBaseline: false })).structuredContent).toMatchObject({ status: 'unchanged' })
     // A component can be rendered through its children without having a box.
     await page.locator('#target').evaluate(element => {

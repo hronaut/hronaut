@@ -23,6 +23,7 @@ export type BrowserSnapshotDeltaInvalidationReason =
   | 'workspace-control'
   | 'human-input'
   | 'snapshot-format'
+  | 'scope-changed'
 
 export interface BrowserSnapshotDeltaContext {
   tabId: string
