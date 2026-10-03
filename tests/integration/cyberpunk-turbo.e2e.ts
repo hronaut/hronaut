@@ -14,7 +14,7 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   await appWindow.evaluate(axe.source)
   const contrast = await appWindow.evaluate(`globalThis.axe.run({ include: ['.theme-cyberpunk-turbo', '.settings-footer', '.settings-header', '.settings-nav-item'] }, { runOnly: { type: 'rule', values: ['color-contrast'] } }).then(result => result.violations)`)
   expect(contrast).toEqual([])
-  await expect(appWindow.locator('.settings-dialog')).toHaveCSS('border-radius', '4px')
+  await expect(appWindow.locator('.settings-dialog')).toHaveCSS('border-radius', '0px')
   expect(await settings.evaluate(element => getComputedStyle(element).fontFamily)).not.toContain('monospace')
   await expect(settings).toHaveCSS('color', 'rgb(242, 243, 248)')
   await settings.screenshot({ path: testInfo.outputPath('cyberpunk-turbo-settings.png') })
