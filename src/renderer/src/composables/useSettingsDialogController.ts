@@ -28,11 +28,13 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   const tabOpen = ref(false)
   const section = ref<SettingsSection>('appearance')
   const resetBusy = ref(false)
+  let disposed = false
 
   const resetVisible = computed(() => !['support', 'credentials', 'wallets'].includes(section.value))
   const resetDisabled = computed(() => resetBusy.value || options.isResetDisabled(section.value))
 
   function openSection(next: SettingsSection): void {
+    if (disposed) return
     options.beforeOpen()
     section.value = next
     tabOpen.value = true
@@ -53,12 +55,13 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   }
 
   async function resetCurrent(): Promise<boolean> {
-    if (!resetVisible.value || resetDisabled.value) return false
+    if (disposed || !resetVisible.value || resetDisabled.value) return false
     resetBusy.value = true
     try {
-      return (await options.resetSection(section.value)) !== false
+      const result = await options.resetSection(section.value)
+      return !disposed && result !== false
     } catch (error) {
-      options.onResetError(error)
+      if (!disposed) options.onResetError(error)
       return false
     } finally {
       resetBusy.value = false
@@ -66,6 +69,8 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   }
 
   function dispose(): void {
+    if (disposed) return
+    disposed = true
     closeTab()
     resetBusy.value = false
   }

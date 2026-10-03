@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Ignore late Settings reset completions after the controller is disposed, preventing stale error notifications and new work during teardown.
+
 ## [2.13.2] - 2026-10-04
 
 ### Changed
