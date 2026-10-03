@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Retry transient container-registry metadata failures before CI integration tests start, with at most two retries. Test failures still fail the gate immediately.
+
 ## [2.12.4] - 2026-10-03
 
 ### Changed

@@ -22,8 +22,11 @@ case "${HRONAUT_INTEGRATION_IMAGE_PREBUILT:-false}" in
     ;;
 esac
 
+startup_log="$(mktemp)" || exit 1
+
 cleanup() {
   docker rm --force "$container_name" >/dev/null 2>&1 || true
+  rm -f "$startup_log"
 }
 
 extract_directory() {
@@ -35,8 +38,21 @@ extract_directory() {
 
 trap cleanup EXIT INT TERM
 
-status=0
-docker compose --file compose.test.ci.yaml run "${compose_build_arguments[@]}" --name "$container_name" integration || status=$?
+for attempt in 1 2 3; do
+  status=0
+  docker compose --file compose.test.ci.yaml run "${compose_build_arguments[@]}" --name "$container_name" integration 2>&1 | tee "$startup_log" || status=$?
+  if (( status == 0 || attempt == 3 )); then
+    break
+  fi
+  # Never retry a container/test failure. Only recover transient registry
+  # metadata errors before Compose has created the named container.
+  if docker inspect "$container_name" >/dev/null 2>&1 ||
+    ! grep -Eq 'failed to resolve source metadata.*(502 Bad Gateway|503 Service Unavailable|504 Gateway Timeout)' "$startup_log"; then
+    break
+  fi
+  echo "Registry metadata temporarily unavailable; retrying Docker startup ($attempt/2)." >&2
+  sleep "$((attempt * 5))" || break
+done
 
 if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
   mkdir -p "$artifact_directory"
