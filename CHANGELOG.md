@@ -4,17 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-
-- Prevent delayed Settings permission lists from undoing newer displayed changes, removals, or resets.
-
-## [2.12.3] - 2026-10-03
+## [2.12.4] - 2026-10-03
 
 ### Changed
 
 - Open Settings as a full-window page with its existing section navigation and independently scrolling content, giving controls the available screen space.
 
 ### Fixed
+
+- Prevent delayed Settings permission lists from undoing newer displayed changes, removals, or resets.
+
+- Generate full-window Settings screenshot baselines in the pinned Linux release environment to preserve consistent font rendering. Version 2.12.3 was not published because host-generated baselines differed from CI.
 
 - Refresh Settings visual expectations for the full-window layout. Version 2.12.2 was not published because its old dialog snapshots failed validation.
 

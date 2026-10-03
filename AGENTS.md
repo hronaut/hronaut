@@ -137,6 +137,12 @@ without running the entire suite:
 npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --grep "test title"
 ```
 
+For release visual-baseline repairs, generate screenshots in the pinned Docker
+image, for example with `npm run test:integration:docker:focused --
+tests/integration/ui-primitives-visual.e2e.ts --update-snapshots`. Inspect the new
+images before committing them. Host-native screenshots can use different fonts
+and must not replace Linux CI baselines. Keep visual comparison tolerances intact.
+
 Arguments after `--` are passed directly to Vitest or Playwright respectively.
 The Docker dependency layer and focused `node_modules` volume are keyed to the
 lockfile and dependency-image definition, so repeat runs reuse them safely. Use
