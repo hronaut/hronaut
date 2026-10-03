@@ -920,6 +920,13 @@ export function cancelScreenshotAreaScript(): string {
   })()`
 }
 
+function nativeDisabledClickGuardScript(): string {
+  // Chromium implements fieldset inheritance and the first-legend exception.
+  // aria-disabled alone does not suppress native activation.
+  // Return a bounded marker: executeJavaScript does not preserve thrown messages.
+  return `if (element.matches(':disabled')) return { nativeDisabled: true };`
+}
+
 export function targetActionScript(
   action: 'click' | 'type' | 'select',
   target: { ref?: string; selector?: string },
@@ -937,6 +944,7 @@ export function targetActionScript(
     element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     element.focus();
     if (${JSON.stringify(action)} === 'click') {
+      ${nativeDisabledClickGuardScript()}
       element.click();
       return { ok: true, tag: element.tagName.toLowerCase() };
     }
@@ -1026,6 +1034,7 @@ export function dialogAwareClickScript(
     element.focus();
     ${dialogOverridesScript(action, promptText)}
     try {
+      ${nativeDisabledClickGuardScript()}
       element.click();
       return { ok: true, tag: element.tagName.toLowerCase() };
     } finally {
@@ -1168,13 +1177,17 @@ export function fillFormScript(fields: BrowserFormField[]): string {
   })()`
 }
 
-export function targetPointScript(target: { ref?: string; selector?: string }): string {
+export function targetPointScript(
+  target: { ref?: string; selector?: string },
+  options: { rejectNativeDisabled?: boolean } = {}
+): string {
   return `(() => {
     const element = ${targetExpression(target)};
     if (!element) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
     element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     const rect = element.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) throw new Error('Element has no visible bounds.');
+    ${options.rejectNativeDisabled ? nativeDisabledClickGuardScript() : ''}
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, tag: element.tagName.toLowerCase() };
   })()`
 }
