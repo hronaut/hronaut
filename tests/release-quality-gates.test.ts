@@ -157,7 +157,7 @@ describe('release quality gates', () => {
 
     const triggers = workflow.slice(workflow.indexOf('\non:\n'), workflow.indexOf('\npermissions:\n'))
     expect(triggers).toContain('workflow_dispatch:')
-    expect(triggers).not.toMatch(/^  (push|pull_request|schedule):/m)
+    expect(triggers).not.toMatch(/^[ ]{2}(push|pull_request|schedule):/m)
     expect(validate).toContain('run: npm run validate')
     expect(validate).toContain('HRONAUT_TYPECHECK_JOBS: "1"')
     expect(validate).not.toContain('run: npm run lint')
@@ -400,8 +400,8 @@ describe('release quality gates', () => {
       expect(integration).toContain('path: ci-artifacts/')
       expect(integration).toContain('retention-days: 7')
     }
-    expect(pullRequestIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
-    expect(pullRequestIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
+    expect(manualIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
+    expect(manualIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"')
     expect(releaseIntegration).toContain('fail-fast: false')
     expect(releaseIntegration).toContain('name: Electron integration shard ${{ matrix.shard }}/8')
     expect(releaseIntegration).toContain('shard: [1, 2, 3, 4, 5, 6, 7, 8]')

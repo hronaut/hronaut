@@ -1,8 +1,8 @@
 name: CI
 
+# Routine improvements defer test execution to the immutable-tag release gate.
+# Keep an explicit full-check entry point for investigation or release rehearsal.
 on:
-  # Routine improvements defer test execution to the immutable-tag release gate.
-  # Keep an explicit full-check entry point for investigation or release rehearsal.
   workflow_dispatch:
 
 permissions:
