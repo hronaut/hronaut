@@ -146,7 +146,7 @@ describe('release quality gates', () => {
     expect(createTag).toBeGreaterThan(remoteCheck)
   })
 
-  it('runs the concurrent static validation gate in pull-request CI', async () => {
+  it('keeps full validation available manually while routine pushes defer tests to release', async () => {
     const [workflow, packageSource] = await Promise.all([
       readFile('.github/workflows/ci.yml', 'utf8'),
       readFile('package.json', 'utf8')
@@ -155,12 +155,15 @@ describe('release quality gates', () => {
     const releaseCandidate = job(workflow, 'package-release-candidate')
     const packageJson = JSON.parse(packageSource) as { scripts: Record<string, string> }
 
+    const triggers = workflow.slice(workflow.indexOf('\non:\n'), workflow.indexOf('\npermissions:\n'))
+    expect(triggers).toContain('workflow_dispatch:')
+    expect(triggers).not.toMatch(/^  (push|pull_request|schedule):/m)
     expect(validate).toContain('run: npm run validate')
     expect(validate).toContain('HRONAUT_TYPECHECK_JOBS: "1"')
     expect(validate).not.toContain('run: npm run lint')
     expect(validate).not.toContain('run: npm test')
     expect(validate).not.toContain('run: npm run build\n')
-    expect(releaseCandidate).toContain("if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')")
+    expect(releaseCandidate).toContain("if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release/')")
     expect(releaseCandidate).toContain('command: package:linux')
     expect(releaseCandidate).toContain('command: package:mac')
     expect(releaseCandidate).toContain('command: package:win')
@@ -384,10 +387,10 @@ describe('release quality gates', () => {
       readFile('scripts/run-integration-ci.sh', 'utf8'),
       readFile('playwright.config.ts', 'utf8')
     ])
-    const pullRequestIntegration = job(ciWorkflow, 'integration-shard')
+    const manualIntegration = job(ciWorkflow, 'integration-shard')
     const releaseIntegration = job(releaseWorkflow, 'test-integration')
 
-    for (const integration of [pullRequestIntegration, releaseIntegration]) {
+    for (const integration of [manualIntegration, releaseIntegration]) {
       expect(integration).toContain('run: bash scripts/run-integration-ci.sh')
       expect(integration).not.toContain('docker/build-push-action')
       expect(integration).not.toContain('type=gha,scope=hronaut-integration')
