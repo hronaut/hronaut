@@ -79,7 +79,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
       const label = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || snapshotSafeText(element);
       if (String(label).replace(/\\s+/g, ' ').trim().length > 300) omitted.controls = true;
       const href = element instanceof HTMLAnchorElement ? ' href=' + JSON.stringify(safeUrl(element.href)) : '';
-      const state = element.matches(':disabled') ? ' disabled' : element.checked ? ' checked' : '';
+      const state = (element.matches(':disabled') ? ' disabled' : '') + (element.checked ? ' checked' : '');
       add('[' + ref + '] ' + role + ' ' + JSON.stringify(String(label).replace(/\\s+/g, ' ').trim().slice(0, 300)) + href + state);
     }
     const bodyText = snapshotSafeText(root === document ? document.body : root).replace(/\\s+/g, ' ').trim();

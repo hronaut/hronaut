@@ -47,6 +47,23 @@ it('returns only root and descendant semantics with explicit outside-scope omiss
   expect(capture('#target > button').text).toContain('Save')
   expect(capture().text).toContain('Unrelated')
 })
+it.each([undefined, '#target'])('retains checked state for disabled controls in snapshot %s', selector => {
+  fixture()
+  document.querySelector('#target')!.innerHTML = `
+    <input type="checkbox" aria-label="Selected checkbox" checked disabled value="private-checkbox-value">
+    <fieldset disabled><input type="radio" aria-label="Selected radio" checked value="private-radio-value"></fieldset>
+    <input type="checkbox" aria-label="Unselected checkbox" disabled>
+    <input type="checkbox" aria-label="Enabled checkbox" checked>
+  `
+  const text = capture(selector).text
+  expect(text).toContain('input "Selected checkbox" disabled checked')
+  expect(text).toContain('input "Selected radio" disabled checked')
+  expect(text).toContain('input "Unselected checkbox" disabled\n')
+  expect(text).toContain('input "Enabled checkbox" checked')
+  expect(text).not.toContain('private-')
+  document.querySelector<HTMLInputElement>('[aria-label="Selected checkbox"]')!.checked = false
+  expect(capture(selector).text).toContain('input "Selected checkbox" disabled\n')
+})
 it.each([['#missing', 'missing-root'], ['section', 'ambiguous-root'], ['[', 'invalid-selector']])('rejects %s without a document fallback', (selector, error) => {
   fixture()
   expect(capture(selector)).toEqual({ scopeError: error })

@@ -41,7 +41,9 @@ for (const [mode, options] of Object.entries(modes)) {
           <input id="input" disabled aria-label="Disabled input">
           <select id="select" disabled aria-label="Disabled select"><option>One</option></select>
           <textarea id="textarea" disabled aria-label="Disabled textarea"></textarea>
+          <input type="checkbox" disabled checked aria-label="Selected checkbox" value="private-checkbox-value">
           <fieldset disabled id="fieldset"><legend><button id="legend">First legend</button></legend>
+            <input type="radio" checked aria-label="Selected radio" value="private-radio-value">
             <button id="inherited">Inherited disabled</button>
             <legend><button id="secondLegend">Second legend</button></legend>
           </fieldset>
@@ -65,6 +67,9 @@ for (const [mode, options] of Object.entries(modes)) {
         const page = electronApp.context().pages().find(page => page.url() === url)!
         const snapshot = await ok('browser_snapshot', args)
         expect(snapshot).toContain('Disabled submit')
+        expect(snapshot).toContain('input "Selected checkbox" disabled checked')
+        expect(snapshot).toContain('input "Selected radio" disabled checked')
+        expect(snapshot).not.toContain('private-')
         for (const label of ['Disabled submit', 'Disabled input', 'Disabled select', 'Disabled textarea', 'Inherited disabled', 'Second legend']) {
           expect(snapshot.split('\n').find(line => line.includes(JSON.stringify(label))), label).toMatch(/ disabled$/)
         }
