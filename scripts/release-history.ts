@@ -175,9 +175,12 @@ export async function generateReleaseHistory(
 }
 
 async function main(): Promise<void> {
-  const [version, notesPath, outputPath] = process.argv.slice(2)
-  if (!version || !notesPath || !outputPath) throw new Error('Usage: release-history.ts VERSION RELEASE_NOTES OUTPUT_JSON')
-  const artifact = await generateReleaseHistory(version, await readFile(notesPath, 'utf8'), { token: process.env.GH_TOKEN })
+  const [version, notesPath, outputPath, generatedAt] = process.argv.slice(2)
+  if (!version || !notesPath || !outputPath) throw new Error('Usage: release-history.ts VERSION RELEASE_NOTES OUTPUT_JSON [GENERATED_AT]')
+  const artifact = await generateReleaseHistory(version, await readFile(notesPath, 'utf8'), {
+    token: process.env.GH_TOKEN,
+    ...(generatedAt ? { generatedAt: new Date(generatedAt) } : {})
+  })
   await writeFile(outputPath, `${JSON.stringify(artifact)}\n`)
 }
 

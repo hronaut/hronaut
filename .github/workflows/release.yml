@@ -429,10 +429,15 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node scripts/macos-update-manifests.ts release-assets "$VERSION"
 
+      - name: Use immutable commit time for generated release metadata
+        run: |
+          set -euo pipefail
+          echo "RELEASE_GENERATED_AT=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_ENV"
+
       - name: Generate complete Linux updater manifests
         env:
           VERSION: ${{ needs.prepare-release.outputs.version }}
-        run: node scripts/linux-update-manifests.ts release-assets "$VERSION"
+        run: node scripts/linux-update-manifests.ts release-assets "$VERSION" "$RELEASE_GENERATED_AT"
 
       - name: Create one draft release for the completed artifact set
         env:
@@ -469,7 +474,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.prepare-release.outputs.version }}
-        run: node scripts/release-history.ts "$VERSION" release-notes.md release-assets/release-history.json
+        run: node scripts/release-history.ts "$VERSION" release-notes.md release-assets/release-history.json "$RELEASE_GENERATED_AT"
 
       - name: Generate SHA-256 manifest
         run: |

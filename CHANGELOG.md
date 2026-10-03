@@ -4,7 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.13.2] - 2026-10-04
+
+### Changed
+
+- Deliver Settings as a reusable application tab beside Home, including the accessibility, keyboard focus, and responsive Wallets fixes from the unpublished 2.13.1 candidate.
+
 ### Fixed
+
+- Use the immutable release commit timestamp for generated Linux update feeds and release history so publication retries retain the same checksums. Version 2.13.1 remains unpublished after its retry correctly rejected changed metadata.
 
 - Retry transient GitHub release readback failures with bounded delays and report a privacy-safe failure cause, while retaining all draft and artifact verification checks.
 

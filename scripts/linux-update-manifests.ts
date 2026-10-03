@@ -116,6 +116,6 @@ export async function writeLinuxUpdateManifests(directory: string, version: stri
 if (isMainModule(import.meta.url)) {
   const directory = process.argv[2]
   const version = process.argv[3]
-  if (!directory || !version) throw new Error('Usage: node scripts/linux-update-manifests.ts <asset-directory> <version>')
-  await writeLinuxUpdateManifests(directory, version)
+  if (!directory || !version) throw new Error('Usage: node scripts/linux-update-manifests.ts <asset-directory> <version> [release-date]')
+  await writeLinuxUpdateManifests(directory, version, process.argv[4])
 }
