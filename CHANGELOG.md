@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve each workspace's remembered tab across restart so Home and agent commands without a tab ID return to the selected tab, while restoring the global active tab independently.
+
 - Preserve native User-Agent Client Hints during locale-only emulation while still overriding browser language; explicit custom User-Agent behavior remains unchanged.
 
 - Record Space activation on native buttons, submit/reset controls, and image buttons as a key action so Repro exports replay activation instead of trying to fill a non-editable control.

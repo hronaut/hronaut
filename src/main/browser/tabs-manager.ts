@@ -7445,7 +7445,11 @@ export class BrowserTabsManager {
     this.options.configureSession?.(view.webContents.session)
     this.installSessionHooks(view.webContents.session)
     this.attachTabEvents(tab)
-    if ((options.active && options.selectVisible !== false) || !this.activeTabId) this.selectTab(id, { focus: options.focus })
+    // Restore all tabs before selecting the saved global tab. Selecting the first
+    // recreated tab here would overwrite its workspace's remembered selection.
+    if ((options.active && options.selectVisible !== false) || (!this.activeTabId && !this.restoringLayout)) {
+      this.selectTab(id, { focus: options.focus })
+    }
     const loading = options.navigationHistory
       ? view.webContents.navigationHistory.restore(options.navigationHistory)
       : view.webContents.loadURL(url, options.loadOptions)
