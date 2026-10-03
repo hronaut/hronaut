@@ -32,6 +32,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   const errorMessage = ref('')
   let generation = 0
   let revision = 0
+  let initializationGeneration = 0
 
   const groups = computed(() => {
     const grouped = new Map<string, SitePermissionEntry[]>()
@@ -69,10 +70,11 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   }
 
   async function initialize(operation: Promise<SitePermissionEntry[]>): Promise<void> {
+    const initialization = ++initializationGeneration
     const startingGeneration = generation
     const startingRevision = revision
     const next = await operation
-    if (startingGeneration !== generation || startingRevision !== revision) return
+    if (initialization !== initializationGeneration || startingGeneration !== generation || startingRevision !== revision) return
     replace(next)
   }
 
@@ -83,6 +85,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   function begin(entry: SitePermissionEntry): { generation: number, revision: number, key: string } | null {
     const key = permissionKey(entry)
     if (clearing.value || pendingKeys.value.has(key)) return null
+    initializationGeneration += 1
     const nextPending = new Set(pendingKeys.value)
     nextPending.add(key)
     pendingKeys.value = nextPending
@@ -144,6 +147,7 @@ export function useSitePermissionsController(options: SitePermissionsControllerO
   async function clear(): Promise<boolean> {
     if (busy.value) return false
     const operation = { generation, revision }
+    initializationGeneration += 1
     clearing.value = true
     errorMessage.value = ''
     try {
