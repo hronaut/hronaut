@@ -237,19 +237,46 @@ async function runCommand(command: string, args: readonly string[], timeoutMs: n
   })
 }
 
-export function classifyReleaseUploadFailure(
+function classifyReleaseCommandFailure(
   output: string,
-  options: { timedOut?: boolean, outputExceeded?: boolean } = {}
+  options: { timedOut?: boolean, outputExceeded?: boolean },
+  operation: 'upload' | 'readback'
 ): { summary: string, retryable: boolean } {
-  if (options.timedOut) return { summary: 'upload attempt timed out', retryable: true }
-  if (options.outputExceeded) return { summary: 'upload command exceeded its bounded output limit', retryable: false }
+  if (options.outputExceeded) return { summary: `${operation} command exceeded its bounded output limit`, retryable: false }
+  if (options.timedOut) return { summary: `${operation} attempt timed out`, retryable: true }
   const httpStatus = output.match(/\bHTTP\s+(\d{3})\b/iu)?.[1]
   if (httpStatus) {
     const status = Number(httpStatus)
     return { summary: `HTTP ${status}`, retryable: RETRYABLE_HTTP_STATUSES.has(status) }
   }
-  if (RETRYABLE_TRANSPORT_PATTERN.test(output)) return { summary: 'transient upload transport failure', retryable: true }
-  return { summary: 'upload command failed', retryable: false }
+  if (RETRYABLE_TRANSPORT_PATTERN.test(output)) return { summary: `transient ${operation} transport failure`, retryable: true }
+  return { summary: `${operation} command failed`, retryable: false }
+}
+
+export function classifyReleaseUploadFailure(
+  output: string,
+  options: { timedOut?: boolean, outputExceeded?: boolean } = {}
+): { summary: string, retryable: boolean } {
+  return classifyReleaseCommandFailure(output, options, 'upload')
+}
+
+// Retry only the read itself. Callers still require authoritative draft, digest,
+// and asset-set evidence before any upload, deletion, or publication can proceed.
+export async function readReleaseWithRetry(
+  read: () => Promise<CommandResult>,
+  sleep: (milliseconds: number) => Promise<void>
+): Promise<string> {
+  const delays = [10_000, 30_000]
+  for (let attempt = 0; ; attempt += 1) {
+    const result = await read()
+    if (result.code === 0 && !result.timedOut && !result.outputExceeded) return result.stdout
+    const failure = classifyReleaseCommandFailure(`${result.stderr}\n${result.stdout}`, result, 'readback')
+    const delay = delays[attempt]
+    if (!failure.retryable || delay === undefined) {
+      throw new Error(`GitHub release readback failed after ${attempt + 1} attempt(s): ${failure.summary}`)
+    }
+    await sleep(delay)
+  }
 }
 
 function parseRemoteAsset(value: unknown): RemoteReleaseAsset {
@@ -302,16 +329,15 @@ class GitHubReleaseAdapter implements ReleaseAssetPublisherAdapter {
   }
 
   async readRelease(): Promise<ReleaseSnapshot> {
-    const result = await this.gh([
+    const output = await readReleaseWithRetry(() => this.gh([
       'api',
       `repos/${this.repository}/releases?per_page=100`,
       '--jq',
       `[.[] | select(.tag_name == "${this.tag}")]`
-    ])
-    if (result.code !== 0 || result.outputExceeded) throw new Error('GitHub release readback failed')
+    ]), milliseconds => this.sleep(milliseconds))
     let value: unknown
     try {
-      value = JSON.parse(result.stdout)
+      value = JSON.parse(output)
     } catch {
       throw new Error('GitHub release readback was not valid JSON')
     }

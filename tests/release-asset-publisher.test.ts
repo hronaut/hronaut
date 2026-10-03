@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   classifyReleaseUploadFailure,
   publishReleaseAssets,
   releaseSnapshotFromList,
+  readReleaseWithRetry,
   type ExpectedReleaseAsset,
   type ReleaseAssetPublisherAdapter,
   type ReleaseSnapshot,
@@ -238,5 +239,47 @@ describe('release upload failure classification', () => {
       .toEqual({ summary: 'upload command failed', retryable: false })
     expect(classifyReleaseUploadFailure('private output', { outputExceeded: true }))
       .toEqual({ summary: 'upload command exceeded its bounded output limit', retryable: false })
+  })
+})
+
+describe('release readback recovery', () => {
+  const result = (overrides = {}) => ({
+    code: 0, stdout: '[]', stderr: '', timedOut: false, outputExceeded: false, ...overrides
+  })
+
+  it('retries a transient read without replaying a release mutation', async () => {
+    const read = vi.fn()
+      .mockResolvedValueOnce(result({ code: 1, stderr: 'HTTP 503: private response' }))
+      .mockResolvedValueOnce(result({ code: null, timedOut: true }))
+      .mockResolvedValueOnce(result({ stdout: '[{"draft":true}]' }))
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    await expect(readReleaseWithRetry(read, sleep)).resolves.toBe('[{"draft":true}]')
+    expect(read).toHaveBeenCalledTimes(3)
+    expect(sleep.mock.calls).toEqual([[10_000], [30_000]])
+  })
+
+  it('stops after three failed reads with a bounded privacy-safe cause', async () => {
+    const read = vi.fn().mockResolvedValue(result({ code: 1, stderr: 'HTTP 502: secret request data' }))
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    await expect(readReleaseWithRetry(read, sleep)).rejects.toThrow(
+      'GitHub release readback failed after 3 attempt(s): HTTP 502'
+    )
+    expect(read).toHaveBeenCalledTimes(3)
+    expect(sleep).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([401, 403, 404, 422])('does not retry rejected HTTP %i reads', async status => {
+    const read = vi.fn().mockResolvedValue(result({ code: 1, stderr: `HTTP ${status}: private response` }))
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    await expect(readReleaseWithRetry(read, sleep)).rejects.toThrow(`after 1 attempt(s): HTTP ${status}`)
+    expect(sleep).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('fails closed on output limits with timeout=%s', async timedOut => {
+    const read = vi.fn().mockResolvedValue(result({ outputExceeded: true, timedOut }))
+    const sleep = vi.fn().mockResolvedValue(undefined)
+    await expect(readReleaseWithRetry(read, sleep)).rejects.toThrow('bounded output limit')
+    expect(read).toHaveBeenCalledTimes(1)
+    expect(sleep).not.toHaveBeenCalled()
   })
 })
