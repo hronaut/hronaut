@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Keep modal keyboard wrapping on visible controls when disclosures are collapsed, while retaining access to their summaries and expanded contents.
 
+- Publish license expiry promptly when a deadline passes during a state update, so the automation-lock notice does not wait for the next minute's refresh.
+
 ## [2.11.9] - 2026-10-03
 
 ### Fixed
