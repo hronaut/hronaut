@@ -80,6 +80,32 @@ describe('settings dialog controller', () => {
     controller.dispose()
   })
 
+  it.each([false, true])('ignores a reset completion after disposal (failure=%s)', async fails => {
+    const pending = deferred()
+    const { controller, onResetError, resetSection, beforeOpen } = createController({
+      resetSection: async () => {
+        await pending.promise
+        if (fails) throw new Error('late failure')
+        return true
+      }
+    })
+    controller.openSection('appearance')
+    const resetting = controller.resetCurrent()
+    controller.dispose()
+    controller.dispose()
+    controller.toggle()
+    controller.openSection('search')
+    await expect(controller.resetCurrent()).resolves.toBe(false)
+    expect(controller.open.value).toBe(false)
+    expect(controller.tabOpen.value).toBe(false)
+    expect(beforeOpen).toHaveBeenCalledOnce()
+    expect(resetSection).toHaveBeenCalledOnce()
+    pending.resolve()
+    await expect(resetting).resolves.toBe(false)
+    expect(onResetError).not.toHaveBeenCalled()
+    expect(controller.resetBusy.value).toBe(false)
+  })
+
   it('reports reset failures and releases the reset lock', async () => {
     const failure = new Error('disk full')
     const resetSection = vi.fn(async () => { throw failure })
