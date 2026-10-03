@@ -280,6 +280,56 @@ describe('modal dialog focus lifecycle', () => {
     expect(dialog.contains(document.activeElement)).toBe(true)
   })
 
+  it('wraps to a collapsed disclosure summary instead of its hidden controls', async () => {
+    const user = userEvent.setup()
+    render(ModalTrapHarness)
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    const dialog = screen.getByRole('dialog', { name: 'Focus trap' })
+    dialog.insertAdjacentHTML('beforeend', `
+      <details>
+        <summary>Advanced actions</summary>
+        <button type="button">Hidden action</button>
+        <details open><summary>Nested actions</summary><button>Nested action</button></details>
+      </details>
+    `)
+    const disclosure = dialog.querySelector('details')!
+    const summary = disclosure.querySelector('summary')!
+    const first = screen.getByRole('button', { name: 'First action' })
+
+    first.focus()
+    await user.tab({ shift: true })
+    expect(summary).toHaveFocus()
+    await user.tab()
+    expect(first).toHaveFocus()
+
+    disclosure.open = true
+    first.focus()
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Nested action' })).toHaveFocus()
+    await user.tab()
+    expect(first).toHaveFocus()
+  })
+
+  it('keeps controls in the first summary available but excludes a second summary', async () => {
+    const user = userEvent.setup()
+    render(ModalTrapHarness)
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    const dialog = screen.getByRole('dialog', { name: 'Focus trap' })
+    dialog.insertAdjacentHTML('beforeend', `
+      <details>
+        <summary>Advanced actions <button type="button">Summary action</button></summary>
+        <summary tabindex="0">Hidden second summary</summary>
+        <button type="button">Hidden action</button>
+      </details>
+    `)
+    const first = screen.getByRole('button', { name: 'First action' })
+    first.focus()
+    await user.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Summary action' })).toHaveFocus()
+    await user.tab()
+    expect(first).toHaveFocus()
+  })
+
   it.each([
     '<fieldset disabled><button type="button">Unavailable</button></fieldset>',
     '<button type="button" disabled tabindex="0">Unavailable</button>'
