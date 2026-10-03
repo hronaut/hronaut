@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject semantic clicks on native-disabled controls using live page state, including disabled fieldset descendants, instead of reporting success when no click is dispatched.
+
 - Measure semantic drag endpoints together after scrolling, so bringing the destination into view does not move the source away from the drag start.
 
 - Preserve each workspace's remembered tab across restart so Home and agent commands without a tab ID return to the selected tab, while restoring the global active tab independently.

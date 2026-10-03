@@ -5320,7 +5320,7 @@ export class BrowserTabsManager {
       return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
     }
     if (target.doubleClick || target.native) {
-      const point = await webContents.executeJavaScript(targetPointScript(target), true) as {
+      let point = await webContents.executeJavaScript(targetPointScript(target), true) as {
         x: number
         y: number
         tag: string
@@ -5328,7 +5328,13 @@ export class BrowserTabsManager {
       await this.showAgentPointer(webContents, point, 'click')
       await this.withAgentInput(webContents, () => this.withDebugger(
         webContents,
-        () => this.dispatchNativeClick(webContents, point, target.doubleClick === true)
+        async () => {
+          // Re-read live state after pointer rendering and debugger setup, not
+          // the earlier snapshot or initial pointer position.
+          point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
+          this.assertClickTargetEnabled(point)
+          await this.dispatchNativeClick(webContents, point, target.doubleClick === true)
+        }
       ))
       return {
         ok: true,
@@ -5340,7 +5346,7 @@ export class BrowserTabsManager {
     const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
       .catch(() => undefined) as { x: number; y: number } | undefined
     if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click')
-    return this.withAgentInput(webContents, () => {
+    const result = await this.withAgentInput(webContents, () => {
       if (dialogAction === undefined) return webContents.executeJavaScript(targetActionScript('click', target), true)
       return this.withOptionalDialogHandling(webContents, target, async () => {
         const contextId = await this.mainWorldContextId(webContents)
@@ -5351,6 +5357,14 @@ export class BrowserTabsManager {
         )
       })
     })
+    this.assertClickTargetEnabled(result)
+    return result
+  }
+
+  private assertClickTargetEnabled(result: unknown): void {
+    if (result && typeof result === 'object' && 'nativeDisabled' in result && result.nativeDisabled === true) {
+      throw new Error('Target is natively disabled. Wait for the page to enable it, then inspect it again before clicking.')
+    }
   }
 
   private async dispatchNativeClick(
