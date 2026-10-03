@@ -25,6 +25,21 @@ test('serializes agent site cleanup with human workspace copies and workspace ar
   const call = async (name: string, args: Record<string, unknown>): Promise<CallToolResult> => await client.callTool({ name, arguments: args }) as CallToolResult
   try {
     await appWindow.evaluate('window.hronautSettings.setMcpAuthentication(true)')
+    // Renderer readiness does not imply that the independently started MCP
+    // listener is accepting connections. Probe readiness before initializing
+    // the client; never retry the state-changing workspace/privacy operations.
+    await expect.poll(async () => {
+      try {
+        const response = await fetch(`http://127.0.0.1:${mcpPort}/healthz`, {
+          headers: { authorization: `Bearer ${mcpToken}` },
+          signal: AbortSignal.timeout(1_000)
+        })
+        await response.body?.cancel()
+        return response.status
+      } catch {
+        return 0
+      }
+    }).toBe(200)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
     const created = await call('browser_workspaces', { action: 'create', name: 'Agent owned source', storage: 'scratch' })
     expect(created.isError, text(created)).not.toBe(true)
