@@ -9,6 +9,22 @@ const input = { context: 'c9a69713-c421-4d51-913e-0f7e74248acd', selector: '#res
 const recording: BrowserReproRecording = { tabId: 'tab', title: 'Fixture', active: false, stepCount: 1, truncated: false, caveats: [], steps: [{ index: 1, kind: 'expect', occurredAt: '2026-10-01T00:00:00Z', elapsedMs: 1, url: 'https://example.test', description: 'Expected result', target: { selector: 'main > p', tag: 'p' }, expectation: { condition: 'text', text: 'Saved successfully', observedMatch: false } }] }
 
 describe('explicit Repro checkpoints', () => {
+  it.each([
+    { actual: 'Saved\u200b successfully', expected: 'Saved successfully', observedMatch: true },
+    { actual: 'Saved suc\u00adcessfully', expected: 'Saved successfully', observedMatch: true },
+    { actual: 'Saved successfully', expected: ' Saved\u200b suc\u00adcessfully ', observedMatch: true },
+    { actual: 'Saved\u200b incorrectly', expected: 'Saved successfully', observedMatch: false }
+  ])('matches Playwright text normalization for %j', ({ actual, expected, observedMatch }) => {
+    const result = document.createElement('p')
+    result.id = 'result'
+    result.textContent = actual
+    document.body.append(result)
+    try {
+      expect(window.eval(reproCheckpointScript({ ...input, text: expected })))
+        .toEqual({ selector: 'p', tag: 'p', observedMatch })
+    } finally { result.remove() }
+  })
+
   it('requires review, bounded expected text and an exact recording context', () => {
     expect(reproCheckpointSchema.safeParse(input).success).toBe(true)
     for (const changed of [{ reviewed: false }, { text: 'x'.repeat(241) }, { context: '' }, { condition: 'visible' }, { unexpected: true }]) {

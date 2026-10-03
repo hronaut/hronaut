@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Match Repro text checkpoints consistently with exported Playwright assertions when result text contains zero-width spaces or soft hyphens.
+
 - Require an existing target when replaying hidden Repro checkpoints, preventing missing result elements from silently passing as hidden.
 
 - Honor line and page wheel units when scrolling the Settings section rail in narrow windows.
