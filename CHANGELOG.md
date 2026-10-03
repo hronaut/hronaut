@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.11.9] - 2026-10-03
+
 ### Fixed
 
 - Reject semantic clicks on native-disabled controls using live page state, including disabled fieldset descendants, instead of reporting success when no click is dispatched.
