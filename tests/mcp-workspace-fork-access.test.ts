@@ -67,6 +67,8 @@ describe('MCP workspace fork sources and direct access', () => {
       findSnapshot: vi.fn(async () => ({ matches: [], sourceSnapshot: { scope: { kind: 'component', outsideScopeOmitted: true } } })),
       snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
         truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } })),
+      setSnapshotBaseline: vi.fn(async () => ({ text: 'Component baseline', baselineId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' })),
+      snapshotDelta: vi.fn(async () => ({ status: 'unchanged', changes: [] })),
       renameMcpTabGroup: vi.fn(() => workspace),
       getMcpGroupState: vi.fn(() => ({
         activeTabId: targetId,
@@ -274,19 +276,29 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.click).toHaveBeenCalledTimes(1)
   })
 
-  it('limits component scope to capture and preserves workspace authority', async () => {
+  it('forwards component baseline scope and preserves workspace authority', async () => {
     const { manager, call, disable } = await setup()
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     expect((await call('browser_snapshot', { workspaceId: ownId, rootSelector: '#component' })).isError).not.toBe(true)
     expect(manager.snapshotDetails).toHaveBeenLastCalledWith(targetId, undefined, '#component')
-    for (const action of ['set-baseline', 'delta', 'clear-baseline', 'assess-quality']) {
+    const baselineId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    expect((await call('browser_snapshot', { workspaceId: ownId, action: 'set-baseline', rootSelector: '#component' })).isError).not.toBe(true)
+    expect(manager.setSnapshotBaseline).toHaveBeenLastCalledWith(targetId, undefined, '#component')
+    expect((await call('browser_snapshot', { workspaceId: ownId, action: 'delta', baselineId, rootSelector: '#component' })).isError).not.toBe(true)
+    expect(manager.snapshotDelta).toHaveBeenLastCalledWith(expect.objectContaining({ tabId: targetId, baselineId, rootSelector: '#component' }))
+    for (const action of ['clear-baseline', 'assess-quality']) {
       const result = await call('browser_snapshot', { workspaceId: ownId, action, rootSelector: '#component' })
       expect(result.isError).toBe(true)
       expect(JSON.stringify(result)).toContain('supported only for capture')
     }
     disable()
     expect((await call('browser_snapshot', { workspaceId: ownId, rootSelector: '#component' })).isError).toBe(true)
+    for (const action of ['set-baseline', 'delta']) {
+      expect((await call('browser_snapshot', { workspaceId: ownId, action, baselineId, rootSelector: '#component' })).isError).toBe(true)
+    }
     expect(manager.snapshotDetails).toHaveBeenCalledTimes(1)
+    expect(manager.setSnapshotBaseline).toHaveBeenCalledTimes(1)
+    expect(manager.snapshotDelta).toHaveBeenCalledTimes(1)
   })
 
   it('forwards optional component scope to snapshot search and preserves workspace authority', async () => {

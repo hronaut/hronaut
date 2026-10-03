@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Compare component-scoped snapshot baselines and deltas using the same private root selector, with explicit scope-change rejection and no whole-page fallback.
+
 ### Fixed
 
 - Preserve checked state alongside disabled state in page and component snapshots, so selected read-only checkboxes and radios remain distinguishable.

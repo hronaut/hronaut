@@ -2995,7 +2995,7 @@ function createBrowserMcpServer(
         maxChars: z.number().int().min(1_000).max(100_000).optional()
           .describe('Bounded snapshot size for capture or set-baseline.'),
         rootSelector: z.string().trim().min(1).max(512).optional()
-          .describe('Capture only: unique CSS selector for a light-DOM component. Out-of-scope content is omitted; no whole-page fallback.'),
+          .describe('Unique CSS component root for capture or set-baseline. Delta reuses the stored root; an explicit different selector is rejected. No whole-page fallback.'),
         baselineId: z.string().uuid().optional()
           .describe('Opaque baseline handle required by delta and optional for clear-baseline.'),
         maxOutputChars: z.number().int().min(1_000).max(50_000).optional()
@@ -3022,20 +3022,20 @@ function createBrowserMcpServer(
       expectedText?: string
       expectedSelector?: string
     }) => {
-      if (rootSelector !== undefined && action !== 'capture') {
-        throw new TypeError('rootSelector is supported only for capture; scoped baselines and deltas are not supported')
+      if (rootSelector !== undefined && action !== 'capture' && action !== 'set-baseline' && action !== 'delta') {
+        throw new TypeError('rootSelector is supported only for capture, set-baseline and delta')
       }
       if (action === 'assess-quality') {
         const assessment = await manager.observationQuality({ tabId, expectedOrigin, expectedText, expectedSelector })
         return { ...textResult(assessment), structuredContent: { ...assessment } }
       }
       if (action === 'set-baseline') {
-        const snapshot = await manager.setSnapshotBaseline(tabId, maxChars)
+        const snapshot = await manager.setSnapshotBaseline(tabId, maxChars, rootSelector)
         return { ...textResult(snapshot.text), structuredContent: snapshot }
       }
       if (action === 'delta') {
         if (!baselineId) throw new TypeError('baselineId is required for a snapshot delta')
-        const delta = await manager.snapshotDelta({ tabId, baselineId, maxOutputChars, advanceBaseline })
+        const delta = await manager.snapshotDelta({ tabId, baselineId, rootSelector, maxOutputChars, advanceBaseline })
         return { content: [{ type: 'text', text: JSON.stringify(delta) }], structuredContent: delta }
       }
       if (action === 'clear-baseline') {

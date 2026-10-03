@@ -626,6 +626,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
 interface BrowserSnapshotBaselineRecord {
   context: BrowserSnapshotDeltaContext
   snapshot: BrowserSnapshot
+  rootSelector?: string
 }
 
 type TabOverviewPreviewCaptureMode = 'visible' | 'overview'
@@ -4728,10 +4729,10 @@ export class BrowserTabsManager {
     )
   }
 
-  async setSnapshotBaseline(tabId?: string, maxChars = 30_000) {
+  async setSnapshotBaseline(tabId?: string, maxChars = 30_000, rootSelector?: string) {
     const tab = this.getTab(tabId)
     const operationGeneration = ++tab.snapshotBaselineGeneration
-    const snapshot = await this.snapshotDetails(tab.id, maxChars)
+    const snapshot = await this.snapshotDetails(tab.id, maxChars, rootSelector)
     const current = this.tabs.get(tab.id)
     if (
       !current
@@ -4753,7 +4754,7 @@ export class BrowserTabsManager {
       }
     }
     const baselineId = randomUUID()
-    this.snapshotBaselines.set(baselineId, { context, snapshot })
+    this.snapshotBaselines.set(baselineId, { context, snapshot, rootSelector: rootSelector?.trim() })
     this.snapshotBaselineIdsByTab.set(tab.id, baselineId)
     return { action: 'set-baseline' as const, status: 'baseline' as const, baselineId, context, ...snapshot }
   }
@@ -4775,6 +4776,7 @@ export class BrowserTabsManager {
   async snapshotDelta(options: {
     tabId?: string
     baselineId: string
+    rootSelector?: string
     maxOutputChars?: number
     advanceBaseline?: boolean
   }) {
@@ -4795,6 +4797,8 @@ export class BrowserTabsManager {
       }
     }
     const invalidationReason = snapshotDeltaInvalidationReason(baseline.context, context)
+      ?? (options.rootSelector !== undefined && options.rootSelector.trim() !== baseline.rootSelector
+        ? 'scope-changed' as const : undefined)
     if (invalidationReason) {
       return {
         action: 'delta' as const,
@@ -4813,7 +4817,7 @@ export class BrowserTabsManager {
 
     let snapshot: BrowserSnapshot
     try {
-      snapshot = await this.snapshotDetails(tab.id, baseline.snapshot.maxChars)
+      snapshot = await this.snapshotDetails(tab.id, baseline.snapshot.maxChars, baseline.rootSelector)
     } catch (error) {
       const current = this.tabs.get(tab.id)
       if (current && !current.webContents.isDestroyed()) {
