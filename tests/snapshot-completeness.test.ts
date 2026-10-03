@@ -35,7 +35,8 @@ it.each(['headings', 'controls'])('reports the %s cap even below the character l
   const elements = Array.from({ length: kind === 'headings' ? 81 : 501 }, () => ({
     tagName: kind === 'headings' ? 'H1' : 'BUTTON', innerText: 'x',
     getBoundingClientRect: () => ({ width: 1, height: 1 }),
-    getAttribute: () => null, setAttribute: () => undefined, closest: () => null, querySelector: () => null
+    getAttribute: () => null, setAttribute: () => undefined, closest: () => null, querySelector: () => null,
+    matches: () => false
   }))
   const result = runInNewContext(snapshotScript(100000, true), {
     URL, location: { href: 'https://example.test/' }, HTMLAnchorElement: class {},

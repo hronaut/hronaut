@@ -65,6 +65,12 @@ for (const [mode, options] of Object.entries(modes)) {
         const page = electronApp.context().pages().find(page => page.url() === url)!
         const snapshot = await ok('browser_snapshot', args)
         expect(snapshot).toContain('Disabled submit')
+        for (const label of ['Disabled submit', 'Disabled input', 'Disabled select', 'Disabled textarea', 'Inherited disabled', 'Second legend']) {
+          expect(snapshot.split('\n').find(line => line.includes(JSON.stringify(label))), label).toMatch(/ disabled$/)
+        }
+        for (const label of ['First legend', 'ARIA-only custom control']) {
+          expect(snapshot.split('\n').find(line => line.includes(JSON.stringify(label))), label).not.toMatch(/ disabled$/)
+        }
         const refs = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[id][data-hronaut-ref]')]
           .map(element => [element.id, element.getAttribute('data-hronaut-ref')!])))
         const target = (id: string) => {

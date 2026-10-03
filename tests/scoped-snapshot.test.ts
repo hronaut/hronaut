@@ -11,6 +11,31 @@ function fixture() {
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 10, height: 10 } as DOMRect)
   Object.defineProperty(HTMLElement.prototype, 'innerText', { configurable: true, get() { return this.textContent } })
 }
+it.each([undefined, '#target'])('reports inherited native disabled state in snapshot %s', selector => {
+  fixture()
+  document.querySelector('#target')!.innerHTML = `
+    <fieldset disabled>
+      <legend><button>First legend action</button></legend>
+      <button>Inherited action</button>
+      <input aria-label="Inherited input">
+      <legend><button>Second legend action</button></legend>
+    </fieldset>
+    <button disabled>Own disabled action</button>
+    <div role="button" aria-disabled="true">ARIA-only action</div>
+  `
+  const control = (text: string, label: string) => text.split('\n').find((line: string) => line.includes(JSON.stringify(label)))
+  const disabled = capture(selector).text
+  for (const label of ['Inherited action', 'Inherited input', 'Second legend action', 'Own disabled action']) {
+    expect(control(disabled, label)).toMatch(/ disabled$/)
+  }
+  for (const label of ['First legend action', 'ARIA-only action']) expect(control(disabled, label)).not.toMatch(/ disabled$/)
+  document.querySelector('fieldset')!.disabled = false
+  const enabled = capture(selector).text
+  for (const label of ['Inherited action', 'Inherited input', 'Second legend action']) {
+    expect(control(enabled, label)).not.toMatch(/ disabled$/)
+  }
+  expect(control(enabled, 'Own disabled action')).toMatch(/ disabled$/)
+})
 it('returns only root and descendant semantics with explicit outside-scope omission', () => {
   fixture()
   const result = capture('#target')
