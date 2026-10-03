@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Measure semantic drag endpoints together after scrolling, so bringing the destination into view does not move the source away from the drag start.
+
 - Preserve each workspace's remembered tab across restart so Home and agent commands without a tab ID return to the selected tab, while restoring the global active tab independently.
 
 - Preserve native User-Agent Client Hints during locale-only emulation while still overriding browser language; explicit custom User-Agent behavior remains unchanged.
