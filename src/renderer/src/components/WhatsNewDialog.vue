@@ -44,7 +44,11 @@ function openReleaseNoteLink(event: MouseEvent): void {
   openExternal(link.href)
 }
 
-useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
+useModalDialogFocus({
+  open, panel, afterLayout: props.reportLayout,
+  // Settings content is removed when this reader opens; retain a visible route back.
+  returnFocusFallback: () => document.querySelector<HTMLElement>('.settings-button')
+})
 </script>
 
 <template>
