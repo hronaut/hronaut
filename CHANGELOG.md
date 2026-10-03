@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Honor line and page mouse-wheel units when scrolling overflowing horizontal or vertical browser tabs.
+
 ## [2.13.0] - 2026-10-04
 
 ### Changed
