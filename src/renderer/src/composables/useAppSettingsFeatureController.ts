@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type {
   AppSettings,
   BrowserState,
@@ -272,6 +272,10 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     ),
     onResetError: options.onSettingError
   })
+  const stopSettingsTabTracking = watch(
+    () => options.browserState.value.activeTabId,
+    () => settingsDialogController.close()
+  )
   const releaseHistoryController = useReleaseHistoryController({
     api: options.apis.updates,
     beforeOpen: () => {
@@ -333,6 +337,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     disposed = true
     generation += 1
     disposeAll([
+      stopSettingsTabTracking,
       updateNoticePresentationController.dispose,
       releaseHistoryController.dispose,
       downloadSettingsController.dispose,

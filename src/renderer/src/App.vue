@@ -508,7 +508,11 @@ const {
     setZoom: setTransientZoom
   },
   surfaces: {
-    settings: { open: settingsOpen, close: closeSettings, openSection: openSettingsSection },
+    settings: {
+      open: settingsOpen, close: closeSettings, openSection: openSettingsSection,
+      tabOpen: settingsDialogController.tabOpen, closeTab: settingsDialogController.closeTab,
+      activate: settingsDialogController.toggle
+    },
     updateNotice: updateNoticeOpen,
     help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
     releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
@@ -781,7 +785,7 @@ useAppLifecycleController({
     :class="[
       {
         'all-human-interaction-locked': state.allHumanInteractionLocked,
-        'home-shell': activeIsHome,
+        'home-shell': activeIsHome || settingsOpen,
         'detached-panel-window': isDetachedPanelWindow,
         'detached-panel-unavailable': detachedPanelUnavailable,
         'custom-title-bar': customTitleBar,

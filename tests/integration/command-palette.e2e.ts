@@ -19,7 +19,7 @@ test('keeps IME-owned Enter and Escape inside the command palette input', async 
 
   expect(confirming).toBe(true)
   await expect(palette).toBeVisible()
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toHaveCount(0)
 
   const composing = await search.evaluate((input) => input.dispatchEvent(new KeyboardEvent('keydown', {
     key: 'Escape',
@@ -48,8 +48,8 @@ test('finds global and website commands from the accessible command palette', as
   await commandSearch.fill('settings')
   await expect(palette.getByRole('option', { name: /Open Settings/ })).toBeVisible()
   await commandSearch.press('Enter')
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
-  await appWindow.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Close settings' }).click()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
+  await appWindow.getByRole('tabpanel', { name: 'Settings' }).getByRole('button', { name: 'Close settings' }).click()
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   await commandButton.click()
@@ -98,7 +98,7 @@ test('finds global and website commands from the accessible command palette', as
   await palette.getByRole('combobox', { name: 'Search commands' }).fill('cookies cache')
   await expect(palette.getByRole('option', { name: /Open Workspaces & data/ })).toBeVisible()
   await palette.getByRole('combobox', { name: 'Search commands' }).press('Enter')
-  const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+  const settings = appWindow.getByRole('tabpanel', { name: 'Settings' })
   await expect(settings.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
   await settings.getByRole('button', { name: 'Close settings' }).click()
 
@@ -132,7 +132,7 @@ test('preserves a selected global command when live tab state removes website co
   await expect(palette.getByRole('combobox', { name: 'Search commands' })).toBeFocused()
 
   await palette.getByRole('combobox', { name: 'Search commands' }).press('Enter')
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
 })
 
 

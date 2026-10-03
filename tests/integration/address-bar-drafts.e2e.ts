@@ -102,7 +102,7 @@ test('ignores a delayed native suggestion selection after Settings replaces the 
   })
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
   await electronApp.evaluate(async ({ webContents }, id) => {
     const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
     if (!overlay) throw new Error('Address popup was not found')
@@ -114,7 +114,7 @@ test('ignores a delayed native suggestion selection after Settings replaces the 
     const state = await (window as unknown as TestWindow).hronaut.getState()
     return state.tabs.find(tab => tab.id === state.activeTabId)?.url
   })).toBe('about:blank')
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
 })
 
 test('keeps reopened native suggestions when an earlier button clicks the same bookmark', async ({ appWindow, electronApp }) => {

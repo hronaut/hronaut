@@ -5,7 +5,7 @@ for (const theme of ['light', 'dark'] as const) {
   for (const width of [1200, 760, 640]) {
     test(`keeps settings controls and dialog actions reachable in ${theme} at ${width}px`, async ({ appWindow, electronApp }, testInfo) => {
       await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-      const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+      const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
       const navigation = dialog.locator('.settings-sidebar')
       await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
       await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)
@@ -15,14 +15,19 @@ for (const theme of ['light', 'dark'] as const) {
         window.setSize(value, 800)
       }, width)
       await expect.poll(() => appWindow.evaluate(() => window.innerWidth)).toBe(width)
-      const viewport = await appWindow.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
       await expect.poll(async () => {
         const bounds = await dialog.boundingBox()
         return bounds && {
           x: Math.round(bounds.x), y: Math.round(bounds.y),
           width: Math.round(bounds.width), height: Math.round(bounds.height)
         }
-      }).toEqual({ x: 0, y: 0, ...viewport })
+      }).toEqual(await appWindow.evaluate(() => {
+        const shell = document.querySelector('.shell')!
+        const style = getComputedStyle(shell)
+        const x = Math.round(Number.parseFloat(style.getPropertyValue('--tab-rail-width')) || 0)
+        const y = Math.round(Number.parseFloat(style.getPropertyValue('--shell-content-top')) || 0)
+        return { x, y, width: window.innerWidth - x, height: window.innerHeight - y }
+      }))
       for (const index of Array.from({ length: 11 }, (_, index) => index)) {
         const section = navigation.getByRole('button').nth(index)
         await section.click()
@@ -56,7 +61,7 @@ for (const theme of ['light', 'dark'] as const) {
 
 test('keeps Close visible when Large interface size reduces the available Settings height', async ({ appWindow, electronApp }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   await electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]!
     window.setMinimumSize(600, 600)

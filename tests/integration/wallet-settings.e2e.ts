@@ -123,7 +123,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await appWindow.getByRole('button', { name: /Block human page input/ }).click()
   await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
   await dialog.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await dialog.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
@@ -388,7 +388,7 @@ test('shows a selectable wallet list and readable tabs across themes and transla
     }
   })()`)
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
   const panel = appWindow.locator('.wallet-settings')
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
   const accounts = panel.getByRole('list', { name: 'Your wallets' })
@@ -426,7 +426,7 @@ test('confirms a validated private-key import through the trusted Settings IPC b
   })()`)
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
   const panel = dialog.locator('.wallet-settings')
   await panel.getByRole('tab', { name: 'Add wallet' }).click()

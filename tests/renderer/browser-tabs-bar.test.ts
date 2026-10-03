@@ -112,6 +112,21 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it.each(['horizontal', 'vertical'] as const)('selects Settings independently of the underlying website in the %s rail', async orientation => {
+    const view = renderTabs(browserState({ tabs: [tab('first', { active: true })], activeTabId: 'first' }), true, orientation)
+    await view.rerender({ settingsTabOpen: true, settingsActive: true })
+    const settings = screen.getByRole('tab', { name: 'Settings' })
+    expect(settings).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAttribute('aria-selected', 'false')
+    await fireEvent.click(settings)
+    expect(view.emitted().openSettings).toHaveLength(1)
+    await fireEvent.keyDown(settings, { key: 'Delete' })
+    expect(view.emitted().closeSettings).toHaveLength(1)
+    await view.rerender({ settingsActive: false })
+    expect(settings).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it.each(['horizontal', 'vertical'] as const)('marks only the requested tab in the %s rail and clears it with the request', async orientation => {
     const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }), true, orientation)
     const first = screen.getByRole('tab', { name: 'Page first' })

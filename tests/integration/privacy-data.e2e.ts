@@ -23,7 +23,7 @@ test('clears global history while preserving workspace storage and retained reco
     await expect.poll(() => appWindow.evaluate(`window.hronautBrowsingData.siteSummary(${JSON.stringify(url)}, ${JSON.stringify(state.activeTabId)})`)).toMatchObject({ cookieCount: 1, historyEntries: 1 })
     expect(await appWindow.evaluate(`window.hronautBrowsingData.siteSummary(${JSON.stringify(url)}).catch(error => error.message)`)).toContain('Tab ID is required')
     await appWindow.keyboard.press('Control+Shift+Delete')
-    const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+    const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(dialog.getByRole('heading', { name: 'Global history', exact: true })).toBeVisible()
     await expect(dialog.getByRole('checkbox')).toHaveCount(1)
     await expect(dialog.getByText('Global history & legacy data')).toHaveCount(0)

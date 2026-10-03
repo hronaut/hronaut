@@ -38,7 +38,7 @@ for (const split of [false, true]) {
       const before = await readViews()
       const windowBounds = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getBounds())
       await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-      const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+      const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
       await expect(dialog).toBeVisible()
       // Let the renderer finish both occlusion and toolbar/inset reporting.
       await appWindow.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))

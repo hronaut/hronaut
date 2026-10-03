@@ -2,7 +2,7 @@ import { expect, test } from './fixtures.js'
 
 test('keeps the license UI stable across light and dark themes', async ({ appWindow }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
   await expect(dialog).toBeVisible()
 
   await appWindow.getByRole('button', { name: /Appearance/ }).click()

@@ -27,19 +27,24 @@ function createController(options: {
 }
 
 describe('settings dialog controller', () => {
-  it('opens a requested section, toggles closed, and restores the same section', () => {
+  it('keeps one Settings tab and restores its section after switching away', () => {
     const { beforeOpen, controller } = createController()
 
     controller.openSection('search')
     expect(controller.open.value).toBe(true)
     expect(controller.section.value).toBe('search')
-    controller.toggle()
+    expect(controller.tabOpen.value).toBe(true)
+    controller.close()
     expect(controller.open.value).toBe(false)
+    expect(controller.tabOpen.value).toBe(true)
     controller.toggle()
 
     expect(controller.open.value).toBe(true)
     expect(controller.section.value).toBe('search')
     expect(beforeOpen).toHaveBeenCalledTimes(2)
+    controller.closeTab()
+    expect(controller.tabOpen.value).toBe(false)
+    expect(controller.open.value).toBe(false)
     controller.dispose()
   })
 

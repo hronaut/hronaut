@@ -7,7 +7,7 @@ test('persists and resets website download preferences from Settings', async ({
   profileDirectory
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  const settingsDialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  const settingsDialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
   await settingsDialog.getByRole('button', { name: 'Downloads Location and prompts' }).click()
 
   const downloadSettings = settingsDialog.locator('.settings-content')

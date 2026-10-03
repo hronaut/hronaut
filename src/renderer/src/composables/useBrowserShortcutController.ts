@@ -20,6 +20,9 @@ export interface BrowserShortcutControllerOptions {
   browser: ShortcutBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
+  settingsTabOpen?: Ref<boolean>
+  openSettings?: ShortcutCallback
+  closeSettingsTab?: ShortcutCallback
   canRunAction: (action: BrowserShortcutAction) => boolean
   openNewTab: ShortcutCallback
   focusAddress: ShortcutCallback
@@ -46,13 +49,19 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
 
   async function performRelativeTabSelection(offset: -1 | 1): Promise<void> {
     if (disposed) return
-    const tabs = options.state.value.tabs
-    const activeTabId = options.state.value.activeTabId
+    const settingsId = 'hronaut:settings'
+    const tabs = options.state.value.tabs.map(tab => ({ id: tab.id }))
+    if (options.settingsTabOpen?.value) tabs.splice(1, 0, { id: settingsId })
+    const activeTabId = options.settingsOpen.value ? settingsId : options.state.value.activeTabId
     if (tabs.length < 2 || !activeTabId) return
     const current = tabs.findIndex((tab) => tab.id === activeTabId)
     if (current < 0) return
     const next = tabs[(current + offset + tabs.length) % tabs.length]
-    if (next) await options.syncState(options.browser.selectTab(next.id))
+    if (next?.id === settingsId) await options.openSettings?.()
+    else if (next) {
+      options.settingsOpen.value = false
+      await options.syncState(options.browser.selectTab(next.id))
+    }
   }
 
   function selectRelativeTab(offset: -1 | 1): Promise<void> {
@@ -71,7 +80,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (disposed) return
     const tabs = websiteTabs()
     const target = index === -1 ? tabs.at(-1) : tabs[index]
-    if (!target || target.id === options.state.value.activeTabId) return
+    if (!target) return
+    options.settingsOpen.value = false
+    if (target.id === options.state.value.activeTabId) return
     await options.syncState(options.browser.selectTab(target.id))
   }
 
@@ -104,6 +115,11 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
         await options.openNewTab()
         return
       case 'close-tab':
+        if (options.settingsOpen.value) {
+          if (options.closeSettingsTab) await options.closeSettingsTab()
+          else options.settingsOpen.value = false
+          return
+        }
         if (options.activeTab.value) await options.syncState(options.browser.closeTab(options.activeTab.value.id))
         return
       case 'reopen-closed-tab':
@@ -152,6 +168,10 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (
       disposed
       || !options.canRunAction(action)
+      || (options.settingsOpen.value && [
+        'reload', 'reload-ignoring-cache', 'find', 'bookmark', 'pick-element',
+        'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset'
+      ].includes(action))
     ) return false
     const operationGeneration = generation
     try {

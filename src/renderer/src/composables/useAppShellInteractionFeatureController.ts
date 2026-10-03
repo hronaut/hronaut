@@ -130,6 +130,9 @@ interface ToggleSurface {
 }
 
 interface SettingsSurface extends ToggleSurface {
+  tabOpen?: Ref<boolean>
+  closeTab?: () => void
+  activate?: () => void
   openSection: (section: SettingsSection) => unknown
 }
 
@@ -301,6 +304,9 @@ export function useAppShellInteractionFeatureController(
     browser: options.browser,
     syncState: options.syncState,
     settingsOpen: surfaces.settings.open,
+    settingsTabOpen: surfaces.settings.tabOpen,
+    openSettings: () => { surfaces.settings.activate?.() },
+    closeSettingsTab: surfaces.settings.closeTab,
     canRunAction: (action) => action !== 'pick-element' || !(
       transient.commandPaletteOpen.value
       || transient.workspaceEditorOpen.value
