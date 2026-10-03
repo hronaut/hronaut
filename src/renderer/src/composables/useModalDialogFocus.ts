@@ -42,13 +42,17 @@ function topDialogPanel(): HTMLElement | null {
 function isFocusable(element: HTMLElement): boolean {
   if (element.tabIndex < 0 || element.matches(':disabled')
     || element.closest('[hidden], [inert], [aria-hidden="true"]')) return false
+  // Visibility is inherited but descendants may explicitly restore it. Unlike
+  // display:none, a hidden ancestor does not necessarily hide this control.
+  const visibility = getComputedStyle(element).visibility
+  if (visibility === 'hidden' || visibility === 'collapse') return false
   for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
     if (candidate !== element && candidate.matches('details:not([open])')) {
       const summary = Array.from(candidate.children).find(child => child.tagName === 'SUMMARY')
       if (!summary?.contains(element)) return false
     }
     const style = getComputedStyle(candidate)
-    if (style.display === 'none' || style.visibility === 'hidden') return false
+    if (style.display === 'none') return false
   }
   return true
 }

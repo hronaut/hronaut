@@ -280,6 +280,27 @@ describe('modal dialog focus lifecycle', () => {
     expect(dialog.contains(document.activeElement)).toBe(true)
   })
 
+  it('includes explicitly visible descendants while excluding inherited hidden and collapsed controls', async () => {
+    const user = userEvent.setup()
+    render(ModalTrapHarness)
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    const dialog = screen.getByRole('dialog', { name: 'Focus trap' })
+    dialog.insertAdjacentHTML('beforeend', `
+      <div style="visibility:hidden">
+        <button data-testid="visible-override" style="visibility:visible">Visible override</button>
+        <button>Inherited hidden</button>
+      </div>
+      <button style="visibility:collapse">Collapsed action</button>
+      <div style="display:none"><button style="visibility:visible">Display hidden</button></div>
+    `)
+    const first = screen.getByRole('button', { name: 'First action' })
+    first.focus()
+    await user.tab({ shift: true })
+    expect(screen.getByTestId('visible-override')).toHaveFocus()
+    await user.tab()
+    expect(first).toHaveFocus()
+  })
+
   it('wraps to a collapsed disclosure summary instead of its hidden controls', async () => {
     const user = userEvent.setup()
     render(ModalTrapHarness)

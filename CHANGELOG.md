@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep explicitly visible controls inside hidden containers reachable in modal keyboard wrapping, while excluding inherited hidden and collapsed controls.
+
 ## [2.12.1] - 2026-10-03
 
 ### Added
