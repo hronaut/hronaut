@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve checked state alongside disabled state in page and component snapshots, so selected read-only checkboxes and radios remain distinguishable.
+
 - Report native disabled state inherited from fieldsets in page and component snapshots, while preserving the first-legend exception.
 
 - Keep modal keyboard wrapping on visible controls when disclosures are collapsed, while retaining access to their summaries and expanded contents.
