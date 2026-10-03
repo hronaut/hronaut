@@ -25,6 +25,10 @@ Project home: https://github.com/hronaut/hronaut
 
 ## Appearance
 
+Settings opens as a full-window page. Use its section navigation to switch categories;
+the Close buttons or Escape return to the previous browser view. Navigation and
+content scroll independently, keeping the footer actions available in small windows.
+
 Open **Settings** from the gear button in the top strip. Hronaut includes ten appearance choices:
 
 - **System** follows the operating system's light or dark appearance as it changes.

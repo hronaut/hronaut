@@ -15,6 +15,14 @@ for (const theme of ['light', 'dark'] as const) {
         window.setSize(value, 800)
       }, width)
       await expect.poll(() => appWindow.evaluate(() => window.innerWidth)).toBe(width)
+      const viewport = await appWindow.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
+      await expect.poll(async () => {
+        const bounds = await dialog.boundingBox()
+        return bounds && {
+          x: Math.round(bounds.x), y: Math.round(bounds.y),
+          width: Math.round(bounds.width), height: Math.round(bounds.height)
+        }
+      }).toEqual({ x: 0, y: 0, ...viewport })
       for (const index of Array.from({ length: 11 }, (_, index) => index)) {
         const section = navigation.getByRole('button').nth(index)
         await section.click()

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Open Settings as a full-window page with its existing section navigation and independently scrolling content, giving controls the available screen space.
+
 ### Fixed
 
 - Keep explicitly visible controls inside hidden containers reachable in modal keyboard wrapping, while excluding inherited hidden and collapsed controls.
