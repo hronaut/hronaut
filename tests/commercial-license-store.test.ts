@@ -287,7 +287,7 @@ it('schedules elapsed-state publication at trial, paid and offline boundaries wi
   const now = Date.parse('2026-09-30T20:00:00Z')
   const state = { status: 'active', active: true, secureStorageAvailable: true }
   expect(commercialLicenseStateRefreshDelay(state, now)).toBe(60_000)
-  expect(commercialLicenseStateRefreshDelay({ ...state, trialExpiresAt: new Date(now + 1500).toISOString() }, now)).toBe(1500)
+  expect(commercialLicenseStateRefreshDelay({ ...state, trialStatus: 'active', trialExpiresAt: new Date(now + 1500).toISOString() }, now)).toBe(1500)
   expect(commercialLicenseStateRefreshDelay({ ...state, expiresAt: new Date(now + 500).toISOString() }, now)).toBe(500)
   expect(commercialLicenseStateRefreshDelay({ ...state, lastValidatedAt: new Date(now - LICENSE_OFFLINE_GRACE_MS + 250).toISOString() }, now)).toBe(250)
   expect(commercialLicenseStateRefreshDelay({ ...state, expiresAt: 'invalid' }, now)).toBe(60_000)
@@ -305,4 +305,29 @@ it('rechecks elapsed entitlement without starting a trial or writing, and accept
   expect(await readFile(path, 'utf8')).toBe(before)
   await store.saveActivation('SYNTHETIC-LICENSE', { valid: true, status: 'active', productId: 'test', instanceId: 'test' })
   expect(() => store.assertAutomationAccess()).not.toThrow()
+})
+
+it('promptly republishes a still-active state when its deadline passes during publication', () => {
+  const now = Date.parse('2026-10-03T15:00:00Z')
+  const state = { status: 'active', active: true, secureStorageAvailable: true }
+  for (const elapsed of [0, 1, 50]) {
+    const deadline = new Date(now - elapsed).toISOString()
+    expect(commercialLicenseStateRefreshDelay({ ...state, expiresAt: deadline }, now)).toBe(1)
+    expect(commercialLicenseStateRefreshDelay({
+      ...state, lastValidatedAt: new Date(now - elapsed - LICENSE_OFFLINE_GRACE_MS).toISOString()
+    }, now)).toBe(1)
+    expect(commercialLicenseStateRefreshDelay({
+      ...state, active: false, trialStatus: 'active', trialExpiresAt: deadline
+    }, now)).toBe(1)
+  }
+  // Already-published expiry must not cause a tight timer loop, including an
+  // expired trial alongside a still-active paid subscription.
+  const expired = new Date(now - 1).toISOString()
+  expect(commercialLicenseStateRefreshDelay({
+    ...state, active: false, trialStatus: 'expired', trialExpiresAt: expired, expiresAt: expired
+  }, now)).toBe(60_000)
+  expect(commercialLicenseStateRefreshDelay({
+    ...state, trialStatus: 'expired', trialExpiresAt: expired,
+    expiresAt: new Date(now + 5000).toISOString()
+  }, now)).toBe(5000)
 })

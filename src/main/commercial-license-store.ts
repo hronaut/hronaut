@@ -230,7 +230,13 @@ export class CommercialLicenseStore {
 
 /** Bound wall-clock jump detection without repeating provider requests. */
 export function commercialLicenseStateRefreshDelay(state: CommercialLicenseState, now = Date.now()): number {
-  const deadlines = [state.trialExpiresAt, state.expiresAt].map(value => Date.parse(value ?? ''))
-  if (state.lastValidatedAt) deadlines.push(Date.parse(state.lastValidatedAt) + LICENSE_OFFLINE_GRACE_MS)
-  return Math.max(1, Math.min(60_000, ...deadlines.filter(time => time > now).map(time => time - now)))
+  const deadlines: number[] = []
+  if (state.trialStatus === 'active') deadlines.push(Date.parse(state.trialExpiresAt ?? ''))
+  if (state.active) {
+    deadlines.push(Date.parse(state.expiresAt ?? ''))
+    if (state.lastValidatedAt) deadlines.push(Date.parse(state.lastValidatedAt) + LICENSE_OFFLINE_GRACE_MS)
+  }
+  // A deadline can pass after the state snapshot was read. Recheck that active
+  // state promptly; once expiry is published, it no longer schedules itself.
+  return Math.max(1, Math.min(60_000, ...deadlines.filter(Number.isFinite).map(time => time - now)))
 }
