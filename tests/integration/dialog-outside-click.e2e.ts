@@ -38,7 +38,7 @@ for (const mode of ['create', 'edit'] as const) {
 
 test('keeps Settings and the selected theme after clicking its backdrop', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   const theme = dialog.getByTestId('theme-cyberpunk-turbo')
   await theme.click()
   await expect(theme).toHaveAttribute('aria-checked', 'true')
@@ -52,5 +52,6 @@ test('keeps Settings and the selected theme after clicking its backdrop', async 
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(theme).toHaveAttribute('aria-checked', 'true')
   await appWindow.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('button', { name: 'Close settings', exact: true }).click()
 })

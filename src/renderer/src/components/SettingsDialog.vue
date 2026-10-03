@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -18,7 +18,7 @@ import type { CommercialLicenseController } from '../features/settings/support/u
 import type { CredentialsController } from '../composables/useCredentialsController.js'
 import type { DownloadSettingsController } from '../composables/useDownloadSettingsController.js'
 import type { McpSettingsController } from '../composables/useMcpSettingsController.js'
-import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
+import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
 import type { PerformanceSettingsController } from '../composables/usePerformanceSettingsController.js'
 import type { PrivacySettingsController } from '../composables/usePrivacySettingsController.js'
 import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
@@ -77,7 +77,7 @@ const {
   resetBusy,
   resetVisible,
   resetDisabled,
-  close,
+  closeTab: close,
   resetCurrent
 } = props.controller
 
@@ -100,16 +100,21 @@ const navigation = computed<Array<{
   { section: 'support', label: t('settings.nav.support'), description: t('settings.nav.supportDescription'), icon: IconFavorite }
 ])
 
-useModalDialogFocus({ open, panel })
+watch(open, async (active, _previous, onCleanup) => {
+  if (!active) return
+  let current = true
+  onCleanup(() => { current = false })
+  if (await applicationHasFocus() && current) panel.value?.focus({ preventScroll: true })
+}, { flush: 'post' })
 </script>
 
 <template>
   <div v-if="open" class="settings-overlay settings-page-overlay">
     <section
       ref="panel"
+      id="settings-page"
       class="settings-dialog"
-      role="dialog"
-      aria-modal="true"
+      role="tabpanel"
       aria-labelledby="settings-title"
       tabindex="-1"
     >

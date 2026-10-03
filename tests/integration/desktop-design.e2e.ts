@@ -96,7 +96,7 @@ test('fresh profiles provide a workspace rail with reachable named actions acros
 
 test('settings search supports keyboard selection, recovery, and a fresh search on reopening', async ({ appWindow }) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   const search = dialog.getByRole('searchbox', { name: 'Find a section…' })
   await search.fill('authentication')
   await search.press('Enter')

@@ -13,14 +13,14 @@ test('offers regular and cinematic themes in Settings', async ({ appWindow, elec
   await expect.poll(async () => (await readWebsiteView())?.visible).toBe(true)
   const initialWebsiteView = await readWebsiteView()
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
-  const panelBounds = await appWindow.getByRole('dialog', { name: 'Settings' }).boundingBox()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
+  const panelBounds = await appWindow.getByRole('tabpanel', { name: 'Settings' }).boundingBox()
   expect(panelBounds).not.toBeNull()
   await expect.poll(readWebsiteView).toEqual({ ...initialWebsiteView, visible: false })
 
   for (const section of [/MCP security/, /Passwords/, /License/]) {
     await appWindow.getByRole('button', { name: section }).click()
-    const sectionBounds = await appWindow.getByRole('dialog', { name: 'Settings' }).boundingBox()
+    const sectionBounds = await appWindow.getByRole('tabpanel', { name: 'Settings' }).boundingBox()
     expect(sectionBounds?.height).toBeCloseTo(panelBounds!.height)
   }
   await appWindow.getByRole('button', { name: /Appearance/ }).click()

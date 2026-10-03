@@ -72,7 +72,7 @@ test('forks independent workspace data, edits agent access, and moves between ar
     await appWindow.evaluate(`window.hronaut.saveAndCloseTabGroup(${JSON.stringify(fork.id)})`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.mcpTabGroups.length)')).toBe(0)
     await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-    const settings = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+    const settings = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
     await settings.getByRole('button', { name: /Workspaces & data/ }).click()
     await expect(settings.getByText('Personal source', { exact: true })).toBeVisible()
     await expect(settings.getByText('Independent fork', { exact: true })).toBeVisible()

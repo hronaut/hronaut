@@ -99,7 +99,6 @@ export function useAppShellKeyboardFeatureController(
       refSurface(modals.credentialPicker),
       customSurface(modals.releaseHistory),
       customSurface(modals.helpDialog),
-      customSurface(modals.settings),
       refSurface(overlays.tabSearch, 'search-tabs')
     ],
     escapeSurfaces: [

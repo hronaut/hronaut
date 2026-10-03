@@ -149,7 +149,7 @@ test('follows agent activity passively, independently from input lock, and defer
 
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(humanTabId)})`)
     await appWindow.getByRole('button', { name: 'Settings' }).click()
-    const settingsDialog = appWindow.getByRole('dialog', { name: 'Settings' })
+    const settingsDialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(settingsDialog).toBeVisible()
     const waiting = client.callTool({
       name: 'browser_wait',
@@ -179,37 +179,39 @@ test('follows agent activity passively, independently from input lock, and defer
   }
 })
 
-test('traps keyboard focus inside Settings at minimum scaled window', async ({
-  appWindow,
-  electronApp
-}) => {
-  const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
+test('Settings opens as a reusable tab and leaves browser tab navigation available', async ({ appWindow }) => {
+  await appWindow.evaluate("window.hronaut.newTab({ url: 'data:text/html,<title>Settings tab return</title>', active: true })")
+  const website = appWindow.getByRole('tab', { name: /Settings tab return/ })
+  await expect(website).toBeVisible()
+  const before = await appWindow.evaluate('window.hronaut.getState().then(state => ({ count: state.tabs.length, active: state.activeTabId }))')
+  const settingsButton = appWindow.getByRole('button', { name: 'Settings', exact: true })
   await settingsButton.click()
-  const settings = appWindow.getByRole('dialog', { name: 'Settings' })
-  await settings.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
-  await settings.getByRole('button', { name: 'Close', exact: true }).click()
-  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 520))
-
-  await settingsButton.click()
+  const settings = appWindow.getByRole('tabpanel', { name: 'Settings' })
+  const settingsTab = appWindow.getByRole('tab', { name: 'Settings', exact: true })
   await expect(settings).toBeVisible()
-  await expect.poll(() => appWindow.evaluate(() => (
-    document.querySelector('[role="dialog"][aria-label="Settings"], [role="dialog"][aria-labelledby="settings-title"]')
-      ?.contains(document.activeElement) ?? false
-  ))).toBe(true)
-
-  await appWindow.keyboard.press('Shift+Tab')
-  await expect.poll(() => appWindow.evaluate(() => (
-    document.querySelector('[role="dialog"][aria-label="Settings"], [role="dialog"][aria-labelledby="settings-title"]')
-      ?.contains(document.activeElement) ?? false
-  ))).toBe(true)
-  for (let index = 0; index < 24; index += 1) {
-    await appWindow.keyboard.press('Tab')
-    expect(await settings.evaluate((dialog) => dialog.contains(document.activeElement))).toBe(true)
-  }
-
-  await appWindow.keyboard.press('Escape')
+  await expect(settings).not.toHaveAttribute('aria-modal', 'true')
+  await expect(settingsTab).toHaveAttribute('aria-selected', 'true')
+  await settings.getByRole('button', { name: /Search engine/ }).click()
+  await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).click()
   await expect(settings).toBeHidden()
-  await expect(settingsButton).toBeFocused()
+  await expect(settingsTab).toBeVisible()
+  await expect(settingsTab).toHaveAttribute('aria-selected', 'false')
+  await settingsTab.click()
+  await expect(settings.getByRole('button', { name: /Search engine/ })).toHaveAttribute('aria-current', 'page')
+  await website.click()
+  await expect(settings).toBeHidden()
+  await expect(settingsTab).toBeVisible()
+  await settingsTab.click()
+  await appWindow.keyboard.press('Escape')
+  await expect(settings).toBeVisible()
+  await settingsTab.focus()
+  await appWindow.keyboard.press('Delete')
+  await expect(settings).toBeHidden()
+  await expect(settingsTab).toHaveCount(0)
+  await settingsButton.click()
+  await appWindow.keyboard.press(process.platform === 'darwin' ? 'Meta+w' : 'Control+w')
+  await expect(settingsTab).toHaveCount(0)
+  expect(await appWindow.evaluate('window.hronaut.getState().then(state => ({ count: state.tabs.length, active: state.activeTabId }))')).toEqual(before)
 })
 
 test("keeps the compact What's new reader usable at desktop and minimum window sizes", async ({
@@ -232,7 +234,7 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
 
   const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
   await settingsButton.click()
-  const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+  const settings = appWindow.getByRole('tabpanel', { name: 'Settings' })
   await settings.getByRole('button', { name: /Updates Automatic checks/ }).click()
   await settings.getByRole('button', { name: "View what's new" }).click()
 
@@ -1987,7 +1989,7 @@ test('does not open Site Controls underneath Settings after delayed Find cleanup
     await appWindow.getByRole('button', { name: /Site controls for 127\.0\.0\.1/ }).click()
     await expect(siteControls).toBeVisible()
     await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+    await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
     await expect(siteControls).toBeHidden()
 
     await electronApp.evaluate(() => {
@@ -1997,7 +1999,7 @@ test('does not open Site Controls underneath Settings after delayed Find cleanup
       delete mainGlobal.__resolveDelayedFindCleanup
     })
 
-    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+    await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
     await expect(siteControls).toBeHidden()
   } finally {
     await closeFixtureServer(server)
@@ -2035,7 +2037,7 @@ test('opens Privacy immediately and keeps a newer close authoritative after dela
     })
 
     await appWindow.keyboard.press('Control+Shift+Delete')
-    const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+    const settings = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(settings).toBeVisible()
     await expect(settings.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
     await settings.getByRole('button', { name: 'Close settings' }).click()
@@ -3737,7 +3739,7 @@ test('floats bookmark and history suggestions above pages while allowing duplica
       const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
       main?.webContents.send('updates:open')
     })
-    const settingsDialog = appWindow.getByRole('dialog', { name: 'Settings' })
+    const settingsDialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(settingsDialog).toBeVisible()
     await expect(settingsDialog.getByRole('heading', { name: 'Software updates' })).toBeVisible()
     await expect.poll(addressOverlay).toMatchObject({ attached: false, visible: false })
@@ -6398,7 +6400,7 @@ test('does not open a delayed native workspace editor over newer Settings', asyn
     ))).toBe(true)
 
     await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-    const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+    const settings = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(settings).toBeVisible()
     await electronApp.evaluate(() => {
       (globalThis as typeof globalThis & { __resolveDelayedWorkspaceEditor?: () => void }).__resolveDelayedWorkspaceEditor?.()
@@ -7384,7 +7386,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
       }
     }, customDownloadDirectory)
     await appWindow.getByRole('button', { name: 'Settings' }).click()
-    const settingsDialog = appWindow.getByRole('dialog', { name: 'Settings' })
+    const settingsDialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await settingsDialog.getByRole('button', { name: /Downloads Location and prompts/ }).click()
     await expect(settingsDialog.getByText(profileDirectory, { exact: true })).toBeVisible()
     await settingsDialog.getByRole('button', { name: 'Change…' }).click()
@@ -7963,9 +7965,9 @@ test('locks website input while keeping trusted browser chrome usable', async ({
     await appWindow.getByRole('button', { name: 'Close page tools', exact: true }).click()
 
     await appWindow.getByRole('button', { name: 'Settings' }).click()
-    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+    await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
     await appWindow.getByRole('button', { name: 'Close settings' }).click()
-    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).not.toBeVisible()
+    await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).not.toBeVisible()
 
     const closeEscapeTabId = await appWindow.evaluate(async () => {
       const api = (window as unknown as { hronaut: HronautApi }).hronaut
@@ -8240,7 +8242,7 @@ test('does not restore stale shell focus when trusted chrome closes in the backg
   let humanWindowId: number | undefined
   const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
   await settingsButton.click()
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
 
   await appWindow.evaluate(() => {
     const trigger = document.querySelector<HTMLButtonElement>('button[aria-label="Settings"]')
@@ -8272,7 +8274,7 @@ test('does not restore stale shell focus when trusted chrome closes in the backg
       if (!close) throw new Error('Settings close button was not found')
       close.click()
     })
-    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeHidden()
+    await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeHidden()
     await appWindow.waitForTimeout(100)
 
     expect(await appWindow.evaluate(() => (

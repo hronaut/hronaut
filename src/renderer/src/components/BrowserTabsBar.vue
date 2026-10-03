@@ -24,6 +24,7 @@ import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconHelp from '~icons/material-symbols/help-outline-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
+import IconSettings from '~icons/material-symbols/settings-rounded'
 import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
@@ -33,6 +34,8 @@ import { readLocalPreference, writeLocalPreference } from '../local-preferences.
 
 const props = defineProps<{
   state: BrowserState
+  settingsTabOpen?: boolean
+  settingsActive?: boolean
   userAttention?: UserAttentionRequest | null
   hydrated: boolean
   orientation: 'horizontal' | 'vertical'
@@ -47,6 +50,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   openHome: []
+  openSettings: []
+  closeSettings: []
   showWorkspaceContextMenu: [groupId: string]
   newTab: [groupId?: string]
   createWorkspace: []
@@ -511,11 +516,11 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
   <div class="tab-rail-header">
   <UiButton appearance="application"
     class="app-home-button"
-    :class="{ active: homeTab?.active }"
+    :class="{ active: homeTab?.active && !settingsActive }"
     type="button"
     :title="t('shell.home.open')"
     :aria-label="t('shell.home.open')"
-    :aria-current="homeTab?.active ? 'page' : undefined"
+    :aria-current="homeTab?.active && !settingsActive ? 'page' : undefined"
     @click="emit('openHome')"
   >
     <span v-if="homeTab?.loading" class="spinner" :aria-label="t('shell.loading')" />
@@ -535,6 +540,17 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <IconKeepOff v-else aria-hidden="true" />
     <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
   </UiButton>
+  </div>
+  <div v-if="settingsTabOpen" class="settings-tab-entry" role="tablist" :aria-label="t('settings.heading')">
+    <UiButton appearance="application" class="app-home-button settings-tab" :class="{ active: settingsActive }"
+      type="button" role="tab" :aria-selected="Boolean(settingsActive)" aria-controls="settings-page"
+      :aria-label="t('settings.heading')" :title="t('settings.heading')"
+      @click="emit('openSettings')" @keydown.delete.prevent="emit('closeSettings')"
+      @auxclick.middle.prevent="emit('closeSettings')"
+    ><IconSettings aria-hidden="true" /><span class="app-home-label">{{ t('settings.heading') }}</span></UiButton>
+    <UiButton appearance="application" class="settings-tab-close" type="button" :aria-label="t('runtime.locks.closeShortcut')"
+      @click="emit('closeSettings')"
+    ><IconClose aria-hidden="true" /></UiButton>
   </div>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
@@ -592,7 +608,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           :key="tab.id"
           class="tab"
           :class="{
-            active: tab.active,
+            active: tab.active && !settingsActive,
             pinned: tab.pinned,
             sleeping: tab.sleeping,
             frozen: tab.pageLifecycleState === 'frozen',
@@ -616,8 +632,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           :aria-keyshortcuts="tabKeyboardShortcuts(tab)"
           :data-tab-id="tab.id"
           draggable="true"
-          :aria-selected="tab.active"
-          :data-active-tab="tab.active ? 'true' : undefined"
+          :aria-selected="tab.active && !settingsActive"
+          :data-active-tab="tab.active && !settingsActive ? 'true' : undefined"
           @focus="focusedTabId = tab.id"
           @keydown="handleTabKeyDown($event, tab)"
           @click="activateTab(tab.id)"
@@ -628,7 +644,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           @drop="finishTabDrop($event, tab)"
           @dragend="clearTabDrag"
         >
-          <span v-if="tab.active" class="tab-active-indicator" aria-hidden="true" />
+          <span v-if="tab.active && !settingsActive" class="tab-active-indicator" aria-hidden="true" />
           <span v-if="userAttention?.tabId === tab.id" class="tab-attention-badge" aria-hidden="true"><IconPriorityHigh /></span>
           <span v-if="tab.loading" class="spinner" :aria-label="t('shell.loading')" />
           <IconError v-else-if="tab.pageProblem" class="favicon-fallback tab-problem-icon" :aria-label="t('shell.tabs.pageAttention')" />

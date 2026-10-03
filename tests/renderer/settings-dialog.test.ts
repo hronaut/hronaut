@@ -64,7 +64,7 @@ describe('SettingsDialog', () => {
     })
 
     controller.openSection('search')
-    const dialog = await screen.findByRole('dialog', { name: 'Settings' })
+    const dialog = await screen.findByRole('tabpanel', { name: 'Settings' })
     await vi.waitFor(() => expect(dialog).toHaveFocus())
     expect(screen.getByRole('button', { name: /Search engine/ })).toHaveAttribute('aria-current', 'page')
 
@@ -88,8 +88,8 @@ describe('SettingsDialog', () => {
     expect(screen.getByRole('button', { name: /Search engine/ })).toHaveAttribute('aria-current', 'page')
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Close settings' }))
-    expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument()
-    await vi.waitFor(() => expect(trigger).toHaveFocus())
+    expect(screen.queryByRole('tabpanel', { name: 'Settings' })).not.toBeInTheDocument()
+    expect(controller.tabOpen.value).toBe(false)
     trigger.remove()
     searchController.dispose()
     controller.dispose()

@@ -25,8 +25,10 @@ Project home: https://github.com/hronaut/hronaut
 
 ## Appearance
 
-Settings opens as a full-window page. Use its section navigation to switch categories;
-the Close buttons or Escape return to the previous browser view. Navigation and
+Settings opens as a reusable application tab beside Home. Use its section navigation to switch categories;
+switch to Home or a website without closing it, then return to the same section.
+The Close buttons or Ctrl/Cmd+W close Settings and return to the previous browser view;
+Escape leaves the tab open. Navigation and
 content scroll independently, keeping the footer actions available in small windows.
 
 Open **Settings** from the gear button in the top strip. Hronaut includes ten appearance choices:

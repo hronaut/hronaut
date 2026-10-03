@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { useI18n } from 'vue-i18n'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
 import type {
   BrowserState,
   BrowserTabState,
@@ -123,6 +124,14 @@ const { state: updateState } = updateSettingsController
 const websiteTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
 const allTabsMuted = computed(() => props.state.allTabsMuted === true)
 const { open: settingsOpen, toggle: toggleSettings } = settingsDialogController
+watch(settingsDialogController.tabOpen, async (present, _previous, onCleanup) => {
+  if (present) return
+  let current = true
+  onCleanup(() => { current = false })
+  await nextTick()
+  if (!await applicationHasFocus() || !current) return
+  document.querySelector<HTMLElement>('[data-active-tab="true"], .app-home-button.active')?.focus({ preventScroll: true })
+})
 const {
   downloads,
   downloadsOpen,
@@ -177,6 +186,7 @@ function expandTabGroupForTab(tab: BrowserTabState): void {
 }
 
 function selectTab(tabId: string): void {
+  settingsDialogController.close()
   tabSearchOpen.value = false
   void props.runAction(() => selectBrowserTab(tabId))
 }
@@ -195,7 +205,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     :draggable="customTitleBar"
   />
   <ShellTitleBarSurface
-    v-if="customTitleBar && activeIsHome && tabOrientation === 'vertical'"
+    v-if="customTitleBar && (activeIsHome || settingsOpen) && tabOrientation === 'vertical'"
     kind="home"
     :draggable="customTitleBar"
   />
@@ -215,6 +225,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <BrowserTabsBar
       ref="browserTabsBar"
       :state="state"
+      :settings-tab-open="settingsDialogController.tabOpen.value"
+      :settings-active="settingsOpen"
       :user-attention="userAttention"
       :hydrated="hydrated"
       :orientation="tabOrientation"
@@ -227,6 +239,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :tab-tooltip="tabTooltip"
       :describe-emulation="describeTabEmulation"
       @open-home="runAction(actions.openHome)"
+      @open-settings="settingsDialogController.toggle"
+      @close-settings="settingsDialogController.closeTab"
       @show-workspace-context-menu="runAction(() => showWorkspaceContextMenu($event))"
       @new-tab="runAction(() => actions.newTabInWorkspace($event))"
       @create-workspace="runAction(actions.openNewWorkspaceEditor)"
@@ -284,7 +298,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     />
   </div>
   <div
-    v-if="!activeIsHome"
+    v-if="!activeIsHome && !settingsOpen"
     class="toolbar"
     :data-titlebar-drag-surface="customTitleBar && tabOrientation === 'vertical' ? '' : undefined"
   >

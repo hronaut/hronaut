@@ -25,6 +25,7 @@ export interface SettingsDialogControllerOptions {
 
 export function useSettingsDialogController(options: SettingsDialogControllerOptions) {
   const open = ref(false)
+  const tabOpen = ref(false)
   const section = ref<SettingsSection>('appearance')
   const resetBusy = ref(false)
 
@@ -34,6 +35,7 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   function openSection(next: SettingsSection): void {
     options.beforeOpen()
     section.value = next
+    tabOpen.value = true
     open.value = true
   }
 
@@ -42,11 +44,12 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   }
 
   function toggle(): void {
-    if (open.value) {
-      close()
-      return
-    }
     openSection(section.value)
+  }
+
+  function closeTab(): void {
+    close()
+    tabOpen.value = false
   }
 
   async function resetCurrent(): Promise<boolean> {
@@ -63,18 +66,20 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   }
 
   function dispose(): void {
-    open.value = false
+    closeTab()
     resetBusy.value = false
   }
 
   return {
     open,
+    tabOpen,
     section,
     resetBusy,
     resetVisible,
     resetDisabled,
     openSection,
     close,
+    closeTab,
     toggle,
     resetCurrent,
     dispose

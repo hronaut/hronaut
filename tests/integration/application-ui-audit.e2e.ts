@@ -21,7 +21,7 @@ async function expectReadableContrast(surface: Locator): Promise<void> {
 
 async function openHistory(window: Page): Promise<Locator> {
   await window.getByRole('button', { name: 'Settings', exact: true }).click()
-  const settings = window.getByRole('dialog', { name: 'Settings', exact: true })
+  const settings = window.getByRole('tabpanel', { name: 'Settings', exact: true })
   await settings.getByRole('button', { name: /Updates Automatic checks/ }).click()
   await settings.getByRole('button', { name: "View what's new" }).click()
   const history = window.getByRole('dialog', { name: "What's new", exact: true })

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Open Settings in a reusable application tab beside Home. Switch between Settings and browser tabs, retain the selected settings section, and close the Settings tab without closing the underlying page.
+
 ### Fixed
 
 - Preserve browser precision for CLS and individual layout-shift scores so small shifts remain visible and contribute accurately to diagnostic totals.

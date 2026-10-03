@@ -57,7 +57,7 @@ test('keeps all seven named utility icons and Settings after MCP at minimum rail
 
 test('Settings actions have visible button surfaces, comfortable targets, and keyboard focus', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+  const dialog = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
   for (const theme of ['light', 'dark']) {
     await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
     for (const [section, selector] of [[0, '.test-sound-button'], [5, '.workspace-data-actions button'], [4, '.mcp-capability-form > button'], [9, '.update-status-card-actions button'] ] as const) {

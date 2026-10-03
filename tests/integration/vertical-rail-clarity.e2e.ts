@@ -98,7 +98,7 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
       await expect(pin).toHaveAttribute('aria-pressed', 'true')
       await capture('vertical-created.png')
       await appWindow.locator('.settings-button').click()
-      const settings = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+      const settings = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
       await expect(settings).toBeVisible()
       await settings.getByRole('button', { name: 'Close settings', exact: true }).click()
       // The icon launcher retains its accessible name and keyboard behavior.

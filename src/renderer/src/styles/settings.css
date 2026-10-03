@@ -1,5 +1,11 @@
-/* Settings uses the full application viewport; other dialogs remain floating. */
-.settings-overlay.settings-page-overlay { @apply p-0 bg-surface-raised [backdrop-filter:none]; }
+/* Settings occupies the content area while browser tabs remain available. */
+.settings-overlay.settings-page-overlay { @apply p-0 bg-surface-raised [backdrop-filter:none] [top:var(--shell-content-top,_44px)] [left:var(--tab-rail-width,_0px)] [z-index:10]; }
+.settings-tab-entry { @apply flex flex-none items-center min-w-0; }
+.settings-tab-entry .settings-tab { @apply min-w-0 flex-1; }
+.settings-tab-close { @apply flex items-center justify-center [width:24px] [height:28px] p-0; }
+.settings-tab-close svg { @apply [width:16px] [height:16px]; }
+.browser-tabs-bar.vertical .settings-tab-entry { @apply w-full; }
+.browser-tabs-bar.rail-collapsed .settings-tab-close { @apply hidden; }
 :root .settings-page-overlay > .settings-dialog {
   @apply w-full h-full min-w-0 min-h-0 max-w-none max-h-none border-0 rounded-none shadow-none;
 }

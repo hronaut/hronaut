@@ -55,9 +55,11 @@ if (args[0] === 'cp') process.exit(1);
         .map(line => JSON.parse(line) as string[])
       const runs = calls.filter(call => call[0] === 'compose')
       expect(runs).toHaveLength(scenario.attempts)
+      const firstRun = runs[0]
+      if (!firstRun) throw new Error('Expected a Docker Compose invocation')
       expect(runs.every(call => call.includes('--build'))).toBe(true)
       expect(calls.filter(call => call[0] === 'cp')).toHaveLength(scenario.status !== 0 && scenario.container ? 2 : 0)
-      expect(calls.at(-1)).toEqual(['rm', '--force', runs[0][runs[0].indexOf('--name') + 1]])
+      expect(calls.at(-1)).toEqual(['rm', '--force', firstRun[firstRun.indexOf('--name') + 1]])
       if (scenario.attempts > 1) {
         expect(readFileSync(join(directory, 'delays'), 'utf8')).toBe(scenario.attempts === 2 ? '5\n' : '5\n10\n')
       }

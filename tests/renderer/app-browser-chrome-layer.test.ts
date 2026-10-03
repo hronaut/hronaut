@@ -310,7 +310,7 @@ function createHarness(home = false) {
     } as never,
     settingsController: {
       settings: ref({ followAgentActivity: false }),
-      settingsDialogController: { open: ref(false), ...settingsActions },
+      settingsDialogController: { open: ref(false), tabOpen: ref(false), close: vi.fn(), closeTab: vi.fn(), ...settingsActions },
       updateSettingsController: { state: ref({ status: 'idle', currentVersion: '1.9.9' }) },
       mcpStatusController: {},
       sitePermissionsController: {

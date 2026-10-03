@@ -133,7 +133,7 @@ function removeActiveDialog(dialog: ActiveDialog): void {
   syncDocumentListeners()
 }
 
-async function applicationHasFocus(): Promise<boolean> {
+export async function applicationHasFocus(): Promise<boolean> {
   const shell = window.hronautShell
   if (!shell?.isWindowFocused) return document.hasFocus()
   try {

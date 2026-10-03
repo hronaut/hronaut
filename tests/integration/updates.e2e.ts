@@ -91,7 +91,7 @@ injectedUpdateTest('shows update status beside MCP ready and opens update detail
   await expect.poll(browserViewY).toBe(initialBrowserViewY)
   await availablePill.click()
   const updatePanel = appWindow.getByRole('region', { name: 'Software update status' })
-  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
   await expect(updatePanel).toContainText('Hronaut 1.1.1 is available')
   await expect(updatePanel.getByRole('button', { name: 'Download update' })).toBeVisible()
 })

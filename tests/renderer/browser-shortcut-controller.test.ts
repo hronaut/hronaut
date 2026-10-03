@@ -58,8 +58,11 @@ function createController(canRunAction = (_action: string) => true) {
     reloadIgnoringCache: vi.fn(async (_tabId?: string) => state.value)
   }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
-  const settingsOpen = ref(true)
+  const settingsOpen = ref(false)
+  const settingsTabOpen = ref(false)
   const callbacks = {
+    openSettings: vi.fn(() => { settingsOpen.value = true }),
+    closeSettingsTab: vi.fn(() => { settingsOpen.value = false; settingsTabOpen.value = false }),
     openNewTab: vi.fn(async () => undefined),
     focusAddress: vi.fn(async () => undefined),
     openFind: vi.fn(async () => undefined),
@@ -79,13 +82,44 @@ function createController(canRunAction = (_action: string) => true) {
     browser,
     syncState,
     settingsOpen,
+    settingsTabOpen,
     canRunAction,
     ...callbacks
   })
-  return { state, activeTab, browser, syncState, settingsOpen, callbacks, controller }
+  return { state, activeTab, browser, syncState, settingsOpen, settingsTabOpen, callbacks, controller }
 }
 
 describe('browser shortcut controller', () => {
+  it('closes Settings without closing the underlying website', async () => {
+    const harness = createController()
+    harness.settingsOpen.value = true
+    harness.settingsTabOpen.value = true
+    await expect(harness.controller.run('close-tab')).resolves.toBe(true)
+    expect(harness.callbacks.closeSettingsTab).toHaveBeenCalledOnce()
+    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    expect(harness.settingsTabOpen.value).toBe(false)
+  })
+
+  it('includes Settings in relative tab navigation and preserves it when switching away', async () => {
+    const harness = createController()
+    harness.settingsTabOpen.value = true
+    harness.state.value.activeTabId = 'first'
+    await harness.controller.selectRelativeTab(1)
+    expect(harness.callbacks.openSettings).toHaveBeenCalledOnce()
+    expect(harness.settingsOpen.value).toBe(true)
+    await harness.controller.selectRelativeTab(1)
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.settingsTabOpen.value).toBe(true)
+    expect(harness.browser.selectTab).toHaveBeenCalledWith('second')
+  })
+
+  it('does not reload the hidden website while Settings is active', async () => {
+    const harness = createController()
+    harness.settingsOpen.value = true
+    await expect(harness.controller.run('reload')).resolves.toBe(false)
+    expect(harness.browser.reload).not.toHaveBeenCalled()
+  })
+
   it('keeps a denied native page action from running behind modal presentation', async () => {
     const canRunAction = vi.fn((action: string) => action !== 'pick-element')
     const harness = createController(canRunAction)
