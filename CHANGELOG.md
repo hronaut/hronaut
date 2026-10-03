@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Require an existing target when replaying hidden Repro checkpoints, preventing missing result elements from silently passing as hidden.
+
 - Honor line and page wheel units when scrolling the Settings section rail in narrow windows.
 
 - Keep explicitly visible controls inside hidden containers reachable in modal keyboard wrapping, while excluding inherited hidden and collapsed controls.

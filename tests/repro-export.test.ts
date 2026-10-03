@@ -21,6 +21,19 @@ const recording: BrowserReproRecording = {
 }
 
 describe('Playwright repro export', () => {
+  it('requires one existing target before checking a recorded hidden outcome', () => {
+    const step: BrowserReproStep = {
+      ...recording.steps[0]!, kind: 'expect',
+      target: { selector: 'p', tag: 'p' },
+      expectation: { condition: 'hidden', observedMatch: true }
+    }
+    const code = formatReproAsPlaywright({ ...recording, steps: [step], stepCount: 1 })
+    const count = 'await expect(page.locator("css:light=p")).toHaveCount(1)'
+    const hidden = 'await expect(page.locator("css:light=p")).toBeHidden()'
+    expect(code).toContain(count)
+    expect(code.indexOf(count)).toBeLessThan(code.indexOf(hidden))
+  })
+
   it('replays native select input as explicitly supplied type-ahead text', () => {
     const step = { ...recording.steps[1]!, target: { selector: 'select', tag: 'select' } }
     const code = formatReproAsPlaywright({ ...recording, steps: [step] })
