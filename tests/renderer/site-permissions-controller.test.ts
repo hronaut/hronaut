@@ -35,6 +35,49 @@ function createController() {
 }
 
 describe('site permissions controller', () => {
+  it.each(['set', 'remove', 'clear'] as const)('rejects an initial list that predates a successful %s mutation', async action => {
+    const loading = deferred<SitePermissionEntry[]>()
+    const { controller } = createController()
+    const initialization = controller.initialize(loading.promise)
+    const changed = action === 'set'
+      ? controller.setDecision(permission('allow'), 'deny')
+      : action === 'remove' ? controller.remove(permission('allow')) : controller.clear()
+    await expect(changed).resolves.toBe(true)
+    loading.resolve([permission('allow')])
+    await initialization
+    expect(controller.entries.value).toEqual(action === 'set' ? [permission('deny')] : [])
+    controller.dispose()
+  })
+
+  it('does not let initial loading invalidate a pending mutation response', async () => {
+    const loading = deferred<SitePermissionEntry[]>()
+    const saving = deferred<SitePermissionEntry>()
+    const { api, controller } = createController()
+    api.set.mockImplementationOnce(() => saving.promise)
+    const initialization = controller.initialize(loading.promise)
+    const operation = controller.setDecision(permission('allow'), 'deny')
+    loading.resolve([permission('allow')])
+    await initialization
+    saving.resolve(permission('deny'))
+    await expect(operation).resolves.toBe(true)
+    expect(controller.entries.value).toEqual([permission('deny')])
+    controller.dispose()
+  })
+
+  it('keeps the most recently requested initial list when loads finish out of order', async () => {
+    const first = deferred<SitePermissionEntry[]>()
+    const second = deferred<SitePermissionEntry[]>()
+    const { controller } = createController()
+    const firstLoad = controller.initialize(first.promise)
+    const secondLoad = controller.initialize(second.promise)
+    first.resolve([permission('allow')])
+    await firstLoad
+    second.resolve([permission('deny')])
+    await secondLoad
+    expect(controller.entries.value).toEqual([permission('deny')])
+    controller.dispose()
+  })
+
   it('does not let a delayed initial list overwrite a newer permission event', async () => {
     const loading = deferred<SitePermissionEntry[]>()
     const { controller } = createController()

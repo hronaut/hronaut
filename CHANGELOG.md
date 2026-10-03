@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevent delayed Settings permission lists from undoing newer displayed changes, removals, or resets.
+
 ## [2.12.3] - 2026-10-03
 
 ### Changed
