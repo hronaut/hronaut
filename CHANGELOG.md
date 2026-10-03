@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.12.2] - 2026-10-03
+
 ### Changed
 
 - Open Settings as a full-window page with its existing section navigation and independently scrolling content, giving controls the available screen space.
