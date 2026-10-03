@@ -9630,7 +9630,9 @@ export class BrowserTabsManager {
       type: state.visionDeficiency
     })
     await webContents.debugger.sendCommand('Emulation.setUserAgentOverride', {
-      userAgent: state.userAgent ?? (state.locale ? webContents.session.getUserAgent() : ''),
+      // Leave the UA override empty to preserve native Client Hints when only
+      // acceptLanguage changes; an explicit UA keeps its existing semantics.
+      userAgent: state.userAgent ?? '',
       ...(state.locale ? { acceptLanguage: state.locale } : {})
     })
     await webContents.debugger.sendCommand('Emulation.setLocaleOverride', {
