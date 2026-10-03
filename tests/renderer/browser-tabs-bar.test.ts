@@ -112,6 +112,37 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it.each(['horizontal', 'vertical'] as const)('normalizes wheel units in the %s tab strip', async orientation => {
+    renderTabs(browserState(), true, orientation)
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    Object.defineProperties(strip, {
+      clientWidth: { configurable: true, value: 320 },
+      scrollWidth: { configurable: true, value: 1280 },
+      clientHeight: { configurable: true, value: 240 },
+      scrollHeight: { configurable: true, value: 960 },
+      scrollLeft: { configurable: true, value: 0, writable: true },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    })
+    await fireEvent.scroll(strip)
+    for (const { mode, lineHeight, expected } of [
+      { mode: WheelEvent.DOM_DELTA_PIXEL, lineHeight: '20px', expected: 2 },
+      { mode: WheelEvent.DOM_DELTA_LINE, lineHeight: '20px', expected: 40 },
+      { mode: WheelEvent.DOM_DELTA_LINE, lineHeight: 'normal', expected: 32 },
+      { mode: WheelEvent.DOM_DELTA_PAGE, lineHeight: '20px', expected: orientation === 'vertical' ? 480 : 640 }
+    ]) {
+      strip.scrollLeft = strip.scrollTop = 0
+      strip.style.lineHeight = lineHeight
+      const event = new WheelEvent('wheel', { cancelable: true, deltaY: 2, deltaMode: mode })
+      strip.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(orientation === 'vertical' ? strip.scrollTop : strip.scrollLeft).toBe(expected)
+      const zoom = new WheelEvent('wheel', { cancelable: true, deltaY: 2, deltaMode: mode, ctrlKey: true })
+      strip.dispatchEvent(zoom)
+      expect(zoom.defaultPrevented).toBe(false)
+      expect(orientation === 'vertical' ? strip.scrollTop : strip.scrollLeft).toBe(expected)
+    }
+  })
+
   it.each(['horizontal', 'vertical'] as const)('selects Settings independently of the underlying website in the %s rail', async orientation => {
     const view = renderTabs(browserState({ tabs: [tab('first', { active: true })], activeTabId: 'first' }), true, orientation)
     await view.rerender({ settingsTabOpen: true, settingsActive: true })

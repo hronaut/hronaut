@@ -122,9 +122,16 @@ function scrollTabs(direction: -1 | 1): void {
 function scrollTabsWithWheel(event: WheelEvent): void {
   const strip = tabsStrip.value
   if (!strip || !hasTabOverflow.value || event.ctrlKey || (!vertical.value && Math.abs(event.deltaX) >= Math.abs(event.deltaY))) return
+  let unit = 1
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    const lineHeight = Number.parseFloat(getComputedStyle(strip).lineHeight)
+    unit = Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 16
+  } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    unit = vertical.value ? strip.clientHeight : strip.clientWidth
+  }
   event.preventDefault()
-  if (vertical.value) strip.scrollTop += event.deltaY || event.deltaX
-  else strip.scrollLeft += event.deltaY
+  if (vertical.value) strip.scrollTop += (event.deltaY || event.deltaX) * unit
+  else strip.scrollLeft += event.deltaY * unit
   updateTabOverflow()
 }
 
