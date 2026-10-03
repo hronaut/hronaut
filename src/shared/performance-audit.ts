@@ -124,6 +124,9 @@ export function performanceAuditPageScript(
       .replace(/[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]/g, '')
       .slice(0, max);
     const finite = (value) => Number.isFinite(value) ? Math.max(0, Math.round(value * 100) / 100) : null;
+    // Unitless layout-shift scores need the browser's precision: rounding each
+    // small shift like a millisecond duration can erase their cumulative impact.
+    const finiteScore = (value) => Number.isFinite(value) ? Math.max(0, value) : null;
     const selectorFor = (value) => {
       if (!(value instanceof Element)) return '';
       try {
@@ -201,7 +204,7 @@ export function performanceAuditPageScript(
         if (!(name in metrics)) return;
         metrics[name] = {
           name,
-          value: finite(metric.value),
+          value: name === 'CLS' ? finiteScore(metric.value) : finite(metric.value),
           unit: name === 'CLS' ? 'score' : 'ms',
           rating: ['good', 'needs-improvement', 'poor'].includes(metric.rating) ? metric.rating : 'needs-improvement',
           navigationType: boundedText(metric.navigationType || 'navigate', 80),
@@ -263,7 +266,7 @@ export function performanceAuditPageScript(
                 layoutShiftRecentInputCount += 1;
                 continue;
               }
-              const value = finite(entry.value) || 0;
+              const value = finiteScore(entry.value) || 0;
               layoutShiftCount += 1;
               layoutShiftScoreSum += value;
               layoutShifts.push({
@@ -437,7 +440,7 @@ export function performanceAuditPageScript(
         layoutShifts: {
           supported: collector.layoutShiftSupported,
           count: collector.layoutShiftCount || 0,
-          scoreSum: collector.layoutShiftSupported ? finite(collector.layoutShiftScoreSum || 0) : null,
+          scoreSum: collector.layoutShiftSupported ? finiteScore(collector.layoutShiftScoreSum || 0) : null,
           recentInputCount: collector.layoutShiftRecentInputCount || 0,
           entries: [...layoutShifts]
             .sort((left, right) => right.value - left.value || left.startTimeMs - right.startTimeMs)

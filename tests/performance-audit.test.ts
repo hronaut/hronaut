@@ -184,6 +184,55 @@ describe('performance audit', () => {
     expect(script).not.toContain('entry.detail')
   })
 
+  it.each([
+    { scores: [0.003, 0.004], cls: 0.007, expectedCls: 0.007, sum: 0.007 },
+    { scores: [0.0009, 0.1001], cls: 0.1001, expectedCls: 0.1001, sum: 0.101 },
+    { scores: [0.0000004, 0.0000004], cls: 0.0000008, expectedCls: 0.0000008, sum: 0.0000008 },
+    { scores: [-1, Number.NaN, Number.POSITIVE_INFINITY], cls: Number.NaN, expectedCls: null, sum: 0 }
+  ])('preserves unitless score precision for $scores', async ({ scores, cls, expectedCls, sum }) => {
+    const entries = [
+      ...scores.map((value, index) => ({ startTime: index + 1, value, hadRecentInput: false, sources: [] })),
+      { startTime: 10, value: 1, hadRecentInput: true, sources: [] }
+    ]
+    class MockPerformanceObserver {
+      static supportedEntryTypes = ['layout-shift']
+
+      constructor(private readonly callback: (list: { getEntries(): typeof entries }) => void) {}
+
+      observe(options: { type: string }): void {
+        if (options.type === 'layout-shift') this.callback({ getEntries: () => entries })
+      }
+    }
+    const report = await runInNewContext(
+      performanceAuditPageScript(
+        `globalThis.webVitals = {
+          onCLS(callback) { callback({ name: 'CLS', value: cls, rating: 'good' }); },
+          onLCP(callback) { callback({ name: 'LCP', value: 123.456, rating: 'good' }); },
+          onINP() {}, onFCP() {}, onTTFB() {}
+        };`,
+        normalizePerformanceOptions({ settleMs: 0 }),
+        '6.1.0'
+      ),
+      {
+        cls,
+        PerformanceObserver: MockPerformanceObserver,
+        performance: { getEntriesByType: () => [] },
+        location: { href: 'https://example.test/small-layout-shifts' },
+        document: { title: 'Small layout shifts' },
+        setTimeout
+      }
+    ) as BrowserPerformanceReport
+
+    expect(report.metrics.CLS?.value).toBe(expectedCls)
+    expect(report.metrics.LCP?.value).toBe(123.46)
+    expect(report.layoutShifts.scoreSum).toBeCloseTo(sum, 12)
+    expect(report.layoutShifts.count).toBe(scores.length)
+    expect(report.layoutShifts.recentInputCount).toBe(1)
+    expect(report.layoutShifts.entries.map(entry => entry.value)).toEqual(
+      scores.map(value => Number.isFinite(value) ? Math.max(0, value) : 0).sort((left, right) => right - left)
+    )
+  })
+
   it('retains the highest-scoring layout shifts when the collector reaches its bound', async () => {
     const entries = [
       { startTime: 1, value: 0.99, hadRecentInput: false, sources: [] },
