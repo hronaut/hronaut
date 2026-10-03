@@ -104,7 +104,7 @@ useModalDialogFocus({ open, panel })
 </script>
 
 <template>
-  <div v-if="open" class="settings-overlay">
+  <div v-if="open" class="settings-overlay settings-page-overlay">
     <section
       ref="panel"
       class="settings-dialog"
