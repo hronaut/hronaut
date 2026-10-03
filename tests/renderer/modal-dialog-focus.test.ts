@@ -81,6 +81,33 @@ const BackgroundModalHarness = defineComponent({
 describe('modal dialog focus lifecycle', () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it('returns focus to a visible fallback when the opener was removed', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const user = userEvent.setup()
+    const view = render(defineComponent({
+      setup() {
+        const open = ref(false)
+        const panel = ref<HTMLElement | null>(null)
+        const fallback = ref<HTMLElement | null>(null)
+        const openerPresent = ref(true)
+        useModalDialogFocus({ open, panel, returnFocusFallback: () => fallback.value })
+        return { open, panel, fallback, openerPresent }
+      },
+      template: `
+        <button ref="fallback">Settings</button>
+        <button v-if="openerPresent" @click="open = true; openerPresent = false">Read updates</button>
+        <section v-if="open" ref="panel" role="dialog" tabindex="-1">
+          <button @click="open = false">Close reader</button>
+        </section>
+      `
+    }))
+    await user.click(screen.getByRole('button', { name: 'Read updates' }))
+    await user.click(screen.getByRole('button', { name: 'Close reader' }))
+    await nextTick()
+    expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus()
+    view.unmount()
+  })
+
   it('does not claim input focus when an automatic modal opens while Hronaut is inactive', async () => {
     const background = document.createElement('button')
     background.textContent = 'External focus owner'

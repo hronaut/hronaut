@@ -44,8 +44,10 @@ test('uses the selected search engine for address-bar and MCP searches', async (
     await settingsButton.click()
     const settingsDialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await appWindow.keyboard.press(`${primaryModifier}+Shift+P`)
+    await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toBeVisible()
+    await appWindow.keyboard.press('Escape')
+    await appWindow.getByRole('tab', { name: 'Settings', exact: true }).click()
     await expect(settingsDialog).toBeVisible()
-    await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toHaveCount(0)
     await appWindow.getByRole('button', { name: /Search engine/ }).click()
     const searchSettings = appWindow.getByRole('tabpanel', { name: 'Settings' }).locator('.settings-content')
     await expect(searchSettings.getByRole('radio')).toHaveCount(5)
@@ -64,7 +66,7 @@ test('uses the selected search engine for address-bar and MCP searches', async (
     await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).searchEngine).toBe('duckduckgo')
 
     await appWindow.getByRole('button', { name: 'Close settings' }).click()
-    await expect(settingsButton).toBeFocused()
+    await expect(appWindow.locator('.app-home-button.active')).toBeFocused()
     await appWindow.getByRole('button', { name: 'New tab' }).click()
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
       webContents.getAllWebContents().filter((contents) => contents.getURL() === 'about:blank').length

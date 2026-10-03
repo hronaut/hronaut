@@ -4,7 +4,13 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-10-04
+
 ### Fixed
+
+- Keep the Settings tab accessible, restore focus after closing What’s new, and fit Wallets forms beside the visible browser tab rail. Version 2.13.0 was not published because release integration checks found these regressions.
+
+- Update integration coverage for Settings tab navigation and responsive chrome without weakening layout or accessibility assertions.
 
 - Honor line and page mouse-wheel units when scrolling overflowing horizontal or vertical browser tabs.
 

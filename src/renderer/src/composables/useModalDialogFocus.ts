@@ -7,6 +7,7 @@ export interface ModalDialogFocusOptions {
   focusKey?: Readonly<Ref<unknown>>
   afterLayout?: () => void
   focusOnOpen?: boolean
+  returnFocusFallback?: () => HTMLElement | null
 }
 
 interface ActiveDialog {
@@ -198,7 +199,9 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
         return
       }
       options.afterLayout?.()
-      const target = returnFocus
+      const target = returnFocus?.isConnected && (!options.returnFocusFallback || isFocusable(returnFocus))
+        ? returnFocus
+        : options.returnFocusFallback?.()
       returnFocus = null
       if (!applicationFocused || !target?.isConnected) return
       // Native focus checks can finish after the user has chosen another control.

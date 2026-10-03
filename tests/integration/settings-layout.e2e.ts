@@ -15,19 +15,17 @@ for (const theme of ['light', 'dark'] as const) {
         window.setSize(value, 800)
       }, width)
       await expect.poll(() => appWindow.evaluate(() => window.innerWidth)).toBe(width)
-      await expect.poll(async () => {
-        const bounds = await dialog.boundingBox()
-        return bounds && {
-          x: Math.round(bounds.x), y: Math.round(bounds.y),
-          width: Math.round(bounds.width), height: Math.round(bounds.height)
-        }
-      }).toEqual(await appWindow.evaluate(() => {
-        const shell = document.querySelector('.shell')!
-        const style = getComputedStyle(shell)
+      await expect.poll(() => dialog.evaluate(element => {
+        const bounds = element.getBoundingClientRect()
+        const style = getComputedStyle(document.querySelector('.shell')!)
         const x = Math.round(Number.parseFloat(style.getPropertyValue('--tab-rail-width')) || 0)
         const y = Math.round(Number.parseFloat(style.getPropertyValue('--shell-content-top')) || 0)
-        return { x, y, width: window.innerWidth - x, height: window.innerHeight - y }
-      }))
+        return {
+          x: Math.round(bounds.x) - x, y: Math.round(bounds.y) - y,
+          width: Math.round(bounds.width) - (window.innerWidth - x),
+          height: Math.round(bounds.height) - (window.innerHeight - y)
+        }
+      })).toEqual({ x: 0, y: 0, width: 0, height: 0 })
       for (const index of Array.from({ length: 11 }, (_, index) => index)) {
         const section = navigation.getByRole('button').nth(index)
         await section.click()

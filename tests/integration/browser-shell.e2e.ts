@@ -6408,7 +6408,7 @@ test('does not open a delayed native workspace editor over newer Settings', asyn
 
     await expect(settings).toBeVisible()
     await expect(appWindow.getByRole('dialog', { name: 'Edit workspace' })).toHaveCount(0)
-    await expect(appWindow.getByRole('dialog')).toHaveCount(1)
+    await expect(appWindow.getByRole('dialog')).toHaveCount(0)
   } finally {
     await electronApp.evaluate(() => {
       const scope = globalThis as typeof globalThis & { __resolveDelayedWorkspaceEditor?: () => void }
