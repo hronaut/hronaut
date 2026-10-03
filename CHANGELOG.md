@@ -4,13 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-## [2.12.2] - 2026-10-03
+## [2.12.3] - 2026-10-03
 
 ### Changed
 
 - Open Settings as a full-window page with its existing section navigation and independently scrolling content, giving controls the available screen space.
 
 ### Fixed
+
+- Refresh Settings visual expectations for the full-window layout. Version 2.12.2 was not published because its old dialog snapshots failed validation.
 
 - Match Repro text checkpoints consistently with exported Playwright assertions when result text contains zero-width spaces or soft hyphens.
 
