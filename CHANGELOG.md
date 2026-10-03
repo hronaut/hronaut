@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-10-03
+
 ### Added
 
 - Compare component-scoped snapshot baselines and deltas using the same private root selector, with explicit scope-change rejection and no whole-page fallback.
