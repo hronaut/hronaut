@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Retry transient GitHub release readback failures with bounded delays and report a privacy-safe failure cause, while retaining all draft and artifact verification checks.
+
 ## [2.13.1] - 2026-10-04
 
 ### Fixed
