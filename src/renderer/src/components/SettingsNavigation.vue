@@ -36,7 +36,14 @@ function scrollNavigationWithWheel(event: WheelEvent): void {
   if (!(navigation instanceof HTMLElement)) return
   const maximum = Math.max(0, navigation.scrollWidth - navigation.clientWidth)
   if (maximum === 0) return
-  const next = Math.min(maximum, Math.max(0, navigation.scrollLeft + event.deltaY))
+  let unit = 1
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    const lineHeight = Number.parseFloat(getComputedStyle(navigation).lineHeight)
+    unit = Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 16
+  } else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    unit = navigation.clientWidth
+  }
+  const next = Math.min(maximum, Math.max(0, navigation.scrollLeft + event.deltaY * unit))
   if (next === navigation.scrollLeft) return
   navigation.scrollLeft = next
   event.preventDefault()

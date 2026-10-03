@@ -24,6 +24,28 @@ function navigation() {
 }
 
 describe('settings section search', () => {
+  it.each([
+    { mode: 0, delta: 30, distance: 30, lineHeight: '20px' },
+    { mode: 1, delta: 3, distance: 60, lineHeight: '20px' },
+    { mode: 1, delta: -3, distance: -60, lineHeight: '20px' },
+    { mode: 1, delta: 3, distance: 48, lineHeight: 'normal' },
+    { mode: 2, delta: 1, distance: 240, lineHeight: '20px' },
+    { mode: 2, delta: -1, distance: -240, lineHeight: '20px' }
+  ])('normalizes section-rail wheel units: %j', ({ mode, delta, distance, lineHeight }) => {
+    navigation()
+    const rail = screen.getByRole('navigation', { name: 'Settings sections' })
+    rail.style.lineHeight = lineHeight
+    Object.defineProperties(rail, {
+      clientWidth: { configurable: true, value: 240 },
+      scrollWidth: { configurable: true, value: 1200 },
+      scrollLeft: { configurable: true, writable: true, value: 300 }
+    })
+    const wheel = new WheelEvent('wheel', { deltaMode: mode, deltaY: delta, cancelable: true })
+    rail.dispatchEvent(wheel)
+    expect(rail.scrollLeft).toBe(300 + distance)
+    expect(wheel.defaultPrevented).toBe(true)
+  })
+
   it('keeps dynamic icon components out of Vue reactivity', () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
