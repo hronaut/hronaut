@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-10-04
+
 ### Changed
 
 - Open Settings in a reusable application tab beside Home. Switch between Settings and browser tabs, retain the selected settings section, and close the Settings tab without closing the underlying page.
