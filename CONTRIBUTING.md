@@ -20,6 +20,21 @@ Do not submit code, media, fonts, credentials, private website data, or other th
 
 Hronaut requires Node.js 22 or newer.
 
+Routine maintainer improvements may be committed, pushed, and merged without
+executing test suites. Add regression coverage and review the diff, and record
+unexecuted checks as untested. Required reviews, branch protections, and CodeQL
+checks still apply.
+
+Test execution is deferred to release preparation. A version bump on main uses
+the existing auto-tag pipeline; the immutable-tag release workflow runs the
+complete static, unit/component, Docker/Electron, native-dialog, and packaging
+gates before publication. A failed gate prevents publication. Do not overwrite
+published tags. The CI workflow remains available by manual dispatch for an
+explicit investigation or rehearsal; dispatching it on a `release/` branch also
+checks platform packaging.
+
+For release validation or an explicitly requested investigation:
+
 ```bash
 npm ci
 npm run validate
@@ -32,7 +47,7 @@ The isolated Docker/Xvfb integration suite is available for browser, Electron li
 npm run test:integration:docker
 ```
 
-During regression-first development, run a single Electron Playwright file or
+When investigating a release regression, run a single Electron Playwright file or
 named case in the same pinned Docker/Xvfb environment:
 
 ```bash
@@ -90,8 +105,8 @@ that `npm run validate` already performs:
 npm run test:integration:docker:fast
 ```
 
-Always run the complete `test:integration:docker` gate before submitting or
-delivering the change; unlike the fast preflight, it proves an immutable source
+Always run the complete `test:integration:docker` gate before publishing a
+release; unlike the fast preflight, it proves an immutable source
 image.
 
 The complete Docker gate uses a shared Playwright queue with four workers by
@@ -105,7 +120,7 @@ memory-constrained machine, reduce concurrency without changing the suite:
 HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
-Hosted pull-request and release CI assign eight shards to separate runners, each
+Manually dispatched CI and release validation assign eight shards to separate runners, each
 with one Electron worker. This shortens each batch while keeping native focus and
 capture checks away from per-runner Electron contention. The selected-shard
 worker count can be tuned through `HRONAUT_INTEGRATION_SHARD_WORKERS` when

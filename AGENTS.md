@@ -40,13 +40,27 @@ tab access.
 
 ## Verification
 
+Routine improvement commits may be reviewed, committed, pushed, and merged
+without executing test suites. Add relevant regression coverage, but explicitly
+record it as untested until executed. Do not wait on test runs during routine
+improvement cycles. Respect any required reviews, branch protections, and
+remaining checks; CodeQL continues independently.
+
+Full validation is required at release time. Use the existing version-bump →
+auto-tag → release pipeline: the immutable release tag runs static validation,
+all unit/component tests, the full Docker/Electron and native-dialog gate, and
+platform packaging before publication. A failed release gate blocks publication;
+fix it without overwriting a published tag. The CI workflow is manual-only for
+explicit investigations or release rehearsals, with packaging on `release/`
+branches. Never describe unexecuted checks as passing.
+
 Install with Node.js 22 or newer:
 
 ```bash
 npm ci
 ```
 
-Run focused tests while iterating, then run the relevant gates:
+For release validation or an explicitly requested investigation, run the relevant gates:
 
 ```bash
 npm run lint
@@ -70,7 +84,8 @@ by default; set `HRONAUT_TYPECHECK_JOBS=1` on a constrained machine or up to `3`
 when measuring a dedicated typecheck run. Hosted CI deliberately uses one job
 because Vitest, lint, and the application build already share that runner.
 
-Every bug fix needs a regression test that fails for the original behavior.
+Every bug fix needs regression coverage for the original failure. During routine
+cycles, describe the expected failure and defer executing the test to release validation.
 Prefer stable semantic roles, test IDs, and observable UI or process state over
 timing-only assertions. Clean up every Electron listener, IPC handler, window,
 server, and temporary profile created by a test.
@@ -104,9 +119,9 @@ an isolated runner with one worker to limit native focus and capture contention.
 `HRONAUT_INTEGRATION_SHARD_WORKERS` to tune a selected hosted shard. The existing
 `HRONAUT_INTEGRATION_SHARDS` setting controls the local worker count. Set
 `HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.
-Run it for changes to the main/preload
-boundary, browser lifecycle, persistence, MCP, native integration, or before a
-release. Do not replace this gate with a mocked renderer-only check.
+Run it before publishing a release, including changes to the main/preload
+boundary, browser lifecycle, persistence, MCP, or native integration accumulated
+since the previous release. Do not replace this gate with a mocked renderer-only check.
 For fast regression-first unit or component feedback, pass the affected Vitest
 files and options through the focused Docker runner:
 
@@ -130,7 +145,7 @@ Focused Electron runs reuse a content-verified application build when both its
 inputs and `out/` are unchanged, and compile again after any input or output
 change. They do not repeat the separate type-analysis gate. A focused Docker
 pass is not a substitute for
-`npm run test:integration:docker` before delivery.
+`npm run test:integration:docker` before release publication.
 
 When a change spans many Electron cases, run the complete live-checkout suite
 through the same warm dependency volume without repeating type analysis:

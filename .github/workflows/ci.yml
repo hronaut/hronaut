@@ -1,11 +1,9 @@
 name: CI
 
 on:
+  # Routine improvements defer test execution to the immutable-tag release gate.
+  # Keep an explicit full-check entry point for investigation or release rehearsal.
   workflow_dispatch:
-  push:
-    branches:
-      - main
-  pull_request:
 
 permissions:
   contents: read
@@ -104,7 +102,7 @@ jobs:
           fi
 
   package-release-candidate:
-    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release/')
     needs:
       - validate
       - integration
