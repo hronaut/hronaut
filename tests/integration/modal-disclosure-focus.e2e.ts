@@ -32,7 +32,6 @@ test('modal keyboard wrapping skips controls inside collapsed disclosures', asyn
   await expect(first).toBeFocused()
 })
 
-
 test('modal keyboard wrapping respects visibility overrides and collapsed controls', async ({ appWindow }) => {
   await appWindow.getByRole('button', { name: 'Create workspace', exact: true }).click()
   const editor = appWindow.getByRole('dialog', { name: 'Create workspace', exact: true })
