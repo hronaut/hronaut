@@ -89,6 +89,7 @@ it('exports checked and unchecked assertions without form values', () => {
   const code = formatReproAsPlaywright({ ...recording, steps })
   expect(code).toContain('.toBeChecked()')
   expect(code).toContain('.not.toBeChecked()')
+  expect(code.match(/toHaveJSProperty\('indeterminate', false\)/g)).toHaveLength(2)
   expect(code).not.toContain('TODO: replace this line')
 })
 

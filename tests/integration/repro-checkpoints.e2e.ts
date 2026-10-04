@@ -58,10 +58,13 @@ test('exports explicit Repro expectations that fail broken CRUD and pass the cor
 
 
 test('exports checked-state assertions without form values and detects both broken outcomes', async ({ appWindow, electronApp }) => {
-  let outcome: 'broken' | 'partial' | 'fixed' = 'broken'
+  let outcome: 'broken' | 'partial' | 'fixed' | 'mixed-checked' | 'mixed-unchecked' = 'broken'
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(`<html><title>Checked checkpoint fixture</title><input id="checkbox" type="checkbox" value="private-checkbox-canary" ${outcome !== 'broken' ? 'checked' : ''}><input id="radio" type="radio" value="private-radio-canary" ${outcome !== 'fixed' ? 'checked' : ''}><input id="password" type="password" value="private-password-canary"></html>`)
+    response.end(`<html><title>Checked checkpoint fixture</title><input id="checkbox" type="checkbox" value="private-checkbox-canary" ${outcome !== 'broken' ? 'checked' : ''}><input id="radio" type="radio" value="private-radio-canary" ${['broken', 'partial'].includes(outcome) ? 'checked' : ''}><input id="password" type="password" value="private-password-canary"><script>
+      if (${JSON.stringify(outcome)} === 'mixed-checked') document.querySelector('#checkbox').indeterminate = true;
+      if (${JSON.stringify(outcome)} === 'mixed-unchecked') document.querySelector('#radio').indeterminate = true;
+    </script></html>`)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -98,6 +101,10 @@ test('exports checked-state assertions without form values and detects both brok
     expect(partialFailure).toContain('not.toBeChecked()')
     await expect(page.locator('#checkbox')).toBeChecked()
     await expect(page.locator('#radio')).toBeChecked()
+    for (const mixed of ['mixed-checked', 'mixed-unchecked'] as const) {
+      outcome = mixed
+      await expect(run()).rejects.toThrow('toHaveJSProperty')
+    }
     outcome = 'fixed'
     await run()
     await expect(page.locator('#checkbox')).toBeChecked()
