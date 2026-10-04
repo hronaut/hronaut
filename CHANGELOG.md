@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-10-04
+
 ### Added
 
 - Opt-in viewport screenshot labels for selected semantic refs, with bounded image-space geometry and explicit changed, missing, offscreen and overlapping-target outcomes.
