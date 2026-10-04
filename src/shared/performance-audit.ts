@@ -1,3 +1,4 @@
+import { softNavigationPageFunction, sanitizeSoftNavigations } from './performance-soft-navigation.js'
 import { lcpAttributionPageFunction, sanitizeLcpAttribution } from './performance-lcp.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkUrl } from './network-details.js'
@@ -204,6 +205,7 @@ export function performanceAuditPageScript(
     const lcpAttribution = ${lcpAttributionPageFunction};
     if (!globalThis.__hronautPerformanceCollector) {
       ${webVitalsSource}
+      const softNavigations = (${softNavigationPageFunction})();
       const metrics = { LCP: null, INP: null, CLS: null, FCP: null, TTFB: null };
       const updateMetric = (metric) => {
         const name = metric && metric.name;
@@ -296,6 +298,7 @@ export function performanceAuditPageScript(
       } catch { layoutShiftSupported = false; }
       globalThis.__hronautPerformanceCollector = {
         metrics,
+        softNavigations,
         longTasks,
         longTaskSupported,
         longAnimationFrames,
@@ -388,6 +391,7 @@ export function performanceAuditPageScript(
         measuredAt: new Date().toISOString(),
         observedAt: collector.observedAt,
         scope: 'current-visit',
+        softNavigations: collector.softNavigations(),
         engine: { name: 'web-vitals', version: config.version },
         metrics,
         navigation: navigation ? {
@@ -485,6 +489,7 @@ function safePerformanceText(value: string | undefined, maxChars: number): strin
 export function sanitizePerformanceReport(report: BrowserPerformanceReport): BrowserPerformanceReport {
   return {
     ...report,
+    ...(report.softNavigations ? { softNavigations: sanitizeSoftNavigations(report.softNavigations) } : {}),
     url: redactNetworkUrl(report.url).slice(0, 4_096),
     title: safePerformanceText(report.title, 500) ?? '',
     metrics: Object.fromEntries(Object.entries(report.metrics).map(([name, metric]) => [

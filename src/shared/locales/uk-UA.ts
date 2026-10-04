@@ -1,3 +1,4 @@
+import { softNavigationMessages } from './soft-navigation.js'
 import { lcpAttributionMessages } from './lcp-attribution.js'
 import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
@@ -5,6 +6,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 export const ukUA = {
   incident: {"omitField": "Точна назва поля JSON для вилучення (необов’язково)", "omitFieldHint": "Видаляє всі відповідні поля об’єктів зі збережених артефактів до заміни тексту. Регістр враховується; це не шлях і не шаблон. Інші копії можуть залишитися: перевірте попередній перегляд.", "hash": "SHA-256: {hash}", "title": "Перевірений пакет інциденту", "privacy": "Лише локальний текст. Приватні дані можуть залишитися; анонімізація не гарантується. Без знімків, тіл запитів, ZIP та надсилання.", "select": "Виберіть дані для збирання", "repro": "Кроки Repro", "network": "Очищені мережеві записи", "diagnostics": "Консоль і діагностика", "minutes": "Останні хвилини (1–60)", "capture": "Зібрати вибрані дані", "expires": "Перевірка спливає", "include": "Залишити або вилучити матеріали", "available": "Доступно", "empty": "Немає збережених записів за цей період", "unavailable": "Недоступно", "oversize": "Вилучено: обмеження розміру", "truncated": "Джерело скорочено", "find": "Точний текст для заміни (необов’язково)", "replacement": "Замінити на", "preview": "Переглянути точний пакет", "reviewed": "Я перевірив пакет і дозволяю зберегти ці дані локально.", "save": "Зберегти перевірений HTML", "discard": "Скасувати перевірку", "working": "Обробка…", "saved": "Перевірений пакет збережено локально.", "addOmission": "Додати вилучення поля", "removeOmission": "Видалити вилучення поля {index}", "omissionLimit": "До {count} точних назв полів. Порожні та повторювані записи ігноруються.", "omissionRow": "Вилучення поля {index}", "addReplacement": "Додати заміну тексту", "removeReplacement": "Видалити заміну тексту {index}", "replacementRow": "Заміна тексту {index}", "replacementLimit": "До {count} правил, згори вниз. Порожній текст пошуку ігнорується. Наступні правила можуть збігатися з результатами попередніх замін."},
   licenseNotice: {"expired": "Автоматизацію агентів заблоковано. Активуйте або поновіть ліцензію. Збережені дані залишаються доступними.", "manage": "Налаштування ліцензії", "purchase": "Придбати або поновити ↗"},
+  softNavigation: softNavigationMessages['uk-UA'],
   lcpAttribution: lcpAttributionMessages['uk-UA'],
   browserImport: browserImportMessages['uk-UA'],
   video: enUS.video,

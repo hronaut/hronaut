@@ -180,7 +180,7 @@ function performanceMetric(name: BrowserPerformanceMetricName): BrowserPerforman
   return performanceReport.value?.metrics[name] ?? null
 }
 
-function formatPerformanceMetric(metric: BrowserPerformanceMetric | null): string {
+function formatPerformanceMetric(metric: Pick<BrowserPerformanceMetric, 'value' | 'unit'> | null): string {
   if (!metric) return t('runtime.network.notObserved')
   return metric.unit === 'score'
     ? formatNumber(props.locale, metric.value, { minimumFractionDigits: 3, maximumFractionDigits: 3 })
@@ -552,6 +552,23 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           </article>
         </div>
         <div class="performance-details">
+          <section v-if="performanceReport.softNavigations" data-testid="soft-navigation-vitals">
+            <h3>{{ t('softNavigation.heading') }}</h3>
+            <p class="performance-attribution-note">{{ t(`softNavigation.${performanceReport.softNavigations.status}`) }}</p>
+            <template v-if="performanceReport.softNavigations.status !== 'unsupported'">
+              <p class="performance-attribution-note">{{ t('softNavigation.started', { time: localDuration(performanceReport.softNavigations.collectionStartTimeMs) }) }}</p>
+              <article v-for="route in performanceReport.softNavigations.navigations" :key="route.navigationId">
+                <p class="performance-lcp-source">{{ t('softNavigation.identity', { url: route.url, id: route.navigationId, time: localDuration(route.startTimeMs) }) }}</p>
+                <p v-if="route.coverage === 'incomplete'" class="performance-attribution-note">{{ t('softNavigation.incomplete') }}</p>
+                <dl>
+                  <div v-for="name in (['LCP', 'INP', 'CLS'] as const)" :key="name">
+                    <dt>{{ name }}</dt><dd>{{ formatPerformanceMetric(route.metrics[name]) }}</dd>
+                  </div>
+                </dl>
+              </article>
+              <p class="performance-attribution-note">{{ t('softNavigation.note') }}</p>
+            </template>
+          </section>
           <section v-if="lcpAttribution" data-testid="lcp-attribution">
             <h3>{{ t('lcpAttribution.heading') }}</h3>
             <p class="performance-attribution-note">{{ t(`lcpAttribution.${lcpAttribution.status}`) }}</p>
