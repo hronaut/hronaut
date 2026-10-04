@@ -2,11 +2,11 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import BrowserImportPanel from '../../src/renderer/src/components/BrowserImportPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { BrowserImportApi } from '../../src/shared/browser-import.js'
+import type { BrowserImportApi, BrowserImportProfile } from '../../src/shared/browser-import.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 const state = { tabs: [], mcpTabGroups: [], savedTabGroups: [{ id: 'chosen', name: 'Chosen workspace' }] } as unknown as BrowserState
-function setup(current = state) {
-  const browserImport = { list: vi.fn(async () => ({ ok: true, value: [{ id: 'source', browser: 'Chrome', name: 'Work' }] })), preview: vi.fn(async () => ({ ok: true, value: { id: 'preview', expiresAt: Date.now() + 10000, skipped: 3, sites: [{ domain: 'first.test', count: 2, includesSubdomains: true }, { domain: 'second.test', count: 1, includesSubdomains: false }] } })), cancel: vi.fn(async () => {}), commit: vi.fn<BrowserImportApi['commit']>(async () => ({ ok: true, value: { imported: 3, skipped: 0, failed: 0, recoveryRequired: false } })) }
+function setup(current = state, profiles: BrowserImportProfile[] = [{ id: 'source', browser: 'Chrome', name: 'Work' }]) {
+  const browserImport = { list: vi.fn(async () => ({ ok: true, value: profiles })), preview: vi.fn(async () => ({ ok: true, value: { id: 'preview', expiresAt: Date.now() + 10000, skipped: 3, sites: [{ domain: 'first.test', count: 2, includesSubdomains: true }, { domain: 'second.test', count: 1, includesSubdomains: false }] } })), cancel: vi.fn(async () => {}), commit: vi.fn<BrowserImportApi['commit']>(async () => ({ ok: true, value: { imported: 3, skipped: 0, failed: 0, recoveryRequired: false } })) }
   const archive = vi.fn(async () => current)
   const browser = { browserImport, getState: vi.fn(async () => current), saveAndCloseTabGroup: archive, restoreSavedTabGroup: vi.fn(async () => current) } as unknown as HronautApi
   const wrapper = mount(BrowserImportPanel, { props: { workspaceId: 'chosen', state: current, browser, syncState: async value => { await value } }, global: { plugins: [createHronautI18n('en-US')] } })
@@ -24,6 +24,20 @@ describe('browser import picker', () => {
       expect(browserImport.preview).toHaveBeenCalledWith('chosen', 'source')
       expect(wrapper.text()).toContain('0 of 2 sites selected')
       expect(browserImport.commit).not.toHaveBeenCalled()
+    } finally { wrapper.unmount() }
+  })
+  it('shows display names while selecting a duplicate-named profile by its opaque ID', async () => {
+    const { wrapper, browserImport, button } = setup(state, [
+      { id: 'first-id', browser: 'Chrome', name: 'Avery · Default' },
+      { id: 'second-id', browser: 'Chrome', name: 'Avery · Profile 10' }
+    ])
+    try {
+      await flushPromises()
+      expect(wrapper.findAll('option').map(option => option.text())).toEqual(['Chrome · Avery · Default', 'Chrome · Avery · Profile 10'])
+      await wrapper.get('#browser-import-profile').setValue('second-id')
+      expect(browserImport.preview).not.toHaveBeenCalled()
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(browserImport.preview).toHaveBeenCalledExactlyOnceWith('chosen', 'second-id')
     } finally { wrapper.unmount() }
   })
   it('preserves hidden selections, uses matching bulk selection and commits only the chosen domains', async () => {

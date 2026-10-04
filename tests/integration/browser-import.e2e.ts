@@ -33,6 +33,11 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       const page = source.pages()[0] ?? await source.newPage()
       await page.goto(origin); await expect(page.getByRole('main')).toHaveText('Signed in')
       await source.close()
+      if (sourceBrowser === 'chromium') {
+        await writeFile(join(sourceRoot, 'Local State'), JSON.stringify({ profile: { info_cache: {
+          Default: { name: 'Person 1', is_using_default_name: true, gaia_given_name: 'Avery', gaia_name: 'Avery Example' }
+        } } }))
+      }
       if (sourceBrowser === 'firefox') await writeFile(join(home, '.mozilla/firefox/profiles.ini'), '[Profile0]\nName=Fixture profile\nIsRelative=1\nPath=fixture\n')
       const databasePath = sourceBrowser === 'firefox' ? join(sourceRoot, 'cookies.sqlite') : join(sourceRoot, 'Default/Cookies')
       const originalDatabase = await readFile(databasePath)
@@ -63,6 +68,7 @@ for (const sourceBrowser of ['chromium', 'firefox'] as const) {
       const panel = appWindow.getByTestId('browser-import-panel')
       await expect(panel).toBeVisible()
       await expect(panel.getByLabel('Browser and profile')).toContainText(sourceBrowser === 'chromium' ? 'Chromium' : 'Fixture profile')
+      await expect(panel.locator('#browser-import-profile option')).toHaveText(sourceBrowser === 'chromium' ? ['Chromium · Avery · Default'] : ['Firefox · Fixture profile · fixture'])
       await panel.getByRole('button', { name: 'Continue', exact: true }).click()
       await expect(panel.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
       await expect(panel.getByText('Choose sites', { exact: true })).toHaveCount(0)

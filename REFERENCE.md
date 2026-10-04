@@ -166,6 +166,10 @@ that workspace as the import destination. Choose a Chrome/Chromium or Firefox
 profile, approve the native permission to read cookies, then select sites using
 search, individual checkboxes, or Select all. Nothing is imported by the read
 permission alone. Site selections remain selected when hidden by a filter.
+The profile picker uses available browser display names, including Chromium account
+and customized profile names, with directory suffixes to distinguish profiles.
+When name metadata is missing or unreadable, it falls back to the profile directory.
+Changing the label does not change the selected source or import destination.
 
 Choose **Import into “Workspace name”**. Active and archived workspaces are
 supported, including workspaces with service workers. Open tabs stay open and

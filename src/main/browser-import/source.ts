@@ -23,7 +23,28 @@ async function smallText(file: string): Promise<string> {
   return UTF8.decode(bytes)
 }
 function label(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value.replace(/[\p{Cc}\p{Cf}]/gu, '').slice(0, 80) || fallback : fallback
+  if (typeof value !== 'string') return fallback
+  // At most 160 UTF-16 units are needed for 80 complete Unicode code points.
+  const cleaned = value.replace(/[\p{Cc}\p{Cf}]/gu, '').trim().slice(0, 160)
+  return Array.from(cleaned).slice(0, 80).join('') || fallback
+}
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+}
+function profileLabel(name: unknown, directory: string): string {
+  const displayName = label(name, directory)
+  return displayName === directory ? directory : `${displayName} · ${directory}`
+}
+function chromiumProfileName(entry: Record<string, unknown>, preferenceName: unknown): string {
+  const enterpriseName = label(entry.enterprise_label, '')
+  const localName = enterpriseName || label(entry.name, '') || label(preferenceName, '')
+  // Chromium can display a cached account name while `name` remains Person N.
+  // Keep a customized/managed local name as context, without using account emails.
+  const accountName = label(entry.gaia_given_name, '') || label(entry.gaia_name, '')
+  if (!accountName) return localName
+  if (!localName || accountName.toLowerCase() === localName.toLowerCase()
+    || (entry.is_using_default_name === true && !enterpriseName)) return accountName
+  return label(`${accountName} (${localName})`, '')
 }
 
 /** Discovery reads profile names only, never the cookie database or OS keys. */
@@ -38,14 +59,25 @@ export async function discoverImportProfiles(home = homedir(), platform = proces
     ['Chromium (Flatpak)', join(home, '.var/app/org.chromium.Chromium/config/chromium'), 'chromium']
   ] as const
   for (const [browser, root, keyApplication] of chromiumRoots) {
-    let names: Record<string, { name?: unknown }> = {}
-    try { names = JSON.parse(await smallText(join(root, 'Local State')))?.profile?.info_cache ?? {} } catch { /* Directory names remain usable. */ }
+    let names: Record<string, unknown> = {}
+    try {
+      const localState = record(JSON.parse(await smallText(join(root, 'Local State'))))
+      names = record(record(localState?.profile)?.info_cache) ?? {}
+    } catch { /* Per-profile Preferences and directory names remain usable. */ }
     let directories: string[]
     try { directories = (await readdir(root)).filter(n => n === 'Default' || /^Profile \d+$/.test(n)).slice(0, 100) } catch { continue }
     for (const directory of directories) {
       const file = await exists(join(root, directory, 'Network/Cookies')) ? join(root, directory, 'Network/Cookies') : join(root, directory, 'Cookies')
       if (!await exists(file)) continue
-      profiles.push({ id: randomUUID(), browser, name: `${label(names[directory]?.name, directory)} · ${directory}`, file, kind: 'chromium', keyApplication })
+      const entry = record(names[directory]) ?? {}
+      let preferenceName: unknown
+      if (!label(entry.name, '') && !label(entry.enterprise_label, '')) {
+        try {
+          const preferences = record(JSON.parse(await smallText(join(root, directory, 'Preferences'))))
+          preferenceName = record(preferences?.profile)?.name
+        } catch { /* Missing, malformed or oversized metadata keeps a directory fallback. */ }
+      }
+      profiles.push({ id: randomUUID(), browser, name: profileLabel(chromiumProfileName(entry, preferenceName), directory), file, kind: 'chromium', keyApplication })
     }
   }
   for (const root of [join(home, '.mozilla/firefox'), join(home, 'snap/firefox/common/.mozilla/firefox'), join(home, '.var/app/org.mozilla.firefox/.mozilla/firefox')]) {
@@ -58,7 +90,7 @@ export async function discoverImportProfiles(home = homedir(), platform = proces
       const folder = values.IsRelative === '1' ? resolve(root, values.Path) : values.Path
       const file = join(folder, 'cookies.sqlite')
       if (!await exists(file) || profiles.some(p => p.file === file)) continue
-      profiles.push({ id: randomUUID(), browser: 'Firefox', name: `${label(values.Name, 'Default')} · ${basename(folder)}`, file, kind: 'firefox', keyApplication: '' })
+      profiles.push({ id: randomUUID(), browser: 'Firefox', name: profileLabel(values.Name, basename(folder)), file, kind: 'firefox', keyApplication: '' })
     }
   }
   return profiles.slice(0, 300)
