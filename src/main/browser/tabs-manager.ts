@@ -185,6 +185,7 @@ import {
   storageManagerUsageBreakdown
 } from '../../shared/storage-usage.js'
 import { networkRoutePatternMatches } from '../../shared/network-routes.js'
+import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
 import { compareBgraBitmaps, normalizeVisualCompareThreshold, normalizeVisualCompareClip, visualCompareBitmapClip } from '../../shared/visual-compare.js'
 import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
@@ -431,6 +432,7 @@ const RECONCILIATION_WORLD_ID = 1014
 const OBSERVATION_QUALITY_WORLD_ID = 1015
 const CREDENTIAL_CAPTURE_WORLD_ID = 1016
 const VISUAL_COMPARE_WORLD_ID = 1017
+const SCREENSHOT_ANNOTATION_WORLD_ID = 1018
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -6738,8 +6740,9 @@ export class BrowserTabsManager {
     return diff
   }
 
-  async screenshot(options: BrowserScreenshotOptions = {}): Promise<{ data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
+  async screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
     const format = options.format ?? 'png'
+    const refs = normalizeScreenshotRefs(options.annotateRefs)
     if (format === 'png' && options.quality !== undefined) throw new Error('Screenshot quality is supported only for JPEG images')
     const quality = options.quality ?? 80
     const tab = this.getTab(options.tabId)
@@ -6749,6 +6752,10 @@ export class BrowserTabsManager {
       throw new Error('fullPage cannot be combined with ref, selector, or clip')
     }
     if (hasTarget && options.clip) throw new Error('Provide an element target or clip rectangle, not both')
+    if (refs) {
+      if (options.fullPage || hasTarget || options.clip) throw new Error('annotateRefs supports viewport screenshots only; omit fullPage, ref, selector and clip')
+      return this.annotatedScreenshot(tab, options, refs)
+    }
     return this.withRenderableTab(tab, async () => {
       const webContents = tab.webContents
       if (hasTarget || options.clip) {
@@ -6830,6 +6837,51 @@ export class BrowserTabsManager {
     // the page itself. Waiting for a separate compositor subscription first can
     // strand an otherwise healthy capture when Chromium omits that notification.
     }, options.fullPage ? 'surface' : 'presented-frame')
+  }
+
+  private async annotatedScreenshot(tab: BrowserTab, options: BrowserScreenshotOptions, refs: string[]): Promise<{ data: Buffer; mimeType: 'image/png' | 'image/jpeg'; annotations: ScreenshotAnnotationReport }> {
+    const context = this.snapshotDeltaContext(tab)
+    const assertCurrent = (): void => {
+      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
+        throw new Error('The observation context changed during annotated screenshot capture. Take a fresh snapshot and capture again.')
+      }
+    }
+    const result = await this.withRenderableTab(tab, async () => {
+      const id = randomUUID()
+      const contents = tab.webContents
+      const execute = (code: string) => contents.executeJavaScriptInIsolatedWorld(SCREENSHOT_ANNOTATION_WORLD_ID, [{ code }], false)
+      try {
+        assertCurrent()
+        const environment = await this.visualCompareContext(tab)
+        assertCurrent()
+        await execute(screenshotAnnotationScript(id, refs))
+        assertCurrent()
+        const captured = await contents.capturePage()
+        assertCurrent()
+        if (captured.isEmpty()) throw new Error('Could not capture the visible page for annotation')
+        const rows: unknown = await execute(screenshotAnnotationScript(id))
+        assertCurrent()
+        const after = await this.visualCompareContext(tab)
+        assertCurrent()
+        if (JSON.stringify(environment) !== JSON.stringify(after)) throw new Error('The viewport or scroll position changed during annotated screenshot capture. Capture again.')
+        const source = captured.getSize()
+        const bounded = boundedScreenshotSize(source.width, source.height, Math.min(options.maxWidth ?? 1920, 1920), Math.min(options.maxHeight ?? 1080, 1080))
+        const image = bounded.width === source.width && bounded.height === source.height ? captured : captured.resize({ width: bounded.width, height: bounded.height, quality: 'best' })
+        const size = image.getSize()
+        const bitmap = Buffer.from(image.toBitmap({ scaleFactor: 1 }))
+        const annotations = annotateScreenshotBitmap(bitmap, size.width, size.height,
+          { width: environment.viewportWidth, height: environment.viewportHeight }, refs, rows)
+        const annotated = nativeImage.createFromBitmap(bitmap, { width: size.width, height: size.height, scaleFactor: 1 })
+        const format = options.format ?? 'png'
+        return { data: format === 'jpeg' ? annotated.toJPEG(options.quality ?? 80) : annotated.toPNG(),
+          mimeType: format === 'jpeg' ? 'image/jpeg' as const : 'image/png' as const, annotations }
+      } finally {
+        if (!contents.isDestroyed()) await execute(screenshotAnnotationScript(id, undefined, true)).catch(() => undefined)
+      }
+    })
+    assertCurrent()
+    return result
   }
 
   async savePdf(options: BrowserPdfOptions = {}): Promise<BrowserPdfExport> {

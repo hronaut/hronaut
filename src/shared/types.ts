@@ -2014,6 +2014,7 @@ export interface BrowserScreenshotClip {
 }
 
 export interface BrowserScreenshotOptions {
+  annotateRefs?: string[]
   tabId?: string
   fullPage?: boolean
   ref?: string

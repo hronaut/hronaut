@@ -265,7 +265,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_resize', category: 'Inspection', description: 'Set or reset the page viewport for responsive UI testing.' },
   { name: 'browser_zoom', category: 'Inspection', description: 'Inspect or change page zoom from 50% to 400% without resizing the browser chrome.' },
   { name: 'browser_audio', category: 'Interaction', description: 'Mute or unmute one browser tab without changing site-wide sound permissions.' },
-  { name: 'browser_screenshot', category: 'Inspection', description: 'Return a viewport, full page, element, or selected rectangle as a chat-ready PNG or compact JPEG.' },
+  { name: 'browser_screenshot', category: 'Inspection', description: 'Return a viewport, full page, element, or selected rectangle as a chat-ready PNG or compact JPEG. Optionally label up to 50 selected current snapshot refs in a viewport image with a bounded geometry legend.' },
   { name: 'browser_pdf_save', category: 'Inspection', description: 'Save the rendered page as a collision-safe PDF in the download directory.' },
   { name: 'browser_accessibility_audit', category: 'Inspection', description: 'Audit a page or element with local axe-core rules, save a volatile tab baseline, and compare stable rule-and-target fingerprints after a fix.' },
   { name: 'browser_quality_audit', category: 'Inspection', description: 'Run one bounded local audit across accessibility, observed Web Vitals, metadata and SEO, transport security, PWA readiness, and retained Chromium issues without inventing a synthetic score.' },
