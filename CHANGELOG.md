@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Explain observed LCP with bounded loading and rendering phases in performance reports and Page tools, explicitly marking missing timing evidence and unsupported navigation contexts.
+
 ### Fixed
 
 - Repro text checkpoints exclude embedded script and style content, matching exported text assertions, and reject oversized observations with guidance to choose a smaller target.
