@@ -432,7 +432,7 @@ const VISUAL_COMPARE_WORLD_ID = 1017
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
-const webVitalsPath = require.resolve('web-vitals')
+const webVitalsPath = require.resolve('web-vitals/attribution')
 const webVitalsSource = readFileSync(webVitalsPath, 'utf8')
 const webVitalsVersion = (JSON.parse(
   readFileSync(join(dirname(webVitalsPath), '..', 'package.json'), 'utf8')
