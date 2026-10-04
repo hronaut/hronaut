@@ -30,7 +30,7 @@ export async function collectCssProvenance<T>(
       }
     }
     if (['CSS.styleSheetAdded', 'CSS.styleSheetChanged', 'CSS.styleSheetRemoved', 'CSS.mediaQueryResultChanged',
-      'DOM.attributeModified', 'DOM.attributeRemoved', 'DOM.characterDataModified', 'DOM.childNodeRemoved', 'DOM.childNodeInserted', 'DOM.documentUpdated'].includes(method)) revision++
+      'DOM.attributeModified', 'DOM.attributeRemoved', 'DOM.characterDataModified', 'DOM.childNodeCountUpdated', 'DOM.childNodeRemoved', 'DOM.childNodeInserted', 'DOM.documentUpdated'].includes(method)) revision++
     if (includeFonts && ['CSS.fontsUpdated', 'DOM.shadowRootPushed', 'DOM.shadowRootPopped', 'DOM.pseudoElementAdded', 'DOM.pseudoElementRemoved'].includes(method)) revision++
   }
   const command = async (method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>> => {
@@ -65,13 +65,18 @@ export async function collectCssProvenance<T>(
     if (includeFonts) {
       // The protocol traverses layout descendants, including closed and UA
       // shadow trees. A page-world guard alone cannot exclude those trees.
-      const eligible = inspection && typeof inspection === 'object'
-        && (inspection as { renderedFontsEligible?: unknown }).renderedFontsEligible === true
-      const described = eligible ? await command('DOM.describeNode', { nodeId, depth: 0, pierce: false }) : {}
+      const eligible = (value: unknown): boolean => Boolean(value && typeof value === 'object'
+        && (value as { renderedFontsEligible?: unknown }).renderedFontsEligible === true)
+      const described = eligible(inspection) ? await command('DOM.describeNode', { nodeId, depth: 0, pierce: false }) : {}
       const node = described.node as { shadowRoots?: unknown[]; pseudoElements?: unknown[] } | undefined
       renderedFonts = !node || node.shadowRoots?.length || node.pseudoElements?.length
         ? unavailableRenderedFonts('unsupported-target')
         : normalizeRenderedFonts(await command('CSS.getPlatformFontsForNode', { nodeId }))
+      // document.designMode changes editing eligibility without a DOM event.
+      // Recheck after the font read, before any collected metadata can escape.
+      if (renderedFonts.status !== 'unavailable' && !eligible(await inspect())) {
+        throw new Error('The element editing context changed during CSS provenance inspection. Inspect it again.')
+      }
     }
     if (includeFonts) await verifyTarget()
     return { provenance: normalizeCssProvenance({ properties, matched, computed, headers, headersTruncated }), inspection, ...(renderedFonts ? { renderedFonts } : {}) }

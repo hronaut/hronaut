@@ -42,7 +42,7 @@ describe('read-only CSS protocol collection', () => {
     expect(result.renderedFonts).toMatchObject({ status: 'unavailable', reason: 'unsupported-target' })
     expect(f.debug.sendCommand.mock.calls.map(call => call[0])).not.toContain('CSS.getPlatformFontsForNode')
   })
-  it.each(['CSS.fontsUpdated', 'DOM.characterDataModified', 'DOM.shadowRootPushed'])('rejects %s during font reads and cleans up', async event => {
+  it.each(['CSS.fontsUpdated', 'DOM.characterDataModified', 'DOM.childNodeCountUpdated', 'DOM.shadowRootPushed'])('rejects %s during font reads and cleans up', async event => {
     const f = fixture()
     const original = f.debug.sendCommand.getMockImplementation()!
     f.debug.sendCommand.mockImplementation(async (method: string) => {
@@ -52,6 +52,19 @@ describe('read-only CSS protocol collection', () => {
     })
     await expect(collectCssProvenance(f.contents, '#target', [], () => {}, false, async () => ({ renderedFontsEligible: true }), true)).rejects.toThrow('changed during CSS provenance')
     expect(f.debug.listenerCount('message')).toBe(0)
+  })
+  it('rejects eligibility changes without a protocol mutation event', async () => {
+    const f = fixture()
+    const original = f.debug.sendCommand.getMockImplementation()!
+    f.debug.sendCommand.mockImplementation(async (method: string) => {
+      if (method === 'DOM.describeNode') return { node: {} }
+      if (method === 'CSS.getPlatformFontsForNode') return { fonts: [] }
+      return original(method)
+    })
+    const inspect = vi.fn().mockResolvedValueOnce({ renderedFontsEligible: true }).mockResolvedValueOnce({ renderedFontsEligible: false })
+    await expect(collectCssProvenance(f.contents, '#target', [], () => {}, false, inspect, true)).rejects.toThrow('editing context changed')
+    expect(f.debug.listenerCount('message')).toBe(0)
+    expect(f.debug.sendCommand.mock.calls.map(call => call[0])).toContain('CSS.disable')
   })
   it('uses bounded target reads, preserves inspection, and removes domain/listener instrumentation', async () => {
     const f = fixture()
