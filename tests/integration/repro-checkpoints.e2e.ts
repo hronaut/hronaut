@@ -159,3 +159,45 @@ test('records rendered visibility consistent with exported Playwright assertions
     await expect(run()).rejects.toThrow('toBeHidden')
   } finally { await closeFixtureServer(server) }
 })
+
+test('matches exported text assertions when result elements contain script or style nodes', async ({ appWindow, electronApp }) => {
+  let broken = false
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<html><title>Text checkpoint fixture</title><main><div id="result">Saved <span>${broken ? 'incorrectly' : 'successfully'}</span><script type="application/json">{"private":"fixture-script-canary"}</script><style>#result { color: green }</style></div></main></html>`)
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('No fixture port')
+  const url = `http://127.0.0.1:${address.port}/`
+  try {
+    const state = await appWindow.evaluate(async url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
+    const tabId = state.activeTabId!
+    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
+    const page = electronApp.context().pages().find(page => page.url() === url)!
+    await expect(page.locator('#result')).toHaveText('Saved successfully')
+    const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
+    const report = await appWindow.evaluate(({ tabId, context }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, {
+      context, selector: '#result', condition: 'text', text: 'Saved successfully', reviewed: true
+    }), { tabId, context: initial.checkpointContext! })
+    expect(report.steps.at(-1)?.expectation?.observedMatch).toBe(true)
+    expect(JSON.stringify(report)).not.toContain('fixture-script-canary')
+    await page.evaluate(() => document.querySelector('#result')!.append(document.createTextNode('x'.repeat(64001))))
+    await expect(appWindow.evaluate(({ tabId, context }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, {
+      context, selector: '#result', condition: 'text', text: 'Saved successfully', reviewed: true
+    }), { tabId, context: initial.checkpointContext! })).rejects.toThrow('select a smaller target')
+    const stopped = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('stop', tabId), tabId)
+    expect(stopped.steps).toEqual(report.steps)
+    const code = formatReproAsPlaywright(stopped).replace(/^import .*\n/, '')
+    const run = () => {
+      let execution: Promise<void> | undefined
+      const register = (_title: string, body: (context: { page: Page }) => Promise<void>) => { execution = body({ page }) }
+      new Function('test', 'expect', code)(register, expect.configure({ timeout: 500 }))
+      if (!execution) throw new Error('Generated test did not register')
+      return execution
+    }
+    await run()
+    broken = true
+    await expect(run()).rejects.toThrow('toHaveText')
+  } finally { await closeFixtureServer(server) }
+})

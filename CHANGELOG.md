@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Repro text checkpoints exclude embedded script and style content, matching exported text assertions, and reject oversized observations with guidance to choose a smaller target.
+
 - Reject performance measurements when the browser environment changes during collection, preserving existing baselines instead of labeling mixed observations with the final settings.
 
 - Reject mixed checkbox/radio states in exported Repro expectations, matching the recorder's checked/unchecked contract.

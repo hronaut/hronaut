@@ -25,6 +25,29 @@ describe('explicit Repro checkpoints', () => {
     } finally { result.remove() }
   })
 
+  it.each(['script', 'style'])('excludes %s content without changing the result element', tag => {
+    document.body.innerHTML = '<div id="result">Saved <span>successfully</span><' + tag + '>' + (tag === 'style' ? '/* private-source-canary */ #result { color: green }' : 'private-source-canary') + '</' + tag + '></div>'
+    const before = document.body.innerHTML
+    try {
+      const result = window.eval(reproCheckpointScript(input))
+      expect(result.observedMatch).toBe(true)
+      expect(JSON.stringify(result)).not.toContain('private-source-canary')
+      expect(document.body.innerHTML).toBe(before)
+      document.querySelector('span')!.textContent = 'incorrectly'
+      expect(window.eval(reproCheckpointScript(input)).observedMatch).toBe(false)
+    } finally { document.body.replaceChildren() }
+  })
+  it.each(['nodes', 'characters', 'excluded nodes'])('rejects text observation beyond the %s limit', limit => {
+    const element = document.createElement('div')
+    element.id = 'result'
+    if (limit !== 'characters') {
+      for (let i = 0; i < 2001; i++) element.append(document.createElement(limit === 'nodes' ? 'span' : 'script'))
+    } else element.textContent = 'x'.repeat(64001)
+    document.body.append(element)
+    try { expect(window.eval(reproCheckpointScript(input))).toEqual({ error: 'text-limit' }) }
+    finally { element.remove() }
+  })
+
   it('requires review, bounded expected text and an exact recording context', () => {
     expect(reproCheckpointSchema.safeParse(input).success).toBe(true)
     for (const changed of [{ reviewed: false }, { text: 'x'.repeat(241) }, { context: '' }, { condition: 'visible' }, { unexpected: true }]) {
