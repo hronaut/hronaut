@@ -51,6 +51,9 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
         if (expectation.condition === 'hidden') lines.push(`  await expect(${target}).toHaveCount(1)`)
         lines.push(`  await expect(${target}).${expectation.condition === 'visible' ? 'toBeVisible' : 'toBeHidden'}()`)
       } else if (expectation.condition === 'checked' || expectation.condition === 'unchecked') {
+        // Recording rejects mixed native controls. Playwright's binary matcher
+        // reads checked alone, so preserve that boundary explicitly on replay.
+        lines.push(`  await expect(${target}).toHaveJSProperty('indeterminate', false)`)
         lines.push(`  await expect(${target}).${expectation.condition === 'unchecked' ? 'not.' : ''}toBeChecked()`)
       } else {
         const todo = `TODO: Recreate unsupported expectation at step ${step.index}`
