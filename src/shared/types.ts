@@ -1,3 +1,4 @@
+import type { CssInspectionProperty } from './css-provenance.js'
 import type { IncidentCaptureInput, IncidentDraft, IncidentReviewInput, IncidentPreview } from './incident-package.js'
 import type { BrowserReproCheckpointInput, BrowserReproExpectation } from './repro-checkpoint.js'
 import type { BrowserImportApi } from './browser-import.js'
@@ -684,6 +685,7 @@ export interface BrowserElementInspectionOptions {
   tabId?: string
   ref?: string
   selector?: string
+  cssProperties?: CssInspectionProperty[]
 }
 
 export interface BrowserElementBoxEdges {
@@ -693,7 +695,30 @@ export interface BrowserElementBoxEdges {
   left: number
 }
 
+export interface BrowserCssProvenance {
+  status: 'candidates' | 'unavailable'
+  reason?: string
+  properties: CssInspectionProperty[]
+  computed: Array<{ property: CssInspectionProperty; value: string | null }>
+  candidates: Array<{
+    property: CssInspectionProperty
+    value: string | null
+    valueOmitted?: boolean
+    kind: 'rule' | 'inline' | 'attributes'
+    inheritanceDepth: number
+    important: boolean
+    disabled: boolean
+    selector?: string
+    origin: string
+    conditions: Array<{ type: string; text: string | null }>
+    source?: { url: string; line?: number; column?: number; precision?: 'declaration' | 'rule' }
+  }>
+  truncated: boolean
+  caveats: string[]
+}
+
 export interface BrowserElementInspection {
+  cssProvenance?: BrowserCssProvenance
   tabId: string
   title: string
   url: string
