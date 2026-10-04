@@ -65,6 +65,8 @@ describe('SettingsDialog', () => {
 
     controller.openSection('search')
     const dialog = await screen.findByRole('tabpanel', { name: 'Settings' })
+    expect(dialog.querySelector('.settings-footer')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Reset to default' }).closest('.settings-header')).not.toBeNull()
     await vi.waitFor(() => expect(dialog).toHaveFocus())
     expect(screen.getByRole('button', { name: /Search engine/ })).toHaveAttribute('aria-current', 'page')
 

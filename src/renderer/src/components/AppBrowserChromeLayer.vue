@@ -206,7 +206,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
   />
   <ShellTitleBarSurface
     v-if="customTitleBar && (activeIsHome || settingsOpen) && tabOrientation === 'vertical'"
-    kind="home"
+    :kind="settingsOpen ? 'settings' : 'home'"
     :draggable="customTitleBar"
   />
   <div

@@ -150,7 +150,10 @@ describe('BrowserTabsBar', () => {
     expect(settings).toHaveAttribute('aria-selected', 'true')
     const settingsList = screen.getByRole('tablist', { name: 'Settings' })
     expect(Array.from(settingsList.children)).toEqual([settings])
-    expect(view.container.querySelector('.settings-tab-close')?.closest('[role=tablist]')).toBeNull()
+    expect(view.container.querySelector('.settings-tab-close')).toBeNull()
+    const entry = view.container.querySelector('.settings-tab-entry')!
+    const strip = view.container.querySelector('.tabs-strip-shell')!
+    expect(strip.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAttribute('aria-selected', 'false')
     await fireEvent.click(settings)
     expect(view.emitted().openSettings).toHaveLength(1)
@@ -158,6 +161,7 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted().closeSettings).toHaveLength(1)
     await view.rerender({ settingsActive: false })
     expect(settings).toHaveAttribute('aria-selected', 'false')
+    expect(view.container.querySelector('.settings-tab-close')?.closest('[role=tablist]')).toBeNull()
     expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAttribute('aria-selected', 'true')
   })
 

@@ -40,7 +40,7 @@ for (const theme of ['light', 'dark'] as const) {
           const control = await row.locator('.setting-select-control').boundingBox()
           expect(control!.y, 'Narrow MCP controls should follow the explanation instead of squeezing it into a thin column').toBeGreaterThanOrEqual(copy!.y + copy!.height)
         }
-        const close = dialog.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true })
+        const close = dialog.getByRole('button', { name: 'Close settings', exact: true })
         await expect(close).toBeInViewport()
         for (const control of await content.locator('input:not([type=hidden]), select, button').all()) {
           if (!(await control.isVisible())) continue
@@ -51,7 +51,7 @@ for (const theme of ['light', 'dark'] as const) {
           expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport!.x + viewport!.width + 1)
         }
       }
-      await dialog.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true }).click()
+      await dialog.getByRole('button', { name: 'Close settings', exact: true }).click()
       await expect(dialog).not.toBeVisible()
     })
   }
@@ -67,7 +67,7 @@ test('keeps Close visible when Large interface size reduces the available Settin
   })
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
   await expect.poll(() => appWindow.evaluate(() => window.innerHeight)).toBe(480)
-  const close = dialog.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true })
+  const close = dialog.getByRole('button', { name: 'Close settings', exact: true })
   const capture = await electronApp.evaluate(async ({ BrowserWindow }) => {
     const image = await BrowserWindow.getAllWindows()[0]!.webContents.capturePage()
     return image.toPNG().toString('base64')

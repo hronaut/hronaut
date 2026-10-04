@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.13.3] - 2026-10-04
+
+### Changed
+
+- Place the Settings tab after workspace navigation, at the bottom of the vertical rail. Show the correct Settings title, remove duplicate active-page controls and the modal footer, keep Reset beside the page heading, and constrain settings content to a readable width.
+
 ### Fixed
 
 - Ignore late Settings reset completions after the controller is disposed, preventing stale error notifications and new work during teardown.

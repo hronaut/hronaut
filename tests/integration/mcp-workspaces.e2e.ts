@@ -258,7 +258,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
-  await appWindow.getByRole('button', { name: 'Close', exact: true }).click()
+  await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()
   const verticalNavigation = appWindow.getByRole('navigation', { name: 'Tab navigation' })
   await expect(verticalNavigation).toHaveClass(/vertical/)
   await expect.poll(() => appWindow.evaluate(() => {

@@ -146,6 +146,7 @@ const { t } = useI18n({ useScope: 'global' })
     </UiButton>
     <McpStatusControls :controller="mcpStatusController" />
     <UiButton appearance="application"
+      v-if="!settingsOpen"
       class="topbar-icon-button settings-button"
       type="button"
       :title="t('shell.actions.settings')"

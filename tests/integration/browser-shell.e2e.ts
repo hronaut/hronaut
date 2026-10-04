@@ -159,7 +159,7 @@ test('follows agent activity passively, independently from input lock, and defer
       .toBe('browser_wait')
     expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(humanTabId)
 
-    await settingsDialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await settingsDialog.getByRole('button', { name: 'Close settings', exact: true }).click()
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)'))
       .toBe(targetTabId)
     const nativeFocusAfterModalFollow = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
@@ -2970,11 +2970,11 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   await aboutDialog.getByRole('button', { name: 'License', exact: true }).click()
   await expect(aboutDialog).toBeHidden()
   await expect(appWindow.locator('.settings-dialog')).toContainText('License')
-  await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close', exact: true }).click()
+  await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close settings', exact: true }).click()
 
   await clickMenuItem('Help', 'Commercial License')
   await expect(appWindow.locator('.settings-dialog')).toContainText('License')
-  await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close', exact: true }).click()
+  await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close settings', exact: true }).click()
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   await expect(appWindow.locator('.toolbar')).toBeVisible()
@@ -3743,7 +3743,7 @@ test('floats bookmark and history suggestions above pages while allowing duplica
     await expect(settingsDialog).toBeVisible()
     await expect(settingsDialog.getByRole('heading', { name: 'Software updates' })).toBeVisible()
     await expect.poll(addressOverlay).toMatchObject({ attached: false, visible: false })
-    await settingsDialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await settingsDialog.getByRole('button', { name: 'Close settings', exact: true }).click()
     await address.focus()
     await address.fill('Suggestion')
     await expect.poll(addressOverlay).toMatchObject({ attached: true, topmost: true, visible: true })
@@ -7431,7 +7431,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await appWindow.evaluate('window.hronautDownloads.clearFinished()')
     await askWhere.uncheck()
     await expect(askWhere).not.toBeChecked()
-    await settingsDialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await settingsDialog.getByRole('button', { name: 'Close settings', exact: true }).click()
 
     const panel = appWindow.getByRole('dialog', { name: 'Downloads' })
 

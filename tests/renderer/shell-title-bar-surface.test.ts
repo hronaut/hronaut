@@ -18,12 +18,12 @@ describe('title-bar identity', () => {
     wrapper.unmount()
   })
 
-  it('keeps the Home surface identifiable as Home', () => {
+  it.each([['home', 'Home'], ['settings', 'Settings']] as const)('identifies the %s page in the title bar', (kind, label) => {
     const wrapper = mount(ShellTitleBarSurface, {
-      props: { kind: 'home', draggable: true },
+      props: { kind, draggable: true },
       global: { plugins: [createHronautI18n('en-US')] }
     })
-    expect(wrapper.text()).toBe('Home')
+    expect(wrapper.text()).toBe(label)
     expect(wrapper.find('svg').exists()).toBe(true)
     wrapper.unmount()
   })

@@ -43,7 +43,7 @@ for (const split of [false, true]) {
       // Let the renderer finish both occlusion and toolbar/inset reporting.
       await appWindow.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
       await expect.poll(readViews).toEqual(before.map((view) => ({ ...view, visible: false })))
-      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      await dialog.getByRole('button', { name: 'Close settings', exact: true }).click()
       await expect(dialog).toBeHidden()
       await expect.poll(readViews).toEqual(before)
       // Verify actual compositor output, not just DOM presence or native visibility.
