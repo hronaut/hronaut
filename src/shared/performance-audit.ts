@@ -68,9 +68,11 @@ function comparisonMetric(
   if (baselineValue === null || currentValue === null) {
     return { ...metric, baselineValue, currentValue, delta: null, direction: 'unavailable' }
   }
-  const delta = Math.round((currentValue - baselineValue) * 1_000) / 1_000
+  const difference = currentValue - baselineValue
+  const delta = definition.unit === 'score' ? difference : Math.round(difference * 1_000) / 1_000
   const tolerance = Math.max(definition.tolerance, Math.abs(baselineValue) * 0.01)
-  const direction = Math.abs(delta) <= tolerance
+  const roundingNoise = Number.EPSILON * Math.max(1, Math.abs(baselineValue), Math.abs(currentValue))
+  const direction = Math.abs(delta) <= tolerance + roundingNoise
     ? 'unchanged'
     : delta < 0 ? 'improved' : 'regressed'
   return { ...metric, baselineValue, currentValue, delta, direction }

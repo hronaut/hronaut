@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve small CLS changes in performance baseline comparisons so rounding does not hide layout-shift regressions.
+
 ## [2.13.3] - 2026-10-04
 
 ### Changed

@@ -123,9 +123,9 @@ describe('performance audit', () => {
       direction: 'improved'
     })
     expect(result.comparison.metrics.find((metric) => metric.name === 'CLS')).toMatchObject({
-      delta: 0.001,
       direction: 'unchanged'
     })
+    expect(result.comparison.metrics.find((metric) => metric.name === 'CLS')?.delta).toBeCloseTo(0.001, 12)
     expect(result.comparison.metrics.find((metric) => metric.name === 'LOAD')).toMatchObject({
       delta: 150,
       direction: 'regressed'
@@ -139,6 +139,26 @@ describe('performance audit', () => {
       delta: null,
       direction: 'unavailable'
     })
+  })
+
+  it.each([
+    [0, 0.0014, 'regressed'],
+    [0.0014, 0, 'improved'],
+    [0.2, 0.2021, 'regressed'],
+    [0.2, 0.202, 'unchanged'],
+    [0, 0.0000004, 'unchanged']
+  ] as const)('preserves the CLS change from %s to %s when classifying %s', (before, after, direction) => {
+    const environment = {
+      network: 'none' as const, cacheDisabled: false, bypassServiceWorker: false,
+      dataSaver: 'auto' as const, cpuThrottlingRate: 1, animationPlaybackRate: 1 as const,
+      viewport: { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false, touch: false },
+      zoomPercent: 100, userAgentOverridden: false,
+      localeOverridden: false, timezoneOverridden: false, extraHttpHeaders: false
+    }
+    const result = buildPerformanceComparison(sampleReport({ cls: before }), sampleReport({ cls: after }), environment, environment)
+    const cls = result.comparison.metrics.find(metric => metric.name === 'CLS')!
+    expect(cls.delta).toBe(after - before)
+    expect(cls.direction).toBe(direction)
   })
 
   it('flags URL and environment mismatches independently', () => {
