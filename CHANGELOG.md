@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Highlight the Settings gear while its page is open so its active state remains visible after the pointer moves away.
+
 ## [2.13.6] - 2026-10-04
 
 ### Fixed

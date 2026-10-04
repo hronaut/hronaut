@@ -1,5 +1,25 @@
 import { expect, test } from './fixtures.js'
 
+for (const theme of ['light', 'dark'] as const) {
+  test(`shows a persistent active Settings gear in ${theme}`, async ({ appWindow }) => {
+    await appWindow.evaluate(`window.hronautSettings.setTheme(${JSON.stringify(theme)})`)
+    const gear = appWindow.getByRole('button', { name: 'Settings', exact: true })
+    await appWindow.mouse.move(400, 60)
+    const inactiveBackground = await gear.evaluate(element => getComputedStyle(element).backgroundColor)
+    await gear.click()
+    await appWindow.mouse.move(400, 60)
+    await expect(gear).toHaveAttribute('aria-pressed', 'true')
+    await expect(gear).not.toHaveCSS('background-color', inactiveBackground)
+    await gear.click()
+    await appWindow.mouse.move(400, 60)
+    await expect(gear).toHaveAttribute('aria-pressed', 'false')
+    await expect(gear).toHaveCSS('background-color', inactiveBackground)
+    await gear.click()
+    await appWindow.mouse.move(400, 60)
+    await expect(gear).not.toHaveCSS('background-color', inactiveBackground)
+  })
+}
+
 test('toggles Settings with the gear and keeps search, reset and close in the header', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
   const settings = appWindow.getByRole('tabpanel', { name: 'Settings', exact: true })
