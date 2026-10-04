@@ -4,7 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.13.4] - 2026-10-04
+
+### Changed
+
+- Deliver the redesigned Settings utility tab from the unpublished 2.13.3 candidate, with bottom-of-rail placement, the correct title, fewer duplicate controls, and readable content width.
+
 ### Fixed
+
+- Verify the translated active Settings tab instead of the intentionally hidden duplicate gear button. This outdated localization assertion prevented 2.13.3 publication.
 
 - Preserve small CLS changes in performance baseline comparisons so rounding does not hide layout-shift regressions.
 
