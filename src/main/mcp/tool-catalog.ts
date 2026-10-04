@@ -101,6 +101,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_storage_changes: nonDestructiveTool('Track browser storage changes'),
   browser_storage_usage: readOnlyTool('Inspect browser storage usage'),
   browser_indexeddb: readOnlyTool('Inspect IndexedDB'),
+  browser_pwa_lifecycle: nonDestructiveTool('Observe service-worker lifecycle'),
   browser_pwa: readOnlyTool('Inspect PWA and offline data'),
   browser_navigate: destructiveTool('Navigate the browser'),
   browser_history: destructiveTool('Control page history'),
@@ -236,6 +237,10 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
     name: 'browser_indexeddb',
     category: 'Inspection',
     description: 'Inspect bounded IndexedDB databases, object-store schemas, indexes, counts, keys, and optional record previews for one workspace tab. Values are omitted by default and the tool is read-only.'
+  },
+  {
+    name: 'browser_pwa_lifecycle', category: 'Inspection',
+    description: 'Explicitly start, get, stop or clear bounded service-worker lifecycle observations for a top-level HTTP(S) page. No worker lifecycle mutations, messages, source evaluation or cache/permission changes. Registrations belong to the origin and workspace, not exclusively the tab. Records observed callback timestamps and capture-local worker identities; history is always incomplete. Discovery polls once per second and may miss early/short-lived transitions. Maximum 100 events, 20 registrations, 100 workers and two minutes; five captures retained in memory, oldest stopped first. Navigation, closure, debugger or authority loss interrupts and retains the last drained evidence. get is read-only and returns the last drained snapshot. Use captureId with another live tab in the same workspace to read a closed tab capture. No universal worker-lifetime guarantee.'
   },
   {
     name: 'browser_pwa',

@@ -19,6 +19,7 @@ import { useSiteStorageController } from '../composables/useSiteStorageControlle
 import PanelDockPicker from './PanelDockPicker.vue'
 import SiteStorageChangesView from './SiteStorageChangesView.vue'
 import SiteStorageIndexedDbView from './SiteStorageIndexedDbView.vue'
+import PwaLifecyclePanel from './PwaLifecyclePanel.vue'
 import SiteStoragePwaView from './SiteStoragePwaView.vue'
 import SiteStorageUsageView from './SiteStorageUsageView.vue'
 
@@ -195,8 +196,9 @@ onBeforeUnmount(dispose)
         @copy="copySiteStorageIndexedDb"
         @move="moveSiteStorageIndexedDbPage"
       />
+      <template v-else-if="siteStoragePwaOpen">
+      <PwaLifecyclePanel :tab="activeTab" />
       <SiteStoragePwaView
-        v-else-if="siteStoragePwaOpen"
         v-model:cache="siteStoragePwaCache"
         v-model:query="siteStoragePwaQuery"
         :state="siteStoragePwaState"
@@ -210,6 +212,7 @@ onBeforeUnmount(dispose)
         @filter="filterSiteStoragePwa"
         @move="moveSiteStoragePwaPage"
       />
+      </template>
       <SiteStorageChangesView
         v-else
         :state="siteStorageChangesState"
