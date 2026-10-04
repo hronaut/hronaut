@@ -15,7 +15,8 @@ test('switches language live through Settings and persists it across restart', a
 
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
   await expect(appWindow.getByRole('heading', { name: 'Тема застосунку' })).toBeVisible()
-  await expect(appWindow.getByRole('button', { name: 'Налаштування', exact: true })).toBeVisible()
+  await expect(appWindow.getByRole('tab', { name: 'Налаштування', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(appWindow.getByRole('button', { name: 'Налаштування', exact: true })).toHaveCount(0)
   expect(await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.map((item) => item.label))).toContain('Редагування')
 
   const detachedPromise = electronApp.waitForEvent('window')
