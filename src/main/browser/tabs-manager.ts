@@ -557,6 +557,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   url: string
   loading: boolean
   navigationGeneration: number
+  performanceDocumentRouted?: boolean
   humanInteractionGeneration: number
   browserSessionGeneration: number
   overviewPreviewSequence: number
@@ -4974,7 +4975,7 @@ export class BrowserTabsManager {
       : ++tab.performanceBaselineGeneration
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       PERFORMANCE_AUDIT_WORLD_ID,
-      [{ code: performanceAuditPageScript(webVitalsSource, normalized, webVitalsVersion) }],
+      [{ code: performanceAuditPageScript(webVitalsSource, normalized, webVitalsVersion, tab.performanceDocumentRouted === true) }],
       false
     ) as Omit<BrowserPerformanceReport, 'tabId'>
     const current = this.tabs.get(tab.id)
@@ -8014,7 +8015,10 @@ export class BrowserTabsManager {
       this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
         this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
       ))
-      if (isSameDocument) return
+      if (isSameDocument) {
+        tab.performanceDocumentRouted = true
+        return
+      }
       tab.faviconAbortController?.abort()
       tab.faviconAbortController = undefined
       tab.faviconRequestId += 1
@@ -8050,6 +8054,8 @@ export class BrowserTabsManager {
     })
     webContents.on('did-navigate', (_event, url) => {
       if (tab.sleeping) return
+      // Reset only when a new main-frame document commits, never on a failed load.
+      tab.performanceDocumentRouted = false
       this.trackWorkspaceOrigin(tab, url)
       tab.memoryBaseline = undefined
       const previousUrl = tab.url
@@ -8072,6 +8078,7 @@ export class BrowserTabsManager {
       // A frame's hash or history change does not represent another visit to
       // the tab's top-level page.
       if (!isMainFrame) return
+      tab.performanceDocumentRouted = true
       syncNavigation()
       this.reproRecorder.navigated(tab, url, true)
       if (!tab.suppressInitialHistory) this.recordVisit(tab)

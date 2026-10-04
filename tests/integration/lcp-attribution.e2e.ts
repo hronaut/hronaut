@@ -108,6 +108,10 @@ test('reports bounded LCP phases and incomplete evidence on real Electron pages'
         const routed = await call('browser_performance', args) as BrowserPerformanceReport
         expect(routed.metrics.LCP!.lcpAttribution).toMatchObject({ status: 'unsupported', reason: 'unsupported-navigation', candidateTimeMs: null, resourceLoadDurationMs: null })
         expect(routed.metrics.LCP!.lcpAttribution).not.toHaveProperty('resourceUrl')
+        await page.evaluate(url => history.pushState({}, '', url), url)
+        const returned = await call('browser_performance', args) as BrowserPerformanceReport
+        expect(returned.metrics.LCP!.lcpAttribution).toMatchObject({ status: 'unsupported', reason: 'unsupported-navigation', candidateTimeMs: null })
+        expect(returned.metrics.LCP!.lcpAttribution).not.toHaveProperty('resourceUrl')
         await page.goto(`http://127.0.0.1:${address.port}/?mode=text&visit=next`)
         let next: BrowserPerformanceReport | undefined
         await expect.poll(async () => {
@@ -116,6 +120,27 @@ test('reports bounded LCP phases and incomplete evidence on real Electron pages'
         }).toBe('#text')
         expect(next!.metrics.LCP!.lcpAttribution).toMatchObject({ status: 'complete', resourceTiming: 'not-applicable' })
         expect(next!.metrics.LCP!.lcpAttribution).not.toHaveProperty('resourceUrl')
+        await page.evaluate(() => {
+          const original = location.href
+          history.pushState({}, '', '/between-measurements')
+          history.replaceState({}, '', original)
+        })
+        const roundtrip = await call('browser_performance', args) as BrowserPerformanceReport
+        expect(roundtrip.metrics.LCP!.lcpAttribution).toMatchObject({ status: 'unsupported', reason: 'unsupported-navigation', candidateTimeMs: null })
+        expect(roundtrip.metrics.LCP!.lcpAttribution).not.toHaveProperty('target')
+        await page.goto(`http://127.0.0.1:${address.port}/?mode=text&visit=before-first`)
+        await page.evaluate(() => {
+          const original = location.href
+          history.pushState({}, '', '/before-first-measurement')
+          history.replaceState({}, '', original)
+        })
+        let first: BrowserPerformanceReport | undefined
+        await expect.poll(async () => {
+          first = await call('browser_performance', args) as BrowserPerformanceReport
+          return first.metrics.LCP !== null
+        }).toBe(true)
+        expect(first!.metrics.LCP!.lcpAttribution).toMatchObject({ status: 'unsupported', reason: 'unsupported-navigation', candidateTimeMs: null })
+        expect(first!.metrics.LCP!.lcpAttribution).not.toHaveProperty('target')
         await appWindow.evaluate(`window.hronaut.setTabAgentPaused(${JSON.stringify(state.activeTabId)}, true)`)
         const paused = await client.callTool({ name: 'browser_performance', arguments: args }) as CallToolResult
         expect(paused.isError).toBe(true)

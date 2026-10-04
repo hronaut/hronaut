@@ -103,11 +103,13 @@ export function buildPerformanceComparison(
 export function performanceAuditPageScript(
   webVitalsSource: string,
   options: NormalizedPerformanceOptions,
-  webVitalsVersion: string
+  webVitalsVersion: string,
+  documentRouted = false
 ): string {
   const config = JSON.stringify({
     ...options,
     version: webVitalsVersion,
+    documentRouted,
     maxTargets: PERFORMANCE_AUDIT_LIMITS.maxTargetsPerMetric,
     maxTargetChars: PERFORMANCE_AUDIT_LIMITS.maxTargetChars,
     maxLongAnimationFrames: PERFORMANCE_AUDIT_LIMITS.maxLongAnimationFrames,
@@ -375,8 +377,9 @@ export function performanceAuditPageScript(
       const longFrameDurations = longFrames.map((entry) => entry.durationMs);
       const metrics = { ...collector.metrics };
       // The default Web Vitals observer is document-scoped, not SPA-scoped.
+      // The main process remembers routing even if the URL returns between reads.
       // Do not label an earlier candidate as fresh phase evidence after routing.
-      if (metrics.LCP && navigation?.name && navigation.name !== location.href) {
+      if (metrics.LCP && (config.documentRouted || (navigation?.name && navigation.name !== location.href))) {
         metrics.LCP = { ...metrics.LCP, lcpAttribution: lcpAttribution({ navigationType: 'soft-navigation' }) };
       }
       resolve({
