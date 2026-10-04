@@ -22,6 +22,9 @@ test('measures distinct SPA visits without replacing document metrics or leaking
     contents.sendInputEvent({ type: 'mouseDown', x: 80, y: 40, button: 'left', clickCount: 1 })
     contents.sendInputEvent({ type: 'mouseUp', x: 80, y: 40, button: 'left', clickCount: 1 })
   }, id)
+  // The document observer is asynchronous. Establish its real painted candidate
+  // before the first click finalizes document LCP and starts SPA attribution.
+  await expect.poll(async () => (await measure()).metrics.LCP?.value ?? null).not.toBeNull()
   const initial = await measure({ action: 'set-baseline' })
   expect(initial.softNavigations).toMatchObject({ status: 'awaiting-navigation', historyComplete: false, navigations: [] })
   const ids: string[] = []
