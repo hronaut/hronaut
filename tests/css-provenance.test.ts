@@ -73,6 +73,14 @@ describe('explicit bounded CSS provenance', () => {
     expect(new TextEncoder().encode(JSON.stringify(result)).byteLength).toBeLessThanOrEqual(CSS_PROVENANCE_LIMITS.outputBytes)
     expect(result.candidates.every(candidate => candidate.inheritanceDepth <= 10)).toBe(true)
   })
+  it('omits overlong source URLs rather than returning a misleading prefix and marks the cap', () => {
+    const long = cssSourceHeader({ sourceURL: 'https://example.test/' + 'x'.repeat(3_000), startLine: 0, startColumn: 0 })
+    expect(long.url).toBeUndefined()
+    expect(long.truncated).toBe(true)
+    const result = normalizeCssProvenance({ properties: ['display'], headers: new Map([['sheet', long]]), computed: {}, matched: { matchedCSSRules: [rule()] } })
+    expect(result.truncated).toBe(true)
+    expect(result.candidates[0]).not.toHaveProperty('source')
+  })
   it('distinguishes fallback rule coordinates and omits unknown/non-network origins', () => {
     const match = rule()
     delete (match.rule.style.cssProperties[0] as { range?: unknown }).range

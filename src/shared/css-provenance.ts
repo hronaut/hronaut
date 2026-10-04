@@ -24,14 +24,16 @@ const array = (value: unknown): unknown[] => Array.isArray(value) ? value : []
 const text = (value: unknown, limit = 300): string => typeof value === 'string' ? redactDiagnosticText(value.slice(0, limit * 2)).replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, limit) : ''
 const coordinate = (value: unknown): number | undefined => Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 10_000_000 ? Number(value) : undefined
 
-export function cssSourceUrl(value: unknown): string | undefined {
+function cssSourceUrl(value: unknown): { url?: string; truncated?: boolean } {
   try {
-    if (typeof value !== 'string' || value.length > 8_192) return undefined
+    if (typeof value !== 'string') return {}
+    if (value.length > 8_192) return { truncated: true }
     const url = new URL(value)
-    if (!['http:', 'https:'].includes(url.protocol)) return undefined
+    if (!['http:', 'https:'].includes(url.protocol)) return {}
     url.username = ''; url.password = ''; url.search = ''; url.hash = ''
-    return text(url.href, 2_048)
-  } catch { return undefined }
+    if (url.href.length > 2_048) return { truncated: true }
+    return { url: text(url.href, 2_048) }
+  } catch { return {} }
 }
 
 function cssValue(value: unknown, condition = false): string | null {
@@ -42,16 +44,17 @@ function cssValue(value: unknown, condition = false): string | null {
   return text(clean)
 }
 
-export interface CssSourceHeader { url?: string; startLine?: number; startColumn?: number }
+export interface CssSourceHeader { url?: string; startLine?: number; startColumn?: number; truncated?: boolean }
 export function cssSourceHeader(value: unknown): CssSourceHeader {
   const header = record(value)
-  return { url: cssSourceUrl(header.sourceURL), startLine: coordinate(header.startLine), startColumn: coordinate(header.startColumn) }
+  const { url, truncated } = cssSourceUrl(header.sourceURL)
+  return { url, ...(truncated ? { truncated: true } : {}), startLine: coordinate(header.startLine), startColumn: coordinate(header.startColumn) }
 }
 
 const caveats = [
   'Candidate declarations only: order does not establish a winner or an overridden rule. Inheritance, layers, importance, media, animations and the complete cascade are not resolved.',
   'Top-level document only; selectors do not pierce frames or shadow roots. Ancestor declarations may not inherit for the requested property.',
-  'Locations refer to generated stylesheet text, use one-based lines/columns, and are omitted when the stylesheet origin is unknown. No source maps or stylesheet bodies are retrieved.',
+  'Locations refer to generated stylesheet text, use one-based lines/columns, and are omitted when the stylesheet origin is unknown, unsupported, or too long. No source maps or stylesheet bodies are retrieved.',
   'Only requested properties are included. URL-bearing, quoted, custom-property-dependent, attribute-dependent, invalid and overly long values are omitted. Selectors and permitted CSS are page-authored data and may still contain private information.'
 ]
 
@@ -73,7 +76,7 @@ export function normalizeCssProvenance(input: {
       const match = array(record(input.computed).computedStyle).find(item => record(item).name === property)
       return { property, value: cssValue(record(match).value) }
     }),
-    candidates: [], truncated: input.headersTruncated === true, caveats
+    candidates: [], truncated: input.headersTruncated === true || [...input.headers.values()].some(header => header.truncated === true), caveats
   }
   let scanned = 0
   const addStyle = (styleValue: unknown, ruleValue: unknown, kind: 'rule' | 'inline' | 'attributes', inheritanceDepth: number, matchingSelectors?: unknown): void => {
