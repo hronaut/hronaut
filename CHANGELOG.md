@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.13.6] - 2026-10-04
+
+### Fixed
+
+- Only reference the Settings panel from the gear when the panel exists, correcting the accessibility violation that blocked 2.13.5 publication. Includes the gear toggle and header search redesign from that unpublished candidate.
+
 ## [2.13.5] - 2026-10-04
 
 ### Changed

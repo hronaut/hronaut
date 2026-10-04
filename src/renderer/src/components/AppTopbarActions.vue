@@ -151,7 +151,7 @@ const { t } = useI18n({ useScope: 'global' })
       :title="t('shell.actions.settings')"
       :aria-label="t('shell.actions.settings')"
       :aria-pressed="settingsOpen"
-      aria-controls="settings-page"
+      :aria-controls="settingsOpen ? 'settings-page' : undefined"
       :class="{ active: settingsOpen }"
       @click="emit('toggleSettings')"
     >
