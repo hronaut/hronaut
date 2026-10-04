@@ -27,6 +27,8 @@ import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
 import { continuityMarkerScript, readContinuityMarker } from '../../shared/workspace-continuity-marker.js'
 import { browserPostconditionScript, type BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import { normalizeCssProperties, unavailableCssProvenance } from '../../shared/css-provenance.js'
+import { collectCssProvenance } from './css-provenance.js'
 import {
   browserReconciliationScript,
   type BrowserReconciliationCondition,
@@ -5151,29 +5153,61 @@ export class BrowserTabsManager {
   }
 
   async elementInspection(options: BrowserElementInspectionOptions): Promise<BrowserElementInspection> {
+    const properties = normalizeCssProperties(options.cssProperties)
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')
     this.validateTarget(options)
     const context = this.snapshotDeltaContext(tab)
-    const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(
+    const assertCurrent = (): void => {
+      const current = this.tabs.get(tab.id)
+      if (!current || current !== tab || current.webContents.isDestroyed()) {
+        throw new Error('The tab changed during element inspection. Inspect the element again.')
+      }
+      const invalidation = snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(current))
+      if (invalidation) {
+        throw new Error(`The observation context changed during element inspection (${invalidation}). Inspect the element again.`)
+      }
+    }
+    const inspect = () => tab.webContents.executeJavaScriptInIsolatedWorld(
       ELEMENT_INSPECTION_WORLD_ID,
       [{ code: elementInspectionScript(options) }],
       false
     )
-    const current = this.tabs.get(tab.id)
-    if (!current || current !== tab || current.webContents.isDestroyed()) {
-      throw new Error('The tab changed during element inspection. Inspect the element again.')
+    let raw: unknown
+    let cssProvenance: BrowserElementInspection['cssProvenance']
+    if (properties) {
+      const conflict = (): boolean => this.devToolsOpening.has(tab.webContents.id)
+        || tab.webContents.isDevToolsOpened()
+        || Boolean(tab.codeCoverage?.recording || tab.cpuProfile?.recording)
+      if (conflict()) {
+        cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
+        raw = await inspect()
+      } else {
+        try {
+          const capture = await this.withDebugger(tab.webContents, async () => {
+            assertCurrent()
+            if (conflict()) throw new Error('CSS provenance debugger is in use')
+            const selector = options.ref
+              ? '[data-hronaut-ref="' + Array.from(options.ref, character => '\\' + character.codePointAt(0)!.toString(16) + ' ').join('') + '"]'
+              : options.selector!
+            const keepDomEnabled = Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
+            return collectCssProvenance(tab.webContents, selector, properties, assertCurrent, keepDomEnabled, inspect)
+          })
+          raw = capture.inspection
+          cssProvenance = capture.provenance
+        } catch (error) {
+          assertCurrent()
+          if (!conflict() && !this.isUnavailableCdpMethod(error)) throw error
+          cssProvenance = unavailableCssProvenance(properties, conflict() ? 'debugger-in-use' : 'unsupported-protocol')
+          raw = await inspect()
+        }
+      }
+    } else raw = await inspect()
+    assertCurrent()
+    return {
+      ...normalizeElementInspection({ tabId: tab.id, title: tab.title, url: tab.url, raw }),
+      ...(cssProvenance ? { cssProvenance } : {})
     }
-    const invalidation = snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(current))
-    if (invalidation) {
-      throw new Error(`The observation context changed during element inspection (${invalidation}). Inspect the element again.`)
-    }
-    return normalizeElementInspection({
-      tabId: tab.id,
-      title: tab.title,
-      url: tab.url,
-      raw
-    })
   }
 
   async generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {

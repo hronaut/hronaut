@@ -1,3 +1,4 @@
+import { CSS_INSPECTION_PROPERTIES, type CssInspectionProperty } from '../../shared/css-provenance.js'
 import { reproCheckpointSchema } from '../../shared/repro-checkpoint.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
@@ -3254,13 +3255,15 @@ function createBrowserMcpServer(
       inputSchema: {
         tabId: tabIdSchema.optional(),
         ref: z.string().max(200).optional(),
-        selector: z.string().max(1_000).optional()
+        selector: z.string().max(1_000).optional(),
+        cssProperties: z.array(z.enum(CSS_INSPECTION_PROPERTIES)).min(1).max(8).optional()
       }
     },
     tabTool('browser_element_inspect', async (options: {
       tabId?: string
       ref?: string
       selector?: string
+      cssProperties?: CssInspectionProperty[]
     }) => textResult(await manager.elementInspection(options)))
   )
   registerWorkspaceTool(
