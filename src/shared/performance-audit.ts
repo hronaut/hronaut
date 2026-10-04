@@ -1,3 +1,4 @@
+import { lcpAttributionPageFunction, sanitizeLcpAttribution } from './performance-lcp.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkUrl } from './network-details.js'
 import type {
@@ -102,11 +103,13 @@ export function buildPerformanceComparison(
 export function performanceAuditPageScript(
   webVitalsSource: string,
   options: NormalizedPerformanceOptions,
-  webVitalsVersion: string
+  webVitalsVersion: string,
+  documentRouted = false
 ): string {
   const config = JSON.stringify({
     ...options,
     version: webVitalsVersion,
+    documentRouted,
     maxTargets: PERFORMANCE_AUDIT_LIMITS.maxTargetsPerMetric,
     maxTargetChars: PERFORMANCE_AUDIT_LIMITS.maxTargetChars,
     maxLongAnimationFrames: PERFORMANCE_AUDIT_LIMITS.maxLongAnimationFrames,
@@ -198,6 +201,7 @@ export function performanceAuditPageScript(
         }))
       };
     };
+    const lcpAttribution = ${lcpAttributionPageFunction};
     if (!globalThis.__hronautPerformanceCollector) {
       ${webVitalsSource}
       const metrics = { LCP: null, INP: null, CLS: null, FCP: null, TTFB: null };
@@ -210,13 +214,14 @@ export function performanceAuditPageScript(
           unit: name === 'CLS' ? 'score' : 'ms',
           rating: ['good', 'needs-improvement', 'poor'].includes(metric.rating) ? metric.rating : 'needs-improvement',
           navigationType: boundedText(metric.navigationType || 'navigate', 80),
-          targets: metricTargets(metric)
+          targets: metricTargets(metric),
+          ...(name === 'LCP' ? { lcpAttribution: lcpAttribution(metric) } : {})
         };
       };
-      const observe = (callback) => {
-        try { callback(updateMetric, { reportAllChanges: true }); } catch { /* Unsupported metric. */ }
+      const observe = (callback, options = {}) => {
+        try { callback(updateMetric, { reportAllChanges: true, ...options }); } catch { /* Unsupported metric. */ }
       };
-      observe(globalThis.webVitals.onLCP);
+      observe(globalThis.webVitals.onLCP, { generateTarget: selectorFor });
       observe(globalThis.webVitals.onINP);
       observe(globalThis.webVitals.onCLS);
       observe(globalThis.webVitals.onFCP);
@@ -370,6 +375,13 @@ export function performanceAuditPageScript(
         }
       }
       const longFrameDurations = longFrames.map((entry) => entry.durationMs);
+      const metrics = { ...collector.metrics };
+      // The default Web Vitals observer is document-scoped, not SPA-scoped.
+      // The main process remembers routing even if the URL returns between reads.
+      // Do not label an earlier candidate as fresh phase evidence after routing.
+      if (metrics.LCP && (config.documentRouted || (navigation?.name && navigation.name !== location.href))) {
+        metrics.LCP = { ...metrics.LCP, lcpAttribution: lcpAttribution({ navigationType: 'soft-navigation' }) };
+      }
       resolve({
         url: boundedText(location.href, 4096),
         title: boundedText(document.title, 500),
@@ -377,7 +389,7 @@ export function performanceAuditPageScript(
         observedAt: collector.observedAt,
         scope: 'current-visit',
         engine: { name: 'web-vitals', version: config.version },
-        metrics: collector.metrics,
+        metrics,
         navigation: navigation ? {
           type: boundedText(navigation.type || 'navigate', 40),
           responseStartMs: finite(navigation.responseStart),
@@ -450,6 +462,7 @@ export function performanceAuditPageScript(
           truncated: collector.layoutShiftsTruncated || layoutShifts.length > config.maxReportedLayoutShifts
         },
         caveats: [
+          'LCP phases are browser-timing observations, not causal proof. Missing or restricted evidence is explicit; restoration and soft-navigation phase attribution are unsupported.',
           'This is one local current-visit sample, not field data or a 75th-percentile CrUX result.',
           'INP is unavailable until the page receives a qualifying interaction; some metrics are unavailable for background or short-lived visits.',
           'Long animation frame attribution identifies script entry points rather than necessarily the slowest internal function.',
@@ -479,6 +492,7 @@ export function sanitizePerformanceReport(report: BrowserPerformanceReport): Bro
       metric
         ? {
             ...metric,
+            ...(metric.lcpAttribution ? { lcpAttribution: sanitizeLcpAttribution(metric.lcpAttribution) } : {}),
             navigationType: safePerformanceText(metric.navigationType, 80) ?? 'navigate',
             targets: metric.targets.map((target) => safePerformanceText(target, PERFORMANCE_AUDIT_LIMITS.maxTargetChars))
               .filter((target): target is string => Boolean(target))

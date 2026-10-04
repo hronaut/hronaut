@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconAccountTree from '~icons/material-symbols/account-tree-rounded'
@@ -172,6 +173,8 @@ function localTime(value: Date | number | string): string {
 function accessibilityImpactCount(impact: BrowserAccessibilityImpact): number {
   return accessibilityAudit.value?.violations.filter((violation) => violation.impact === impact).length ?? 0
 }
+
+const lcpAttribution = computed(() => performanceReport.value?.metrics.LCP?.lcpAttribution)
 
 function performanceMetric(name: BrowserPerformanceMetricName): BrowserPerformanceMetric | null {
   return performanceReport.value?.metrics[name] ?? null
@@ -549,6 +552,21 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           </article>
         </div>
         <div class="performance-details">
+          <section v-if="lcpAttribution" data-testid="lcp-attribution">
+            <h3>{{ t('lcpAttribution.heading') }}</h3>
+            <p class="performance-attribution-note">{{ t(`lcpAttribution.${lcpAttribution.status}`) }}</p>
+            <p v-if="lcpAttribution.reason" class="performance-attribution-note">{{ t(`lcpAttribution.${lcpAttribution.reason}`) }}</p>
+            <dl>
+              <div><dt>{{ t('lcpAttribution.ttfb') }}</dt><dd>{{ lcpAttribution.timeToFirstByteMs == null ? t('performance.unavailable') : localDuration(lcpAttribution.timeToFirstByteMs) }}</dd></div>
+              <div><dt>{{ t('lcpAttribution.discovery') }}</dt><dd>{{ lcpAttribution.resourceLoadDelayMs == null ? t('performance.unavailable') : localDuration(lcpAttribution.resourceLoadDelayMs) }}</dd></div>
+              <div><dt>{{ t('lcpAttribution.transfer') }}</dt><dd>{{ lcpAttribution.resourceLoadDurationMs == null ? t('performance.unavailable') : localDuration(lcpAttribution.resourceLoadDurationMs) }}</dd></div>
+              <div><dt>{{ t('lcpAttribution.render') }}</dt><dd>{{ lcpAttribution.elementRenderDelayMs == null ? t('performance.unavailable') : localDuration(lcpAttribution.elementRenderDelayMs) }}</dd></div>
+            </dl>
+            <p v-if="lcpAttribution.resourceTiming === 'not-applicable'" class="performance-attribution-note">{{ t('lcpAttribution.text') }}</p>
+            <p v-if="lcpAttribution.target" class="performance-lcp-source"><code>{{ lcpAttribution.target }}</code></p>
+            <p v-if="lcpAttribution.resourceUrl" class="performance-lcp-source">{{ lcpAttribution.resourceUrl }}</p>
+            <p class="performance-attribution-note">{{ t('lcpAttribution.note') }}</p>
+          </section>
           <section>
             <h3>{{ t('performance.loading') }}</h3>
             <dl>

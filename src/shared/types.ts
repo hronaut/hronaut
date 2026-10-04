@@ -846,6 +846,19 @@ export type BrowserPerformanceComparisonMetricName =
   | 'LONG_TASK_BLOCKING'
   | 'LOAF_BLOCKING'
 
+export interface BrowserPerformanceLcpAttribution {
+  status: 'complete' | 'incomplete' | 'unsupported'
+  reason?: 'missing-candidate' | 'missing-navigation' | 'missing-resource' | 'restricted-timing' | 'inconsistent-timing' | 'unsupported-navigation'
+  resourceTiming: 'observed' | 'missing' | 'restricted' | 'not-applicable'
+  candidateTimeMs: number | null
+  timeToFirstByteMs: number | null
+  resourceLoadDelayMs: number | null
+  resourceLoadDurationMs: number | null
+  elementRenderDelayMs: number | null
+  target?: string
+  resourceUrl?: string
+}
+
 export interface BrowserPerformanceMetric {
   name: BrowserPerformanceMetricName
   value: number
@@ -853,6 +866,7 @@ export interface BrowserPerformanceMetric {
   rating: BrowserPerformanceRating
   navigationType: string
   targets: string[]
+  lcpAttribution?: BrowserPerformanceLcpAttribution
 }
 
 export interface BrowserPerformanceLongAnimationFrame {

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Explain observed LCP with bounded loading and rendering phases in performance reports and Page tools, explicitly marking missing timing evidence and unsupported navigation contexts.
+
 ### Fixed
 
 - Reject performance measurements when the browser environment changes during collection, preserving existing baselines instead of labeling mixed observations with the final settings.

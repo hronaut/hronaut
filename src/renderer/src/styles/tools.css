@@ -496,6 +496,7 @@
 .performance-user-timings { @apply [margin-top:0]; }
 .performance-user-timings output { @apply [min-width:46px]; }
 .performance-layout-shifts output { @apply [min-width:46px]; }
+.performance-lcp-source { @apply [margin:7px_0] [font-size:12px] [overflow-wrap:anywhere]; }
 .performance-attribution-note { @apply [margin:7px_0_0] text-muted [font-size:11px]; }
 .performance-hint { @apply flex items-start [gap:7px] [margin:14px_0_0] [padding:10px] [border-radius:8px] text-muted bg-accent-soft [font-size:12px] [line-height:1.45]; }
 .performance-hint svg { @apply [width:16px] [height:16px] flex-none text-accent-copy; }
