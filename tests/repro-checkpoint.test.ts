@@ -37,6 +37,23 @@ describe('explicit Repro checkpoints', () => {
       expect(window.eval(reproCheckpointScript(input)).observedMatch).toBe(false)
     } finally { document.body.replaceChildren() }
   })
+  it.each(['target', 'descendant'])('rejects text targets with an open shadow root on the %s without reading its contents', location => {
+    document.body.innerHTML = '<div id="result">Saved <span>successfully</span><div></div></div>'
+    const target = document.querySelector('#result')!
+    const host = location === 'target' ? target : target.querySelector('div')!
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<span>private-shadow-canary</span><input value="private-form-canary">'
+    const before = target.outerHTML
+    Object.defineProperty(shadow, 'childNodes', { get() { throw new Error('Shadow content must not be read') } })
+    Object.defineProperty(shadow, 'textContent', { get() { throw new Error('Shadow text must not be read') } })
+    try {
+      expect(window.eval(reproCheckpointScript(input))).toEqual({ error: 'shadow-text-target' })
+      expect(target.outerHTML).toBe(before)
+      expect(window.eval(reproCheckpointScript({ ...input, selector: 'span', text: 'successfully' })))
+        .toEqual({ selector: 'span', tag: 'span', observedMatch: true })
+    } finally { document.body.replaceChildren() }
+  })
+
   it.each(['nodes', 'characters', 'excluded nodes'])('rejects text observation beyond the %s limit', limit => {
     const element = document.createElement('div')
     element.id = 'result'

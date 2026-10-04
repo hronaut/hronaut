@@ -201,3 +201,44 @@ test('matches exported text assertions when result elements contain script or st
     await expect(run()).rejects.toThrow('toHaveText')
   } finally { await closeFixtureServer(server) }
 })
+
+test('rejects shadow-containing text checkpoints without changing the recording and exports a light-DOM alternative', async ({ appWindow, electronApp }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<html><title>Shadow checkpoint fixture</title><div id="result"><span id="safe">Saved successfully</span><div id="host"></div></div><script>document.querySelector("#host").attachShadow({ mode: "open" }).innerHTML = \'<span>Update failed</span><input value="private-shadow-canary">\';</script></html>')
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('No fixture port')
+  const url = `http://127.0.0.1:${address.port}/`
+  try {
+    const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
+    const tabId = state.activeTabId!
+    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
+    const page = electronApp.context().pages().find(page => page.url() === url)!
+    await expect(page.locator('css:light=#result')).toHaveText('Saved successfullyUpdate failed')
+    const before = await page.evaluate(() => ({ light: document.querySelector('#result')!.outerHTML, shadow: document.querySelector('#host')!.shadowRoot!.innerHTML }))
+    const initial = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('start', tabId), tabId)
+    for (const selector of ['#result', '#host']) {
+      await expect(appWindow.evaluate(({ tabId, context, selector }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, {
+        context, selector, condition: 'text', text: 'Saved successfully', reviewed: true
+      }), { tabId, context: initial.checkpointContext!, selector })).rejects.toThrow('without open shadow roots')
+      const unchanged = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('get', tabId), tabId)
+      expect(unchanged.steps).toEqual(initial.steps)
+      expect(JSON.stringify(unchanged)).not.toContain('private-shadow-canary')
+    }
+    expect(await page.evaluate(() => ({ light: document.querySelector('#result')!.outerHTML, shadow: document.querySelector('#host')!.shadowRoot!.innerHTML }))).toEqual(before)
+    const accepted = await appWindow.evaluate(({ tabId, context }) => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('checkpoint', tabId, {
+      context, selector: '#safe', condition: 'text', text: 'Saved successfully', reviewed: true
+    }), { tabId, context: initial.checkpointContext! })
+    expect(accepted.steps.at(-1)?.expectation?.observedMatch).toBe(true)
+    const stopped = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.manageRepro('stop', tabId), tabId)
+    const code = formatReproAsPlaywright(stopped).replace(/^import .*\n/, '')
+    let execution: Promise<void> | undefined
+    const register = (_title: string, body: (context: { page: Page }) => Promise<void>) => { execution = body({ page }) }
+    new Function('test', 'expect', code)(register, expect.configure({ timeout: 500 }))
+    if (!execution) throw new Error('Generated test did not register')
+    await execution
+    expect(JSON.stringify(stopped) + code).not.toContain('private-shadow-canary')
+  } finally { await closeFixtureServer(server) }
+})

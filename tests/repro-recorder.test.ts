@@ -341,6 +341,7 @@ describe('Repro checkpoint authority', () => {
 describe('Repro checkpoint page error boundary', () => {
   it.each([
     ['excluded-target', 'form values'],
+    ['shadow-text-target', 'without open shadow roots'],
     ['ambiguous-target', 'exactly one'],
     ['invalid-selector', 'valid CSS'],
     ['unsupported-target', 'represented safely'],

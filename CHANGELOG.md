@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject Repro text checkpoints containing open shadow roots, preventing a recorded match from disagreeing with exported Playwright assertions while keeping shadow content outside recording scope.
+
 ## [2.14.0] - 2026-10-04
 
 ### Added
