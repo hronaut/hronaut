@@ -154,6 +154,7 @@ const api: HronautApi = {
   inspectStorageUsage: (tabId?: string) => ipcRenderer.invoke('browser:storage-usage', tabId),
   storageChanges: (options: BrowserStorageChangesOptions = {}) => ipcRenderer.invoke('browser:storage-changes', options),
   inspectIndexedDb: (options: BrowserIndexedDbOptions = {}) => ipcRenderer.invoke('browser:indexeddb', options),
+  pwaLifecycle: options => ipcRenderer.invoke('browser:pwa-lifecycle', options),
   inspectPwa: (options: BrowserPwaOptions = {}) => ipcRenderer.invoke('browser:pwa', options),
   navigate: (options: NavigateOptions) => ipcRenderer.invoke('browser:navigate', options),
   back: (tabId?: string) => ipcRenderer.invoke('browser:back', tabId),

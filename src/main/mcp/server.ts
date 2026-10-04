@@ -1,3 +1,4 @@
+import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { CSS_INSPECTION_PROPERTIES, type CssInspectionProperty } from '../../shared/css-provenance.js'
 import { reproCheckpointSchema } from '../../shared/repro-checkpoint.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -370,6 +371,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_repro: new Set(['get']),
   browser_video: new Set(['get']),
   browser_dom_changes: new Set(['get']),
+  browser_pwa_lifecycle: new Set(['get']),
   browser_issues: new Set(['list']),
   browser_console: new Set(['list']),
   browser_diagnostic_logs: new Set(['get']),
@@ -422,6 +424,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_repro: 'browser-state',
   browser_video: 'browser-state',
   browser_dom_changes: 'browser-state',
+  browser_pwa_lifecycle: 'browser-state',
   browser_visual_compare: 'browser-state',
   browser_issues: 'browser-state',
   browser_console: 'browser-state',
@@ -475,6 +478,7 @@ export function mcpCapabilityAction(toolName: string, input: Record<string, unkn
   if (typeof input.action === 'string') return input.action
   if (toolName === 'browser_console' || toolName === 'browser_network') return input.clear === true ? 'clear' : 'list'
   if (toolName === 'browser_downloads') return 'list'
+  if (toolName === 'browser_pwa_lifecycle') return 'get'
   return undefined
 }
 
@@ -1342,7 +1346,11 @@ function createBrowserMcpServer(
       requireAgentWorkspace(workspaceId)
       if (action === 'ownership-status') return textResult({ workspaceId, writeLease: workspaceLeases.status(workspaceId, client.id) })
       if (action === 'claim-ownership') return textResult({ workspaceId, writeLease: workspaceLeases.claim(workspaceId, client.id) })
-      if (action === 'release-ownership') return textResult({ workspaceId, writeLease: workspaceLeases.release(workspaceId, client.id) })
+      if (action === 'release-ownership') {
+        const writeLease = workspaceLeases.release(workspaceId, client.id)
+        manager.interruptPwaLifecycleWorkspace(workspaceId, 'ownership-released')
+        return textResult({ workspaceId, writeLease })
+      }
       if (action === 'rename') {
         if (!name) throw new TypeError('name is required to rename a workspace')
         return textResult(manager.renameMcpTabGroup(workspaceId, name, true))
@@ -1795,6 +1803,16 @@ function createBrowserMcpServer(
                   requireActiveCapabilityDispatch(name, actionInput)
                   requireAgentWorkspace(workspaceId)
                   if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
+                  if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+                } } : {}),
+                ...(name === 'browser_pwa_lifecycle' ? { validateLifecycle: () => {
+                  requireCurrentControl()
+                  requireActiveCapabilityDispatch(name, actionInput)
+                  requireAgentWorkspace(workspaceId)
+                  if (writeLease?.generation) {
+                    const current = workspaceLeases.status(workspaceId, client.id)
+                    if (current.status !== 'owned' || current.generation !== writeLease.generation) throw new Error('Workspace ownership changed')
+                  }
                   if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
                 } } : {}),
                 ...(name === 'browser_video' ? { recordingSignal: extra?.signal, validateRecording: () => {
@@ -2935,6 +2953,19 @@ function createBrowserMcpServer(
       limit: number
       includeValues: boolean
     }) => textResult(await manager.inspectIndexedDb({ tabId, database, objectStore, offset, limit, includeValues })))
+  )
+  registerWorkspaceTool(
+    'browser_pwa_lifecycle',
+    {
+      description: toolDescription('browser_pwa_lifecycle'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        captureId: z.string().uuid().optional().describe('Read retained evidence from a previous capture in this workspace, including a closed tab.'),
+        action: z.enum(['start', 'get', 'stop', 'clear']).default('get')
+      }
+    },
+    tabTool('browser_pwa_lifecycle', async ({ validateLifecycle, ...options }: PwaLifecycleOptions & { validateLifecycle?: () => void }) =>
+      textResult(await manager.pwaLifecycle(options, validateLifecycle)), 'never')
   )
   registerWorkspaceTool(
     'browser_pwa',

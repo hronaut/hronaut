@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Observe bounded service-worker update history from MCP or Site storage → Offline, with version identities, explicit stop controls and retained interruption evidence. Observations always report incomplete history and never invoke worker lifecycle actions.
 - Opt-in rendered-font inspection for ordinary leaf elements, with bounded font usage metadata and explicit exclusions for form controls, editors, containers and shadow content.
 
 ## [2.15.0] - 2026-10-04

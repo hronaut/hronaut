@@ -1,3 +1,4 @@
+import type { PwaLifecycleOptions, PwaLifecycleReport } from './pwa-lifecycle.js'
 import type { CssInspectionProperty } from './css-provenance.js'
 import type { IncidentCaptureInput, IncidentDraft, IncidentReviewInput, IncidentPreview } from './incident-package.js'
 import type { BrowserReproCheckpointInput, BrowserReproExpectation } from './repro-checkpoint.js'
@@ -234,6 +235,7 @@ export interface BrowserTabState {
     stepCount: number
     startedAt: string
   }
+  pwaLifecycleActive?: boolean
   domChangesRecording?: {
     active: boolean
     changeCount: number
@@ -2545,6 +2547,7 @@ export interface HronautApi {
   manageStorage(options: BrowserStorageOptions): Promise<BrowserStorageResult>
   inspectStorageUsage(tabId?: string): Promise<BrowserStorageUsageReport>
   inspectIndexedDb(options?: BrowserIndexedDbOptions): Promise<BrowserIndexedDbReport>
+  pwaLifecycle(options: PwaLifecycleOptions): Promise<PwaLifecycleReport | null>
   inspectPwa(options?: BrowserPwaOptions): Promise<BrowserPwaReport>
   storageChanges(options?: BrowserStorageChangesOptions): Promise<BrowserStorageChangesReport>
   navigate(options: NavigateOptions): Promise<BrowserState>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
+import IconStopCircle from '~icons/material-symbols/stop-circle-rounded'
 import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -507,6 +508,12 @@ watch(
 )
 
 defineExpose({ expandTabGroup, expandTabGroupForTab })
+const workerCaptureError = ref('')
+async function stopWorkerCapture(tabId: string): Promise<void> {
+  workerCaptureError.value = ''
+  try { await window.hronaut.pwaLifecycle({ tabId, action: 'stop' }) }
+  catch (error) { workerCaptureError.value = error instanceof Error ? error.message : String(error) }
+}
 </script>
 
 <template>
@@ -595,9 +602,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         :aria-label="workspace.name"
         :aria-orientation="orientation"
       >
+        <template v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)" :key="tab.id">
         <UiButton appearance="application"
-          v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
-          :key="tab.id"
           class="tab"
           :class="{
             active: tab.active && !settingsActive,
@@ -644,6 +650,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           <span v-else-if="tab.url === 'about:blank'" class="favicon-fallback" aria-hidden="true">✦</span>
           <IconLanguage v-else class="favicon-fallback" aria-hidden="true" />
           <IconRecord v-if="tab.videoRecording === 'recording'" style="color: #e5484d" :aria-label="t('video.status.recording')" />
+          <IconRecord v-if="tab.pwaLifecycleActive" :aria-label="t('pwaLifecycle.active')" />
           <span class="tab-title">{{ tab.title || t('tabSearch.newTabTitle') }}</span>
           <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
           <IconPauseCircle v-else-if="tab.pageLifecycleState === 'frozen'" class="tab-freeze-mark" :aria-label="t('shell.tabs.frozen')" />
@@ -679,6 +686,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             @click.stop="emit('closeTab', tab.id)"
           ><IconClose aria-hidden="true" /></span>
         </UiButton>
+        <UiButton v-if="tab.pwaLifecycleActive" variant="ghost" size="small" class="tab-pwa-stop" :aria-label="t('pwaLifecycle.stop')" :title="workerCaptureError || t('pwaLifecycle.stop')" @click="stopWorkerCapture(tab.id)"><IconStopCircle aria-hidden="true" /></UiButton>
+        </template>
       </div>
       <UiButton appearance="application"
         class="new-tab workspace-new-tab"
@@ -720,3 +729,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
   </div>
   </nav>
 </template>
+
+<style scoped>
+.tab-pwa-stop { flex-shrink: 0; width: 28px; }
+</style>

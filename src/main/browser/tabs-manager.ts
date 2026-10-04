@@ -1,3 +1,5 @@
+import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
+import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import { utf8Prefix } from '../../shared/utf8.js'
 import { boundStorageItems } from './storage-items.js'
@@ -1006,6 +1008,7 @@ export class BrowserTabsManager {
   }
 
   private advanceWorkspaceObservationGeneration(workspaceId: string): void {
+    this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, 'workspace-control-changed')
     const observationGeneration = this.workspaceObservationGeneration(workspaceId) + 1
     this.workspaceObservationGenerations.set(workspaceId, observationGeneration)
     for (const tab of this.tabs.values()) {
@@ -1176,6 +1179,10 @@ export class BrowserTabsManager {
   private readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
   private readonly browserCookieImportSessions = new Set<Session>()
   private readonly webContentsToTab = new Map<number, string>()
+  private readonly pwaLifecycleRecorder = new BrowserPwaLifecycle<BrowserTab>({
+    isCurrent: tab => !this.destroyed && this.tabs.get(tab.id) === tab,
+    changed: () => this.changed(false)
+  })
   private readonly debuggerQueue = new BrowserDebuggerQueue()
   private interactionLockTail: Promise<void> = Promise.resolve()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
@@ -2413,6 +2420,14 @@ export class BrowserTabsManager {
         fallbackReason: reason
       })
     }
+  }
+
+  async pwaLifecycle(options: PwaLifecycleOptions, validate: () => void = () => undefined) {
+    return this.pwaLifecycleRecorder.manage(this.getTab(options.tabId), options, validate)
+  }
+
+  interruptPwaLifecycleWorkspace(workspaceId: string, reason: string): void {
+    this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason)
   }
 
   async inspectPwa(options: BrowserPwaOptions = {}): Promise<BrowserPwaReport> {
@@ -7393,6 +7408,7 @@ export class BrowserTabsManager {
     if (this.destroyed) return
     this.splitDivider.cancel()
     this.destroyed = true
+    this.pwaLifecycleRecorder.dispose()
     this.mcpActivityFollower.dispose()
     this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
@@ -8789,6 +8805,7 @@ export class BrowserTabsManager {
           startedAt: tab.reproRecording.startedAt
         }
       } : {}),
+      pwaLifecycleActive: this.pwaLifecycleRecorder.active(tab.id),
       ...(tab.domChangesRecording?.observationGeneration === tab.observationGeneration ? {
         domChangesRecording: {
           active: tab.domChangesRecording.active,

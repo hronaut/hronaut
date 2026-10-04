@@ -2735,6 +2735,15 @@ function registerIpc(): void {
       includeValues: includeValues === true
     })
   })
+  ipcMain.handle('browser:pwa-lifecycle', (event, value: unknown) => {
+    assertTrustedShellSender(event)
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid lifecycle request')
+    const { tabId, captureId, action } = value as Record<string, unknown>
+    if ((tabId !== undefined && typeof tabId !== 'string') || (captureId !== undefined && typeof captureId !== 'string')
+      || !['start', 'get', 'stop', 'clear'].includes(String(action))) throw new TypeError('Invalid lifecycle request')
+    return tabsManager!.pwaLifecycle({ tabId: tabId as string | undefined, captureId: captureId as string | undefined,
+      action: action as 'start' | 'get' | 'stop' | 'clear' })
+  })
   ipcMain.handle('browser:pwa', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid offline app request')
