@@ -47,7 +47,11 @@ test('keeps primary shell states free of accessibility violations', async ({ app
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   findings.settings = await auditShell(appWindow)
 
-  expect(findings).toEqual({ home: [], website: [], settings: [] })
+  await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeHidden()
+  findings.settingsClosed = await auditShell(appWindow)
+
+  expect(findings).toEqual({ home: [], website: [], settings: [], settingsClosed: [] })
 })
 
 test('keeps every theme picker free of color contrast violations', async ({ appWindow }) => {

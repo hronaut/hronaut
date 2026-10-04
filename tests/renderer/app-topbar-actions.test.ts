@@ -103,11 +103,13 @@ describe('AppTopbarActions', () => {
     const rendered = renderActions({ settingsOpen: true })
     const gear = screen.getByRole('button', { name: 'Settings' })
     expect(gear).toHaveAttribute('aria-pressed', 'true')
+    expect(gear).toHaveAttribute('aria-controls', 'settings-page')
     expect(gear).toHaveClass('active')
     await userEvent.setup().click(gear)
     expect(rendered.emitted().toggleSettings).toEqual([[]])
     await rendered.rerender({ settingsOpen: false })
     expect(gear).toHaveAttribute('aria-pressed', 'false')
+    expect(gear).not.toHaveAttribute('aria-controls')
     rendered.mcpStatusController.dispose()
   })
 
