@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Show Web Vitals for the two latest browser-observed SPA routes in performance reports and Page tools, with distinct navigation identities, explicit collection coverage, and sanitized URLs. Document metrics and baseline comparisons keep their existing meaning.
+
 ### Fixed
 
 - Reject Repro text checkpoints containing open shadow roots, preventing a recorded match from disagreeing with exported Playwright assertions while keeping shadow content outside recording scope.

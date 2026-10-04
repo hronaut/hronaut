@@ -236,7 +236,7 @@ describe('performance audit', () => {
       {
         cls,
         PerformanceObserver: MockPerformanceObserver,
-        performance: { getEntriesByType: () => [] },
+        performance: { now: () => 100, getEntriesByType: () => [] },
         location: { href: 'https://example.test/small-layout-shifts' },
         document: { title: 'Small layout shifts' },
         setTimeout
@@ -280,7 +280,7 @@ describe('performance audit', () => {
       ),
       {
         PerformanceObserver: MockPerformanceObserver,
-        performance: { getEntriesByType: () => [] },
+        performance: { now: () => 100, getEntriesByType: () => [] },
         location: { href: 'https://example.test/layout-shifts' },
         document: { title: 'Layout shift burst' },
         setTimeout

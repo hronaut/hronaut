@@ -946,6 +946,22 @@ export interface BrowserPerformanceComparison {
   metrics: BrowserPerformanceComparisonMetric[]
 }
 
+export interface BrowserPerformanceSoftNavigations {
+  status: 'unsupported' | 'awaiting-navigation' | 'observed' | 'incomplete'
+  collectionStartTimeMs: number
+  historyComplete: false
+  maxNavigations: 2
+  truncated: boolean
+  navigations: Array<{
+    navigationId: string
+    navigationType: 'soft-navigation'
+    url: string
+    startTimeMs: number
+    coverage: 'observed' | 'incomplete'
+    metrics: Record<'LCP' | 'INP' | 'CLS', Pick<BrowserPerformanceMetric, 'name' | 'value' | 'unit' | 'rating'> | null>
+  }>
+}
+
 export interface BrowserPerformanceReport {
   tabId: string
   url: string
@@ -953,6 +969,7 @@ export interface BrowserPerformanceReport {
   measuredAt: string
   observedAt: string
   scope: 'current-visit'
+  softNavigations?: BrowserPerformanceSoftNavigations
   engine: { name: 'web-vitals'; version: string }
   metrics: Record<BrowserPerformanceMetricName, BrowserPerformanceMetric | null>
   navigation: {
