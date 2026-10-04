@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-10-04
+
 ### Added
 
 - Explain observed LCP with bounded loading and rendering phases in performance reports and Page tools, explicitly marking missing timing evidence and unsupported navigation contexts.
