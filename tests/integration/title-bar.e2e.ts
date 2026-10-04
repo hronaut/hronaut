@@ -126,7 +126,7 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
 }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
-  await appWindow.getByRole('button', { name: 'Close', exact: true }).click()
+  await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()
 
   const rail = appWindow.locator('.topbar')
   const railTitle = appWindow.locator('.shell-title-bar-surface.surface-rail')

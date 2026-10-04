@@ -123,7 +123,16 @@ watch(open, async (active, _previous, onCleanup) => {
           <span class="eyebrow">{{ t('settings.kicker') }}</span>
           <h2 id="settings-title">{{ t('settings.heading') }}</h2>
         </div>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        <div class="settings-header-actions">
+          <UiButton
+            v-if="resetVisible"
+            class="secondary-button"
+            type="button"
+            :disabled="resetDisabled"
+            @click="resetCurrent"
+          >{{ t('settings.reset') }}</UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        </div>
       </div>
 
       <div
@@ -192,17 +201,6 @@ watch(open, async (active, _previous, onCleanup) => {
           @purchase="purchaseCommercialLicense"
         />
       </div>
-
-      <footer class="settings-footer">
-        <UiButton
-          v-if="resetVisible"
-          class="secondary-button"
-          type="button"
-          :disabled="resetDisabled"
-          @click="resetCurrent"
-        >{{ t('settings.reset') }}</UiButton>
-        <UiButton variant="primary" class="primary-button" type="button" @click="close">{{ t('common.close') }}</UiButton>
-      </footer>
     </section>
   </div>
 </template>

@@ -13,6 +13,7 @@
 
 .settings-dialog { @apply [width:min(1040px,_calc(100vw_-_56px))] [height:min(760px,_calc(100vh_-_64px))] [border-radius:14px]; }
 .settings-header { @apply [min-height:64px] flex-none [padding:14px_22px] [border-bottom-color:var(--border-soft)]; }
+.settings-header-actions { @apply flex items-center [gap:12px]; }
 .settings-header .eyebrow { @apply text-muted [font-size:11px] [font-weight:650] [letter-spacing:.07em]; }
 .settings-header h2 { @apply [font-size:20px] [font-weight:650]; }
 .settings-layout { @apply grid min-h-0 overflow-hidden [flex:1] [grid-template-columns:216px_minmax(0,_1fr)]; }
@@ -38,7 +39,7 @@
 .settings-nav-icon { @apply grid [width:22px] [height:22px] [flex:0_0_22px] place-items-center text-muted; }
 .settings-nav-icon svg { @apply [width:15px] [height:15px]; }
 
-.settings-content { container: settings-content / inline-size; @apply min-w-0 [padding:28px_32px] overflow-y-auto bg-surface-raised; }
+.settings-content { width: 100%; max-width: 1164px; justify-self: center; container: settings-content / inline-size; @apply min-w-0 [padding:28px_32px] overflow-y-auto bg-surface-raised; }
 .setting-copy h3 { @apply m-0 [font-size:23px] [font-weight:650] [letter-spacing:-.025em]; }
 .setting-copy p { @apply [max-width:620px] [margin:7px_0_0] text-muted [font-size:14px] [line-height:1.6]; }
 .theme-groups { @apply grid [gap:20px] [margin-top:20px]; }
@@ -479,8 +480,6 @@
 .update-status-card-actions:empty { @apply hidden; }
 .update-status-card-actions button { @apply [min-width:104px]; }
 
-.settings-footer { @apply flex flex-none [min-height:62px] items-center justify-end [gap:9px] [padding:12px_22px] [border-top:1px_solid_var(--border-soft)] bg-surface; }
-.settings-footer button { @apply [min-width:104px]; }
 .secondary-button { @apply [border:1px_solid_var(--border-soft)] text-copy bg-transparent; }
 .secondary-button:hover { @apply bg-hover; }
 .primary-button { @apply [border:1px_solid_var(--accent)] text-button-copy bg-accent; }

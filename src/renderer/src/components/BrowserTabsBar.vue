@@ -548,19 +548,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
   </UiButton>
   </div>
-  <div v-if="settingsTabOpen" class="settings-tab-entry">
-    <div class="settings-tab-list" role="tablist" :aria-label="t('settings.heading')">
-      <UiButton appearance="application" class="app-home-button settings-tab" :class="{ active: settingsActive }"
-        type="button" role="tab" :aria-selected="Boolean(settingsActive)" aria-controls="settings-page"
-        :aria-label="t('settings.heading')" :title="t('settings.heading')"
-        @click="emit('openSettings')" @keydown.delete.prevent="emit('closeSettings')"
-        @auxclick.middle.prevent="emit('closeSettings')"
-      ><IconSettings aria-hidden="true" /><span class="app-home-label">{{ t('settings.heading') }}</span></UiButton>
-    </div>
-    <UiButton appearance="application" class="settings-tab-close" type="button" :aria-label="t('runtime.locks.closeShortcut')"
-      @click="emit('closeSettings')"
-    ><IconClose aria-hidden="true" /></UiButton>
-  </div>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
     <UiButton appearance="application"
@@ -734,6 +721,19 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :aria-label="t('shell.tabs.scrollForward')"
       @click="scrollTabs(1)"
     ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></UiButton>
+  </div>
+  <div v-if="settingsTabOpen" class="settings-tab-entry">
+    <div class="settings-tab-list" role="tablist" :aria-label="t('settings.heading')">
+      <UiButton appearance="application" class="app-home-button settings-tab" :class="{ active: settingsActive }"
+        type="button" role="tab" :aria-selected="Boolean(settingsActive)" aria-controls="settings-page"
+        :aria-label="t('settings.heading')" :title="t('settings.heading')"
+        @click="emit('openSettings')" @keydown.delete.prevent="emit('closeSettings')"
+        @auxclick.middle.prevent="emit('closeSettings')"
+      ><IconSettings aria-hidden="true" /><span class="app-home-label">{{ t('settings.heading') }}</span></UiButton>
+    </div>
+    <UiButton appearance="application" v-if="!settingsActive" class="settings-tab-close" type="button" :aria-label="t('runtime.locks.closeShortcut')"
+      @click="emit('closeSettings')"
+    ><IconClose aria-hidden="true" /></UiButton>
   </div>
   </nav>
 </template>

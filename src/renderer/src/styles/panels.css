@@ -212,7 +212,6 @@
 @media (max-height: 520px) {
   .settings-dialog .settings-header { @apply [min-height:52px] [padding:10px_16px]; }
   .settings-dialog .settings-header .eyebrow { @apply hidden; }
-  .settings-dialog .settings-footer { @apply [min-height:52px] [padding:8px_16px]; }
   .settings-dialog .settings-search { @apply [padding:6px_8px]; }
 }
 

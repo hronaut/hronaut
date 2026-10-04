@@ -155,7 +155,7 @@ test('keeps supporting text readable in Settings and page tools', async ({ appWi
   }))()`)
   expect(settingsSizes).toEqual({ navigation: 13, description: 14, privacyChoice: 12 })
 
-  await appWindow.getByRole('button', { name: 'Close', exact: true }).click()
+  await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   await expect(appWindow.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
@@ -227,7 +227,7 @@ test('scales Hronaut without zooming the active website and persists the choice'
   await expect(interfaceSize).toHaveValue('1')
   await interfaceSize.selectOption('1.25')
   await expect(interfaceSize).toHaveValue('1.25')
-  await appWindow.getByRole('button', { name: 'Close', exact: true }).click()
+  await appWindow.getByRole('button', { name: 'Close settings', exact: true }).click()
 
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
@@ -298,7 +298,7 @@ test('resets every Appearance preference including interface size', async ({
     page.__appearanceResetProbe = { count: () => count, dispose }
   })
 
-  await appWindow.locator('.settings-footer .secondary-button').click()
+  await appWindow.locator('.settings-header .secondary-button').click()
 
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'en-US')
   await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')

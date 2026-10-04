@@ -98,7 +98,7 @@ test('resets launch-at-startup preferences with the rest of Appearance', async (
     await expect(launchAtStartup).toBeChecked()
     await expect(launchMinimized).toBeChecked()
 
-    await window.locator('.settings-footer .secondary-button').click()
+    await window.locator('.settings-header .secondary-button').click()
 
     await expect(launchAtStartup).not.toBeChecked()
     await expect(launchMinimized).not.toBeChecked()
