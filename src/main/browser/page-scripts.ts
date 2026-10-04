@@ -596,7 +596,7 @@ export function elementPickerInspectionAtPointScript(
   })()`
 }
 
-export function elementInspectionScript(target: { ref?: string; selector?: string }): string {
+export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean }): string {
   return `(() => {
     ${elementInspectionHelpersSource()}
     const target = ${JSON.stringify(target)};
@@ -604,7 +604,13 @@ export function elementInspectionScript(target: { ref?: string; selector?: strin
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
     if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
-    return hronautInspectElement(element);
+    return {
+      ...hronautInspectElement(element),
+      ...(target.includeFonts === true ? { renderedFontsEligible: element instanceof HTMLElement
+        && element.children.length === 0 && !element.shadowRoot
+        && !element.matches('input,textarea,select,option,optgroup,iframe,frame,object,embed')
+        && !snapshotEditingContext(element) } : {})
+    };
   })()`
 }
 

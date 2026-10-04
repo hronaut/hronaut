@@ -3,7 +3,8 @@ import {
   CSS_PROVENANCE_LIMITS, cssSourceHeader, normalizeCssProvenance,
   type CssInspectionProperty, type CssSourceHeader
 } from '../../shared/css-provenance.js'
-import type { BrowserCssProvenance } from '../../shared/types.js'
+import type { BrowserCssProvenance, BrowserRenderedFonts } from '../../shared/types.js'
+import { normalizeRenderedFonts, unavailableRenderedFonts } from '../../shared/rendered-fonts.js'
 
 // Called inside TabsManager's debugger queue. Never attach/detach, evaluate page
 // code, retrieve stylesheet bodies, force pseudo states, or modify style/DOM.
@@ -13,8 +14,9 @@ export async function collectCssProvenance<T>(
   properties: CssInspectionProperty[],
   assertCurrent: () => void,
   keepDomEnabled: boolean,
-  inspect: () => Promise<T>
-): Promise<{ provenance: BrowserCssProvenance; inspection: T }> {
+  inspect: () => Promise<T>,
+  includeFonts = false
+): Promise<{ provenance: BrowserCssProvenance; inspection: T; renderedFonts?: BrowserRenderedFonts }> {
   const headers = new Map<string, CssSourceHeader>()
   let headersTruncated = false
   let revision = 0
@@ -28,7 +30,8 @@ export async function collectCssProvenance<T>(
       }
     }
     if (['CSS.styleSheetAdded', 'CSS.styleSheetChanged', 'CSS.styleSheetRemoved', 'CSS.mediaQueryResultChanged',
-      'DOM.attributeModified', 'DOM.attributeRemoved', 'DOM.childNodeRemoved', 'DOM.childNodeInserted', 'DOM.documentUpdated'].includes(method)) revision++
+      'DOM.attributeModified', 'DOM.attributeRemoved', 'DOM.characterDataModified', 'DOM.childNodeRemoved', 'DOM.childNodeInserted', 'DOM.documentUpdated'].includes(method)) revision++
+    if (includeFonts && ['CSS.fontsUpdated', 'DOM.shadowRootPushed', 'DOM.shadowRootPopped', 'DOM.pseudoElementAdded', 'DOM.pseudoElementRemoved'].includes(method)) revision++
   }
   const command = async (method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>> => {
     assertCurrent()
@@ -47,15 +50,31 @@ export async function collectCssProvenance<T>(
     if (nodes.nodeIds.length !== 1) throw new Error('CSS provenance requires exactly one matching top-level element. Take a fresh snapshot or use a unique selector.')
     const nodeId = nodes.nodeIds[0]!
     const capturedRevision = revision
-    const matched = await command('CSS.getMatchedStylesForNode', { nodeId })
-    const computed = await command('CSS.getComputedStyleForNode', { nodeId })
+    const matched = properties.length ? await command('CSS.getMatchedStylesForNode', { nodeId }) : {}
+    const computed = properties.length ? await command('CSS.getComputedStyleForNode', { nodeId }) : {}
     const inspection = await inspect()
     assertCurrent()
-    const current = await find()
-    if (current.nodeIds.length !== 1 || current.nodeIds[0] !== nodeId || revision !== capturedRevision) {
-      throw new Error('The element or stylesheet changed during CSS provenance inspection. Inspect it again.')
+    const verifyTarget = async (): Promise<void> => {
+      const current = await find()
+      if (current.nodeIds.length !== 1 || current.nodeIds[0] !== nodeId || revision !== capturedRevision) {
+        throw new Error('The element or stylesheet changed during CSS provenance inspection. Inspect it again.')
+      }
     }
-    return { provenance: normalizeCssProvenance({ properties, matched, computed, headers, headersTruncated }), inspection }
+    await verifyTarget()
+    let renderedFonts: BrowserRenderedFonts | undefined
+    if (includeFonts) {
+      // The protocol traverses layout descendants, including closed and UA
+      // shadow trees. A page-world guard alone cannot exclude those trees.
+      const eligible = inspection && typeof inspection === 'object'
+        && (inspection as { renderedFontsEligible?: unknown }).renderedFontsEligible === true
+      const described = eligible ? await command('DOM.describeNode', { nodeId, depth: 0, pierce: false }) : {}
+      const node = described.node as { shadowRoots?: unknown[]; pseudoElements?: unknown[] } | undefined
+      renderedFonts = !node || node.shadowRoots?.length || node.pseudoElements?.length
+        ? unavailableRenderedFonts('unsupported-target')
+        : normalizeRenderedFonts(await command('CSS.getPlatformFontsForNode', { nodeId }))
+    }
+    if (includeFonts) await verifyTarget()
+    return { provenance: normalizeCssProvenance({ properties, matched, computed, headers, headersTruncated }), inspection, ...(renderedFonts ? { renderedFonts } : {}) }
   } finally {
     contents.debugger.removeListener('message', listener)
     if (!contents.isDestroyed() && contents.debugger.isAttached()) {

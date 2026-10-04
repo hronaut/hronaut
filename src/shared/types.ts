@@ -686,6 +686,7 @@ export interface BrowserElementInspectionOptions {
   ref?: string
   selector?: string
   cssProperties?: CssInspectionProperty[]
+  includeFonts?: boolean
 }
 
 export interface BrowserElementBoxEdges {
@@ -717,8 +718,18 @@ export interface BrowserCssProvenance {
   caveats: string[]
 }
 
+export interface BrowserRenderedFonts {
+  status: 'observed' | 'empty' | 'unavailable'
+  reason?: 'debugger-in-use' | 'unsupported-protocol' | 'unsupported-target'
+  scope: 'selected-leaf-element'
+  capturedAt: string
+  fonts: Array<{ familyName: string | null; postScriptName: string | null; isCustomFont: boolean; glyphCount: number }>
+  truncated: boolean
+}
+
 export interface BrowserElementInspection {
   cssProvenance?: BrowserCssProvenance
+  renderedFonts?: BrowserRenderedFonts
   tabId: string
   title: string
   url: string

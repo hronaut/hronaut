@@ -20,6 +20,39 @@ function fixture() {
 }
 
 describe('read-only CSS protocol collection', () => {
+  it('reads fonts only on an eligible leaf without CSS rule retrieval', async () => {
+    const f = fixture()
+    const original = f.debug.sendCommand.getMockImplementation()!
+    f.debug.sendCommand.mockImplementation(async (method: string) => {
+      if (method === 'DOM.describeNode') return { node: { nodeId: 2 } }
+      if (method === 'CSS.getPlatformFontsForNode') return { fonts: [{ familyName: 'Fixture', postScriptName: 'Fixture', glyphCount: 2, isCustomFont: true }] }
+      return original(method)
+    })
+    const result = await collectCssProvenance(f.contents, '#target', [], () => {}, false, async () => ({ renderedFontsEligible: true }), true)
+    expect(result.renderedFonts).toMatchObject({ status: 'observed', fonts: [{ glyphCount: 2 }] })
+    expect(f.debug.sendCommand.mock.calls.map(call => call[0])).not.toContain('CSS.getMatchedStylesForNode')
+    expect(f.debug.listenerCount('message')).toBe(0)
+  })
+  it.each(['private', 'shadow', 'pseudo'])('does not query fonts in %s targets', async kind => {
+    const f = fixture()
+    const original = f.debug.sendCommand.getMockImplementation()!
+    f.debug.sendCommand.mockImplementation(async (method: string) => method === 'DOM.describeNode'
+      ? { node: { ...(kind === 'shadow' ? { shadowRoots: [{}] } : { pseudoElements: [{}] }) } } : original(method))
+    const result = await collectCssProvenance(f.contents, '#target', [], () => {}, false, async () => ({ renderedFontsEligible: kind !== 'private' }), true)
+    expect(result.renderedFonts).toMatchObject({ status: 'unavailable', reason: 'unsupported-target' })
+    expect(f.debug.sendCommand.mock.calls.map(call => call[0])).not.toContain('CSS.getPlatformFontsForNode')
+  })
+  it.each(['CSS.fontsUpdated', 'DOM.characterDataModified', 'DOM.shadowRootPushed'])('rejects %s during font reads and cleans up', async event => {
+    const f = fixture()
+    const original = f.debug.sendCommand.getMockImplementation()!
+    f.debug.sendCommand.mockImplementation(async (method: string) => {
+      if (method === 'DOM.describeNode') return { node: {} }
+      if (method === 'CSS.getPlatformFontsForNode') { f.debug.emit('message', {}, event, {}); return { fonts: [] } }
+      return original(method)
+    })
+    await expect(collectCssProvenance(f.contents, '#target', [], () => {}, false, async () => ({ renderedFontsEligible: true }), true)).rejects.toThrow('changed during CSS provenance')
+    expect(f.debug.listenerCount('message')).toBe(0)
+  })
   it('uses bounded target reads, preserves inspection, and removes domain/listener instrumentation', async () => {
     const f = fixture()
     const result = await collectCssProvenance(f.contents, '#target', ['display'], () => {}, false, f.inspect)
@@ -37,10 +70,11 @@ describe('read-only CSS protocol collection', () => {
     await collectCssProvenance(f.contents, '#target', ['display'], () => {}, true, f.inspect)
     expect(f.debug.sendCommand.mock.calls.map(call => call[0])).not.toContain('DOM.disable')
   })
-  it.each(['target', 'stylesheet'])('rejects %s changes during capture and cleans up', async change => {
+  it.each(['target', 'stylesheet', 'text'])('rejects %s changes during capture and cleans up', async change => {
     const f = fixture()
     f.inspect.mockImplementation(async () => {
       if (change === 'stylesheet') f.debug.emit('message', {}, 'CSS.styleSheetChanged', {})
+      else if (change === 'text') f.debug.emit('message', {}, 'DOM.characterDataModified', {})
       else f.debug.sendCommand.mockImplementation(async method => method === 'DOM.querySelectorAll' ? { nodeIds: [9] } : {})
       return { marker: 'stale' }
     })
