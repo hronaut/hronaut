@@ -185,6 +185,27 @@ describe('reproduction recorder data contracts', () => {
     }
   })
 
+  it.each(['x', 'y'] as const)('accumulates small %s scroll movements without recording jitter', async axis => {
+    vi.useFakeTimers()
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    try {
+      for (const position of [4, 0, 4, 7, 8, 12, 16]) {
+        f.executeJavaScript.mockResolvedValue({ x: 0, y: 0, [axis]: position })
+        f.recorder.observeReproMouse(f.tab, { type: 'mouseWheel', x: 10, y: 10 })
+        await vi.advanceTimersByTimeAsync(250)
+        await f.tab.reproRecording!.queue
+      }
+      const report = await f.recorder.manage(f.tab, 'stop')
+      expect(report.steps.filter(step => step.kind === 'scroll').map(step => step.scroll)).toEqual([
+        { x: 0, y: 0, [axis]: 8 },
+        { x: 0, y: 0, [axis]: 16 }
+      ])
+    } finally {
+      f.recorder.clearReproRecording(f.tab)
+    }
+  })
+
   it('retains unresolved input targets without merging separate edits', async () => {
     const f = fixture()
     await f.recorder.manage(f.tab, 'start')
