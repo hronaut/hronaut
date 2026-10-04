@@ -24,7 +24,6 @@ import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconHelp from '~icons/material-symbols/help-outline-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
-import IconSettings from '~icons/material-symbols/settings-rounded'
 import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
@@ -34,7 +33,6 @@ import { readLocalPreference, writeLocalPreference } from '../local-preferences.
 
 const props = defineProps<{
   state: BrowserState
-  settingsTabOpen?: boolean
   settingsActive?: boolean
   userAttention?: UserAttentionRequest | null
   hydrated: boolean
@@ -50,8 +48,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   openHome: []
-  openSettings: []
-  closeSettings: []
   showWorkspaceContextMenu: [groupId: string]
   newTab: [groupId?: string]
   createWorkspace: []
@@ -721,19 +717,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :aria-label="t('shell.tabs.scrollForward')"
       @click="scrollTabs(1)"
     ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></UiButton>
-  </div>
-  <div v-if="settingsTabOpen" class="settings-tab-entry">
-    <div class="settings-tab-list" role="tablist" :aria-label="t('settings.heading')">
-      <UiButton appearance="application" class="app-home-button settings-tab" :class="{ active: settingsActive }"
-        type="button" role="tab" :aria-selected="Boolean(settingsActive)" aria-controls="settings-page"
-        :aria-label="t('settings.heading')" :title="t('settings.heading')"
-        @click="emit('openSettings')" @keydown.delete.prevent="emit('closeSettings')"
-        @auxclick.middle.prevent="emit('closeSettings')"
-      ><IconSettings aria-hidden="true" /><span class="app-home-label">{{ t('settings.heading') }}</span></UiButton>
-    </div>
-    <UiButton appearance="application" v-if="!settingsActive" class="settings-tab-close" type="button" :aria-label="t('runtime.locks.closeShortcut')"
-      @click="emit('closeSettings')"
-    ><IconClose aria-hidden="true" /></UiButton>
   </div>
   </nav>
 </template>

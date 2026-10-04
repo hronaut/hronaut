@@ -1,24 +1,15 @@
 /* Settings occupies the content area while browser tabs remain available. */
 .settings-overlay.settings-page-overlay { @apply p-0 bg-surface-raised [backdrop-filter:none] [top:var(--shell-content-top,_44px)] [left:var(--tab-rail-width,_0px)] [z-index:10]; }
-.settings-tab-entry { @apply flex flex-none items-center min-w-0; }
-.settings-tab-list { @apply flex min-w-0 flex-1; }
-.settings-tab-entry .settings-tab { @apply min-w-0 flex-1; }
-.settings-tab-close { @apply flex items-center justify-center [width:24px] [height:28px] p-0; }
-.settings-tab-close svg { @apply [width:16px] [height:16px]; }
-.browser-tabs-bar.vertical .settings-tab-entry { @apply w-full; }
-.browser-tabs-bar.rail-collapsed .settings-tab-close { @apply hidden; }
 :root .settings-page-overlay > .settings-dialog {
   @apply w-full h-full min-w-0 min-h-0 max-w-none max-h-none border-0 rounded-none shadow-none;
 }
 
 .settings-dialog { @apply [width:min(1040px,_calc(100vw_-_56px))] [height:min(760px,_calc(100vh_-_64px))] [border-radius:14px]; }
 .settings-header { @apply [min-height:64px] flex-none [padding:14px_22px] [border-bottom-color:var(--border-soft)]; }
-.settings-header-actions { @apply flex items-center [gap:12px]; }
-.settings-header .eyebrow { @apply text-muted [font-size:11px] [font-weight:650] [letter-spacing:.07em]; }
-.settings-header h2 { @apply [font-size:20px] [font-weight:650]; }
+.settings-header-actions { @apply flex flex-none items-center [gap:12px]; }
 .settings-layout { @apply grid min-h-0 overflow-hidden [flex:1] [grid-template-columns:216px_minmax(0,_1fr)]; }
 .settings-navigation { @apply flex min-h-0 min-w-0 flex-col [border-right:1px_solid_var(--border-soft)] bg-surface-muted; }
-.settings-search { @apply flex min-w-0 items-center [gap:7px] [margin:14px_12px_10px] [padding:8px] [border:1px_solid_var(--border)] [border-radius:7px] text-muted bg-surface-raised; }
+.settings-search { @apply flex min-w-0 items-center [gap:7px] [margin:0] [width:320px] [max-width:100%] [padding:8px] [border:1px_solid_var(--border)] [border-radius:7px] text-muted bg-surface-raised; }
 .settings-search svg { @apply [width:16px] [height:16px] flex-none; }
 .settings-search input { @apply w-full min-w-0 border-0 outline-none text-copy bg-transparent [font:inherit] [font-size:12px]; }
 .settings-search input::placeholder { @apply text-muted; }

@@ -42,7 +42,7 @@ describe('settings dialog controller', () => {
     expect(controller.open.value).toBe(true)
     expect(controller.section.value).toBe('search')
     expect(beforeOpen).toHaveBeenCalledTimes(2)
-    controller.closeTab()
+    controller.toggle()
     expect(controller.tabOpen.value).toBe(false)
     expect(controller.open.value).toBe(false)
     controller.dispose()

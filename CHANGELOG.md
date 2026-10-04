@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.13.5] - 2026-10-04
+
+### Changed
+
+- Keep the Settings gear visible as an open/close toggle, remove the separate Settings rail entry, and replace the redundant page heading with section search beside Reset and Close.
+
 ### Fixed
 
 - Preserve slow scrolling in Repro recordings by accumulating small movements before applying the scroll threshold.

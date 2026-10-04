@@ -99,6 +99,18 @@ describe('AppTopbarActions', () => {
     rendered.mcpStatusController.dispose()
   })
 
+  it('keeps the Settings gear available as a pressed toggle while open', async () => {
+    const rendered = renderActions({ settingsOpen: true })
+    const gear = screen.getByRole('button', { name: 'Settings' })
+    expect(gear).toHaveAttribute('aria-pressed', 'true')
+    expect(gear).toHaveClass('active')
+    await userEvent.setup().click(gear)
+    expect(rendered.emitted().toggleSettings).toEqual([[]])
+    await rendered.rerender({ settingsOpen: false })
+    expect(gear).toHaveAttribute('aria-pressed', 'false')
+    rendered.mcpStatusController.dispose()
+  })
+
   it('reflects browser mute mode and keeps it available without website tabs', async () => {
     const rendered = renderActions({ allTabsMuted: true })
     const audio = screen.getByRole('button', { name: 'Unmute all tabs' })

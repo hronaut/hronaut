@@ -46,7 +46,7 @@ test('uses the selected search engine for address-bar and MCP searches', async (
     await appWindow.keyboard.press(`${primaryModifier}+Shift+P`)
     await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toBeVisible()
     await appWindow.keyboard.press('Escape')
-    await appWindow.getByRole('tab', { name: 'Settings', exact: true }).click()
+    await settingsButton.click()
     await expect(settingsDialog).toBeVisible()
     await appWindow.getByRole('button', { name: /Search engine/ }).click()
     const searchSettings = appWindow.getByRole('tabpanel', { name: 'Settings' }).locator('.settings-content')

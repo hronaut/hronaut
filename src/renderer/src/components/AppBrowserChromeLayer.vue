@@ -225,7 +225,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <BrowserTabsBar
       ref="browserTabsBar"
       :state="state"
-      :settings-tab-open="settingsDialogController.tabOpen.value"
       :settings-active="settingsOpen"
       :user-attention="userAttention"
       :hydrated="hydrated"
@@ -239,8 +238,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :tab-tooltip="tabTooltip"
       :describe-emulation="describeTabEmulation"
       @open-home="runAction(actions.openHome)"
-      @open-settings="settingsDialogController.toggle"
-      @close-settings="settingsDialogController.closeTab"
       @show-workspace-context-menu="runAction(() => showWorkspaceContextMenu($event))"
       @new-tab="runAction(() => actions.newTabInWorkspace($event))"
       @create-workspace="runAction(actions.openNewWorkspaceEditor)"
