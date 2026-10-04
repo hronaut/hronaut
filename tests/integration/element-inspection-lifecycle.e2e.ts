@@ -7,11 +7,11 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
-type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'stylesheet' | 'replacement'
-for (const { change, cssProperties } of (['navigation', 'close', 'pause', 'global pause', 'workspace access', 'ownership release'] as InspectionChange[])
-  .flatMap(change => ([undefined, ['display']] as const).map(cssProperties => ({ change, cssProperties })))
-  .concat((['stylesheet', 'replacement'] as const).map(change => ({ change, cssProperties: ['display'] as const })))) {
-  test(`${change === 'ownership release' ? 'preserves authorized read-only inspection across' : 'discards element inspection captured before'} ${change}${cssProperties ? ' with CSS provenance' : ''}`, async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'stylesheet' | 'replacement' | 'text'
+for (const { change, cssProperties, includeFonts } of (['navigation', 'close', 'pause', 'global pause', 'workspace access', 'ownership release'] as InspectionChange[])
+  .flatMap(change => ([{}, { cssProperties: ['display'] as const }, { includeFonts: true }] as Array<{ cssProperties?: readonly ['display']; includeFonts?: boolean }>).map(options => ({ change, ...options })))
+  .concat((['stylesheet', 'replacement', 'text'] as const).flatMap(change => ([{ cssProperties: ['display'] as const }, { includeFonts: true }, { cssProperties: ['display'] as const, includeFonts: true }]).map(options => ({ change, ...options }))))) {
+  test(`${change === 'ownership release' ? 'preserves authorized read-only inspection across' : 'discards element inspection captured before'} ${change}${cssProperties ? ' with CSS provenance' : ''}${includeFonts ? ' with rendered fonts' : ''}`, async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
       response.end('<!doctype html><title>Inspection lifecycle</title><style>#target{display:block}</style><button id="target" autofocus>Old inspection evidence</button>')
@@ -47,7 +47,7 @@ for (const { change, cssProperties } of (['navigation', 'close', 'pause', 'globa
           return value
         }
       }, url)
-      pending = call('browser_element_inspect', { workspaceId: workspace.id, tabId, selector: '#target', ...(cssProperties ? { cssProperties } : {}) })
+      pending = call('browser_element_inspect', { workspaceId: workspace.id, tabId, selector: '#target', ...(cssProperties ? { cssProperties } : {}), ...(includeFonts ? { includeFonts } : {}) })
       await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __inspectionHeld?: { held: boolean } }).__inspectionHeld?.held)).toBe(true)
       if (change === 'navigation') {
         await electronApp.evaluate(async ({ webContents }, url) => {
@@ -62,11 +62,12 @@ for (const { change, cssProperties } of (['navigation', 'close', 'pause', 'globa
       } else if (change === 'ownership release') {
         const released = await call('browser_workspaces', { action: 'release-ownership', workspaceId: workspace.id })
         expect(released.isError, text(released)).not.toBe(true)
-      } else if (change === 'stylesheet' || change === 'replacement') {
+      } else if (change === 'stylesheet' || change === 'replacement' || change === 'text') {
         await electronApp.evaluate(async ({ webContents }, { url, change }) => {
           const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
           await page.executeJavaScript(change === 'stylesheet'
             ? "document.styleSheets[0].insertRule('#target{opacity:0.5}'); void 0"
+            : change === 'text' ? "document.querySelector('#target').firstChild.data = 'Changed text'; void 0"
             : "document.querySelector('#target').outerHTML = '<button id=target>Replacement</button>'; void 0")
         }, { url, change })
       } else {
@@ -85,7 +86,7 @@ for (const { change, cssProperties } of (['navigation', 'close', 'pause', 'globa
         expect(text(result)).not.toContain('Old inspection evidence')
       }
       if (change === 'navigation') expect(text(result)).toContain('changed during element inspection')
-      if (change === 'stylesheet' || change === 'replacement') expect(text(result)).toContain('changed during CSS provenance')
+      if (change === 'stylesheet' || change === 'replacement' || change === 'text') expect(text(result)).toContain('changed during CSS provenance')
     } finally {
       await electronApp.evaluate(() => {
         const scope = globalThis as typeof globalThis & { __inspectionHeld?: { release(): void; restore(): void } }

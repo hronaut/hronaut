@@ -28,6 +28,7 @@ import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-
 import { continuityMarkerScript, readContinuityMarker } from '../../shared/workspace-continuity-marker.js'
 import { browserPostconditionScript, type BrowserPostcondition } from '../../shared/post-write-postcondition.js'
 import { normalizeCssProperties, unavailableCssProvenance } from '../../shared/css-provenance.js'
+import { unavailableRenderedFonts } from '../../shared/rendered-fonts.js'
 import { collectCssProvenance } from './css-provenance.js'
 import {
   browserReconciliationScript,
@@ -5156,6 +5157,8 @@ export class BrowserTabsManager {
 
   async elementInspection(options: BrowserElementInspectionOptions): Promise<BrowserElementInspection> {
     const properties = normalizeCssProperties(options.cssProperties)
+    if (options.includeFonts !== undefined && typeof options.includeFonts !== 'boolean') throw new TypeError('includeFonts must be a boolean')
+    const includeFonts = options.includeFonts === true
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')
     this.validateTarget(options)
@@ -5177,12 +5180,14 @@ export class BrowserTabsManager {
     )
     let raw: unknown
     let cssProvenance: BrowserElementInspection['cssProvenance']
-    if (properties) {
+    let renderedFonts: BrowserElementInspection['renderedFonts']
+    if (properties || includeFonts) {
       const conflict = (): boolean => this.devToolsOpening.has(tab.webContents.id)
         || tab.webContents.isDevToolsOpened()
         || Boolean(tab.codeCoverage?.recording || tab.cpuProfile?.recording)
       if (conflict()) {
-        cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
+        if (properties) cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
+        if (includeFonts) renderedFonts = unavailableRenderedFonts('debugger-in-use')
         raw = await inspect()
       } else {
         try {
@@ -5193,14 +5198,16 @@ export class BrowserTabsManager {
               ? '[data-hronaut-ref="' + Array.from(options.ref, character => '\\' + character.codePointAt(0)!.toString(16) + ' ').join('') + '"]'
               : options.selector!
             const keepDomEnabled = Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
-            return collectCssProvenance(tab.webContents, selector, properties, assertCurrent, keepDomEnabled, inspect)
+            return collectCssProvenance(tab.webContents, selector, properties ?? [], assertCurrent, keepDomEnabled, inspect, includeFonts)
           })
           raw = capture.inspection
-          cssProvenance = capture.provenance
+          if (properties) cssProvenance = capture.provenance
+          renderedFonts = capture.renderedFonts
         } catch (error) {
           assertCurrent()
           if (!conflict() && !this.isUnavailableCdpMethod(error)) throw error
-          cssProvenance = unavailableCssProvenance(properties, conflict() ? 'debugger-in-use' : 'unsupported-protocol')
+          if (properties) cssProvenance = unavailableCssProvenance(properties, conflict() ? 'debugger-in-use' : 'unsupported-protocol')
+          if (includeFonts) renderedFonts = unavailableRenderedFonts(conflict() ? 'debugger-in-use' : 'unsupported-protocol')
           raw = await inspect()
         }
       }
@@ -5208,7 +5215,8 @@ export class BrowserTabsManager {
     assertCurrent()
     return {
       ...normalizeElementInspection({ tabId: tab.id, title: tab.title, url: tab.url, raw }),
-      ...(cssProvenance ? { cssProvenance } : {})
+      ...(cssProvenance ? { cssProvenance } : {}),
+      ...(renderedFonts ? { renderedFonts } : {})
     }
   }
 
