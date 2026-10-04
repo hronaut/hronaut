@@ -516,8 +516,9 @@ export class BrowserReproRecorder<T extends ReproTab> {
     if (!Number.isFinite(scroll.x) || !Number.isFinite(scroll.y)) return
     const normalized = { x: Math.round(scroll.x), y: Math.round(scroll.y) }
     const previous = recording.scrollPosition
-    recording.scrollPosition = normalized
     if (Math.abs(previous.x - normalized.x) < 8 && Math.abs(previous.y - normalized.y) < 8) return
+    // Compare with the last recorded position so small movements accumulate.
+    recording.scrollPosition = normalized
     this.addReproStep(tab, {
       kind: 'scroll',
       description: `Scroll to x=${normalized.x}, y=${normalized.y}`,

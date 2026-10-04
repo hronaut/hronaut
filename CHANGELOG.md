@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve slow scrolling in Repro recordings by accumulating small movements before applying the scroll threshold.
+
 ## [2.13.4] - 2026-10-04
 
 ### Changed
