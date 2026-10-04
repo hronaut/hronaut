@@ -27,6 +27,7 @@ import type { SettingsDialogController, SettingsSection } from '../composables/u
 import type { SitePermissionsController } from '../composables/useSitePermissionsController.js'
 import type { UpdateSettingsController } from '../composables/useUpdateSettingsController.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
+import { useSettingsSectionSearch } from '../composables/useSettingsSectionSearch.js'
 import SettingsNavigation from './SettingsNavigation.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
 import CredentialsSettingsPanel from './CredentialsSettingsPanel.vue'
@@ -100,8 +101,10 @@ const navigation = computed<Array<{
   { section: 'support', label: t('settings.nav.support'), description: t('settings.nav.supportDescription'), icon: IconFavorite }
 ])
 
+const { query, matches, searchKeydown } = useSettingsSectionSearch(navigation, section)
+
 watch(open, async (active, _previous, onCleanup) => {
-  if (!active) return
+  if (!active) { query.value = ''; return }
   let current = true
   onCleanup(() => { current = false })
   if (await applicationHasFocus() && current) panel.value?.focus({ preventScroll: true })
@@ -115,14 +118,14 @@ watch(open, async (active, _previous, onCleanup) => {
       id="settings-page"
       class="settings-dialog"
       role="tabpanel"
-      aria-labelledby="settings-title"
+      :aria-label="t('settings.heading')"
       tabindex="-1"
     >
       <div class="settings-header">
-        <div>
-          <span class="eyebrow">{{ t('settings.kicker') }}</span>
-          <h2 id="settings-title">{{ t('settings.heading') }}</h2>
-        </div>
+        <label class="settings-search">
+          <IconSearch aria-hidden="true" />
+          <input v-model="query" type="search" :disabled="resetBusy" :aria-label="t('settings.searchSections')" :placeholder="t('settings.searchSections')" autocomplete="off" aria-controls="settings-sections" @keydown="searchKeydown">
+        </label>
         <div class="settings-header-actions">
           <UiButton
             v-if="resetVisible"
@@ -140,7 +143,7 @@ watch(open, async (active, _previous, onCleanup) => {
         :aria-busy="resetBusy"
         :inert="resetBusy ? true : undefined"
       >
-        <SettingsNavigation v-model="section" :items="navigation" />
+        <SettingsNavigation v-model="section" :items="matches" />
 
         <AppearanceSettings
           v-if="section === 'appearance'"

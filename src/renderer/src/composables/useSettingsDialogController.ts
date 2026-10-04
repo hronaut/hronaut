@@ -46,7 +46,8 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   }
 
   function toggle(): void {
-    openSection(section.value)
+    if (open.value) closeTab()
+    else openSection(section.value)
   }
 
   function closeTab(): void {

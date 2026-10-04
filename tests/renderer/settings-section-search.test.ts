@@ -1,25 +1,31 @@
-import { defineComponent } from 'vue'
+import { defineComponent, ref, watch } from 'vue'
 import { render, screen, fireEvent } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import SettingsNavigation from '../../src/renderer/src/components/SettingsNavigation.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
+import { useSettingsSectionSearch } from '../../src/renderer/src/composables/useSettingsSectionSearch.js'
+import type { SettingsSection } from '../../src/renderer/src/composables/useSettingsDialogController.js'
+
 const icon = defineComponent({ template: '<svg />' })
 function navigation() {
   const change = vi.fn()
-  render(SettingsNavigation, {
-    props: {
-      modelValue: 'appearance',
-      'onUpdate:modelValue': change,
-      items: [
-        { section: 'appearance', label: 'Appearance', description: 'Theme and window', icon },
-        { section: 'mcp', label: 'MCP security', description: 'Local authentication', icon },
-        { section: 'downloads', label: 'Downloads', description: 'Location and prompts', icon }
-      ]
+  const Harness = defineComponent({
+    components: { SettingsNavigation },
+    setup() {
+      const section = ref<SettingsSection>('appearance')
+      watch(section, change)
+      const items = ref([
+        { section: 'appearance' as const, label: 'Appearance', description: 'Theme and window', icon },
+        { section: 'mcp' as const, label: 'MCP security', description: 'Local authentication', icon },
+        { section: 'downloads' as const, label: 'Downloads', description: 'Location and prompts', icon }
+      ])
+      return { section, ...useSettingsSectionSearch(items, section) }
     },
-    global: { plugins: [createHronautI18n('en-US')] }
+    template: `<header><input v-model="query" type="search" aria-label="Find a section…" @keydown="searchKeydown"></header><SettingsNavigation v-model="section" :items="matches" />`
   })
+  render(Harness, { global: { plugins: [createHronautI18n('en-US')] } })
   return { change, input: screen.getByRole('searchbox', { name: 'Find a section…' }) }
 }
 
@@ -61,7 +67,7 @@ describe('settings section search', () => {
     await userEvent.type(input, 'LOCAL security')
     expect(screen.getAllByRole('button')).toHaveLength(1)
     await userEvent.keyboard('{Enter}')
-    expect(change).toHaveBeenCalledWith('mcp')
+    expect(change.mock.calls.at(-1)?.[0]).toBe('mcp')
   })
 
   it('keeps the active section unchanged for no matches and clears with Escape', async () => {
@@ -96,7 +102,7 @@ describe('settings section search', () => {
       expect(screen.getAllByRole('button')).toHaveLength(1)
 
       await fireEvent.keyDown(input, { key: 'Enter' })
-      expect(change).toHaveBeenCalledWith('mcp')
+      expect(change.mock.calls.at(-1)?.[0]).toBe('mcp')
       await fireEvent.keyDown(input, { key: 'Escape' })
       expect(input).toHaveValue('')
     }
