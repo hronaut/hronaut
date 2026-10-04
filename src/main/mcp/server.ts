@@ -3707,6 +3707,7 @@ function createBrowserMcpServer(
       description: toolDescription('browser_screenshot'),
       inputSchema: {
         tabId: tabIdSchema.optional(),
+        annotateRefs: z.array(z.string().regex(/^e[1-9]\d{0,5}$/)).min(1).max(50).optional(),
         fullPage: z.boolean().optional(),
         ref: z.string().optional(),
         selector: z.string().optional(),
@@ -3723,6 +3724,7 @@ function createBrowserMcpServer(
       }
     },
     tabTool('browser_screenshot', async (options: {
+      annotateRefs?: string[]
       tabId?: string
       fullPage?: boolean
       ref?: string
@@ -3734,7 +3736,10 @@ function createBrowserMcpServer(
       maxHeight?: number
     }) => {
       const image = await manager.screenshot(options)
-      return { content: [{ type: 'image', data: image.data.toString('base64'), mimeType: image.mimeType }] }
+      return { content: [
+        ...(image.annotations ? [{ type: 'text' as const, text: JSON.stringify(image.annotations) }] : []),
+        { type: 'image' as const, data: image.data.toString('base64'), mimeType: image.mimeType }
+      ] }
     })
   )
   registerWorkspaceTool(

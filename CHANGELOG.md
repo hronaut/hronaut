@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Opt-in viewport screenshot labels for selected semantic refs, with bounded image-space geometry and explicit changed, missing, offscreen and overlapping-target outcomes.
+
 - Opt in to bounded CSS declaration candidates and generated stylesheet locations with `browser_element_inspect`’s `cssProperties` option. Computed-only inspection remains the default, and ambiguous cascade winners are not inferred.
 
 - Show Web Vitals for the two latest browser-observed SPA routes in performance reports and Page tools, with distinct navigation identities, explicit collection coverage, and sanitized URLs. Document metrics and baseline comparisons keep their existing meaning.
