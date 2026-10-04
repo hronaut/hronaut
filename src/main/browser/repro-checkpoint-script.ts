@@ -46,14 +46,20 @@ export function reproCheckpointScript(request: BrowserReproCheckpointInput): str
     let observedText = '';
     if (request.condition === 'text' && !element.matches('script,style') && !element.closest('head')) {
       // Match exported Playwright text assertions without collecting executable/style text.
+      // Playwright includes open-shadow text even for a css:light target.
+      // Reject that boundary rather than inspect content outside the recorder's scope.
+      if (element.shadowRoot) return { error: 'shadow-text-target' };
       const textLimit = {};
+      const shadowTextTarget = {};
       let visited = 0;
       try {
         const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
           acceptNode: node => {
             if (++visited > 2000) throw textLimit;
-            return node instanceof Element && node.matches('script,style')
-              ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+            if (!(node instanceof Element)) return NodeFilter.FILTER_ACCEPT;
+            if (node.matches('script,style')) return NodeFilter.FILTER_REJECT;
+            if (node.shadowRoot) throw shadowTextTarget;
+            return NodeFilter.FILTER_ACCEPT;
           }
         });
         let current;
@@ -65,6 +71,7 @@ export function reproCheckpointScript(request: BrowserReproCheckpointInput): str
         }
       } catch (error) {
         if (error === textLimit) return { error: 'text-limit' };
+        if (error === shadowTextTarget) return { error: 'shadow-text-target' };
         throw error;
       }
     }

@@ -160,6 +160,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       if (result?.error === 'excluded-target') {
         throw new Error('Choose a non-editable result element; form values and frame contents are excluded')
       }
+      if (result?.error === 'shadow-text-target') throw new Error('Choose a text result element without open shadow roots; shadow contents are outside recording scope')
       if (result?.error === 'text-limit') throw new Error('Checkpoint text observation exceeded its limit; select a smaller target')
       if (result?.error === 'visibility-limit') throw new Error('Checkpoint visibility observation exceeded its limit; select a smaller target')
       if (result?.error === 'ambiguous-target') throw new Error('Checkpoint requires exactly one current light-DOM element')
