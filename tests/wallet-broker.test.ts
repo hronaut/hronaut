@@ -3,7 +3,7 @@ import { createPublicKey, verify } from 'node:crypto'
 import { address, getAddressEncoder } from '@solana/kit'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { verifyMessage } from 'viem'
 import { TronWeb } from 'tronweb'
 import {
@@ -488,6 +488,10 @@ describe('WalletBroker', () => {
 
   it('lets a dedicated agent wallet use an explicitly bounded Bypass Approve mode on EVM mainnet', async () => {
     const now = () => new Date('2026-09-04T12:00:00.000Z')
+    // Keep the permission store's wall clock aligned with the injected broker clock.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now())
+    onTestFinished(() => { vi.useRealTimers() })
     const { service, wallet } = await setup('mainnet', true, now)
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain }, now })
@@ -517,6 +521,10 @@ describe('WalletBroker', () => {
 
   it('keeps websites on trusted approval even when an agent wallet has Bypass Approve mode', async () => {
     const now = () => new Date('2026-09-04T12:00:00.000Z')
+    // Keep the permission store's wall clock aligned with the injected broker clock.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now())
+    onTestFinished(() => { vi.useRealTimers() })
     const { service, wallet } = await setup('mainnet', true, now)
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain }, now })
