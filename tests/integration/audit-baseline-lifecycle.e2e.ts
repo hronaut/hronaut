@@ -138,6 +138,31 @@ test('rejects stale audit results after baseline changes or navigation', async (
     expect(currentPerformance.isError, text(currentPerformance)).not.toBe(true)
     expect(JSON.parse(text(currentPerformance))).not.toHaveProperty('baseline')
 
+    const baseline = await call('browser_performance', {
+      workspaceId: workspace.id, tabId, action: 'set-baseline', settleMs: 0
+    })
+    expect(baseline.isError, text(baseline)).not.toBe(true)
+    const baselineSummary = JSON.parse(text(baseline)).baseline
+    for (const [index, action] of ['measure', 'set-baseline', 'clear-baseline'].entries()) {
+      await holdAuditWorld(1002)
+      pendingAudit = call('browser_performance', {
+        workspaceId: workspace.id, tabId, action, settleMs: 0
+      })
+      await waitForHeldAudit()
+      await appWindow.evaluate(
+        `window.hronaut.setZoom({ tabId: ${JSON.stringify(tabId)}, action: 'set', percent: ${index % 2 === 0 ? 125 : 100} })`
+      )
+      await releaseAudit()
+      const changedEnvironment = await pendingAudit
+      expect(changedEnvironment.isError).toBe(true)
+      expect(text(changedEnvironment)).toContain('The browser environment changed during the performance measurement')
+      const fresh = await call('browser_performance', {
+        workspaceId: workspace.id, tabId, action: 'measure', settleMs: 0
+      })
+      expect(fresh.isError, text(fresh)).not.toBe(true)
+      expect(JSON.parse(text(fresh)).baseline).toEqual(baselineSummary)
+    }
+
     await holdAuditWorld(1002)
     pendingAudit = call('browser_performance', {
       workspaceId: workspace.id,

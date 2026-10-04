@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject performance measurements when the browser environment changes during collection, preserving existing baselines instead of labeling mixed observations with the final settings.
+
 - Reject mixed checkbox/radio states in exported Repro expectations, matching the recorder's checked/unchecked contract.
 
 - Highlight the Settings gear while its page is open so its active state remains visible after the pointer moves away.

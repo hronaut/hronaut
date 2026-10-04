@@ -4967,6 +4967,8 @@ export class BrowserTabsManager {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before measuring performance')
     const navigationGeneration = tab.navigationGeneration
     const normalized = normalizePerformanceOptions(options)
+    const environment = this.performanceEnvironment(tab)
+    const environmentFingerprint = this.performanceEnvironmentFingerprint(tab)
     const baselineGeneration = normalized.action === 'measure'
       ? undefined
       : ++tab.performanceBaselineGeneration
@@ -4991,8 +4993,9 @@ export class BrowserTabsManager {
       throw new Error('Performance baseline changed while the measurement was pending. Run the requested action again.')
     }
     const report = sanitizePerformanceReport({ tabId: tab.id, ...result })
-    const environment = this.performanceEnvironment(tab)
-    const environmentFingerprint = this.performanceEnvironmentFingerprint(tab)
+    if (this.performanceEnvironmentFingerprint(tab) !== environmentFingerprint) {
+      throw new Error('The browser environment changed during the performance measurement. Run a fresh measurement.')
+    }
     if (normalized.action === 'clear-baseline') {
       const baselineCleared = Boolean(tab.performanceBaseline)
       tab.performanceBaseline = undefined
