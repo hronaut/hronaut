@@ -31,6 +31,69 @@ describe('external cookie sources', () => {
     expect(sources.map(s => s.name).sort()).toEqual(['Work · Default', 'Work · Profile 1'])
     expect(new Set(sources.map(s => s.id)).size).toBe(2)
   })
+  it.each([
+    ['Google Chrome', '.config/google-chrome'],
+    ['Google Chrome Beta', '.config/google-chrome-beta'],
+    ['Chromium', '.config/chromium'],
+    ['Chromium (Snap)', 'snap/chromium/common/chromium'],
+    ['Chromium (Flatpak)', '.var/app/org.chromium.Chromium/config/chromium']
+  ])('uses the displayed account name for a default-named %s profile', async (browser, relativeRoot) => {
+    const home = await directory(); const root = join(home, relativeRoot!)
+    await mkdir(join(root, 'Profile 10'), { recursive: true })
+    await writeFile(join(root, 'Profile 10/Cookies'), 'not SQLite')
+    await writeFile(join(root, 'Local State'), JSON.stringify({ profile: { info_cache: { 'Profile 10': { name: 'Person 10', is_using_default_name: true, gaia_given_name: 'Avery', gaia_name: 'Avery Example', user_name: 'private-account@example.test' } } } }))
+    const sources = await discoverImportProfiles(home)
+    expect(sources).toHaveLength(1)
+    expect(sources[0]).toMatchObject({ browser, name: 'Avery · Profile 10', file: join(root, 'Profile 10/Cookies') })
+    expect(JSON.stringify(sources)).not.toContain('private-account@example.test')
+  })
+  it.each([
+    [{ name: 'Research', is_using_default_name: false, gaia_given_name: 'Avery' }, 'Avery (Research)'],
+    [{ name: 'Person 10', is_using_default_name: true, gaia_name: 'Avery Example' }, 'Avery Example'],
+    [{ name: 'Person 10', is_using_default_name: true, enterprise_label: 'Company', gaia_given_name: 'Avery' }, 'Avery (Company)'],
+    [{ name: 'avery', gaia_given_name: 'Avery' }, 'Avery'],
+    [{ name: '  研究 🚀\n' }, '研究 🚀'],
+    [{ name: 'x'.repeat(79) + '🚀suffix' }, 'x'.repeat(79) + '🚀']
+  ])('resolves bounded named Chromium metadata %j', async (metadata, expected) => {
+    const home = await directory(); const root = join(home, '.config/chromium')
+    await mkdir(join(root, 'Profile 10'), { recursive: true })
+    await writeFile(join(root, 'Profile 10/Cookies'), 'not SQLite')
+    await writeFile(join(root, 'Local State'), JSON.stringify({ profile: { info_cache: { 'Profile 10': metadata } } }))
+    expect((await discoverImportProfiles(home))[0]?.name).toBe(`${expected} · Profile 10`)
+  })
+  it.each([undefined, '{invalid', 'null', '{"profile":{"info_cache":[]}}', '{"profile":{"info_cache":{"Profile 10":{"name":"  "}}}}'])('falls back to profile Preferences when Local State is unusable: %s', async metadata => {
+    const home = await directory(); const root = join(home, '.config/chromium')
+    await mkdir(join(root, 'Profile 10'), { recursive: true })
+    await writeFile(join(root, 'Profile 10/Cookies'), 'not SQLite')
+    if (metadata !== undefined) await writeFile(join(root, 'Local State'), metadata)
+    await writeFile(join(root, 'Profile 10/Preferences'), JSON.stringify({ profile: { name: 'Personal' } }))
+    expect((await discoverImportProfiles(home))[0]?.name).toBe('Personal · Profile 10')
+  })
+  it.each([undefined, '{invalid', '{"profile":{"name":123}}', '{"profile":{"name":"  "}}', 'x'.repeat(4 * 1024 * 1024 + 1)])('keeps a directory fallback when Preferences are unavailable (%#)', async preferences => {
+    const home = await directory(); const root = join(home, '.config/chromium')
+    await mkdir(join(root, 'Profile 10'), { recursive: true })
+    await writeFile(join(root, 'Profile 10/Cookies'), 'not SQLite')
+    if (preferences !== undefined) await writeFile(join(root, 'Profile 10/Preferences'), preferences)
+    expect((await discoverImportProfiles(home))[0]?.name).toBe('Profile 10')
+  })
+  it('keeps equal display names tied to distinct source directories and opaque IDs', async () => {
+    const home = await directory(); const root = join(home, '.config/chromium')
+    const cache = Object.fromEntries(['Default', 'Profile 10'].map(folder => [folder, { name: 'Person', is_using_default_name: true, gaia_given_name: 'Avery' }]))
+    for (const folder of Object.keys(cache)) { await mkdir(join(root, folder), { recursive: true }); await writeFile(join(root, folder, 'Cookies'), 'not SQLite') }
+    await writeFile(join(root, 'Local State'), JSON.stringify({ profile: { info_cache: cache } }))
+    const sources = await discoverImportProfiles(home)
+    expect(sources.map(source => source.name).sort()).toEqual(['Avery · Default', 'Avery · Profile 10'])
+    expect(new Set(sources.map(source => source.id)).size).toBe(2)
+    expect(sources.map(source => source.file).sort()).toEqual(Object.keys(cache).map(folder => join(root, folder, 'Cookies')).sort())
+  })
+  it.each(['.mozilla/firefox', 'snap/firefox/common/.mozilla/firefox', '.var/app/org.mozilla.firefox/.mozilla/firefox'])('preserves Firefox names and folder fallback in %s', async relativeRoot => {
+    const home = await directory(); const root = join(home, relativeRoot)
+    for (const folder of ['first', 'second', 'unnamed']) { await mkdir(join(root, folder), { recursive: true }); await writeFile(join(root, folder, 'cookies.sqlite'), 'not SQLite') }
+    await writeFile(join(root, 'profiles.ini'), '[Profile0]\nName=研究 🚀\nIsRelative=1\nPath=first\n[Profile1]\nName=研究 🚀\nIsRelative=1\nPath=second\n[Profile2]\nName=  \nIsRelative=1\nPath=unnamed\n')
+    const sources = await discoverImportProfiles(home)
+    expect(sources.map(source => source.name)).toEqual(['研究 🚀 · first', '研究 🚀 · second', 'unnamed'])
+    expect(new Set(sources.map(source => source.id)).size).toBe(3)
+  })
   it('reads committed WAL data, decrypts v24 host-bound cookies and skips partitions without modifying the source', async () => {
     const root = await directory(); const file = join(root, 'Cookies'); const db = chromiumDatabase(file)
     try {

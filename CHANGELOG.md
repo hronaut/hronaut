@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Reject Repro text checkpoints containing open shadow roots, preventing a recorded match from disagreeing with exported Playwright assertions while keeping shadow content outside recording scope.
 
+- Show browser profile display names in the import picker, including Chromium account names and a Preferences fallback, while retaining directory disambiguation and safe fallback labels.
+
 ## [2.14.0] - 2026-10-04
 
 ### Added
