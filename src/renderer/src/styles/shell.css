@@ -462,7 +462,8 @@
 }
 .topbar-icon-button:hover,
 .topbar-icon-button[aria-expanded="true"] { @apply text-copy bg-hover; }
-.all-tabs-audio-button[aria-pressed="true"] { @apply text-accent-copy bg-accent-soft; }
+.all-tabs-audio-button[aria-pressed="true"],
+.settings-button[aria-pressed="true"] { @apply text-accent-copy bg-accent-soft; }
 .topbar-icon-button svg { @apply [width:18px] [height:18px]; }
 .tab-search-button { @apply [margin-left:0]; }
 .tab-search-button svg { @apply [width:19px] [height:19px]; }
