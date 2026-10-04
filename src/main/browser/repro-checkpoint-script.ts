@@ -43,10 +43,35 @@ export function reproCheckpointScript(request: BrowserReproCheckpointInput): str
       catch (error) { if (error === renderedVisibilityLimit) return { error: 'visibility-limit' }; throw error; }
     }
     const normalized = value => String(value).replace(/[\\u200b\\u00ad]/g, '').replace(/\\s+/g, ' ').trim();
+    let observedText = '';
+    if (request.condition === 'text' && !element.matches('script,style') && !element.closest('head')) {
+      // Match exported Playwright text assertions without collecting executable/style text.
+      const textLimit = {};
+      let visited = 0;
+      try {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+          acceptNode: node => {
+            if (++visited > 2000) throw textLimit;
+            return node instanceof Element && node.matches('script,style')
+              ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        let current;
+        while ((current = walker.nextNode())) {
+          if (current.nodeType !== Node.TEXT_NODE) continue;
+          const text = current.nodeValue || '';
+          if (observedText.length + text.length > 64000) throw textLimit;
+          observedText += text;
+        }
+      } catch (error) {
+        if (error === textLimit) return { error: 'text-limit' };
+        throw error;
+      }
+    }
     const observedMatch = checkedCondition ? element.checked === (request.condition === 'checked')
       : request.condition === 'visible' ? visible
       : request.condition === 'hidden' ? !visible
-      : normalized(element.textContent || '') === normalized(request.text);
+      : normalized(observedText) === normalized(request.text);
     return { selector, tag: element.localName, observedMatch };
   })()`
 }
