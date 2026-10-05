@@ -17,10 +17,13 @@ interface Host {
   resolve(tabId: string): ReactInspectionTarget
   run<T>(contentsId: number, operation: () => Promise<T>): Promise<T>
   requireDebuggerOwner(tabId: string): void
+  requireDebuggerCleanupOwner(tabId: string, page: WebContents): void
   mainWorldContextId(page: WebContents): Promise<number>
 }
 interface Installation {
   enabled: boolean
+  // Current-document residue survives re-arming future loads; it grants no read authority.
+  documentHasInstallation: boolean
   intent: number
   target: ReactInspectionTarget
   assertAuthority(): void
@@ -57,6 +60,7 @@ export class ReactInspectionController {
       if (this.disposed || this.intents.get(current.identity) !== record.intent) return { enabled: false }
       record.assertAuthority()
       record.id = randomUUID()
+      record.documentHasInstallation = true
       return { enabled: true, installationId: record.id }
     } catch {
       record.enabled = false
@@ -68,7 +72,7 @@ export class ReactInspectionController {
     const target = { ...this.host.resolve(tabId) }
     const record = this.installations.get(tabId)
     return this.result(target, !record?.enabled
-      ? record?.id ? 'disabled-reload-required' : 'disabled'
+      ? record?.documentHasInstallation ? 'disabled-reload-required' : 'disabled'
       : record.id ? 'installed-readiness-unchecked' : 'reload-required', record)
   }
 
@@ -127,6 +131,8 @@ export class ReactInspectionController {
         original?.cleanup()
         const record: Installation = {
           enabled: true, intent, target,
+          documentHasInstallation: original?.target.identity === target.identity
+            && original.target.page === target.page && original.documentHasInstallation,
           assertAuthority: () => {
             authority.assertCurrent()
             this.requireInstallationTarget(this.host.resolve(tabId), target)
@@ -141,7 +147,10 @@ export class ReactInspectionController {
           if (this.installations.get(tabId) === record) this.installations.delete(tabId)
         }
         const navigation = (_event: Electron.Event, _url: string, sameDocument: boolean, mainFrame: boolean) => {
-          if (mainFrame && !sameDocument) record.id = undefined
+          if (mainFrame && !sameDocument) {
+            record.id = undefined
+            record.documentHasInstallation = false
+          }
         }
         target.page.once('destroyed', destroyed)
         target.page.on('did-start-navigation', navigation)
@@ -176,8 +185,10 @@ export class ReactInspectionController {
       } finally {
         try {
           if (!detached && !target.page.isDestroyed() && target.page.debugger.isAttached()) {
-            // Do not take over a session that DevTools or another recorder is acquiring.
-            this.host.requireDebuggerOwner(tabId)
+            // Still holding this request's queue slot: a recorder may have set
+            // its pending flag, but cannot acquire the native session yet.
+            // Release only our group, without touching recorder instrumentation.
+            this.host.requireDebuggerCleanupOwner(tabId, target.page)
             await target.page.debugger.sendCommand('Runtime.releaseObjectGroup', { objectGroup: group })
           }
         } catch { /* Detached sessions discard their handles; never attach to clean up. */ }

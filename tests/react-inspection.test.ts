@@ -20,7 +20,7 @@ function harness(url = 'https://fixture.test/') {
   const authority = { assertCurrent: vi.fn(), epoch: 'authority-1' }
   const controller = new ReactInspectionController({
     resolve: () => target, run: (id, action) => queue.run(id, action),
-    requireDebuggerOwner: () => {}, mainWorldContextId: async () => 1
+    requireDebuggerOwner: () => {}, requireDebuggerCleanupOwner: () => {}, mainWorldContextId: async () => 1
   })
   const hold = () => {
     let release!: () => void
@@ -55,6 +55,24 @@ describe('React inspection lifecycle', () => {
     h.controller.dispose()
     expect(h.emitter.listenerCount('destroyed')).toBe(0)
     expect(h.emitter.listenerCount('did-start-navigation')).toBe(0)
+  })
+  it.each([false, true])('retains current-document residue across repeated enable (already disabled: %s)', async alreadyDisabled => {
+    const h = harness()
+    await h.controller.run('tab', { action: 'enable' }, h.authority)
+    const installed = h.controller.bootstrap('tab')
+    if (alreadyDisabled) h.controller.disable('tab')
+    const enabled = await h.controller.run('tab', { action: 'enable' }, h.authority)
+    expect(enabled).toMatchObject({ status: 'reload-required', reloadRequired: true })
+    expect(enabled.installationId).toBeUndefined()
+    expect((await h.controller.run('tab', { action: 'tree', subtreeId: installed.installationId }, h.authority)).nodes).toEqual([])
+    expect(h.controller.disable('tab')).toMatchObject({ status: 'disabled-reload-required', enabled: false, reloadRequired: true })
+    expect(h.emitter.send).toHaveBeenCalledWith('react-inspection:disable')
+    h.emitter.emit('did-start-navigation', {}, 'https://fixture.test/#same', true, true)
+    expect(h.controller.status('tab').status).toBe('disabled-reload-required')
+    h.emitter.emit('did-start-navigation', {}, 'https://fixture.test/next', false, true)
+    expect(h.controller.status('tab')).toMatchObject({ status: 'disabled', reloadRequired: false })
+    expect(h.controller.bootstrap('tab')).toEqual({ enabled: false })
+    h.controller.dispose()
   })
   it('a later disable defeats an enable still waiting for native queue admission', async () => {
     const h = harness()

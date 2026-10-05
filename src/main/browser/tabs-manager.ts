@@ -1204,6 +1204,12 @@ export class BrowserTabsManager {
       if (this.devToolsOpening.has(tab.webContents.id) || tab.webContents.isDevToolsOpened()
         || tab.codeCoverage?.recording || tab.cpuProfile?.recording) throw new Error('React inspection debugger unavailable')
     },
+    requireDebuggerCleanupOwner: (tabId, page) => {
+      const tab = this.getTab(tabId)
+      if (tab.webContents !== page || this.devToolsOpening.has(page.id) || page.isDevToolsOpened()) {
+        throw new Error('React inspection debugger cleanup unavailable')
+      }
+    },
     mainWorldContextId: page => this.mainWorldContextId(page)
   })
 

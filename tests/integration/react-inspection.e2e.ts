@@ -66,6 +66,32 @@ test('explicit MCP and native opt-in preserves isolation, subtree identity and n
   expect(workspace.id).not.toBe(other.id)
 })
 
+test('repeated enable preserves truthful native residue status without reviving old observations', async ({ react }) => {
+  const installed = await react.enable('/repeat-enable')
+  expect(installed.status).toBe('ready')
+  const enabled = await react.success<ReactInspectionResult>(react.react('enable'))
+  expect(enabled).toMatchObject({ status: 'reload-required', reloadRequired: true })
+  expect(enabled.installationId).toBeUndefined()
+  const old = await react.success<ReactInspectionResult>(react.react('tree', installed.nodes[0]!.id))
+  expect(old.status).not.toBe('ready')
+  expect(old.nodes).toEqual([])
+  await react.toggleMenu()
+  expect(await react.success<ReactInspectionResult>(react.react('status'))).toMatchObject({ status: 'disabled-reload-required', enabled: false, reloadRequired: true })
+  expect((await react.readMenu()).label).toContain('residue')
+  await expect.poll(() => react.page.evaluate('__hronautReactInspection.status().state')).toBe('disabled-reload-required')
+  await react.page.evaluate('__REACT_DEVTOOLS_GLOBAL_HOOK__.inject({});__REACT_DEVTOOLS_GLOBAL_HOOK__.onCommitFiberRoot(1,{current:null});void 0')
+  expect(await react.page.evaluate('({roots:__hronautReactInspection.status().roots,renderers:__hronautReactInspection.status().renderers})')).toEqual({ roots: 0, renderers: 0 })
+  // A native re-arm of the disabled document also retains its residue warning.
+  await react.toggleMenu()
+  await expect.poll(async () => (await react.success<ReactInspectionResult>(react.react('status'))).status).toBe('reload-required')
+  await react.toggleMenu()
+  expect((await react.success<ReactInspectionResult>(react.react('status'))).status).toBe('disabled-reload-required')
+  await react.navigate('/repeat-disabled-new-document')
+  expect(await react.success<ReactInspectionResult>(react.react('status'))).toMatchObject({ status: 'disabled', reloadRequired: false })
+  expect((await react.readMenu()).label).toBe('Off')
+  expect(await react.page.evaluate('fixtureSawHook')).toBe(false)
+})
+
 test('pause, workspace permission roundtrips and lease changes invalidate pending reads and old IDs', async ({ react, appWindow }) => {
   const first = await react.enable()
   await react.holdRead()
