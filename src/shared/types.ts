@@ -1926,7 +1926,7 @@ export interface BrowserReproStep {
 }
 
 export interface BrowserReproRecording {
-  formatVersion?: 2
+  formatVersion?: 2 | 3
   checkpointContext?: string
   tabId: string
   title: string

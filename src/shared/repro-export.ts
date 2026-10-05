@@ -1,4 +1,5 @@
 import type { BrowserReproRecording, BrowserReproStep } from './types.js'
+import { validReproCount, validReproCountSelector } from './repro-count.js'
 import { javascriptLiteral } from './javascript-literal.js'
 
 function quoted(value: string): string {
@@ -19,8 +20,10 @@ function targetExpression(step: BrowserReproStep): string | null {
 }
 
 export function formatReproAsPlaywright(recording: BrowserReproRecording): string {
+  const supportedCount = (step: BrowserReproStep) => recording.formatVersion === 3 && step.expectation?.condition === 'count'
+    && typeof step.expectation.observedMatch === 'boolean' && validReproCount(step.expectation.count) && validReproCountSelector(step.target?.selector) && step.expectation.text === undefined
   const supportedExpectation = (step: BrowserReproStep) => step.kind === 'expect' && Boolean(step.target?.selector)
-    && (step.expectation?.condition === 'visible' || step.expectation?.condition === 'hidden' || step.expectation?.condition === 'checked' || step.expectation?.condition === 'unchecked'
+    && (supportedCount(step) || step.expectation?.condition === 'visible' || step.expectation?.condition === 'hidden' || step.expectation?.condition === 'checked' || step.expectation?.condition === 'unchecked'
       || (step.expectation?.condition === 'text' && typeof step.expectation.text === 'string'))
   const lines = [
     recording.steps.some(step => step.expectation || (step.kind === 'input' && step.target?.tag === 'select' && step.target.selector))
@@ -43,7 +46,9 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
     const target = targetExpression(step)
     if (step.kind === 'expect' && target && step.expectation) {
       const expectation = step.expectation
-      if (expectation.condition === 'text' && typeof expectation.text === 'string') {
+      if (supportedCount(step)) {
+        lines.push(`  await expect(${target}).toHaveCount(${expectation.count})`)
+      } else if (expectation.condition === 'text' && typeof expectation.text === 'string') {
         lines.push(`  await expect(${target}).toHaveText(${quoted(expectation.text)})`)
       } else if (expectation.condition === 'visible' || expectation.condition === 'hidden') {
         // A recorded hidden checkpoint refers to an existing, unique element.

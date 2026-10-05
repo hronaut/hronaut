@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { validReproCount, validReproCountSelector } from '../../../shared/repro-count'
 import type { BrowserReproCheckpointInput } from '../../../shared/repro-checkpoint'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -15,12 +16,14 @@ const emit = defineEmits<{ checkpoint: [value: BrowserReproCheckpointInput] }>()
 const selector = ref('')
 const condition = ref<BrowserReproCheckpointInput['condition']>('visible')
 const expectedText = ref('')
+const expectedCount = ref<number | ''>('')
+const validCount = computed(() => condition.value !== 'count' || (validReproCount(expectedCount.value) && validReproCountSelector(selector.value.trim())))
 const reviewed = ref(false)
-watch([selector, condition, expectedText, () => props.recording.checkpointContext], () => { reviewed.value = false })
+watch([selector, condition, expectedText, expectedCount, () => props.recording.checkpointContext], () => { reviewed.value = false })
 function addCheckpoint(): void {
   const context = props.recording.checkpointContext
-  if (!context || !reviewed.value || !selector.value.trim() || props.busy) return
-  emit('checkpoint', { context, selector: selector.value.trim(), condition: condition.value, reviewed: true, ...(condition.value === 'text' ? { text: expectedText.value } : {}) })
+  if (!context || !reviewed.value || !selector.value.trim() || props.busy || !validCount.value) return
+  emit('checkpoint', { context, selector: selector.value.trim(), condition: condition.value, reviewed: true, ...(condition.value === 'text' ? { text: expectedText.value } : {}), ...(condition.value === 'count' && validReproCount(expectedCount.value) ? { count: expectedCount.value } : {}) })
   reviewed.value = false
 }
 const { t } = useI18n({ useScope: 'global' })
@@ -93,11 +96,16 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
         <option value="hidden">{{ t('repro.checkpoint.hidden') }}</option>
         <option value="checked">{{ t('repro.checkpoint.checked') }}</option>
         <option value="unchecked">{{ t('repro.checkpoint.unchecked') }}</option>
+        <option value="count">{{ t('repro.checkpoint.count') }}</option>
         <option value="text">{{ t('repro.checkpoint.text') }}</option>
       </select></label>
       <label v-if="condition === 'text'">{{ t('repro.checkpoint.text') }}<input v-model="expectedText" maxlength="240"></label>
+      <template v-if="condition === 'count'">
+        <label>{{ t('repro.checkpoint.count') }}<input v-model.number="expectedCount" type="number" min="0" max="500" step="1" required></label>
+        <p>{{ t('repro.checkpoint.countHint') }}</p>
+      </template>
       <label><input v-model="reviewed" type="checkbox">{{ t('repro.checkpoint.review') }}</label>
-      <UiButton appearance="application" type="submit" :disabled="busy || !reviewed || !selector.trim()">{{ t('repro.checkpoint.add') }}</UiButton>
+      <UiButton appearance="application" type="submit" :disabled="busy || !reviewed || !selector.trim() || !validCount">{{ t('repro.checkpoint.add') }}</UiButton>
     </form>
     <div ref="timeline" class="repro-step-list" role="listbox" :aria-label="t('repro.timelineAria')">
       <UiButton
@@ -138,7 +146,7 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
         <div v-if="selectedStep.scroll"><dt>{{ t('repro.position') }}</dt><dd><code>x={{ selectedStep.scroll.x }}, y={{ selectedStep.scroll.y }}</code></dd></div>
         <div><dt>{{ t('repro.page') }}</dt><dd><code>{{ selectedStep.url }}</code></dd></div>
       </dl>
-      <p v-if="selectedStep.expectation">{{ t('repro.checkpoint.condition') }}: {{ selectedStep.expectation.condition }} <span v-if="selectedStep.expectation.text !== undefined">{{ selectedStep.expectation.text }}</span> — {{ t(selectedStep.expectation.observedMatch ? 'repro.checkpoint.matched' : 'repro.checkpoint.notMatched') }}</p>
+      <p v-if="selectedStep.expectation">{{ t('repro.checkpoint.condition') }}: {{ selectedStep.expectation.condition }} <span v-if="selectedStep.expectation.condition === 'count'">{{ selectedStep.expectation.count }}</span> <span v-if="selectedStep.expectation.text !== undefined">{{ selectedStep.expectation.text }}</span> — {{ t(selectedStep.expectation.observedMatch ? 'repro.checkpoint.matched' : 'repro.checkpoint.notMatched') }}</p>
       <p v-if="selectedStep.valueRedacted" class="repro-step-redacted">{{ t('repro.valueRedacted') }}</p>
     </section>
   </div>

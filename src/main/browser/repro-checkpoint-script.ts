@@ -1,10 +1,26 @@
 import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
 import type { BrowserReproCheckpointInput } from '../../shared/repro-checkpoint.js'
+import { MAX_REPRO_COUNT, MAX_REPRO_COUNT_NODES, validReproCount, validReproCountSelector } from '../../shared/repro-count.js'
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 
 export function reproCheckpointScript(request: BrowserReproCheckpointInput): string {
   return `(() => {
     const request = ${javascriptLiteral(request)};
+    if (request.condition === 'count') {
+      if (!${validReproCountSelector(request.selector) && validReproCount(request.count)}) return { error: 'invalid-selector' };
+      let actual = 0;
+      let visited = 0;
+      const walker = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
+      let element;
+      while ((element = walker.nextNode())) {
+        if (++visited > ${MAX_REPRO_COUNT_NODES}) return { error: 'count-node-limit' };
+        if (!element.matches(request.selector)) continue;
+        if (element.matches('iframe,frame,input,textarea,select,[contenteditable]') || element.isContentEditable
+          || element.closest('[contenteditable]')) return { error: 'excluded-target' };
+        if (++actual > ${MAX_REPRO_COUNT}) return { error: 'count-match-limit' };
+      }
+      return { selector: request.selector, tag: request.selector.split(' > ').at(-1).split(':')[0], observedMatch: actual === request.count };
+    }
     let matches;
     try { matches = document.querySelectorAll(request.selector); }
     catch { return { error: 'invalid-selector' }; }

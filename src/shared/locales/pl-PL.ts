@@ -2382,6 +2382,8 @@ export const plPL = {
   },
   "repro": {
     "checkpoint": {
+      "count": "Liczba elementów",
+      "countHint": "Użyj selektorów strukturalnych, np. ul > li lub li:nth-of-type(2). Ukryte elementy są liczone; podaj liczbę od 0 do 500. Dopasowania do pól formularzy, edytowalnych celów i ramek są odrzucane. Strony z ponad 2 000 odwiedzonych elementów są odrzucane.",
       "checked": "Zaznaczone (pole wyboru/przycisk opcji)",
       "unchecked": "Niezaznaczone (pole wyboru/przycisk opcji)","title": "Punkt kontrolny oczekiwanego wyniku", "condition": "Warunek", "visible": "Widoczny", "hidden": "Ukryty", "text": "Dokładny tekst", "review": "Sprawdzono cel i tekst do udostępnienia; to oczekiwany wynik, a nie dowód powodzenia.", "add": "Dodaj punkt kontrolny", "matched": "Obecnie zgodny", "notMatched": "Obecnie niezgodny"},
     "selectorUnavailable": "Brak unikalnego selektora; odtwórz ten krok ręcznie.",
