@@ -274,7 +274,7 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
   },
 
   mcpPort: async ({}, use, testInfo) => {
-    await use(integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex))
+    await use(integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex, process.env.HRONAUT_TEST_MCP_PORT_NAMESPACE))
   },
 
   electronApp: async ({ profileDirectory, mcpPort }, use, testInfo) => {

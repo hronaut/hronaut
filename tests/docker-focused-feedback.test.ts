@@ -231,12 +231,14 @@ describe('focused Docker integration feedback', () => {
   })
 
   it('assigns each Electron shard a distinct MCP port range', async () => {
-    const [runner, fixtures] = await Promise.all([
+    const [runner, fixtures, nestedTraceRunner] = await Promise.all([
       readFile('scripts/run-integration-suite-docker.sh', 'utf8'),
-      readFile('tests/integration/fixtures.ts', 'utf8')
+      readFile('tests/integration/fixtures.ts', 'utf8'),
+      readFile('tests/integration/electron-tracing.e2e.ts', 'utf8')
     ])
 
     expect(runner).toContain('HRONAUT_TEST_SHARD_INDEX=')
-    expect(fixtures).toContain("integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex)")
+    expect(fixtures).toContain("integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex, process.env.HRONAUT_TEST_MCP_PORT_NAMESPACE)")
+    expect(nestedTraceRunner).toContain("HRONAUT_TEST_MCP_PORT_NAMESPACE: 'trace-fixtures'")
   })
 })

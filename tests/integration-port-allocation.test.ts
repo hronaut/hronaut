@@ -3,6 +3,33 @@ import { describe, expect, it } from 'vitest'
 import { integrationMcpPort } from './integration/port-allocation.js'
 
 describe('integration MCP port allocation', () => {
+  it('isolates nested trace fixture workers from every parent shard and retry slot', () => {
+    const parentPorts = new Set<number>()
+    for (let shard = 0; shard <= 8; shard += 1) {
+      for (let worker = 0; worker < 1_000; worker += 1) parentPorts.add(integrationMcpPort(String(shard), worker))
+    }
+    const childPorts = new Set<number>()
+    for (let worker = 0; worker < 1_000; worker += 1) {
+      const port = integrationMcpPort(undefined, worker, 'trace-fixtures')
+      expect(parentPorts.has(port), `nested worker ${worker} overlaps parent port ${port}`).toBe(false)
+      childPorts.add(port)
+    }
+    expect(childPorts.size).toBe(1_000)
+    expect(integrationMcpPort(undefined, 2, 'trace-fixtures')).toBe(27_002)
+  })
+
+  it.runIf(process.platform === 'linux')('keeps nested trace ports outside the kernel ephemeral range', () => {
+    const [first, last] = readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/).map(Number)
+    for (let worker = 0; worker < 1_000; worker += 1) {
+      const port = integrationMcpPort('8', worker, 'trace-fixtures')
+      expect(port < first! || port > last!).toBe(true)
+    }
+  })
+
+  it('rejects an unknown namespace rather than silently sharing parent ports', () => {
+    expect(() => integrationMcpPort(undefined, 2, 'unknown')).toThrow(RangeError)
+  })
+
   it.runIf(process.platform === 'linux')('keeps reserved listener slots outside the running kernel ephemeral range', () => {
     const [first, last] = readFileSync('/proc/sys/net/ipv4/ip_local_port_range', 'utf8').trim().split(/\s+/).map(Number)
     expect(first).toBeGreaterThan(0)
