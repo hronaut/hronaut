@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import BookmarksPanel from '../../src/renderer/src/components/BookmarksPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -74,6 +75,60 @@ describe('BookmarksPanel', () => {
 
     await screen.findByRole('button', { name: 'Rename Alpha docs' })
     expect(search).toHaveFocus()
+  })
+
+  it.each(['{Enter}', 'Save'])('focuses search when %s saves a rename that no longer matches', async key => {
+    const renameBookmark = vi.fn(async () => [bookmark('alpha', 'Updated title')])
+    renderPanel({ bookmarks: [bookmark('alpha', 'Original title')], renameBookmark })
+    const user = userEvent.setup()
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Original')
+    await user.click(screen.getByRole('button', { name: 'Rename Original title' }))
+    const editor = screen.getByRole('textbox', { name: 'Rename Original title' })
+    await user.clear(editor)
+    await user.type(editor, 'Updated title')
+    if (key === 'Save') await user.click(screen.getByRole('button', { name: 'Save name for Original title' }))
+    else await user.keyboard(key)
+
+    expect(screen.getByText('No matching bookmarks')).toBeVisible()
+    expect(search).toHaveValue('Original')
+    expect(search).toHaveFocus()
+    expect(renameBookmark).toHaveBeenCalledWith('alpha', 'Updated title')
+    await user.clear(search)
+    expect(screen.getByRole('button', { name: 'Rename Updated title' })).toBeVisible()
+  })
+
+  it('preserves another control focus when the saved row leaves the search results', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const renameBookmark = vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+    renderPanel({ bookmarks: [bookmark('alpha', 'Original title')], renameBookmark })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'Original')
+    await user.click(screen.getByRole('button', { name: 'Rename Original title' }))
+    await user.keyboard('{Enter}')
+    const dock = screen.getByRole('combobox', { name: 'Dock Bookmarks' })
+    dock.focus()
+    finish([bookmark('alpha', 'Updated title')])
+
+    expect(await screen.findByText('No matching bookmarks')).toBeVisible()
+    expect(dock).toHaveFocus()
+  })
+
+  it('does not restore focus into a panel reopened while a rename is saving', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const renameBookmark = vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+    const view = renderPanel({ bookmarks: [bookmark('alpha', 'Original title')], renameBookmark })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'Original')
+    await user.click(screen.getByRole('button', { name: 'Rename Original title' }))
+    await user.keyboard('{Enter}')
+    await view.rerender({ open: false })
+    await view.rerender({ open: true, bookmarks: [bookmark('alpha', 'Updated title')] })
+    finish([bookmark('alpha', 'Updated title')])
+    await flushPromises()
+
+    expect(screen.getByText('No matching bookmarks')).toBeVisible()
+    expect(document.body).toHaveFocus()
   })
 
   it('keeps a failed rename editable and allows retrying the same draft', async () => {
