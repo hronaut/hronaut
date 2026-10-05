@@ -4,13 +4,14 @@ set -u -o pipefail
 
 container_name="hronaut-integration-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 artifact_directory="ci-artifacts"
+local_artifacts=false
 
 # Limit standalone CI runs to two workers. Matrix jobs select one shard and
 # configure its concurrency separately through HRONAUT_INTEGRATION_SHARD_WORKERS.
 if [[ "${1:-}" == '--local' && $# == 1 ]]; then
   export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-4}"
   export HRONAUT_INTEGRATION_SKIP_TYPECHECK="${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}"
-  artifact_directory="test-results/local-docker-${container_name}"
+  local_artifacts=true
 elif (($# == 0)); then
   export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"
   # The parallel validate job already performs the full TypeScript build graph.
@@ -64,6 +65,10 @@ for attempt in 1 2 3; do
 done
 
 if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
+  if [[ "$local_artifacts" == true ]]; then
+    mkdir -p test-results
+    artifact_directory="$(mktemp -d test-results/local-docker-XXXXXX)" || exit "$status"
+  fi
   mkdir -p "$artifact_directory"
   extract_directory test-results
   extract_directory playwright-report

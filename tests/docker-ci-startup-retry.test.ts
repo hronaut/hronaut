@@ -30,12 +30,19 @@ describe('CI Docker startup recovery', () => {
       writeFileSync(join(directory, 'artifact-fixture/proof.txt'), 'retained failure')
       const docker = join(bin, 'docker')
       writeFileSync(docker, `#!/usr/bin/env node
-const { appendFileSync, readFileSync, writeFileSync } = require('node:fs');
+const { appendFileSync, readFileSync, writeFileSync, mkdirSync } = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const scenario = JSON.parse(readFileSync('scenario.json', 'utf8'));
 const args = process.argv.slice(2);
 appendFileSync('calls.jsonl', JSON.stringify(args) + '\\n');
 if (args[0] === 'compose') {
+  if (scenario.local && scenario.copySuccess) {
+    // Simulate old evidence from a prior run whose container PID was reused.
+    const oldDirectory = 'test-results/local-docker-' + args[args.indexOf('--name') + 1];
+    mkdirSync(oldDirectory, { recursive: true });
+    writeFileSync(oldDirectory + '/proof.txt', 'old evidence');
+    writeFileSync('old-directory', oldDirectory);
+  }
   writeFileSync('mode.json', JSON.stringify({ workers: process.env.HRONAUT_INTEGRATION_SHARDS, skipTypecheck: process.env.HRONAUT_INTEGRATION_SKIP_TYPECHECK }));
   const attempts = readFileSync('calls.jsonl', 'utf8').trim().split('\\n')
     .map(line => JSON.parse(line)).filter(call => call[0] === 'compose').length;
@@ -82,6 +89,9 @@ if (args[0] === 'cp') {
         const artifactPath = result.stdout.match(/Failure artifacts: (.+)/)?.[1]
         expect(artifactPath).toMatch(/^test-results\/local-docker-/)
         expect(readFileSync(join(directory, artifactPath!, 'proof.txt'), 'utf8')).toBe('retained failure')
+        const oldDirectory = readFileSync(join(directory, 'old-directory'), 'utf8')
+        expect(artifactPath).not.toBe(oldDirectory)
+        expect(readFileSync(join(directory, oldDirectory, 'proof.txt'), 'utf8')).toBe('old evidence')
       }
       if (scenario.attempts > 1) {
         expect(readFileSync(join(directory, 'delays'), 'utf8')).toBe(scenario.attempts === 2 ? '5\n' : '5\n10\n')
