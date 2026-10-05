@@ -7,10 +7,19 @@ artifact_directory="ci-artifacts"
 
 # Limit standalone CI runs to two workers. Matrix jobs select one shard and
 # configure its concurrency separately through HRONAUT_INTEGRATION_SHARD_WORKERS.
-export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"
-# The parallel validate job already performs the full TypeScript build graph.
-# Keep the standalone Docker command authoritative by changing this only in CI.
-export HRONAUT_INTEGRATION_SKIP_TYPECHECK="true"
+if [[ "${1:-}" == '--local' && $# == 1 ]]; then
+  export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-4}"
+  export HRONAUT_INTEGRATION_SKIP_TYPECHECK="${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}"
+  artifact_directory="test-results/local-docker-${container_name}"
+elif (($# == 0)); then
+  export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"
+  # The parallel validate job already performs the full TypeScript build graph.
+  # Keep the standalone Docker command authoritative by changing this only in CI.
+  export HRONAUT_INTEGRATION_SKIP_TYPECHECK="true"
+else
+  echo 'Usage: run-integration-ci.sh [--local]' >&2
+  exit 2
+fi
 
 compose_build_arguments=()
 case "${HRONAUT_INTEGRATION_IMAGE_PREBUILT:-false}" in
@@ -58,6 +67,7 @@ if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
   mkdir -p "$artifact_directory"
   extract_directory test-results
   extract_directory playwright-report
+  echo "Failure artifacts: $artifact_directory"
 fi
 
 exit "$status"

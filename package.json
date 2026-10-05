@@ -78,7 +78,7 @@
     "evaluate:browser:docker": "node scripts/run-browser-evaluation.ts",
     "example:scheduled-browser-task:docker": "node scripts/run-browser-evaluation.ts --output test-results/scheduled-browser-task/report.json",
     "test:docker:cache:prune": "node scripts/run-focused-docker.ts prune",
-    "test:integration:docker": "docker compose --file compose.test.ci.yaml run --build --rm integration",
+    "test:integration:docker": "bash scripts/run-integration-ci.sh --local",
     "test:package:smoke": "node scripts/packaged-mcp-smoke.ts",
     "smoke:mcp": "node scripts/mcp-smoke.ts",
     "smoke:profile:prepare": "node scripts/profile-smoke.ts prepare",

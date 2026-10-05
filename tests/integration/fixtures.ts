@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import {
   _electron as electron,
+  expect,
   test as base,
   type ElectronApplication,
   type Page,
@@ -14,6 +15,15 @@ import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 import { integrationMcpPort } from './port-allocation.js'
 import { ElectronTraceRecorder } from './electron-tracing.js'
 import { startWorkerDisplay } from './worker-display.js'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+
+export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
+  const status = ['BUSY', 'LEASE_LOST', 'OUTCOME_UNKNOWN', 'STALE_OBSERVATION', 'POLICY_REJECTED',
+    'TIMED_OUT', 'STALE_PRECONDITION', 'UNTRUSTED_TARGET'].find(value => value === result.structuredContent?.status)
+  // Report only a fixed outcome category, never raw MCP text or resume keys.
+  expect({ isError: result.isError === true, status: status ?? 'unspecified' }, operation)
+    .toMatchObject({ isError: false })
+}
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 const testTraces = new WeakMap<TestInfo, ElectronTraceRecorder>()
@@ -276,6 +286,13 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
         if (testInfo.status !== testInfo.expectedStatus) {
           const diagnostics = await collectRendererDiagnostics(instance.app)
           await testInfo.attach('renderer-exits', { body: JSON.stringify(diagnostics), contentType: 'application/json' })
+          // Kernel counters only: no environment, process arguments or browser data.
+          const resources = Object.fromEntries(await Promise.all([
+            '/sys/fs/cgroup/memory.events', '/sys/fs/cgroup/memory.current',
+            '/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/cpu.stat',
+            '/sys/fs/cgroup/cpu.pressure', '/sys/fs/cgroup/memory.pressure'
+          ].map(async path => [path, await readFile(path, 'utf8').then(value => value.slice(0, 4096)).catch(() => 'unavailable')])))
+          await testInfo.attach('container-resources', { body: JSON.stringify(resources), contentType: 'application/json' })
         }
       } finally {
         await closeHronaut(instance.app)

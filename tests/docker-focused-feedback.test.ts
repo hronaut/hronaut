@@ -103,7 +103,7 @@ describe('focused Docker integration feedback', () => {
     }
 
     expect(packageJson.scripts['test:integration:docker']).toBe(
-      'docker compose --file compose.test.ci.yaml run --build --rm integration'
+      'bash scripts/run-integration-ci.sh --local'
     )
     expect(dockerfile).toContain('CMD ["bash", "scripts/run-integration-suite-docker.sh"]')
     expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-4}"')

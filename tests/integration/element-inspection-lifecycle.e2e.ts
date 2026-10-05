@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtures.js'
 
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
@@ -26,10 +26,21 @@ for (const { change, cssProperties, includeFonts } of (['navigation', 'close', '
       await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
       await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
       const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
-      const workspace = JSON.parse(text(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Inspection lifecycle' }))) as { id: string }
-      const state = JSON.parse(text(await call('browser_new_tab', { workspaceId: workspace.id, url }))) as BrowserState
+      const createdWorkspace = await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Inspection lifecycle' })
+      expectFixtureSuccess(createdWorkspace, 'Fixture workspace creation must succeed')
+      const workspace = JSON.parse(text(createdWorkspace)) as { id: string }
+      expect(typeof workspace.id).toBe('string')
+      const createdTab = await call('browser_new_tab', { workspaceId: workspace.id, url })
+      expectFixtureSuccess(createdTab, 'Fixture tab creation must succeed')
+      const state = JSON.parse(text(createdTab)) as BrowserState
+      expect(typeof state.activeTabId).toBe('string')
+      expect(state.activeTabId?.length).toBeGreaterThan(0)
+      expect(state.tabs.some(tab => tab.id === state.activeTabId)).toBe(true)
       const tabId = state.activeTabId!
-      await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().some(page => page.getURL() === url && !page.isLoading()), url)).toBe(true)
+      await expect.poll(() => electronApp.evaluate(({ webContents }, url) => {
+        const pages = webContents.getAllWebContents().filter(page => page.getURL() === url)
+        return { found: pages.length > 0, ready: pages.some(page => !page.isLoading()) }
+      }, url)).toEqual({ found: true, ready: true })
       await electronApp.evaluate(({ webContents }, url) => {
         const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
         const original = page.executeJavaScriptInIsolatedWorld
