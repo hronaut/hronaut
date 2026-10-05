@@ -68,11 +68,13 @@ async function finishRename(operation: () => void | Promise<void>): Promise<void
     && (focused.closest('.bookmark-editor') || focused.closest('.bookmark-action.confirm'))
     ? focused.closest('.bookmark-item')
     : null
+  const panel = row?.closest('.bookmarks-panel')
   await operation()
   await nextTick()
-  if (!open.value || editingBookmarkId.value || !row?.isConnected) return
+  if (!open.value || editingBookmarkId.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
-  row.querySelector<HTMLButtonElement>('.bookmark-action:not(.danger)')?.focus()
+  if (row?.isConnected) row.querySelector<HTMLButtonElement>('.bookmark-action:not(.danger)')?.focus()
+  else panel.querySelector<HTMLInputElement>('.bookmark-search-field input')?.focus()
 }
 
 function cancelRename(): void {

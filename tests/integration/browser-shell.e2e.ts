@@ -6583,10 +6583,19 @@ test('saves, searches, renames, and removes local bookmarks', async ({ appWindow
 
     await panel.getByRole('searchbox', { name: 'Search bookmarks' }).fill('does not match')
     await expect(panel).toContainText('No matching bookmarks')
-    await panel.getByRole('searchbox', { name: 'Search bookmarks' }).fill('Bookmark')
+    const search = panel.getByRole('searchbox', { name: 'Search bookmarks' })
+    await search.fill('fixture')
     await panel.getByRole('button', { name: 'Rename Bookmark fixture' }).click()
     await panel.getByRole('textbox', { name: 'Rename Bookmark fixture' }).fill('Renamed bookmark')
     await panel.getByRole('button', { name: 'Save name for Bookmark fixture' }).click()
+    await expect(panel).toContainText('No matching bookmarks')
+    await expect(search).toBeFocused()
+    await expect(search).toHaveValue('fixture')
+    await expect.poll(async () => {
+      const value = JSON.parse(await readFile(join(profileDirectory, 'bookmarks.json'), 'utf8'))
+      return value.bookmarks?.[0]
+    }).toMatchObject({ url, title: 'Renamed bookmark' })
+    await search.fill('')
     await expect(panel).toContainText('Renamed bookmark')
     await panel.getByRole('button', { name: 'Remove Renamed bookmark' }).click()
     await expect(panel).toContainText('No bookmarks yet')
