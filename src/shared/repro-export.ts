@@ -89,9 +89,11 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
     }
   }
 
+  // An earlier checkpoint cannot establish the outcome of subsequent actions.
+  const finalStep = recording.steps.at(-1)
   lines.push(
     '',
-    ...(recording.steps.some(supportedExpectation)
+    ...(finalStep && supportedExpectation(finalStep)
       ? []
       : [`  throw new Error(${quoted('TODO: replace this line with an assertion for the expected failure or corrected behavior')})`]),
     '})',

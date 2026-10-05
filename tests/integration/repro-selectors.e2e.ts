@@ -88,7 +88,8 @@ for (const unresolved of [false, true]) {
       expect(click.target).toMatchObject({ selector: '', tag: 'button' })
       expect(formatReproAsPlaywright(recording)).toContain(`// TODO: Recreate step ${click.index}: click`)
     } else {
-      await replay
+      // The earlier Ready checkpoint does not verify the later click's outcome.
+      await expect(replay).rejects.toThrow('TODO: replace this line with an assertion')
       expect(await electronApp.evaluate(async ({ webContents }, selector) => {
         const page = webContents.getAllWebContents().find(contents => contents.getTitle() === 'Recorder selectors')!
         return page.executeJavaScript(`(() => { const matches = document.querySelectorAll(${JSON.stringify(selector)}); return matches.length === 1 && matches[0] === document.querySelectorAll('button')[1]; })()`)
