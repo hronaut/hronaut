@@ -43,7 +43,7 @@ const {
   openEntry,
   beginRename,
   commitRename: saveRenameDraft,
-  remove,
+  remove: removeEntry,
   handleEscape: handlePanelEscape,
   dispose
 } = useBookmarksPanelController({
@@ -83,6 +83,24 @@ function cancelRename(): void {
 
 function commitRename(bookmarkId: string): Promise<void> {
   return finishRename(() => saveRenameDraft(bookmarkId))
+}
+
+async function remove(bookmarkId: string, event: MouseEvent): Promise<void> {
+  const focused = event.currentTarget instanceof HTMLButtonElement
+    && document.activeElement === event.currentTarget ? event.currentTarget : null
+  const row = focused?.closest('.bookmark-item')
+  const panel = row?.closest('.bookmarks-panel')
+  const next = row?.nextElementSibling?.querySelector<HTMLButtonElement>('.bookmark-action.danger')
+  const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.bookmark-action.danger')
+  await removeEntry(bookmarkId)
+  await nextTick()
+  if (!open.value || !panel?.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = [focused, next, previous,
+    panel.querySelector<HTMLInputElement>('.bookmark-search-field input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find(element => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
 }
 
 function handleEscape(): void {
@@ -166,7 +184,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         </UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.saveAria', { title: bookmark.title })" :title="t('bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" :title="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
-        <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p v-if="error" class="bookmarks-error" role="alert">{{ error }}</p>
