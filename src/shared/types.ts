@@ -482,6 +482,8 @@ export interface UserAttentionRequest extends UserAttentionInput {
 }
 
 export interface McpTabActivity {
+  /** Internal dispatch choice: publish activity without changing visible selection. */
+  suppressFollow?: boolean
   activityId: string
   tabId: string
   toolName: string

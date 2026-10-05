@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Bounded same-origin iframe observations through `browser_snapshot frameSelector`, preserving parent context and references and reporting unsupported history and viewport omissions.
+
 - Explicit per-tab ReactDOM 19.2.4 production topology inspection through `browser_react` and the native tab menu, with bounded observations, stale-ID rejection and no automatic reload or restart opt-in.
 
 ### Fixed

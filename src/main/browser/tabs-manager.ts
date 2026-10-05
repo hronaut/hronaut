@@ -1,3 +1,4 @@
+import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
@@ -1187,14 +1188,33 @@ export class BrowserTabsManager {
     changed: () => this.changed(false)
   })
   private readonly debuggerQueue = new BrowserDebuggerQueue()
-  private readonly reactInspectionPermissions = new WeakMap<object, number>()
+  private readonly frameObservation = new FrameObservationController({
+    resolve: tabId => {
+      const tab = this.getTab(tabId)
+      if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Frame observation requires an already active tab')
+      return { page: tab.webContents, identity: tab, workspace: tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined, generation: tab.navigationGeneration, observationGeneration: tab.observationGeneration, permissionGeneration: tab.mcpGroupId ? this.inspectionPermissions.get(this.mcpTabGroups.get(tab.mcpGroupId)!) ?? 0 : 0 }
+    },
+    run: (id, operation) => this.debuggerQueue.run(id, operation),
+    requireOwner: (tabId, page) => {
+      const tab = this.getTab(tabId)
+      if (tab.webContents !== page || page.isDestroyed() || !page.debugger.isAttached() || !tab.networkDebuggerEnabled
+        || this.devToolsOpening.has(page.id) || page.isDevToolsOpened() || tab.codeCoverage?.recording
+        || tab.cpuProfile?.recording || tab.memoryAllocation?.recording || tab.reproRecording?.active
+        || this.videoRecorder.state(tab.id).status === 'recording') throw new Error('Frame observation debugger unavailable')
+    }
+  })
+  captureFrameObservation(tabId: string, selector: string, maxChars: number, authority: () => void) {
+    return this.frameObservation.capture(tabId, selector, maxChars, authority)
+  }
+
+  private readonly inspectionPermissions = new WeakMap<object, number>()
   private readonly reactInspectionController = new ReactInspectionController({
     resolve: tabId => {
       const tab = this.getTab(tabId)
       const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
       return {
         identity: tab, page: tab.webContents, workspaceId: tab.mcpGroupId, workspaceIdentity: workspace,
-        permissionGeneration: workspace ? this.reactInspectionPermissions.get(workspace) ?? 0 : 0,
+        permissionGeneration: workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0,
         navigationGeneration: tab.navigationGeneration, observationGeneration: tab.observationGeneration
       }
     },
@@ -1734,7 +1754,7 @@ export class BrowserTabsManager {
     if (updates.color !== undefined) group.color = updates.color
     if (updates.agentAccess !== undefined) {
       if ((group.agentAccess !== false) !== updates.agentAccess) {
-        this.reactInspectionPermissions.set(group, (this.reactInspectionPermissions.get(group) ?? 0) + 1)
+        this.inspectionPermissions.set(group, (this.inspectionPermissions.get(group) ?? 0) + 1)
         // A permission round-trip must not let an older image commit afterward.
         for (const tab of this.tabs.values()) if (tab.mcpGroupId === groupId) tab.visualComparisonGeneration += 1
       }
@@ -1790,7 +1810,7 @@ export class BrowserTabsManager {
       && JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) {
       throw new Error('A public observer origin cannot be changed or widened.')
     }
-    if (JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) this.reactInspectionPermissions.set(group, (this.reactInspectionPermissions.get(group) ?? 0) + 1)
+    if (JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) this.inspectionPermissions.set(group, (this.inspectionPermissions.get(group) ?? 0) + 1)
     group.navigationPolicy = policy
     group.lastUsedAt = new Date().toISOString()
     for (const tab of this.tabs.values()) {
@@ -2054,7 +2074,7 @@ export class BrowserTabsManager {
     })))
   }
 
-  requireTabInMcpGroup(groupId: string, tabId?: string): string {
+  requireTabInMcpGroup(groupId: string, tabId?: string, preserveSelection = false): string {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
     const resolvedTabId = tabId
@@ -2063,8 +2083,10 @@ export class BrowserTabsManager {
     if (!resolvedTabId) throw new Error(`Workspace "${group.name}" has no tabs. Open one with browser_new_tab.`)
     const tab = this.tabs.get(resolvedTabId)
     if (!tab || tab.mcpGroupId !== groupId) throw new Error(`Tab ${resolvedTabId} does not belong to workspace "${group.name}".`)
-    group.activeTabId = resolvedTabId
-    group.lastUsedAt = new Date().toISOString()
+    if (!preserveSelection) {
+      group.activeTabId = resolvedTabId
+      group.lastUsedAt = new Date().toISOString()
+    }
     return resolvedTabId
   }
 
@@ -8011,6 +8033,7 @@ export class BrowserTabsManager {
       this.changed(false)
       void this.ensureDialogMonitoring(tab)
     })
+    this.frameObservation.track(webContents)
     webContents.debugger.on('message', (_event, method, params) => {
       if (method === 'Fetch.requestPaused') {
         this.queueNetworkRouteRequest(tab, params)

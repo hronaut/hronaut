@@ -23,6 +23,13 @@ Project home: https://github.com/hronaut/hronaut
 - **Launch Hronaut when you sign in** registers a per-user startup item on Windows, macOS, and Linux. Enable **Launch minimized** to keep only the tray icon visible for automatic sign-in launches; ordinary manual launches still open the browser window.
 - A second launch focuses the existing instance instead of starting a competing browser profile.
 
+## Same-origin iframe observations
+
+`browser_snapshot action=capture frameSelector="#preview"` reads bounded text
+from one directly embedded same-origin HTTP(S) iframe without changing context
+or parent references. Unsupported history fails closed. See [the complete
+provenance, privacy, omissions and timeout contract](docs/frame-observation.md).
+
 ## Explicit React topology inspection
 
 `browser_react` and **React inspection** in a tab's context menu provide explicit,

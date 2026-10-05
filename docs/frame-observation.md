@@ -1,0 +1,68 @@
+# Same-origin iframe observations
+
+`browser_snapshot action=capture frameSelector="#preview"` reads one directly
+embedded, visible HTTP(S) iframe without switching frame context. The selector
+must identify exactly one top-document light-DOM iframe. `maxChars` defaults to
+8000 and accepts 1000–16000 as an upper bound. It cannot be combined with
+`rootSelector`, quality checks, baselines or deltas.
+
+The result has `kind: "frame-observation"`, `formatVersion: 1`, an opaque
+`captureId`, `scope: "direct-child-viewport"`, untrusted text, limits and explicit
+omissions. It has no actionable element references. Parent references, workspace
+default tab, focus, scroll and visible selection remain unchanged. Frame reads
+do not wake sleeping or frozen tabs, follow agent activity, or count as whole-page
+readiness probes. Read-only grants can authorize them within their existing
+workspace and origin restrictions.
+
+## Provenance and unsupported contexts
+
+Parent and child must have observed, correlated Document requests, final responses
+and commits in the existing application-owned CDP session. Their committed URLs
+must have equal canonical scheme, host and effective port. Exact DOM owner/frame
+mapping is checked separately. Native `contentDocument` access from a private
+parent isolated world enforces SOP; universal access is disabled. Privileged CDP
+node access is not itself a same-origin check. Sandbox (including CSP sandbox),
+srcdoc, blank, opaque and foreign-origin documents are unsupported. Legacy
+`document.domain` relaxation does not widen the accepted origin.
+
+Unknown prior history is unavailable. The operation never reloads a page, attaches
+a debugger or takes ownership from Developer Tools to acquire history. A later
+normal navigation can supply fresh history when the session remains supported.
+Session loss, process swaps, BFCache restores, missing identity and history-cap
+exhaustion fail closed. `document.open` permanently invalidates that loader;
+replayed or late events cannot restore it. A new correlated document is required.
+HTTP 404/500 may still be readable documents. A redirect requires its final
+response. Cache and service-worker responses do not imply fresh origin-server
+content. Canceled, failed and no-content navigations do not qualify as new
+observed documents.
+
+## Observation limits
+
+This is a browser-observed point-in-time result. Pending navigation and observed
+navigation, document replacement or authority changes invalidate it through final
+response acceptance, including awaits for audit persistence and authorization.
+It is not a guarantee against undispatched renderer intent or future changes.
+Audit operation outcomes do not certify that later response delivery was fresh.
+
+Only conservatively bounded viewport text is collected. Partly clipped text nodes
+are omitted in full, even if a prefix is visible. Uncertain transforms, masks and
+similar layouts are omitted. This is a geometric text observation, not a screenshot
+or proof of occlusion. Nested frames, shadow contents, generated CSS content and
+live form/editor values are outside the scope. Closed shadow content cannot be
+enumerated. Authored public text remains untrusted; recognized diagnostic secrets
+and URL credentials are redacted. No observation guarantees detection of every
+secret in authored page text.
+
+Each selector/text walk visits at most 10,000 nodes, with depth at most 100 and a
+cooperative 100ms renderer budget. Output can be shorter than `maxChars`, including
+empty. Omissions distinguish clipping, privacy, nested frames, traversal and text
+limits. Empty or partial observations do not prove absence. The complete duplicated
+JSON MCP envelope is capped at 32,768 UTF-8 bytes; envelope trimming is reported.
+
+The capture/final-check deadline is 1500ms. A timeout stops waiting; it does not
+cancel renderer execution or guarantee the duration of outer audit storage.
+One unfinished operation per tab and at most 16 across tabs may retain guards.
+Timed-out cleanup stays quarantined until cleanup is verified or its execution context/page is
+observably destroyed. No automatic kill, thaw, reload or debugger reattachment follows a
+timeout. The operation remains unavailable while debugger ownership conflicts
+with inspection or recording operations.
