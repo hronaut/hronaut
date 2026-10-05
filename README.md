@@ -310,6 +310,12 @@ The server listens only on loopback. Authentication is optional for a new profil
 
 ## Development checks
 
+The full local `npm run test:integration:docker` gate retains failed Electron
+traces and reports under `test-results/local-docker-<run>/` before removing its
+container. Each run uses a separate directory; a failed artifact copy is reported
+without masking the original test failure. This keeps the normal full typecheck,
+four-worker suite, flaky-test failures, and native-dialog checks unchanged.
+
 ```bash
 npm run lint
 npm test

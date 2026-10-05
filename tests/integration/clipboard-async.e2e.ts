@@ -1,39 +1,71 @@
 import { expect, test } from './fixtures.js'
 
-for (const method of ['write', 'read'] as const) {
-  test(`reports asynchronous image clipboard ${method} rejection and recovers the queue`, async ({ appWindow, electronApp }) => {
+type ReadinessProbe = typeof globalThis & { clipboardReadinessProbe?: { restore(): Promise<void> } }
+
+for (const { method, holdReadinessScript } of [
+  { method: 'write', holdReadinessScript: false },
+  { method: 'read', holdReadinessScript: false },
+  { method: 'read', holdReadinessScript: true }
+] as const) {
+  test(`reports asynchronous image clipboard ${method} rejection and recovers the queue${holdReadinessScript ? ' with an unresolved readiness script' : ''}`, async ({ appWindow, electronApp }) => {
     const state = await appWindow.evaluate("window.hronaut.newTab({url:'data:text/html,<main>Clipboard recovery</main>',active:true})") as { activeTabId: string }
-    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
-      const page = webContents.getAllWebContents().find((entry) => entry.getURL().startsWith('data:text/html'))
-      return page ? page.executeJavaScript("document.readyState") : null
-    })).toBe('complete')
-    await electronApp.evaluate(({ clipboard }, operation) => {
-      const original = clipboard[operation].bind(clipboard)
-      if (operation === 'write') {
-        clipboard.write = async (...args) => {
-          clipboard.write = original as typeof clipboard.write
-          await Promise.resolve()
-          throw new Error(`Rejected async clipboard write (${args.length})`)
+    if (holdReadinessScript) {
+      await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+        webContents.getAllWebContents().some(page => page.getURL() === 'data:text/html,<main>Clipboard recovery</main>')
+      ))).toBe(true)
+      await electronApp.evaluate(({ webContents }) => {
+        const page = webContents.getAllWebContents().find(entry => entry.getURL() === 'data:text/html,<main>Clipboard recovery</main>')!
+        const original = page.executeJavaScript
+        let release!: () => void
+        const pending = new Promise<void>(resolve => { release = resolve })
+        page.executeJavaScript = function (script, userGesture) {
+          return script === 'document.readyState' ? pending.then(() => 'complete') : original.call(this, script, userGesture)
         }
-      } else {
-        clipboard.read = async () => {
-          clipboard.read = original as typeof clipboard.read
-          await Promise.resolve()
-          throw new Error('Rejected async clipboard read')
+        ;(globalThis as ReadinessProbe).clipboardReadinessProbe = {
+          restore: async () => { page.executeJavaScript = original; release(); await pending }
         }
-      }
-    }, method)
-    await expect(appWindow.evaluate(`window.hronaut.capturePage({tabId:${JSON.stringify(state.activeTabId)}})`))
-      .rejects.toThrow(`Rejected async clipboard ${method}`)
-    await appWindow.evaluate("window.hronaut.copyText('queue recovered')")
-    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe('queue recovered')
-    await appWindow.evaluate(`window.hronaut.capturePage({tabId:${JSON.stringify(state.activeTabId)}})`)
-    expect(await electronApp.evaluate(async ({ clipboard }) => {
-      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
-      if (!item) return 0
-      const blob = await item.getType('image/png')
-      return blob instanceof Blob ? blob.size : 0
-    })).toBeGreaterThan(0)
+      })
+    }
+    try {
+      // Observe the committed fixture URL and native main-frame completion without
+      // enqueueing JavaScript while its initial navigation may still be settling.
+      await expect.poll(() => electronApp.evaluate(({ webContents }) => {
+        const page = webContents.getAllWebContents().find(entry => entry.getURL() === 'data:text/html,<main>Clipboard recovery</main>')
+        return Boolean(page && !page.isLoadingMainFrame())
+      })).toBe(true)
+      await electronApp.evaluate(({ clipboard }, operation) => {
+        const original = clipboard[operation].bind(clipboard)
+        if (operation === 'write') {
+          clipboard.write = async (...args) => {
+            clipboard.write = original as typeof clipboard.write
+            await Promise.resolve()
+            throw new Error(`Rejected async clipboard write (${args.length})`)
+          }
+        } else {
+          clipboard.read = async () => {
+            clipboard.read = original as typeof clipboard.read
+            await Promise.resolve()
+            throw new Error('Rejected async clipboard read')
+          }
+        }
+      }, method)
+      await expect(appWindow.evaluate(`window.hronaut.capturePage({tabId:${JSON.stringify(state.activeTabId)}})`))
+        .rejects.toThrow(`Rejected async clipboard ${method}`)
+      await appWindow.evaluate("window.hronaut.copyText('queue recovered')")
+      expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe('queue recovered')
+      await appWindow.evaluate(`window.hronaut.capturePage({tabId:${JSON.stringify(state.activeTabId)}})`)
+      expect(await electronApp.evaluate(async ({ clipboard }) => {
+        const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+        if (!item) return 0
+        const blob = await item.getType('image/png')
+        return blob instanceof Blob ? blob.size : 0
+      })).toBeGreaterThan(0)
+    } finally {
+      if (holdReadinessScript) await electronApp.evaluate(async () => {
+        await (globalThis as ReadinessProbe).clipboardReadinessProbe?.restore()
+        delete (globalThis as ReadinessProbe).clipboardReadinessProbe
+      })
+    }
   })
 }
 

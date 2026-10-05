@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtures.js'
 
 function content(result: CallToolResult): string {
   return result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
@@ -57,14 +57,25 @@ test('rejects a consequential action when waking the admitted tab crosses origin
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
       requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
     }))
-    const workspace = decode<{ id: string }>(await call('browser_workspaces', {
+    const createdWorkspace = await call('browser_workspaces', {
       action: 'create', storage: 'scratch', name: 'Untrusted page authority QA'
-    }))
-    const state = decode<{ activeTabId: string }>(await call('browser_new_tab', {
+    })
+    expectFixtureSuccess(createdWorkspace, 'Fixture workspace creation must succeed')
+    const workspace = decode<{ id: string }>(createdWorkspace)
+    expect(typeof workspace.id).toBe('string')
+    const createdTab = await call('browser_new_tab', {
       workspaceId: workspace.id, url: `${trustedOrigin}/account`
-    }))
+    })
+    expectFixtureSuccess(createdTab, 'Fixture tab creation must succeed')
+    const state = decode<{ activeTabId: string; tabs: Array<{ id: string }> }>(createdTab)
+    expect(typeof state.activeTabId).toBe('string')
+    expect(state.activeTabId.length).toBeGreaterThan(0)
+    expect(state.tabs.some(tab => tab.id === state.activeTabId)).toBe(true)
     const tabId = state.activeTabId
-    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.loading)`)).toBe(false)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => {
+      const tab = state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)});
+      return { found: Boolean(tab), loading: tab?.loading };
+    })`)).toEqual({ found: true, loading: false })
     await call('browser_new_tab', { workspaceId: workspace.id, url: 'about:blank' })
     const run = decode<{ id: string }>(await call('browser_audit_receipts', {
       workspaceId: workspace.id, action: 'start'

@@ -23,7 +23,7 @@ test('retains Electron page snapshots for failed fixtures and manual restarts on
       '--output', testInfo.outputPath('child-results')
     ], {
       cwd: process.cwd(),
-      env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath },
+      env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportPath, HRONAUT_TEST_MCP_PORT_NAMESPACE: 'trace-fixtures' },
       timeout: 90_000,
       maxBuffer: 2 * 1024 * 1024
     })
