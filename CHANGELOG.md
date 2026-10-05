@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Wallet workspace-scope choices now form native radio groups, so Tab leaves the group without stopping on its unchecked option; arrow-key selection remains available.
+
 ### Added
 
 - Observe bounded service-worker update history from MCP or Site storage → Offline, with version identities, explicit stop controls and retained interruption evidence. Observations always report incomplete history and never invoke worker lifecycle actions.
