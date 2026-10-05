@@ -37,6 +37,29 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('BookmarksPanel', () => {
+  it.each(['first', 'last', 'filtered', 'only'])('preserves keyboard access after removing the %s bookmark', async scenario => {
+    const alpha = bookmark('alpha', 'Alpha docs')
+    const beta = bookmark('beta', 'Beta page')
+    const removed = scenario === 'last' ? beta : alpha
+    const remaining = scenario === 'only' ? [] : [scenario === 'last' ? alpha : beta]
+    const removeBookmark = vi.fn(async () => remaining)
+    renderPanel({ bookmarks: scenario === 'only' ? [alpha] : [alpha, beta], removeBookmark })
+    const user = userEvent.setup()
+    if (scenario === 'filtered') await user.type(screen.getByRole('searchbox'), 'Alpha')
+    const button = screen.getByRole('button', { name: `Remove ${removed.title}` })
+    button.focus()
+    await user.keyboard('{Enter}')
+
+    expect(removeBookmark).toHaveBeenCalledWith(removed.id)
+    expect(screen.queryByRole('button', { name: `Remove ${removed.title}` })).not.toBeInTheDocument()
+    const destination = scenario === 'only'
+      ? screen.getByRole('button', { name: 'Close bookmarks' })
+      : scenario === 'filtered'
+        ? screen.getByRole('searchbox')
+        : screen.getByRole('button', { name: `Remove ${remaining[0].title}` })
+    expect(destination).toHaveFocus()
+  })
+
   it('renders the rename editor outside interactive buttons and focuses it', async () => {
     renderPanel()
     const user = userEvent.setup()
@@ -47,6 +70,39 @@ describe('BookmarksPanel', () => {
     expect(editor).toHaveFocus()
     expect(editor.closest('button')).toBeNull()
     expect(screen.queryByTitle('https://example.test/alpha')).not.toBeInTheDocument()
+  })
+
+  it('preserves newer focus while bookmark removal is pending', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    renderPanel({ removeBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Alpha docs' }))
+    const search = screen.getByRole('searchbox')
+    await user.click(search)
+    finish([bookmark('beta', 'Beta page')])
+    await flushPromises()
+    expect(search).toHaveFocus()
+  })
+
+  it('does not restore removal focus into a reopened panel', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const view = renderPanel({ removeBookmark: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Remove Alpha docs' }))
+    await view.rerender({ open: false })
+    await view.rerender({ open: true, bookmarks: [bookmark('beta', 'Beta page')] })
+    finish([bookmark('beta', 'Beta page')])
+    await flushPromises()
+    expect(document.body).toHaveFocus()
+  })
+
+  it('keeps the removal control reachable after a failed removal', async () => {
+    renderPanel({ removeBookmark: vi.fn(async () => { throw new Error('Removal failed') }) })
+    const user = userEvent.setup()
+    const remove = screen.getByRole('button', { name: 'Remove Alpha docs' })
+    await user.click(remove)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Removal failed')
+    expect(remove).toHaveFocus()
   })
 
   it.each(['{Escape}', '{Enter}', 'Save'])('returns keyboard focus to Rename after %s', async key => {

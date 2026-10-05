@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Removing a bookmark keeps keyboard focus on a neighboring removal control, the search field, or the panel close button when the collection is empty, without overriding a newer focus choice.
+
 - Docked panels now save the final pointer release position when it differs from the last resize move, for both width and height adjustments.
 
 - Bookmark renaming returns focus to search when the new title no longer matches the current filter, preserving keyboard access to the saved bookmark.
