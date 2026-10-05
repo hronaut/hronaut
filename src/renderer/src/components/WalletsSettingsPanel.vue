@@ -4,7 +4,7 @@ import UiTabs from '../ui/UiTabs.vue'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import IconWallet from '~icons/material-symbols/account-balance-wallet-outline-rounded'
 import IconAdd from '~icons/material-symbols/add-rounded'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
@@ -30,6 +30,7 @@ const props = defineProps<{
 }>()
 const { t } = useI18n({ useScope: 'global' })
 
+const workspaceScopeGroupId = `wallet-workspace-scope-${useId()}`
 const activeTab = ref('wallets')
 const settingsTabs = computed(() => [
   { id: 'wallets', label: t('wallets.yourWallets') },
@@ -526,8 +527,8 @@ async function addPolicy(): Promise<void> {
           <section class="wallet-access-panel wallet-configured-access" aria-labelledby="wallet-configured-access-heading">
             <div class="wallet-access-heading"><h5 id="wallet-configured-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
             <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
-              <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
-              <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
+              <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" :name="`${workspaceScopeGroupId}-configured`" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
+              <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" :name="`${workspaceScopeGroupId}-configured`" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
             </div>
             <fieldset :disabled="controller.busy.value || configuredWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="configuredWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
             <p class="wallet-access-security-note">{{ t('wallets.workspaceAccessSecurity') }}</p>
@@ -569,8 +570,8 @@ async function addPolicy(): Promise<void> {
           <section class="wallet-wide wallet-access-panel" aria-labelledby="wallet-onboarding-access-heading">
             <div class="wallet-access-heading"><h5 id="wallet-onboarding-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
             <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
-              <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
-              <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
+              <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" :name="`${workspaceScopeGroupId}-onboarding`" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
+              <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" :name="`${workspaceScopeGroupId}-onboarding`" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
             </div>
             <fieldset :disabled="onboardingLocked || onboardingWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
           </section>

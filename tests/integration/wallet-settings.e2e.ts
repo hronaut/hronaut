@@ -453,3 +453,40 @@ test('confirms a validated private-key import through the trusted Settings IPC b
   )`)).toBe(true)
   await expect(panel.getByRole('alert')).toHaveCount(0)
 })
+
+test('uses one tab stop and native arrow selection for wallet workspace-scope groups', async ({ appWindow }) => {
+  await appWindow.evaluate(`window.hronautWallets.addWatchOnly({
+    name: 'Keyboard scope fixture',
+    chainFamily: 'evm',
+    publicAddress: '0x0000000000000000000000000000000000000001',
+    network: { id: '31337', name: 'Local fixture', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+    workspaceIds: []
+  })`)
+  const originalWallets = await appWindow.evaluate('window.hronautWallets.list()')
+  await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+  const settings = appWindow.getByRole('tabpanel', { name: 'Settings' })
+  await settings.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
+  const panel = settings.locator('.wallet-settings')
+
+  for (const tabName of ['Your wallets', 'Add wallet']) {
+    await panel.getByRole('tab', { name: tabName, exact: true }).click()
+    const group = panel.getByRole('radiogroup')
+    const selected = group.getByRole('radio', { name: 'Selected workspaces', exact: true })
+    const all = group.getByRole('radio', { name: 'Any workspace', exact: true })
+    await expect(selected).toBeChecked()
+    await selected.focus()
+    await selected.press('ArrowRight')
+    await expect(all).toBeFocused()
+    await expect(all).toBeChecked()
+    await expect(selected).not.toBeChecked()
+    await expect(appWindow.evaluate('window.hronautWallets.list()')).resolves.toEqual(originalWallets)
+    await all.press('ArrowLeft')
+    await expect(selected).toBeFocused()
+    await expect(selected).toBeChecked()
+    await expect(all).not.toBeChecked()
+    await selected.press('Tab')
+    await expect(all).not.toBeFocused()
+  }
+  // Scope editing remains a draft until the existing explicit save action.
+  await expect(appWindow.evaluate('window.hronautWallets.list()')).resolves.toEqual(originalWallets)
+})
