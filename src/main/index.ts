@@ -3712,6 +3712,10 @@ async function createWindow(startMinimized = false): Promise<void> {
       })
     }
   })
+  ipcMain.on('react-inspection:bootstrap', event => {
+    event.returnValue = event.senderFrame === event.sender.mainFrame
+      ? tabsManager!.reactInspectionBootstrap(event.sender) : { enabled: false }
+  })
   registerIpc()
 
   mainWindow.on('blur', () => tabsManager?.cancelSplitDivider())

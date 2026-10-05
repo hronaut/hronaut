@@ -1,3 +1,6 @@
+import { reactInspectionMenu } from './react-inspection-menu.js'
+import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
+import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
@@ -1184,6 +1187,41 @@ export class BrowserTabsManager {
     changed: () => this.changed(false)
   })
   private readonly debuggerQueue = new BrowserDebuggerQueue()
+  private readonly reactInspectionPermissions = new WeakMap<object, number>()
+  private readonly reactInspectionController = new ReactInspectionController({
+    resolve: tabId => {
+      const tab = this.getTab(tabId)
+      const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      return {
+        identity: tab, page: tab.webContents, workspaceId: tab.mcpGroupId, workspaceIdentity: workspace,
+        permissionGeneration: workspace ? this.reactInspectionPermissions.get(workspace) ?? 0 : 0,
+        navigationGeneration: tab.navigationGeneration, observationGeneration: tab.observationGeneration
+      }
+    },
+    run: (id, operation) => this.debuggerQueue.run(id, operation),
+    requireDebuggerOwner: tabId => {
+      const tab = this.getTab(tabId)
+      if (this.devToolsOpening.has(tab.webContents.id) || tab.webContents.isDevToolsOpened()
+        || tab.codeCoverage?.recording || tab.cpuProfile?.recording) throw new Error('React inspection debugger unavailable')
+    },
+    requireDebuggerCleanupOwner: (tabId, page) => {
+      const tab = this.getTab(tabId)
+      if (tab.webContents !== page || this.devToolsOpening.has(page.id) || page.isDevToolsOpened()) {
+        throw new Error('React inspection debugger cleanup unavailable')
+      }
+    },
+    mainWorldContextId: page => this.mainWorldContextId(page)
+  })
+
+  reactInspectionBootstrap(contents: WebContents) {
+    const tab = [...this.tabs.values()].find(candidate => candidate.webContents === contents)
+    return tab ? this.reactInspectionController.bootstrap(tab.id) : { enabled: false }
+  }
+
+  reactInspection(tabId: string, command: ReactInspectionCommand, authority: ReactInspectionAuthority) {
+    return this.reactInspectionController.run(tabId, command, authority)
+  }
+
   private interactionLockTail: Promise<void> = Promise.resolve()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
   private readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
@@ -1696,6 +1734,7 @@ export class BrowserTabsManager {
     if (updates.color !== undefined) group.color = updates.color
     if (updates.agentAccess !== undefined) {
       if ((group.agentAccess !== false) !== updates.agentAccess) {
+        this.reactInspectionPermissions.set(group, (this.reactInspectionPermissions.get(group) ?? 0) + 1)
         // A permission round-trip must not let an older image commit afterward.
         for (const tab of this.tabs.values()) if (tab.mcpGroupId === groupId) tab.visualComparisonGeneration += 1
       }
@@ -1751,6 +1790,7 @@ export class BrowserTabsManager {
       && JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) {
       throw new Error('A public observer origin cannot be changed or widened.')
     }
+    if (JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) this.reactInspectionPermissions.set(group, (this.reactInspectionPermissions.get(group) ?? 0) + 1)
     group.navigationPolicy = policy
     group.lastUsedAt = new Date().toISOString()
     for (const tab of this.tabs.values()) {
@@ -2103,6 +2143,7 @@ export class BrowserTabsManager {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
     if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
+    this.reactInspectionController.invalidateWorkspace(groupId)
     const previousActiveTabId = this.activeTabId
     const previousGroupActiveTabId = group.activeTabId
     const tabs = this.orderedTabs().filter((tab) => tab.mcpGroupId === groupId)
@@ -3582,6 +3623,14 @@ export class BrowserTabsManager {
         click: () => runAction('duplicate the tab', () => this.duplicateTab(tab.id))
       },
       splitMenu,
+      reactInspectionMenu(this.reactInspectionController.status(tab.id), {
+        title: this.text('reactInspection.title'), enable: this.text('reactInspection.enable'),
+        disabled: this.text('reactInspection.disabled'), reloadRequired: this.text('reactInspection.reloadRequired'),
+        installed: this.text('reactInspection.installed'), residue: this.text('reactInspection.residue')
+      }, enabled => runAction('change React inspection', () => this.reactInspection(tab.id, { action: enabled ? 'enable' : 'disable' }, {
+        epoch: 'human-tab-control',
+        assertCurrent: () => { if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab changed') }
+      })), /^https?:/.test(tab.url) && !tab.sleeping),
       {
         id: tab.muted ? 'unmute-tab' : 'mute-tab',
         label: this.text(tab.muted ? 'native.context.unmuteTab' : 'native.context.muteTab'),
@@ -7451,6 +7500,7 @@ export class BrowserTabsManager {
     this.authorizedAgentMouseInput.clear()
     this.authorizedAgentKeyboardInput.clear()
     this.downloadController.destroy()
+    this.reactInspectionController.dispose()
     this.debuggerQueue.clear()
     this.networkRouteQueues.clear()
     for (const timer of this.networkRouteRefreshTimers.values()) clearTimeout(timer)

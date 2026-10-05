@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Explicit per-tab ReactDOM 19.2.4 production topology inspection through `browser_react` and the native tab menu, with bounded observations, stale-ID rejection and no automatic reload or restart opt-in.
+
 ### Fixed
 
 - Keep a final expected-result TODO in Repro exports when actions follow the last checkpoint, so an earlier passing check cannot silently stand in for a later outcome.

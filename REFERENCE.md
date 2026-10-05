@@ -23,6 +23,15 @@ Project home: https://github.com/hronaut/hronaut
 - **Launch Hronaut when you sign in** registers a per-user startup item on Windows, macOS, and Linux. Enable **Launch minimized** to keep only the tray icon visible for automatic sign-in launches; ordinary manual launches still open the browser window.
 - A second launch focuses the existing instance instead of starting a competing browser profile.
 
+## Explicit React topology inspection
+
+`browser_react` and **React inspection** in a tab's context menu provide explicit,
+per-tab opt-in for bounded ReactDOM 19.2.4 production topology. Enabling requires
+a subsequent normal reload/navigation and never reloads automatically. Activation
+is not persisted across restart. Disabled hook residue remains until reload.
+Names/version claims are untrusted; unsupported or partial results do not establish
+absence. See [the complete contract, limits, authority lifecycle and provenance](docs/react-inspection.md).
+
 ## Appearance
 
 Settings opens as a reusable application tab beside Home. Use its section navigation to switch categories;

@@ -250,6 +250,7 @@ docs/*
 !docs/DIRECTORY_LISTINGS.md
 !docs/SUPPORT_RECOVERY.md
 !docs/RUNTIME_BOUNDARIES.md
+!docs/react-inspection.md
 playwright-report/
 storybook-static/
 test-results/

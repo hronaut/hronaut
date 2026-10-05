@@ -135,6 +135,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_page_metadata: readOnlyTool('Inspect page metadata'),
   browser_security: readOnlyTool('Inspect connection security'),
   browser_code_coverage: nonDestructiveTool('Record code coverage'),
+  browser_react: nonDestructiveTool('Inspect opted-in React topology'),
   browser_cpu_profile: nonDestructiveTool('Record a CPU profile'),
   browser_memory: nonDestructiveTool('Inspect page memory'),
   browser_debug_report: readOnlyTool('Create a debug report'),
@@ -278,6 +279,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_design_overview', category: 'Inspection', description: 'Summarize bounded computed colors, typography, media queries, and likely text-contrast issues without returning page text or CSS source.' },
   { name: 'browser_page_metadata', category: 'Inspection', description: 'Inspect bounded title, canonical, robots, social cards, alternates, icons, headings, and structured-data types without returning body content or full JSON-LD.' },
   { name: 'browser_security', category: 'Inspection', description: 'Inspect the current main document transport, TLS connection, and bounded certificate metadata without returning raw certificates.' },
+  { name: 'browser_react', category: 'Inspection', description: 'Explicitly enable, inspect or disable bounded ReactDOM 19.2.4 production topology in one top-level workspace tab. Enabling requires a subsequent user-requested navigation or reload; never navigates automatically. Names/version claims are untrusted. Returns activation/readiness, partial limits and ephemeral subtree IDs; no props, state, context, keys, source or DOM text. Disabled hook residue remains until reload. This mixed tool requires write ownership.' },
   { name: 'browser_code_coverage', category: 'Inspection', description: 'Record bounded JavaScript and CSS usage in one workspace tab and report unused bytes without returning source code.' },
   { name: 'browser_cpu_profile', category: 'Inspection', description: 'Record bounded JavaScript CPU samples in one workspace tab and report the hottest functions by direct self time without returning source code, arguments, or page content.' },
   { name: 'browser_memory', category: 'Inspection', description: 'Compare bounded JavaScript heap and DOM counters against a per-tab runtime baseline, or sample the functions retaining live allocations, without returning object values, source code, or page content.' },
@@ -379,7 +381,8 @@ const QA_TOOL_NAMES = new Set([
   'browser_network_search',
   'browser_network_request',
   'browser_network_har',
-  'browser_webmcp'
+  'browser_webmcp',
+  'browser_react'
 ])
 
 export function mcpToolCatalogForSet(toolSet: McpToolSet): AdvertisedBrowserToolDefinition[] {
