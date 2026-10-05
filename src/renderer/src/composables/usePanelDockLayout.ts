@@ -166,6 +166,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
   }
 
   function finishResize(event: PointerEvent): void {
+    if (event.type === 'pointerup') moveResize(event)
     endResize(event.pointerId, true)
   }
 

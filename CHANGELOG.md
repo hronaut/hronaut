@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Docked panels now save the final pointer release position when it differs from the last resize move, for both width and height adjustments.
+
 - Bookmark renaming returns focus to search when the new title no longer matches the current filter, preserving keyboard access to the saved bookmark.
 
 - Workspace-rail resizing now saves the pointer release position even when it differs from the last move event.

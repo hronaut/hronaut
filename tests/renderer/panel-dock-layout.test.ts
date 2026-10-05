@@ -229,6 +229,58 @@ describe('usePanelDockLayout', () => {
     } finally { harness.wrapper.unmount() }
   })
 
+  it.each([
+    ['right', false], ['right', true], ['left', false], ['left', true],
+    ['bottom', false], ['bottom', true], ['top', false], ['top', true]
+  ] as const)('saves the %s dock release position with preceding move=%s', (dock, moved) => {
+    const harness = mountHarness(dock)
+    const { handle, releasePointerCapture } = resizeHandle()
+    const direction = dock === 'right' || dock === 'bottom' ? -1 : 1
+    const horizontal = dock === 'right' || dock === 'left'
+    const dispatch = (type: string, delta: number, pointerId = 21): void => {
+      const event = new MouseEvent(type, {
+        clientX: 500 + (horizontal ? delta * direction : 0),
+        clientY: 400 + (horizontal ? 0 : delta * direction)
+      })
+      Object.defineProperty(event, 'pointerId', { value: pointerId })
+      window.dispatchEvent(event)
+    }
+    try {
+      harness.controller.reportShellHeight()
+      const originalSize = harness.controller.size.value
+      harness.controller.startResize(pointerEvent(handle, { pointerId: 21, clientX: 500, clientY: 400 }))
+      if (moved) dispatch('pointermove', 40)
+      dispatch('pointerup', 80, 22)
+      expect(harness.controller.resizeGesture.value).not.toBeNull()
+      expect(harness.controller.size.value).toBe(originalSize + (moved ? 40 : 0))
+      dispatch('pointerup', 80)
+      expect(harness.controller.size.value).toBe(originalSize + 80)
+      expect(harness.controller.resizeGesture.value).toBeNull()
+      expect(releasePointerCapture).toHaveBeenCalledWith(21)
+      expect(window.localStorage.getItem(`hronaut:panel-dock-size-${horizontal ? 'horizontal' : 'vertical'}`))
+        .toBe(String(originalSize + 80))
+      dispatch('pointermove', 120)
+      expect(harness.controller.size.value).toBe(originalSize + 80)
+    } finally { harness.wrapper.unmount() }
+  })
+
+  it.each(['pointercancel', 'lostpointercapture'])('does not treat %s coordinates as a pointer release', type => {
+    const harness = mountHarness()
+    const { handle } = resizeHandle()
+    try {
+      harness.controller.reportShellHeight()
+      harness.controller.startResize(pointerEvent(handle, { pointerId: 23, clientX: 700 }))
+      harness.controller.moveResize(pointerEvent(handle, { pointerId: 23, clientX: 660 }))
+      const event = new MouseEvent(type, { clientX: 0 })
+      Object.defineProperty(event, 'pointerId', { value: 23 })
+      if (type === 'lostpointercapture') handle.dispatchEvent(event)
+      else window.dispatchEvent(event)
+      expect(harness.controller.resizeGesture.value).toBeNull()
+      expect(harness.controller.size.value).toBe(520)
+      expect(window.localStorage.getItem('hronaut:panel-dock-size-horizontal')).toBe('520')
+    } finally { harness.wrapper.unmount() }
+  })
+
   it('finishes a resize against its starting axis when the panel is redocked mid-gesture', async () => {
     const harness = mountHarness()
     harness.controller.reportShellHeight()
