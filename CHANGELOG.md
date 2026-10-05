@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Workspace-rail resizing now saves the pointer release position even when it differs from the last move event.
+
 - Wallet workspace-scope choices now form native radio groups, so Tab leaves the group without stopping on its unchecked option; arrow-key selection remains available.
 
 ### Added

@@ -70,13 +70,30 @@ describe('tab rail resizing', () => {
     h.pointer('pointermove', 376)
     expect(h.controller.width.value).toBe(380)
     expect(values.has(key)).toBe(false)
-    h.pointer('pointerup')
+    h.pointer('pointerup', 376)
     expect(values.get(key)).toBe('380')
     expect(h.controller.resizing.value).toBe(false)
     expect(h.releasePointerCapture).toHaveBeenCalledWith(1)
     h.pointer('pointermove', 440)
     expect(h.controller.width.value).toBe(380)
     h.dispose()
+  })
+
+  it.each([false, true])('commits the release position with preceding movement=%s', moved => {
+    const h = harness()
+    try {
+      h.start(276)
+      if (moved) h.pointer('pointermove', 316)
+      h.pointer('pointerup', 400, 2)
+      expect(h.controller.resizing.value).toBe(true)
+      expect(values.has(key)).toBe(false)
+      h.pointer('pointerup', 356)
+      expect(h.controller.width.value).toBe(360)
+      expect(values.get(key)).toBe('360')
+      expect(h.controller.resizing.value).toBe(false)
+      h.pointer('pointermove', 450)
+      expect(h.controller.width.value).toBe(360)
+    } finally { h.dispose() }
   })
 
   it.each(['Escape', 'pointercancel', 'lostpointercapture', 'blur', 'disabled', 'viewport', 'dispose'])('cancels %s and removes the gesture listeners without saving', reason => {

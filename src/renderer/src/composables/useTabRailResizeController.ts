@@ -72,7 +72,9 @@ export function useTabRailResizeController(options: {
   }
 
   function finishResize(event: PointerEvent): void {
-    if (gesture.value?.pointerId === event.pointerId) endResize(true)
+    if (gesture.value?.pointerId !== event.pointerId) return
+    moveResize(event)
+    endResize(true)
   }
 
   function cancelPointerResize(event: PointerEvent): void {

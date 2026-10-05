@@ -185,3 +185,34 @@ test('keeps the workspace separator on the rail boundary for every panel dock', 
     await expect(handle).toHaveAttribute('aria-valuenow', String(before + 16))
   }
 })
+
+test('persists the workspace rail position from the release event', async ({ appWindow, electronApp }) => {
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1200, 800))
+  await appWindow.evaluate("window.hronautSettings.setTabPosition('left')")
+  await appWindow.evaluate("window.hronaut.newTab({ url: 'data:text/html,<title>Rail resize fixture</title><p>Release position fixture</p>', active: true })")
+  const handle = appWindow.getByRole('separator', { name: 'Resize workspace panel', exact: true })
+  await expect(handle).toHaveAttribute('aria-valuenow', '280')
+  const bounds = (await handle.boundingBox())!
+  const x = Math.round(bounds.x + 4)
+  const y = Math.round(bounds.y + 140)
+  await appWindow.mouse.move(x, y)
+  await appWindow.mouse.down()
+  await appWindow.mouse.move(x + 40, y)
+  await expect(handle).toHaveAttribute('aria-valuenow', '320')
+  expect(await appWindow.evaluate(key => localStorage.getItem(key), key)).toBeNull()
+  await handle.evaluate(element => element.addEventListener('pointerup', event => {
+    element.setAttribute('data-test-release-x', String((event as PointerEvent).clientX))
+  }, { once: true }))
+  // Deliver a native release whose position differs from the last move. Sending
+  // another mouse.move first would hide a stale-last-move implementation.
+  await electronApp.evaluate(({ BrowserWindow }, position) => {
+    BrowserWindow.getAllWindows()[0]!.webContents.sendInputEvent({
+      type: 'mouseUp', button: 'left', clickCount: 1, ...position
+    })
+  }, { x: x + 80, y })
+  await expect(handle).toHaveAttribute('data-test-release-x', String(x + 80))
+  await expect(handle).toHaveAttribute('aria-valuenow', '360')
+  await expect(handle).not.toHaveClass(/active/)
+  await expect.poll(() => appWindow.evaluate(key => localStorage.getItem(key), key)).toBe('360')
+  await expect.poll(() => pageBounds(electronApp)).toMatchObject({ x: 360, visible: true })
+})
