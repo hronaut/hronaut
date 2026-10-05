@@ -2382,6 +2382,8 @@ export const esES = {
   },
   "repro": {
     "checkpoint": {
+      "count": "Cantidad de elementos",
+      "countHint": "Usa selectores estructurales como ul > li o li:nth-of-type(2). Se incluyen elementos ocultos; indica de 0 a 500. Se rechazan coincidencias con controles de formulario, destinos editables y marcos. Se rechazan páginas con más de 2.000 elementos visitados.",
       "checked": "Marcado (casilla/botón de opción)",
       "unchecked": "Sin marcar (casilla/botón de opción)","title": "Punto de control del resultado esperado", "condition": "Condición", "visible": "Visible", "hidden": "Oculto", "text": "Texto exacto", "review": "He revisado el destino y el texto para compartir; es el resultado esperado, no una prueba de éxito.", "add": "Añadir punto de control", "matched": "Coincide actualmente", "notMatched": "No coincide actualmente"},
     "selectorUnavailable": "No hay un selector único; recrea este paso manualmente.",

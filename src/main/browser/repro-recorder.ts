@@ -161,6 +161,8 @@ export class BrowserReproRecorder<T extends ReproTab> {
         throw new Error('Choose a non-editable result element; form values and frame contents are excluded')
       }
       if (result?.error === 'shadow-text-target') throw new Error('Choose a text result element without open shadow roots; shadow contents are outside recording scope')
+      if (result?.error === 'count-node-limit') throw new Error('Count observation exceeded 2000 visited elements; expectation was not recorded')
+      if (result?.error === 'count-match-limit') throw new Error('Count observation exceeded 500 matches; expectation was not recorded')
       if (result?.error === 'text-limit') throw new Error('Checkpoint text observation exceeded its limit; select a smaller target')
       if (result?.error === 'visibility-limit') throw new Error('Checkpoint visibility observation exceeded its limit; select a smaller target')
       if (result?.error === 'ambiguous-target') throw new Error('Checkpoint requires exactly one current light-DOM element')
@@ -172,7 +174,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       this.addReproStep(tab, {
         kind: 'expect', description: `Expected result: ${request.condition}`,
         target: { selector: result.selector, tag: result.tag.slice(0, 64) },
-        expectation: { condition: request.condition, ...(request.text !== undefined ? { text: request.text } : {}), observedMatch: result.observedMatch }
+        expectation: { condition: request.condition, ...(request.text !== undefined ? { text: request.text } : {}), ...(request.count !== undefined ? { count: request.count } : {}), observedMatch: result.observedMatch }
       })
     })
     recording!.queue = operation.catch(() => undefined)
@@ -262,7 +264,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       recording.checkpointObservation = tab.observationGeneration
     }
     return {
-      formatVersion: 2,
+      formatVersion: recording?.steps.some(step => step.expectation?.condition === 'count') ? 3 : 2,
       ...(recording?.active ? { checkpointContext: recording.checkpointContext } : {}),
       tabId: tab.id,
       title: redactDiagnosticText(tab.title).slice(0, 500),

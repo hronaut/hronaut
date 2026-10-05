@@ -22,6 +22,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add reviewed Repro element-count checkpoints, including zero and hidden matches, with bounded structural selectors and Playwright count assertions.
+
 - Observe bounded service-worker update history from MCP or Site storage → Offline, with version identities, explicit stop controls and retained interruption evidence. Observations always report incomplete history and never invoke worker lifecycle actions.
 - Opt-in rendered-font inspection for ordinary leaf elements, with bounded font usage metadata and explicit exclusions for form controls, editors, containers and shadow content.
 

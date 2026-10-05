@@ -2382,6 +2382,8 @@ export const frFR = {
   },
   "repro": {
     "checkpoint": {
+      "count": "Nombre d’éléments",
+      "countHint": "Utilisez des sélecteurs structurels comme ul > li ou li:nth-of-type(2). Les éléments masqués comptent ; indiquez de 0 à 500. Les correspondances avec des champs, cibles modifiables ou cadres sont rejetées. Les pages dépassant 2 000 éléments visités sont rejetées.",
       "checked": "Coché (case/bouton radio)",
       "unchecked": "Non coché (case/bouton radio)","title": "Point de contrôle du résultat attendu", "condition": "Condition", "visible": "Visible", "hidden": "Masqué", "text": "Texte exact", "review": "J’ai vérifié la cible et le texte à partager ; c’est le résultat attendu, pas une preuve de réussite.", "add": "Ajouter un point de contrôle", "matched": "Correspond actuellement", "notMatched": "Ne correspond pas actuellement"},
     "selectorUnavailable": "Aucun sélecteur unique ; recréez cette étape manuellement.",

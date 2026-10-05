@@ -323,12 +323,12 @@ describe('Repro checkpoint authority', () => {
     await expect(f.recorder.manage(f.tab, 'checkpoint', { context: report.checkpointContext, selector: 'p', condition: 'visible', reviewed: true })).rejects.toThrow('context changed')
     expect(f.executeJavaScript).not.toHaveBeenCalled()
   })
-  it('rejects a late checkpoint after recording replacement', async () => {
+  it.each(['visible', 'count'])('rejects a late %s checkpoint after recording replacement', async condition => {
     const f = fixture()
     const report = await f.recorder.manage(f.tab, 'start')
     let finish!: (value: never) => void
     f.executeJavaScript.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
-    const pending = f.recorder.manage(f.tab, 'checkpoint', { context: report.checkpointContext, selector: 'p', condition: 'visible', reviewed: true })
+    const pending = f.recorder.manage(f.tab, 'checkpoint', { context: report.checkpointContext, selector: 'p', condition, ...(condition === 'count' ? { count: 0 } : {}), reviewed: true })
     const rejected = expect(pending).rejects.toThrow('context changed')
     await vi.waitFor(() => expect(finish).toBeDefined())
     await f.recorder.manage(f.tab, 'start')
