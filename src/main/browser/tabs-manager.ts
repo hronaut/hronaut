@@ -1621,6 +1621,9 @@ export class BrowserTabsManager {
       group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
       const fork = async () => {
         this.mcpTabGroups.set(group.id, group)
+        // Home can already read this workspace while its storage is copying.
+        // Publish it to chrome too, without persisting an unfinished fork.
+        this.changed(false)
         let selectedOrigins: string[] = []
         try {
           selectedOrigins = normalizeWorkspaceStorageOrigins(origins ?? source.origins)
