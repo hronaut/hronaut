@@ -1,3 +1,5 @@
+import type { ReactInspectionAuthority } from '../browser/react-inspection.js'
+import { REACT_INSPECTION_ACTIONS, type ReactInspectionCommand } from '../../shared/react-inspection.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { CSS_INSPECTION_PROPERTIES, type CssInspectionProperty } from '../../shared/css-provenance.js'
 import { reproCheckpointSchema } from '../../shared/repro-checkpoint.js'
@@ -419,6 +421,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_pdf_save: 'external-request',
   browser_performance: 'browser-state',
   browser_code_coverage: 'browser-state',
+  browser_react: 'browser-state',
   browser_cpu_profile: 'browser-state',
   browser_memory: 'browser-state',
   browser_repro: 'browser-state',
@@ -1796,6 +1799,10 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
+                ...(name === 'browser_react' ? { reactAuthority: {
+                  assertCurrent: requireCurrentTarget,
+                  epoch: createHash('sha256').update(JSON.stringify([client.id, controlRevision, writeLease?.generation, capabilityAuthorizationFingerprint])).digest('hex')
+                } satisfies ReactInspectionAuthority } : {}),
                 ...(name === 'browser_visual_compare' ? { validateCapture: () => {
                   if (extra?.signal?.aborted) throw new Error('Visual comparison was cancelled')
                   requireCurrentControl()
@@ -3933,6 +3940,19 @@ function createBrowserMcpServer(
     },
     tabTool('browser_security', async ({ tabId }: { tabId?: string }) =>
       textResult(manager.securityReport(tabId)))
+  )
+  registerWorkspaceTool(
+    'browser_react',
+    {
+      description: toolDescription('browser_react'),
+      inputSchema: {
+        tabId: tabIdSchema,
+        action: z.enum(REACT_INSPECTION_ACTIONS),
+        subtreeId: z.string().min(1).max(240).optional()
+      }
+    },
+    tabTool('browser_react', async ({ tabId, action, subtreeId, reactAuthority }: ReactInspectionCommand & { tabId: string; reactAuthority: ReactInspectionAuthority }) =>
+      textResult(await manager.reactInspection(tabId, { action, subtreeId }, reactAuthority)), 'never')
   )
   registerWorkspaceTool(
     'browser_code_coverage',

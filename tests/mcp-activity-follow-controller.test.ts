@@ -55,6 +55,19 @@ function createHarness() {
 }
 
 describe('MCP activity follow controller', () => {
+  it('never wakes or selects a React inspection target even while following is enabled', async () => {
+    const harness = createHarness()
+    harness.requireWake('tab-a')
+    harness.enable()
+    harness.controller.accept({ ...activity('react', 'tab-a'), toolName: 'browser_react' })
+    harness.controller.refresh()
+    harness.controller.accept({ ...activity('react', 'tab-a', 'finished'), toolName: 'browser_react' })
+    await Promise.resolve()
+    expect(harness.wakeTab).not.toHaveBeenCalled()
+    expect(harness.selectTabPassively).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
   it('does not wake or select activity targets while following is disabled', async () => {
     const harness = createHarness()
 

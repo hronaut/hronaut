@@ -20,7 +20,7 @@ describe('MCP workspace fork sources and direct access', () => {
   let client: Client
   afterEach(async () => { await client?.close(); await server?.stop() })
 
-  async function setup(beforeAuditOperation?: () => void, assertAutomationAccess?: () => void) {
+  async function setup(beforeAuditOperation?: () => void, assertAutomationAccess?: () => void, toolSet: 'essentials' | 'qa' = 'essentials') {
     let accessible = true
     let humanInteractionGeneration = 0
     let navigationGeneration = 1
@@ -62,6 +62,7 @@ describe('MCP workspace fork sources and direct access', () => {
       requireTabInMcpGroup: vi.fn(() => targetId),
       tabBelongsToMcpGroup: vi.fn(() => true),
       wakeTab: vi.fn(async () => undefined),
+      reactInspection: vi.fn(async () => ({ status: 'disabled' })),
       click: vi.fn(async () => 'Clicked'),
       closeTab: vi.fn(async () => 'Closed'),
       findSnapshot: vi.fn(async () => ({ matches: [], sourceSnapshot: { scope: { kind: 'component', outsideScopeOmitted: true } } })),
@@ -88,7 +89,7 @@ describe('MCP workspace fork sources and direct access', () => {
           return options.operation()
         }
       } as never } : {}),
-      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials', assertAutomationAccess,
+      host: '127.0.0.1', port: 0, version: 'test', toolSet, assertAutomationAccess,
       showWindowInactive: () => undefined, getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never, history: {} as never, siteData: {} as never
@@ -107,6 +108,15 @@ describe('MCP workspace fork sources and direct access', () => {
       }
     }
   }
+
+  it.each(['enable', 'status', 'tree', 'disable'])('does not automatically wake a tab for React inspection %s', async action => {
+    const { manager, call } = await setup(undefined, undefined, 'qa')
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    const result = await call('browser_react', { workspaceId: ownId, tabId: targetId, action })
+    expect(result.isError).not.toBe(true)
+    expect(manager.reactInspection).toHaveBeenCalledWith(targetId, { action, subtreeId: undefined }, expect.objectContaining({ assertCurrent: expect.any(Function) }))
+    expect(manager.wakeTab).not.toHaveBeenCalled()
+  })
 
   it.each([{ archived: false, label: 'active' }, { archived: true, label: 'archived' }])('allows a disabled $label source to be discovered and forked without granting source access', async ({ archived }) => {
     const { manager, source, call } = await setup()

@@ -5,6 +5,7 @@ const electron = vi.hoisted(() => ({
   invoke: vi.fn(async () => undefined),
   on: vi.fn(),
   send: vi.fn(),
+  sendSync: vi.fn(() => ({ enabled: false })),
   executeInMainWorld: vi.fn()
 }))
 
@@ -16,7 +17,8 @@ vi.mock('electron', () => ({
   ipcRenderer: {
     invoke: electron.invoke,
     on: electron.on,
-    send: electron.send
+    send: electron.send,
+    sendSync: electron.sendSync
   }
 }))
 
@@ -32,6 +34,8 @@ describe('Hronaut Home page preload', () => {
     vi.stubGlobal('addEventListener', vi.fn())
     await import('../src/preload/page.js')
     expect(electron.exposeInMainWorld.mock.calls.some(([name]) => name === 'hronautHome')).toBe(false)
+    expect(electron.sendSync).toHaveBeenCalledWith('react-inspection:bootstrap')
+    expect(electron.executeInMainWorld.mock.calls.some(([options]) => options.func.name === 'installReactInspection')).toBe(false)
   })
 
   it('forwards workspace inventory and actions only through the Home bridge', async () => {

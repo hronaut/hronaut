@@ -4537,6 +4537,7 @@ test('pins tabs from the native menu and tab search while preserving closed-tab 
     { id: 'reload-tab-ignoring-cache', label: 'Reload Tab Without Cache', enabled: true },
     { id: 'duplicate-tab', label: 'Duplicate Tab', enabled: true },
     { id: 'open-in-split-view', label: 'Open Tab Beside', enabled: true },
+    { id: 'react-inspection', label: 'React inspection', enabled: false },
     { id: 'mute-tab', label: 'Mute Tab', enabled: true },
     { id: 'pin-tab', label: 'Pin Tab', enabled: true },
     { id: 'freeze-page', label: 'Freeze Page for Review', enabled: true },

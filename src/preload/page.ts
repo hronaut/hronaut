@@ -1,9 +1,22 @@
+import { installReactInspection } from './react-inspection-bootstrap.js'
+import type { ReactInspectionBootstrap } from '../shared/react-inspection.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { HomeWorkspaceAction } from '../shared/home-workspaces.js'
 import type { HronautHomeApi } from '../shared/home.js'
 import type { AgentGuideId } from '../shared/agent-guides.js'
 import type { WalletProviderEvent, WalletProviderRequest } from '../shared/wallet.js'
 import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
+
+// Synchronous, main-owned opt-in is resolved before any page scripts execute.
+// Embedded frames never receive an installation authorization.
+if (location.protocol === 'http:' || location.protocol === 'https:') {
+  const bootstrap = ipcRenderer.sendSync('react-inspection:bootstrap') as ReactInspectionBootstrap
+  if (bootstrap?.enabled && typeof bootstrap.installationId === 'string') {
+    contextBridge.executeInMainWorld({ func: installReactInspection, args: [bootstrap.installationId] })
+    ipcRenderer.on('react-inspection:disable', () => window.dispatchEvent(new Event('hronaut:react-inspection:disable')))
+  }
+}
+
 
 const MAX_EXCEPTION_INPUT_CHARS = 64_000
 
