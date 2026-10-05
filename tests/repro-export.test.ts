@@ -107,6 +107,34 @@ describe('Playwright repro export', () => {
     }
   )
 
+  it.each(['click', 'navigate', 'key', 'scroll'] as const)('requires an outcome after a supported %s following an earlier checkpoint', async kind => {
+    const checkpoint: BrowserReproStep = {
+      ...recording.steps[0]!, kind: 'expect', target: { selector: '#ready', tag: 'p' },
+      expectation: { condition: 'text', text: 'Ready', observedMatch: true }
+    }
+    const action: BrowserReproStep = {
+      ...recording.steps[0]!, index: 2, kind, target: { selector: '#submit', tag: 'button' },
+      ...(kind === 'key' ? { key: 'Enter' } : {}), ...(kind === 'scroll' ? { scroll: { x: 0, y: 100 } } : {})
+    }
+    let assertions = 0
+    let actions = 0
+    const actionDone = async () => { actions += 1 }
+    const page = { locator: () => ({ click: actionDone, press: actionDone }), goto: actionDone, evaluate: actionDone }
+    const assert = () => ({ toHaveText: async () => { assertions += 1 } })
+    for (const finalCheckpoint of [false, true]) {
+      const steps = [checkpoint, action, ...(finalCheckpoint ? [{ ...checkpoint, index: 3 }] : [])]
+      const code = formatReproAsPlaywright({ ...recording, steps, stepCount: steps.length })
+      let execution: Promise<void> | undefined
+      new Function('test', 'expect', code.replace(/^import[^\n]*\n/u, ''))(
+        (_name: string, body: (context: { page: typeof page }) => Promise<void>) => { execution = body({ page }) }, assert
+      )
+      if (finalCheckpoint) await expect(execution).resolves.toBeUndefined()
+      else await expect(execution).rejects.toThrow('TODO: replace this line with an assertion')
+    }
+    expect(actions).toBe(2)
+    expect(assertions).toBe(3)
+  })
+
   it.each([false, true])('requires review before replaying a truncated timeline (truncated=%s)', async truncated => {
     const checkpoint: BrowserReproStep = {
       ...recording.steps[0]!, index: 2, kind: 'expect',

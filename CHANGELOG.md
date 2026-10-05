@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep a final expected-result TODO in Repro exports when actions follow the last checkpoint, so an earlier passing check cannot silently stand in for a later outcome.
+
 - Forked workspaces appear in the workspace tab bar as soon as Home can see them, while their stored data is still being copied.
 
 - Removing a bookmark keeps keyboard focus on a neighboring removal control, the search field, or the panel close button when the collection is empty, without overriding a newer focus choice.
