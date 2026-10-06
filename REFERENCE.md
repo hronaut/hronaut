@@ -1072,6 +1072,33 @@ recorder or encoder bridge.
   require normalized viewport `x`/`y` (0–1). Arrows, regions and callouts also
   require `endX`/`endY`: the pointer target for a callout, or the opposite corner
   for a highlight/spotlight. Regions must have non-zero width and height.
+- `inspect`: read a stopped, nonempty recording without capturing again. Supply its
+  `recordingId`, `expectedRevision` from `timing.revision`, an inclusive source-time
+  `startMs`/`endMs` interval within its duration, and `maxFrames` (1–12). The response
+  contains one numbered PNG and metadata with actual source frame sequences/times,
+  retained/selected/omitted counts. An empty interval returns metadata only. For N
+  eligible frames and K selected frames, selection uses `floor(i*(N-1)/(K-1))`;
+  K=1 selects `floor((N-1)/2)`. Narrow the interval to inspect a retained state omitted
+  from a broad sample. This is not evenly spaced time sampling or proof that a flash
+  was absent. Pause time, capture gaps and unknown exact pixel time remain unchanged.
+  The sheet uses original source pixels, without clips, annotations, camera effects
+  or audio; existing recording, preview and exports are unchanged. It is transient,
+  not a new saved pixel store. Every call requires current capability/control and
+  access to the recording's stored tab, workspace and origin, checked again after
+  final MCP settlement. Capture permission does not grant permanent read access.
+  Clear/new/edit/close, origin/workspace changes, cancellation and authority loss
+  invalidate an in-flight result.
+
+  Operational limits: at most 12 selected JPEGs, 4 MiB per JPEG and **8 MiB aggregate
+  selected bytes**, intrinsic dimensions at most 1280×720, output at most 2048×2048,
+  and returned PNG at most 4 MiB (checked before arrayBuffer/base64/IPC). Frames are
+  decoded sequentially and their decoded dimensions checked before drawing. One
+  inspection runs at a time with no queue. A five-second deadline initiates rejection
+  and teardown; the slot and selected-frame references remain held until renderer
+  exit is confirmed. Uncertain cleanup quarantines inspection until Hronaut restarts.
+  These are operational bounds, **not a hard RSS/64 MiB memory limit, an encoder
+  allocation cap, or a guarantee of exact native interruption latency**. Oversized
+  selections/images fail explicitly; request fewer frames or a narrower interval.
 - `render`: prepare a local preview without writing a file.
 - `export`: render if necessary and save a `.webm` file with optional composed Opus audio. Returns its path,
   filename, bytes, codec, MIME type and edited duration. This action requires the

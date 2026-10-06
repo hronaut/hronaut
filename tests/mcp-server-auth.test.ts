@@ -348,6 +348,51 @@ describe('MCP capability profile authentication', () => {
     return { created, profiles, showWindowInactive }
   }
 
+  for (const boundary of ['human-decision', 'audit-receipt'] as const) {
+    it.each(['clear', 'edit', 'close', 'origin', 'revoke'] as const)(`discards video pixels after %s during final ${boundary}`, async change => {
+      const tabId = '01912345-6790-7abc-8def-0123456789ab'
+      const workspace = { id: WORKSPACE_ID, name: 'Synthetic video', contextClass: 'standard' }
+      const source = Object.freeze({ workspaceId: WORKSPACE_ID, tabId, origin: 'https://allowed.example' })
+      let dispatched = false, present = true, revision = 1, open = true
+      let origin: string = source.origin
+      let revoke = async (): Promise<void> => undefined
+      const discard = vi.fn()
+      const invalidate = async () => {
+        await new Promise<void>(resolve => setImmediate(resolve))
+        if (change === 'clear') present = false
+        if (change === 'edit') revision += 1
+        if (change === 'close') open = false
+        if (change === 'origin') origin = 'https://other.example'
+        if (change === 'revoke') await revoke()
+      }
+      const manager = {
+        listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+        createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+        isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+        requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: vi.fn(() => () => undefined),
+        requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => open,
+        getMcpGroupState: () => ({ activeTabId: tabId, tabs: open ? [{ id: tabId, url: origin + '/' }] : [] }),
+        inspectVideo: async (_input: unknown, authorize: (binding: typeof source) => void) => {
+          const assertCurrent = () => { if (!present || revision !== 1 || !open || origin !== source.origin) throw Error('Video invalidated'); authorize(source) }
+          assertCurrent(); dispatched = true
+          return { report: { status: 'sheet' }, image: Buffer.from('synthetic-pixels'), assertCurrent, discard }
+        }
+      }
+      const humanWaiting = { requireDispatch: async () => { if (dispatched && boundary === 'human-decision') await invalidate() } }
+      const auditReceipts = { execute: async (_id: string, request: { operation(): Promise<unknown> }) => { const result = await request.operation(); if (dispatched && boundary === 'audit-receipt') await invalidate(); return result } }
+      const profile = await connectProfile({ name: 'Video reader', allowedTools: ['browser_workspaces', 'browser_video'], operationClasses: ['read', 'browser-state'], origins: [source.origin] }, undefined, { manager, humanWaiting, ...(boundary === 'audit-receipt' ? { auditReceipts } : {}) })
+      revoke = async () => { await profile.profiles.revoke(profile.created.profile.id) }
+      expect((await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Synthetic' } })).isError).not.toBe(true)
+      const result = await client!.callTool({ name: 'browser_video', arguments: { workspaceId: WORKSPACE_ID, tabId, action: 'inspect', recordingId: crypto.randomUUID(), expectedRevision: 1, startMs: 0, endMs: 100, maxFrames: 1 } })
+      expect(dispatched).toBe(true)
+      expect(manager.beginWorkspaceContinuityAction).toHaveBeenCalledWith(WORKSPACE_ID, true)
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result)).not.toContain(Buffer.from('synthetic-pixels').toString('base64'))
+      expect((result.content as { type: string }[]).some(item => item.type === 'image')).toBe(false)
+      expect(discard).toHaveBeenCalledOnce()
+    })
+  }
+
   it.each(['get', 'stop', 'clear'] as const)('binds lifecycle %s to stored origin through MCP', async action => {
     const tabId = '01912345-6790-7abc-8def-0123456789ab'
     const workspace = { id: WORKSPACE_ID, name: 'Synthetic capture', contextClass: 'standard' }
