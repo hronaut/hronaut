@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { onBeforeUnmount } from 'vue'
+import { nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -30,7 +30,7 @@ const {
   filteredEntries,
   toggle,
   openEntry,
-  remove,
+  remove: removeEntry,
   clear,
   entryMeta,
   dispose
@@ -51,6 +51,24 @@ const {
 
 defineExpose({ toggle })
 onBeforeUnmount(dispose)
+
+async function remove(entryId: string, event: MouseEvent): Promise<void> {
+  const focused = event.currentTarget instanceof HTMLButtonElement
+    && document.activeElement === event.currentTarget ? event.currentTarget : null
+  const row = focused?.closest('.history-item')
+  const panel = row?.closest('.history-panel')
+  const next = row?.nextElementSibling?.querySelector<HTMLButtonElement>('.history-action')
+  const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.history-action')
+  await removeEntry(entryId)
+  await nextTick()
+  if (!open.value || !panel?.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = [focused, next, previous,
+    panel.querySelector<HTMLInputElement>('.history-search-field input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find(element => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
+}
 </script>
 
 <template>
@@ -97,7 +115,7 @@ onBeforeUnmount(dispose)
             <small>{{ entryMeta(entry) }}</small>
           </span>
         </UiButton>
-        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" :title="t('history.remove')" @click="remove(entry.id)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" :title="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p class="history-retention"><IconPrivacy aria-hidden="true" /> {{ t('history.retention') }}</p>

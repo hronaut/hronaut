@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve keyboard focus when removing browsing-history entries, including the last visible search result and the final entry.
+
 ### Added
 
 - Inspect stopped video recordings through MCP as bounded, numbered contact sheets of retained source frames, with explicit recording/revision binding, current origin access checks and sampling omissions.
