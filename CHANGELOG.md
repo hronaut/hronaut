@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Update the bundled Electron runtime to 44.5.1 (Chromium 152.0.7977.130 and Node.js 24.21.0).
+
 ### Added
 
 - Bounded same-origin iframe observations through `browser_snapshot frameSelector`, including headings, authored control labels/states and sanitized links while preserving parent context and references and reporting unsupported history and viewport omissions.
