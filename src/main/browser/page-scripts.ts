@@ -933,6 +933,24 @@ function nativeDisabledClickGuardScript(): string {
   return `if (element.matches(':disabled')) return { nativeDisabled: true };`
 }
 
+// Native readonly applies only to these input states, not checkbox/radio/select
+// or ARIA labels. Keep the fieldset/first-legend rules delegated to Chromium.
+function nativeEditabilityScript(): string {
+  return `const editabilityFailure = () => {
+    if (element.matches(':disabled')) return { nativeEditability: 'disabled' };
+    if (element instanceof HTMLTextAreaElement && element.readOnly ||
+        element instanceof HTMLInputElement && element.readOnly &&
+        ['text', 'search', 'tel', 'url', 'email', 'password', 'date', 'month', 'week', 'time', 'datetime-local', 'number'].includes(element.type)) {
+      return { nativeEditability: 'readonly' };
+    }
+    return null;
+  };`
+}
+
+function nativeEditabilityGuardScript(): string {
+  return `{ const failure = editabilityFailure(); if (failure) return failure; }`
+}
+
 export function targetActionScript(
   action: 'click' | 'type' | 'select',
   target: { ref?: string; selector?: string },
@@ -947,6 +965,7 @@ export function targetActionScript(
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
     if (!element) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+    ${action !== 'click' ? nativeEditabilityScript() + nativeEditabilityGuardScript() : ''}
     element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     element.focus();
     if (${JSON.stringify(action)} === 'click') {
@@ -954,12 +973,14 @@ export function targetActionScript(
       element.click();
       return { ok: true, tag: element.tagName.toLowerCase() };
     }
+    ${action !== 'click' ? nativeEditabilityGuardScript() : ''}
     const value = ${encodedText};
     if (${JSON.stringify(action)} === 'select') {
       if (!(element instanceof HTMLSelectElement)) throw new Error('Target is not a select element.');
       const option = [...element.options].find((candidate) => candidate.value === value || candidate.label === value || candidate.text === value);
       if (!option) throw new Error('Select option not found: ' + value);
       const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+      ${nativeEditabilityGuardScript()}
       setter?.call(element, option.value);
       element.dispatchEvent(new Event('input', { bubbles: true }));
       element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -967,11 +988,14 @@ export function targetActionScript(
     }
     if (element instanceof HTMLInputElement) {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      ${nativeEditabilityGuardScript()}
       setter?.call(element, value);
     } else if (element instanceof HTMLTextAreaElement) {
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+      ${nativeEditabilityGuardScript()}
       setter?.call(element, value);
     } else if (element.isContentEditable) {
+      ${nativeEditabilityGuardScript()}
       element.textContent = value;
     } else {
       throw new Error('Target is not an editable element.');
@@ -1144,42 +1168,56 @@ export function fillFormScript(fields: BrowserFormField[]): string {
     const resolve = (target) => target.ref
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
-    return fields.map((field, index) => {
-      const element = resolve(field);
-      if (!element) throw new Error('Form field ' + (index + 1) + ' was not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
-      element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-      element.focus();
-      if (element instanceof HTMLSelectElement) {
+    const results = [];
+    for (const [index, field] of fields.entries()) {
+      const result = (() => {
+        const element = resolve(field);
+        if (!element) throw new Error('Form field ' + (index + 1) + ' was not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+        ${nativeEditabilityScript()}
+        ${nativeEditabilityGuardScript()}
+        element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+        element.focus();
+        ${nativeEditabilityGuardScript()}
+        if (element instanceof HTMLSelectElement) {
+          const value = String(field.value);
+          const option = [...element.options].find((candidate) => candidate.value === value || candidate.label === value || candidate.text === value);
+          if (!option) throw new Error('Select option not found for form field ' + (index + 1) + ': ' + value);
+          const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+          ${nativeEditabilityGuardScript()}
+          setter?.call(element, option.value);
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          return { index, tag: 'select', value: option.value, label: option.label || option.text };
+        }
+        if (element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')) {
+          const checked = typeof field.value === 'boolean' ? field.value : field.value === 'true';
+          ${nativeEditabilityGuardScript()}
+          if (element.checked !== checked) element.click();
+          return { index, tag: 'input', type: element.type, checked: element.checked };
+        }
         const value = String(field.value);
-        const option = [...element.options].find((candidate) => candidate.value === value || candidate.label === value || candidate.text === value);
-        if (!option) throw new Error('Select option not found for form field ' + (index + 1) + ': ' + value);
-        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-        setter?.call(element, option.value);
-        element.dispatchEvent(new Event('input', { bubbles: true }));
+        if (element instanceof HTMLInputElement) {
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+          ${nativeEditabilityGuardScript()}
+          setter?.call(element, value);
+        } else if (element instanceof HTMLTextAreaElement) {
+          const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+          ${nativeEditabilityGuardScript()}
+          setter?.call(element, value);
+        } else if (element.isContentEditable) {
+          ${nativeEditabilityGuardScript()}
+          element.textContent = value;
+        } else {
+          throw new Error('Form field ' + (index + 1) + ' is not editable.');
+        }
+        element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
-        return { index, tag: 'select', value: option.value, label: option.label || option.text };
-      }
-      if (element instanceof HTMLInputElement && (element.type === 'checkbox' || element.type === 'radio')) {
-        const checked = typeof field.value === 'boolean' ? field.value : field.value === 'true';
-        if (element.checked !== checked) element.click();
-        return { index, tag: 'input', type: element.type, checked: element.checked };
-      }
-      const value = String(field.value);
-      if (element instanceof HTMLInputElement) {
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        setter?.call(element, value);
-      } else if (element instanceof HTMLTextAreaElement) {
-        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
-        setter?.call(element, value);
-      } else if (element.isContentEditable) {
-        element.textContent = value;
-      } else {
-        throw new Error('Form field ' + (index + 1) + ' is not editable.');
-      }
-      element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-      return { index, tag: element.tagName.toLowerCase(), value };
-    });
+        return { index, tag: element.tagName.toLowerCase(), value };
+      })();
+      if (result.nativeEditability) return { ...result, fieldIndex: index + 1 };
+      results.push(result);
+    }
+    return results;
   })()`
 }
 
