@@ -3,33 +3,45 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { enableActivityDiagnostics, type ActivityFailureDiagnostics } from './activity-failure-diagnostics.js'
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
   return content?.type === 'text' ? content.text : ''
 }
 
-async function connectMcpClient(mcpPort: number, mcpToken: string, name: string): Promise<Client> {
+function diagnosticCalls(client: Client, diagnostics: ActivityFailureDiagnostics) {
+  return (args: Parameters<Client['callTool']>[0]) => {
+    const label = args.name === 'browser_new_tab' ? 'open' : args.name === 'browser_select_tab' ? 'select'
+      : args.name === 'browser_workspaces' ? 'workspace' : args.name === 'browser_snapshot' ? 'snapshot' : 'wait'
+    return diagnostics.mcp(label, () => client.callTool(args))
+  }
+}
+
+async function connectMcpClient(mcpPort: number, mcpToken: string, name: string, diagnostics?: ActivityFailureDiagnostics): Promise<Client> {
   const authorization = `Bearer ${mcpToken}`
   await expect.poll(async () => {
     try {
-      return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+      const request = () => fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })
+      return (await (diagnostics ? diagnostics.health(request) : request())).ok
     } catch {
       return false
     }
   }).toBe(true)
   const client = new Client({ name, version: '1.0.0' })
-  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+  const connect = () => client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
     requestInit: { headers: { authorization } }
   }))
+  await (diagnostics ? diagnostics.mcp('connect', connect) : connect())
   return client
 }
 
-async function createWorkspace(client: Client, name: string): Promise<string> {
-  const result = await client.callTool({
+async function createWorkspace(client: Client, name: string, diagnostics?: ActivityFailureDiagnostics): Promise<string> {
+  const create = () => client.callTool({
     name: 'browser_workspaces',
     arguments: { action: 'create', name }
-  }) as CallToolResult
+  })
+  const result = await (diagnostics ? diagnostics.mcp('workspace', create) : create()) as CallToolResult
   expect(result.isError, text(result)).not.toBe(true)
   return (JSON.parse(text(result)) as { id: string }).id
 }
@@ -183,11 +195,14 @@ test('follows an agent-created background tab whose activity finishes immediatel
   mcpPort,
   mcpToken
 }) => {
+  const diagnostics = enableActivityDiagnostics(electronApp)
   const fixture = await startPageServer('Quick activity target', 'Quick activity target ready')
-  const client = await connectMcpClient(mcpPort, mcpToken, 'hronaut-quick-follow-test')
+  diagnostics.watchNavigation(electronApp.context(), fixture.url)
+  const client = await connectMcpClient(mcpPort, mcpToken, 'hronaut-quick-follow-test', diagnostics)
+  const call = diagnosticCalls(client, diagnostics)
   try {
-    const workspaceId = await createWorkspace(client, 'Quick follow activity')
-    const initial = await client.callTool({
+    const workspaceId = await createWorkspace(client, 'Quick follow activity', diagnostics)
+    const initial = await call({
       name: 'browser_new_tab',
       arguments: { workspaceId, url: 'about:blank', active: true }
     }) as CallToolResult
@@ -200,12 +215,12 @@ test('follows an agent-created background tab whose activity finishes immediatel
     await followButton.click()
     await expect(appWindow.getByRole('button', { name: 'Stop following agent activity' }))
       .toHaveAttribute('aria-pressed', 'true')
-    const nativeFocusBefore = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+    const nativeFocusBefore = await diagnostics.main(() => electronApp.evaluate(({ BrowserWindow, webContents }) => ({
       windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
       focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
-    }))
+    })))
 
-    const opened = await client.callTool({
+    const opened = await call({
       name: 'browser_new_tab',
       arguments: { workspaceId, url: fixture.url, active: false }
     }) as CallToolResult
@@ -220,15 +235,15 @@ test('follows an agent-created background tab whose activity finishes immediatel
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((state) => state.activeTabId)'
     )).toBe(targetTabId)
-    const findTargetWebContents = (): Promise<number | null> => electronApp.evaluate(({ webContents }, requestedUrl) => (
+    const findTargetWebContents = (): Promise<number | null> => diagnostics.main(() => electronApp.evaluate(({ webContents }, requestedUrl) => (
       webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.id ?? null
-    ), fixture.url)
+    ), fixture.url))
     await expect.poll(findTargetWebContents).not.toBeNull()
     const targetWebContentsId = await findTargetWebContents()
-    const nativeFocusAfter = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+    const nativeFocusAfter = await diagnostics.main(() => electronApp.evaluate(({ BrowserWindow, webContents }) => ({
       windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
       focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
-    }))
+    })))
     expect(nativeFocusAfter.windowFocused).toBe(nativeFocusBefore.windowFocused)
     expect(nativeFocusAfter.focusedWebContentsId).not.toBe(targetWebContentsId)
   } finally {
@@ -244,6 +259,7 @@ test('attributes omitted-tab activity only to the validated workspace target', a
   mcpPort,
   mcpToken
 }) => {
+  const diagnostics = enableActivityDiagnostics(electronApp)
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<!doctype html><title>Activity target</title><main>Activity target ready</main>')
@@ -255,6 +271,7 @@ test('attributes omitted-tab activity only to the validated workspace target', a
 
   const authorization = `Bearer ${mcpToken}`
   const client = new Client({ name: 'hronaut-activity-targeting-test', version: '1.0.0' })
+  const call = diagnosticCalls(client, diagnostics)
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
     requestInit: { headers: { authorization } }
   })
@@ -262,34 +279,35 @@ test('attributes omitted-tab activity only to the validated workspace target', a
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Activity fixture did not expose a port')
     const url = `http://127.0.0.1:${address.port}/activity-target`
+    diagnostics.watchNavigation(electronApp.context(), url)
     await expect.poll(async () => {
       try {
-        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+        return (await diagnostics.health(() => fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } }))).ok
       } catch {
         return false
       }
     }).toBe(true)
-    await client.connect(transport)
-    const firstWorkspace = await client.callTool({
+    await diagnostics.mcp('connect', () => client.connect(transport))
+    const firstWorkspace = await call({
       name: 'browser_workspaces',
       arguments: { action: 'create', name: 'Activity target workspace' }
     }) as CallToolResult
     const firstWorkspaceId = (JSON.parse(text(firstWorkspace)) as { id: string }).id
-    const secondWorkspace = await client.callTool({
+    const secondWorkspace = await call({
       name: 'browser_workspaces',
       arguments: { action: 'create', name: 'Activity peer workspace' }
     }) as CallToolResult
     const secondWorkspaceId = (JSON.parse(text(secondWorkspace)) as { id: string }).id
-    const opened = await client.callTool({
+    const opened = await call({
       name: 'browser_new_tab',
       arguments: { workspaceId: firstWorkspaceId, url, active: true }
     }) as CallToolResult
     const targetTabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
-    await client.callTool({
+    await call({
       name: 'browser_wait',
       arguments: { workspaceId: firstWorkspaceId, tabId: targetTabId, text: 'Activity target ready' }
     })
-    await client.callTool({
+    await call({
       name: 'browser_new_tab',
       arguments: { workspaceId: secondWorkspaceId, url: 'about:blank', active: false }
     })
@@ -297,7 +315,7 @@ test('attributes omitted-tab activity only to the validated workspace target', a
     await expect(appWindow.locator('[role="tab"][data-mcp-command]')).toHaveCount(0)
     await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(targetTabId)}, true)`)
 
-    await electronApp.evaluate(({ webContents }) => {
+    await diagnostics.main(() => electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Sleeping activity target WebContents was not found')
       const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
@@ -316,32 +334,32 @@ test('attributes omitted-tab activity only to the validated workspace target', a
           return originalRestore(...args)
         }
       })
-    })
+    }))
 
-    const waiting = client.callTool({
+    const waiting = call({
       name: 'browser_wait',
       arguments: { workspaceId: firstWorkspaceId, text: 'Activity target ready', timeoutMs: 5_000 }
     }) as Promise<CallToolResult>
-    await expect.poll(() => electronApp.evaluate(() => (
+    await expect.poll(() => diagnostics.main(() => electronApp.evaluate(() => (
       (globalThis as typeof globalThis & { __hronautDelayedMcpActivityWake?: { started: boolean } })
         .__hronautDelayedMcpActivityWake?.started ?? false
-    ))).toBe(true)
+    )))).toBe(true)
     await expect(appWindow.locator(`[role="tab"][data-tab-id="${targetTabId}"]`)).toHaveAttribute('data-mcp-command', 'browser_wait')
     await expect(appWindow.locator('[role="tab"][data-mcp-command="browser_wait"]')).toHaveCount(1)
 
-    await electronApp.evaluate(() => {
+    await diagnostics.main(() => electronApp.evaluate(() => {
       const control = (globalThis as typeof globalThis & {
         __hronautDelayedMcpActivityWake?: { release?: () => void }
       }).__hronautDelayedMcpActivityWake
       if (!control?.release) throw new Error('Delayed MCP activity wake was not waiting')
       control.release()
-    })
+    }))
     const waited = await waiting
     expect(waited.isError, text(waited)).not.toBe(true)
 
     await appWindow.evaluate('window.hronaut.openHome()')
     await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(targetTabId)}, true)`)
-    const rejected = await client.callTool({
+    const rejected = await call({
       name: 'browser_snapshot',
       arguments: { workspaceId: secondWorkspaceId, tabId: targetTabId }
     }) as CallToolResult
@@ -352,7 +370,7 @@ test('attributes omitted-tab activity only to the validated workspace target', a
     ))`)).toBe(true)
     await expect(appWindow.locator(`[role="tab"][data-tab-id="${targetTabId}"]`)).not.toHaveAttribute('data-mcp-command')
   } finally {
-    await electronApp.evaluate(({ webContents }) => {
+    await diagnostics.main(() => electronApp.evaluate(({ webContents }) => {
       const scope = globalThis as typeof globalThis & {
         __hronautDelayedMcpActivityWake?: { pageId: number; restore: Electron.NavigationHistory['restore']; release?: () => void }
       }
@@ -363,7 +381,7 @@ test('attributes omitted-tab activity only to the validated workspace target', a
         Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
       }
       delete scope.__hronautDelayedMcpActivityWake
-    }).catch(() => undefined)
+    })).catch(() => undefined)
     try {
       await client.close()
     } catch {
@@ -379,11 +397,14 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
   mcpPort,
   mcpToken
 }) => {
+  const diagnostics = enableActivityDiagnostics(electronApp)
   const fixture = await startPageServer('MCP delayed selection', 'Target ready')
-  const client = await connectMcpClient(mcpPort, mcpToken, 'hronaut-select-authority-test')
+  diagnostics.watchNavigation(electronApp.context(), fixture.url)
+  const client = await connectMcpClient(mcpPort, mcpToken, 'hronaut-select-authority-test', diagnostics)
+  const call = diagnosticCalls(client, diagnostics)
   try {
-    const workspaceId = await createWorkspace(client, 'MCP select authority')
-    const openedTarget = await client.callTool({
+    const workspaceId = await createWorkspace(client, 'MCP select authority', diagnostics)
+    const openedTarget = await call({
       name: 'browser_new_tab',
       arguments: {
         workspaceId,
@@ -393,7 +414,7 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
     }) as CallToolResult
     expect(openedTarget.isError, text(openedTarget)).not.toBe(true)
     const targetTabId = (JSON.parse(text(openedTarget)) as { activeTabId: string }).activeTabId
-    const waited = await client.callTool({
+    const waited = await call({
       name: 'browser_wait',
       arguments: { workspaceId, tabId: targetTabId, text: 'Target ready' }
     }) as CallToolResult
@@ -409,7 +430,7 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
       state.tabs.find((tab) => tab.id === ${JSON.stringify(targetTabId)})?.sleeping
     ))`)).toBe(true)
 
-    await electronApp.evaluate(({ webContents }) => {
+    await diagnostics.main(() => electronApp.evaluate(({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
       if (!page) throw new Error('Sleeping MCP selection WebContents was not found')
       const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
@@ -429,31 +450,31 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
           return originalRestore(...args)
         }
       })
-    })
+    }))
 
-    const selecting = client.callTool({
+    const selecting = call({
       name: 'browser_select_tab',
       arguments: { workspaceId, tabId: targetTabId }
     }) as Promise<CallToolResult>
-    await expect.poll(() => electronApp.evaluate(() => (
+    await expect.poll(() => diagnostics.main(() => electronApp.evaluate(() => (
       (globalThis as typeof globalThis & { __hronautDelayedMcpSelectionWake?: { started: boolean } })
         .__hronautDelayedMcpSelectionWake?.started ?? false
-    ))).toBe(true)
+    )))).toBe(true)
 
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(fallbackTabId)})`)
-    await electronApp.evaluate(() => {
+    await diagnostics.main(() => electronApp.evaluate(() => {
       const control = (globalThis as typeof globalThis & {
         __hronautDelayedMcpSelectionWake?: { release?: () => void }
       }).__hronautDelayedMcpSelectionWake
       if (!control?.release) throw new Error('Delayed MCP selection wake was not waiting')
       control.release()
-    })
+    }))
     const selected = await selecting
     expect(selected.isError, text(selected)).not.toBe(true)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)'))
       .toBe(fallbackTabId)
   } finally {
-    await electronApp.evaluate(({ webContents }) => {
+    await diagnostics.main(() => electronApp.evaluate(({ webContents }) => {
       const scope = globalThis as typeof globalThis & {
         __hronautDelayedMcpSelectionWake?: {
           pageId: number
@@ -468,7 +489,7 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
         Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
       }
       delete scope.__hronautDelayedMcpSelectionWake
-    }).catch(() => undefined)
+    })).catch(() => undefined)
     await client.close().catch(() => undefined)
     await closeFixtureServer(fixture.server)
   }
