@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-10-06
+
 ### Changed
 
 - Update the bundled Electron runtime to 44.5.1 (Chromium 152.0.7977.130 and Node.js 24.21.0).
