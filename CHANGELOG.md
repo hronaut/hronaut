@@ -16,6 +16,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Update MCP SDK to 1.31.0 for upstream OAuth issuer binding; legacy stored credentials without an issuer still need migration when integrating OAuth clients.
+
 - Reject Solana transaction counters that are truncated, exceed three bytes, or exceed the u16 range with Solana Kit 8.4.0.
 
 - Form typing, selection and batch filling reject native disabled and applicable readonly controls, including state changes during focus, while preserving earlier successful batch writes.

@@ -1,3 +1,4 @@
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -49,6 +50,39 @@ describe('MCPB adapter endpoint restrictions', () => {
     'http://127.0.0.1/mcp#token'
   ])('rejects an endpoint that can escape the local transport boundary: %s', (value) => {
     expect(() => parseLoopbackEndpoint(value)).toThrow()
+  })
+
+  it('rejects a 401 without OAuth discovery when the adapter has no auth provider', async () => {
+    const liveFetch = vi.fn(() => { throw new Error('Live network fetch is forbidden in this offline test') })
+    vi.stubGlobal('fetch', liveFetch)
+    const endpoint = parseLoopbackEndpoint('http://127.0.0.1:47812/mcp')
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response('Unauthorized', {
+      status: 401,
+      headers: { 'www-authenticate': 'Bearer resource_metadata="https://discovery.synthetic.invalid/metadata"' }
+    }))
+    const restrictedFetch = vi.fn(createRestrictedFetch(endpoint, fetcher))
+    const transport = new StreamableHTTPClientTransport(endpoint, {
+      fetch: restrictedFetch,
+      requestInit: { headers: { authorization: 'Bearer synthetic-offline-token' } }
+    })
+    try {
+      await transport.start()
+      await expect(transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }))
+        .rejects.toMatchObject({ code: 401 })
+      expect(restrictedFetch).toHaveBeenCalledTimes(1)
+      expect(fetcher).toHaveBeenCalledTimes(1)
+      const [url, init] = fetcher.mock.calls[0]!
+      expect(String(url)).toBe(endpoint.href)
+      expect(init?.redirect).toBe('manual')
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer synthetic-offline-token')
+      expect(liveFetch).not.toHaveBeenCalled()
+    } finally {
+      try {
+        await transport.close()
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    }
   })
 
   it('blocks redirects and never follows a bearer token to another URL', async () => {
