@@ -59,7 +59,9 @@ Only conservatively bounded viewport text is collected. Partly clipped text node
 are omitted in full, even if a prefix is visible. Uncertain transforms, masks and
 similar layouts are omitted. Independent rotate/scale/translate and zoom are
 unsupported. Overflow intersects each axis with the padding/client box, excluding
-borders and scrollbars; fractional clipping geometry is omitted conservatively.
+borders and scrollbars; fractional or rounded clipping geometry is omitted
+conservatively. The selected iframe must have zero CSS padding and square corners;
+its client dimensions otherwise do not establish the embedded visible viewport.
 This is a geometric observation, not a screenshot or proof of occlusion. Nested frames, shadow contents, generated CSS content and
 live form/editor values are outside the scope. Closed shadow content cannot be
 enumerated. Authored public text remains untrusted; recognized diagnostic secrets

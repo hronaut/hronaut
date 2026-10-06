@@ -46,8 +46,10 @@ export function frameObservationScript(selector: string, maxChars: number, expec
       const uncertain=s=>s.transform!=='none'||s.rotate!=='none'||s.scale!=='none'||s.translate!=='none'
         ||!['1','normal'].includes(s.zoom)||s.clipPath!=='none'||s.clip!=='auto'||/(?:paint|strict|content)/.test(s.contain)
         ||s.filter!=='none'||s.maskImage!=='none';
+      const rounded=s=>[s.borderTopLeftRadius,s.borderTopRightRadius,s.borderBottomLeftRadius,s.borderBottomRightRadius].some(value=>value.split(/\s+/).some(part=>parseFloat(part)!==0));
       const overflowClip=(node,s,clip)=>{
         if(s.overflowX==='visible'&&s.overflowY==='visible')return clip;
+        if(rounded(s))return null;
         const r=node.getBoundingClientRect();
         const borders=[s.borderLeftWidth,s.borderRightWidth,s.borderTopWidth,s.borderBottomWidth].map(parseFloat);
         // CSSOM client dimensions round. Reject fractional geometry rather than
@@ -66,7 +68,9 @@ export function frameObservationScript(selector: string, maxChars: number, expec
       for(const e of ancestors){
         const s=getComputedStyle(e);
         if(s.display==='none'||s.visibility!=='visible'||Number(s.opacity)!==1||uncertain(s))fail();
-        if(e!==selected){parentClip=overflowClip(e,s,parentClip);if(!parentClip)fail();}
+        if(e===selected){
+          if(rounded(s)||[s.paddingLeft,s.paddingRight,s.paddingTop,s.paddingBottom].some(value=>parseFloat(value)!==0))fail();
+        }else{parentClip=overflowClip(e,s,parentClip);if(!parentClip)fail();}
       }
       if(!contains(parentClip,frameRect))fail();
       const viewport={left:0,top:0,right:selected.clientWidth,bottom:selected.clientHeight};

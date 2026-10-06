@@ -137,3 +137,38 @@ test('review counterexample: one mutation record has a bounded removed-node budg
     await closeFixtureServer(server)
   }
 })
+
+for(const axis of ['horizontal','vertical'])test(`review counterexample: iframe ${axis} padding is not child viewport`,async({capabilities,electronApp})=>{
+  const server=createServer((q,r)=>{r.setHeader('Content-Type','text/html');r.end(q.url==='/parent'?`<iframe id="chosen" src="/child" style="width:100px;height:100px;${axis==='horizontal'?'padding-right':'padding-bottom'}:200px"></iframe>`:`<body style="margin:0"><span style="position:absolute;left:${axis==='horizontal'?120:10}px;top:${axis==='vertical'?120:10}px;font:10px monospace">PAD_CANARY</span></body>`)})
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve))
+  const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`
+  try{
+    await capabilities.client.callTool({name:'browser_navigate',arguments:{tabId:capabilities.tabId,url:origin+'/parent'}})
+    const geometry=await electronApp.evaluate(async({webContents},origin)=>webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!.executeJavaScript("(()=>{const f=document.querySelector('#chosen');return {clientWidth:f.clientWidth,clientHeight:f.clientHeight,innerWidth:f.contentWindow.innerWidth,innerHeight:f.contentWindow.innerHeight}})()",false),origin)
+    console.log('IFRAME_PADDING_GEOMETRY',axis,JSON.stringify(geometry))
+    const result=await capabilities.client.callTool({name:'browser_snapshot',arguments:{tabId:capabilities.tabId,frameSelector:'#chosen'}}) as CallToolResult
+    console.log('IFRAME_PADDING_RESULT',axis,JSON.stringify(result))
+    expect(result.isError,text(result)).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('PAD_CANARY')
+  }finally{await closeFixtureServer(server)}
+})
+
+for(const placement of ['child','parent','iframe'])test(`review counterexample: ${placement} rounded overflow is not a rectangular clip`,async({capabilities})=>{
+  const server=createServer((q,r)=>{
+    r.setHeader('Content-Type','text/html')
+    const frame=`<iframe id="chosen" src="/child" style="width:100px;height:100px;border:0;${placement==='iframe'?'border-radius:50px;':''}"></iframe>`
+    const parent=placement==='parent'?'<div style="width:100px;height:100px;overflow:hidden;border-radius:50px">'+frame+'</div>':frame
+    const child='<span style="position:absolute;top:0;left:0;font:8px monospace;line-height:10px">ARC</span>'
+    r.end(q.url==='/parent'?parent:'<body style="margin:0">'+(placement==='child'?'<div style="position:relative;width:100px;height:100px;overflow:hidden;border-radius:50px">'+child+'</div>':child)+'</body>')
+  })
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve))
+  const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`
+  try{
+    await capabilities.client.callTool({name:'browser_navigate',arguments:{tabId:capabilities.tabId,url:origin+'/parent'}})
+    const result=await capabilities.client.callTool({name:'browser_snapshot',arguments:{tabId:capabilities.tabId,frameSelector:'#chosen'}}) as CallToolResult
+    console.log('ROUNDED_CLIP_RESULT',placement,JSON.stringify(result))
+    if(placement==='child'){expect(result.isError,text(result)).not.toBe(true);expect(JSON.stringify(result)).toContain('uncertain-layout')}
+    else expect(result.isError,text(result)).toBe(true)
+    expect(text(result)).not.toContain('ARC')
+  }finally{await closeFixtureServer(server)}
+})
