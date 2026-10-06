@@ -1,3 +1,4 @@
+import { compactHomeControlPositions } from './compact-home-readiness.js'
 import { createServer } from 'node:http'
 import { execFile } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -1095,9 +1096,16 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   expect(await globalControlPositions()).toEqual(homeGlobalPositions)
   await expect(homeButton).toHaveAttribute('aria-current', 'page')
 
+  const controlInsets = await appWindow.evaluate(() => ({
+    leftInset: Number.parseFloat(document.documentElement.style.getPropertyValue('--titlebar-controls-left-runtime')),
+    rightInset: Number.parseFloat(document.documentElement.style.getPropertyValue('--titlebar-controls-right-runtime'))
+  }))
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 600))
-  await expect.poll(() => appWindow.evaluate('window.innerWidth')).toBe(760)
-  const compactHomeGlobalPositions = await globalControlPositions()
+  let compactHomeGlobalPositions: Awaited<ReturnType<typeof globalControlPositions>> | undefined
+  await expect.poll(async () => {
+    compactHomeGlobalPositions = await appWindow.evaluate(compactHomeControlPositions, { width: 760, ...controlInsets })
+    return compactHomeGlobalPositions
+  }).toBeDefined()
   await appWindow.getByRole('tab').click()
   await expect(appWindow.locator('.toolbar')).toBeVisible()
   expect(await globalControlPositions()).toEqual(compactHomeGlobalPositions)
