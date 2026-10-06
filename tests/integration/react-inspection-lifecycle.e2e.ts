@@ -25,11 +25,18 @@ test('archive/restore and delete interrupt reads and never restore prior activat
   expect(rejected(await request('tree', first.nodes[0]!.id))).toBe(true)
   await react.success(request('enable'))
   await react.success(react.call('browser_navigate', { workspaceId: react.workspace.id, tabId, url: react.origin + '/restored' }))
+  // Navigation completion does not guarantee that React has committed its fixture tree.
+  await expect.poll(() => electronApp.context().pages().some(page => page.url() === react.origin + '/restored')).toBe(true)
+  const restoredPage = electronApp.context().pages().find(page => page.url() === react.origin + '/restored')!
+  await expect(restoredPage.locator('span')).toHaveCount(1)
   const restored = await react.success<ReactInspectionResult>(request('tree'))
+  expect(restored.status).toBe('ready')
+  expect(restored.nodes.length).toBeGreaterThan(0)
+  const restoredNodeId = restored.nodes[0]!.id
   expect(restored.installationId).not.toBe(first.installationId)
   expect(rejected(await request('tree', first.nodes[0]!.id))).toBe(true)
   await appWindow.evaluate(id => (window as unknown as {hronaut: HronautApi}).hronaut.closeWorkspace(id), react.workspace.id)
-  expect(rejected(await request('tree', restored.nodes[0]!.id))).toBe(true)
+  expect(rejected(await request('tree', restoredNodeId))).toBe(true)
   expect(await electronApp.evaluate(({webContents}, url) => webContents.getAllWebContents().some(page => page.getURL() === url), react.origin + '/restored')).toBe(false)
 })
 
