@@ -5,7 +5,7 @@ import VideoRecorder from '../../src/renderer/src/components/VideoRecorder.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../src/shared/video.js'
 
-const state = (tabId: string, status: BrowserVideoState['status'] = 'stopped'): BrowserVideoState => ({ tabId, status, durationMs: 2000, width: 640, height: 360, frameCount: 12, bytes: 500, annotations: [], clips: [], previewReady: false })
+const state = (tabId: string, status: BrowserVideoState['status'] = 'stopped'): BrowserVideoState => ({ tabId, status, durationMs: 2000, width: 640, height: 360, frameCount: 12, bytes: 500, annotations: [], clips: [], previewReady: false, ...(status === 'idle' ? {} : { recordingId: `recording-${tabId}`, timing: { clock: 'recording-monotonic' as const, observedAtMs: 2000, sourceTimeMs: 2000, revision: 1, pixelTime: 'unknown' as const } }) })
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers() })
 it('ignores a stale render result after switching tabs and does not fetch the old preview', async () => {
   let finish!: (result: BrowserVideoState) => void
@@ -148,4 +148,54 @@ it('ignores a native import result after switching tabs', async () => {
   finish({ ...state('first'), notice: 'Old import result' }); await flushPromises()
   expect(screen.queryByText('Old import result')).toBeNull()
   expect(importVideoAudio).toHaveBeenCalledWith('first', 'Original composition')
+})
+
+
+it.each(['revision', 'recording'] as const)('retires an old Blob when %s changes but the replacement preview is already ready', async change => {
+  vi.useFakeTimers()
+  const revokeObjectURL = vi.fn()
+  vi.stubGlobal('URL', class extends URL { static createObjectURL = vi.fn(() => 'blob:old'); static revokeObjectURL = revokeObjectURL })
+  let current = state('tab')
+  const manageVideo = vi.fn(async (options: BrowserVideoOptions) => {
+    if (options.action === 'render') current = { ...current, previewReady: true }
+    return structuredClone(current)
+  })
+  const videoPreview = vi.fn(async () => new Uint8Array([1, 2, 3]))
+  Object.assign(window, { hronaut: { manageVideo, videoPreview } })
+  const view = render(VideoRecorder, { props: { tabId: 'tab' }, global: { plugins: [createHronautI18n('en-US')] } })
+  await flushPromises()
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview video' })); await flushPromises()
+  expect(view.container.querySelector('video')).toHaveAttribute('src', 'blob:old')
+  current = change === 'revision' ? { ...current, timing: { ...current.timing!, revision: 2 } } : { ...current, recordingId: 'replacement-recording' }
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(view.container.querySelector('video')).toBeNull()
+  expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:old')
+  expect(videoPreview).toHaveBeenCalledOnce()
+  expect(screen.getByRole('button', { name: 'Preview video' })).toBeEnabled()
+})
+
+it.each(['revision', 'recording', 'clear', 'close'] as const)('discards a late preview fetch after %s', async change => {
+  const createObjectURL = vi.fn(() => 'blob:late')
+  vi.stubGlobal('URL', class extends URL { static createObjectURL = createObjectURL; static revokeObjectURL = vi.fn() })
+  let current = state('tab')
+  let finish!: (bytes: Uint8Array) => void
+  const manageVideo = vi.fn(async (options: BrowserVideoOptions) => {
+    if (options.action === 'render') current = { ...current, previewReady: true }
+    return structuredClone(current)
+  })
+  Object.assign(window, { hronaut: { manageVideo, videoPreview: vi.fn(() => new Promise<Uint8Array>(resolve => { finish = resolve })) } })
+  const view = render(VideoRecorder, { props: { tabId: 'tab' }, global: { plugins: [createHronautI18n('en-US')] } })
+  await flushPromises()
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview video' })); await flushPromises()
+  if (change === 'revision') current = { ...current, timing: { ...current.timing!, revision: 2 } }
+  if (change === 'recording') current = { ...current, recordingId: 'replacement-recording' }
+  if (change === 'clear') current = state('tab', 'idle')
+  if (change === 'close') {
+    view.unmount()
+    render(VideoRecorder, { props: { tabId: 'tab' }, global: { plugins: [createHronautI18n('en-US')] } })
+    await flushPromises()
+  }
+  finish(new Uint8Array([1, 2, 3])); await flushPromises()
+  expect(createObjectURL).not.toHaveBeenCalled()
+  expect(view.container.querySelector('video')).toBeNull()
 })

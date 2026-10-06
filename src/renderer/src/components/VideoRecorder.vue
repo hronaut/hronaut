@@ -32,9 +32,25 @@ const rendering = computed(() => state.value?.status === 'rendering' || pendingA
 let revision = 0
 let disposed = false
 let poll: ReturnType<typeof setTimeout> | undefined
+type PreviewSource = { recordingId: string; revision: number }
+let previewSource: PreviewSource | undefined
+function sourceOf(value: BrowserVideoState): PreviewSource | undefined {
+  return value.recordingId && value.timing
+    ? { recordingId: value.recordingId, revision: value.timing.revision }
+    : undefined
+}
+function matchesPreview(source: PreviewSource | undefined, value: BrowserVideoState): boolean {
+  return Boolean(source && value.previewReady && source.recordingId === value.recordingId
+    && source.revision === value.timing?.revision)
+}
 function clearPreview(): void {
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   previewUrl.value = ''
+  previewSource = undefined
+}
+function acceptState(value: BrowserVideoState): void {
+  if (!matchesPreview(previewSource, value)) clearPreview()
+  state.value = value
 }
 async function refresh(): Promise<void> {
   const expected = revision, tabId = props.tabId
@@ -42,8 +58,7 @@ async function refresh(): Promise<void> {
     if (!busy.value) {
       const result = await window.hronaut.manageVideo({ tabId, action: 'get' })
       if (!disposed && expected === revision && tabId === props.tabId && !busy.value) {
-        state.value = result
-        if (!result.previewReady) clearPreview()
+        acceptState(result)
       }
     }
   } catch { /* Explicit operations report errors; polling never replaces an in-flight result. */ }
@@ -57,13 +72,21 @@ async function perform(action: BrowserVideoOptions['action'], operation: (tabId:
   try {
     const result = await operation(tabId)
     if (disposed || expected !== revision || tabId !== props.tabId) return
-    state.value = result
+    acceptState(result)
     if (action === 'clear' || action === 'edit' || !result.previewReady) clearPreview()
     if ((action === 'render' || action === 'export') && result.previewReady) {
+      const source = sourceOf(result)
+      if (!source) return
       const data = await window.hronaut.videoPreview(tabId)
       if (disposed || expected !== revision || tabId !== props.tabId) return
+      // The byte reply can arrive after another caller edits or replaces the recording.
+      const current = await window.hronaut.manageVideo({ tabId, action: 'get' })
+      if (disposed || expected !== revision || tabId !== props.tabId) return
+      acceptState(current)
+      if (!matchesPreview(source, current)) return
       clearPreview()
       previewUrl.value = URL.createObjectURL(new Blob([new Uint8Array(data)], { type: 'video/webm' }))
+      previewSource = source
     }
   } catch (cause) {
     if (!disposed && expected === revision) error.value = cause instanceof Error ? cause.message : String(cause)
