@@ -15,6 +15,7 @@ import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 import { integrationMcpPort } from './port-allocation.js'
 import { ElectronTraceRecorder } from './electron-tracing.js'
 import { startWorkerDisplay } from './worker-display.js'
+import { activityDiagnostics, attachActivityDiagnostics } from './activity-failure-diagnostics.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function expectFixtureSuccess(result: CallToolResult, operation: string): void {
@@ -238,6 +239,39 @@ async function waitForExit(
   })
 }
 
+export async function useHronautFixture(
+  app: ElectronApplication,
+  use: (app: ElectronApplication) => Promise<void>,
+  info: Pick<import('@playwright/test').TestInfo, 'status' | 'expectedStatus' | 'attach'>
+): Promise<void> {
+  let bodyFailed = false
+  let bodyError: unknown
+  try { await use(app) } catch (error) { bodyFailed = true; bodyError = error }
+  const recorder = activityDiagnostics(app)
+  let cleanupFailed = false
+  let cleanupError: unknown
+  try {
+    if (info.status !== info.expectedStatus) {
+      const collect = () => collectRendererDiagnostics(app)
+      const diagnostics = await (recorder ? recorder.main(collect, 'failure-probe') : collect())
+      await info.attach('renderer-exits', { body: JSON.stringify(diagnostics), contentType: 'application/json' })
+      // Kernel counters only: no environment, process arguments or browser data.
+      const resources = Object.fromEntries(await Promise.all([
+        '/sys/fs/cgroup/memory.events', '/sys/fs/cgroup/memory.current',
+        '/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/cpu.stat',
+        '/sys/fs/cgroup/cpu.pressure', '/sys/fs/cgroup/memory.pressure'
+      ].map(async path => [path, await readFile(path, 'utf8').then(value => value.slice(0, 4096)).catch(() => 'unavailable')])))
+      await info.attach('container-resources', { body: JSON.stringify(resources), contentType: 'application/json' })
+    }
+  } catch (error) { cleanupFailed = true; cleanupError = error } finally {
+    await attachActivityDiagnostics(app, info)
+    try { await closeHronaut(app) } catch (error) { cleanupFailed = true; cleanupError = error }
+  }
+  // Only the opt-in diagnostic path is best effort after an existing failure.
+  if (cleanupFailed && !(recorder && (bodyFailed || info.status !== info.expectedStatus))) throw cleanupError
+  if (bodyFailed) throw bodyError
+}
+
 export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
   workerDisplay: [async ({}, use) => {
     if (process.env.HRONAUT_TEST_ISOLATED_DISPLAYS !== '1') {
@@ -279,25 +313,7 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
 
   electronApp: async ({ profileDirectory, mcpPort }, use, testInfo) => {
     const instance = await launchHronaut(profileDirectory, mcpPort)
-    try {
-      await use(instance.app)
-    } finally {
-      try {
-        if (testInfo.status !== testInfo.expectedStatus) {
-          const diagnostics = await collectRendererDiagnostics(instance.app)
-          await testInfo.attach('renderer-exits', { body: JSON.stringify(diagnostics), contentType: 'application/json' })
-          // Kernel counters only: no environment, process arguments or browser data.
-          const resources = Object.fromEntries(await Promise.all([
-            '/sys/fs/cgroup/memory.events', '/sys/fs/cgroup/memory.current',
-            '/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/cpu.stat',
-            '/sys/fs/cgroup/cpu.pressure', '/sys/fs/cgroup/memory.pressure'
-          ].map(async path => [path, await readFile(path, 'utf8').then(value => value.slice(0, 4096)).catch(() => 'unavailable')])))
-          await testInfo.attach('container-resources', { body: JSON.stringify(resources), contentType: 'application/json' })
-        }
-      } finally {
-        await closeHronaut(instance.app)
-      }
-    }
+    await useHronautFixture(instance.app, use, testInfo)
   },
 
   mcpToken: async ({ electronApp: _electronApp, profileDirectory }, use) => {
