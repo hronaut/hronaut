@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/vue'
+import { flushPromises } from '@vue/test-utils'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import DownloadsPanel from '../../src/renderer/src/components/DownloadsPanel.vue'
@@ -45,6 +46,50 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DownloadsPanel', () => {
+  it.each(['pause', 'resume'] as const)('keeps keyboard focus on the replacement control after %s', async action => {
+    const initial = { ...download('active', 'progressing', 25, 100), paused: action === 'resume', canResume: action === 'resume' }
+    const result = { ...initial, paused: action === 'pause', canResume: action === 'pause' }
+    const operation = vi.fn(async () => [result])
+    renderPanel({ downloads: [initial], [`${action}Download`]: operation })
+    const button = screen.getByRole('button', { name: `${action === 'pause' ? 'Pause' : 'Resume'} active.bin` })
+    button.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(operation).toHaveBeenCalledWith('active')
+    expect(screen.getByRole('button', { name: `${action === 'pause' ? 'Resume' : 'Pause'} active.bin` })).toHaveFocus()
+  })
+
+  it('keeps the failed transfer control reachable for retry', async () => {
+    renderPanel({ pauseDownload: vi.fn(async () => { throw new Error('Pause failed') }) })
+    const pause = screen.getByRole('button', { name: 'Pause known.bin' })
+    pause.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Pause failed')
+    expect(pause).toHaveFocus()
+    expect(pause).toBeEnabled()
+  })
+
+  it.each(['completed', 'cancelled'] as const)('keeps keyboard access when the transfer becomes %s during an action', async state => {
+    renderPanel({ pauseDownload: vi.fn(async () => [download('known', state, 100, 100)]) })
+    screen.getByRole('button', { name: 'Pause known.bin' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('button', { name: state === 'completed' ? 'Show known.bin in folder' : 'Close downloads' })).toHaveFocus()
+  })
+
+  it.each(['newer-focus', 'reopen', 'unmount', 'unfocused'] as const)('does not restore outdated transfer focus after %s', async scenario => {
+    let finish!: (entries: BrowserDownloadState[]) => void
+    const view = renderPanel({ pauseDownload: vi.fn(() => new Promise<BrowserDownloadState[]>(resolve => { finish = resolve })) })
+    const pause = screen.getByRole('button', { name: 'Pause known.bin' })
+    if (scenario === 'unfocused') pause.click()
+    else { pause.focus(); await userEvent.keyboard('{Enter}') }
+    let newer: HTMLElement | undefined
+    if (scenario === 'newer-focus') { newer = screen.getByRole('button', { name: 'Close downloads' }); newer.focus() }
+    if (scenario === 'reopen') { await view.rerender({ open: false }); await view.rerender({ open: true }) }
+    if (scenario === 'unmount') view.unmount()
+    finish([{ ...download('known', 'progressing', 50, 100), paused: true, canResume: true }])
+    await flushPromises()
+    expect(newer ?? document.body).toHaveFocus()
+  })
+
   it('explains destination setup failures and offers only finished cleanup', () => {
     renderPanel({ downloads: [{ ...download('failed', 'interrupted', 0, 100), failureReason: 'destination-unavailable', completedAt: '2026-08-22T00:01:00.000Z' }] })
     expect(screen.getByText('Could not prepare download destination')).toBeVisible()

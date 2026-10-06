@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep keyboard focus on the current download control after pausing or resuming a transfer.
+
 - Retire video previews when the recording or revision changes, including an externally re-rendered recording between polls, and discard stale preview downloads.
 
 - Preserve keyboard focus when removing browsing-history entries, including the last visible search result and the final entry.
