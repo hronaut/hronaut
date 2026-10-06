@@ -1749,7 +1749,16 @@ function createBrowserMcpServer(
         let lifecycleOrigin: string | undefined
         const validateLifecycle = (origin: string): void => {
           if (extra?.signal?.aborted) throw new Error('Worker observation was cancelled')
-          requireCurrentTarget()
+          requireCurrentControl()
+          requireCurrentHumanInput()
+          requireContinuity()
+          requireAgentWorkspace(workspaceId)
+          // Background observation must not renew the creating transport's lease.
+          if (writeLease?.generation) {
+            const current = workspaceLeases.status(workspaceId, client.id)
+            if (current.status !== 'owned' || current.generation !== writeLease.generation) throw new Error('Workspace ownership changed')
+          }
+          if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
           requireActiveCapabilityDispatch(name, actionInput, { workspaceId, tabId: resolvedTabId, origins: [origin] })
           lifecycleOrigin = origin
         }
