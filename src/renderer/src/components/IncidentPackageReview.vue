@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { incidentKinds, incidentOmissionLimit, incidentReplacementLimit, type IncidentDraft, type IncidentKind, type IncidentPreview } from '../../../shared/incident-package'
+import { incidentKinds, incidentOmissionLimit, incidentReplacementLimit, incidentPathOmissionLimit, incidentLiteralPathSchema, type IncidentDraft, type IncidentKind, type IncidentPreview } from '../../../shared/incident-package'
 import UiButton from '../ui/UiButton.vue'
 import UiInput from '../ui/UiInput.vue'
 
@@ -14,6 +14,10 @@ const omissionRows = ref([{ id: 0, value: '' }])
 let nextOmissionId = 1
 const omissionList = ref<HTMLElement | null>(null)
 const omittedFields = computed(() => [...new Set(omissionRows.value.map(row => row.value).filter(value => value !== ''))])
+const pathRows = ref<Array<{ id: number; artifact: IncidentKind; value: string }>>([])
+let nextPathId = 0
+const pathList = ref<HTMLElement | null>(null)
+let invalidation: Promise<void> = Promise.resolve()
 const replacementRows = ref([{ id: 0, find: '', replacement: '[REDACTED]' }])
 let nextReplacementId = 1
 const replacementList = ref<HTMLElement | null>(null)
@@ -25,7 +29,13 @@ const busy = ref(false)
 const error = ref('')
 const saved = ref(false)
 let generation = 0
-watch([included, omissionRows, replacementRows], () => { generation += 1; busy.value = false; preview.value = null; reviewed.value = false; saved.value = false }, { deep: true })
+watch([included, omissionRows, pathRows, replacementRows], () => {
+  generation += 1; busy.value = false; preview.value = null; reviewed.value = false; saved.value = false
+  if (draft.value) {
+    invalidation = window.hronaut.invalidateIncidentPreview(draft.value.draftId)
+    void invalidation.catch(() => undefined)
+  }
+}, { deep: true, flush: 'sync' })
 watch([selected, minutes], () => { reset() }, { deep: true })
 function reset(): void {
   generation += 1
@@ -65,6 +75,23 @@ function removeOmission(id: number): void {
   omissionRows.value.splice(index, 1)
   void focusOmission(omissionRows.value[Math.min(index, omissionRows.value.length - 1)].id)
 }
+async function focusPath(id: number): Promise<void> {
+  await nextTick()
+  if (draft.value && !busy.value) pathList.value?.querySelector<HTMLInputElement>(`[data-path-id="${id}"] input`)?.focus()
+}
+function addPath(): void {
+  if (busy.value || pathRows.value.length >= incidentPathOmissionLimit || !included.value.length) return
+  const id = nextPathId++
+  pathRows.value.push({ id, artifact: included.value[0], value: '' })
+  void focusPath(id)
+}
+function removePath(id: number): void {
+  const index = pathRows.value.findIndex(row => row.id === id)
+  if (busy.value || index < 0) return
+  pathRows.value.splice(index, 1)
+  const next = pathRows.value[Math.min(index, pathRows.value.length - 1)]
+  if (next) void focusPath(next.id)
+}
 async function focusReplacement(id: number): Promise<void> {
   await nextTick()
   if (draft.value && !busy.value) replacementList.value?.querySelector<HTMLInputElement>(`[data-replacement-id="${id}"] input`)?.focus()
@@ -87,7 +114,14 @@ async function preparePreview(): Promise<void> {
   if (!id) return
   await run(async current => {
     preview.value = null; reviewed.value = false
-    const result = await window.hronaut.reviewIncident({ draftId: id, include: [...included.value], omitFields: omittedFields.value, replacements: replacements.value })
+    await invalidation
+    if (!current()) return
+    const omitPaths = pathRows.value.filter(row => row.value.trim() !== '').map((row, index) => {
+      try {
+        return { artifact: row.artifact, path: incidentLiteralPathSchema.parse(JSON.parse(row.value)) }
+      } catch { throw new Error(t('incident.invalidPath', { index: index + 1 })) }
+    })
+    const result = await window.hronaut.reviewIncident({ draftId: id, include: [...included.value], omitFields: omittedFields.value, ...(omitPaths.length ? { omitPaths } : {}), replacements: replacements.value })
     if (!current()) return
     preview.value = result; reviewed.value = false
   })
@@ -132,6 +166,17 @@ onBeforeUnmount(reset)
           <p>{{ t('incident.omissionLimit', { count: incidentOmissionLimit }) }}</p>
         </div>
         <p>{{ t('incident.omitFieldHint') }}</p>
+        <div ref="pathList" class="incident-paths">
+          <div v-for="(row, index) in pathRows" :key="row.id" :data-path-id="row.id" class="incident-path-row" role="group" :aria-label="t('incident.pathRow', { index: index + 1 })">
+            <label>{{ t('incident.pathArtifact') }}<select v-model="row.artifact">
+              <option v-for="kind in included" :key="kind" :value="kind">{{ t(`incident.${kind}`) }}</option>
+            </select></label>
+            <label>{{ t('incident.pathValue') }}<UiInput v-model="row.value" maxlength="4096" autocomplete="off" /></label>
+            <UiButton type="button" @click="removePath(row.id)">{{ t('incident.removePath', { index: index + 1 }) }}</UiButton>
+          </div>
+          <UiButton type="button" :disabled="!included.length || pathRows.length >= incidentPathOmissionLimit" @click="addPath">{{ t('incident.addPath') }}</UiButton>
+          <p>{{ t('incident.pathHint') }}</p>
+        </div>
         <div ref="replacementList" class="incident-replacements">
           <div v-for="(row, index) in replacementRows" :key="row.id" :data-replacement-id="row.id" class="incident-replacement-row" role="group" :aria-label="t('incident.replacementRow', { index: index + 1 })">
             <label>{{ t('incident.find') }}<UiInput v-model="row.find" maxlength="256" autocomplete="off" /></label>
@@ -164,7 +209,7 @@ onBeforeUnmount(reset)
 .incident-review input { min-width: 0; max-width: 100%; }
 .incident-omissions { display: grid; gap: 8px; }
 .incident-omission-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.incident-replacements, .incident-replacement-row { display: grid; gap: 8px; }
+.incident-replacements, .incident-replacement-row, .incident-paths, .incident-path-row { display: grid; gap: 8px; }
 .incident-replacement-row { padding: 8px; border: 1px solid var(--border-soft); border-radius: 8px; }
 .incident-preview { width: 100%; min-height: 280px; background: white; }
 .incident-hash { overflow-wrap: anywhere; }

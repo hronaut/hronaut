@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Omit one exact object property from a selected incident-package artifact using a reviewed literal path, while preserving other fields and array positions. Editing or rejecting a review retires its previous export approval.
+
 ## [2.16.0] - 2026-10-06
 
 ### Changed

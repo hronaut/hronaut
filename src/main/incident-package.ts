@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { incidentCaptureSchema, incidentReviewSchema, type IncidentArtifact, type IncidentDraft, type IncidentPreview } from '../shared/incident-package.js'
+import { omitIncidentPaths } from './incident-path-omissions.js'
 import { redactDiagnosticText } from '../shared/debug-report.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 
@@ -89,18 +90,30 @@ export class IncidentPackages {
     this.drafts.set(owner, { draft })
     return structuredClone(draft)
   }
+  invalidatePreview(owner: number, draftId?: string): void {
+    const stored = this.drafts.get(owner)
+    if (stored && (draftId === undefined || stored.draft.draftId === draftId)) stored.preview = undefined
+  }
   review(owner: number, input: unknown): IncidentPreview {
-    const request = incidentReviewSchema.parse(input)
+    // Even a malformed new review must retire the owner's previous approval.
+    this.invalidatePreview(owner)
+    const parsed = incidentReviewSchema.safeParse(input)
+    if (!parsed.success) throw new Error('Invalid incident review options')
+    const request = parsed.data
     const stored = this.current(owner, request.draftId)
     stored.preview = undefined
     if (request.include.some(kind => !stored.draft.artifacts.some(a => a.kind === kind))) throw new Error('Incident artifact was not captured')
+    const selectedData = new Map(stored.draft.artifacts
+      .filter(artifact => request.include.includes(artifact.kind) && artifact.text !== undefined)
+      .map(artifact => [artifact.kind, JSON.parse(artifact.text!) as unknown]))
+    omitIncidentPaths(selectedData, request.omitPaths ?? [])
     const omitted = new Map((request.omitFields ?? []).map(name => [name, 0]))
     const counts = request.replacements.map(() => 0)
     const artifacts = stored.draft.artifacts.map(artifact => {
       if (!request.include.includes(artifact.kind)) return { kind: artifact.kind, status: 'omitted', truncated: artifact.truncated }
       if (!artifact.text) return { ...artifact }
       let transformedBytes = 0
-      const data = transformStrings(omitObjectFields(JSON.parse(artifact.text), omitted), value => {
+      const data = transformStrings(omitObjectFields(selectedData.get(artifact.kind), omitted), value => {
         let next = value
         request.replacements.forEach((rule, index) => {
           const pieces = next.split(rule.find)
@@ -126,6 +139,7 @@ export class IncidentPackages {
       limits: { maxArtifacts: 3, maxArtifactBytes: ARTIFACT_LIMIT, maxPackageBytes: PACKAGE_LIMIT, maxWindowMinutes: 60 },
       limitations: ['Selected retained text only; not a complete session or anonymization guarantee.', 'No screenshots, request/response bodies, profiles, replay, external uploads or receipt collection.', 'Missing or evicted historical evidence cannot be reconstructed; empty means no retained entries in the window.', 'Hashes establish byte integrity, not factual truth.'],
       transformations: [
+        ...(request.omitPaths ?? []).map(rule => ({ type: 'exact-path-omission', artifact: rule.artifact, occurrences: 1 })),
         ...[...omitted.values()].map(occurrences => ({ type: 'exact-field-omission', occurrences })),
         ...counts.map(occurrences => ({ type: 'literal-text-replacement', occurrences }))
       ],

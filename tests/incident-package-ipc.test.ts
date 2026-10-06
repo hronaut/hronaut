@@ -22,7 +22,7 @@ function fixture() {
   }
   return { host, call, reviewed }
 }
-it.each(['capture', 'review', 'save', 'discard'])('rejects untrusted %s before resolving services or dialogs', async action => {
+it.each(['capture', 'review', 'save', 'discard', 'invalidate-preview'])('rejects untrusted %s before resolving services or dialogs', async action => {
   const { host, call } = fixture()
   host.assertTrustedSender.mockImplementation(() => { throw new Error('Untrusted') })
   await expect(call(action)).rejects.toThrow('Untrusted')
@@ -64,4 +64,16 @@ it('rejects the file commit if review is discarded while writing the temporary f
     beforeCommit?.()
   })
   await expect(call('save', input)).rejects.toThrow('missing')
+})
+
+it.each(['edit', 'invalid-review'])('rejects saving old bytes after %s during the native dialog', async action => {
+  const { host, call, reviewed } = fixture()
+  const { draft, input } = await reviewed()
+  host.pickDestination.mockImplementationOnce(async () => {
+    if (action === 'edit') await call('invalidate-preview', draft.draftId)
+    else await expect(call('review', { 'private-invalid-key': true })).rejects.toThrow('Invalid incident review')
+    return '/tmp/stale.html'
+  })
+  await expect(call('save', input)).rejects.toThrow('changed')
+  expect(host.write).not.toHaveBeenCalled()
 })
