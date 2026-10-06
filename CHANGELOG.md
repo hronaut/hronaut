@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Update transitive proxy-addr and source-map-js dependencies for upstream IP trust and source-map denial-of-service advisories.
+
 - Keep a final expected-result TODO in Repro exports when actions follow the last checkpoint, so an earlier passing check cannot silently stand in for a later outcome.
 
 - Forked workspaces appear in the workspace tab bar as soon as Home can see them, while their stored data is still being copied.

@@ -153,8 +153,14 @@ describe('MCP HTTP authentication middleware order', () => {
     expect(limited.status).toBe(429)
     await expect(limited.json()).resolves.toEqual({ error: 'Too many unauthorized requests' })
 
+    for (const forwardedFor of ['192.0.2.10', '::ffff:198.51.100.20', '203.0.113.1, 10.0.0.1']) {
+      const spoofed = await fetch(endpoint, { headers: { 'x-forwarded-for': forwardedFor } })
+      expect(spoofed.status).toBe(429)
+      await expect(spoofed.json()).resolves.toEqual({ error: 'Too many unauthorized requests' })
+    }
+
     const authorized = await fetch(endpoint.replace('/mcp', '/healthz'), {
-      headers: { authorization: `Bearer ${TOKEN}` }
+      headers: { authorization: `Bearer ${TOKEN}`, 'x-forwarded-for': '192.0.2.10' }
     })
     expect(authorized.status).toBe(200)
     await expect(authorized.json()).resolves.toMatchObject({ ok: true, name: 'hronaut' })
