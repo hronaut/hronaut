@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Form typing, selection and batch filling reject native disabled and applicable readonly controls, including state changes during focus, while preserving earlier successful batch writes.
+
 - Update transitive proxy-addr and source-map-js dependencies for upstream IP trust and source-map denial-of-service advisories.
 
 - Keep a final expected-result TODO in Repro exports when actions follow the last checkpoint, so an earlier passing check cannot silently stand in for a later outcome.

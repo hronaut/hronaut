@@ -5561,22 +5561,37 @@ export class BrowserTabsManager {
   }): Promise<unknown> {
     this.validateTarget(target)
     const tab = this.getTab(target.tabId)
-    return this.withAgentInput(tab.webContents, () =>
+    const result = await this.withAgentInput(tab.webContents, () =>
       tab.webContents.executeJavaScript(targetActionScript('type', target, target.text, target.submit), true))
+    this.assertNativeEditability(result)
+    return result
   }
 
   async select(target: { tabId?: string; ref?: string; selector?: string; value: string }): Promise<unknown> {
     this.validateTarget(target)
     const tab = this.getTab(target.tabId)
-    return this.withAgentInput(tab.webContents, () =>
+    const result = await this.withAgentInput(tab.webContents, () =>
       tab.webContents.executeJavaScript(targetActionScript('select', target, target.value), true))
+    this.assertNativeEditability(result)
+    return result
   }
 
   async fillForm(tabId: string | undefined, fields: BrowserFormField[]): Promise<unknown> {
     if (!fields.length || fields.length > 50) throw new Error('Provide between 1 and 50 form fields')
     for (const field of fields) this.validateTarget(field)
     const webContents = this.getTab(tabId).webContents
-    return this.withAgentInput(webContents, () => webContents.executeJavaScript(fillFormScript(fields), true))
+    const result = await this.withAgentInput(webContents, () => webContents.executeJavaScript(fillFormScript(fields), true))
+    this.assertNativeEditability(result)
+    return result
+  }
+
+  private assertNativeEditability(result: unknown): void {
+    if (!result || typeof result !== 'object' || !('nativeEditability' in result)) return
+    if (result.nativeEditability !== 'disabled' && result.nativeEditability !== 'readonly') return
+    const index = 'fieldIndex' in result ? result.fieldIndex : undefined
+    const target = typeof index === 'number' && Number.isInteger(index) && index >= 1 && index <= 50
+      ? `Form field ${index}` : 'Target'
+    throw new Error(`${target} is natively ${result.nativeEditability}; form write rejected`)
   }
 
   async hover(target: {
