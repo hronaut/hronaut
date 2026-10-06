@@ -173,3 +173,61 @@ test('reviews and saves frozen text evidence that remains inert when opened offl
     await closeFixtureServer(server)
   }
 })
+
+test('saves exact path-reviewed bytes and rejects stale approval during the native save dialog', async ({ appWindow, electronApp, profileDirectory }) => {
+  const server = createServer((_request, response) => { response.setHeader('content-type', 'text/html'); response.end('<h1>Path fixture</h1>') })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address(); if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const url = `http://127.0.0.1:${address.port}/`
+  const destination = join(profileDirectory, 'path-incident.html')
+  try {
+    const state = await appWindow.evaluate(url => (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true }), url)
+    const tabId = state.activeTabId!
+    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
+    const page = electronApp.context().pages().find(page => page.url() === url)!
+    await page.evaluate(() => { console.error('omit-value-canary'); console.error('keep-sibling-canary') })
+    await expect.poll(async () => {
+      const report = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)
+      return report.console.some(item => item.message === 'keep-sibling-canary')
+    }).toBe(true)
+    const draft = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.captureIncident({ tabId, kinds: ['diagnostics'], minutes: 1 }), tabId)
+    const source = JSON.parse(draft.artifacts[0]!.text!) as { console: Array<{ message: string }> }
+    const index = source.console.findIndex(item => item.message === 'omit-value-canary')
+    expect(index).toBeGreaterThanOrEqual(0)
+    const request = { draftId: draft.draftId, include: ['diagnostics' as const], replacements: [], omitPaths: [{ artifact: 'diagnostics' as const, path: ['console', index, 'message'] }] }
+    const preview = await appWindow.evaluate(input => (window as unknown as { hronaut: HronautApi }).hronaut.reviewIncident(input), request)
+    expect(preview.html).not.toContain('omit-value-canary')
+    expect(preview.html).toContain('keep-sibling-canary')
+    const manifest = preview.html.split('<h2>Manifest</h2><pre>')[1]!.split('</pre>')[0]!
+    expect(manifest).not.toMatch(/canary|&quot;message&quot;|&quot;console&quot;/)
+    await electronApp.evaluate(({ dialog }, destination) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination }) }, destination)
+    const saveInput = { draftId: draft.draftId, previewId: preview.previewId, reviewed: true as const }
+    await appWindow.evaluate(input => (window as unknown as { hronaut: HronautApi }).hronaut.saveIncident(input), saveInput)
+    expect(await readFile(destination, 'utf8')).toBe(preview.html)
+    expect(createHash('sha256').update(await readFile(destination)).digest('hex')).toBe(preview.sha256)
+    for (const invalidation of ['edit', 'invalid-review'] as const) {
+      const current = await appWindow.evaluate(input => (window as unknown as { hronaut: HronautApi }).hronaut.reviewIncident(input), request)
+      await electronApp.evaluate(({ dialog }, destination) => {
+        const state = globalThis as typeof globalThis & { __incidentDialogRelease?: () => void }
+        dialog.showSaveDialog = async () => { await new Promise<void>(resolve => { state.__incidentDialogRelease = resolve }); return { canceled: false, filePath: destination } }
+      }, destination)
+      await appWindow.evaluate(input => {
+        const state = globalThis as typeof globalThis & { __incidentSaveOutcome?: boolean }
+        delete state.__incidentSaveOutcome
+        void (window as unknown as { hronaut: HronautApi }).hronaut.saveIncident(input).then(() => { state.__incidentSaveOutcome = true }, () => { state.__incidentSaveOutcome = false })
+      }, { ...saveInput, previewId: current.previewId })
+      await expect.poll(() => electronApp.evaluate(() => Boolean((globalThis as typeof globalThis & { __incidentDialogRelease?: () => void }).__incidentDialogRelease))).toBe(true)
+      if (invalidation === 'edit') await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.invalidateIncidentPreview(id), draft.draftId)
+      else await expect(appWindow.evaluate(input => (window as unknown as { hronaut: HronautApi }).hronaut.reviewIncident(input), { ...request, omitPaths: [{ artifact: 'diagnostics' as const, path: ['missing-path-canary'] }] })).rejects.toThrow('does not identify')
+      await electronApp.evaluate(() => { const state = globalThis as typeof globalThis & { __incidentDialogRelease?: () => void }; state.__incidentDialogRelease?.(); delete state.__incidentDialogRelease })
+      await expect.poll(() => appWindow.evaluate(() => (globalThis as typeof globalThis & { __incidentSaveOutcome?: boolean }).__incidentSaveOutcome)).toBe(false)
+      expect(await readFile(destination, 'utf8')).toBe(preview.html)
+    }
+    const original = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.createDebugReport({ tabId }), tabId)
+    expect(original.console.some(item => item.message === 'omit-value-canary')).toBe(true)
+  } finally {
+    await electronApp.evaluate(() => { const state = globalThis as typeof globalThis & { __incidentDialogRelease?: () => void }; state.__incidentDialogRelease?.(); delete state.__incidentDialogRelease })
+    await appWindow.evaluate(() => { delete (globalThis as typeof globalThis & { __incidentSaveOutcome?: boolean }).__incidentSaveOutcome }).catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})

@@ -201,6 +201,7 @@ const api: HronautApi = {
   videoPreview: tabId => ipcRenderer.invoke('browser:video-preview', tabId),
   captureIncident: input => ipcRenderer.invoke('browser:incident-capture', input),
   reviewIncident: input => ipcRenderer.invoke('browser:incident-review', input),
+  invalidateIncidentPreview: draftId => ipcRenderer.invoke('browser:incident-invalidate-preview', draftId),
   discardIncident: () => ipcRenderer.invoke('browser:incident-discard'),
   saveIncident: input => ipcRenderer.invoke('browser:incident-save', input),
   manageRepro: (action, tabId, checkpoint) =>

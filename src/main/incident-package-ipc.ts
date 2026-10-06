@@ -29,6 +29,12 @@ export function registerIncidentPackageIpc(ipc: Pick<IpcMain, 'handle'>, host: {
     return draft
   })
   ipc.handle('browser:incident-review', (event, input: unknown) => packages.review(owner(event), input))
+  ipc.handle('browser:incident-invalidate-preview', (event, input: unknown) => {
+    const id = owner(event)
+    const parsed = z.string().uuid().safeParse(input)
+    if (!parsed.success) throw new Error('Invalid incident draft')
+    packages.invalidatePreview(id, parsed.data)
+  })
   ipc.handle('browser:incident-discard', event => { packages.discard(owner(event)) })
   ipc.handle('browser:incident-save', async (event, input: unknown) => {
     const id = owner(event)

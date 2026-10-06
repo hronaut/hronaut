@@ -2488,6 +2488,7 @@ export interface BrowserStorageChangesReport {
 export interface HronautApi {
   captureIncident(input: IncidentCaptureInput): Promise<IncidentDraft>
   reviewIncident(input: IncidentReviewInput): Promise<IncidentPreview>
+  invalidateIncidentPreview(draftId: string): Promise<void>
   discardIncident(): Promise<void>
   saveIncident(input: { draftId: string; previewId: string; reviewed: true }): Promise<{ saved: boolean; sha256?: string; bytes?: number }>
 

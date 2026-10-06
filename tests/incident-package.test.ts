@@ -174,3 +174,47 @@ it('applies multiple literal replacements in order without modifying source evid
   expect(source).toEqual(original)
   expect(() => service.review(1, { draftId: draft.draftId, include: ['repro'], replacements: Array.from({ length: 11 }, () => ({ find: 'x', replacement: '' })) })).toThrow()
 })
+
+it('scopes paths before global omissions and replacements without retaining paths in the manifest', async () => {
+  const { service, source } = fixture()
+  source.steps.push({ occurredAt: new Date(now).toISOString(), description: 'sibling-kept', index: 2 })
+  const original = structuredClone(source)
+  const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const preview = service.review(1, { draftId: draft.draftId, include: ['repro'], omitPaths: [{ artifact: 'repro', path: ['steps', 0, 'description'] }], omitFields: ['index'], replacements: [{ find: 'sibling-kept', replacement: 'sibling-reviewed' }] })
+  expect(preview.html).not.toContain('private-canary')
+  expect(preview.html).toContain('sibling-reviewed')
+  const manifest = preview.html.split('<h2>Manifest</h2><pre>')[1]!.split('</pre>')[0]!
+  expect(manifest).toContain('exact-path-omission')
+  expect(manifest).not.toMatch(/description|steps|private-canary/)
+  expect(preview.html).not.toContain('&quot;index&quot;')
+  expect(source).toEqual(original)
+  expect(service.export(1, draft.draftId, preview.previewId)).toEqual(preview)
+})
+it.each([
+  { omitPaths: [{ artifact: 'repro', path: ['steps', 0, 'missing-private-token'] }] },
+  { omitPaths: [{ artifact: 'network', path: ['entries'] }] },
+  { omitPaths: [{ artifact: 'repro', path: [] }] },
+  { 'private-unrecognized-key': true }, { draftId: 'private-invalid-id' }
+])('invalid review retires the previous preview and keeps errors bounded: %#', invalid => {
+  return (async () => {
+    const { service } = fixture()
+    const draft = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+    const request = { draftId: draft.draftId, include: ['repro'], replacements: [] }
+    const preview = service.review(1, request)
+    expect(() => service.review(1, { ...request, ...invalid })).toThrow()
+    try { service.review(1, { ...request, ...invalid }) } catch (error) { expect(String(error)).not.toMatch(/private-/) }
+    expect(() => service.export(1, draft.draftId, preview.previewId)).toThrow('changed')
+    expect(service.review(1, request).sha256).toBe(preview.sha256)
+  })()
+})
+it('does not let a stale draft edit invalidate a newer preview or another owner', async () => {
+  const { service } = fixture()
+  const old = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const current = await service.capture(1, { tabId: 'tab', minutes: 1, kinds: ['repro'] })
+  const preview = service.review(1, { draftId: current.draftId, include: ['repro'], replacements: [] })
+  service.invalidatePreview(1, old.draftId)
+  service.invalidatePreview(2, current.draftId)
+  expect(service.export(1, current.draftId, preview.previewId)).toEqual(preview)
+  service.invalidatePreview(1, current.draftId)
+  expect(() => service.export(1, current.draftId, preview.previewId)).toThrow('changed')
+})

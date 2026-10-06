@@ -5,7 +5,7 @@ import IncidentPackageReview from '../../src/renderer/src/components/IncidentPac
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 const draft = { draftId: 'draft', expiresAt: 'later', artifacts: [{ kind: 'repro', status: 'available', truncated: false }] }
 function setup() {
-  const api = { captureIncident: vi.fn(async () => draft), reviewIncident: vi.fn(async () => ({ previewId: 'preview', html: '<p>Reviewed</p>', sha256: 'hash', bytes: 15 })), discardIncident: vi.fn(async () => undefined), saveIncident: vi.fn(async () => ({ saved: true })) }
+  const api = { invalidateIncidentPreview: vi.fn(async () => undefined), captureIncident: vi.fn(async () => draft), reviewIncident: vi.fn(async () => ({ previewId: 'preview', html: '<p>Reviewed</p>', sha256: 'hash', bytes: 15 })), discardIncident: vi.fn(async () => undefined), saveIncident: vi.fn(async () => ({ saved: true })) }
   vi.stubGlobal('hronaut', api)
   const view = render(IncidentPackageReview, { props: { tabId: 'tab' }, global: { plugins: [createHronautI18n('en-US')] } })
   return { api, view, user: userEvent.setup() }
@@ -179,5 +179,50 @@ it('reviews ordered text replacements with empty deletion, bounded rows and fres
   expect(screen.queryByTitle('Preview exact package')).toBeNull()
   await user.click(screen.getByRole('button', { name: 'Preview exact package' }))
   expect(api.reviewIncident).toHaveBeenLastCalledWith({ draftId: 'draft', include: ['repro'], omitFields: [], replacements: [{ find: 'private-second', replacement: '' }] })
+  expect(await screen.findByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
+})
+
+it('sends typed scoped paths and invalidates both sides on edits, including invalid JSON', async () => {
+  const { api, user } = setup()
+  await user.click(screen.getByText('Reviewed incident package'))
+  await user.click(screen.getByRole('checkbox', { name: 'Repro steps' }))
+  await user.click(screen.getByRole('button', { name: 'Capture selected evidence' }))
+  await user.click(screen.getByRole('button', { name: 'Omit one property' }))
+  const path = screen.getByLabelText('Exact property path (JSON array)')
+  expect(path).toHaveFocus()
+  await user.click(path)
+  await user.paste('["steps",0,"description"]')
+  await user.click(screen.getByRole('button', { name: 'Preview exact package' }))
+  expect(api.reviewIncident).toHaveBeenLastCalledWith({ draftId: 'draft', include: ['repro'], omitFields: [], omitPaths: [{ artifact: 'repro', path: ['steps', 0, 'description'] }], replacements: [] })
+  await user.click(screen.getByRole('checkbox', { name: /I reviewed this package/ }))
+  api.invalidateIncidentPreview.mockClear()
+  await user.clear(path)
+  await user.paste('private-invalid-json')
+  expect(api.invalidateIncidentPreview).toHaveBeenCalledWith('draft')
+  expect(screen.queryByTitle('Preview exact package')).toBeNull()
+  api.reviewIncident.mockClear()
+  await user.click(screen.getByRole('button', { name: 'Preview exact package' }))
+  expect(screen.getByRole('alert')).toHaveTextContent('Property omission 1 needs a valid literal path.')
+  expect(screen.getByRole('alert')).not.toHaveTextContent('private-invalid-json')
+  expect(api.reviewIncident).not.toHaveBeenCalled()
+})
+it('ignores a pending preview response after a rule edit and waits for server invalidation', async () => {
+  const { api, user, view } = setup()
+  await user.click(screen.getByText('Reviewed incident package'))
+  await user.click(screen.getByRole('checkbox', { name: 'Repro steps' }))
+  await user.click(screen.getByRole('button', { name: 'Capture selected evidence' }))
+  await user.click(screen.getByRole('button', { name: 'Omit one property' }))
+  let resolve!: (value: { previewId: string; html: string; sha256: string; bytes: number }) => void
+  api.reviewIncident.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  await user.click(screen.getByRole('button', { name: 'Preview exact package' }))
+  // Simulate an already queued edit arriving after the operation disabled its fieldset.
+  const field = screen.getByLabelText<HTMLInputElement>('Exact property path (JSON array)')
+  field.value = '["steps",0,"description"]'
+  field.dispatchEvent(new Event('input', { bubbles: true }))
+  await view.rerender({ tabId: 'tab' })
+  expect(api.invalidateIncidentPreview).toHaveBeenCalledWith('draft')
+  resolve({ previewId: 'late', html: '<p>Old bytes</p>', sha256: 'old', bytes: 16 })
+  await waitFor(() => expect(screen.queryByTitle('Preview exact package')).toBeNull())
+  await user.click(screen.getByRole('button', { name: 'Preview exact package' }))
   expect(await screen.findByRole('button', { name: 'Save reviewed HTML' })).toBeDisabled()
 })
