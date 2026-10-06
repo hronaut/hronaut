@@ -1,11 +1,22 @@
+import { VIDEO_INSPECTION_LIMITS, videoInspectionSchema, type BrowserVideoInspectionOptions, type VideoInspectionReport } from '../../shared/video-inspection.js'
+import { selectVideoFrames, type SelectedVideoFrame } from './video-inspection-frames.js'
 import { randomUUID } from 'node:crypto'
 import { VIDEO_LIMITS, videoOptionsSchema, validateVideoEdit, type BrowserVideoOptions, type BrowserVideoState, type VideoFrame, type VideoRenderPlan, type VideoTimingObservation } from '../../shared/video.js'
 import { VIDEO_AUDIO_BUILTINS, VIDEO_AUDIO_LIMITS, normalizeVideoAudioWav } from '../../shared/video-audio.js'
+
+export interface VideoSourceBinding { readonly tabId: string; readonly workspaceId: string | undefined; readonly origin: string }
+export interface PendingVideoInspection {
+  readonly report: VideoInspectionReport
+  image?: Uint8Array
+  assertCurrent(): void
+  discard(): void
+}
 
 interface CapturedFrame { data: Uint8Array; width: number; height: number }
 interface Recording {
   state: BrowserVideoState
   frames: VideoFrame[]
+  source?: Readonly<VideoSourceBinding>
   elapsedMs: number
   clockOrigin: number
   lastFrameTiming?: VideoTimingObservation['lastFrame']
@@ -23,6 +34,7 @@ interface Recording {
   audioAssets: Map<string, Uint8Array>
 }
 export interface VideoRecorderHost {
+  inspect?(frames: readonly SelectedVideoFrame[], signal: AbortSignal, validate: () => void): Promise<Uint8Array>
   changed(): void
   render(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void, assets?: readonly { id: string; data: Uint8Array }[]): Promise<Uint8Array>
   save(data: Uint8Array, validate: () => void): Promise<{ filename: string; path: string }>
@@ -62,12 +74,49 @@ export class BrowserVideoRecorder {
     return data
   }
 
+  async inspect(tabId: string, input: BrowserVideoInspectionOptions, authorize: (source: VideoSourceBinding) => void, signal?: AbortSignal): Promise<PendingVideoInspection> {
+    const options = videoInspectionSchema.parse(input)
+    const recording = this.recordings.get(tabId)
+    if (!recording?.source || !recording.frames.length) throw new Error('Inspect a non-empty retained recording')
+    const assertCurrent = (): void => {
+      if (signal?.aborted || recording.abort.signal.aborted || this.recordings.get(tabId) !== recording
+        || recording.state.recordingId !== options.recordingId || recording.captureRevision !== options.expectedRevision
+        || recording.state.status !== 'stopped') throw new Error('Video inspection was cancelled or its recording identity/revision changed')
+      recording.validateSource()
+      authorize(recording.source!)
+    }
+    assertCurrent()
+    if (options.endMs > recording.elapsedMs) throw new Error('Inspection interval exceeds recording duration')
+    const selected = selectVideoFrames(recording.frames, options.startMs, options.endMs, options.maxFrames)
+    const report: VideoInspectionReport = {
+      recordingId: options.recordingId, revision: options.expectedRevision,
+      status: selected.frames.length ? 'sheet' : 'empty',
+      interval: { startMs: options.startMs, endMs: options.endMs, inclusive: true },
+      retainedFrames: selected.retained, selectedFrames: selected.frames.length, omittedFrames: selected.retained - selected.frames.length,
+      sampling: 'retained-index-uniform', clock: 'recording-source', pixelTime: 'unknown',
+      frames: selected.frames.map((frame, index) => ({ label: index + 1, sequence: frame.sequence, sourceTimeMs: frame.sourceTimeMs })),
+      ...(selected.frames.length ? { image: { width: Math.min(selected.frames.length, VIDEO_INSPECTION_LIMITS.columns) * VIDEO_INSPECTION_LIMITS.tileWidth,
+        height: Math.ceil(selected.frames.length / VIDEO_INSPECTION_LIMITS.columns) * (VIDEO_INSPECTION_LIMITS.tileHeight + VIDEO_INSPECTION_LIMITS.labelHeight), mimeType: 'image/png' as const } } : {}),
+      notice: 'Only sampled retained source frames are shown. Omitted or uncaptured frames and capture gaps cannot establish that an event was absent. Source timestamps are not exact pixel times.'
+    }
+    let image: Uint8Array | undefined
+    if (selected.frames.length) {
+      if (!this.host.inspect) throw new Error('Video inspection is unavailable')
+      image = await this.host.inspect(selected.frames, signal ? AbortSignal.any([signal, recording.abort.signal]) : recording.abort.signal, assertCurrent)
+    }
+    assertCurrent()
+    const pending: PendingVideoInspection = { report, image, assertCurrent, discard: () => { pending.image = undefined } }
+    return pending
+  }
+
   private duration(r: Recording, now = this.now()): number {
     return Math.min(VIDEO_LIMITS.durationMs, Math.round(r.elapsedMs + (r.state.status === 'recording' ? now - r.runningSince : 0)))
   }
 
-  async manage(tabId: string, input: BrowserVideoOptions, capture: () => Promise<CapturedFrame | null>, validate: () => void, validateSource: () => void = validate, signal?: AbortSignal): Promise<BrowserVideoState> {
+  async manage(tabId: string, input: BrowserVideoOptions, capture: () => Promise<CapturedFrame | null>, validate: () => void, validateSource: () => void = validate, signal?: AbortSignal, source?: VideoSourceBinding): Promise<BrowserVideoState> {
     const options = videoOptionsSchema.parse(input)
+    if (options.action === 'inspect') throw new Error('Use the video inspection operation')
+    if (['recordingId', 'expectedRevision', 'startMs', 'endMs', 'maxFrames'].some(key => input[key as keyof BrowserVideoOptions] !== undefined)) throw new Error('Inspection arguments require inspect')
     if (options.action === 'get') { this.recordings.get(tabId)?.validateSource(); return this.state(tabId) }
     if (options.action === 'clear') { this.clear(tabId); return this.state(tabId) }
     let r = this.recordings.get(tabId)
@@ -77,7 +126,7 @@ export class BrowserVideoRecorder {
       if (this.recordings.size >= VIDEO_LIMITS.recordings) throw new Error('Clear a retained recording first (maximum three)')
       validate()
       const now = this.now()
-      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], audioAssets: new Map(), elapsedMs: 0, clockOrigin: now, runningSince: now, lastFrameAt: now, capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
+      r = { state: { ...this.state(tabId), recordingId: randomUUID(), status: 'recording' }, frames: [], source: source ? Object.freeze({ ...source }) : undefined, audioAssets: new Map(), elapsedMs: 0, clockOrigin: now, runningSince: now, lastFrameAt: now, capture, validate, validateSource, captureRevision: 0, abort: new AbortController(), busy: true }
       this.recordings.set(tabId, r)
       this.host.changed()
       await this.sample(tabId, r)
@@ -221,7 +270,7 @@ export class BrowserVideoRecorder {
       if (!frame.data.byteLength || !frame.width || !frame.height) throw new Error('Empty frame')
       if (r.frames.length && (frame.width !== r.state.width || frame.height !== r.state.height)) throw new Error('Viewport changed')
       r.lastFrameAt = this.now()
-      r.frames.push({ timeMs: r.frames.length ? timeMs : 0, data: frame.data })
+      r.frames.push(Object.freeze({ timeMs: r.frames.length ? timeMs : 0, data: Uint8Array.from(frame.data) }))
       r.lastFrameTiming = {
         sequence: r.frames.length,
         sourceTimeMs: r.frames.at(-1)!.timeMs,

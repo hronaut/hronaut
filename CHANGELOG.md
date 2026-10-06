@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Inspect stopped video recordings through MCP as bounded, numbered contact sheets of retained source frames, with explicit recording/revision binding, current origin access checks and sampling omissions.
+
 - Omit one exact object property from a selected incident-package artifact using a reviewed literal path, while preserving other fields and array positions. Editing or rejecting a review retires its previous export approval.
 
 ## [2.16.0] - 2026-10-06

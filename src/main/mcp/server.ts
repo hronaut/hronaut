@@ -1,3 +1,5 @@
+import type { PendingVideoInspection, VideoSourceBinding } from '../browser/video-recorder.js'
+import { videoInspectionSchema } from '../../shared/video-inspection.js'
 import type { PendingFrameObservation } from '../browser/frame-observation.js'
 import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
 import { frameObservationResult } from './frame-observation-result.js'
@@ -374,7 +376,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_storage: new Set(['list', 'get']),
   browser_storage_changes: new Set(['get']),
   browser_repro: new Set(['get']),
-  browser_video: new Set(['get']),
+  browser_video: new Set(['get', 'inspect']),
   browser_dom_changes: new Set(['get']),
   browser_pwa_lifecycle: new Set(['get']),
   browser_issues: new Set(['list']),
@@ -1032,7 +1034,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1113,6 +1115,15 @@ function createBrowserMcpServer(
           frameRequest.pending.assertCurrent()
           return settled
         }
+        if (name === 'browser_video' && input.action === 'inspect' && frameRequest.videoInspection && !result.isError) {
+          // No await after this check: capability/human/audit settlement must precede pixel publication.
+          const inspection = frameRequest.videoInspection
+          inspection.assertCurrent()
+          return { content: [
+            { type: 'text', text: JSON.stringify(inspection.report) },
+            ...(inspection.image ? [{ type: 'image' as const, data: Buffer.from(inspection.image).toString('base64'), mimeType: 'image/png' as const }] : [])
+          ] }
+        }
         recordReadinessProbe(result.isError ? 'failed' : 'verified')
         return result
       } catch (error) {
@@ -1127,6 +1138,7 @@ function createBrowserMcpServer(
         return errorResult(error)
       } finally {
         frameRequest.pending?.discard()
+        frameRequest.videoInspection?.discard()
         finishWorkspaceMutation?.()
       }
     })) as never)
@@ -1581,6 +1593,7 @@ function createBrowserMcpServer(
         const hasReviewedBinding = typeof input.reviewId === 'string'
         if (hasReviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
         const actionInput = reviewedActionArguments(input)
+        const readOnly = toolDefinition(name).annotations.readOnlyHint || (name === 'browser_video' && actionInput.action === 'inspect')
         const continuityInspection = continuityInspectionTools.has(name)
           || (name === 'browser_webmcp' && actionInput.action !== 'call')
         requireActiveCapabilityDispatch(name, actionInput)
@@ -1811,7 +1824,7 @@ function createBrowserMcpServer(
               occurredAt: Date.now()
             })
           }
-          const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, toolDefinition(name).annotations.readOnlyHint)
+          const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
           try {
             if (!isFrameObservation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
@@ -1856,7 +1869,12 @@ function createBrowserMcpServer(
                   if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
                 } } : {}),
                 ...(name === 'browser_pwa_lifecycle' ? { validateLifecycle } : {}),
-                ...(name === 'browser_video' ? { recordingSignal: extra?.signal, validateRecording: () => {
+                ...(name === 'browser_video' ? { validateInspection: (source: VideoSourceBinding) => {
+                  if (extra?.signal?.aborted) throw new Error('Video inspection cancelled')
+                  requireCurrentTarget()
+                  if (source.workspaceId !== workspaceId || source.tabId !== resolvedTabId) throw workspaceAuthorizationError()
+                  requireActiveCapabilityDispatch(name, actionInput, { workspaceId, tabId: resolvedTabId, origins: [source.origin] })
+                }, recordingSignal: extra?.signal, validateRecording: () => {
                   if (extra?.signal?.aborted) throw new Error('Video operation was cancelled')
                   requireCurrentControl()
                   requireActiveCapabilityDispatch(name, actionInput)
@@ -1877,9 +1895,9 @@ function createBrowserMcpServer(
               if (resolvedTabId && name !== 'browser_close_tab'
                 && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
             } catch {
-              invalidatedOutcome = toolDefinition(name).annotations.readOnlyHint ? 'stale-observation' : 'outcome-unknown'
+              invalidatedOutcome = readOnly ? 'stale-observation' : 'outcome-unknown'
               const outcome = {
-                status: toolDefinition(name).annotations.readOnlyHint ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
+                status: readOnly ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
                 retrySafe: false,
                 nextAction: 'The workspace context changed while this tool was running. Its result was discarded. Inspect the visible page and obtain fresh state before deciding what to do next; do not automatically repeat a possible side effect.'
               }
@@ -1900,7 +1918,7 @@ function createBrowserMcpServer(
           const status = structured && typeof structured === 'object' && !Array.isArray(structured)
             && typeof structured.status === 'string' ? structured.status : undefined
           const activityResult = classifyMcpActivityResult({
-            readOnly: toolDefinition(name).annotations.readOnlyHint,
+            readOnly,
             dispatched: activityDispatched,
             cancelled: extra?.signal?.aborted === true,
             timedOut: isTimeoutError(error),
@@ -1972,7 +1990,7 @@ function createBrowserMcpServer(
         try {
           result = await auditReceipts.execute(workspaceId, {
           toolName: name,
-          readOnly: toolDefinition(name).annotations.readOnlyHint,
+          readOnly,
           authorization: auditAuthorization,
           signal: extra?.signal,
           isErrorResult: result => result.isError === true,
@@ -4071,8 +4089,16 @@ function createBrowserMcpServer(
   registerWorkspaceTool(
     'browser_video',
     { description: toolDescription('browser_video'), inputSchema: videoOptionsShape },
-    tabTool('browser_video', async ({ validateRecording, recordingSignal, ...input }: BrowserVideoOptions & { validateRecording?: () => void; recordingSignal?: AbortSignal }) =>
-      textResult(await manager.videoRecording({ tabId: input.tabId, action: input.action, annotations: input.annotations, clips: input.clips, audio: input.audio, cameras: input.cameras, transition: input.transition, audioPath: input.audioPath, audioName: input.audioName, audioProvenance: input.audioProvenance, assetId: input.assetId }, validateRecording, recordingSignal)), 'never')
+    tabTool('browser_video', async ({ validateRecording, validateInspection, recordingSignal, ...input }: BrowserVideoOptions & { validateRecording?: () => void; validateInspection?: (source: VideoSourceBinding) => void; recordingSignal?: AbortSignal }) => {
+      const options = Object.fromEntries(Object.keys(videoOptionsShape).filter(key => (input as Record<string, unknown>)[key] !== undefined).map(key => [key, (input as Record<string, unknown>)[key]])) as BrowserVideoOptions
+      if (options.action === 'inspect') {
+        if (!validateInspection) throw new Error('Video inspection authority is unavailable')
+        const pending = await manager.inspectVideo(videoInspectionSchema.parse(options), validateInspection, recordingSignal)
+        frameRequests.getStore()!.videoInspection = pending
+        return textResult(pending.report)
+      }
+      return textResult(await manager.videoRecording(options, validateRecording, recordingSignal))
+    }, 'never')
   )
   registerWorkspaceTool(
     'browser_repro',

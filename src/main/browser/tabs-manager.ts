@@ -7,7 +7,9 @@ import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import { utf8Prefix } from '../../shared/utf8.js'
 import { boundStorageItems } from './storage-items.js'
-import { BrowserVideoRecorder } from './video-recorder.js'
+import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
+import { inspectVideoFrames } from './video-inspection.js'
+import { BrowserVideoRecorder, type PendingVideoInspection, type VideoSourceBinding } from './video-recorder.js'
 import { captureStableVideoImage } from './video-capture.js'
 import { renderBrowserVideo } from './video-export.js'
 import { readVideoAudioFile } from './video-audio-file.js'
@@ -1065,6 +1067,7 @@ export class BrowserTabsManager {
   private readonly videoRecorder = new BrowserVideoRecorder({
     changed: () => this.changed(false),
     render: renderBrowserVideo,
+    inspect: inspectVideoFrames,
     loadAudio: readVideoAudioFile,
     save: async (data, validate) => {
       validate()
@@ -6062,7 +6065,16 @@ export class BrowserTabsManager {
     const validateSource = (): void => {
       if (this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new Error('Return to the recording origin to access this video, or discard it')
     }
-    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal)
+    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource, signal, { tabId: tab.id, workspaceId, origin })
+  }
+
+  async inspectVideo(options: BrowserVideoInspectionOptions, authorize: (source: VideoSourceBinding) => void, signal?: AbortSignal): Promise<PendingVideoInspection> {
+    const tab = this.getTab(options.tabId)
+    return this.videoRecorder.inspect(tab.id, options, source => {
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
+        || tab.id !== source.tabId || tab.mcpGroupId !== source.workspaceId) throw new Error('Recording tab or workspace is unavailable')
+      authorize(source)
+    }, signal)
   }
 
   videoPreview(tabId: string): Uint8Array {

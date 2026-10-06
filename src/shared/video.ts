@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { videoInspectionFields } from './video-inspection.js'
 
 export const VIDEO_LIMITS = { durationMs: 120_000, framesPerSecond: 12, width: 1280, height: 720, bytes: 64 * 1024 * 1024, recordings: 3, annotations: 100, clips: 30 } as const
 const time = z.number().finite().min(0).max(VIDEO_LIMITS.durationMs)
@@ -51,7 +52,12 @@ export const videoCameraSchema = z.object({
 export const videoTransitionSchema = z.object({ durationMs: z.number().finite().min(0).max(1000).default(300) }).strict()
 export const videoOptionsShape = {
   tabId: z.string().min(1).max(128).optional(),
-  action: z.enum(['get', 'start', 'pause', 'resume', 'stop', 'edit', 'render', 'export', 'clear', 'import-audio', 'remove-audio']).default('get'),
+  action: z.enum(['get', 'start', 'pause', 'resume', 'stop', 'edit', 'render', 'export', 'clear', 'import-audio', 'remove-audio', 'inspect']).default('get'),
+  recordingId: videoInspectionFields.recordingId.optional(),
+  expectedRevision: videoInspectionFields.expectedRevision.optional(),
+  startMs: videoInspectionFields.startMs.optional(),
+  endMs: videoInspectionFields.endMs.optional(),
+  maxFrames: videoInspectionFields.maxFrames.optional(),
   annotations: z.array(videoAnnotationSchema).max(VIDEO_LIMITS.annotations).optional(),
   clips: z.array(videoClipSchema).min(1).max(VIDEO_LIMITS.clips).optional(),
   audio: z.array(videoAudioEventSchema).max(32).optional().describe('Replaces audio events on the finished output timeline, in milliseconds. Built-in and imported asset IDs come from get.'),

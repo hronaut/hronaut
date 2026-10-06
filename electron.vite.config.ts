@@ -37,6 +37,7 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           videoExport: resolve('src/renderer/video-export.html'),
+          videoInspection: resolve('src/renderer/video-inspection.html'),
           home: resolve('src/renderer/src/home.ts'),
           addressOverlay: resolve('src/renderer/address-overlay.html')
         },
