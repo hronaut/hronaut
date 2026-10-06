@@ -2488,7 +2488,7 @@ export class BrowserTabsManager {
     }
   }
 
-  async pwaLifecycle(options: PwaLifecycleOptions, validate: () => void = () => undefined) {
+  async pwaLifecycle(options: PwaLifecycleOptions, validate: (origin: string) => void = () => undefined) {
     return this.pwaLifecycleRecorder.manage(this.getTab(options.tabId), options, validate)
   }
 

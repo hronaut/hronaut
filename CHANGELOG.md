@@ -16,6 +16,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Authorize retained worker lifecycle evidence against its captured origin before reading, stopping or clearing it, and recheck authority before returning asynchronous results.
+
 - Update MCP SDK to 1.31.0 for upstream OAuth issuer binding; legacy stored credentials without an issuer still need migration when integrating OAuth clients.
 
 - Reject Solana transaction counters that are truncated, exceed three bytes, or exceed the u16 range with Solana Kit 8.4.0.

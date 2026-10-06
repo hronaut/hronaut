@@ -26,7 +26,7 @@ interface Capture<T> {
   navigationGeneration: number
   observationGeneration: number
   report: PwaLifecycleReport
-  validate: () => void
+  validate: (origin: string) => void
   busy: boolean
   cleanup: Array<() => void>
 }
@@ -52,15 +52,15 @@ export class BrowserPwaLifecycle<T extends CaptureTab> {
     this.captures.clear()
   }
 
-  async manage(tab: T, options: PwaLifecycleOptions, validate: () => void = () => undefined): Promise<PwaLifecycleReport | null> {
+  async manage(tab: T, options: PwaLifecycleOptions, validate: (origin: string) => void = () => undefined): Promise<PwaLifecycleReport | null> {
     if (options.action !== 'start') {
       const capture = options.captureId
         ? this.captures.get(options.captureId)
         : [...this.captures.values()].reverse().find(c => c.tab.id === tab.id)
       if (!capture) return null
       if (capture.workspaceId !== tab.mcpGroupId) throw new Error('Capture belongs to a different workspace')
+      validate(capture.report.origin)
       if (options.action === 'stop' || options.action === 'clear') {
-        validate()
         this.finish(capture, 'stopped', false)
       }
       if (options.action === 'clear') { this.captures.delete(capture.report.captureId); return null }
@@ -68,7 +68,7 @@ export class BrowserPwaLifecycle<T extends CaptureTab> {
     }
     const origin = new URL(tab.url)
     if (!['http:', 'https:'].includes(origin.protocol)) throw new Error('Open an HTTP or HTTPS page before observing workers')
-    validate()
+    validate(origin.origin)
     if (tab.sleeping || (tab.pageLifecycleState && tab.pageLifecycleState !== 'active')) throw new Error('Keep the capture tab awake and unfrozen')
     if (!this.host.isCurrent(tab) || tab.webContents.isDestroyed()) throw new Error('Capture tab is unavailable')
     for (const capture of this.captures.values()) {
@@ -142,6 +142,7 @@ export class BrowserPwaLifecycle<T extends CaptureTab> {
       clearTimeout(timeout)
       capture.busy = false
     }
+    this.requireCurrent(capture)
     return structuredClone(capture.report)
   }
 
@@ -150,7 +151,7 @@ export class BrowserPwaLifecycle<T extends CaptureTab> {
   }
 
   private requireCurrent(capture: Capture<T>): void {
-    capture.validate()
+    capture.validate(capture.report.origin)
     const tab = capture.tab
     if (tab.sleeping || (tab.pageLifecycleState && tab.pageLifecycleState !== 'active')
       || !this.host.isCurrent(tab) || tab.webContents !== capture.contents || capture.contents.isDestroyed()

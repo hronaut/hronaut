@@ -317,6 +317,7 @@ describe('MCP capability profile authentication', () => {
       bookmarks?: Record<string, unknown>
       history?: Record<string, unknown>
       humanWaiting?: Record<string, unknown>
+      auditReceipts?: Record<string, unknown>
     } = {}
   ) {
     directory = await mkdtemp(join(tmpdir(), 'hronaut-capability-server-'))
@@ -336,7 +337,8 @@ describe('MCP capability profile authentication', () => {
       bookmarks: (overrides.bookmarks ?? {}) as never,
       history: (overrides.history ?? {}) as never,
       siteData: {} as never,
-      humanWaiting: overrides.humanWaiting as never
+      humanWaiting: overrides.humanWaiting as never,
+      auditReceipts: overrides.auditReceipts as never
     })
     const endpoint = await server.start()
     client = new Client({ name: 'restricted-client', version: '1.0.0' })
@@ -345,6 +347,74 @@ describe('MCP capability profile authentication', () => {
     }))
     return { created, profiles, showWindowInactive }
   }
+
+  it.each(['get', 'stop', 'clear'] as const)('binds lifecycle %s to stored origin through MCP', async action => {
+    const tabId = '01912345-6790-7abc-8def-0123456789ab'
+    const workspace = { id: WORKSPACE_ID, name: 'Synthetic capture', contextClass: 'standard' }
+    let capturedOrigin = 'https://private.example'
+    const effect = vi.fn()
+    const manager = {
+      listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+      createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+      isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: () => () => undefined,
+      requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => true,
+      getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, url: 'https://allowed.example/' }] }),
+      pwaLifecycle: async (_options: unknown, validate: (origin: string) => void) => {
+        validate(capturedOrigin)
+        effect()
+        return { origin: capturedOrigin, events: ['synthetic-evidence'] }
+      }
+    }
+    await connectProfile({ name: 'Capture reader', allowedTools: ['browser_workspaces', 'browser_pwa_lifecycle'],
+      operationClasses: ['read', 'browser-state'], origins: ['https://allowed.example'] }, undefined, { manager })
+    expect((await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Synthetic' } })).isError).not.toBe(true)
+    const args = { workspaceId: WORKSPACE_ID, tabId, action }
+    const denied = await client!.callTool({ name: 'browser_pwa_lifecycle', arguments: args })
+    expect(denied.isError).toBe(true)
+    expect(effect).not.toHaveBeenCalled()
+    expect(JSON.stringify(denied)).not.toContain('private.example')
+    capturedOrigin = 'https://allowed.example'
+    const allowed = await client!.callTool({ name: 'browser_pwa_lifecycle', arguments: args })
+    expect(allowed.isError).not.toBe(true)
+    expect(effect).toHaveBeenCalledOnce()
+    expect(JSON.stringify(allowed)).toContain('synthetic-evidence')
+  })
+
+  it.each(['human-decision', 'audit-receipt'] as const)('discards lifecycle evidence after expiry during final %s await', async boundary => {
+    let now = new Date('2026-09-11T12:00:00.000Z')
+    let dispatched = false
+    const expire = () => { now = new Date('2026-09-11T12:02:00.000Z') }
+    const tabId = '01912345-6790-7abc-8def-0123456789ab'
+    const workspace = { id: WORKSPACE_ID, name: 'Synthetic capture', contextClass: 'standard' }
+    const manager = {
+      listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+      createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+      isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: () => () => undefined,
+      requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => true,
+      getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, url: 'https://allowed.example/' }] }),
+      pwaLifecycle: async (_options: unknown, validate: (origin: string) => void) => {
+        validate('https://allowed.example')
+        dispatched = true
+        return { events: ['synthetic-retained-evidence'] }
+      }
+    }
+    const humanWaiting = { requireDispatch: async () => { if (dispatched && boundary === 'human-decision') expire() } }
+    const auditReceipts = { execute: async (_workspaceId: string, request: { operation(): Promise<unknown> }) => {
+      const result = await request.operation()
+      if (dispatched && boundary === 'audit-receipt') expire()
+      return result
+    } }
+    await connectProfile({ name: 'Expiring capture reader', allowedTools: ['browser_workspaces', 'browser_pwa_lifecycle'],
+      operationClasses: ['read', 'browser-state'], origins: ['https://allowed.example'], expiresAt: '2026-09-11T12:01:00.000Z'
+    }, () => now, { manager, humanWaiting, ...(boundary === 'audit-receipt' ? { auditReceipts } : {}) })
+    expect((await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Synthetic' } })).isError).not.toBe(true)
+    const result = await client!.callTool({ name: 'browser_pwa_lifecycle', arguments: { workspaceId: WORKSPACE_ID, tabId, action: 'get' } })
+    expect(dispatched).toBe(true)
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('synthetic-retained-evidence')
+  })
 
   it('filters the catalog and denies a tool call independently of annotations', async () => {
     await connectProfile({

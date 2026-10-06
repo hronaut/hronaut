@@ -50,6 +50,35 @@ describe('retained service-worker captures', () => {
     expect((await f.recorder.manage(f.tab, { action: 'get' }))?.active).toBe(true)
   })
 
+  it.each(['get', 'stop', 'clear'] as const)('authorizes stored origin before retained %s', async action => {
+    const f = fixture()
+    const initial = await f.recorder.manage(f.tab, { action: 'start' })
+    const reader = { ...f.tab, id: 'reader', url: 'https://reader.test/' }
+    const denied = vi.fn((origin: string) => {
+      if (origin !== 'https://reader.test') throw Error('origin denied')
+    })
+    await expect(f.recorder.manage(reader, { action, captureId: initial!.captureId }, denied)).rejects.toThrow('origin denied')
+    expect(denied).toHaveBeenCalledWith('https://example.test')
+    expect(await f.recorder.manage(f.tab, { action: 'get' })).toMatchObject({ active: true })
+    const allowed = vi.fn()
+    const result = await f.recorder.manage(reader, { action, captureId: initial!.captureId }, allowed)
+    expect(allowed).toHaveBeenCalledWith('https://example.test')
+    if (action === 'clear') expect(result).toBeNull()
+    else expect(result).toMatchObject({ captureId: initial!.captureId, active: action === 'get' })
+  })
+
+  it('rejects the initial result if navigation interrupts the pending read', async () => {
+    const f = fixture()
+    const held = deferred<PwaLifecyclePageSnapshot>()
+    f.execute.mockReturnValueOnce(held.promise)
+    const starting = f.recorder.manage(f.tab, { action: 'start' })
+    f.tab.navigationGeneration++
+    f.emitter.emit('did-start-navigation', {}, 'https://reader.test/', false, true)
+    held.resolve(raw())
+    await expect(starting).rejects.toThrow('Capture context changed')
+    expect(await f.recorder.manage(f.tab, { action: 'get' })).toMatchObject({ active: false, events: [] })
+  })
+
   it('cancels a pending initial read on authority loss and rejects its late evidence', async () => {
     const f = fixture()
     const held = deferred<PwaLifecyclePageSnapshot>()
@@ -60,7 +89,7 @@ describe('retained service-worker captures', () => {
     await vi.advanceTimersByTimeAsync(250)
     expect(f.recorder.active(f.tab.id)).toBe(false)
     held.resolve({ ...raw(), events: [{ kind: 'late', observedAt: 4, worker: null, controller: null }] })
-    expect(await starting).toMatchObject({ active: false, interrupted: true, events: [] })
+    await expect(starting).rejects.toThrow('revoked')
     expect(vi.getTimerCount()).toBe(0)
   })
 

@@ -1745,6 +1745,17 @@ function createBrowserMcpServer(
             throw error
           }
         }
+        // Set only by the main-process recorder, never by caller arguments or report data.
+        let lifecycleOrigin: string | undefined
+        const validateLifecycle = (origin: string): void => {
+          if (extra?.signal?.aborted) throw new Error('Worker observation was cancelled')
+          requireCurrentTarget()
+          requireActiveCapabilityDispatch(name, actionInput, { workspaceId, tabId: resolvedTabId, origins: [origin] })
+          lifecycleOrigin = origin
+        }
+        const validateLifecycleResult = (): void => {
+          if (lifecycleOrigin !== undefined) validateLifecycle(lifecycleOrigin)
+        }
         const operation = async (): Promise<CallToolResult> => {
           const admissionRejection = authorityRejection()
           if (admissionRejection) return admissionRejection
@@ -1835,16 +1846,7 @@ function createBrowserMcpServer(
                   if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
                   if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
                 } } : {}),
-                ...(name === 'browser_pwa_lifecycle' ? { validateLifecycle: () => {
-                  requireCurrentControl()
-                  requireActiveCapabilityDispatch(name, actionInput)
-                  requireAgentWorkspace(workspaceId)
-                  if (writeLease?.generation) {
-                    const current = workspaceLeases.status(workspaceId, client.id)
-                    if (current.status !== 'owned' || current.generation !== writeLease.generation) throw new Error('Workspace ownership changed')
-                  }
-                  if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
-                } } : {}),
+                ...(name === 'browser_pwa_lifecycle' ? { validateLifecycle } : {}),
                 ...(name === 'browser_video' ? { recordingSignal: extra?.signal, validateRecording: () => {
                   if (extra?.signal?.aborted) throw new Error('Video operation was cancelled')
                   requireCurrentControl()
@@ -1856,6 +1858,7 @@ function createBrowserMcpServer(
               } as unknown as T)
             try {
               await requireHumanDecision(false, reviewAttempt?.id)
+              validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl(true)
               requireAgentWorkspace(workspaceId)
@@ -1917,6 +1920,7 @@ function createBrowserMcpServer(
         if (!auditReceipts || !name.startsWith('browser_')) {
           try {
             const result = await operation()
+            validateLifecycleResult()
             finishActivity(result, false)
             return result
           } catch (error) {
@@ -2062,6 +2066,7 @@ function createBrowserMcpServer(
           }
         }
         else if (verificationResult?.status === 'unknown' || finalResult.isError) await finishReviewedAttempt('unknown')
+        validateLifecycleResult()
         finishActivity(finalResult, false)
         return finalResult
       })
@@ -2995,7 +3000,7 @@ function createBrowserMcpServer(
         action: z.enum(['start', 'get', 'stop', 'clear']).default('get')
       }
     },
-    tabTool('browser_pwa_lifecycle', async ({ validateLifecycle, ...options }: PwaLifecycleOptions & { validateLifecycle?: () => void }) =>
+    tabTool('browser_pwa_lifecycle', async ({ validateLifecycle, ...options }: PwaLifecycleOptions & { validateLifecycle?: (origin: string) => void }) =>
       textResult(await manager.pwaLifecycle(options, validateLifecycle)), 'never')
   )
   registerWorkspaceTool(
