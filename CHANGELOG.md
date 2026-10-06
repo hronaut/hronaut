@@ -16,6 +16,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject Solana transaction counters that are truncated, exceed three bytes, or exceed the u16 range with Solana Kit 8.4.0.
+
 - Form typing, selection and batch filling reject native disabled and applicable readonly controls, including state changes during focus, while preserving earlier successful batch writes.
 
 - Update transitive proxy-addr and source-map-js dependencies for upstream IP trust and source-map denial-of-service advisories.
