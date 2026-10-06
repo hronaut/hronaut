@@ -25,7 +25,7 @@ Project home: https://github.com/hronaut/hronaut
 
 ## Same-origin iframe observations
 
-`browser_snapshot action=capture frameSelector="#preview"` reads bounded text
+`browser_snapshot action=capture frameSelector="#preview"` reads bounded headings, authored control labels/states, sanitized links and text
 from one directly embedded same-origin HTTP(S) iframe without changing context
 or parent references. Unsupported history fails closed. See [the complete
 provenance, privacy, omissions and timeout contract](docs/frame-observation.md).

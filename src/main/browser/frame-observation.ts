@@ -19,7 +19,7 @@ export interface PendingFrameObservation {
 const unavailable = (reason = 'context'): Error => new Error(`Frame observation unavailable (${reason}): obtain a fresh supported document and browser context; no automatic reload was performed.`)
 interface FrameTree { frame: ObservedFrame; childFrames?: FrameTree[] }
 interface RemoteResult { result?: { objectId?: string; value?: unknown }; exceptionDetails?: unknown }
-const omissions: FrameObservationOmission[] = ['nested-frames','shadow-dom','private-editors','offscreen-or-clipped','uncertain-layout','node-limit','depth-limit','duration-limit','text-limit']
+const omissions: FrameObservationOmission[] = ['nested-frames','shadow-dom','private-editors','offscreen-or-clipped','uncertain-layout','node-limit','depth-limit','duration-limit','text-limit','semantic-limit']
 
 export class FrameObservationController {
   private readonly histories = new WeakMap<WebContents, FrameProvenance>()
@@ -52,6 +52,7 @@ export class FrameObservationController {
     const revision = history.revision, deadline = Date.now() + FRAME_OBSERVATION_LIMITS.deadlineMs
     const group = 'hronaut-frame-' + randomUUID(), key = '__frame_' + randomUUID().replaceAll('-', '')
     let contextId: number | undefined, uniqueContextId: string | undefined, expired = false, closed = false, cleanupQueued = false
+    let nativeDispatched = false
     let stage = 'context'
     let parent: ObservedFrame | undefined, child: ObservedFrame | undefined
     const assertCurrent = (): void => {
@@ -64,6 +65,7 @@ export class FrameObservationController {
     }
     const send = async <T>(method: string, params: Record<string, unknown> = {}): Promise<T> => {
       this.host.requireOwner(tabId, page)
+      nativeDispatched = true
       return page.debugger.sendCommand(method, params) as Promise<T>
     }
     const evaluate = async (expression: string, byValue = true): Promise<RemoteResult['result']> => {
@@ -87,6 +89,8 @@ export class FrameObservationController {
     const discard = (): void => {
       if (closed || cleanupQueued) return
       expired = true; cleanupQueued = true
+      // No native command was issued, so there is nothing uncertain to quarantine.
+      if (!nativeDispatched) { clearSlot(); return }
       // Keep the slot quarantined until cleanup really finishes or the page dies.
       void this.host.run(page.id, async () => {
         if (page.isDestroyed()) { clearSlot(); return }
@@ -136,9 +140,11 @@ export class FrameObservationController {
         if (!raw || typeof raw.text !== 'string' || raw.text.length > maxChars || !Array.isArray(raw.omissions)
           || raw.omissions.some(v => !omissions.includes(v))) throw unavailable()
         assertCurrent()
+        const sanitized = redactDiagnosticText(raw.text)
+        if (sanitized.length > maxChars && !raw.omissions.includes('text-limit')) raw.omissions.push('text-limit')
         return {
           kind: 'frame-observation', formatVersion: 1, captureId: randomUUID(), scope: 'direct-child-viewport',
-          text: redactDiagnosticText(raw.text), untrusted: true,
+          text: sanitized.slice(0, maxChars), untrusted: true,
           completeness: { complete: raw.omissions.length === 0, omissions: raw.omissions as FrameObservationOmission[], absenceNotEstablished: true },
           limits: FRAME_OBSERVATION_LIMITS
         } satisfies BrowserFrameSnapshot

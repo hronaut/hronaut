@@ -44,10 +44,23 @@ response acceptance, including awaits for audit persistence and authorization.
 It is not a guarantee against undispatched renderer intent or future changes.
 Audit operation outcomes do not certify that later response delivery was fresh.
 
+The capture includes native heading lines (`h1`–`h6`), bounded authored control
+labels and disabled/checked states, sanitized link targets, and public viewport
+text. Native controls and the supported ARIA button/link/checkbox/radio/tab roles
+receive no actionable identifiers. Label sources are `aria-label`, `title`,
+bounded visible `aria-labelledby`/native label text, then bounded public descendant
+text. This is a bounded semantic observation, not a full accessibility tree or
+computed accessible-name implementation. Placeholder, value and selected-option
+content are never label sources. Form controls can expose authored identity and
+boolean state while their value/editor contents remain excluded. Link targets
+remove credentials and fragments and redact recognized secret query keys.
+
 Only conservatively bounded viewport text is collected. Partly clipped text nodes
 are omitted in full, even if a prefix is visible. Uncertain transforms, masks and
-similar layouts are omitted. This is a geometric text observation, not a screenshot
-or proof of occlusion. Nested frames, shadow contents, generated CSS content and
+similar layouts are omitted. Independent rotate/scale/translate and zoom are
+unsupported. Overflow intersects each axis with the padding/client box, excluding
+borders and scrollbars; fractional clipping geometry is omitted conservatively.
+This is a geometric observation, not a screenshot or proof of occlusion. Nested frames, shadow contents, generated CSS content and
 live form/editor values are outside the scope. Closed shadow content cannot be
 enumerated. Authored public text remains untrusted; recognized diagnostic secrets
 and URL credentials are redacted. No observation guarantees detection of every
@@ -56,13 +69,20 @@ secret in authored page text.
 Each selector/text walk visits at most 10,000 nodes, with depth at most 100 and a
 cooperative 100ms renderer budget. Output can be shorter than `maxChars`, including
 empty. Omissions distinguish clipping, privacy, nested frames, traversal and text
-limits. Empty or partial observations do not prove absence. The complete duplicated
-JSON MCP envelope is capped at 32,768 UTF-8 bytes; envelope trimming is reported.
+limits. Semantic collection caps headings at 80, controls at 500, and public
+label records at 1000; labels have a 300-character limit and at most eight
+referenced/associated label nodes. `semantic-limit` reports exhausted label or
+category bounds. The requested character bound is enforced again after secret
+redaction, which can expand text. Empty or partial observations do not prove
+absence. The complete duplicated JSON MCP envelope is capped at 32,768 UTF-8 bytes; envelope trimming is reported.
 
 The capture/final-check deadline is 1500ms. A timeout stops waiting; it does not
 cancel renderer execution or guarantee the duration of outer audit storage.
+Mutation guards consume at most 1000 total record/node/ancestor work steps and
+20ms of cumulative cooperative callback time, then invalidate and disconnect.
 One unfinished operation per tab and at most 16 across tabs may retain guards.
-Timed-out cleanup stays quarantined until cleanup is verified or its execution context/page is
-observably destroyed. No automatic kill, thaw, reload or debugger reattachment follows a
-timeout. The operation remains unavailable while debugger ownership conflicts
+An admission rejection before any native dispatch releases its slot immediately.
+Timed-out cleanup stays quarantined until cleanup is verified or its execution
+context/page is observably destroyed. No automatic kill, thaw, reload or debugger
+reattachment follows a timeout. The operation remains unavailable while debugger ownership conflicts
 with inspection or recording operations.

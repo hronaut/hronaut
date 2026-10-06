@@ -38,7 +38,7 @@ for (const variant of ['404', '500', 'redirect', 'cache', '204', 'abort', 'blank
         expect(JSON.stringify(result)).not.toContain('Observed committed child')
       } else {
         expect(result.isError, text(result)).not.toBe(true)
-        expect(result.structuredContent).toMatchObject({ kind: 'frame-observation', text: variant === 'redirect' ? 'Observed final redirect' : 'Observed committed child' })
+        expect(result.structuredContent).toMatchObject({ kind: 'frame-observation', text: expect.stringContaining(variant === 'redirect' ? 'h1: Observed final redirect' : 'h1: Observed committed child') })
       }
     } finally { await closeFixtureServer(server) }
   })
