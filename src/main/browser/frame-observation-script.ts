@@ -1,3 +1,4 @@
+import { javascriptLiteral } from '../../shared/javascript-literal.js'
 /** Runs only in a private parent isolated world, never in a child's main world. */
 export function frameObservationScript(selector: string, maxChars: number, expected: string): string {
   return String.raw`(() => {
@@ -7,7 +8,7 @@ export function frameObservationScript(selector: string, maxChars: number, expec
     const search = document.createTreeWalker(document, NodeFilter.SHOW_ELEMENT);
     while (search.nextNode()) {
       if (++searched > 10000 || performance.now()-started > 100) fail();
-      if (search.currentNode.matches(${JSON.stringify(selector)})) { selected=search.currentNode; if (++count>1) fail(); }
+      if (search.currentNode.matches(${javascriptLiteral(selector)})) { selected=search.currentNode; if (++count>1) fail(); }
     }
     if (selected!==${expected} || count!==1 || selected.localName!=='iframe' || selected.hasAttribute('sandbox') || selected.hasAttribute('srcdoc')) fail();
     // This native SOP check is independent of CDP's privileged node access.
@@ -168,5 +169,5 @@ export function frameObservationScript(selector: string, maxChars: number, expec
 }
 
 export function frameSelectorScript(selector: string): string {
-  return `(() => {const start=performance.now(),walk=document.createTreeWalker(document,NodeFilter.SHOW_ELEMENT);let count=0,visits=0,found;while(walk.nextNode()){if(++visits>10000||performance.now()-start>100)throw Error('Unavailable');if(walk.currentNode.matches(${JSON.stringify(selector)})){found=walk.currentNode;if(++count>1)throw Error('Unavailable')}}if(count!==1||found.localName!=='iframe')throw Error('Unavailable');return found})()`
+  return `(() => {const start=performance.now(),walk=document.createTreeWalker(document,NodeFilter.SHOW_ELEMENT);let count=0,visits=0,found;while(walk.nextNode()){if(++visits>10000||performance.now()-start>100)throw Error('Unavailable');if(walk.currentNode.matches(${javascriptLiteral(selector)})){found=walk.currentNode;if(++count>1)throw Error('Unavailable')}}if(count!==1||found.localName!=='iframe')throw Error('Unavailable');return found})()`
 }
