@@ -1,3 +1,6 @@
+import type { PendingFrameObservation } from '../browser/frame-observation.js'
+import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
+import { frameObservationResult } from './frame-observation-result.js'
 import type { ReactInspectionAuthority } from '../browser/react-inspection.js'
 import { REACT_INSPECTION_ACTIONS, type ReactInspectionCommand } from '../../shared/react-inspection.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
@@ -1029,6 +1032,7 @@ function createBrowserMcpServer(
       return false
     }
   }
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1036,15 +1040,22 @@ function createBrowserMcpServer(
       ...(config as Record<string, unknown>),
       title: definition.title,
       annotations: definition.annotations
-    } as never, (async (...args: unknown[]) => {
+    } as never, (async (...args: unknown[]) => frameRequests.run({}, async () => {
       const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
         ? args[0] as Record<string, unknown> : {}
+      const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
+      const frameRequest = frameRequests.getStore()!
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
-        if (name !== 'browser_status' && name !== 'browser_snapshot') return
+        if (isFrameObservation || (name !== 'browser_status' && name !== 'browser_snapshot')) return
         client.readinessProbe = { toolName: name, outcome, completedAt: new Date().toISOString() }
       }
       let finishWorkspaceMutation: (() => void) | undefined
       try {
+        if (isFrameObservation && ((input.action !== undefined && input.action !== 'capture')
+          || ['rootSelector','baselineId','maxOutputChars','advanceBaseline','expectedOrigin','expectedText','expectedSelector'].some(key => input[key] !== undefined)
+          || (typeof input.maxChars === 'number' && input.maxChars > FRAME_OBSERVATION_LIMITS.maxChars))) {
+          throw new Error('frameSelector supports capture only, with maxChars at most 16000 and no root, baseline, delta or quality options')
+        }
         requireAgentControl(name, input)
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
@@ -1076,7 +1087,7 @@ function createBrowserMcpServer(
           () => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args)
         ))
         try {
-          await authorizeCapability(name, input, 'active-dispatch')
+          await authorizeCapability(name, isFrameObservation && frameRequest.tabId ? { ...input, tabId: frameRequest.tabId } : input, 'active-dispatch')
         } catch (error) {
           if (!(error instanceof McpCapabilityAuthorizationError)) throw error
           const readOnly = mcpCapabilityOperationClass(name, input) === 'read'
@@ -1095,6 +1106,13 @@ function createBrowserMcpServer(
           }
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
+        if (isFrameObservation && frameRequest.pending && !result.isError) {
+          await frameRequest.pending.finish()
+          const settled = frameObservationResult(frameRequest.pending.snapshot)
+          frameRequest.assertCurrent?.()
+          frameRequest.pending.assertCurrent()
+          return settled
+        }
         recordReadinessProbe(result.isError ? 'failed' : 'verified')
         return result
       } catch (error) {
@@ -1108,9 +1126,10 @@ function createBrowserMcpServer(
         recordReadinessProbe('failed')
         return errorResult(error)
       } finally {
+        frameRequest.pending?.discard()
         finishWorkspaceMutation?.()
       }
-    }) as never)
+    })) as never)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
     return registered
@@ -1546,6 +1565,7 @@ function createBrowserMcpServer(
         inputSchema
       },
       tool(async (input: Record<string, unknown>, extra) => {
+        const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -1601,7 +1621,7 @@ function createBrowserMcpServer(
             && manager.getMcpGroupState(workspaceId).tabs.length === 0)
         const resolvedTabId = skipsTabTarget
           ? undefined
-          : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+          : isFrameObservation ? manager.requireTabInMcpGroup(workspaceId, requestedTabId, true) : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const definition = toolDefinition(name)
         const actionTarget = browserActionTarget(actionInput)
         const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
@@ -1662,7 +1682,8 @@ function createBrowserMcpServer(
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-          requireActiveCapabilityDispatch(name, actionInput)
+          requireActiveCapabilityDispatch(name, actionInput, isFrameObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
+          if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -1671,6 +1692,7 @@ function createBrowserMcpServer(
             throw workspaceAuthorizationError()
           }
         }
+        if (isFrameObservation) { const request = frameRequests.getStore()!; request.assertCurrent = requireCurrentTarget; request.tabId = resolvedTabId }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
         let activityStarted = false
@@ -1765,12 +1787,13 @@ function createBrowserMcpServer(
               tabId: resolvedTabId,
               toolName: activityToolName,
               phase: 'started',
+              ...(isFrameObservation ? { suppressFollow: true } : {}),
               occurredAt: Date.now()
             })
           }
           const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, toolDefinition(name).annotations.readOnlyHint)
           try {
-            if (resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
+            if (!isFrameObservation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
             }
             // Audit admission and tab wake can outlive pause, access revocation,
@@ -1880,6 +1903,7 @@ function createBrowserMcpServer(
             tabId: resolvedTabId,
             toolName: activityToolName,
             phase: activityResult.outcome === 'succeeded' ? 'finished' : 'failed',
+            ...(isFrameObservation ? { suppressFollow: true } : {}),
             occurredAt: Date.now(),
             result: activityResult
           })
@@ -3033,6 +3057,7 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional(),
         maxChars: z.number().int().min(1_000).max(100_000).optional()
           .describe('Bounded snapshot size for capture or set-baseline.'),
+        frameSelector: z.string().trim().min(1).max(512).optional().describe('Unique directly embedded same-origin HTTP(S) iframe; capture only, no refs or context switch. Unsupported history is unavailable.'),
         rootSelector: z.string().trim().min(1).max(512).optional()
           .describe('Unique CSS component root for capture or set-baseline. Delta reuses the stored root; an explicit different selector is rejected. No whole-page fallback.'),
         baselineId: z.string().uuid().optional()
@@ -3049,11 +3074,12 @@ function createBrowserMcpServer(
           .describe('Private required visible CSS selector checked during assess-quality and never returned.')
       }
     },
-    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector, rootSelector }: {
+    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector, rootSelector, frameSelector }: {
       action: 'capture' | 'set-baseline' | 'delta' | 'clear-baseline' | 'assess-quality'
       tabId?: string
       maxChars?: number
       rootSelector?: string
+      frameSelector?: string
       baselineId?: string
       maxOutputChars?: number
       advanceBaseline?: boolean
@@ -3061,6 +3087,12 @@ function createBrowserMcpServer(
       expectedText?: string
       expectedSelector?: string
     }) => {
+      if (frameSelector !== undefined) {
+        const request = frameRequests.getStore()!
+        if (!tabId || !request.assertCurrent) throw new Error('Frame observation authority unavailable')
+        request.pending = await manager.captureFrameObservation(tabId, frameSelector, maxChars ?? FRAME_OBSERVATION_LIMITS.defaultChars, request.assertCurrent)
+        return frameObservationResult(request.pending.snapshot)
+      }
       if (rootSelector !== undefined && action !== 'capture' && action !== 'set-baseline' && action !== 'delta') {
         throw new TypeError('rootSelector is supported only for capture, set-baseline and delta')
       }

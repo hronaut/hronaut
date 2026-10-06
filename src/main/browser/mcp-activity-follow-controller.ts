@@ -27,7 +27,7 @@ export class McpActivityFollowController {
   accept(activity: McpTabActivity): void {
     // Recording and explicit React inspection never wake a page or take the
     // human away from another tab. Ordinary activity state is still published.
-    if (activity.toolName === 'browser_video' || activity.toolName === 'browser_react') return
+    if (activity.suppressFollow || activity.toolName === 'browser_video' || activity.toolName === 'browser_react') return
     if (activity.phase === 'started') {
       this.activities.delete(activity.activityId)
       this.activities.set(activity.activityId, activity)
