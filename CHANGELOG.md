@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Filter browsing history by Today or Last 7 days in the computer's local calendar, together with title or address search.
+
 - Organize saved bookmarks into single-level collections, with scoped search and collection removal that keeps every bookmark.
 
 - Hide noisy Console messages with a literal text exclusion filter while preserving retained logs and unfiltered copying.

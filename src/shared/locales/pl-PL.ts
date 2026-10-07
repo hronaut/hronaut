@@ -2704,7 +2704,7 @@ export const plPL = {
     "removeAria": "Usuń {title}",
     "remove": "Usuń zakładkę"
   },
-  "history": {
+  "history": { dateRange: "Zakres dat", allDates: "Wszystko", today: "Dzisiaj", last7Days: "Ostatnie 7 dni",
     "bookmark": "Dodaj zakładkę",
     "bookmarked": "Już w zakładkach",
     "bookmarkAria": "Dodaj zakładkę: {title}",
@@ -2719,7 +2719,7 @@ export const plPL = {
     "empty": "Brak historii przeglądania",
     "emptyDescription": "Odwiedzane witryny będą wyświetlane tutaj przez maksymalnie 90 dni.",
     "noMatches": "Brak pasujących wizyt",
-    "tryAnother": "Spróbuj innego tytułu lub adresu.",
+    tryAnother: "Spróbuj innego tytułu, adresu lub zakresu dat.",
     "removeAria": "Usuń {title} z historii",
     "remove": "Usuń z historii",
     "retention": "Przechowywane tylko na tym urządzeniu przez maksymalnie 90 dni.",

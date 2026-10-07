@@ -36,6 +36,33 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('HistoryPanel', () => {
+  it('offers an accessible date selector that composes with search and survives reopening', async () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const rows = [
+      { ...entry('alpha', 'Alpha docs'), visitedAt: today.toISOString() },
+      { ...entry('beta', 'Beta page'), visitedAt: yesterday.toISOString() }
+    ]
+    const view = renderPanel({ entries: rows })
+    const user = userEvent.setup()
+    const select = screen.getByRole('combobox', { name: 'Date range' })
+    expect(select).toHaveValue('all')
+    await user.selectOptions(select, 'today')
+    expect(screen.getByText('Alpha docs')).toBeVisible()
+    expect(screen.queryByText('Beta page')).not.toBeInTheDocument()
+    await user.type(screen.getByRole('searchbox'), 'beta')
+    expect(screen.getByText('No matching visits')).toBeVisible()
+    await user.selectOptions(select, 'last7Days')
+    expect(screen.getByText('Beta page')).toBeVisible()
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    expect(screen.getByRole('combobox', { name: 'Date range' })).toHaveValue('last7Days')
+    expect(screen.getByRole('searchbox')).toHaveValue('beta')
+    expect(screen.getByText('Beta page')).toBeVisible()
+  })
+
   it('saves a history entry by keyboard without opening it or closing the panel', async () => {
     const saveHistoryBookmark = vi.fn(async () => undefined)
     const openHistoryEntry = vi.fn(async () => undefined)

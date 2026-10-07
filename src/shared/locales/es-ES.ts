@@ -2704,7 +2704,7 @@ export const esES = {
     "removeAria": "Eliminar {title}",
     "remove": "Eliminar marcador"
   },
-  "history": {
+  "history": { dateRange: "Intervalo de fechas", allDates: "Todo", today: "Hoy", last7Days: "Últimos 7 días",
     "bookmark": "Añadir a marcadores",
     "bookmarked": "Ya está en marcadores",
     "bookmarkAria": "Añadir {title} a marcadores",
@@ -2719,7 +2719,7 @@ export const esES = {
     "empty": "Aún no hay historial de navegación",
     "emptyDescription": "Los sitios web que visites aparecerán aquí durante un máximo de 90 días.",
     "noMatches": "No hay visitas coincidentes",
-    "tryAnother": "Prueba con otro título o dirección.",
+    tryAnother: "Prueba otro título, dirección o intervalo de fechas.",
     "removeAria": "Eliminar {title} del historial",
     "remove": "Eliminar del historial",
     "retention": "Almacenado solo en este dispositivo durante un máximo de 90 días.",

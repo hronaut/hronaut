@@ -2704,7 +2704,7 @@ export const frFR = {
     "removeAria": "Supprimer {title}",
     "remove": "Supprimer le favori"
   },
-  "history": {
+  "history": { dateRange: "Période", allDates: "Tout", today: "Aujourd’hui", last7Days: "7 derniers jours",
     "bookmark": "Ajouter aux favoris",
     "bookmarked": "Déjà dans les favoris",
     "bookmarkAria": "Ajouter {title} aux favoris",
@@ -2719,7 +2719,7 @@ export const frFR = {
     "empty": "Aucun historique de navigation",
     "emptyDescription": "Les sites web visités apparaîtront ici pendant 90 jours au maximum.",
     "noMatches": "Aucune visite correspondante",
-    "tryAnother": "Essayez un autre titre ou une autre adresse.",
+    tryAnother: "Essayez un autre titre, une autre adresse ou une autre période.",
     "removeAria": "Supprimer {title} de l’historique",
     "remove": "Supprimer de l’historique",
     "retention": "Stocké uniquement sur cet appareil pendant 90 jours au maximum.",

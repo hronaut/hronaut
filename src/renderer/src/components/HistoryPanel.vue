@@ -29,6 +29,7 @@ const entries = defineModel<BrowserHistoryEntry[]>('entries', { required: true }
 const { t } = useI18n({ useScope: 'global' })
 const {
   query,
+  dateRange,
   error,
   pendingAction,
   filteredEntries,
@@ -110,6 +111,14 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
       <IconSearch aria-hidden="true" />
       <input v-model="query" type="search" :aria-label="t('history.search')" autocomplete="off" spellcheck="false" :placeholder="t('history.placeholder')" />
     </div>
+    <label v-if="entries.length" class="history-date-filter">
+      <span>{{ t('history.dateRange') }}</span>
+      <select v-model="dateRange">
+        <option value="all">{{ t('history.allDates') }}</option>
+        <option value="today">{{ t('history.today') }}</option>
+        <option value="last7Days">{{ t('history.last7Days') }}</option>
+      </select>
+    </label>
     <div v-if="!entries.length" class="history-empty">
       <IconHistory aria-hidden="true" />
       <strong>{{ t('history.empty') }}</strong>
