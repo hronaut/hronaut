@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Exclude matching requests with negative Network property filters such as `-domain:metrics.example` and `-url:poll`, consistently across the human panel, MCP, and sanitized HAR exports.
+
 ## [2.17.0] - 2026-10-06
 
 ### Fixed

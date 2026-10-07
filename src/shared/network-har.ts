@@ -98,7 +98,8 @@ function networkFilterSize(value: string): number | undefined {
   const amount = Number(match[1])
   const unit = match[2]?.toLowerCase()
   const multiplier = unit === 'm' || unit === 'mb' ? 1_000_000 : unit === 'k' || unit === 'kb' ? 1_000 : 1
-  return Number.isFinite(amount) ? amount * multiplier : undefined
+  const bytes = amount * multiplier
+  return Number.isFinite(bytes) ? bytes : undefined
 }
 
 function wildcardMatch(value: string, pattern: string): boolean {
@@ -121,13 +122,16 @@ function wildcardMatch(value: string, pattern: string): boolean {
   return position <= suffixStart
 }
 
-function requestMatchesPropertyFilter(request: BrowserNetworkRequest, property: string, expected: string): boolean {
-  if (!expected) return false
+function requestMatchesPropertyFilter(request: BrowserNetworkRequest, property: string, expected: string): boolean | undefined {
+  if (!expected) return undefined
   if (property === 'method') return request.method.toLowerCase() === expected.toLowerCase()
-  if (property === 'status-code') return request.status !== undefined && String(request.status) === expected
+  if (property === 'status-code') {
+    if (!/^[1-5]\d{2}$/.test(expected)) return undefined
+    return request.status !== undefined && String(request.status) === expected
+  }
   if (property === 'larger-than') {
     const minimumBytes = networkFilterSize(expected)
-    return minimumBytes !== undefined && (request.responseSizeBytes ?? 0) > minimumBytes
+    return minimumBytes === undefined ? undefined : (request.responseSizeBytes ?? 0) > minimumBytes
   }
   if (property === 'resource-type') {
     const resourceType = expected.toLowerCase()
@@ -135,8 +139,8 @@ function requestMatchesPropertyFilter(request: BrowserNetworkRequest, property: 
       || networkResourceCategory(request.resourceType) === resourceType
   }
   if (property === 'is') {
-    return expected.toLowerCase() === 'running'
-      && networkResourceCategory(request.resourceType) === 'websocket'
+    if (expected.toLowerCase() !== 'running') return undefined
+    return networkResourceCategory(request.resourceType) === 'websocket'
       && !request.completedAt
   }
   try {
@@ -179,10 +183,14 @@ export function filterNetworkRequests(
       && request.resourceType.toLowerCase() !== options.resourceType
       && networkResourceCategory(request.resourceType) !== options.resourceType) return false
     return queryTokens.every((token) => {
-      const separator = token.indexOf(':')
-      const property = separator > 0 ? token.slice(0, separator).toLowerCase() : ''
+      const excluded = token.startsWith('-')
+      const candidate = excluded ? token.slice(1) : token
+      const separator = candidate.indexOf(':')
+      const property = separator > 0 ? candidate.slice(0, separator).toLowerCase() : ''
       if (NETWORK_FILTER_PROPERTIES.has(property)) {
-        return requestMatchesPropertyFilter(request, property, token.slice(separator + 1))
+        const matches = requestMatchesPropertyFilter(request, property, candidate.slice(separator + 1))
+        // Invalid operands must not become match-all when negated.
+        return matches !== undefined && (excluded ? !matches : matches)
       }
       return requestMatchesTextFilter(request, token)
     })
