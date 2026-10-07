@@ -279,6 +279,18 @@ const downloadsApi: HronautDownloadsApi = {
 }
 contextBridge.exposeInMainWorld('hronautDownloads', downloadsApi)
 const bookmarksApi: HronautBookmarksApi = {
+  collections: {
+    list: () => ipcRenderer.invoke('bookmark-collections:list'),
+    create: (name) => ipcRenderer.invoke('bookmark-collections:create', name),
+    rename: (id, name) => ipcRenderer.invoke('bookmark-collections:rename', id, name),
+    remove: (id) => ipcRenderer.invoke('bookmark-collections:remove', id),
+    assign: (bookmarkId, collectionId) => ipcRenderer.invoke('bookmark-collections:assign', bookmarkId, collectionId),
+    onChanged: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, snapshot: import('../shared/types.js').BookmarkCollectionSnapshot): void => listener(snapshot)
+      ipcRenderer.on('bookmark-collections:changed', handler)
+      return () => ipcRenderer.removeListener('bookmark-collections:changed', handler)
+    }
+  },
   list: () => ipcRenderer.invoke('bookmarks:list'),
   add: (url: string, title: string) => ipcRenderer.invoke('bookmarks:add', url, title),
   addIfMissing: (url: string, title: string) => ipcRenderer.invoke('bookmarks:add-if-missing', url, title),

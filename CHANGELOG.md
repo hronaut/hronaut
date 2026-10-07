@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Organize saved bookmarks into single-level collections, with scoped search and collection removal that keeps every bookmark.
+
 - Hide noisy Console messages with a literal text exclusion filter while preserving retained logs and unfiltered copying.
 
 - Inspect opt-in physical scroll geometry for a selected element without scrolling it or invoking page-authored getters.

@@ -4,7 +4,7 @@ import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import BookmarksPanel from '../../src/renderer/src/components/BookmarksPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { BrowserBookmark } from '../../src/shared/types.js'
+import type { BrowserBookmark, BookmarkCollectionSnapshot } from '../../src/shared/types.js'
 
 function bookmark(id: string, title = `Page ${id}`): BrowserBookmark {
   return {
@@ -39,6 +39,56 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('BookmarksPanel', () => {
+  it('creates a collection, assigns a bookmark and keeps all links when removing the collection', async () => {
+    let snapshot: BookmarkCollectionSnapshot = { revision: 1, collections: [] }
+    const api = {
+      list: vi.fn(async () => snapshot), onChanged: vi.fn(() => () => undefined),
+      create: vi.fn(async (name: string) => (snapshot = { revision: 2, collections: [{ id: 'project', name, bookmarkIds: [] }] })),
+      rename: vi.fn(async () => snapshot),
+      assign: vi.fn(async (id: string) => (snapshot = { revision: 3, collections: [{ id: 'project', name: 'Project', bookmarkIds: [id] }] })),
+      remove: vi.fn(async () => (snapshot = { revision: 4, collections: [] }))
+    }
+    renderPanel({ collectionsApi: api })
+    await flushPromises()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'New collection' }))
+    expect(screen.getByRole('textbox', { name: 'Collection name' })).toHaveFocus()
+    await user.keyboard('Project{Enter}')
+    const filter = screen.getByRole('combobox', { name: 'Filter bookmarks by collection' })
+    expect(filter).toHaveFocus()
+    expect(screen.getByText('No bookmarks in this collection')).toBeVisible()
+    await user.selectOptions(filter, 'all')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Collection for Alpha docs' }), 'project')
+    await user.selectOptions(filter, 'c:project')
+    expect(screen.getByRole('button', { name: /^Alpha docs/ })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /^Beta page/ })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Remove collection' }))
+    expect(filter).toHaveFocus()
+    expect(filter).toHaveValue('unfiled')
+    expect(screen.getByRole('button', { name: /^Beta page/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Alpha docs/ })).toBeVisible()
+  })
+
+  it('preserves newer search focus when an assignment removes the focused row from Unfiled', async () => {
+    let finish!: (value: BookmarkCollectionSnapshot) => void
+    const api = {
+      list: vi.fn(async () => ({ revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: [] }] })),
+      onChanged: vi.fn(() => () => undefined), create: vi.fn(), rename: vi.fn(), remove: vi.fn(),
+      assign: vi.fn(() => new Promise<BookmarkCollectionSnapshot>(resolve => { finish = resolve }))
+    }
+    renderPanel({ collectionsApi: api })
+    await flushPromises()
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), 'unfiled')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Collection for Alpha docs' }), 'project')
+    const search = screen.getByRole('searchbox')
+    await user.click(search)
+    finish({ revision: 2, collections: [{ id: 'project', name: 'Project', bookmarkIds: ['alpha'] }] })
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(screen.queryByRole('button', { name: /^Alpha docs/ })).toBeNull()
+  })
+
   it('explicitly opens a bookmark in the background and retains panel, search and keyboard focus', async () => {
     const openBookmarkInBackground = vi.fn(async () => undefined)
     const openBookmark = vi.fn(async () => undefined)

@@ -551,6 +551,7 @@ function publishCredentials(): void {
 function publishBookmarks(): BrowserBookmark[] {
   const bookmarks = bookmarkStore?.list() ?? []
   sendToShellWindows('bookmarks:changed', bookmarks)
+  sendToShellWindows('bookmark-collections:changed', bookmarkStore?.collectionSnapshot() ?? { revision: 0, collections: [] })
   return bookmarks
 }
 

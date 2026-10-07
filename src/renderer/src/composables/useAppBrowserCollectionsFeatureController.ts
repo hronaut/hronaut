@@ -71,6 +71,7 @@ export function useAppBrowserCollectionsFeatureController(
 
   return {
     browserCollectionsController,
+    bookmarkCollectionsApi: options.bookmarksApi.collections,
     downloads: browserCollectionsController.downloads,
     bookmarks: browserCollectionsController.bookmarks,
     visitHistory: browserCollectionsController.history,

@@ -2166,6 +2166,26 @@ export interface BrowserDownloadState {
   completedAt?: string
 }
 
+export interface BrowserBookmarkCollection {
+  id: string
+  name: string
+  bookmarkIds: string[]
+}
+
+export interface BookmarkCollectionSnapshot {
+  revision: number
+  collections: BrowserBookmarkCollection[]
+}
+
+export interface HronautBookmarkCollectionsApi {
+  list(): Promise<BookmarkCollectionSnapshot>
+  create(name: string): Promise<BookmarkCollectionSnapshot>
+  rename(id: string, name: string): Promise<BookmarkCollectionSnapshot>
+  remove(id: string): Promise<BookmarkCollectionSnapshot>
+  assign(bookmarkId: string, collectionId: string | null): Promise<BookmarkCollectionSnapshot>
+  onChanged(listener: (snapshot: BookmarkCollectionSnapshot) => void): () => void
+}
+
 export interface BrowserBookmark {
   id: string
   url: string
@@ -2683,6 +2703,7 @@ export interface HronautDownloadsApi {
 }
 
 export interface HronautBookmarksApi {
+  collections?: HronautBookmarkCollectionsApi
   list(): Promise<BrowserBookmark[]>
   add(url: string, title: string): Promise<BrowserBookmark[]>
   addIfMissing(url: string, title: string): Promise<BrowserBookmark[]>
