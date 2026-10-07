@@ -5250,6 +5250,7 @@ export class BrowserTabsManager {
   async elementInspection(options: BrowserElementInspectionOptions): Promise<BrowserElementInspection> {
     const properties = normalizeCssProperties(options.cssProperties)
     if (options.includeFonts !== undefined && typeof options.includeFonts !== 'boolean') throw new TypeError('includeFonts must be a boolean')
+    if (options.includeScroll !== undefined && typeof options.includeScroll !== 'boolean') throw new TypeError('includeScroll must be a boolean')
     const includeFonts = options.includeFonts === true
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')

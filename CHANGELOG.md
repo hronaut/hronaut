@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Inspect opt-in physical scroll geometry for a selected element without scrolling it or invoking page-authored getters.
+
 ## [2.18.0] - 2026-10-07
 
 ### Added

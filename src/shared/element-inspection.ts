@@ -1,3 +1,4 @@
+import { normalizeScrollGeometry } from './element-scroll-geometry.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkUrl } from './network-details.js'
 import type {
@@ -120,6 +121,7 @@ export function normalizeElementInspection(input: NormalizeElementInspectionInpu
   if (!selector) throw new Error('The selected element did not produce a usable selector')
 
   return {
+    ...(raw.scrollGeometry !== undefined ? { scrollGeometry: normalizeScrollGeometry(raw.scrollGeometry) } : {}),
     tabId: input.tabId,
     title: text(input.title, 200),
     url: redactNetworkUrl(input.url),
