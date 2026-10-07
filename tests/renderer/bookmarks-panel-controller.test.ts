@@ -21,6 +21,7 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
   const currentBookmark = ref<BrowserBookmark>()
   const listBookmarks = vi.fn(async () => bookmarks.value)
   const addBookmark = vi.fn(async (url: string, title: string) => [bookmark('current', title), ...bookmarks.value])
+  const updateBookmarkDestination = vi.fn(async (id: string, url: string) => bookmarks.value.map(item => item.id === id ? { ...item, url } : item))
   const renameBookmark = vi.fn(async (id: string, title: string) => bookmarks.value.map((item) => item.id === id ? { ...item, title } : item))
   const removeBookmark = vi.fn(async (id: string) => bookmarks.value.filter((item) => item.id !== id))
   const openBookmark = vi.fn(async () => undefined)
@@ -32,6 +33,7 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
     currentBookmark,
     listBookmarks,
     addBookmark,
+    updateBookmarkDestination,
     renameBookmark,
     removeBookmark,
     openBookmark
@@ -44,6 +46,7 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
     currentBookmark,
     listBookmarks,
     addBookmark,
+    updateBookmarkDestination,
     renameBookmark,
     removeBookmark,
     openBookmark,
@@ -52,6 +55,43 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
 }
 
 describe('bookmarks panel controller', () => {
+  it('keeps a failed destination draft for retry without changing its title', async () => {
+    const h = createController()
+    h.open.value = true
+    const before = h.bookmarks.value[0]
+    await h.controller.beginRename(before, true)
+    h.controller.editingBookmarkUrl.value = 'https://example.test/new'
+    h.updateBookmarkDestination.mockRejectedValueOnce(new Error('Disk unavailable'))
+    await h.controller.commitRename(before.id)
+    expect(h.bookmarks.value[0]).toEqual(before)
+    expect(h.controller.editingBookmarkUrl.value).toBe('https://example.test/new')
+    expect(h.controller.error.value).toBe('Disk unavailable')
+    await h.controller.commitRename(before.id)
+    expect(h.bookmarks.value[0]).toEqual({ ...before, url: 'https://example.test/new' })
+    expect(h.controller.editingBookmarkId.value).toBeNull()
+    h.controller.dispose()
+  })
+
+  it('discards completion after closing and reopening a destination editor', async () => {
+    const h = createController()
+    h.open.value = true
+    let finish!: (value: BrowserBookmark[]) => void
+    h.updateBookmarkDestination.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    await h.controller.beginRename(h.bookmarks.value[0], true)
+    h.controller.editingBookmarkUrl.value = 'https://example.test/old-operation'
+    const pending = h.controller.commitRename('alpha')
+    h.open.value = false
+    h.open.value = true
+    await h.controller.beginRename(h.bookmarks.value[0], true)
+    h.controller.editingBookmarkUrl.value = 'https://example.test/new-draft'
+    finish([{ ...bookmark('alpha'), url: 'https://example.test/old-operation' }])
+    await pending
+    expect(h.controller.editingBookmarkUrl.value).toBe('https://example.test/new-draft')
+    expect(h.controller.editingBookmarkId.value).toBe('alpha')
+    expect(h.bookmarks.value[0].url).toBe(bookmark('alpha').url)
+    h.controller.dispose()
+  })
+
   it('opens the panel and reports list failures without dropping retained bookmarks', async () => {
     const { open, bookmarks, listBookmarks, controller } = createController()
     listBookmarks.mockRejectedValueOnce(new Error('Bookmark storage is unavailable'))

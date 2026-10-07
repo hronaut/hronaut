@@ -2656,6 +2656,10 @@ export const esES = {
     "interrupted": "Interrumpida"
   },
   "bookmarks": {
+    "destination": "Editar dirección",
+    "destinationAria": "Editar dirección de {title}",
+    "saveDestination": "Guardar dirección",
+    "saveDestinationAria": "Guardar dirección de {title}",
     "kicker": "Guardado localmente",
     "heading": "Marcadores",
     "removeCurrent": "Eliminar actual",

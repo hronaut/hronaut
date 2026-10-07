@@ -19,6 +19,45 @@ async function createStore(): Promise<{ path: string; store: BookmarkStore }> {
 }
 
 describe('BookmarkStore', () => {
+  it('updates only the destination by ID and persists normalized credentials-free URLs', async () => {
+    const { path, store } = await createStore()
+    const saved = await store.add({ url: 'https://example.test/old', title: 'Keep this title' })
+    const updated = await store.updateDestination(saved.id, 'https://user:secret@EXAMPLE.test:443/new')
+    expect(updated).toMatchObject({ id: saved.id, title: saved.title, createdAt: saved.createdAt, url: 'https://example.test/new' })
+    expect(await new BookmarkStore(path).load()).toEqual([updated])
+    expect(await readFile(path, 'utf8')).not.toContain('secret')
+    expect(store.findByUrl(saved.url)).toBeUndefined()
+  })
+
+  it('rejects normalized destination collisions and serializes concurrent changes', async () => {
+    const { path, store } = await createStore()
+    const first = await store.add({ url: 'https://example.test/one', title: 'One' })
+    const second = await store.add({ url: 'https://example.test/two', title: 'Two' })
+    const before = store.list()
+    const persisted = await readFile(path, 'utf8')
+    await expect(store.updateDestination(first.id, 'https://user:secret@EXAMPLE.test:443/two')).rejects.toThrow('already bookmarked')
+    expect(store.list()).toEqual(before)
+    expect(await readFile(path, 'utf8')).toBe(persisted)
+    const results = await Promise.allSettled([
+      store.updateDestination(first.id, 'https://example.test/shared'),
+      store.updateDestination(second.id, 'https://example.test/shared')
+    ])
+    expect(results.map(result => result.status)).toEqual(['fulfilled', 'rejected'])
+    expect(store.get(second.id)).toEqual(second)
+  })
+
+  it('rejects invalid or missing destination updates without changing saved data', async () => {
+    const { path, store } = await createStore()
+    const saved = await store.add({ url: 'https://example.test/', title: 'Original' })
+    const persisted = await readFile(path, 'utf8')
+    for (const url of ['javascript:alert(1)', '', 'invalid', 'https://example.test/' + 'a'.repeat(4096)]) {
+      await expect(store.updateDestination(saved.id, url)).rejects.toThrow()
+    }
+    await expect(store.updateDestination('missing', 'https://example.test/new')).rejects.toThrow('not found')
+    expect(store.list()).toEqual([saved])
+    expect(await readFile(path, 'utf8')).toBe(persisted)
+  })
+
   it('keeps blank-title bookmarks on long hostnames reloadable after add and rename', async () => {
     const { path, store } = await createStore()
     const hostname = `${'a'.repeat(60)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(40)}.test`
@@ -253,6 +292,8 @@ describe('BookmarkStore', () => {
     await rename(profileDirectory, backupDirectory)
     await writeFile(profileDirectory, 'blocks bookmark directory creation', 'utf8')
 
+    await expect(store.updateDestination(saved.id, 'https://example.com/new')).rejects.toThrow()
+    expect(store.list()).toEqual([saved])
     await expect(store.rename(saved.id, 'Lost rename')).rejects.toThrow()
     expect(store.list()).toEqual([saved])
     await expect(store.remove(saved.id)).rejects.toThrow()

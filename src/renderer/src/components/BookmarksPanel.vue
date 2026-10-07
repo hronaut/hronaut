@@ -6,6 +6,7 @@ import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconEdit from '~icons/material-symbols/edit-rounded'
+import IconLink from '~icons/material-symbols/link-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
@@ -21,6 +22,7 @@ const props = defineProps<{
   listBookmarks: () => Promise<BrowserBookmark[]>
   addBookmark: (url: string, title: string) => Promise<BrowserBookmark[]>
   renameBookmark: (id: string, title: string) => Promise<BrowserBookmark[]>
+  updateBookmarkDestination: (id: string, url: string) => Promise<BrowserBookmark[]>
   removeBookmark: (id: string) => Promise<BrowserBookmark[]>
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
 }>()
@@ -35,6 +37,8 @@ const {
   pendingAction,
   editingBookmarkId,
   editingBookmarkTitle,
+  editingBookmarkUrl,
+  editingDestination,
   setEditingInput,
   filteredBookmarks,
   cancelRename: cancelRenameDraft,
@@ -55,6 +59,7 @@ const {
   listBookmarks: props.listBookmarks,
   addBookmark: props.addBookmark,
   renameBookmark: props.renameBookmark,
+  updateBookmarkDestination: props.updateBookmarkDestination,
   removeBookmark: props.removeBookmark,
   openBookmark: props.openBookmark
 })
@@ -69,11 +74,12 @@ async function finishRename(operation: () => void | Promise<void>): Promise<void
     ? focused.closest('.bookmark-item')
     : null
   const panel = row?.closest('.bookmarks-panel')
+  const wasDestination = editingDestination.value
   await operation()
   await nextTick()
   if (!open.value || editingBookmarkId.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
-  if (row?.isConnected) row.querySelector<HTMLButtonElement>('.bookmark-action:not(.danger)')?.focus()
+  if (row?.isConnected) row.querySelector<HTMLButtonElement>(wasDestination ? '.bookmark-destination' : '.bookmark-action:not(.danger)')?.focus()
   else panel.querySelector<HTMLInputElement>('.bookmark-search-field input')?.focus()
 }
 
@@ -160,11 +166,24 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
       <span>{{ t('bookmarks.tryAnother') }}</span>
     </div>
     <div v-else class="bookmarks-list">
-      <article v-for="bookmark in filteredBookmarks" :key="bookmark.id" class="bookmark-item" :class="{ current: bookmark.id === currentBookmark?.id }">
+      <article v-for="bookmark in filteredBookmarks" :key="bookmark.id" class="bookmark-item" :class="{ current: bookmark.id === currentBookmark?.id, editing: editingBookmarkId === bookmark.id }">
         <div v-if="editingBookmarkId === bookmark.id" class="bookmark-open bookmark-editor">
           <span class="bookmark-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="bookmark-copy">
             <input
+              v-if="editingDestination"
+              :ref="setEditingInput"
+              v-model="editingBookmarkUrl"
+              type="url"
+              :aria-label="t('bookmarks.destinationAria', { title: bookmark.title })"
+              :disabled="pendingAction !== null"
+              maxlength="32768"
+              autocomplete="off"
+              spellcheck="false"
+              @keydown="handleRenameKeydown($event, bookmark.id)"
+            />
+            <input
+              v-else
               :ref="setEditingInput"
               v-model="editingBookmarkTitle"
               :aria-label="t('bookmarks.renameAria', { title: bookmark.title })"
@@ -172,7 +191,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
               maxlength="200"
               @keydown="handleRenameKeydown($event, bookmark.id)"
             />
-            <span>{{ bookmark.url }}</span>
+            <span>{{ editingDestination ? bookmark.title : bookmark.url }}</span>
           </span>
         </div>
         <UiButton appearance="application" v-else class="bookmark-open" type="button" :title="bookmark.url" :disabled="pendingAction !== null" @click="openEntry(bookmark)">
@@ -182,8 +201,9 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
             <span>{{ bookmark.url }}</span>
           </span>
         </UiButton>
-        <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.saveAria', { title: bookmark.title })" :title="t('bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="pendingAction !== null" :aria-label="t(editingDestination ? 'bookmarks.saveDestinationAria' : 'bookmarks.saveAria', { title: bookmark.title })" :title="t(editingDestination ? 'bookmarks.saveDestination' : 'bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" :title="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-destination" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.destinationAria', { title: bookmark.title })" :title="t('bookmarks.destination')" @click="beginRename(bookmark, true)"><IconLink aria-hidden="true" /></UiButton>
         <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>

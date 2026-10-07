@@ -2656,6 +2656,10 @@ export const plPL = {
     "interrupted": "Przerwano"
   },
   "bookmarks": {
+    "destination": "Edytuj adres",
+    "destinationAria": "Edytuj adres zakładki {title}",
+    "saveDestination": "Zapisz adres",
+    "saveDestinationAria": "Zapisz adres zakładki {title}",
     "kicker": "Zapisane lokalnie",
     "heading": "Zakładki",
     "removeCurrent": "Usuń bieżącą",

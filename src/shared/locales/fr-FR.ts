@@ -2656,6 +2656,10 @@ export const frFR = {
     "interrupted": "Interrompu"
   },
   "bookmarks": {
+    "destination": "Modifier l’adresse",
+    "destinationAria": "Modifier l’adresse de {title}",
+    "saveDestination": "Enregistrer l’adresse",
+    "saveDestinationAria": "Enregistrer l’adresse de {title}",
     "kicker": "Enregistré localement",
     "heading": "Favoris",
     "removeCurrent": "Supprimer l’actuel",

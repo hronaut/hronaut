@@ -87,6 +87,7 @@ function createHarness() {
     list: listBookmarks,
     add: addBookmark,
     rename: renameBookmark,
+    updateDestination: vi.fn(async () => []),
     remove: removeBookmark,
     onChanged: onBookmarksChanged
   }

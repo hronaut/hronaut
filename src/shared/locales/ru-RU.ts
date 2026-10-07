@@ -2656,6 +2656,10 @@ export const ruRU = {
     "interrupted": "Прервано"
   },
   "bookmarks": {
+    "destination": "Изменить адрес",
+    "destinationAria": "Изменить адрес для {title}",
+    "saveDestination": "Сохранить адрес",
+    "saveDestinationAria": "Сохранить адрес для {title}",
     "kicker": "Сохранено локально",
     "heading": "Закладки",
     "removeCurrent": "Удалить текущую",

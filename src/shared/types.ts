@@ -2670,6 +2670,7 @@ export interface HronautBookmarksApi {
   list(): Promise<BrowserBookmark[]>
   add(url: string, title: string): Promise<BrowserBookmark[]>
   rename(id: string, title: string): Promise<BrowserBookmark[]>
+  updateDestination(id: string, url: string): Promise<BrowserBookmark[]>
   remove(id: string): Promise<BrowserBookmark[]>
   onChanged(listener: (bookmarks: BrowserBookmark[]) => void): () => void
 }
