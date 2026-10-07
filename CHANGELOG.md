@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-10-07
+
 ### Fixed
 
 - Keep History keyboard focus reachable when a live date or history update removes the focused row, without overriding newer focus or a reopened panel.
