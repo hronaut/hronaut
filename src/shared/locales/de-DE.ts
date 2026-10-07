@@ -2704,7 +2704,7 @@ export const deDE = {
     "removeAria": "{title} entfernen",
     "remove": "Lesezeichen entfernen"
   },
-  "history": {
+  "history": { dateRange: "Zeitraum", allDates: "Alle", today: "Heute", last7Days: "Letzte 7 Tage",
     "bookmark": "Lesezeichen hinzufügen",
     "bookmarked": "Bereits als Lesezeichen gespeichert",
     "bookmarkAria": "Lesezeichen für {title} hinzufügen",
@@ -2719,7 +2719,7 @@ export const deDE = {
     "empty": "Noch kein Browserverlauf",
     "emptyDescription": "Besuchte Websites erscheinen hier bis zu 90 Tage lang.",
     "noMatches": "Keine passenden Besuche",
-    "tryAnother": "Versuchen Sie einen anderen Titel oder eine andere Adresse.",
+    tryAnother: "Versuchen Sie einen anderen Titel, eine andere Adresse oder einen anderen Zeitraum.",
     "removeAria": "{title} aus dem Verlauf entfernen",
     "remove": "Aus Verlauf entfernen",
     "retention": "Nur auf diesem Gerät bis zu 90 Tage gespeichert.",

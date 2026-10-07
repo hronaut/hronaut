@@ -2704,7 +2704,7 @@ export const ruRU = {
     "removeAria": "Удалить {title}",
     "remove": "Удалить закладку"
   },
-  "history": {
+  "history": { dateRange: "Период", allDates: "Всё", today: "Сегодня", last7Days: "Последние 7 дней",
     "bookmark": "Добавить в закладки",
     "bookmarked": "Уже в закладках",
     "bookmarkAria": "Добавить «{title}» в закладки",
@@ -2719,7 +2719,7 @@ export const ruRU = {
     "empty": "Истории просмотра пока нет",
     "emptyDescription": "Посещённые сайты будут храниться здесь до 90 дней.",
     "noMatches": "Подходящих посещений нет",
-    "tryAnother": "Попробуйте другой заголовок или адрес.",
+    tryAnother: "Попробуйте другое название, адрес или период.",
     "removeAria": "Удалить {title} из истории",
     "remove": "Удалить из истории",
     "retention": "Хранится только на этом устройстве до 90 дней.",

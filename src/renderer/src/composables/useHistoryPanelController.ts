@@ -1,5 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { BrowserHistoryEntry } from '../../../shared/types.js'
+import { historyDateBounds, type HistoryDateRange } from './history-date-range.js'
 
 type Translate = (
   key: string,
@@ -23,18 +24,50 @@ export interface HistoryPanelControllerOptions {
 
 export function useHistoryPanelController(options: HistoryPanelControllerOptions) {
   const query = ref('')
+  const dateRange = ref<HistoryDateRange>('all')
+  const now = ref(Date.now())
   const error = ref('')
   const pendingAction = ref<string | null>(null)
   let actionGeneration = 0
 
   const filteredEntries = computed(() => {
     const normalized = query.value.trim().toLocaleLowerCase()
-    if (!normalized) return options.entries.value
-    return options.entries.value.filter((entry) => (
-      entry.title.toLocaleLowerCase().includes(normalized)
-      || entry.url.toLocaleLowerCase().includes(normalized)
-    ))
+    const bounds = historyDateBounds(dateRange.value, now.value)
+    if (!normalized && !bounds) return options.entries.value
+    return options.entries.value.filter((entry) => {
+      const visited = Date.parse(entry.visitedAt)
+      return (!bounds || (visited >= bounds[0] && visited < bounds[1]))
+        && (!normalized || entry.title.toLocaleLowerCase().includes(normalized)
+          || entry.url.toLocaleLowerCase().includes(normalized))
+    })
   })
+
+  let clockTimer: ReturnType<typeof setTimeout> | undefined
+  function stopClock(): void {
+    clearTimeout(clockTimer)
+    clockTimer = undefined
+    window.removeEventListener('focus', refreshClock)
+    document.removeEventListener('visibilitychange', refreshClock)
+  }
+
+  function refreshClock(): void {
+    clearTimeout(clockTimer)
+    now.value = Date.now()
+    if (!options.open.value || dateRange.value === 'all') return
+    const tomorrow = new Date(now.value)
+    tomorrow.setHours(24, 0, 0, 0)
+    // Recompute at midnight and after sleep, clock, or system timezone changes.
+    clockTimer = setTimeout(refreshClock, Math.min(60_000, Math.max(1, tomorrow.getTime() - now.value)))
+  }
+
+  const stopClockTracking = watch([options.open, dateRange], () => {
+    stopClock()
+    refreshClock()
+    if (options.open.value && dateRange.value !== 'all') {
+      window.addEventListener('focus', refreshClock)
+      document.addEventListener('visibilitychange', refreshClock)
+    }
+  }, { flush: 'sync', immediate: true })
 
   function resetError(): void {
     error.value = ''
@@ -109,10 +142,13 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   function dispose(): void {
     invalidateActions()
     stopOpenTracking()
+    stopClockTracking()
+    stopClock()
   }
 
   return {
     query,
+    dateRange,
     error,
     pendingAction,
     filteredEntries,
