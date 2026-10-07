@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-10-07
+
 ### Added
 
 - Open a saved bookmark in a background tab while keeping the current page, Bookmarks panel, search and keyboard focus.
