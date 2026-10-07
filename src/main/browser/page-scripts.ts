@@ -1,3 +1,4 @@
+import { elementScrollGeometrySource } from './element-scroll-geometry.js'
 import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
 import { snapshotTextHelpersSource } from './snapshot-text.js'
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
@@ -596,7 +597,7 @@ export function elementPickerInspectionAtPointScript(
   })()`
 }
 
-export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean }): string {
+export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean }): string {
   return `(() => {
     ${elementInspectionHelpersSource()}
     const target = ${JSON.stringify(target)};
@@ -606,6 +607,7 @@ export function elementInspectionScript(target: { ref?: string; selector?: strin
     if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
     return {
       ...hronautInspectElement(element),
+      ...(target.includeScroll === true ? { scrollGeometry: ${elementScrollGeometrySource()} } : {}),
       ...(target.includeFonts === true ? { renderedFontsEligible: element instanceof HTMLElement
         && element.children.length === 0 && !element.shadowRoot
         && !element.matches('input,textarea,select,option,optgroup,iframe,frame,object,embed')

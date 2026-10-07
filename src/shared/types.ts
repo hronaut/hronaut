@@ -691,6 +691,7 @@ export interface BrowserElementInspectionOptions {
   selector?: string
   cssProperties?: CssInspectionProperty[]
   includeFonts?: boolean
+  includeScroll?: boolean
 }
 
 export interface BrowserElementBoxEdges {
@@ -731,7 +732,22 @@ export interface BrowserRenderedFonts {
   truncated: boolean
 }
 
+export type BrowserScrollGeometry = {
+  status: 'observed'
+  scrollTop: number
+  scrollLeft: number
+  clientWidth: number
+  clientHeight: number
+  scrollWidth: number
+  scrollHeight: number
+  direction: 'ltr' | 'rtl'
+  writingMode: 'horizontal-tb' | 'vertical-rl' | 'vertical-lr' | 'sideways-rl' | 'sideways-lr'
+  isDocumentScroller: boolean
+  documentScroller: 'html' | 'body' | null
+} | { status: 'unavailable'; reason: 'unsupported-cssom' | 'invalid-or-out-of-range' }
+
 export interface BrowserElementInspection {
+  scrollGeometry?: BrowserScrollGeometry
   cssProvenance?: BrowserCssProvenance
   renderedFonts?: BrowserRenderedFonts
   tabId: string

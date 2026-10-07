@@ -3359,7 +3359,8 @@ function createBrowserMcpServer(
         ref: z.string().max(200).optional(),
         selector: z.string().max(1_000).optional(),
         cssProperties: z.array(z.enum(CSS_INSPECTION_PROPERTIES)).min(1).max(8).optional(),
-        includeFonts: z.boolean().optional()
+        includeFonts: z.boolean().optional(),
+        includeScroll: z.boolean().optional()
       }
     },
     tabTool('browser_element_inspect', async (options: {
@@ -3368,6 +3369,7 @@ function createBrowserMcpServer(
       selector?: string
       cssProperties?: CssInspectionProperty[]
       includeFonts?: boolean
+      includeScroll?: boolean
     }) => textResult(await manager.elementInspection(options)))
   )
   registerWorkspaceTool(
