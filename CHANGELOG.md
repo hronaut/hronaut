@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Edit a saved bookmark’s destination from the human Bookmarks panel while preserving its identity and title, with duplicate-address validation and keyboard focus recovery.
+
 - Exclude matching requests with negative Network property filters such as `-domain:metrics.example` and `-url:poll`, consistently across the human panel, MCP, and sanitized HAR exports.
 
 ## [2.17.0] - 2026-10-06

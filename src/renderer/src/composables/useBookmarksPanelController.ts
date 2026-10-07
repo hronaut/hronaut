@@ -10,6 +10,7 @@ export interface BookmarksPanelControllerOptions {
   listBookmarks: () => Promise<BrowserBookmark[]>
   addBookmark: (url: string, title: string) => Promise<BrowserBookmark[]>
   renameBookmark: (id: string, title: string) => Promise<BrowserBookmark[]>
+  updateBookmarkDestination: (id: string, url: string) => Promise<BrowserBookmark[]>
   removeBookmark: (id: string) => Promise<BrowserBookmark[]>
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
 }
@@ -20,6 +21,9 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   const pendingAction = ref<string | null>(null)
   const editingBookmarkId = ref<string | null>(null)
   const editingBookmarkTitle = ref('')
+  const editingBookmarkUrl = ref('')
+  const editingDestination = ref(false)
+  let editGeneration = 0
   const editingInput = ref<HTMLInputElement | null>(null)
   let actionGeneration = 0
 
@@ -42,6 +46,9 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   }
 
   function cancelRename(): void {
+    editGeneration += 1
+    editingBookmarkUrl.value = ''
+    editingDestination.value = false
     editingBookmarkId.value = null
     editingBookmarkTitle.value = ''
   }
@@ -99,24 +106,30 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     if (opened) options.open.value = false
   }
 
-  async function beginRename(bookmark: BrowserBookmark): Promise<void> {
+  async function beginRename(bookmark: BrowserBookmark, destination = false): Promise<void> {
     if (pendingAction.value) return
     resetError()
+    const generation = ++editGeneration
+    editingDestination.value = destination
+    editingBookmarkUrl.value = bookmark.url
     editingBookmarkId.value = bookmark.id
     editingBookmarkTitle.value = bookmark.title
     await nextTick()
-    if (editingBookmarkId.value !== bookmark.id) return
+    if (editingBookmarkId.value !== bookmark.id || generation !== editGeneration) return
     editingInput.value?.focus()
     editingInput.value?.select()
   }
 
   async function commitRename(bookmarkId: string): Promise<void> {
     if (editingBookmarkId.value !== bookmarkId) return
+    const generation = editGeneration
     const renamed = await runAction(
-      `rename:${bookmarkId}`,
-      () => options.renameBookmark(bookmarkId, editingBookmarkTitle.value)
+      editingDestination.value ? `destination:${bookmarkId}` : `rename:${bookmarkId}`,
+      () => editingDestination.value
+        ? options.updateBookmarkDestination(bookmarkId, editingBookmarkUrl.value)
+        : options.renameBookmark(bookmarkId, editingBookmarkTitle.value)
     )
-    if (renamed) cancelRename()
+    if (renamed && generation === editGeneration) cancelRename()
   }
 
   async function remove(bookmarkId: string): Promise<void> {
@@ -155,6 +168,8 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     pendingAction,
     editingBookmarkId,
     editingBookmarkTitle,
+    editingBookmarkUrl,
+    editingDestination,
     editingInput,
     setEditingInput,
     filteredBookmarks,

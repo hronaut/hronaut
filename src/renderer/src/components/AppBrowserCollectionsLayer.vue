@@ -58,6 +58,7 @@ const {
     :list-bookmarks="browserCollectionsController.refreshBookmarks"
     :add-bookmark="browserCollectionsController.addBookmark"
     :rename-bookmark="browserCollectionsController.renameBookmark"
+    :update-bookmark-destination="browserCollectionsController.updateBookmarkDestination"
     :remove-bookmark="browserCollectionsController.removeBookmark"
     :open-bookmark="openBookmark"
   />

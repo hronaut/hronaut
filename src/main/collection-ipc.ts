@@ -6,7 +6,7 @@ import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 
 interface CollectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'rename' | 'remove'>
+  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'rename' | 'updateDestination' | 'remove'>
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
   downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'manageDownloads' | 'showDownloadInFolder'>
   publishBookmarks(): BrowserBookmark[]
@@ -49,6 +49,12 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     host.assertTrustedSender(event)
     if (typeof id !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark update')
     await host.bookmarks().rename(id, title)
+    return host.publishBookmarks()
+  })
+  ipcMain.handle('bookmarks:update-destination', async (event, id: unknown, url: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof id !== 'string' || typeof url !== 'string') throw new TypeError('Invalid bookmark destination update')
+    await host.bookmarks().updateDestination(id, url)
     return host.publishBookmarks()
   })
   ipcMain.handle('bookmarks:remove', async (event, id: unknown) => {

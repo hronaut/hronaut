@@ -2656,6 +2656,10 @@ export const deDE = {
     "interrupted": "Unterbrochen"
   },
   "bookmarks": {
+    "destination": "Adresse bearbeiten",
+    "destinationAria": "Adresse für {title} bearbeiten",
+    "saveDestination": "Adresse speichern",
+    "saveDestinationAria": "Adresse für {title} speichern",
     "kicker": "Lokal gespeichert",
     "heading": "Lesezeichen",
     "removeCurrent": "Aktuelles entfernen",

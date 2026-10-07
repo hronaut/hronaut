@@ -160,6 +160,25 @@ export class BookmarkStore {
     })
   }
 
+  async updateDestination(id: string, value: string): Promise<BrowserBookmark> {
+    const url = normalizeBookmarkUrl(value)
+    if (!url) throw new TypeError('Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters')
+    return this.queueMutation(async () => {
+      const existing = this.entries.get(id)
+      if (!existing) throw new Error(`Bookmark not found: ${id}`)
+      if ([...this.entries.values()].some(entry => entry.id !== id && entry.url === url)) {
+        throw new Error('This address is already bookmarked')
+      }
+      if (existing.url === url) return { ...existing }
+      const entry = { ...existing, url, updatedAt: new Date().toISOString() }
+      const nextEntries = new Map(this.entries)
+      nextEntries.set(id, entry)
+      await this.persist(nextEntries.values())
+      this.replaceEntries(nextEntries)
+      return { ...entry }
+    })
+  }
+
   async remove(id: string): Promise<boolean> {
     return this.queueMutation(async () => {
       if (!this.entries.has(id)) return false

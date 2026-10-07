@@ -282,6 +282,7 @@ const bookmarksApi: HronautBookmarksApi = {
   list: () => ipcRenderer.invoke('bookmarks:list'),
   add: (url: string, title: string) => ipcRenderer.invoke('bookmarks:add', url, title),
   rename: (id: string, title: string) => ipcRenderer.invoke('bookmarks:rename', id, title),
+  updateDestination: (id: string, url: string) => ipcRenderer.invoke('bookmarks:update-destination', id, url),
   remove: (id: string) => ipcRenderer.invoke('bookmarks:remove', id),
   onChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, bookmarks: import('../shared/types.js').BrowserBookmark[]): void => listener(bookmarks)

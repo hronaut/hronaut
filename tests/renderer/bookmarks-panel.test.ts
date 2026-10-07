@@ -28,6 +28,7 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
       currentBookmark: bookmark('alpha', 'Alpha docs'),
       listBookmarks: vi.fn(async () => []),
       addBookmark: vi.fn(async () => []),
+      updateBookmarkDestination: vi.fn(async () => []),
       renameBookmark: vi.fn(async () => []),
       removeBookmark: vi.fn(async () => []),
       openBookmark: vi.fn(async () => undefined),
@@ -37,6 +38,54 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('BookmarksPanel', () => {
+  it.each(['{Escape}', '{Enter}', 'Save'])('returns focus to address editing after %s', async key => {
+    const original = bookmark('alpha', 'Alpha docs')
+    const updateBookmarkDestination = vi.fn(async () => [{ ...original, url: 'https://example.test/new' }])
+    renderPanel({ bookmarks: [original], updateBookmarkDestination })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Edit address for Alpha docs' }))
+    const input = screen.getByRole('textbox', { name: 'Edit address for Alpha docs' })
+    expect(input).toHaveFocus()
+    await user.clear(input)
+    await user.type(input, 'https://example.test/new')
+    if (key === 'Save') await user.click(screen.getByRole('button', { name: 'Save address for Alpha docs' }))
+    else await user.keyboard(key)
+    expect(screen.getByRole('button', { name: 'Edit address for Alpha docs' })).toHaveFocus()
+    expect(updateBookmarkDestination).toHaveBeenCalledTimes(key === '{Escape}' ? 0 : 1)
+    if (key !== '{Escape}') expect(updateBookmarkDestination).toHaveBeenCalledWith('alpha', 'https://example.test/new')
+  })
+
+  it('focuses search when the saved destination leaves the filtered list', async () => {
+    const original = bookmark('alpha', 'Alpha docs')
+    renderPanel({ bookmarks: [original], updateBookmarkDestination: vi.fn(async () => [{ ...original, url: 'https://elsewhere.test/new' }]) })
+    const user = userEvent.setup()
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'example.test')
+    await user.click(screen.getByRole('button', { name: 'Edit address for Alpha docs' }))
+    const input = screen.getByRole('textbox', { name: 'Edit address for Alpha docs' })
+    await user.clear(input)
+    await user.type(input, 'https://elsewhere.test/new{Enter}')
+    expect(screen.getByText('No matching bookmarks')).toBeInTheDocument()
+    expect(search).toHaveFocus()
+  })
+
+  it('preserves newer focus during a destination save and a draft after failure', async () => {
+    let reject!: (error: Error) => void
+    const updateBookmarkDestination = vi.fn(() => new Promise<BrowserBookmark[]>((_resolve, fail) => { reject = fail }))
+    renderPanel({ updateBookmarkDestination })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Edit address for Alpha docs' }))
+    const input = screen.getByRole('textbox', { name: 'Edit address for Alpha docs' })
+    await user.clear(input)
+    await user.type(input, 'https://example.test/new{Enter}')
+    const search = screen.getByRole('searchbox')
+    await user.click(search)
+    reject(new Error('Destination already exists'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Destination already exists')
+    expect(input).toHaveValue('https://example.test/new')
+    expect(search).toHaveFocus()
+  })
+
   it.each(['first', 'last', 'filtered', 'only'])('preserves keyboard access after removing the %s bookmark', async scenario => {
     const alpha = bookmark('alpha', 'Alpha docs')
     const beta = bookmark('beta', 'Beta page')

@@ -5,13 +5,13 @@ import { registerCollectionIpc } from '../src/main/collection-ipc.js'
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:clear-finished', 'downloads:show-in-folder',
-  'bookmarks:list', 'bookmarks:add', 'bookmarks:rename', 'bookmarks:remove',
+  'bookmarks:list', 'bookmarks:add', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
 ]
 
 function fixture() {
   const listeners = new Map<string, Listener>()
-  const bookmarks = { list: vi.fn(() => []), add: vi.fn(), rename: vi.fn(), remove: vi.fn() }
+  const bookmarks = { list: vi.fn(() => []), add: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), remove: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
   const downloads = { listDownloads: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
   const host = {
@@ -48,6 +48,8 @@ it.each([
   ['bookmarks:add', ['https://example.com/', {}]],
   ['bookmarks:rename', ['bookmark', null]],
   ['bookmarks:remove', [{}]],
+  ['bookmarks:update-destination', ['bookmark', null]],
+  ['bookmarks:update-destination', [null, 'https://example.test/']],
   ['visit-history:remove', [undefined]]
 ] as const)('rejects invalid arguments to %s without touching services', async (channel, args) => {
   const { host, invoke } = fixture()
@@ -90,4 +92,19 @@ it('routes download actions and publishes completed history mutations', async ()
   await invoke('visit-history:clear')
   expect(history.clear).toHaveBeenCalledOnce()
   expect(host.publishVisitHistory).toHaveBeenCalledTimes(2)
+})
+
+it('publishes destination changes only after persistence and keeps failures unpublished', async () => {
+  const { bookmarks, host, invoke } = fixture()
+  let finish!: () => void
+  bookmarks.updateDestination.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+  const pending = invoke('bookmarks:update-destination', 'saved', 'https://example.test/new')
+  await vi.waitFor(() => expect(bookmarks.updateDestination).toHaveBeenCalledWith('saved', 'https://example.test/new'))
+  expect(host.publishBookmarks).not.toHaveBeenCalled()
+  finish()
+  await pending
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
+  bookmarks.updateDestination.mockRejectedValueOnce(new Error('Persistence failed'))
+  await expect(invoke('bookmarks:update-destination', 'saved', 'https://example.test/other')).rejects.toThrow('Persistence failed')
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
 })
