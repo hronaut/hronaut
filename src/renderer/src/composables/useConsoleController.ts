@@ -34,6 +34,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   const messages = ref<BrowserConsoleMessage[]>([])
   const error = ref('')
   const search = ref('')
+  const excludeText = ref('')
   const level = ref<BrowserConsoleLevelFilter>('all')
   const copied = ref<'filtered' | 'all' | null>(null)
   const copiedEntryKey = ref<string | null>(null)
@@ -45,7 +46,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   let refreshTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'entry' | 'filtered' | 'all'>()
 
-  const filteredMessages = computed(() => filterConsoleMessages(messages.value, search.value, level.value))
+  const filteredMessages = computed(() => filterConsoleMessages(messages.value, search.value, level.value, excludeText.value))
   const messageCounts = computed(() => countConsoleMessages(messages.value))
   const eventCount = computed(() => countConsoleEvents(messages.value))
   const filteredEventCount = computed(() => countConsoleEvents(filteredMessages.value))
@@ -119,7 +120,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       tabId: tab.id,
       scope,
       ...(scope === 'filtered' ? {
-        filter: { query: search.value.trim() || undefined, level: level.value }
+        filter: { query: search.value.trim() || undefined, level: level.value, excludeText: excludeText.value.trim() || undefined }
       } : {}),
       messages: nextMessages,
       caveat: options.translate('debugReport.caveats.console')
@@ -151,7 +152,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   const copyAll = (): Promise<void> => copyMessages(messages.value.slice().reverse(), 'all')
   const copyFiltered = (): Promise<void> => copyMessages(filteredMessages.value, 'filtered')
 
-  const stopFilterWatcher = watch([search, level], () => {
+  const stopFilterWatcher = watch([search, level, excludeText], () => {
     filterRevision += 1
     if (copied.value === 'filtered') copied.value = null
     feedbackTimers.clear('filtered')
@@ -184,6 +185,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     messages,
     error,
     search,
+    excludeText,
     level,
     copied,
     copiedEntryKey,

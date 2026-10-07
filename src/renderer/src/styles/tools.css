@@ -719,11 +719,13 @@
 .memory-actions { @apply flex flex-wrap justify-end [gap:6px]; }
 
 .console-panel { @apply [width:min(760px,_calc(100vw_-_24px))]; }
-.console-tools { @apply flex flex-none items-center [gap:9px] [padding:10px_12px] [border-bottom:1px_solid_var(--border-soft)]; }
+.console-tools { @apply flex flex-wrap flex-none items-center [gap:9px] [padding:10px_12px] [border-bottom:1px_solid_var(--border-soft)]; }
+.console-tools .network-monitor-search { @apply [flex:1_1_180px]; }
 .console-tools .preserve-logs-toggle { @apply [min-height:38px] [padding:0_10px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-copy bg-surface; }
 .console-level-filter { @apply flex [min-height:38px] items-center [gap:7px] [padding:0_9px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-muted bg-surface [font-size:12px] [font-weight:750] whitespace-nowrap; }
 .console-level-filter select { @apply [max-width:130px] border-0 [outline:0] text-copy bg-transparent [font:inherit] [font-size:12px] cursor-pointer; }
-.console-messages { @apply [min-height:260px] [flex:1] overflow-y-auto [padding:10px_12px] bg-surface-muted; }
+.console-panel > .network-monitor-empty { @apply min-h-0 flex-1 overflow-y-auto; }
+.console-messages { @apply min-h-0 [flex:1] overflow-y-auto [padding:10px_12px] bg-surface-muted; }
 .console-message { @apply grid [gap:5px] [padding:9px_10px] [border:1px_solid_var(--border-soft)] [border-left:3px_solid_color-mix(in_srgb,_var(--accent)_54%,_var(--border))] [border-radius:7px] bg-surface-raised; }
 .console-message + .console-message { @apply [margin-top:6px]; }
 .console-message.error { @apply [border-left-color:#d9534f]; }

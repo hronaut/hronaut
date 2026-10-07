@@ -64,16 +64,39 @@ afterEach(() => {
 })
 
 describe('console controller', () => {
-  it.each(['search', 'level'] as const)('clears filtered copy feedback when %s changes, including a late clipboard result', async (filter) => {
+  it('keeps filtered event counts and clipboard aligned without removing excluded records', async () => {
+    const { controller, copyText } = createController()
+    controller.messages.value = [message('failure'), { ...message('heartbeat'), repeatCount: 4 }]
+    try {
+      controller.excludeText.value = 'heartbeat'
+      expect(controller.filteredEventCount.value).toBe(1)
+      expect(controller.eventCount.value).toBe(5)
+      expect(controller.messageCounts.value.error).toBe(5)
+      await controller.copyFiltered()
+      expect(JSON.parse(copyText.mock.calls.at(-1)![0])).toMatchObject({
+        filter: { excludeText: 'heartbeat' }, messages: [{ message: 'failure' }]
+      })
+      await controller.copyAll()
+      expect(JSON.parse(copyText.mock.calls.at(-1)![0])).toMatchObject({
+        messages: [{ message: 'heartbeat', repeatCount: 4 }, { message: 'failure' }]
+      })
+      controller.excludeText.value = ''
+      expect(controller.filteredEventCount.value).toBe(5)
+    } finally { controller.dispose() }
+  })
+
+  it.each(['search', 'level', 'excludeText'] as const)('clears filtered copy feedback when %s changes, including a late clipboard result', async (filter) => {
     const pending = deferred<boolean>()
     const { controller, copyText } = createController()
     controller.messages.value = [message('first'), { ...message('second'), level: 'warning' }]
     const changeFilter = () => {
       if (filter === 'search') controller.search.value = 'first'
+      else if (filter === 'excludeText') controller.excludeText.value = 'second'
       else controller.level.value = 'error'
     }
     const resetFilter = () => {
       if (filter === 'search') controller.search.value = ''
+      else if (filter === 'excludeText') controller.excludeText.value = ''
       else controller.level.value = 'all'
     }
     try {

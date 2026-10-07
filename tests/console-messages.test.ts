@@ -23,6 +23,15 @@ const messages: BrowserConsoleMessage[] = [
 ]
 
 describe('Console message helpers', () => {
+  it('excludes a literal substring across message, source and stack while preserving inclusion and level filters', () => {
+    expect(filterConsoleMessages(messages, '', 'all', ' NETWORK ')).toEqual([messages[2], messages[0]])
+    expect(filterConsoleMessages(messages, 'request', 'all', 'loadprofile')).toEqual([messages[1]])
+    expect(filterConsoleMessages(messages, '', 'error', 'APP.JS')).toEqual([])
+    expect(filterConsoleMessages(messages, '', 'all', '   ')).toEqual([...messages].reverse())
+    expect(filterConsoleMessages(messages, '', 'all', '.*')).toEqual([...messages].reverse())
+    expect(messages).toHaveLength(4)
+  })
+
   it('maps Chromium and console aliases to four human-facing levels', () => {
     expect(browserConsoleLevel('error')).toBe('error')
     expect(browserConsoleLevel('warn')).toBe('warning')

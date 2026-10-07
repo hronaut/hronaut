@@ -2060,7 +2060,7 @@ export const esES = {
     "kicker": "Sitio actual",
     "heading": "Consola",
     "close": "Cerrar la consola",
-    "filterAria": "Filtrar mensajes de la consola",
+    "excludeText": "Excluir texto", "excludeHint": "Ocultar coincidencias en mensajes, fuentes y tramas de pila (texto literal).", "filterAria": "Filtrar mensajes de la consola",
     "filterPlaceholder": "Filtrar mensajes o fuentes",
     "level": "Nivel",
     "levelAria": "Filtrar la consola por nivel",

@@ -42,6 +42,7 @@ const emit = defineEmits<{
 const open = defineModel<boolean>('open', { required: true })
 const dock = defineModel<PanelDock>('dock', { required: true })
 const search = defineModel<string>('search', { required: true })
+const excludeText = defineModel<string>('excludeText', { required: true })
 const level = defineModel<BrowserConsoleLevelFilter>('level', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 
@@ -103,6 +104,10 @@ function entryKey(message: BrowserConsoleMessage): string {
       <label class="network-monitor-search">
         <IconSearch aria-hidden="true" />
         <input v-model="search" type="search" :aria-label="t('console.filterAria')" :placeholder="t('console.filterPlaceholder')" spellcheck="false" />
+      </label>
+      <label class="network-monitor-search">
+        <IconSearch aria-hidden="true" />
+        <input v-model="excludeText" type="search" :aria-label="t('console.excludeText')" :placeholder="t('console.excludeText')" :title="t('console.excludeHint')" spellcheck="false" />
       </label>
       <label class="console-level-filter">
         <span>{{ t('console.level') }}</span>

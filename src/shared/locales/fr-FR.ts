@@ -2060,7 +2060,7 @@ export const frFR = {
     "kicker": "Site actuel",
     "heading": "Console",
     "close": "Fermer la console",
-    "filterAria": "Filtrer les messages de la console",
+    "excludeText": "Exclure du texte", "excludeHint": "Masquer les correspondances dans les messages, sources et piles (texte brut).", "filterAria": "Filtrer les messages de la console",
     "filterPlaceholder": "Filtrer les messages ou les sources",
     "level": "Niveau",
     "levelAria": "Filtrer la console par niveau",
