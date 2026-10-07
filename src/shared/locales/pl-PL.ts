@@ -2631,6 +2631,16 @@ export const plPL = {
     "close": "Zamknij sterowanie powiększeniem strony"
   },
   "downloads": {
+    "search": "Szukaj nazw plików",
+    "filterStatus": "Filtruj stan pobierania",
+    "filterAll": "Wszystkie",
+    "filterActive": "Aktywne",
+    "filterFinished": "Zakończone",
+    "filterSummary": "{visible} z {total} pobrań",
+    "noMatches": "Brak pasujących pobrań",
+    "changeFilters": "Zmień filtr nazwy pliku lub stanu.",
+    "clearFinishedHint": "Czyści wszystkie zakończone pobrania, także ukryte przez filtry.",
+
     "destinationUnavailable": "Nie udało się przygotować miejsca pobierania",
     "pause": "Wstrzymaj",
     "pauseAria": "Wstrzymaj {filename}",
@@ -2640,7 +2650,7 @@ export const plPL = {
 
     "kicker": "Pliki przeglądarki",
     "heading": "Pobrane pliki",
-    "clearFinished": "Wyczyść ukończone",
+    "clearFinished": "Wyczyść wszystkie zakończone",
     "close": "Zamknij pobrane pliki",
     "empty": "Brak pobranych plików",
     "emptyDescription": "Pobierane pliki pojawią się tutaj.",

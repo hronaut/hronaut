@@ -46,6 +46,75 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DownloadsPanel', () => {
+  it('combines filters, counts retained rows, and clears finished entries hidden by the filter', async () => {
+    const active = download('report', 'progressing', 1, 100)
+    const clearFinished = vi.fn(async () => [active])
+    renderPanel({ downloads: [active, download('visible', 'completed', 100, 100), download('hidden', 'cancelled', 0, 100)], clearFinished })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox', { name: 'Search filenames' }), 'VISIBLE')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter download status' }), 'finished')
+    expect(screen.getByRole('status')).toHaveTextContent('1 of 3 downloads')
+    expect(screen.queryByText('hidden.bin')).not.toBeInTheDocument()
+    const clear = screen.getByRole('button', { name: 'Clear all finished' })
+    expect(clear).toHaveAccessibleDescription('Clears all finished downloads, including those hidden by filters.')
+    await user.click(clear)
+    expect(clearFinished).toHaveBeenCalledWith()
+    expect(screen.getByRole('status')).toHaveTextContent('0 of 1 downloads')
+    expect(screen.getByText('No matching downloads')).toBeVisible()
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+  })
+
+  it.each(['cancel', 'external completion'])('keeps focus usable when %s removes an active row', async scenario => {
+    const active = download('report', 'progressing', 1, 100)
+    const view = renderPanel({ downloads: [active], cancelDownload: vi.fn(async () => [{ ...active, state: 'cancelled' as const }]) })
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByRole('combobox'), 'active')
+    const cancel = screen.getByRole('button', { name: 'Cancel report.bin' })
+    cancel.focus()
+    if (scenario === 'cancel') await user.keyboard('{Enter}')
+    else await view.rerender({ downloads: [{ ...active, state: 'completed' }] })
+    await flushPromises()
+    expect(screen.getByText('No matching downloads')).toBeVisible()
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+    await user.selectOptions(screen.getByRole('combobox'), 'finished')
+    expect(screen.getByText('report.bin')).toBeVisible()
+  })
+
+  it('does not steal filter focus when a transfer operation finishes after the filter changes', async () => {
+    let finish!: (entries: BrowserDownloadState[]) => void
+    renderPanel({ cancelDownload: vi.fn(() => new Promise(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    screen.getByRole('button', { name: 'Cancel known.bin' }).focus()
+    await user.keyboard('{Enter}')
+    const status = screen.getByRole('combobox')
+    await user.selectOptions(status, 'finished')
+    finish([download('known', 'cancelled', 50, 100)])
+    await flushPromises()
+    expect(status).toHaveFocus()
+    expect(status).toHaveValue('finished')
+    expect(screen.getByRole('status')).toHaveTextContent('1 of 1 downloads')
+  })
+
+  it('resets filters on reopen and ignores an older cancellation result', async () => {
+    let finish!: (entries: BrowserDownloadState[]) => void
+    const view = renderPanel({ cancelDownload: vi.fn(() => new Promise(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'known')
+    await user.selectOptions(screen.getByRole('combobox'), 'active')
+    await user.click(screen.getByRole('button', { name: 'Cancel known.bin' }))
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    expect(screen.getByRole('searchbox')).toHaveValue('')
+    expect(screen.getByRole('combobox')).toHaveValue('all')
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'complete')
+    finish([download('known', 'cancelled', 0, 100)])
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(search).toHaveValue('complete')
+    expect(screen.getByText('complete.bin')).toBeVisible()
+  })
+
   it.each(['pause', 'resume'] as const)('keeps keyboard focus on the replacement control after %s', async action => {
     const initial = { ...download('active', 'progressing', 25, 100), paused: action === 'resume', canResume: action === 'resume' }
     const result = { ...initial, paused: action === 'pause', canResume: action === 'pause' }
@@ -93,7 +162,7 @@ describe('DownloadsPanel', () => {
   it('explains destination setup failures and offers only finished cleanup', () => {
     renderPanel({ downloads: [{ ...download('failed', 'interrupted', 0, 100), failureReason: 'destination-unavailable', completedAt: '2026-08-22T00:01:00.000Z' }] })
     expect(screen.getByText('Could not prepare download destination')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Clear all finished' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Resume failed.bin' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Cancel failed.bin' })).toBeNull()
   })
@@ -103,7 +172,7 @@ describe('DownloadsPanel', () => {
     const view = renderPanel({ downloads: [{ ...download('paused', 'progressing', 25, 100), paused: true, canResume: true }], resumeDownload })
     expect(screen.getByText('Paused · 25% · 25 B of 100 B')).toBeVisible()
     expect(view.container.querySelector('.state-spinner')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clear all finished' })).toBeDisabled()
     const resume = screen.getByRole('button', { name: 'Resume paused.bin' })
     resume.focus()
     await userEvent.keyboard('{Enter}')
@@ -122,14 +191,14 @@ describe('DownloadsPanel', () => {
   it('keeps a resumable interruption cancellable and out of finished cleanup', async () => {
     const cancelDownload = vi.fn(async () => [])
     renderPanel({ downloads: [download('partial', 'interrupted', 25, 100)], cancelDownload })
-    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clear all finished' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel partial.bin' }))
     expect(cancelDownload).toHaveBeenCalledWith('partial')
   })
 
   it('allows clearing a terminal interruption without offering cancellation', () => {
     renderPanel({ downloads: [{ ...download('partial', 'interrupted', 25, 100), completedAt: '2026-08-22T00:01:00.000Z' }] })
-    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Clear all finished' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Cancel partial.bin' })).not.toBeInTheDocument()
   })
 
@@ -149,7 +218,7 @@ describe('DownloadsPanel', () => {
       .mockResolvedValueOnce([])
     renderPanel({ clearFinished })
     const user = userEvent.setup()
-    const clear = screen.getByRole('button', { name: 'Clear finished' })
+    const clear = screen.getByRole('button', { name: 'Clear all finished' })
 
     await user.click(clear)
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not clear download history')
