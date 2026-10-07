@@ -18,6 +18,16 @@ export interface DownloadsPanelControllerOptions {
 }
 
 export function useDownloadsPanelController(options: DownloadsPanelControllerOptions) {
+  const query = ref('')
+  const statusFilter = ref<'all' | 'active' | 'finished'>('all')
+  const filteredDownloads = computed(() => {
+    const filename = query.value.trim().toLocaleLowerCase()
+    return options.downloads.value.filter(download => {
+      if (filename && !download.filename.toLocaleLowerCase().includes(filename)) return false
+      if (statusFilter.value === 'all') return true
+      return statusFilter.value === 'active' ? isActiveDownload(download) : !isActiveDownload(download)
+    })
+  })
   const error = ref('')
   const pendingAction = ref<string | null>(null)
   const finishedDownloads = computed(() => options.downloads.value.filter((download) => !isActiveDownload(download)))
@@ -95,6 +105,8 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   const stopOpenTracking = watch(options.open, () => {
     invalidateActions()
     resetError()
+    query.value = ''
+    statusFilter.value = 'all'
   }, { flush: 'sync' })
 
   function dispose(): void {
@@ -103,6 +115,9 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   }
 
   return {
+    query,
+    statusFilter,
+    filteredDownloads,
     error,
     pendingAction,
     finishedDownloads,

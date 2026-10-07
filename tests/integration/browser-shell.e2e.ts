@@ -7467,7 +7467,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await expect(panel.getByRole('progressbar', { name: 'Downloading slow.bin' })).toBeVisible()
     await panel.getByRole('button', { name: 'Cancel slow.bin' }).click()
     await expect(panel.getByText('Cancelled', { exact: true })).toBeVisible()
-    await panel.getByRole('button', { name: 'Clear finished' }).click()
+    await panel.getByRole('button', { name: 'Clear all finished', exact: true }).click()
     await expect(panel.getByText('No downloads yet')).toBeVisible()
     await panel.getByRole('button', { name: 'Close downloads' }).click()
     await expect(panel).toBeHidden()
@@ -7485,7 +7485,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await expect.poll(() => electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __hronautRevealedDownload?: string }
     ).__hronautRevealedDownload)).toBe(join(customDownloadDirectory, 'complete.txt'))
-    await panel.getByRole('button', { name: 'Clear finished' }).click()
+    await panel.getByRole('button', { name: 'Clear all finished', exact: true }).click()
     await expect(panel.getByText('No downloads yet')).toBeVisible()
 
     await appWindow.getByRole('button', { name: 'Settings' }).click()

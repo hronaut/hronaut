@@ -2631,6 +2631,16 @@ export const frFR = {
     "close": "Fermer les contrôles du zoom de la page"
   },
   "downloads": {
+    "search": "Rechercher un nom de fichier",
+    "filterStatus": "Filtrer l’état des téléchargements",
+    "filterAll": "Tous",
+    "filterActive": "Actifs",
+    "filterFinished": "Terminés",
+    "filterSummary": "{visible} sur {total} téléchargements",
+    "noMatches": "Aucun téléchargement correspondant",
+    "changeFilters": "Modifiez le filtre de nom de fichier ou d’état.",
+    "clearFinishedHint": "Efface tous les téléchargements terminés, y compris ceux masqués par les filtres.",
+
     "destinationUnavailable": "Impossible de préparer la destination du téléchargement",
     "pause": "Mettre en pause",
     "pauseAria": "Mettre {filename} en pause",
@@ -2640,7 +2650,7 @@ export const frFR = {
 
     "kicker": "Fichiers du navigateur",
     "heading": "Téléchargements",
-    "clearFinished": "Effacer les terminés",
+    "clearFinished": "Effacer tous les terminés",
     "close": "Fermer les téléchargements",
     "empty": "Aucun téléchargement",
     "emptyDescription": "Les fichiers téléchargés apparaîtront ici.",

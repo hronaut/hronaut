@@ -2631,6 +2631,16 @@ export const ruRU = {
     "close": "Закрыть управление масштабом страницы"
   },
   "downloads": {
+    "search": "Поиск по имени файла",
+    "filterStatus": "Фильтр состояния загрузок",
+    "filterAll": "Все",
+    "filterActive": "Активные",
+    "filterFinished": "Завершённые",
+    "filterSummary": "{visible} из {total} загрузок",
+    "noMatches": "Подходящих загрузок нет",
+    "changeFilters": "Измените фильтр имени файла или состояния.",
+    "clearFinishedHint": "Очищает все завершённые загрузки, включая скрытые фильтрами.",
+
     "destinationUnavailable": "Не удалось подготовить место загрузки",
     "pause": "Приостановить",
     "pauseAria": "Приостановить {filename}",
@@ -2640,7 +2650,7 @@ export const ruRU = {
 
     "kicker": "Файлы браузера",
     "heading": "Загрузки",
-    "clearFinished": "Очистить завершённые",
+    "clearFinished": "Очистить все завершённые",
     "close": "Закрыть загрузки",
     "empty": "Загрузок пока нет",
     "emptyDescription": "Загруженные файлы появятся здесь.",

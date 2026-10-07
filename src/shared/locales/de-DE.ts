@@ -2631,6 +2631,16 @@ export const deDE = {
     "close": "Steuerung des Seitenzooms schließen"
   },
   "downloads": {
+    "search": "Dateinamen suchen",
+    "filterStatus": "Downloadstatus filtern",
+    "filterAll": "Alle",
+    "filterActive": "Aktiv",
+    "filterFinished": "Beendet",
+    "filterSummary": "{visible} von {total} Downloads",
+    "noMatches": "Keine passenden Downloads",
+    "changeFilters": "Ändern Sie den Dateinamen- oder Statusfilter.",
+    "clearFinishedHint": "Entfernt alle beendeten Downloads, auch die durch Filter ausgeblendeten.",
+
     "destinationUnavailable": "Downloadziel konnte nicht vorbereitet werden",
     "pause": "Pausieren",
     "pauseAria": "{filename} pausieren",
@@ -2640,7 +2650,7 @@ export const deDE = {
 
     "kicker": "Browserdateien",
     "heading": "Downloads",
-    "clearFinished": "Abgeschlossene löschen",
+    "clearFinished": "Alle beendeten entfernen",
     "close": "Downloads schließen",
     "empty": "Noch keine Downloads",
     "emptyDescription": "Heruntergeladene Dateien erscheinen hier.",

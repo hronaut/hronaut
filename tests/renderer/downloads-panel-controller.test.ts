@@ -49,6 +49,39 @@ function createController(initialDownloads = [download('complete', 'completed', 
 }
 
 describe('downloads panel controller', () => {
+  it('combines filename and lifecycle filters without treating resumable interruptions as finished', () => {
+    const active = download('report-live')
+    const resumable = { ...download('report-retry', 'interrupted'), canResume: true }
+    const complete = download('report-done', 'completed')
+    const cancelled = download('report-cancelled', 'cancelled')
+    const interrupted = { ...download('report-failed', 'interrupted'), completedAt: '2026-08-22T00:01:00Z' }
+    const h = createController([active, resumable, complete, cancelled, interrupted, download('other')])
+    h.controller.query.value = '  REPORT  '
+    h.controller.statusFilter.value = 'active'
+    expect(h.controller.filteredDownloads.value).toEqual([active, resumable])
+    h.controller.statusFilter.value = 'finished'
+    expect(h.controller.filteredDownloads.value).toEqual([complete, cancelled, interrupted])
+    h.controller.query.value = 'https://'
+    expect(h.controller.filteredDownloads.value).toEqual([])
+    expect(h.controller.finishedDownloads.value).toEqual([complete, cancelled, interrupted])
+    h.controller.dispose()
+  })
+
+  it('updates filters with authoritative status changes and resets them on reopen', async () => {
+    const h = createController([download('report')])
+    h.controller.query.value = 'report'
+    h.controller.statusFilter.value = 'active'
+    await h.controller.cancel('report')
+    expect(h.controller.filteredDownloads.value).toEqual([])
+    h.controller.statusFilter.value = 'finished'
+    expect(h.controller.filteredDownloads.value).toHaveLength(1)
+    h.open.value = false
+    h.open.value = true
+    expect(h.controller.query.value).toBe('')
+    expect(h.controller.statusFilter.value).toBe('all')
+    h.controller.dispose()
+  })
+
   it('reports a clear-finished failure without discarding the visible downloads', async () => {
     const { downloads, clearFinished, controller } = createController()
     clearFinished.mockRejectedValueOnce(new Error('Could not clear download history'))

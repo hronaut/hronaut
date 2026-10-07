@@ -2631,6 +2631,16 @@ export const esES = {
     "close": "Cerrar los controles de zoom de la página"
   },
   "downloads": {
+    "search": "Buscar nombres de archivo",
+    "filterStatus": "Filtrar estado de descarga",
+    "filterAll": "Todas",
+    "filterActive": "Activas",
+    "filterFinished": "Finalizadas",
+    "filterSummary": "{visible} de {total} descargas",
+    "noMatches": "No hay descargas coincidentes",
+    "changeFilters": "Cambia el filtro de nombre de archivo o estado.",
+    "clearFinishedHint": "Borra todas las descargas finalizadas, incluidas las ocultas por filtros.",
+
     "destinationUnavailable": "No se pudo preparar el destino de la descarga",
     "pause": "Pausar",
     "pauseAria": "Pausar {filename}",
@@ -2640,7 +2650,7 @@ export const esES = {
 
     "kicker": "Archivos del navegador",
     "heading": "Descargas",
-    "clearFinished": "Borrar finalizadas",
+    "clearFinished": "Borrar todas las finalizadas",
     "close": "Cerrar descargas",
     "empty": "Aún no hay descargas",
     "emptyDescription": "Los archivos que descargues aparecerán aquí.",

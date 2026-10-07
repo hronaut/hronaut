@@ -173,6 +173,12 @@
 }
 .downloads-header-actions > button:hover:not(:disabled) { @apply bg-hover; }
 .downloads-header-actions > button:disabled { @apply cursor-default [opacity:.35]; }
+.downloads-filters { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] [gap:8px] [padding:10px_12px_4px]; }
+.downloads-filters input,
+.downloads-filters select { @apply min-w-0 [padding:7px_8px] [border:1px_solid_var(--border-soft)] [border-radius:7px] text-copy bg-surface-muted; }
+.downloads-filters input:focus-visible,
+.downloads-filters select:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:2px]; }
+.downloads-filter-summary { @apply [margin:3px_12px] text-muted [font-size:12px]; }
 .downloads-list { @apply min-h-0 overflow-y-auto; }
 .download-item {
   @apply grid [grid-template-columns:34px_minmax(0,_1fr)_auto] items-center [gap:10px] [min-height:78px] [padding:12px_13px];
