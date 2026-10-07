@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
-import { flushPromises } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import HistoryPanel from '../../src/renderer/src/components/HistoryPanel.vue'
@@ -16,26 +16,150 @@ function entry(id: string, title = `Page ${id}`, visitCount = 1): BrowserHistory
   }
 }
 
+function panelProps(overrides: Record<string, unknown> = {}) {
+  return {
+    open: true,
+    bookmarks: [],
+    saveHistoryBookmark: vi.fn(async () => undefined),
+    entries: [entry('alpha', 'Alpha docs', 2), entry('beta', 'Beta page')],
+    formatDateTime: () => 'Aug 22, 2026, 12:30 PM',
+    formatNumber: String,
+    listHistory: vi.fn(async () => []),
+    removeHistoryEntry: vi.fn(async () => []),
+    clearHistory: vi.fn(async () => []),
+    openHistoryEntry: vi.fn(async () => undefined),
+    ...overrides
+  }
+}
+
 function renderPanel(overrides: Record<string, unknown> = {}) {
   return render(HistoryPanel, {
     global: { plugins: [createHronautI18n('en-US')] },
-    props: {
-      open: true,
-      bookmarks: [],
-      saveHistoryBookmark: vi.fn(async () => undefined),
-      entries: [entry('alpha', 'Alpha docs', 2), entry('beta', 'Beta page')],
-      formatDateTime: () => 'Aug 22, 2026, 12:30 PM',
-      formatNumber: String,
-      listHistory: vi.fn(async () => []),
-      removeHistoryEntry: vi.fn(async () => []),
-      clearHistory: vi.fn(async () => []),
-      openHistoryEntry: vi.fn(async () => undefined),
-      ...overrides
-    }
+    props: panelProps(overrides)
   })
 }
 
 describe('HistoryPanel', () => {
+  it.each(['open', 'bookmark', 'remove'])('recovers focus from the %s control when Today rolls past local midnight', async control => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 7, 23, 59, 59))
+    const row = { ...entry('alpha', 'Alpha docs'), visitedAt: new Date(2026, 9, 7, 12).toISOString() }
+    const view = renderPanel({ entries: [row] })
+    try {
+      await fireEvent.update(screen.getByRole('combobox', { name: 'Date range' }), 'today')
+      const button = control === 'open' ? screen.getByTitle(row.url)
+        : screen.getByRole('button', { name: control === 'bookmark' ? 'Bookmark Alpha docs' : 'Remove Alpha docs from history' })
+      button.focus()
+      expect(button).toHaveFocus()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(screen.queryByText('Alpha docs')).not.toBeInTheDocument()
+      expect(screen.getByText('No matching visits')).toBeVisible()
+      expect(screen.getByRole('searchbox')).toHaveFocus()
+    } finally { view.unmount(); vi.useRealTimers() }
+  })
+
+  it.each(['open', 'bookmark', 'remove'])('moves a removed row’s %s focus to the corresponding neighboring control', async control => {
+    const view = renderPanel()
+    const button = (id: 'alpha' | 'beta') => control === 'open'
+      ? screen.getByTitle(entry(id).url)
+      : screen.getByRole('button', { name: control === 'bookmark'
+        ? `Bookmark ${id === 'alpha' ? 'Alpha docs' : 'Beta page'}`
+        : `Remove ${id === 'alpha' ? 'Alpha docs' : 'Beta page'} from history` })
+    button('alpha').focus()
+    await view.rerender({ entries: [entry('beta', 'Beta page')] })
+    await flushPromises()
+    expect(button('beta')).toHaveFocus()
+  })
+
+  it('uses Close when a live update empties the retained history', async () => {
+    const view = renderPanel()
+    screen.getByRole('button', { name: 'Bookmark Alpha docs' }).focus()
+    await view.rerender({ entries: [] })
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Close browsing history' })).toHaveFocus()
+  })
+
+  it.each(['search', 'date'])('keeps the %s control focused when changing a filter hides a row', async filter => {
+    const view = renderPanel()
+    const target = filter === 'search' ? screen.getByRole('searchbox') : screen.getByRole('combobox', { name: 'Date range' })
+    target.focus()
+    await fireEvent.update(target, filter === 'search' ? 'no match' : 'today')
+    expect(target).toHaveFocus()
+    view.unmount()
+  })
+
+  it('does not steal focus moved outside History while a live row update is rendering', async () => {
+    const view = renderPanel()
+    const focused = screen.getByRole('button', { name: 'Bookmark Alpha docs' })
+    const external = document.createElement('button')
+    external.textContent = 'Other action'
+    document.body.append(external)
+    const observer = new MutationObserver(() => { if (!focused.isConnected) external.focus() })
+    observer.observe(screen.getByRole('dialog'), { childList: true, subtree: true })
+    try {
+      focused.focus()
+      await view.rerender({ entries: [entry('beta', 'Beta page')] })
+      await flushPromises()
+      expect(external).toHaveFocus()
+    } finally { observer.disconnect(); external.remove() }
+  })
+
+  it('invalidates a queued live focus recovery when the same panel closes and reopens before rendering', async () => {
+    let finishLoad!: (rows: BrowserHistoryEntry[]) => void
+    const beta = entry('beta', 'Beta page')
+    const wrapper = mount(HistoryPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({ listHistory: vi.fn(() => new Promise<BrowserHistoryEntry[]>(resolve => { finishLoad = resolve })) })
+    })
+    const panel = screen.getByRole('dialog')
+    const exposed = wrapper.vm as unknown as { toggle(): Promise<void> }
+    const focused = screen.getByRole('button', { name: 'Bookmark Alpha docs' })
+    let reopened = false
+    const observer = new MutationObserver(() => {
+      if (focused.isConnected || reopened) return
+      reopened = true
+      // Both changes happen before Vue can replace the panel DOM, so checking
+      // only isConnected would incorrectly allow the old focus restoration.
+      void exposed.toggle()
+      void exposed.toggle()
+    })
+    observer.observe(panel, { childList: true, subtree: true })
+    try {
+      focused.focus()
+      await wrapper.setProps({ entries: [beta] })
+      await flushPromises()
+      expect(reopened).toBe(true)
+      expect(screen.getByRole('dialog')).toBe(panel)
+      expect(document.body).toHaveFocus()
+      finishLoad([beta])
+      await flushPromises()
+      expect(document.body).toHaveFocus()
+    } finally { observer.disconnect(); wrapper.unmount() }
+  })
+
+  it('keeps newer focus when a live date refresh overlaps an asynchronous removal', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 7, 23, 59, 59))
+    let finish!: (rows: BrowserHistoryEntry[]) => void
+    const row = { ...entry('alpha', 'Alpha docs'), visitedAt: new Date(2026, 9, 7, 12).toISOString() }
+    const view = renderPanel({ entries: [row], removeHistoryEntry: vi.fn(() => new Promise<BrowserHistoryEntry[]>(resolve => { finish = resolve })) })
+    try {
+      await fireEvent.update(screen.getByRole('combobox', { name: 'Date range' }), 'today')
+      const remove = screen.getByRole('button', { name: 'Remove Alpha docs from history' })
+      remove.focus()
+      await fireEvent.click(remove)
+      const select = screen.getByRole('combobox', { name: 'Date range' })
+      select.focus()
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(select).toHaveFocus()
+      // A completion that retains the entry must not reclaim focus.
+      finish([row])
+      await flushPromises()
+      expect(select).toHaveFocus()
+    } finally { view.unmount(); vi.useRealTimers() }
+  })
+
   it('offers an accessible date selector that composes with search and survives reopening', async () => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { nextTick, onBeforeUnmount } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBookmark from '~icons/material-symbols/bookmark-add-outline-rounded'
 import IconBookmarked from '~icons/material-symbols/bookmark-rounded'
@@ -26,6 +26,9 @@ const props = defineProps<{
 
 const open = defineModel<boolean>('open', { required: true })
 const entries = defineModel<BrowserHistoryEntry[]>('entries', { required: true })
+const panelRoot = ref<HTMLElement | null>(null)
+let focusGeneration = 0
+const stopFocusSessionTracking = watch(open, () => { focusGeneration += 1 }, { flush: 'sync' })
 const { t } = useI18n({ useScope: 'global' })
 const {
   query,
@@ -57,7 +60,39 @@ const {
 })
 
 defineExpose({ toggle })
-onBeforeUnmount(dispose)
+
+// Calendar refreshes and authoritative history updates can remove a row without
+// a panel action. Capture its focused control before Vue patches the live list.
+const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry.id), async (_ids, _previous, onCleanup) => {
+  const focused = document.activeElement
+  const panel = panelRoot.value
+  const row = focused instanceof HTMLElement && panel?.contains(focused)
+    ? focused.closest('.history-item') : null
+  if (!row || !panel || !(focused instanceof HTMLElement)) return
+  const generation = focusGeneration
+  let superseded = false
+  onCleanup(() => { superseded = true })
+  const selector = focused.classList.contains('history-open') ? '.history-open'
+    : focused.classList.contains('history-bookmark') ? '.history-bookmark' : '.history-action.danger'
+  const next = row.nextElementSibling?.querySelector<HTMLButtonElement>(selector)
+  const previous = row.previousElementSibling?.querySelector<HTMLButtonElement>(selector)
+  await nextTick()
+  if (superseded || generation !== focusGeneration || !open.value || panel !== panelRoot.value
+    || !panel.isConnected || row.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = [next, previous,
+    panel.querySelector<HTMLInputElement>('.history-search-field input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find(element => element?.isConnected && !element.matches(':disabled'))
+  target?.focus()
+}, { flush: 'pre' })
+
+onBeforeUnmount(() => {
+  focusGeneration += 1
+  stopVisibleTracking()
+  stopFocusSessionTracking()
+  dispose()
+})
 
 function isBookmarked(entry: BrowserHistoryEntry): boolean {
   return props.bookmarks.some(bookmark => bookmark.url === entry.url)
@@ -69,6 +104,7 @@ async function saveBookmark(entry: BrowserHistoryEntry): Promise<void> {
 }
 
 async function remove(entryId: string, event: MouseEvent): Promise<void> {
+  const generation = focusGeneration
   const focused = event.currentTarget instanceof HTMLButtonElement
     && document.activeElement === event.currentTarget ? event.currentTarget : null
   const row = focused?.closest('.history-item')
@@ -77,7 +113,7 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
   const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.history-action.danger')
   await removeEntry(entryId)
   await nextTick()
-  if (!open.value || !panel?.isConnected) return
+  if (generation !== focusGeneration || !open.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   const target = [focused, next, previous,
     panel.querySelector<HTMLInputElement>('.history-search-field input'),
@@ -90,6 +126,7 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
 <template>
   <section
     v-if="open"
+    ref="panelRoot"
     class="history-panel"
     data-shell-side-panel
     role="dialog"

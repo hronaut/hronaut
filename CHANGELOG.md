@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep History keyboard focus reachable when a live date or history update removes the focused row, without overriding newer focus or a reopened panel.
+
 ### Added
 
 - Filter browsing history by Today or Last 7 days in the computer's local calendar, together with title or address search.
