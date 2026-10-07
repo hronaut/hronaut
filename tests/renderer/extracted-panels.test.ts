@@ -225,6 +225,7 @@ describe('extracted diagnostic panels', () => {
         open: true,
         dock: 'right',
         search: '',
+        excludeText: '',
         level: 'all',
         state: 'ready',
         messages: [message],

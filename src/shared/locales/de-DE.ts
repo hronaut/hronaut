@@ -2060,7 +2060,7 @@ export const deDE = {
     "kicker": "Aktuelle Website",
     "heading": "Konsole",
     "close": "Konsole schließen",
-    "filterAria": "Konsolenmeldungen filtern",
+    "excludeText": "Text ausschließen", "excludeHint": "Treffer in Meldungen, Quellen und Stack-Frames ausblenden (Klartext).", "filterAria": "Konsolenmeldungen filtern",
     "filterPlaceholder": "Meldungen oder Quellen filtern",
     "level": "Stufe",
     "levelAria": "Konsole nach Stufe filtern",

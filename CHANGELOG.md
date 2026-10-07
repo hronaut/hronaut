@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Hide noisy Console messages with a literal text exclusion filter while preserving retained logs and unfiltered copying.
+
 - Inspect opt-in physical scroll geometry for a selected element without scrolling it or invoking page-authored getters.
 
 ## [2.18.0] - 2026-10-07

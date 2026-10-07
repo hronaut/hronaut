@@ -21,6 +21,7 @@ const {
   messages,
   error,
   search,
+  excludeText,
   level,
   copied,
   copiedEntryKey,
@@ -52,6 +53,7 @@ onBeforeUnmount(dispose)
     v-model:open="open"
     v-model:dock="dock"
     v-model:search="search"
+    v-model:exclude-text="excludeText"
     v-model:level="level"
     :state="state"
     :messages="messages"

@@ -63,21 +63,27 @@ export function mergeRepeatedConsoleMessage(
   }
 }
 
+function matchesConsoleText(message: BrowserConsoleMessage, query: string): boolean {
+  return message.message.toLocaleLowerCase().includes(query)
+    || message.sourceId.toLocaleLowerCase().includes(query)
+    || (message.stack?.some(frame => (
+      frame.functionName?.toLocaleLowerCase().includes(query)
+      || frame.url?.toLocaleLowerCase().includes(query)
+    )) ?? false)
+}
+
 export function filterConsoleMessages(
   messages: BrowserConsoleMessage[],
   query: string,
-  level: BrowserConsoleLevelFilter
+  level: BrowserConsoleLevelFilter,
+  excludeText = ''
 ): BrowserConsoleMessage[] {
   const normalizedQuery = query.trim().toLocaleLowerCase()
+  const normalizedExclusion = excludeText.trim().toLocaleLowerCase()
   return messages
-    .filter((message) => level === 'all' || browserConsoleLevel(message.level) === level)
-    .filter((message) => !normalizedQuery
-      || message.message.toLocaleLowerCase().includes(normalizedQuery)
-      || message.sourceId.toLocaleLowerCase().includes(normalizedQuery)
-      || message.stack?.some((frame) => (
-        frame.functionName?.toLocaleLowerCase().includes(normalizedQuery)
-        || frame.url?.toLocaleLowerCase().includes(normalizedQuery)
-      )))
+    .filter(message => level === 'all' || browserConsoleLevel(message.level) === level)
+    .filter(message => !normalizedQuery || matchesConsoleText(message, normalizedQuery))
+    .filter(message => !normalizedExclusion || !matchesConsoleText(message, normalizedExclusion))
     .slice()
     .reverse()
 }

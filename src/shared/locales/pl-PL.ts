@@ -2060,7 +2060,7 @@ export const plPL = {
     "kicker": "Bieżąca witryna",
     "heading": "Konsola",
     "close": "Zamknij konsolę",
-    "filterAria": "Filtruj komunikaty konsoli",
+    "excludeText": "Wyklucz tekst", "excludeHint": "Ukryj dopasowania w komunikatach, źródłach i stosie (zwykły tekst).", "filterAria": "Filtruj komunikaty konsoli",
     "filterPlaceholder": "Filtruj komunikaty lub źródła",
     "level": "Poziom",
     "levelAria": "Filtruj konsolę według poziomu",
