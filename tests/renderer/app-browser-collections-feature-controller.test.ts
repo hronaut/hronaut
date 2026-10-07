@@ -75,6 +75,7 @@ function createHarness() {
     list: vi.fn(async () => []),
     add: vi.fn(async () => []),
     rename: vi.fn(async () => []),
+    addIfMissing: vi.fn(async () => []),
     updateDestination: vi.fn(async () => []),
     remove: vi.fn(async () => []),
     onChanged: vi.fn(() => unsubscribeBookmarks)

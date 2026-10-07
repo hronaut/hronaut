@@ -121,12 +121,21 @@ export class BookmarkStore {
     return entry ? { ...entry } : undefined
   }
 
-  async add(value: { url: string; title: string }): Promise<BrowserBookmark> {
+  add(value: { url: string; title: string }): Promise<BrowserBookmark> {
+    return this.saveBookmark(value, false)
+  }
+
+  addIfMissing(value: { url: string; title: string }): Promise<BrowserBookmark> {
+    return this.saveBookmark(value, true)
+  }
+
+  private async saveBookmark(value: { url: string; title: string }, onlyIfMissing: boolean): Promise<BrowserBookmark> {
     const url = normalizeBookmarkUrl(value.url)
     if (!url) throw new TypeError('Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters')
     return this.queueMutation(async () => {
       const nextEntries = new Map(this.entries)
       const existing = [...nextEntries.values()].find((entry) => entry.url === url)
+      if (existing && onlyIfMissing) return { ...existing }
       if (!existing && nextEntries.size >= MAX_BOOKMARKS) throw new Error(`Bookmark limit reached (${MAX_BOOKMARKS})`)
       const now = new Date().toISOString()
       const entry: BrowserBookmark = {

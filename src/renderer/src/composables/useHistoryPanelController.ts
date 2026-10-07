@@ -17,6 +17,7 @@ export interface HistoryPanelControllerOptions {
   removeHistoryEntry: (id: string) => Promise<BrowserHistoryEntry[]>
   clearHistory: () => Promise<BrowserHistoryEntry[]>
   openHistoryEntry: (entry: BrowserHistoryEntry) => Promise<void>
+  saveHistoryBookmark: (url: string, title: string) => Promise<void>
   confirmClear: () => boolean
 }
 
@@ -80,6 +81,10 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     if (opened) options.open.value = false
   }
 
+  function bookmark(entry: BrowserHistoryEntry): Promise<boolean> {
+    return runAction(`bookmark:${entry.id}`, () => options.saveHistoryBookmark(entry.url, entry.title))
+  }
+
   function remove(entryId: string): Promise<boolean> {
     return runAction(`remove:${entryId}`, () => options.removeHistoryEntry(entryId))
   }
@@ -114,6 +119,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     resetError,
     toggle,
     openEntry,
+    bookmark,
     remove,
     clear,
     entryMeta,

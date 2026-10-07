@@ -142,6 +142,10 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveBookmarks(() => options.bookmarksApi.add(url, title))
   }
 
+  async function saveHistoryBookmark(url: string, title: string): Promise<void> {
+    await resolveBookmarks(() => options.bookmarksApi.addIfMissing(url, title))
+  }
+
   function updateBookmarkDestination(id: string, url: string): Promise<BrowserBookmark[]> {
     return resolveBookmarks(() => options.bookmarksApi.updateDestination(id, url))
   }
@@ -198,6 +202,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     revealDownload,
     refreshBookmarks,
     addBookmark,
+    saveHistoryBookmark,
     renameBookmark,
     updateBookmarkDestination,
     removeBookmark,

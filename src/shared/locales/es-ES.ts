@@ -2688,6 +2688,11 @@ export const esES = {
     "remove": "Eliminar marcador"
   },
   "history": {
+    "bookmark": "Añadir a marcadores",
+    "bookmarked": "Ya está en marcadores",
+    "bookmarkAria": "Añadir {title} a marcadores",
+    "bookmarkedAria": "Ya está en marcadores: {title}",
+
     "kicker": "Guardado localmente",
     "heading": "Historial de navegación",
     "clearAll": "Borrar todo",

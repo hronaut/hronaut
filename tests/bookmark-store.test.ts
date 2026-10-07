@@ -19,6 +19,35 @@ async function createStore(): Promise<{ path: string; store: BookmarkStore }> {
 }
 
 describe('BookmarkStore', () => {
+  it('adds missing history bookmarks atomically without overwriting an existing title or timestamps', async () => {
+    const { path, store } = await createStore()
+    const original = await store.add({ url: 'https://example.test/saved', title: 'My custom title' })
+    const before = await readFile(path, 'utf8')
+    const existing = await store.addIfMissing({ url: 'https://user:secret@EXAMPLE.test:443/saved', title: 'History title' })
+    expect(existing).toEqual(original)
+    expect(await readFile(path, 'utf8')).toBe(before)
+    const [first, second] = await Promise.all([
+      store.addIfMissing({ url: 'https://user:secret@example.test/new', title: 'First title' }),
+      store.addIfMissing({ url: 'https://EXAMPLE.test:443/new', title: 'Second title' })
+    ])
+    expect(second).toEqual(first)
+    expect(first.title).toBe('First title')
+    expect(first.url).toBe('https://example.test/new')
+    expect(await new BookmarkStore(path).load()).toEqual(store.list())
+    expect(await readFile(path, 'utf8')).not.toContain('secret')
+  })
+
+  it('serializes history saves behind ordinary adds and renames', async () => {
+    const { store } = await createStore()
+    const adding = store.add({ url: 'https://example.test/', title: 'Custom title' })
+    const saving = store.addIfMissing({ url: 'https://example.test/', title: 'History title' })
+    const original = await adding
+    expect(await saving).toEqual(original)
+    const renaming = store.rename(original.id, 'New custom title')
+    const savingAgain = store.addIfMissing({ url: original.url, title: 'History title' })
+    expect(await savingAgain).toEqual(await renaming)
+  })
+
   it('updates only the destination by ID and persists normalized credentials-free URLs', async () => {
     const { path, store } = await createStore()
     const saved = await store.add({ url: 'https://example.test/old', title: 'Keep this title' })
@@ -298,6 +327,9 @@ describe('BookmarkStore', () => {
     expect(store.list()).toEqual([saved])
     await expect(store.remove(saved.id)).rejects.toThrow()
     expect(store.list()).toEqual([saved])
+    await expect(store.addIfMissing({ url: 'https://other.example/', title: 'Lost history bookmark' })).rejects.toThrow()
+    expect(store.list()).toEqual([saved])
+    await expect(store.addIfMissing({ url: 'file:///tmp/nope', title: 'Unsafe' })).rejects.toThrow()
     await expect(store.add({ url: 'https://other.example/', title: 'Lost bookmark' })).rejects.toThrow()
     expect(store.list()).toEqual([saved])
 

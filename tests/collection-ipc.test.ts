@@ -5,13 +5,13 @@ import { registerCollectionIpc } from '../src/main/collection-ipc.js'
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:clear-finished', 'downloads:show-in-folder',
-  'bookmarks:list', 'bookmarks:add', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
+  'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
 ]
 
 function fixture() {
   const listeners = new Map<string, Listener>()
-  const bookmarks = { list: vi.fn(() => []), add: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), remove: vi.fn() }
+  const bookmarks = { list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), remove: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
   const downloads = { listDownloads: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
   const host = {
@@ -45,6 +45,8 @@ it.each([
   ['downloads:pause', [null]],
   ['downloads:resume', [null]],
   ['downloads:show-in-folder', [7]],
+  ['bookmarks:add-if-missing', [null, 'Title']],
+  ['bookmarks:add-if-missing', ['https://example.test/', {}]],
   ['bookmarks:add', ['https://example.com/', {}]],
   ['bookmarks:rename', ['bookmark', null]],
   ['bookmarks:remove', [{}]],
@@ -106,5 +108,20 @@ it('publishes destination changes only after persistence and keeps failures unpu
   expect(host.publishBookmarks).toHaveBeenCalledOnce()
   bookmarks.updateDestination.mockRejectedValueOnce(new Error('Persistence failed'))
   await expect(invoke('bookmarks:update-destination', 'saved', 'https://example.test/other')).rejects.toThrow('Persistence failed')
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
+})
+
+it('publishes a history bookmark only after persistence succeeds', async () => {
+  const { bookmarks, host, invoke } = fixture()
+  let finish!: () => void
+  bookmarks.addIfMissing.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+  const pending = invoke('bookmarks:add-if-missing', 'https://example.test/', 'History title')
+  await vi.waitFor(() => expect(bookmarks.addIfMissing).toHaveBeenCalledWith({ url: 'https://example.test/', title: 'History title' }))
+  expect(host.publishBookmarks).not.toHaveBeenCalled()
+  finish()
+  await pending
+  expect(host.publishBookmarks).toHaveBeenCalledOnce()
+  bookmarks.addIfMissing.mockRejectedValueOnce(new Error('Persistence failed'))
+  await expect(invoke('bookmarks:add-if-missing', 'https://example.test/', 'History title')).rejects.toThrow('Persistence failed')
   expect(host.publishBookmarks).toHaveBeenCalledOnce()
 })
