@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-10-06
+
 ### Fixed
 
 - Keep keyboard focus on the current download control after pausing or resuming a transfer.
