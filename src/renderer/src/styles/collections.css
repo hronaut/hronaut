@@ -580,3 +580,14 @@
 .workspace-transfer-fields small, .workspace-transfer-help { @apply [margin:0] text-muted [font-size:12px] [line-height:1.5]; }
 
 .workspace-storage-section > output.warning { @apply [color:var(--warning)]; }
+
+.bookmark-collections { @apply flex flex-none flex-col [gap:6px] [padding:8px_12px] [border-bottom:1px_solid_var(--border-soft)]; }
+.bookmark-collection-filter, .bookmark-collection-assignment { @apply flex min-w-0 items-center [gap:8px] text-muted [font-size:12px]; }
+.bookmark-collection-filter select, .bookmark-collection-assignment select { @apply min-w-0 flex-1 [min-height:32px] [border:1px_solid_var(--border-soft)] [border-radius:6px] bg-surface text-copy; }
+.bookmark-collection-actions, .bookmark-collection-editor { @apply flex flex-wrap items-center [gap:5px]; }
+.bookmark-collection-actions button, .bookmark-collection-editor button { @apply [padding:6px_9px] [border:1px_solid_var(--border-soft)] [border-radius:6px] bg-surface text-copy [font-size:12px] cursor-pointer; }
+.bookmark-collection-actions button:hover:not(:disabled), .bookmark-collection-editor button:hover:not(:disabled) { @apply bg-hover; }
+.bookmark-collection-actions button:disabled, .bookmark-collection-editor button:disabled { @apply [opacity:.45] cursor-default; }
+.bookmark-collection-editor input { @apply min-w-0 [flex:1_1_130px] [min-height:32px] [border:1px_solid_var(--border-soft)] [border-radius:6px] bg-surface text-copy [padding:4px_8px]; }
+.bookmark-collection-assignment { @apply [grid-column:1_/_-1] [padding:0_8px_6px]; }
+.bookmark-collection-hint { @apply m-0 text-muted [font-size:11px]; }

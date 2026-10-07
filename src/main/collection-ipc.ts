@@ -6,7 +6,7 @@ import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 
 interface CollectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'remove'>
+  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'remove' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection'>
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
   downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'manageDownloads' | 'showDownloadInFolder'>
   publishBookmarks(): BrowserBookmark[]
@@ -69,6 +69,27 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     await host.bookmarks().remove(id)
     return host.publishBookmarks()
   })
+  ipcMain.handle('bookmark-collections:list', (event) => {
+    host.assertTrustedSender(event)
+    return host.bookmarks().collectionSnapshot()
+  })
+  for (const action of ['create', 'rename', 'remove', 'assign'] as const) {
+    ipcMain.handle(`bookmark-collections:${action}`, async (event, first: unknown, second: unknown) => {
+      host.assertTrustedSender(event)
+      if (typeof first !== 'string'
+        || (action === 'rename' && typeof second !== 'string')
+        || (action === 'assign' && second !== null && typeof second !== 'string')) {
+        throw new TypeError('Invalid bookmark collection arguments')
+      }
+      const store = host.bookmarks()
+      if (action === 'create') await store.createCollection(first)
+      else if (action === 'rename') await store.renameCollection(first, second as string)
+      else if (action === 'remove') await store.removeCollection(first)
+      else await store.assignCollection(first, second as string | null)
+      host.publishBookmarks()
+      return store.collectionSnapshot()
+    })
+  }
   ipcMain.handle('visit-history:list', (event) => {
     host.assertTrustedSender(event)
     return host.history().list()

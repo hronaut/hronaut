@@ -53,6 +53,7 @@ const {
     v-model:open="bookmarksOpen"
     v-model:bookmarks="bookmarks"
     v-model:dock="dock"
+    :collections-api="controller.bookmarkCollectionsApi"
     :active-url="activeUrl"
     :active-title="activeTitle"
     :current-bookmark="currentBookmark"

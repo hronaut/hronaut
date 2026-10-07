@@ -2666,6 +2666,21 @@ export const ruRU = {
     "interrupted": "Прервано"
   },
   "bookmarks": {
+    "collection": "Коллекция",
+    "collectionFilter": "Фильтровать закладки по коллекции",
+    "allCollections": "Все закладки",
+    "unfiled": "Без коллекции",
+    "newCollection": "Новая коллекция",
+    "renameCollection": "Переименовать коллекцию",
+    "removeCollection": "Удалить коллекцию",
+    "removeCollectionHint": "После удаления коллекции закладки останутся в разделе «Без коллекции».",
+    "collectionName": "Название коллекции",
+    "saveCollection": "Сохранить коллекцию",
+    "cancelCollection": "Отменить редактирование коллекции",
+    "assignCollection": "Коллекция для {title}",
+    "emptyCollection": "В этой коллекции нет закладок",
+    "collectionEmptyHint": "Выберите «Все закладки», чтобы распределить сохранённые ссылки.",
+
     "background": "Открыть в фоновой вкладке",
     "backgroundAria": "Открыть «{title}» в фоновой вкладке",
     "destination": "Изменить адрес",

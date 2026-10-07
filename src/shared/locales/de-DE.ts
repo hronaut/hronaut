@@ -2666,6 +2666,21 @@ export const deDE = {
     "interrupted": "Unterbrochen"
   },
   "bookmarks": {
+    "collection": "Sammlung",
+    "collectionFilter": "Lesezeichen nach Sammlung filtern",
+    "allCollections": "Alle Lesezeichen",
+    "unfiled": "Ohne Sammlung",
+    "newCollection": "Neue Sammlung",
+    "renameCollection": "Sammlung umbenennen",
+    "removeCollection": "Sammlung entfernen",
+    "removeCollectionHint": "Beim Entfernen bleiben die Lesezeichen unter „Ohne Sammlung“ erhalten.",
+    "collectionName": "Name der Sammlung",
+    "saveCollection": "Sammlung speichern",
+    "cancelCollection": "Bearbeitung abbrechen",
+    "assignCollection": "Sammlung für {title}",
+    "emptyCollection": "Keine Lesezeichen in dieser Sammlung",
+    "collectionEmptyHint": "Wählen Sie „Alle Lesezeichen“, um gespeicherte Links zu ordnen.",
+
     "background": "Im Hintergrundtab öffnen",
     "backgroundAria": "{title} im Hintergrundtab öffnen",
     "destination": "Adresse bearbeiten",

@@ -6,12 +6,13 @@ type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:clear-finished', 'downloads:show-in-folder',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:add-if-missing', 'bookmarks:rename', 'bookmarks:update-destination', 'bookmarks:remove',
+  'bookmark-collections:list', 'bookmark-collections:create', 'bookmark-collections:rename', 'bookmark-collections:remove', 'bookmark-collections:assign',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
 ]
 
 function fixture() {
   const listeners = new Map<string, Listener>()
-  const bookmarks = { list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), remove: vi.fn() }
+  const bookmarks = { collectionSnapshot: vi.fn(() => ({ revision: 0, collections: [] })), createCollection: vi.fn(), renameCollection: vi.fn(), removeCollection: vi.fn(), assignCollection: vi.fn(), list: vi.fn(() => []), add: vi.fn(), addIfMissing: vi.fn(), rename: vi.fn(), updateDestination: vi.fn(), remove: vi.fn() }
   const history = { list: vi.fn(() => []), remove: vi.fn(), clear: vi.fn() }
   const downloads = { listDownloads: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
   const host = {
@@ -41,6 +42,10 @@ it.each(channels)('rejects untrusted %s calls before looking up services', async
 })
 
 it.each([
+  ['bookmark-collections:create', [null]],
+  ['bookmark-collections:rename', ['id', 7]],
+  ['bookmark-collections:assign', ['id', undefined]],
+  ['bookmark-collections:remove', [{}]],
   ['downloads:cancel', [null]],
   ['downloads:pause', [null]],
   ['downloads:resume', [null]],

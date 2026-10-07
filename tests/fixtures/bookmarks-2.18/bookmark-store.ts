@@ -1,8 +1,10 @@
+// Compatibility fixture: actual v2.18.0 BookmarkStore; only import paths relocated.
+// Source: a33e0dffe39dfe5b3a91bef0a840562b81d12474/src/main/bookmark-store.ts
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
-import type { BrowserBookmark, BrowserBookmarkCollection, BookmarkCollectionSnapshot } from '../shared/types.js'
-import { normalizeCollectionTitle } from './collection-title.js'
-import { writeTextFileAtomically } from './atomic-file.js'
+import type { BrowserBookmark } from '../../../src/shared/types.js'
+import { normalizeCollectionTitle } from '../../../src/main/collection-title.js'
+import { writeTextFileAtomically } from '../../../src/main/atomic-file.js'
 
 const MAX_BOOKMARKS = 500
 const MAX_BOOKMARK_TITLE = 200
@@ -12,7 +14,6 @@ const MAX_BOOKMARK_INPUT_URL = 32_768
 interface PersistedBookmarks {
   version: 1
   bookmarks: BrowserBookmark[]
-  collections?: BrowserBookmarkCollection[]
 }
 
 export function normalizeBookmarkUrl(value: string): string | null {
@@ -54,39 +55,8 @@ function sortedBookmarks(entries: Iterable<BrowserBookmark>): BrowserBookmark[] 
     .map((entry) => ({ ...entry }))
 }
 
-function collectionName(value: string): string {
-  const name = value.trim().replace(/\s+/g, ' ')
-  if (!name || name.length > 80) throw new TypeError('Collection name must contain 1 to 80 characters')
-  return name
-}
-
-function normalizeCollections(value: unknown, bookmarkIds: ReadonlySet<string>): BrowserBookmarkCollection[] {
-  if (!Array.isArray(value)) return []
-  const collections: BrowserBookmarkCollection[] = []
-  const assigned = new Set<string>()
-  for (const item of value.slice(0, 50)) {
-    if (!item || typeof item !== 'object') continue
-    const candidate = item as Partial<BrowserBookmarkCollection>
-    if (typeof candidate.id !== 'string' || !candidate.id || candidate.id.length > 128
-      || typeof candidate.name !== 'string' || !Array.isArray(candidate.bookmarkIds)) continue
-    let name: string
-    try { name = collectionName(candidate.name) } catch { continue }
-    if (collections.some(collection => collection.id === candidate.id || collection.name.toLowerCase() === name.toLowerCase())) continue
-    const ids: string[] = []
-    for (const id of candidate.bookmarkIds.slice(0, MAX_BOOKMARKS)) {
-      if (typeof id !== 'string' || !bookmarkIds.has(id) || assigned.has(id)) continue
-      assigned.add(id)
-      ids.push(id)
-    }
-    collections.push({ id: candidate.id, name, bookmarkIds: ids })
-  }
-  return collections
-}
-
 export class BookmarkStore {
   private readonly entries = new Map<string, BrowserBookmark>()
-  private collections: BrowserBookmarkCollection[] = []
-  private revision = 0
   private mutationQueue: Promise<void> = Promise.resolve()
   private saveQueue: Promise<void> = Promise.resolve()
 
@@ -94,8 +64,6 @@ export class BookmarkStore {
 
   async load(): Promise<BrowserBookmark[]> {
     this.entries.clear()
-    this.collections = []
-    this.revision += 1
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
@@ -131,7 +99,6 @@ export class BookmarkStore {
         seenIds.add(restored.id)
         this.entries.set(restored.id, restored)
       }
-      this.collections = normalizeCollections(value.collections, new Set(this.entries.keys()))
       if (repairedPersistedBookmarks) await this.persist()
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
@@ -234,64 +201,6 @@ export class BookmarkStore {
     })
   }
 
-  collectionSnapshot(): BookmarkCollectionSnapshot {
-    return { revision: this.revision, collections: this.collections.map(collection => ({ ...collection, bookmarkIds: [...collection.bookmarkIds] })) }
-  }
-
-  createCollection(value: string): Promise<BrowserBookmarkCollection> {
-    const name = collectionName(value)
-    return this.queueMutation(async () => {
-      if (this.collections.length >= 50) throw new Error('Collection limit reached (50)')
-      this.assertCollectionNameAvailable(name)
-      const collection = { id: randomUUID(), name, bookmarkIds: [] as string[] }
-      await this.commitCollections([...this.collections, collection])
-      return { ...collection, bookmarkIds: [] }
-    })
-  }
-
-  renameCollection(id: string, value: string): Promise<void> {
-    const name = collectionName(value)
-    return this.queueMutation(async () => {
-      this.requireCollection(id)
-      this.assertCollectionNameAvailable(name, id)
-      await this.commitCollections(this.collections.map(collection => collection.id === id ? { ...collection, name } : collection))
-    })
-  }
-
-  removeCollection(id: string): Promise<void> {
-    return this.queueMutation(async () => {
-      this.requireCollection(id)
-      await this.commitCollections(this.collections.filter(collection => collection.id !== id))
-    })
-  }
-
-  assignCollection(bookmarkId: string, collectionId: string | null): Promise<void> {
-    return this.queueMutation(async () => {
-      if (!this.entries.has(bookmarkId)) throw new Error(`Bookmark not found: ${bookmarkId}`)
-      if (collectionId !== null) this.requireCollection(collectionId)
-      await this.commitCollections(this.collections.map(collection => ({
-        ...collection,
-        bookmarkIds: [...collection.bookmarkIds.filter(id => id !== bookmarkId), ...(collection.id === collectionId ? [bookmarkId] : [])]
-      })))
-    })
-  }
-
-  private requireCollection(id: string): void {
-    if (!this.collections.some(collection => collection.id === id)) throw new Error('Bookmark collection not found')
-  }
-
-  private assertCollectionNameAvailable(name: string, exceptId?: string): void {
-    if (this.collections.some(collection => collection.id !== exceptId && collection.name.toLowerCase() === name.toLowerCase())) {
-      throw new Error('A bookmark collection with this name already exists')
-    }
-  }
-
-  private async commitCollections(collections: BrowserBookmarkCollection[]): Promise<void> {
-    await this.persist(this.entries.values(), collections)
-    this.collections = collections
-    this.revision += 1
-  }
-
   flush(): Promise<void> {
     return this.mutationQueue
   }
@@ -305,16 +214,10 @@ export class BookmarkStore {
   private replaceEntries(entries: ReadonlyMap<string, BrowserBookmark>): void {
     this.entries.clear()
     for (const [id, entry] of entries) this.entries.set(id, entry)
-    this.collections = normalizeCollections(this.collections, new Set(entries.keys()))
-    this.revision += 1
   }
 
-  private persist(entries: Iterable<BrowserBookmark> = this.entries.values(), collections = this.collections): Promise<void> {
-    const bookmarks = sortedBookmarks(entries)
-    const value: PersistedBookmarks = {
-      version: 1, bookmarks,
-      collections: normalizeCollections(collections, new Set(bookmarks.map(bookmark => bookmark.id)))
-    }
+  private persist(entries: Iterable<BrowserBookmark> = this.entries.values()): Promise<void> {
+    const value: PersistedBookmarks = { version: 1, bookmarks: sortedBookmarks(entries) }
     const operation = this.saveQueue.then(async () => {
       await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
     })

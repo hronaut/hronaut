@@ -26,7 +26,7 @@
     @apply min-w-0 [grid-column:1_/_-2] [grid-row:1];
   }
   [data-shell-docked-panel] > header h2 { @apply [overflow-wrap:anywhere]; }
-  [data-shell-docked-panel] > header :is(.panel-header-actions, .site-storage-header-actions, .network-monitor-header-actions) { @apply contents; }
+  [data-shell-docked-panel] > header :is(.panel-header-actions, .site-storage-header-actions, .network-monitor-header-actions, .bookmarks-header-actions) { @apply contents; }
   [data-shell-docked-panel] > header .panel-close { @apply [grid-column:-2_/_-1] [grid-row:1]; }
   [data-shell-docked-panel] > header .panel-dock-picker { @apply min-w-0 [grid-column:1_/_-1] [grid-row:2]; }
   [data-shell-docked-panel] > header .panel-dock-picker select { @apply min-w-0 flex-1; }

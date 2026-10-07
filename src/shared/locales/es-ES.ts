@@ -2666,6 +2666,21 @@ export const esES = {
     "interrupted": "Interrumpida"
   },
   "bookmarks": {
+    "collection": "Colección",
+    "collectionFilter": "Filtrar marcadores por colección",
+    "allCollections": "Todos los marcadores",
+    "unfiled": "Sin colección",
+    "newCollection": "Nueva colección",
+    "renameCollection": "Renombrar colección",
+    "removeCollection": "Eliminar colección",
+    "removeCollectionHint": "Al eliminar la colección, sus marcadores quedan en Sin colección.",
+    "collectionName": "Nombre de la colección",
+    "saveCollection": "Guardar colección",
+    "cancelCollection": "Cancelar edición",
+    "assignCollection": "Colección de {title}",
+    "emptyCollection": "No hay marcadores en esta colección",
+    "collectionEmptyHint": "Elige Todos los marcadores para organizar los enlaces guardados.",
+
     "background": "Abrir en pestaña en segundo plano",
     "backgroundAria": "Abrir {title} en pestaña en segundo plano",
     "destination": "Editar dirección",
