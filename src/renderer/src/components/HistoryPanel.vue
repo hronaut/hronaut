@@ -2,18 +2,22 @@
 import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import IconBookmark from '~icons/material-symbols/bookmark-add-outline-rounded'
+import IconBookmarked from '~icons/material-symbols/bookmark-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
-import type { BrowserHistoryEntry } from '../../../shared/types.js'
+import type { BrowserBookmark, BrowserHistoryEntry } from '../../../shared/types.js'
 import { useHistoryPanelController } from '../composables/useHistoryPanelController.js'
 
 const props = defineProps<{
   formatDateTime: (value: Date | number | string) => string
   formatNumber: (value: number) => string
+  bookmarks: BrowserBookmark[]
+  saveHistoryBookmark: (url: string, title: string) => Promise<void>
   listHistory: () => Promise<BrowserHistoryEntry[]>
   removeHistoryEntry: (id: string) => Promise<BrowserHistoryEntry[]>
   clearHistory: () => Promise<BrowserHistoryEntry[]>
@@ -30,6 +34,7 @@ const {
   filteredEntries,
   toggle,
   openEntry,
+  bookmark,
   remove: removeEntry,
   clear,
   entryMeta,
@@ -46,19 +51,29 @@ const {
   removeHistoryEntry: props.removeHistoryEntry,
   clearHistory: props.clearHistory,
   openHistoryEntry: props.openHistoryEntry,
+  saveHistoryBookmark: props.saveHistoryBookmark,
   confirmClear: () => window.confirm(t('privacyActions.clearHistory'))
 })
 
 defineExpose({ toggle })
 onBeforeUnmount(dispose)
 
+function isBookmarked(entry: BrowserHistoryEntry): boolean {
+  return props.bookmarks.some(bookmark => bookmark.url === entry.url)
+}
+
+async function saveBookmark(entry: BrowserHistoryEntry): Promise<void> {
+  if (isBookmarked(entry) || pendingAction.value !== null) return
+  await bookmark(entry)
+}
+
 async function remove(entryId: string, event: MouseEvent): Promise<void> {
   const focused = event.currentTarget instanceof HTMLButtonElement
     && document.activeElement === event.currentTarget ? event.currentTarget : null
   const row = focused?.closest('.history-item')
   const panel = row?.closest('.history-panel')
-  const next = row?.nextElementSibling?.querySelector<HTMLButtonElement>('.history-action')
-  const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.history-action')
+  const next = row?.nextElementSibling?.querySelector<HTMLButtonElement>('.history-action.danger')
+  const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.history-action.danger')
   await removeEntry(entryId)
   await nextTick()
   if (!open.value || !panel?.isConnected) return
@@ -114,6 +129,14 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
             <span>{{ entry.url }}</span>
             <small>{{ entryMeta(entry) }}</small>
           </span>
+        </UiButton>
+        <UiButton appearance="application" class="history-bookmark history-action" type="button"
+          :aria-disabled="isBookmarked(entry) || pendingAction !== null"
+          :aria-label="t(isBookmarked(entry) ? 'history.bookmarkedAria' : 'history.bookmarkAria', { title: entry.title })"
+          :title="t(isBookmarked(entry) ? 'history.bookmarked' : 'history.bookmark')"
+          @click="saveBookmark(entry)">
+          <IconBookmarked v-if="isBookmarked(entry)" aria-hidden="true" />
+          <IconBookmark v-else aria-hidden="true" />
         </UiButton>
         <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" :title="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>

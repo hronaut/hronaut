@@ -2688,6 +2688,11 @@ export const deDE = {
     "remove": "Lesezeichen entfernen"
   },
   "history": {
+    "bookmark": "Lesezeichen hinzufügen",
+    "bookmarked": "Bereits als Lesezeichen gespeichert",
+    "bookmarkAria": "Lesezeichen für {title} hinzufügen",
+    "bookmarkedAria": "Bereits als Lesezeichen gespeichert: {title}",
+
     "kicker": "Lokal gespeichert",
     "heading": "Browserverlauf",
     "clearAll": "Alles löschen",

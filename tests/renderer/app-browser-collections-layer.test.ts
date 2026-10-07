@@ -27,6 +27,7 @@ function createController() {
       revealDownload: vi.fn(async () => undefined),
       refreshBookmarks: vi.fn(async () => bookmarks.value),
       addBookmark,
+      saveHistoryBookmark: vi.fn(async () => undefined),
       updateBookmarkDestination: vi.fn(async () => []),
       renameBookmark: vi.fn(async () => bookmarks.value),
       removeBookmark: vi.fn(async () => bookmarks.value),

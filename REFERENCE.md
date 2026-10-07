@@ -332,6 +332,8 @@ The same native tab menu can reload, mute, or duplicate a tab while preserving i
 
 ## Save local bookmarks
 
+In **Browsing history**, choose the bookmark button beside a page to save it without opening it. Already saved pages are marked; saving from history preserves an existing bookmark’s name and dates.
+
 Press **Ctrl/Cmd+D** or use the star beside the address bar to save the current HTTP or HTTPS page. Open the bookmarks panel to search, rename, remove, or open saved pages. Bookmarks are kept locally in the Hronaut profile with atomic writes, duplicate addresses update the existing entry, and non-web URL schemes are rejected. Agents can manage the same collection with `browser_bookmarks`.
 
 ## Review local browsing history

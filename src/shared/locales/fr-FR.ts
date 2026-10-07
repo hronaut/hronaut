@@ -2688,6 +2688,11 @@ export const frFR = {
     "remove": "Supprimer le favori"
   },
   "history": {
+    "bookmark": "Ajouter aux favoris",
+    "bookmarked": "Déjà dans les favoris",
+    "bookmarkAria": "Ajouter {title} aux favoris",
+    "bookmarkedAria": "Déjà dans les favoris : {title}",
+
     "kicker": "Enregistré localement",
     "heading": "Historique de navigation",
     "clearAll": "Tout effacer",

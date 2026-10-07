@@ -2688,6 +2688,11 @@ export const plPL = {
     "remove": "Usuń zakładkę"
   },
   "history": {
+    "bookmark": "Dodaj zakładkę",
+    "bookmarked": "Już w zakładkach",
+    "bookmarkAria": "Dodaj zakładkę: {title}",
+    "bookmarkedAria": "Już w zakładkach: {title}",
+
     "kicker": "Zapisane lokalnie",
     "heading": "Historia przeglądania",
     "clearAll": "Wyczyść wszystko",

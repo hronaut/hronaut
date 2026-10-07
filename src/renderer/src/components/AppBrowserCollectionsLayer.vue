@@ -68,6 +68,8 @@ const {
     v-model:entries="visitHistory"
     :format-date-time="formatDateTime"
     :format-number="formatNumber"
+    :bookmarks="bookmarks"
+    :save-history-bookmark="browserCollectionsController.saveHistoryBookmark"
     :list-history="browserCollectionsController.refreshHistory"
     :remove-history-entry="browserCollectionsController.removeHistoryEntry"
     :clear-history="browserCollectionsController.clearHistory"

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import HistoryPanel from '../../src/renderer/src/components/HistoryPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { BrowserHistoryEntry } from '../../src/shared/types.js'
+import type { BrowserBookmark, BrowserHistoryEntry } from '../../src/shared/types.js'
 
 function entry(id: string, title = `Page ${id}`, visitCount = 1): BrowserHistoryEntry {
   return {
@@ -21,6 +21,8 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       open: true,
+      bookmarks: [],
+      saveHistoryBookmark: vi.fn(async () => undefined),
       entries: [entry('alpha', 'Alpha docs', 2), entry('beta', 'Beta page')],
       formatDateTime: () => 'Aug 22, 2026, 12:30 PM',
       formatNumber: String,
@@ -34,6 +36,19 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('HistoryPanel', () => {
+  it('saves a history entry by keyboard without opening it or closing the panel', async () => {
+    const saveHistoryBookmark = vi.fn(async () => undefined)
+    const openHistoryEntry = vi.fn(async () => undefined)
+    renderPanel({ bookmarks: [], saveHistoryBookmark, openHistoryEntry })
+    const button = screen.getByRole('button', { name: 'Bookmark Alpha docs' })
+    button.focus()
+    await userEvent.setup().keyboard('{Enter}')
+    expect(saveHistoryBookmark).toHaveBeenCalledWith('https://example.test/alpha', 'Alpha docs')
+    expect(openHistoryEntry).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Browsing history' })).toBeVisible()
+    expect(button).toHaveFocus()
+  })
+
   it.each(['first', 'last', 'filtered', 'only'])('preserves keyboard access after removing the %s entry', async scenario => {
     const alpha = entry('alpha', 'Alpha docs')
     const beta = entry('beta', 'Beta page')
@@ -130,5 +145,63 @@ describe('HistoryPanel', () => {
     expect(clearHistory).not.toHaveBeenCalled()
     expect(screen.getByText('Alpha docs')).toBeVisible()
     confirmSpy.mockRestore()
+  })
+})
+
+describe('History bookmark races', () => {
+  it('keeps an already saved control focused and prevents repeat clicks', async () => {
+    const saveHistoryBookmark = vi.fn(async () => undefined)
+    const view = renderPanel({ saveHistoryBookmark })
+    const user = userEvent.setup()
+    const button = screen.getByRole('button', { name: 'Bookmark Alpha docs' })
+    await user.click(button)
+    const saved: BrowserBookmark = { id: 'saved', url: entry('alpha').url, title: 'Custom title', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    await view.rerender({ bookmarks: [saved] })
+    expect(button).toHaveAccessibleName('Already bookmarked: Alpha docs')
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toHaveFocus()
+    await user.keyboard('{Enter} ')
+    await fireEvent.click(button)
+    expect(saveHistoryBookmark).toHaveBeenCalledOnce()
+  })
+
+  it('blocks duplicate pending saves, preserves search focus and keeps errors retryable', async () => {
+    let reject!: (error: Error) => void
+    const saveHistoryBookmark = vi.fn(() => new Promise<void>((_, fail) => { reject = fail }))
+    renderPanel({ saveHistoryBookmark })
+    const user = userEvent.setup()
+    const button = screen.getByRole('button', { name: 'Bookmark Alpha docs' })
+    await user.click(button)
+    await fireEvent.click(button)
+    expect(saveHistoryBookmark).toHaveBeenCalledOnce()
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Beta')
+    reject(new Error('Disk unavailable'))
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(search).toHaveValue('Beta')
+    expect(screen.getByRole('alert')).toHaveTextContent('Disk unavailable')
+    await user.clear(search)
+    expect(screen.getByRole('button', { name: 'Bookmark Alpha docs' })).toHaveAttribute('aria-disabled', 'false')
+  })
+
+  it.each(['resolve', 'reject'])('ignores late %s after close and reopen', async outcome => {
+    let finish!: () => void
+    let reject!: (error: Error) => void
+    const saveHistoryBookmark = vi.fn(() => new Promise<void>((resolve, fail) => { finish = resolve; reject = fail }))
+    const view = renderPanel({ saveHistoryBookmark })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Bookmark Alpha docs' }))
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Beta')
+    if (outcome === 'resolve') finish()
+    else reject(new Error('Old failure'))
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(search).toHaveValue('Beta')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeVisible()
   })
 })

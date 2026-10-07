@@ -2688,6 +2688,11 @@ export const ruRU = {
     "remove": "Удалить закладку"
   },
   "history": {
+    "bookmark": "Добавить в закладки",
+    "bookmarked": "Уже в закладках",
+    "bookmarkAria": "Добавить «{title}» в закладки",
+    "bookmarkedAria": "Уже в закладках: {title}",
+
     "kicker": "Сохранено локально",
     "heading": "История просмотра",
     "clearAll": "Очистить всё",
