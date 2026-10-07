@@ -13,6 +13,7 @@ export interface BookmarksPanelControllerOptions {
   updateBookmarkDestination: (id: string, url: string) => Promise<BrowserBookmark[]>
   removeBookmark: (id: string) => Promise<BrowserBookmark[]>
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
+  openBookmarkInBackground: (bookmark: BrowserBookmark) => Promise<void>
 }
 
 export function useBookmarksPanelController(options: BookmarksPanelControllerOptions) {
@@ -106,6 +107,10 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     if (opened) options.open.value = false
   }
 
+  async function openInBackground(bookmark: BrowserBookmark): Promise<void> {
+    await runAction(`background:${bookmark.id}`, () => options.openBookmarkInBackground(bookmark))
+  }
+
   async function beginRename(bookmark: BrowserBookmark, destination = false): Promise<void> {
     if (pendingAction.value) return
     resetError()
@@ -178,6 +183,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     toggle,
     toggleCurrent,
     openEntry,
+    openInBackground,
     beginRename,
     commitRename,
     remove,

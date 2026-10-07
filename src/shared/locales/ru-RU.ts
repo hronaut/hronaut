@@ -2666,6 +2666,8 @@ export const ruRU = {
     "interrupted": "Прервано"
   },
   "bookmarks": {
+    "background": "Открыть в фоновой вкладке",
+    "backgroundAria": "Открыть «{title}» в фоновой вкладке",
     "destination": "Изменить адрес",
     "destinationAria": "Изменить адрес для {title}",
     "saveDestination": "Сохранить адрес",
