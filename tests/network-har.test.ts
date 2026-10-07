@@ -238,6 +238,39 @@ describe('sanitized network HAR', () => {
     expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: 'larger-than:nope' }))).toEqual([])
   })
 
+  it('excludes recognized properties while preserving positive AND and literal text', () => {
+    const noise = { ...details, id: 'noise', url: 'https://metrics.test/poll', method: 'GET', status: 503 }
+    const requests = [details, noise]
+    for (const query of ['-domain:metrics.*', '-url:poll', '-method:GET', '-status-code:503',
+      '-scheme:http', '-resource-type:image', '-larger-than:1K', '-is:running',
+      'method:POST -DOMAIN:METRICS.* -url:"poll endpoint"']) {
+      expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query }))).toContain(details)
+    }
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: '-domain:metrics.* -url:poll' }))).toEqual([details])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: '-url:compact' }))).toEqual([noise])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: '-domain:*.test' }))).toEqual([])
+    const literal = { ...details, url: 'https://example.test/-unknown:value/-draft' }
+    expect(filterNetworkRequests([details, literal], normalizeNetworkHarOptions({ query: '-unknown:value -draft' }))).toEqual([literal])
+  })
+
+  it.each(['domain:example.test', 'url:compact', 'method:POST', 'status-code:200',
+    'scheme:https', 'resource-type:fetch/xhr', 'larger-than:41'])('negates matching property %s', (query) => {
+    expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query }))).toEqual([details])
+    expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: `-${query}` }))).toEqual([])
+  })
+
+  it.each(['-url:', '-domain:', '-method:', '-status-code:nope', '-status-code:999',
+    '-larger-than:nope', '-larger-than:1e999', '-is:unknown'])('does not turn invalid exclusion %s into match-all', (query) => {
+    expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query }))).toEqual([])
+  })
+
+  it('includes absent response measurements under valid exclusions', () => {
+    const pending = { ...details, status: undefined, responseSizeBytes: undefined, completedAt: undefined }
+    expect(filterNetworkRequests([pending], normalizeNetworkHarOptions({ query: '-status-code:500 -larger-than:1K -is:running' }))).toEqual([pending])
+    const socket = { ...pending, resourceType: 'websocket' }
+    expect(filterNetworkRequests([socket], normalizeNetworkHarOptions({ query: '-is:running' }))).toEqual([])
+  })
+
   it.each([
     ['EXAMPLE.TEST', true], ['*', true], ['**example**.test**', true],
     ['ex*pl*.test', true], ['*example.test*', true],

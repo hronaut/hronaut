@@ -325,6 +325,16 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
     expect.objectContaining({ id: detailedRequest?.id, method: 'POST', status: 200, resourceType: 'fetch' })
   ]))
   expect(propertyFilteredNetwork.every((request) => String(request.url).includes('/api-details'))).toBe(true)
+  const exclusionQuery = 'url:api-details -url:timing=delayed -domain:excluded.invalid'
+  const excludedNetworkResult = await client.callTool({ name: 'browser_network', arguments: { tabId, query: exclusionQuery } }) as CallToolResult
+  expect(excludedNetworkResult.isError, text(excludedNetworkResult)).not.toBe(true)
+  const excludedNetwork = JSON.parse(text(excludedNetworkResult)) as Array<{ id: string; url: string }>
+  expect(excludedNetwork.length).toBeGreaterThan(0)
+  expect(excludedNetwork.every(request => !request.url.includes('timing=delayed'))).toBe(true)
+  const excludedHarResult = await client.callTool({ name: 'browser_network_har', arguments: { tabId, query: exclusionQuery, maxRequests: 200 } }) as CallToolResult
+  expect(excludedHarResult.isError, text(excludedHarResult)).not.toBe(true)
+  const excludedHar = JSON.parse(text(excludedHarResult)) as { log: { entries: Array<{ request: { url: string } }> } }
+  expect(excludedHar.log.entries.map(entry => entry.request.url).sort()).toEqual(excludedNetwork.map(request => request.url).sort())
   const networkDetailsResult = await client.callTool({
     name: 'browser_network_request',
     arguments: { tabId, requestId: detailedRequest?.id }
@@ -601,6 +611,13 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
   await networkPanel.getByRole('searchbox', { name: 'Filter network requests' })
     .fill('method:POST status-code:200 domain:127.0.0.1 larger-than:1 url:api-details')
   await expect(networkPanel.locator('.network-request-list > button').filter({ hasText: 'timing=delayed' })).toBeVisible()
+  const filterInput = networkPanel.getByRole('searchbox', { name: 'Filter network requests' })
+  await filterInput.fill(exclusionQuery)
+  await expect(networkPanel.locator('.network-request-list > button').filter({ hasText: 'timing=delayed' })).toHaveCount(0)
+  await expect(networkPanel.locator('.network-request-list > button')).toHaveCount(excludedNetwork.length)
+  await filterInput.fill('-larger-than:invalid')
+  await expect(networkPanel.getByText('No requests match these filters')).toBeVisible()
+  await filterInput.fill('method:POST status-code:200 domain:127.0.0.1 larger-than:1 url:api-details')
   const apiRequest = networkPanel.locator(`[data-request-id="${String(detailedRequest?.id)}"]`)
   await expect(apiRequest).toBeVisible()
   const apiWaterfall = apiRequest.locator('.network-request-waterfall')
