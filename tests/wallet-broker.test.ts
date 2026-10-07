@@ -243,21 +243,47 @@ describe('WalletBroker', () => {
     expect(chain.sign).not.toHaveBeenCalled()
   })
 
-  it('shares one approval when a website requests the same wallet connection twice', async () => {
+  it.each([false, true])('shares one approval when a website requests the same wallet connection twice (slow audit: %s)', async slowAudit => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
-
-    const first = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
-    const second = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
-      request.operation === 'connect-account' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
-    const request = broker.listPending().find((entry) => entry.operation === 'connect-account')!
+    const enteredAudit = deferred()
+    const releaseAudit = deferred()
+    const append = service.audit.append.bind(service.audit)
+    const auditSpy = vi.spyOn(service.audit, 'append').mockImplementation(async (...args) => {
+      if (slowAudit && args[0] === 'request-created') {
+        enteredAudit.resolve()
+        await releaseAudit.promise
+      }
+      return append(...args)
+    })
+    let releaseTimer: ReturnType<typeof setTimeout> | undefined
+    // Attach rejection handlers immediately so failed assertions cannot leak
+    // cancelled provider requests out of fixture teardown.
+    const first = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    const second = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    onTestFinished(async () => {
+      if (releaseTimer) clearTimeout(releaseTimer)
+      releaseAudit.resolve()
+      await broker.shutdown()
+      await Promise.all([first, second])
+      auditSpy.mockRestore()
+    })
+    if (slowAudit) {
+      await enteredAudit.promise
+      // Deliberately exceed vi.waitFor's default one-second polling budget.
+      releaseTimer = setTimeout(() => releaseAudit.resolve(), 1_100)
+    }
+    const request = await broker.waitForPending(entry => (
+      entry.operation === 'connect-account' && entry.status === 'awaiting-human'
+    ))
+    expect(broker.listPending().filter(entry => (
+      entry.operation === 'connect-account' && entry.status === 'awaiting-human'
+    ))).toHaveLength(1)
 
     await broker.approve(request.id)
 
-    await expect(first).resolves.toEqual([wallet.publicAddress])
-    await expect(second).resolves.toEqual([wallet.publicAddress])
+    await expect(first).resolves.toEqual({ status: 'fulfilled', value: [wallet.publicAddress] })
+    await expect(second).resolves.toEqual({ status: 'fulfilled', value: [wallet.publicAddress] })
     expect(broker.listPending().filter((entry) => entry.operation === 'connect-account')).toHaveLength(1)
   })
 
