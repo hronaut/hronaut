@@ -2666,6 +2666,8 @@ export const frFR = {
     "interrupted": "Interrompu"
   },
   "bookmarks": {
+    "background": "Ouvrir dans un onglet en arrière-plan",
+    "backgroundAria": "Ouvrir {title} dans un onglet en arrière-plan",
     "destination": "Modifier l’adresse",
     "destinationAria": "Modifier l’adresse de {title}",
     "saveDestination": "Enregistrer l’adresse",

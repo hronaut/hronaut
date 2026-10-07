@@ -2666,6 +2666,8 @@ export const plPL = {
     "interrupted": "Przerwano"
   },
   "bookmarks": {
+    "background": "Otwórz w karcie w tle",
+    "backgroundAria": "Otwórz {title} w karcie w tle",
     "destination": "Edytuj adres",
     "destinationAria": "Edytuj adres zakładki {title}",
     "saveDestination": "Zapisz adres",

@@ -2,6 +2,7 @@
 import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import IconBackground from '~icons/material-symbols/tab-unselected-rounded'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -25,6 +26,7 @@ const props = defineProps<{
   updateBookmarkDestination: (id: string, url: string) => Promise<BrowserBookmark[]>
   removeBookmark: (id: string) => Promise<BrowserBookmark[]>
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
+  openBookmarkInBackground: (bookmark: BrowserBookmark) => Promise<void>
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -45,6 +47,7 @@ const {
   toggle,
   toggleCurrent,
   openEntry,
+  openInBackground,
   beginRename,
   commitRename: saveRenameDraft,
   remove: removeEntry,
@@ -61,7 +64,8 @@ const {
   renameBookmark: props.renameBookmark,
   updateBookmarkDestination: props.updateBookmarkDestination,
   removeBookmark: props.removeBookmark,
-  openBookmark: props.openBookmark
+  openBookmark: props.openBookmark,
+  openBookmarkInBackground: props.openBookmarkInBackground
 })
 
 defineExpose({ toggle, toggleCurrent, handleEscape })
@@ -204,6 +208,11 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="pendingAction !== null" :aria-label="t(editingDestination ? 'bookmarks.saveDestinationAria' : 'bookmarks.saveAria', { title: bookmark.title })" :title="t(editingDestination ? 'bookmarks.saveDestination' : 'bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" :title="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-destination" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.destinationAria', { title: bookmark.title })" :title="t('bookmarks.destination')" @click="beginRename(bookmark, true)"><IconLink aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-background" type="button"
+          :aria-disabled="pendingAction !== null"
+          :aria-label="t('bookmarks.backgroundAria', { title: bookmark.title })"
+          :title="t('bookmarks.background')"
+          @click="openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
         <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>

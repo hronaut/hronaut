@@ -120,6 +120,16 @@ function createHarness() {
 }
 
 describe('useAppBrowserCollectionsFeatureController', () => {
+  it('opens background bookmarks without activation or focus requests', async () => {
+    const h = createHarness()
+    h.controller.bookmarksOpen.value = true
+    await h.controller.openBookmarkInBackground(bookmark('docs'))
+    expect(h.newTab).toHaveBeenCalledWith({ url: bookmark('docs').url, active: false, focus: false })
+    expect(h.syncState).toHaveBeenCalledWith(h.newTabResult)
+    expect(h.controller.bookmarksOpen.value).toBe(true)
+    h.controller.dispose()
+  })
+
   it('wires collection state, panel surfaces, navigation, and settings-aware download attention', async () => {
     const harness = createHarness()
     const bookmarksToggle = vi.fn(async () => undefined)

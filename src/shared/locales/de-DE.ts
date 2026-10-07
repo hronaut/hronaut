@@ -2666,6 +2666,8 @@ export const deDE = {
     "interrupted": "Unterbrochen"
   },
   "bookmarks": {
+    "background": "Im Hintergrundtab öffnen",
+    "backgroundAria": "{title} im Hintergrundtab öffnen",
     "destination": "Adresse bearbeiten",
     "destinationAria": "Adresse für {title} bearbeiten",
     "saveDestination": "Adresse speichern",

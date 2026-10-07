@@ -31,6 +31,7 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
       updateBookmarkDestination: vi.fn(async () => []),
       renameBookmark: vi.fn(async () => []),
       removeBookmark: vi.fn(async () => []),
+      openBookmarkInBackground: vi.fn(async () => undefined),
       openBookmark: vi.fn(async () => undefined),
       ...overrides
     }
@@ -38,6 +39,23 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('BookmarksPanel', () => {
+  it('explicitly opens a bookmark in the background and retains panel, search and keyboard focus', async () => {
+    const openBookmarkInBackground = vi.fn(async () => undefined)
+    const openBookmark = vi.fn(async () => undefined)
+    renderPanel({ openBookmarkInBackground, openBookmark })
+    const user = userEvent.setup()
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Alpha')
+    const button = screen.getByRole('button', { name: 'Open Alpha docs in background tab' })
+    button.focus()
+    await user.keyboard('{Enter}')
+    expect(openBookmarkInBackground).toHaveBeenCalledWith(bookmark('alpha', 'Alpha docs'))
+    expect(openBookmark).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeVisible()
+    expect(search).toHaveValue('Alpha')
+    expect(button).toHaveFocus()
+  })
+
   it.each(['{Escape}', '{Enter}', 'Save'])('returns focus to address editing after %s', async key => {
     const original = bookmark('alpha', 'Alpha docs')
     const updateBookmarkDestination = vi.fn(async () => [{ ...original, url: 'https://example.test/new' }])
@@ -286,5 +304,63 @@ describe('BookmarksPanel', () => {
     expect(view.emitted()['update:dock']?.at(-1)).toEqual(['bottom'])
     expect(screen.queryByRole('textbox', { name: 'Rename Alpha docs' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rename Alpha docs' })).toBeVisible()
+  })
+})
+
+describe('background bookmark action races', () => {
+  it('blocks repeated pending clicks and keeps a failed action focused for retry', async () => {
+    let reject!: (error: Error) => void
+    const openBookmarkInBackground = vi.fn(() => new Promise<void>((_, fail) => { reject = fail }))
+    renderPanel({ openBookmarkInBackground })
+    const user = userEvent.setup()
+    const button = screen.getByRole('button', { name: 'Open Alpha docs in background tab' })
+    await user.click(button)
+    await user.keyboard('{Enter} ')
+    await fireEvent.click(screen.getByRole('button', { name: 'Open Beta page in background tab' }))
+    expect(openBookmarkInBackground).toHaveBeenCalledOnce()
+    reject(new Error('Tab limit reached'))
+    await flushPromises()
+    expect(screen.getByRole('alert')).toHaveTextContent('Tab limit reached')
+    expect(button).toHaveFocus()
+    expect(button).toHaveAttribute('aria-disabled', 'false')
+    openBookmarkInBackground.mockResolvedValueOnce(undefined)
+    await user.keyboard('{Enter}')
+    expect(openBookmarkInBackground).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeVisible()
+    expect(button).toHaveFocus()
+  })
+
+  it('preserves newer search focus when a pending background tab completes', async () => {
+    let finish!: () => void
+    renderPanel({ openBookmarkInBackground: vi.fn(() => new Promise<void>(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open Alpha docs in background tab' }))
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Beta')
+    finish()
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(search).toHaveValue('Beta')
+    expect(screen.getByRole('dialog')).toBeVisible()
+  })
+
+  it.each(['resolve', 'reject'])('ignores a late %s after the panel closes and reopens', async outcome => {
+    let finish!: () => void
+    let reject!: (error: Error) => void
+    const view = renderPanel({ openBookmarkInBackground: vi.fn(() => new Promise<void>((resolve, fail) => { finish = resolve; reject = fail })) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open Alpha docs in background tab' }))
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Beta')
+    if (outcome === 'resolve') finish()
+    else reject(new Error('Old failure'))
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(search).toHaveValue('Beta')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeVisible()
   })
 })

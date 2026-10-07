@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Open a saved bookmark in a background tab while keeping the current page, Bookmarks panel, search and keyboard focus.
+
 - Save pages from browsing history to bookmarks without opening them. Existing bookmarks keep their saved name and dates.
 
 - Filter the Downloads panel by filename and active or finished state, with visible/total counts, keyboard focus recovery, and explicit collection-wide finished cleanup.

@@ -2666,6 +2666,8 @@ export const esES = {
     "interrupted": "Interrumpida"
   },
   "bookmarks": {
+    "background": "Abrir en pestaña en segundo plano",
+    "backgroundAria": "Abrir {title} en pestaña en segundo plano",
     "destination": "Editar dirección",
     "destinationAria": "Editar dirección de {title}",
     "saveDestination": "Guardar dirección",

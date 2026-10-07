@@ -43,6 +43,7 @@ function createController() {
     bookmarksPanel: ref(null),
     historyOpen,
     historyPanel: ref(null),
+    openBookmarkInBackground: vi.fn(async () => undefined),
     openBookmark,
     openHistoryEntry
   } as unknown as AppBrowserCollectionsFeatureController

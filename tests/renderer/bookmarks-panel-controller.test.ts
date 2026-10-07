@@ -36,7 +36,8 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
     updateBookmarkDestination,
     renameBookmark,
     removeBookmark,
-    openBookmark
+    openBookmark,
+    openBookmarkInBackground: vi.fn(async () => undefined)
   })
   return {
     open,
