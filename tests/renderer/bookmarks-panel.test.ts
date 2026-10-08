@@ -663,3 +663,73 @@ it.each(['query', 'close', 'destination', 'removal', 'collection'])('discards de
   expect(screen.queryByRole('status')).toBeNull()
   expect(screen.queryByRole('alert')).toBeNull()
 })
+
+
+it('sorts bookmark titles without changing authoritative order and retains the choice across panel reopen', async () => {
+  const entries = [bookmark('z', 'Zebra'), bookmark('a', 'Alpha')]
+  const view = renderPanel({ bookmarks: entries })
+  const titles = () => [...view.container.querySelectorAll('.bookmark-copy strong')].map(node => node.textContent)
+  expect(titles()).toEqual(['Zebra', 'Alpha'])
+  const sort = screen.getByRole('combobox', { name: 'Sort bookmarks' })
+  expect(sort).toHaveValue('updated')
+  await fireEvent.update(sort, 'title')
+  expect(titles()).toEqual(['Alpha', 'Zebra'])
+  expect(entries.map(entry => entry.title)).toEqual(['Zebra', 'Alpha'])
+  await view.rerender({ open: false })
+  await view.rerender({ open: true })
+  expect(screen.getByRole('combobox', { name: 'Sort bookmarks' })).toHaveValue('title')
+  await fireEvent.update(screen.getByRole('combobox', { name: 'Sort bookmarks' }), 'updated')
+  expect(titles()).toEqual(['Zebra', 'Alpha'])
+})
+
+it('keeps focus on the same bookmark action when a live title update moves its row', async () => {
+  const view = renderPanel({ bookmarks: [bookmark('b', 'Beta'), bookmark('c', 'Charlie'), bookmark('z', 'Zebra')] })
+  await fireEvent.update(screen.getByRole('combobox', { name: 'Sort bookmarks' }), 'title')
+  screen.getByRole('button', { name: 'Copy address for Zebra' }).focus()
+  await view.rerender({ bookmarks: [bookmark('b', 'Beta'), bookmark('c', 'Charlie'), bookmark('z', 'Alpha')] })
+  await flushPromises()
+  expect([...view.container.querySelectorAll('.bookmark-copy strong')].map(node => node.textContent)).toEqual(['Alpha', 'Beta', 'Charlie'])
+  expect(screen.getByRole('button', { name: 'Copy address for Alpha' })).toHaveFocus()
+})
+
+it.each(['copy', 'background'])('retains the pending %s control through a live title reorder and completion', async action => {
+  let finish!: () => void
+  const operation = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+  const view = renderPanel({
+    bookmarks: [bookmark('b', 'Beta'), bookmark('c', 'Charlie'), bookmark('z', 'Zebra')],
+    [action === 'copy' ? 'copyBookmarkAddress' : 'openBookmarkInBackground']: operation
+  })
+  await fireEvent.update(screen.getByRole('combobox', { name: 'Sort bookmarks' }), 'title')
+  const button = screen.getByRole('button', { name: action === 'copy' ? 'Copy address for Zebra' : 'Open Zebra in background tab' })
+  await userEvent.setup().click(button)
+  expect(button).toHaveAttribute('aria-disabled', 'true')
+  await view.rerender({ bookmarks: [bookmark('b', 'Beta'), bookmark('c', 'Charlie'), bookmark('z', 'Alpha')] })
+  await flushPromises()
+  expect(button).toHaveFocus()
+  await fireEvent.click(button)
+  expect(operation).toHaveBeenCalledTimes(1)
+  finish()
+  await flushPromises()
+  expect(button).toHaveFocus()
+  expect(button).toHaveAttribute('aria-disabled', 'false')
+})
+
+it.each(['copy', 'background'])('preserves newer human focus during a pending %s reorder', async action => {
+  let finish!: () => void
+  const operation = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+  const view = renderPanel({
+    bookmarks: [bookmark('b', 'Beta'), bookmark('z', 'Zebra')],
+    [action === 'copy' ? 'copyBookmarkAddress' : 'openBookmarkInBackground']: operation
+  })
+  await fireEvent.update(screen.getByRole('combobox', { name: 'Sort bookmarks' }), 'title')
+  await userEvent.setup().click(screen.getByRole('button', { name: action === 'copy' ? 'Copy address for Zebra' : 'Open Zebra in background tab' }))
+  const update = view.rerender({ bookmarks: [bookmark('b', 'Beta'), bookmark('z', 'Alpha')] })
+  const search = screen.getByRole('searchbox')
+  search.focus()
+  await update
+  await flushPromises()
+  expect(search).toHaveFocus()
+  finish()
+  await flushPromises()
+  expect(search).toHaveFocus()
+})

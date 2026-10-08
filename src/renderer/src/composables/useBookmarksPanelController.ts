@@ -2,6 +2,7 @@ import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import type { BrowserBookmark } from '../../../shared/types.js'
 
 export interface BookmarksPanelControllerOptions {
+  locale: Readonly<Ref<string>>
   open: Ref<boolean>
   bookmarks: Ref<BrowserBookmark[]>
   activeUrl: Readonly<Ref<string | null>>
@@ -19,6 +20,8 @@ export interface BookmarksPanelControllerOptions {
 
 export function useBookmarksPanelController(options: BookmarksPanelControllerOptions) {
   const query = ref('')
+  const sortOrder = ref<'updated' | 'title'>('updated')
+  const titleCollator = computed(() => new Intl.Collator(options.locale.value, { numeric: true, sensitivity: 'base' }))
   const error = ref('')
   const copyFeedback = ref<'success' | 'error' | ''>('')
   const copiedBookmark = ref<{ id: string; url: string } | null>(null)
@@ -34,11 +37,13 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
 
   const filteredBookmarks = computed(() => {
     const normalized = query.value.trim().toLocaleLowerCase()
-    if (!normalized) return options.bookmarks.value
-    return options.bookmarks.value.filter((bookmark) => (
+    const matching = !normalized ? options.bookmarks.value : options.bookmarks.value.filter((bookmark) => (
       bookmark.title.toLocaleLowerCase().includes(normalized)
       || bookmark.url.toLocaleLowerCase().includes(normalized)
     ))
+    return sortOrder.value === 'title'
+      ? [...matching].sort((left, right) => titleCollator.value.compare(left.title, right.title))
+      : matching
   })
 
   function resetCopyFeedback(): void {
@@ -203,6 +208,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
 
   return {
     query,
+    sortOrder,
     error,
     copyFeedback,
     copyAddress,
