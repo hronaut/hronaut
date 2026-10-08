@@ -1,3 +1,4 @@
+import { passwordOccupancySettlementScript } from './password-occupancy.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -5247,16 +5248,25 @@ export class BrowserTabsManager {
     }
   }
 
-  async elementInspection(options: BrowserElementInspectionOptions): Promise<BrowserElementInspection> {
+  async elementInspection(options: BrowserElementInspectionOptions, validateOccupancy?: () => void): Promise<BrowserElementInspection> {
+    if (options.includePasswordOccupancy !== undefined && typeof options.includePasswordOccupancy !== 'boolean') throw new TypeError('includePasswordOccupancy must be a boolean')
+    const occupancy = options.includePasswordOccupancy === true
+    if (occupancy && (options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Password occupancy cannot be combined with CSS provenance or rendered fonts')
+    const occupancyToken = occupancy ? randomUUID() : undefined
     const properties = normalizeCssProperties(options.cssProperties)
     if (options.includeFonts !== undefined && typeof options.includeFonts !== 'boolean') throw new TypeError('includeFonts must be a boolean')
     if (options.includeScroll !== undefined && typeof options.includeScroll !== 'boolean') throw new TypeError('includeScroll must be a boolean')
     const includeFonts = options.includeFonts === true
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')
+    if (occupancy && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error('Password occupancy requires an already active tab')
     this.validateTarget(options)
     const context = this.snapshotDeltaContext(tab)
     const assertCurrent = (): void => {
+      if (occupancy) {
+        validateOccupancy?.()
+        if (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active') throw new Error('Password occupancy requires an already active tab')
+      }
       const current = this.tabs.get(tab.id)
       if (!current || current !== tab || current.webContents.isDestroyed()) {
         throw new Error('The tab changed during element inspection. Inspect the element again.')
@@ -5266,50 +5276,74 @@ export class BrowserTabsManager {
         throw new Error(`The observation context changed during element inspection (${invalidation}). Inspect the element again.`)
       }
     }
+    const deadline = Date.now() + 5_000
+    const boundedOccupancy = async <T>(operation: Promise<T>): Promise<T> => {
+      if (!occupancy) return operation
+      let timer: NodeJS.Timeout | undefined
+      try {
+        return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Password occupancy inspection expired')), Math.max(1, deadline - Date.now()))
+        })])
+      } finally { if (timer) clearTimeout(timer) }
+    }
     const inspect = () => tab.webContents.executeJavaScriptInIsolatedWorld(
       ELEMENT_INSPECTION_WORLD_ID,
-      [{ code: elementInspectionScript(options) }],
+      [{ code: elementInspectionScript(options, occupancyToken) }],
       false
     )
     let raw: unknown
     let cssProvenance: BrowserElementInspection['cssProvenance']
     let renderedFonts: BrowserElementInspection['renderedFonts']
-    if (properties || includeFonts) {
-      const conflict = (): boolean => this.devToolsOpening.has(tab.webContents.id)
-        || tab.webContents.isDevToolsOpened()
-        || Boolean(tab.codeCoverage?.recording || tab.cpuProfile?.recording)
-      if (conflict()) {
-        if (properties) cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
-        if (includeFonts) renderedFonts = unavailableRenderedFonts('debugger-in-use')
-        raw = await inspect()
-      } else {
-        try {
-          const capture = await this.withDebugger(tab.webContents, async () => {
-            assertCurrent()
-            if (conflict()) throw new Error('CSS provenance debugger is in use')
-            const selector = options.ref
-              ? '[data-hronaut-ref="' + Array.from(options.ref, character => '\\' + character.codePointAt(0)!.toString(16) + ' ').join('') + '"]'
-              : options.selector!
-            const keepDomEnabled = Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
-            return collectCssProvenance(tab.webContents, selector, properties ?? [], assertCurrent, keepDomEnabled, inspect, includeFonts)
-          })
-          raw = capture.inspection
-          if (properties) cssProvenance = capture.provenance
-          renderedFonts = capture.renderedFonts
-        } catch (error) {
-          assertCurrent()
-          if (!conflict() && !this.isUnavailableCdpMethod(error)) throw error
-          if (properties) cssProvenance = unavailableCssProvenance(properties, conflict() ? 'debugger-in-use' : 'unsupported-protocol')
-          if (includeFonts) renderedFonts = unavailableRenderedFonts(conflict() ? 'debugger-in-use' : 'unsupported-protocol')
-          raw = await inspect()
-        }
-      }
-    } else raw = await inspect()
+    let occupancySettled = false
     assertCurrent()
-    return {
-      ...normalizeElementInspection({ tabId: tab.id, title: tab.title, url: tab.url, raw }),
-      ...(cssProvenance ? { cssProvenance } : {}),
-      ...(renderedFonts ? { renderedFonts } : {})
+    try {
+      if (properties || includeFonts) {
+        const conflict = (): boolean => this.devToolsOpening.has(tab.webContents.id)
+          || tab.webContents.isDevToolsOpened()
+          || Boolean(tab.codeCoverage?.recording || tab.cpuProfile?.recording)
+        if (conflict()) {
+          if (properties) cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
+          if (includeFonts) renderedFonts = unavailableRenderedFonts('debugger-in-use')
+          raw = await inspect()
+        } else {
+          try {
+            const capture = await this.withDebugger(tab.webContents, async () => {
+              assertCurrent()
+              if (conflict()) throw new Error('CSS provenance debugger is in use')
+              const selector = options.ref
+                ? '[data-hronaut-ref="' + Array.from(options.ref, character => '\\' + character.codePointAt(0)!.toString(16) + ' ').join('') + '"]'
+                : options.selector!
+              const keepDomEnabled = Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean))
+              return collectCssProvenance(tab.webContents, selector, properties ?? [], assertCurrent, keepDomEnabled, inspect, includeFonts)
+            })
+            raw = capture.inspection
+            if (properties) cssProvenance = capture.provenance
+            renderedFonts = capture.renderedFonts
+          } catch (error) {
+            assertCurrent()
+            if (!conflict() && !this.isUnavailableCdpMethod(error)) throw error
+            if (properties) cssProvenance = unavailableCssProvenance(properties, conflict() ? 'debugger-in-use' : 'unsupported-protocol')
+            if (includeFonts) renderedFonts = unavailableRenderedFonts(conflict() ? 'debugger-in-use' : 'unsupported-protocol')
+            raw = await inspect()
+          }
+        }
+      } else raw = await boundedOccupancy(inspect())
+      assertCurrent()
+      if (occupancyToken) {
+        const settled = await boundedOccupancy(tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken) }], false))
+        occupancySettled = true
+        assertCurrent()
+        if (settled !== true) throw new Error('Password occupancy target changed or expired during inspection')
+      }
+      return {
+        ...normalizeElementInspection({ tabId: tab.id, title: tab.title, url: tab.url, raw }),
+        ...(cssProvenance ? { cssProvenance } : {}),
+        ...(renderedFonts ? { renderedFonts } : {})
+      }
+    } finally {
+      if (occupancyToken && !occupancySettled && !tab.webContents.isDestroyed()) {
+        void tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken, true) }], false).catch(() => undefined)
+      }
     }
   }
 

@@ -686,6 +686,7 @@ export interface BrowserSnapshotCopyResult {
 }
 
 export interface BrowserElementInspectionOptions {
+  includePasswordOccupancy?: boolean
   tabId?: string
   ref?: string
   selector?: string
@@ -747,6 +748,7 @@ export type BrowserScrollGeometry = {
 } | { status: 'unavailable'; reason: 'unsupported-cssom' | 'invalid-or-out-of-range' }
 
 export interface BrowserElementInspection {
+  passwordOccupancy?: 'empty' | 'nonempty' | 'unknown'
   scrollGeometry?: BrowserScrollGeometry
   cssProvenance?: BrowserCssProvenance
   renderedFonts?: BrowserRenderedFonts

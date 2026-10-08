@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+- Add opt-in password-field occupancy to element inspection: report only empty/nonempty/unknown without exporting values or lengths, waking tabs, or changing selection.
+
 ### Added
 
 - Copy a stored History address without leaving the current page, with accessible confirmation and retryable failure feedback.

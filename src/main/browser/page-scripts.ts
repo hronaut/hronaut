@@ -1,3 +1,4 @@
+import { passwordOccupancySource } from './password-occupancy.js'
 import { elementScrollGeometrySource } from './element-scroll-geometry.js'
 import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
 import { snapshotTextHelpersSource } from './snapshot-text.js'
@@ -597,7 +598,7 @@ export function elementPickerInspectionAtPointScript(
   })()`
 }
 
-export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean }): string {
+export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean }, occupancyToken?: string): string {
   return `(() => {
     ${elementInspectionHelpersSource()}
     const target = ${JSON.stringify(target)};
@@ -607,6 +608,7 @@ export function elementInspectionScript(target: { ref?: string; selector?: strin
     if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
     return {
       ...hronautInspectElement(element),
+      ...(target.includePasswordOccupancy === true ? { passwordOccupancy: ${passwordOccupancySource(occupancyToken ?? '')} } : {}),
       ...(target.includeScroll === true ? { scrollGeometry: ${elementScrollGeometrySource()} } : {}),
       ...(target.includeFonts === true ? { renderedFontsEligible: element instanceof HTMLElement
         && element.children.length === 0 && !element.shadowRoot

@@ -5,6 +5,24 @@ import {
 } from '../src/shared/element-inspection.js'
 
 describe('element inspection', () => {
+  it.each(['empty', 'nonempty', 'unknown'] as const)('retains only the occupancy enum %s in copyable evidence', state => {
+    const report = normalizeElementInspection({ tabId: 'tab', title: '', url: 'about:blank', raw: {
+      selector: '#password', tag: 'input', passwordOccupancy: state,
+      value: 'synthetic-secret', valueLength: 16, password: 'synthetic-secret',
+      attributes: [{ name: 'value', value: 'synthetic-secret' }]
+    } })
+    expect(report.passwordOccupancy).toBe(state)
+    expect(formatElementInspectionForAgent(report)).toContain(`Password occupancy: ${state}`)
+    expect(JSON.stringify(report)).not.toContain('synthetic-secret')
+    expect(report).not.toHaveProperty('valueLength')
+  })
+
+  it.each([undefined, null, true, false, 0, 1, 'secret', 'EMPTY', {}, []])('omits malformed occupancy evidence (%j)', value => {
+    const report = normalizeElementInspection({ tabId: 'tab', title: '', url: 'about:blank', raw: { selector: '#password', passwordOccupancy: value } })
+    expect(report).not.toHaveProperty('passwordOccupancy')
+    expect(formatElementInspectionForAgent(report)).not.toContain('Password occupancy:')
+  })
+
   it.each([
     [true, false], [false, true], [true, true], [false, false]
   ])('preserves explicit focused=%s and focusWithin=%s evidence', (focused, focusWithin) => {
