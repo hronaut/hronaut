@@ -42,7 +42,61 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('HistoryPanel', () => {
-  it.each(['open', 'bookmark', 'background', 'remove'])('recovers focus from the %s control when Today rolls past local midnight', async control => {
+  it('filters exact origins separately from substring search and clears with keyboard focus', async () => {
+    const rows = [
+      { ...entry('alpha', 'Docs'), url: 'https://docs.example/guide' },
+      { ...entry('beta', 'Docs query'), url: 'https://other.example/?next=https://docs.example/' },
+      { ...entry('gamma', 'Docs suffix'), url: 'https://docs.example.evil.test/' },
+      { ...entry('port', 'Docs port'), url: 'https://docs.example:8443/' },
+      { ...entry('scheme', 'Docs HTTP'), url: 'http://docs.example/' }
+    ]
+    const view = renderPanel({ entries: rows })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'docs.example')
+    expect(view.container.querySelectorAll('.history-item')).toHaveLength(5)
+    const filter = screen.getByRole('button', { name: 'Filter history by origin of Docs' })
+    filter.focus()
+    await user.keyboard('{Enter}')
+    expect(view.container.querySelectorAll('.history-item')).toHaveLength(1)
+    expect(filter).toHaveFocus()
+    const clear = screen.getByRole('button', { name: 'Clear origin filter' })
+    clear.focus()
+    await user.keyboard('{Enter}')
+    expect(view.container.querySelectorAll('.history-item')).toHaveLength(5)
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+  })
+
+  it.each(['external focus', 'close/reopen'])('does not restore stale focus after clearing origin during %s', async mode => {
+    const rows = [entry('alpha', 'Alpha docs')]
+    const wrapper = mount(HistoryPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({ entries: rows, listHistory: vi.fn(async () => rows) })
+    })
+    await fireEvent.click(screen.getByRole('button', { name: 'Filter history by origin of Alpha docs' }))
+    const clear = screen.getByRole('button', { name: 'Clear origin filter' })
+    const external = document.createElement('button')
+    document.body.append(external)
+    const exposed = wrapper.vm as unknown as { toggle(): Promise<void> }
+    let observed = false
+    const observer = new MutationObserver(() => {
+      if (clear.isConnected || observed) return
+      observed = true
+      if (mode === 'external focus') external.focus()
+      else { void exposed.toggle(); void exposed.toggle() }
+    })
+    observer.observe(screen.getByRole('dialog'), { childList: true, subtree: true })
+    try {
+      clear.focus()
+      await fireEvent.click(clear)
+      await flushPromises()
+      expect(observed).toBe(true)
+      expect(mode === 'external focus' ? external : document.body).toHaveFocus()
+      expect(screen.getByRole('dialog')).toBeVisible()
+    } finally { observer.disconnect(); external.remove(); wrapper.unmount() }
+  })
+
+  it.each(['open', 'bookmark', 'background', 'origin', 'remove'])('recovers focus from the %s control when Today rolls past local midnight', async control => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 9, 7, 23, 59, 59))
     const row = { ...entry('alpha', 'Alpha docs'), visitedAt: new Date(2026, 9, 7, 12).toISOString() }
@@ -50,7 +104,7 @@ describe('HistoryPanel', () => {
     try {
       await fireEvent.update(screen.getByRole('combobox', { name: 'Date range' }), 'today')
       const button = control === 'open' ? screen.getByTitle(row.url)
-        : screen.getByRole('button', { name: control === 'background' ? 'Open Alpha docs in background tab'
+        : screen.getByRole('button', { name: control === 'origin' ? 'Filter history by origin of Alpha docs' : control === 'background' ? 'Open Alpha docs in background tab'
           : control === 'bookmark' ? 'Bookmark Alpha docs' : 'Remove Alpha docs from history' })
       button.focus()
       expect(button).toHaveFocus()
@@ -61,11 +115,11 @@ describe('HistoryPanel', () => {
     } finally { view.unmount(); vi.useRealTimers() }
   })
 
-  it.each(['open', 'bookmark', 'background', 'remove'])('moves a removed row’s %s focus to the corresponding neighboring control', async control => {
+  it.each(['open', 'bookmark', 'background', 'origin', 'remove'])('moves a removed row’s %s focus to the corresponding neighboring control', async control => {
     const view = renderPanel()
     const button = (id: 'alpha' | 'beta') => control === 'open'
       ? screen.getByTitle(entry(id).url)
-      : screen.getByRole('button', { name: control === 'background'
+      : screen.getByRole('button', { name: control === 'origin' ? `Filter history by origin of ${id === 'alpha' ? 'Alpha docs' : 'Beta page'}` : control === 'background'
         ? `Open ${id === 'alpha' ? 'Alpha docs' : 'Beta page'} in background tab` : control === 'bookmark'
         ? `Bookmark ${id === 'alpha' ? 'Alpha docs' : 'Beta page'}`
         : `Remove ${id === 'alpha' ? 'Alpha docs' : 'Beta page'} from history` })

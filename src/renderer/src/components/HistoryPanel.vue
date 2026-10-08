@@ -37,6 +37,9 @@ const { t } = useI18n({ useScope: 'global' })
 const {
   query,
   dateRange,
+  origin,
+  entryOrigin,
+  filterOrigin,
   error,
   pendingAction,
   copyFeedback,
@@ -82,6 +85,7 @@ const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry
   let superseded = false
   onCleanup(() => { superseded = true })
   const selector = focused.classList.contains('history-open') ? '.history-open'
+    : focused.classList.contains('history-origin') ? '.history-origin'
     : focused.classList.contains('history-copy-address') ? '.history-copy-address'
     : focused.classList.contains('history-background') ? '.history-background'
       : focused.classList.contains('history-bookmark') ? '.history-bookmark' : '.history-action.danger'
@@ -132,6 +136,19 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
   ].find(element => element?.isConnected && !element.matches(':disabled'))
   target?.focus()
 }
+async function clearOrigin(event: Event): Promise<void> {
+  const button = event.currentTarget
+  const panel = panelRoot.value
+  const generation = focusGeneration
+  const restoreFocus = document.activeElement === button
+  origin.value = ''
+  await nextTick()
+  if (!restoreFocus || generation !== focusGeneration || !open.value || panel !== panelRoot.value
+    || !panel?.isConnected || (document.activeElement !== document.body && document.activeElement !== button)) return
+  const target = panel.querySelector<HTMLInputElement>('.history-search-field input')
+    ?? panel.querySelector<HTMLButtonElement>('.panel-close')
+  target?.focus()
+}
 </script>
 
 <template>
@@ -167,6 +184,10 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
         <option value="last7Days">{{ t('history.last7Days') }}</option>
       </select>
     </label>
+    <div v-if="origin" class="history-origin-filter">
+      <span>{{ t('history.origin') }}: <bdi>{{ origin }}</bdi></span>
+      <UiButton appearance="application" type="button" :aria-label="t('history.clearOrigin')" @click="clearOrigin"><IconClose aria-hidden="true" /></UiButton>
+    </div>
     <div v-if="!entries.length" class="history-empty">
       <IconHistory aria-hidden="true" />
       <strong>{{ t('history.empty') }}</strong>
@@ -187,6 +208,10 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
             <small>{{ entryMeta(entry) }}</small>
           </span>
         </UiButton>
+        <UiButton appearance="application" class="history-origin history-action" type="button"
+          :disabled="!entryOrigin(entry)" :aria-disabled="pendingAction !== null"
+          :aria-label="t('history.filterOriginAria', { title: entry.title })"
+          :title="t('history.filterOrigin')" @click="filterOrigin(entry)"><IconLanguage aria-hidden="true" /></UiButton>
         <UiButton appearance="application" class="history-copy-address history-action" type="button"
           :aria-disabled="pendingAction !== null"
           :aria-label="t('history.copyAddressAria', { title: entry.title })"

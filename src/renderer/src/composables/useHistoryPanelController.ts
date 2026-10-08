@@ -27,6 +27,7 @@ export interface HistoryPanelControllerOptions {
 export function useHistoryPanelController(options: HistoryPanelControllerOptions) {
   const query = ref('')
   const dateRange = ref<HistoryDateRange>('all')
+  const origin = ref('')
   const now = ref(Date.now())
   const error = ref('')
   const copyFeedback = ref<'success' | 'error' | ''>('')
@@ -38,14 +39,29 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   const filteredEntries = computed(() => {
     const normalized = query.value.trim().toLocaleLowerCase()
     const bounds = historyDateBounds(dateRange.value, now.value)
-    if (!normalized && !bounds) return options.entries.value
+    if (!normalized && !bounds && !origin.value) return options.entries.value
     return options.entries.value.filter((entry) => {
       const visited = Date.parse(entry.visitedAt)
-      return (!bounds || (visited >= bounds[0] && visited < bounds[1]))
+      return (!origin.value || entryOrigin(entry) === origin.value)
+        && (!bounds || (visited >= bounds[0] && visited < bounds[1]))
         && (!normalized || entry.title.toLocaleLowerCase().includes(normalized)
           || entry.url.toLocaleLowerCase().includes(normalized))
     })
   })
+
+  function entryOrigin(entry: BrowserHistoryEntry): string {
+    try {
+      const url = new URL(entry.url)
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : ''
+    } catch { return '' }
+  }
+
+  function filterOrigin(entry: BrowserHistoryEntry): void {
+    if (!options.open.value || pendingAction.value
+      || !filteredEntries.value.some(item => item.id === entry.id && item.url === entry.url)) return
+    const next = entryOrigin(entry)
+    if (next) origin.value = next
+  }
 
   function resetCopyFeedback(): void {
     copyGeneration += 1
@@ -55,7 +71,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   const copyEntryVisible = computed(() => !copyEntry.value || filteredEntries.value.some(
     entry => entry.id === copyEntry.value!.id && entry.url === copyEntry.value!.url
   ))
-  const stopCopyTracking = watch([query, dateRange, options.open, copyEntryVisible], resetCopyFeedback, { flush: 'sync' })
+  const stopCopyTracking = watch([query, dateRange, origin, options.open, copyEntryVisible], resetCopyFeedback, { flush: 'sync' })
 
   let clockTimer: ReturnType<typeof setTimeout> | undefined
   function stopClock(): void {
@@ -186,6 +202,9 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   return {
     query,
     dateRange,
+    origin,
+    entryOrigin,
+    filterOrigin,
     error,
     pendingAction,
     copyFeedback,

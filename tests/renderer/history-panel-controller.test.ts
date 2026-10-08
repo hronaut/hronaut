@@ -49,6 +49,45 @@ function createController(initialEntries = [entry('alpha')]) {
 }
 
 describe('history panel controller', () => {
+  it('composes canonical HTTP origins with date/text and preserves filters across reopen and live updates', () => {
+    const now = new Date().toISOString()
+    const rows = [
+      { ...entry('one', 'Guide'), url: 'https://DOCS.example:443/a', visitedAt: now },
+      { ...entry('two', 'Guide old'), url: 'https://docs.example/b', visitedAt: '2000-01-01T00:00:00Z' },
+      { ...entry('title', 'docs.example'), url: 'https://other.example/', visitedAt: now },
+      { ...entry('invalid'), url: 'not a URL', visitedAt: now },
+      { ...entry('opaque'), url: 'data:text/plain,docs.example', visitedAt: now }
+    ]
+    const { controller, open, entries } = createController(rows)
+    try {
+      controller.filterOrigin(rows[0])
+      expect(controller.origin.value).toBe('')
+      open.value = true
+      controller.filterOrigin(rows[3])
+      controller.filterOrigin(rows[4])
+      expect(controller.origin.value).toBe('')
+      controller.filterOrigin(rows[0])
+      expect(controller.origin.value).toBe('https://docs.example')
+      expect(controller.filteredEntries.value.map(row => row.id)).toEqual(['one', 'two'])
+      controller.dateRange.value = 'today'
+      controller.query.value = 'guide'
+      expect(controller.filteredEntries.value.map(row => row.id)).toEqual(['one'])
+      open.value = false
+      open.value = true
+      expect(controller.origin.value).toBe('https://docs.example')
+      expect(controller.query.value).toBe('guide')
+      entries.value = rows.filter(row => row.id !== 'one')
+      expect(controller.filteredEntries.value).toEqual([])
+      controller.filterOrigin(rows[0])
+      expect(controller.origin.value).toBe('https://docs.example')
+      controller.dateRange.value = 'all'
+      expect(controller.filteredEntries.value.map(row => row.id)).toEqual(['two'])
+      controller.origin.value = ''
+      controller.query.value = ''
+      expect(controller.filteredEntries.value).toBe(entries.value)
+    } finally { controller.dispose() }
+  })
+
   afterEach(() => { vi.useRealTimers() })
 
   it('composes date and text filters over latest visits without changing the retained list', async () => {
