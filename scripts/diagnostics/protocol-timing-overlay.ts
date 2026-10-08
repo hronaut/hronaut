@@ -62,7 +62,9 @@ export function buildProtocolTimingOverlay(source: string, version: string): str
   const runtime = ts.transpileModule(readFileSync(new URL('./protocol-timing-runtime.ts', import.meta.url), 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.CommonJS }
   }).outputText
-  return `${prologue}const hronautTiming = (() => { const exports = {};\n${runtime}\nreturn exports.createProtocolTiming(); })();\n${patched.slice(prologue.length)}\nmodule.exports.__hronautProtocolTimingSnapshot = () => hronautTiming.snapshot();\n`
+  const body = `${prologue}const hronautTiming = (() => { const exports = {};\n${runtime}\nreturn exports.createProtocolTiming(); })();\n${patched.slice(prologue.length)}\nmodule.exports.__hronautProtocolTimingSnapshot = () => hronautTiming.snapshot();\n`
+  const identity = createHash('sha256').update(body).digest('hex')
+  return body + `module.exports.__hronautProtocolTimingIdentity = "${identity}";\n`
 }
 
 // Explicit offline generation into a NEW file alongside an isolated copy of

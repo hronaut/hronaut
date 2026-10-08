@@ -6,6 +6,8 @@ export function createProtocolTiming() {
   let total = 0
   let nextTransport = 0
   let nextReceive = 0
+  let rejectedTransports = 0
+  let observerErrors = 0
   const transports = new WeakMap<object, { id: number; channel: number }>()
   const messages = new WeakMap<object, number>()
   const clock = performance.now.bind(performance)
@@ -40,12 +42,13 @@ export function createProtocolTiming() {
     total++
   }
   // Observer failures cannot replace an upstream exception or prevent dispatch.
-  const safe = <T>(work: () => T, fallback: T): T => { try { return work() } catch { return fallback } }
+  const safe = <T>(work: () => T, fallback: T): T => { try { return work() } catch { observerErrors = Math.min(Number.MAX_SAFE_INTEGER, observerErrors + 1); return fallback } }
   return {
     register(owner: object, channel: number) {
       safe(() => {
-        if ((channel === 1 || channel === 2) && !transports.has(owner) && nextTransport < 64)
-          transports.set(owner, { id: ++nextTransport, channel })
+        if ((channel !== 1 && channel !== 2) || transports.has(owner)) return
+        if (nextTransport >= 64) { rejectedTransports = Math.min(Number.MAX_SAFE_INTEGER, rejectedTransports + 1); return }
+        transports.set(owner, { id: ++nextTransport, channel })
       }, undefined)
     },
     send(owner: object, message: unknown, stage: number) {
@@ -88,7 +91,7 @@ export function createProtocolTiming() {
       safe(() => { if (stage === 7 || stage === 8 || stage === 9) record(stage, owner) }, undefined)
     },
     snapshot() {
-      return { capacity, total, dropped: Math.max(0, total - capacity), rows: [...ring.slice(cursor), ...ring.slice(0, cursor)].map(row => [...row]) }
+      return { capacity, total, transports: nextTransport, rejectedTransports, observerErrors, dropped: Math.max(0, total - capacity), rows: [...ring.slice(cursor), ...ring.slice(0, cursor)].map(row => [...row]) }
     }
   }
 }

@@ -64,3 +64,51 @@ fake socket/scheduler, compare original and patched ordering, and exercise
 correlation, sentinel/privacy exclusion, malformed and oversized inputs,
 exceptions, source pins, and memory caps. Original assertions, timeouts, retries,
 flaky gates, OS permissions, and production code are unchanged.
+
+## Disposable loader and collector (review required before running)
+
+`prepareCapture` makes a fresh private copy, verifies the pinned bundle, selected
+case, config and fixture, generates the overlay there, and inserts a synchronous
+collector as the FIRST operation of the selected case's existing `finally`.
+A second collection boundary immediately after fixture `use(app)` settles
+covers a timed-out body whose own finally has not run; exclusive creation keeps
+the first snapshot. Both boundaries precede fixture diagnostics and close.
+The case boundary also precedes MCP-client/server closure, fixture
+`collectRendererDiagnostics`, tracing shutdown and `closeHronaut`. If setup,
+timeout or worker death prevents that boundary, evidence is **unknown**. There
+is no fallback fresh observer or empty-success record. No post-cleanup snapshot
+is currently taken. The original checkout/installed packages are not patched.
+
+`runPreparedCapture` requires explicit opt-in and has no CLI/workflow entry. It
+runs exactly the original named continuity case, its complete 2×2×2 matrix, one
+worker, existing CI retry=1 and failOnFlaky settings, once. No repeat loop or
+extra test deadline is added. It uses a private TMPDIR inside the disposable
+copy. Optional cancellation kills only the child process group. Rollback removes
+only that owned copy; failure to remove it is an explicit invalid-artifact flag.
+No capture or release decision is implied by these exported APIs.
+
+Module resolution from the checkout, playwright and @playwright/test must all
+reach the plain copied core bundle. The collector checks its full file hash,
+content fingerprint, actual require-cache identity, and loaded export marker;
+an original, alternate, symlinked, missing or differently cached bundle is
+rejected. It never loads a replacement observer at collection time. Output
+requires 1–63 registered transports, zero refused transports/observer errors,
+and at most 2048 seven-number rows. Empty, malformed, oversized or missing
+snapshots are explicit unknown; eviction marks the snapshot partial. Input file
+reads are bounded before allocation/parse (256 KiB snapshot, 1 KiB verdict).
+
+The child uses `stdio: ignore`, including renderer console errors and original
+Playwright error logs. A fixed numeric reporter replaces line/HTML output only
+inside this opt-in invocation. Original screenshots/traces may still be generated
+inside the copy to preserve test behavior, but are never uploaded/exported and
+are removed with it. There is no wildcard artifact export. Only the validated
+numeric snapshot/verdict envelope is written with exclusive creation. No raw
+exception text is surfaced by collection/publication failures.
+
+The envelope preserves `exitCode` (−1 means unavailable), `killed`, reporter
+status/attempts and `flaky` separately from `artifactValid`, `cleanup` and
+`publication`. A passing child with missing evidence is invalid diagnostics; a
+failed or flaky child stays failed even when diagnostics are valid. A future
+hosted caller must preserve that original exit verdict and separately require
+valid publication. No job that uploads generic failure artifacts may wrap this
+runner without another review of the output boundary.
