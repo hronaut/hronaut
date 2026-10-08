@@ -45,6 +45,27 @@ describe('pinned offline protocol timing overlay', () => {
     expect(observer.snapshot().rows[0].slice(0, 6)).toEqual([1, 1, 1, 1, 0, 0])
   })
 
+  it('preserves top-level strict behavior across the generated observer and original body', () => {
+    const bodyStart = patched.indexOf('var __create = Object.create;')
+    expect(bodyStart).toBeGreaterThan(0)
+    const result = runInNewContext(patched.slice(0, bodyStart) + `
+      (() => {
+        const receiverIsUndefined = (function () { return this; })() === undefined;
+        let assignmentError;
+        try { hronautUndeclaredStrictProbe = 1; } catch (error) { assignmentError = error.name; }
+        return { receiverIsUndefined, assignmentError };
+      })();
+    `, { performance })
+    expect(result).toEqual({ receiverIsUndefined: true, assignmentError: 'ReferenceError' })
+    expect(patched.startsWith('"use strict";\nconst hronautTiming')).toBe(true)
+  })
+
+  it('rejects removed, displaced or unexpected original directive prologues', () => {
+    for (const source of [original.replace('"use strict";\n', ''), '\n' + original,
+      '#!/usr/bin/env node\n' + original, original.replace('"use strict";', '"use other";')])
+      expect(() => buildProtocolTimingOverlay(source, PINNED_VERSION)).toThrow('pin mismatch')
+  })
+
   it('rejects malformed receive tokens without retaining attacker values', () => {
     const h = harness()
     for (const token of [[], [1], [1, NaN], [Infinity, 1], [-1, 1], [1, -1], [1, 2, 3]])
@@ -146,7 +167,9 @@ describe('pinned offline protocol timing overlay', () => {
     for (const source of [original, patched]) {
       const h = harness(source); const error = new Error(sentinel)
       h.failSend(error)
-      expect(() => h.transport.send({ id: 2 })).toThrow(error)
+      let caught: unknown
+      try { h.transport.send({ id: 2 }) } catch (failure) { caught = failure }
+      expect(caught).toBe(error)
       expect(h.order).toEqual(['stringify', 'send'])
       if (source === patched) expect(h.timing.snapshot().rows.map(r => r[0])).toEqual([1, 3])
     }
@@ -154,7 +177,9 @@ describe('pinned offline protocol timing overlay', () => {
 
   it('does not change stringify failure, accessor evaluation, or inspect hostile proxies', () => {
     const h = harness(); const error = new Error(sentinel)
-    expect(() => h.transport.send({ toJSON() { throw error } })).toThrow(error)
+    let caught: unknown
+    try { h.transport.send({ toJSON() { throw error } }) } catch (failure) { caught = failure }
+    expect(caught).toBe(error)
     expect(h.order).toEqual(['stringify'])
     const proxy = new Proxy({}, { getOwnPropertyDescriptor() { throw error } })
     expect(() => h.timing.send(h.transport, proxy, 1)).not.toThrow()

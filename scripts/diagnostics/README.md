@@ -8,7 +8,9 @@ No capture or experiment is authorized by adding this tool.
 
 `protocol-timing-overlay.ts` accepts the exact Playwright **1.63.0** core bundle,
 SHA-256 `549070af3acabb3efcc4f55bfe6210f9f7c2fcf633cf7eaa59bfe60719969171`.
-Version, hash, or anchor mismatch throws before output is written. The optional
+Version, hash, prologue, or anchor mismatch throws before output is written.
+The exact original top-level `"use strict";` remains first; the observer is
+inserted immediately after it and before the original executable body. The optional
 CLI takes source-bundle, package-manifest, and NEW output-file paths; exclusive
 creation prevents overwriting an installed bundle. Loading that output would
 require an isolated copy of Playwright with its relative dependencies. This PR

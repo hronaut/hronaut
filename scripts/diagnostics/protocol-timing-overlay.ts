@@ -11,6 +11,11 @@ export const PINNED_SHA256 = '549070af3acabb3efcc4f55bfe6210f9f7c2fcf633cf7eaa59
 export function buildProtocolTimingOverlay(source: string, version: string): string {
   if (version !== PINNED_VERSION || createHash('sha256').update(source).digest('hex') !== PINNED_SHA256)
     throw new Error('Protocol timing overlay pin mismatch')
+  // The pinned bundle has exactly this directive followed by executable code.
+  // Do not infer a prologue or move a future hashbang/directive past our code.
+  const prologue = '"use strict";\n'
+  if (!source.startsWith(prologue + 'var __create = Object.create;\n'))
+    throw new Error('Protocol timing overlay source prologue mismatch')
   let patched = source
   const replace = (before: string, after: string) => {
     if (patched.split(before).length !== 2) throw new Error('Protocol timing overlay anchor mismatch')
@@ -57,7 +62,7 @@ export function buildProtocolTimingOverlay(source: string, version: string): str
   const runtime = ts.transpileModule(readFileSync(new URL('./protocol-timing-runtime.ts', import.meta.url), 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.CommonJS }
   }).outputText
-  return `const hronautTiming = (() => { const exports = {};\n${runtime}\nreturn exports.createProtocolTiming(); })();\n${patched}\nmodule.exports.__hronautProtocolTimingSnapshot = () => hronautTiming.snapshot();\n`
+  return `${prologue}const hronautTiming = (() => { const exports = {};\n${runtime}\nreturn exports.createProtocolTiming(); })();\n${patched.slice(prologue.length)}\nmodule.exports.__hronautProtocolTimingSnapshot = () => hronautTiming.snapshot();\n`
 }
 
 // Explicit offline generation into a NEW file alongside an isolated copy of
