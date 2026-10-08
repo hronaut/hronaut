@@ -6,7 +6,8 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { decode, expect, rejected, test } from './react-inspection-fixtures.js'
 
-test('archive/restore and delete interrupt reads and never restore prior activation or IDs', async ({ react, appWindow, electronApp }) => {
+for (const delayedDocument of [false, true]) {
+test(`archive/restore and delete interrupt reads and never restore prior activation or IDs${delayedDocument ? ' with delayed restored document' : ''}`, async ({ react, appWindow, electronApp }) => {
   const first = await react.enable('/lifecycle-armed')
   await react.holdRead()
   const pending = react.react('tree').then(rejected, () => true)
@@ -16,6 +17,7 @@ test('archive/restore and delete interrupt reads and never restore prior activat
   expect(await pending).toBe(true)
   expect(rejected(await react.react('tree', first.nodes[0]!.id))).toBe(true)
   await react.success(react.call('browser_saved_workspaces', { action: 'resume', savedWorkspaceId: react.workspace.id, resumeKey: react.workspace.resumeKey }))
+  if (delayedDocument) react.holdDocument('/lifecycle-armed')
   await react.success(react.call('browser_saved_workspaces', { action: 'open', savedWorkspaceId: react.workspace.id }))
   const tabs = await react.success<BrowserTabState[]>(react.call('browser_tabs', { workspaceId: react.workspace.id }))
   const tabId = tabs.find(tab => tab.url === react.origin + '/lifecycle-armed')!.id
@@ -23,7 +25,19 @@ test('archive/restore and delete interrupt reads and never restore prior activat
   await react.success(react.call('browser_select_tab', { workspaceId: react.workspace.id, tabId }))
   expect((await react.success<ReactInspectionResult>(request('status'))).status).toBe('disabled')
   expect(rejected(await request('tree', first.nodes[0]!.id))).toBe(true)
-  await react.success(request('enable'))
+  if (delayedDocument) {
+    // Opening a saved workspace returns before its HTTP document has committed.
+    // An enable attempted against the still-empty native URL must remain inactive.
+    expect(await react.success<ReactInspectionResult>(request('enable'))).toMatchObject({
+      status: 'unavailable', enabled: false, nodes: []
+    })
+    react.releaseDocument()
+  }
+  await expect.poll(() => electronApp.context().pages().some(page => page.url() === react.origin + '/lifecycle-armed')).toBe(true)
+  const reopenedPage = electronApp.context().pages().find(page => page.url() === react.origin + '/lifecycle-armed')!
+  await expect(reopenedPage.locator('span')).toHaveCount(1)
+  expect(await reopenedPage.evaluate('fixtureSawHook')).toBe(false)
+  expect((await react.success<ReactInspectionResult>(request('enable'))).status).toBe('reload-required')
   await react.success(react.call('browser_navigate', { workspaceId: react.workspace.id, tabId, url: react.origin + '/restored' }))
   // Navigation completion does not guarantee that React has committed its fixture tree.
   await expect.poll(() => electronApp.context().pages().some(page => page.url() === react.origin + '/restored')).toBe(true)
@@ -39,6 +53,8 @@ test('archive/restore and delete interrupt reads and never restore prior activat
   expect(rejected(await request('tree', restoredNodeId))).toBe(true)
   expect(await electronApp.evaluate(({webContents}, url) => webContents.getAllWebContents().some(page => page.getURL() === url), react.origin + '/restored')).toBe(false)
 })
+
+}
 
 test('failed deletion rollback recreates the tab with inspection off', async ({ react, electronApp, appWindow }) => {
   const first = await react.enable('/delete-rollback')

@@ -30,6 +30,8 @@ export interface ReactFixture {
   react(action: ReactInspectionAction, subtreeId?: string): Promise<CallToolResult>
   enable(path?: string): Promise<ReactInspectionResult>
   navigate(path: string): Promise<void>
+  holdDocument(path: string): void
+  releaseDocument(): void
   holdRead(): Promise<void>
   entered(): Promise<void>
   release(): Promise<void>
@@ -39,10 +41,15 @@ export interface ReactFixture {
 }
 export const test = base.extend<{ react: ReactFixture }>({
   react: async ({ appWindow, electronApp, mcpPort, mcpToken }, use) => {
+    let heldPath: string | undefined
+    let releaseDocument = () => {}
+    let documentGate = Promise.resolve()
     const server = createServer((request, response) => {
-      response.writeHead(200, { 'content-type': request.url === '/react.js' ? 'application/javascript' : 'text/html' })
+      const send = () => response.writeHead(200, { 'content-type': request.url === '/react.js' ? 'application/javascript' : 'text/html' })
         .end(request.url === '/react.js' ? reactInspectionBundle : request.url?.startsWith('/bare') ? '<title>React bare fixture</title>'
           : '<title>React inspection fixture</title><div id="root"></div><script src="/react.js"></script>')
+      if (request.url === heldPath) void documentGate.then(send)
+      else send()
     })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()
@@ -91,6 +98,8 @@ export const test = base.extend<{ react: ReactFixture }>({
           if (!path.startsWith('/bare')) await expect(page.locator('span')).toHaveCount(1)
           return success<ReactInspectionResult>(react('tree'))
         },
+        holdDocument: path => { heldPath = path; documentGate = new Promise<void>(resolve => { releaseDocument = resolve }) },
+        releaseDocument: () => { heldPath = undefined; releaseDocument() },
         holdRead: () => holdNativeRead(electronApp, contentsId),
         entered: () => expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & TestGlobals).__reactHold?.entered)).toBe(true),
         release: () => electronApp.evaluate(() => { (globalThis as typeof globalThis & TestGlobals).__reactHold?.release() }),
@@ -113,6 +122,7 @@ export const test = base.extend<{ react: ReactFixture }>({
       }
       await use(fixture)
     } finally {
+      releaseDocument()
       await electronApp.evaluate(() => {
         const state = globalThis as typeof globalThis & TestGlobals
         state.__reactHold?.release(); state.__reactHold?.restore(); state.__restoreReactMenu?.()
