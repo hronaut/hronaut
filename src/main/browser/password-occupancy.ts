@@ -1,9 +1,3 @@
-export interface PendingPasswordOccupancy {
-  finish(): Promise<void>
-  assertCurrent(): void
-  discard(): void
-}
-
 // This source runs only in the trusted element-inspection isolated world.
 // No value, length or DOM object leaves the page. Handles retain only identity,
 // a fixed enum, and temporary invalidation observers (at most eight, five seconds).

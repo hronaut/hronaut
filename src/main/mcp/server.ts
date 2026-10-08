@@ -1,4 +1,4 @@
-import type { PendingPasswordOccupancy } from '../browser/password-occupancy.js'
+import type { PendingElementInspection } from '../browser/element-inspection-publication.js'
 import type { PendingVideoInspection, VideoSourceBinding } from '../browser/video-recorder.js'
 import { videoInspectionSchema } from '../../shared/video-inspection.js'
 import type { PendingFrameObservation } from '../browser/frame-observation.js'
@@ -1035,7 +1035,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; passwordOccupancy?: PendingPasswordOccupancy; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1116,10 +1116,11 @@ function createBrowserMcpServer(
           frameRequest.pending.assertCurrent()
           return settled
         }
-        if (name === 'browser_element_inspect' && input.includePasswordOccupancy === true && !result.isError) {
-          // Keep identity/type and authority guards alive through all audit/capability awaits.
-          const inspection = frameRequest.passwordOccupancy
-          if (!inspection) throw new Error('Password occupancy publication guard is unavailable')
+        if (name === 'browser_element_inspect' && !result.isError) {
+          // Validate the captured context after every audit/capability await.
+          // Opt-in occupancy also settles its page-side identity/type guard.
+          const inspection = frameRequest.elementInspection
+          if (!inspection) throw new Error('Element inspection publication guard is unavailable')
           await inspection.finish()
           inspection.assertCurrent()
           return result // No await between final authority check and publication.
@@ -1146,7 +1147,7 @@ function createBrowserMcpServer(
         recordReadinessProbe('failed')
         return errorResult(error)
       } finally {
-        frameRequest.passwordOccupancy?.discard()
+        frameRequest.elementInspection?.discard()
         frameRequest.pending?.discard()
         frameRequest.videoInspection?.discard()
         finishWorkspaceMutation?.()
@@ -1709,7 +1710,7 @@ function createBrowserMcpServer(
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
           requireActiveCapabilityDispatch(name, actionInput, isFrameObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
           if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
-          if (isPasswordOccupancy && extra?.signal?.aborted) throw new Error('Password occupancy inspection cancelled')
+          if (name === 'browser_element_inspect' && extra?.signal?.aborted) throw new Error('Element inspection cancelled')
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -1868,7 +1869,7 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
-                ...(isPasswordOccupancy ? { validateOccupancy: requireCurrentTarget } : {}),
+                ...(name === 'browser_element_inspect' ? { validateInspection: requireCurrentTarget } : {}),
                 ...(name === 'browser_react' ? { reactAuthority: {
                   assertCurrent: requireCurrentTarget,
                   epoch: createHash('sha256').update(JSON.stringify([client.id, controlRevision, writeLease?.generation, capabilityAuthorizationFingerprint])).digest('hex')
@@ -1899,7 +1900,7 @@ function createBrowserMcpServer(
               } as unknown as T)
             try {
               await requireHumanDecision(false, reviewAttempt?.id)
-              if (isPasswordOccupancy) requireCurrentTarget()
+              if (name === 'browser_element_inspect') requireCurrentTarget()
               validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl(true)
@@ -3387,8 +3388,8 @@ function createBrowserMcpServer(
       includeFonts?: boolean
       includeScroll?: boolean
       includePasswordOccupancy?: boolean
-      validateOccupancy?: () => void
-    }) => textResult(await manager.elementInspection(options, options.validateOccupancy, options.includePasswordOccupancy === true ? pending => { frameRequests.getStore()!.passwordOccupancy = pending } : undefined)))
+      validateInspection?: () => void
+    }) => textResult(await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
   )
   registerWorkspaceTool(
     'browser_generate_locator',
