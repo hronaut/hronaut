@@ -19,6 +19,7 @@ test('observes password occupancy without values, getters, selection, wake or CD
       globalThis.getterCalls=0; globalThis.secret='';globalThis.events=0;
       for(const type of ['focus','input','change','submit'])document.addEventListener(type,()=>events++,true);
       globalThis.seed=()=>{secret=Array.from(crypto.getRandomValues(new Uint8Array(31)),n=>String.fromCharCode(65+n%26)).join('');native.set.call(target,secret)};
+      globalThis.seedAgain=()=>{secret=Array.from(crypto.getRandomValues(new Uint8Array(233)),n=>String.fromCharCode(65+n%26)).join('');native.set.call(target,secret)};
       globalThis.clear=()=>native.set.call(target,'');
       Object.defineProperty(HTMLInputElement.prototype,'value',{get(){getterCalls++;throw Error('hostile getter')},set:native.set});
       Object.defineProperty(target,'value',{get(){getterCalls++;throw Error('hostile own getter')}});
@@ -71,6 +72,10 @@ test('observes password occupancy without values, getters, selection, wake or CD
     expect(JSON.parse(text(report)).passwordOccupancy).toBe('nonempty')
     // Secret comparison is reduced in the page too; the canary is never returned.
     expect(await onPage(`!${JSON.stringify(text(report))}.includes(secret)`)).toBe(true)
+    await onPage('seedAgain();void 0')
+    const secondReport = await inspect()
+    expect(JSON.parse(text(secondReport)).passwordOccupancy).toBe('nonempty')
+    expect(await onPage(`!${JSON.stringify(text(secondReport))}.includes(secret)`)).toBe(true)
     await onPage('clear();void 0')
     expect(JSON.parse(text(await inspect())).passwordOccupancy).toBe('empty')
     for (const selector of ['#other', '#hidden', '#otp', '#payment', '#transparent']) expect(JSON.parse(text(await inspect({ selector }))).passwordOccupancy).toBe('unknown')
@@ -81,6 +86,12 @@ test('observes password occupancy without values, getters, selection, wake or CD
     const selected = other.activeTabId
     expect(JSON.parse(text(await inspect())).passwordOccupancy).toBe('empty')
     expect((JSON.parse(text(await call('browser_status', { workspaceId: workspace.id }))) as BrowserState).activeTabId).toBe(selected)
+    await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabPageLifecycle(id, 'frozen'), tabId)
+    expect((await inspect()).isError).toBe(true)
+    const frozen = JSON.parse(text(await call('browser_status', { workspaceId: workspace.id }))) as BrowserState
+    expect(frozen.tabs.find(tab => tab.id === tabId)?.pageLifecycleState).toBe('frozen')
+    expect(frozen.activeTabId).toBe(selected)
+    await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabPageLifecycle(id, 'active'), tabId)
     // Respect the existing form-protection guard: use a fresh form-free document for sleep.
     await electronApp.evaluate(async ({ webContents }, url) => { await webContents.getAllWebContents().find(page => page.getURL() === url)!.loadURL(`${url}sleep`) }, url)
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabSleeping(id, true), tabId)

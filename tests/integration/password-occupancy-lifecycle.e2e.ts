@@ -8,8 +8,8 @@ import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtur
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
 test.use({ trace: 'off', screenshot: 'off', video: 'off' })
-type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'replacement' | 'type ABA' | 'cancel' | 'pause ABA' | 'global pause ABA' | 'deadline'
-for (const change of ['navigation', 'close', 'pause', 'global pause', 'workspace access', 'ownership release', 'replacement', 'type ABA', 'cancel', 'pause ABA', 'global pause ABA', 'deadline'] as InspectionChange[]) {
+type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'replacement' | 'type ABA' | 'cancel' | 'pause ABA' | 'global pause ABA' | 'deadline' | 'workspace access ABA' | 'detach reinsert'
+for (const change of ['navigation', 'close', 'pause', 'global pause', 'workspace access', 'ownership release', 'replacement', 'type ABA', 'cancel', 'pause ABA', 'global pause ABA', 'deadline', 'workspace access ABA', 'detach reinsert'] as InspectionChange[]) {
   test(`password occupancy settlement across ${change}`, async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
@@ -85,6 +85,10 @@ for (const change of ['navigation', 'close', 'pause', 'global pause', 'workspace
         await appWindow.evaluate(async id => { const api = (window as unknown as { hronaut: HronautApi }).hronaut; await api.setTabAgentPaused(id, true); await api.setTabAgentPaused(id, false) }, tabId)
       } else if (change === 'global pause ABA') {
         await appWindow.evaluate('window.hronautMcp.setPaused(true).then(()=>window.hronautMcp.setPaused(false))')
+      } else if (change === 'detach reinsert') {
+        await electronApp.evaluate(async ({ webContents }, url) => { await webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('const node=target;node.remove();document.body.append(node);void 0', false) }, url)
+      } else if (change === 'workspace access ABA') {
+        await appWindow.evaluate(async id => { const api = (window as unknown as { hronaut: HronautApi }).hronaut; await api.updateTabGroup(id, { agentAccess: false }); await api.updateTabGroup(id, { agentAccess: true }) }, workspace.id)
       } else if (change === 'deadline') {
         await pending
       } else if (change === 'cancel') {

@@ -5262,9 +5262,15 @@ export class BrowserTabsManager {
     if (occupancy && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error('Password occupancy requires an already active tab')
     this.validateTarget(options)
     const context = this.snapshotDeltaContext(tab)
+    const occupancyWorkspace = occupancy && tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const occupancyPermissionGeneration = occupancyWorkspace ? this.inspectionPermissions.get(occupancyWorkspace) ?? 0 : 0
     const assertCurrent = (): void => {
       if (occupancy) {
         validateOccupancy?.()
+        const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+        if (currentWorkspace !== occupancyWorkspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== occupancyPermissionGeneration) {
+          throw new Error('Workspace permissions changed during password occupancy inspection')
+        }
         if (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active') throw new Error('Password occupancy requires an already active tab')
       }
       const current = this.tabs.get(tab.id)
