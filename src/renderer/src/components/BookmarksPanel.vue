@@ -3,6 +3,7 @@ import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBackground from '~icons/material-symbols/tab-unselected-rounded'
+import IconCopy from '~icons/material-symbols/content-copy-outline-rounded'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -29,6 +30,7 @@ const props = defineProps<{
   updateBookmarkDestination: (id: string, url: string) => Promise<BrowserBookmark[]>
   removeBookmark: (id: string) => Promise<BrowserBookmark[]>
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
+  copyBookmarkAddress: (bookmark: BrowserBookmark) => Promise<void>
   openBookmarkInBackground: (bookmark: BrowserBookmark) => Promise<void>
 }>()
 
@@ -43,6 +45,9 @@ const { t } = useI18n({ useScope: 'global' })
 const {
   query,
   error,
+  copyFeedback,
+  copyAddress,
+  resetCopyFeedback,
   pendingAction,
   editingBookmarkId,
   editingBookmarkTitle,
@@ -72,6 +77,7 @@ const {
   updateBookmarkDestination: props.updateBookmarkDestination,
   removeBookmark: props.removeBookmark,
   openBookmark: props.openBookmark,
+  copyBookmarkAddress: props.copyBookmarkAddress,
   openBookmarkInBackground: props.openBookmarkInBackground
 })
 
@@ -82,7 +88,8 @@ const { pending: collectionsPending, collections, selection } = collectionContro
 const anyPending = computed(() => pendingAction.value !== null || collectionsPending.value)
 const visibleBookmarks = computed(() => filteredBookmarks.value.filter(bookmark => collectionController.includes(bookmark.id)))
 const collectionsToolbar = ref<{ cancelEdit: () => void } | null>(null)
-watch(selection, cancelRenameDraft)
+watch(selection, () => { cancelRenameDraft(); resetCopyFeedback() }, { flush: 'sync' })
+watch(() => visibleBookmarks.value.map(bookmark => `${bookmark.id}:${bookmark.url}`).join('\n'), resetCopyFeedback, { flush: 'sync' })
 
 // Authoritative bookmark and collection updates can remove a focused row
 // without running one of this panel's action handlers.
@@ -100,9 +107,10 @@ const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => b
   const selector = assignment || editing ? null
     : focused.matches('.bookmark-open') ? 'button.bookmark-open'
       : focused.matches('.bookmark-background') ? '.bookmark-background'
+        : focused.matches('.bookmark-copy-address') ? '.bookmark-copy-address'
         : focused.matches('.bookmark-destination') ? '.bookmark-destination'
           : focused.matches('.danger') ? '.bookmark-action.danger'
-            : '.bookmark-action:not(.danger):not(.confirm):not(.bookmark-background):not(.bookmark-destination)'
+            : '.bookmark-action:not(.danger):not(.confirm):not(.bookmark-background):not(.bookmark-destination):not(.bookmark-copy-address)'
   const next = selector ? row.nextElementSibling?.querySelector<HTMLElement>(selector) : null
   const previous = selector ? row.previousElementSibling?.querySelector<HTMLElement>(selector) : null
   await nextTick()
@@ -295,6 +303,11 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
           :aria-label="t('bookmarks.backgroundAria', { title: bookmark.title })"
           :title="t('bookmarks.background')"
           @click="openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-copy-address" type="button"
+          :aria-disabled="anyPending"
+          :aria-label="t('bookmarks.copyAddressAria', { title: bookmark.title })"
+          :title="t('bookmarks.copyAddress')"
+          @click="!anyPending && copyAddress(bookmark)"><IconCopy aria-hidden="true" /></UiButton>
         <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="anyPending" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
         <label v-if="collectionsApi && collections.length && editingBookmarkId !== bookmark.id" class="bookmark-collection-assignment">
           <span>{{ t('bookmarks.collection') }}</span>
@@ -305,6 +318,8 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
         </label>
       </article>
     </div>
+    <p v-if="copyFeedback === 'success'" class="bookmarks-feedback" role="status">{{ t('bookmarks.addressCopied') }}</p>
+    <p v-if="copyFeedback === 'error'" class="bookmarks-error" role="alert">{{ t('bookmarks.copyFailed') }}</p>
     <p v-if="error" class="bookmarks-error" role="alert">{{ error }}</p>
   </section>
 </template>

@@ -29,6 +29,7 @@ function panelProps(overrides: Record<string, unknown> = {}) {
     updateBookmarkDestination: vi.fn(async () => []),
     renameBookmark: vi.fn(async () => []),
     removeBookmark: vi.fn(async () => []),
+    copyBookmarkAddress: vi.fn(async () => undefined),
     openBookmarkInBackground: vi.fn(async () => undefined),
     openBookmark: vi.fn(async () => undefined),
     ...overrides
@@ -43,12 +44,12 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('live bookmark focus recovery', () => {
-  it.each(['open', 'rename', 'destination', 'background', 'remove'])('moves external removal focus to the neighboring %s control', async control => {
+  it.each(['open', 'rename', 'destination', 'background', 'copy', 'remove'])('moves external removal focus to the neighboring %s control', async control => {
     const view = renderPanel()
     const target = (title: string) => control === 'open' ? screen.getByRole('button', { name: new RegExp(`^${title}`) })
       : screen.getByRole('button', { name: control === 'rename' ? `Rename ${title}`
         : control === 'destination' ? `Edit address for ${title}`
-          : control === 'background' ? `Open ${title} in background tab` : `Remove ${title}` })
+          : control === 'background' ? `Open ${title} in background tab` : control === 'copy' ? `Copy address for ${title}` : `Remove ${title}` })
     target('Alpha docs').focus()
     await view.rerender({ bookmarks: [bookmark('beta', 'Beta page')] })
     await flushPromises()
@@ -611,4 +612,54 @@ describe('background bookmark action races', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeVisible()
   })
+})
+
+it('copies a saved bookmark address by keyboard without opening or editing it', async () => {
+  const copyBookmarkAddress = vi.fn(async () => undefined)
+  const openBookmark = vi.fn(async () => undefined)
+  renderPanel({ copyBookmarkAddress, openBookmark })
+  const copy = screen.getByRole('button', { name: 'Copy address for Alpha docs' })
+  copy.focus()
+  await userEvent.keyboard('{Enter}')
+  await flushPromises()
+  expect(copyBookmarkAddress).toHaveBeenCalledExactlyOnceWith(bookmark('alpha', 'Alpha docs'))
+  expect(openBookmark).not.toHaveBeenCalled()
+  expect(screen.getByRole('status')).toHaveTextContent('Address copied')
+  expect(copy).toHaveFocus()
+})
+
+it('reports clipboard failure without exception contents and permits an explicit retry', async () => {
+  const copyBookmarkAddress = vi.fn().mockRejectedValueOnce(new Error('private clipboard detail')).mockResolvedValue(undefined)
+  renderPanel({ copyBookmarkAddress })
+  const button = screen.getByRole('button', { name: 'Copy address for Alpha docs' })
+  await fireEvent.click(button)
+  await flushPromises()
+  expect(screen.getByRole('alert')).toHaveTextContent('Could not copy address. Try again.')
+  expect(screen.queryByText(/private clipboard detail/)).toBeNull()
+  await fireEvent.click(button)
+  await flushPromises()
+  expect(copyBookmarkAddress).toHaveBeenCalledTimes(2)
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByRole('status')).toHaveTextContent('Address copied')
+})
+
+it.each(['query', 'close', 'destination', 'removal', 'collection'])('discards delayed clipboard feedback after %s changes', async change => {
+  let finish!: () => void
+  const copyBookmarkAddress = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+  const collectionsApi = { list: vi.fn(async () => ({ revision: 1, collections: [] })), onChanged: vi.fn(() => () => {}) }
+  const view = renderPanel({ copyBookmarkAddress, collectionsApi })
+  await flushPromises()
+  const button = screen.getByRole('button', { name: 'Copy address for Alpha docs' })
+  await fireEvent.click(button)
+  await fireEvent.click(button)
+  expect(copyBookmarkAddress).toHaveBeenCalledTimes(1)
+  if (change === 'query') await fireEvent.update(screen.getByRole('searchbox'), 'Beta')
+  if (change === 'close') { await view.rerender({ open: false }); await view.rerender({ open: true }) }
+  if (change === 'destination') await view.rerender({ bookmarks: [{ ...bookmark('alpha', 'Alpha docs'), url: 'https://example.test/new' }] })
+  if (change === 'removal') await view.rerender({ bookmarks: [bookmark('beta', 'Beta page')] })
+  if (change === 'collection') await fireEvent.update(screen.getByRole('combobox', { name: 'Filter bookmarks by collection' }), 'unfiled')
+  finish()
+  await flushPromises()
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
 })

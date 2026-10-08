@@ -332,6 +332,8 @@ The same native tab menu can reload, mute, or duplicate a tab while preserving i
 
 ## Save local bookmarks
 
+Choose **Copy address** beside a saved bookmark to copy its stored URL without opening or editing it. Search and collection filters remain selected. Clipboard failures show a retryable message; changing the panel context clears obsolete feedback.
+
 In **Bookmarks**, choose **Open in background tab** beside a saved page to load it without switching away from the current page or closing the panel. Normal bookmark opening still switches to the new tab.
 
 In **Browsing history**, choose the bookmark button beside a page to save it without opening it. Already saved pages are marked; saving from history preserves an existing bookmark’s name and dates.

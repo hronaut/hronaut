@@ -2665,7 +2665,7 @@ export const plPL = {
     "cancelled": "Anulowano",
     "interrupted": "Przerwano"
   },
-  "bookmarks": {
+  "bookmarks": { copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.",
     "collection": "Kolekcja",
     "collectionFilter": "Filtruj zakładki według kolekcji",
     "allCollections": "Wszystkie zakładki",

@@ -34,7 +34,8 @@ const {
   openBookmarkInBackground,
   openHistoryEntry,
   openHistoryEntryInBackground,
-  copyHistoryAddress
+  copyHistoryAddress,
+  copyBookmarkAddress
 } = props.controller
 </script>
 
@@ -65,6 +66,7 @@ const {
     :update-bookmark-destination="browserCollectionsController.updateBookmarkDestination"
     :remove-bookmark="browserCollectionsController.removeBookmark"
     :open-bookmark="openBookmark"
+    :copy-bookmark-address="copyBookmarkAddress"
     :open-bookmark-in-background="openBookmarkInBackground"
   />
   <HistoryPanel

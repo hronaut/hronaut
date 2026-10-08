@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Copy saved bookmark addresses without opening a tab, with keyboard access and feedback that clears when the panel context changes.
+
 - Inspect bounded native audio/video element state with selector-only `browser_media_state`, including hidden audio (snapshot refs are explicitly unsupported), without exposing source URLs or changing playback, focus or tab lifecycle.
 
 ## [2.20.0] - 2026-10-08

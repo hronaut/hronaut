@@ -2665,7 +2665,7 @@ export const deDE = {
     "cancelled": "Abgebrochen",
     "interrupted": "Unterbrochen"
   },
-  "bookmarks": {
+  "bookmarks": { copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.",
     "collection": "Sammlung",
     "collectionFilter": "Lesezeichen nach Sammlung filtern",
     "allCollections": "Alle Lesezeichen",

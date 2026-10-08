@@ -43,6 +43,7 @@ function createController() {
     bookmarksPanel: ref(null),
     historyOpen,
     historyPanel: ref(null),
+    copyBookmarkAddress: vi.fn(async () => undefined),
     openBookmarkInBackground: vi.fn(async () => undefined),
     openHistoryEntryInBackground: vi.fn(async () => undefined),
     copyHistoryAddress: vi.fn(async () => undefined),
