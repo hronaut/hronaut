@@ -6,7 +6,7 @@ test('rejects obsolete native media handles without reading replacement nodes', 
   const result = await electronApp.evaluate(async ({ BrowserWindow }, scripts) => {
     const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'media-settlement-proof' } })
     const page = window.webContents
-    const read = (code: string) => page.executeJavaScriptInIsolatedWorld(1017, [{ code }], false)
+    const read = (code: string) => page.executeJavaScriptInIsolatedWorld(1020, [{ code }], false)
     const fixture = 'data:text/html,<audio id="target" hidden></audio>'
     const rows: { scenario: string; settled: unknown }[] = []
     try {

@@ -61,7 +61,7 @@ for (const change of ['navigation', 'close', 'replacement', 'ref ABA', 'cancel',
         const held = { held: false, settlements: 0, actionId: '', release, restore: () => { page.executeJavaScriptInIsolatedWorld = execute; fs.open = original; syncBuiltinESMExports() } }
         ;(globalThis as typeof globalThis & { __auditHeld?: typeof held }).__auditHeld = held
         page.executeJavaScriptInIsolatedWorld = async function (...args) {
-          if (args[0] === 1017 && args[1].some(script => script.code.includes('handle.settle()'))) held.settlements += 1
+          if (args[0] === 1020 && args[1].some(script => script.code.includes('handle.settle()'))) held.settlements += 1
           return execute.apply(this, args)
         }
         fs.open = async function (...args) {
@@ -108,7 +108,7 @@ for (const change of ['navigation', 'close', 'replacement', 'ref ABA', 'cancel',
       } else if (change === 'deadline') {
         const guardCount = () => electronApp.evaluate(async ({ webContents }, url) => {
           const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
-          return page.executeJavaScriptInIsolatedWorld(1017, [{ code: 'globalThis.__hronautMediaState?.size ?? 0' }], false)
+          return page.executeJavaScriptInIsolatedWorld(1020, [{ code: 'globalThis.__hronautMediaState?.size ?? 0' }], false)
         }, url)
         expect(await guardCount()).toBe(1)
         await expect.poll(guardCount, { timeout: 8_000 }).toBe(0)

@@ -40,9 +40,9 @@ test('acquires native scalar media state without page accessors or observation m
       for(const type of ['play','pause','seeking','volumechange','loadstart','emptied'])document.addEventListener(type,()=>mediaMutations++,true);
     </script>`
     const read = async (selector = '#target') => {
-      const value = await page.executeJavaScriptInIsolatedWorld(1017, [{ code: scripts[selector]!.read }], false)
+      const value = await page.executeJavaScriptInIsolatedWorld(1020, [{ code: scripts[selector]!.read }], false)
       if (value?.failure) throw new Error('Synthetic target rejected')
-      const settled = await page.executeJavaScriptInIsolatedWorld(1017, [{ code: scripts[selector]!.settle }], false)
+      const settled = await page.executeJavaScriptInIsolatedWorld(1020, [{ code: scripts[selector]!.settle }], false)
       if (!settled) throw new Error('Synthetic media target did not settle')
       return value
     }

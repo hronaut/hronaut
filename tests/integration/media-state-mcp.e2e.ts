@@ -47,7 +47,7 @@ test('reports bounded hidden media state without page getters, source metadata, 
       ;(globalThis as typeof globalThis & { restoreMediaWitness?: () => void }).restoreMediaWitness = () => { page.executeJavaScriptInIsolatedWorld = original }
       page.executeJavaScriptInIsolatedWorld = async function (...args) {
         const result = await original.apply(this, args)
-        if (args[0] === 1017) {
+        if (args[0] === 1020) {
           const serialized = JSON.stringify(result)
           witness.observations++
           witness.clean &&= serialized.length <= 1024 && !/PRIVATE_MEDIA_SOURCE_CANARY|currentSrc|blob:|data:audio|message/.test(serialized)

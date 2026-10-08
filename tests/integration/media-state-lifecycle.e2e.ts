@@ -59,7 +59,7 @@ for (const change of ['navigation', 'close', 'pause', 'global pause', 'workspace
         page.executeJavaScriptInIsolatedWorld = async function (...args) {
           if (args[1].some(script => script.code.includes('handle.settle()'))) held.settlements += 1
           const value = await original.apply(this, args)
-          if (args[0] === 1017 && !held.held) {
+          if (args[0] === 1020 && !held.held) {
             held.held = true
             await gate
           }

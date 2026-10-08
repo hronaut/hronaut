@@ -1,6 +1,6 @@
 import type { BrowserMediaState } from '../../shared/types.js'
 
-export const MEDIA_STATE_WORLD_ID = 1017
+export const MEDIA_STATE_WORLD_ID = 1020
 
 // Only native scalar values are reduced in the isolated world, before IPC.
 // No source URL, error message, track, metadata or media content is acquired.
