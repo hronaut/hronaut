@@ -4,20 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-- Add opt-in password-field occupancy to element inspection: report only empty/nonempty/unknown without exporting values or lengths, waking tabs, or changing selection.
+## [2.20.0] - 2026-10-08
 
 ### Added
 
+- Add opt-in password-field occupancy to element inspection: report only empty/nonempty/unknown without exporting values or lengths, waking tabs, or changing selection.
 - Copy a stored History address without leaving the current page, with accessible confirmation and retryable failure feedback.
-
 - Open a History result in a background tab while keeping the current page, History panel, search and date filter.
 
 ### Fixed
 
 - Preserve Downloads keyboard focus when a native pause/resume update arrives after its action reply.
-
 - Reject stale element-inspection responses when workspace access, tab context or cancellation changes while audit results are being persisted.
-
 - Preserve next-row keyboard focus when a bookmark removal publishes its live update before the removal request finishes.
 - Keep Bookmarks keyboard focus reachable when an external bookmark or collection update removes the focused row, while preserving newer focus, search and collection selection.
 
