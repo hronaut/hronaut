@@ -348,6 +348,8 @@ Storage remains backward-readable `version: 1`: the existing bookmark array is u
 
 ## Review local browsing history
 
+Choose **Most visited** under **Sort history** to order the displayed records by their saved visit counts; equal counts retain the existing recent-first order. **Recently visited** remains the default. Sorting composes with search, date and exact-origin filters, and only changes the displayed list. Date filters apply to the last visit timestamp; counts remain the totals accumulated for each retained record, not counts within the selected date range. The choice survives panel close/reopen for the current application session and resets on restart. Live visit updates retain focus on a moved row, including a pending copy, background-open or bookmark action.
+
 Press **Ctrl+H** on Linux/Windows, **Cmd+Y** on macOS, or use the history button to search recently visited pages, reopen one, remove an individual entry, or clear the collection. Hronaut stores one recency entry per normalized HTTP or HTTPS address, counts repeat visits, removes URL credentials and fragments, and automatically drops visits older than 90 days. Home, `about:`, `data:`, and other internal pages are never recorded, and restoring a saved tab does not count as a new visit. History stays in the local profile with atomic writes; clearing it does not remove cookies, passwords, bookmarks, or downloaded files. Agents can use `browser_visit_history` to list, search, reopen, remove, or clear the same collection.
 
 ## Identify and mute tabs

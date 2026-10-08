@@ -26,6 +26,7 @@ export interface HistoryPanelControllerOptions {
 
 export function useHistoryPanelController(options: HistoryPanelControllerOptions) {
   const query = ref('')
+  const sortOrder = ref<'recent' | 'visits'>('recent')
   const dateRange = ref<HistoryDateRange>('all')
   const origin = ref('')
   const now = ref(Date.now())
@@ -39,14 +40,16 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   const filteredEntries = computed(() => {
     const normalized = query.value.trim().toLocaleLowerCase()
     const bounds = historyDateBounds(dateRange.value, now.value)
-    if (!normalized && !bounds && !origin.value) return options.entries.value
-    return options.entries.value.filter((entry) => {
+    const matching = !normalized && !bounds && !origin.value ? options.entries.value : options.entries.value.filter((entry) => {
       const visited = Date.parse(entry.visitedAt)
       return (!origin.value || entryOrigin(entry) === origin.value)
         && (!bounds || (visited >= bounds[0] && visited < bounds[1]))
         && (!normalized || entry.title.toLocaleLowerCase().includes(normalized)
           || entry.url.toLocaleLowerCase().includes(normalized))
     })
+    return sortOrder.value === 'visits'
+      ? [...matching].sort((left, right) => right.visitCount - left.visitCount)
+      : matching
   })
 
   function entryOrigin(entry: BrowserHistoryEntry): string {
@@ -71,7 +74,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   const copyEntryVisible = computed(() => !copyEntry.value || filteredEntries.value.some(
     entry => entry.id === copyEntry.value!.id && entry.url === copyEntry.value!.url
   ))
-  const stopCopyTracking = watch([query, dateRange, origin, options.open, copyEntryVisible], resetCopyFeedback, { flush: 'sync' })
+  const stopCopyTracking = watch([query, dateRange, origin, sortOrder, options.open, copyEntryVisible], resetCopyFeedback, { flush: 'sync' })
 
   let clockTimer: ReturnType<typeof setTimeout> | undefined
   function stopClock(): void {
@@ -201,6 +204,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
 
   return {
     query,
+    sortOrder,
     dateRange,
     origin,
     entryOrigin,

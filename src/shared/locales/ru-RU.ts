@@ -2704,7 +2704,7 @@ export const ruRU = {
     "removeAria": "Удалить {title}",
     "remove": "Удалить закладку"
   },
-  "history": { origin: "Origin", filterOrigin: "Фильтр по точному origin", filterOriginAria: "Фильтровать историю по origin страницы «{title}»", clearOrigin: "Сбросить фильтр origin", copyAddress: "Копировать адрес", copyAddressAria: "Копировать адрес «{title}»", addressCopied: "Адрес скопирован", copyFailed: "Не удалось скопировать адрес. Повторите попытку.", background: "Открыть в фоновой вкладке", backgroundAria: "Открыть «{title}» в фоновой вкладке", dateRange: "Период", allDates: "Всё", today: "Сегодня", last7Days: "Последние 7 дней",
+  "history": { sortOrder: "Порядок истории", sortRecent: "Недавно посещённые", sortVisits: "Часто посещаемые", origin: "Origin", filterOrigin: "Фильтр по точному origin", filterOriginAria: "Фильтровать историю по origin страницы «{title}»", clearOrigin: "Сбросить фильтр origin", copyAddress: "Копировать адрес", copyAddressAria: "Копировать адрес «{title}»", addressCopied: "Адрес скопирован", copyFailed: "Не удалось скопировать адрес. Повторите попытку.", background: "Открыть в фоновой вкладке", backgroundAria: "Открыть «{title}» в фоновой вкладке", dateRange: "Период", allDates: "Всё", today: "Сегодня", last7Days: "Последние 7 дней",
     "bookmark": "Добавить в закладки",
     "bookmarked": "Уже в закладках",
     "bookmarkAria": "Добавить «{title}» в закладки",
