@@ -45,13 +45,17 @@ export async function isolatedContainer(root: string, image: string, command: st
   // Only an immutable local image ID; no implicit pull, tag resolution or build.
   if (!/^sha256:[a-f0-9]{64}$/.test(image) || !root.startsWith('/') || root.includes(',') || command.length === 0)
     return { exitCode: null, killed: 0, stopped: 0 }
+  const uid = process.getuid?.()
+  const gid = process.getgid?.()
+  if (!Number.isSafeInteger(uid) || !Number.isSafeInteger(gid) || uid! < 0 || gid! < 0)
+    return { exitCode: null, killed: 0, stopped: 0 }
   if (signal?.aborted) return { exitCode: null, killed: 1, stopped: 1 }
   let id: string | undefined
   const result: ContainerOutcome = { exitCode: null, killed: 0, stopped: 0 }
   try {
     // Default private PID/IPC namespaces, no added capabilities, privileged mode,
     // host PID namespace, Docker socket, host ports or broader mounts.
-    id = await engine.create(['--init', '--network', 'bridge', '--log-driver', 'none',
+    id = await engine.create(['--pull=never', '--user', `${uid}:${gid}`, '--init', '--network', 'bridge', '--log-driver', 'none',
       '--mount', `type=bind,source=${root},target=${root}`, '--workdir', root,
       '--env', 'CI=true', '--env', `TMPDIR=${root}/diagnostic-temp`,
       '--env', 'HRONAUT_TEST_ISOLATED_DISPLAYS=1', '--entrypoint', command[0]!, image, ...command.slice(1)])

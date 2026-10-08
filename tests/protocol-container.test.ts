@@ -19,6 +19,8 @@ describe('diagnostic container PID boundary', () => {
     const e = engine()
     expect(await isolatedContainer('/tmp/owned', image, ['node', 'fixture.js'], undefined, e.fake)).toEqual({ exitCode: 7, killed: 0, stopped: 1 })
     expect(e.calls).toEqual(['create', 'start', 'wait', 'remove', 'verify'])
+    expect(e.args()).toContain('--pull=never')
+    expect(e.args()[e.args().indexOf('--user') + 1]).toBe(`${process.getuid?.()}:${process.getgid?.()}`)
     expect(e.args()).toContain('none'); expect(e.args()).toContain('--init')
     for (const forbidden of ['--privileged', '--pid', '--cap-add', '--security-opt', '/var/run/docker.sock']) expect(e.args()).not.toContain(forbidden)
     expect(e.args().filter(a => a === '--mount')).toHaveLength(1)

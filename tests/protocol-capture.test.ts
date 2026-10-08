@@ -9,9 +9,10 @@ import { readVerdict, runPreparedCapture } from '../scripts/diagnostics/protocol
 import { createProtocolTiming } from '../scripts/diagnostics/protocol-timing-runtime.js'
 
 import { isolatedProcess } from './helpers/protocol-synthetic-process.js'
-const containment = vi.hoisted(() => ({ stopped: 1 }))
+const containment = vi.hoisted(() => ({ stopped: 1, interrupt: '' }))
 vi.mock('../scripts/diagnostics/protocol-capture-container.ts', () => ({
   isolatedContainer: async (root: string, _image: string, command: string[], signal?: AbortSignal) => {
+    if (containment.interrupt) process.emit(containment.interrupt as 'SIGTERM')
     const outcome = await isolatedProcess(process.execPath, command.slice(1), root, { CI: 'true' }, signal)
     return { ...outcome, stopped: containment.stopped }
   }
@@ -48,7 +49,7 @@ function cached(manifest: CaptureManifest, exports: unknown) {
   const path = join(manifest.root, BUNDLE)
   return { [path]: { filename: path, loaded: true, exports } } as unknown as NodeJS.Dict<NodeModule>
 }
-afterEach(() => { containment.stopped = 1; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
+afterEach(() => { containment.stopped = 1; containment.interrupt = ''; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 describe('disposable protocol loader and collector', () => {
   it('loads exported runner directly in Node without loading or launching Playwright', async () => {
@@ -234,6 +235,20 @@ reporter.onTestEnd({outcome:()=> 'flaky'}, {retry:1,status:'passed'}); reporter.
     const result = await runPreparedCapture(manifest, parent, output, 'reviewed-single-capture', image)
     expect(result.exitCode).toBe(9); expect(result.publication).toBe(0); expect(result.artifactValid).toBe(0)
     expect(readFileSync(output, 'utf8')).toBe(sentinel); expect(existsSync(root)).toBe(false)
+  })
+
+  it('maps SIGINT and SIGTERM at the actual caller to awaited cancellation and restores handlers', async () => {
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+      const { manifest, parent, root } = prepared()
+      write(join(root, 'node_modules/@playwright/test/cli.js'), 'process.exit(0)')
+      const before = process.listenerCount(signal)
+      containment.interrupt = signal
+      const result = await runPreparedCapture(manifest, parent, join(parent, 'out.json'), 'reviewed-single-capture', image)
+      expect(result.killed).toBe(1); expect(result.exitCode).toBe(-1)
+      expect(result.containmentStopped).toBe(1); expect(result.cleanup).toBe(1)
+      expect(result.artifactValid).toBe(0); expect(existsSync(root)).toBe(false)
+      expect(process.listenerCount(signal)).toBe(before)
+    }
   })
 
   it('retains the disposable copy and refuses cleanup success when containment stop is unverified', async () => {

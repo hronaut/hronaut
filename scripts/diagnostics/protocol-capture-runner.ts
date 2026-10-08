@@ -20,6 +20,14 @@ export function readVerdict(path: string): { status: number; flaky: number; atte
 // Caller must preserve original exitCode and separately gate artifactValid.
 export async function runPreparedCapture(manifest: CaptureManifest, temporaryParent: string, outputFile: string, optIn: 'reviewed-single-capture', image: string, signal?: AbortSignal) {
   if (optIn !== 'reviewed-single-capture') throw new Error('Protocol capture requires explicit opt-in')
+  // The actual caller owns cancellation through the entire awaited teardown.
+  // Do not process.exit from signal handlers: container stop must finish first.
+  const cancellation = new AbortController()
+  const abort = () => cancellation.abort()
+  if (signal?.aborted) abort()
+  signal?.addEventListener('abort', abort, { once: true })
+  process.on('SIGINT', abort)
+  process.on('SIGTERM', abort)
   let outcome: ContainerOutcome = { exitCode: null, killed: 0, stopped: 1 }
   let cleanup = 0
   let sourceUnchanged = 0
@@ -31,7 +39,7 @@ export async function runPreparedCapture(manifest: CaptureManifest, temporaryPar
     const cli = join(manifest.root, 'node_modules/@playwright/test/cli.js')
     assertPlainPath(manifest.root, cli)
     mkdirSync(join(manifest.root, 'diagnostic-temp'), { mode: 0o700 })
-    outcome = await isolatedContainer(manifest.root, image, ['node', cli, 'test', CASE_FILE, '--grep', `${CASE_TITLE}$`, '--workers=1', '--reporter=./scripts/diagnostics/protocol-capture-reporter.ts'], signal)
+    outcome = await isolatedContainer(manifest.root, image, ['node', cli, 'test', CASE_FILE, '--grep', `${CASE_TITLE}$`, '--workers=1', '--reporter=./scripts/diagnostics/protocol-capture-reporter.ts'], cancellation.signal)
     verdict = readVerdict(join(manifest.root, 'diagnostic-output/verdict.json'))
     // Expect both attempts only when the ORIGINAL runner actually attempted retry.
     captures = (verdict.attempts.length ? verdict.attempts : [[0, 0]]).map(([retry]) => readCaptureFile(join(manifest.root, `diagnostic-output/attempt-${retry}.json`)))
@@ -42,6 +50,9 @@ export async function runPreparedCapture(manifest: CaptureManifest, temporaryPar
       assertPlainPath(manifest.sourceRoot, join(manifest.sourceRoot, BUNDLE))
       sourceUnchanged = digest(readFileSync(join(manifest.sourceRoot, BUNDLE))) === manifest.sourceBundleHash ? 1 : 0
     } catch { /* A missing/changed original cannot be called a successful rollback. */ }
+    signal?.removeEventListener('abort', abort)
+    process.off('SIGINT', abort)
+    process.off('SIGTERM', abort)
   }
   const artifactValid = cleanup === 1 && sourceUnchanged === 1 && outcome.killed === 0 && outcome.exitCode !== null && verdict.status !== 0 && captures.every(c => c.status !== 0) ? 1 : 0
   const result = { publication: 1, sourceUnchanged, containmentStopped: outcome.stopped, exitCode: outcome.exitCode ?? -1, killed: outcome.killed, cleanup, artifactValid, verdict, captures }

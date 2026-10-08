@@ -84,7 +84,10 @@ runs exactly the original named continuity case, its complete 2×2×2 matrix, on
 worker, existing CI retry=1 and failOnFlaky settings, once. No repeat loop or
 extra test deadline is added. It uses a private TMPDIR inside the disposable
 copy. The runner requires an immutable, already-installed Docker image ID and
-uses a new container with private PID/IPC namespaces, init and no logging driver.
+uses `--pull=never` and a new container with private PID/IPC namespaces, init
+and no logging driver. Container UID/GID are explicitly the host caller UID/GID,
+so 0600 snapshots and nested 0700 directories remain readable/removable by the
+caller without chmod or extra groups.
 There are no added capabilities, privileged flags, host PID/socket mounts or
 host ports. Cancellation stops the container with zero grace, verifies Running=false/Pid=0,
 then removes it and verifies absence, covering detached Electron
@@ -93,7 +96,12 @@ owned copy. Unverified container teardown retains that copy and reports
 `containmentStopped=0`, `cleanup=0`, invalid diagnostics. Docker control failures
 never become cleanup success. The copy path must be visible to the same local
 Docker daemon (use a disposable directory on the shared workspace filesystem).
-No capture or release decision is implied by these exported APIs.
+The actual runner maps SIGINT/SIGTERM and external cancellation to its owned
+AbortSignal, awaits container cleanup, then restores signal handlers. It never
+uses process.exit to skip teardown. Uncatchable host termination still requires
+the future hosted harness to perform external container cleanup; that harness
+is not supplied or approved here. No capture or release decision is implied by
+these exported APIs.
 
 Module resolution from the checkout, playwright and @playwright/test must all
 reach the plain copied core bundle. The collector checks its full file hash,
@@ -129,3 +137,9 @@ that the grandchild heartbeat stopped, and only then removes the copy. It launch
 Electron/browser. Unit tests separately prove unverified stop retains the copy
 and cannot claim rollback success. This containment correction is not a
 production stall fix and does not clear the failed release gate.
+
+The same host proof also invokes the actual collector under the intended
+container UID/GID, checks mode/ownership of its 0600 snapshot and 0700 parent
+folders, reads the snapshot from the non-root host, and removes the nested copy
+without permission changes. Unit coverage exercises both signal handlers at the
+actual runner entry and verifies awaited cleanup and restored listeners.

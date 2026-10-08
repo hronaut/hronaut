@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, copyFileSync, statSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { dockerEngine, isolatedContainer } from '../../scripts/diagnostics/protocol-capture-container.ts'
 
@@ -54,5 +54,48 @@ test('cancellation kills a detached grandchild via private container PID namespa
     if (!completed) await pending
     if (container && !(await dockerEngine.absent(container))) await dockerEngine.remove(container)
     rmSync(root, { recursive: true, force: true })
+  }
+})
+
+
+test('same-user collector writes 0600 snapshots under 0700 nested directories readable and removable by host', async () => {
+  const parent = join(process.cwd(), 'test-results/protocol-container-proof')
+  mkdirSync(parent, { recursive: true, mode: 0o700 })
+  const root = mkdtempSync(join(parent, 'hronaut-private-mode-proof-'))
+  mkdirSync(join(root, 'diagnostic-temp'), { mode: 0o700 })
+  const helpers = join(root, 'scripts/diagnostics')
+  mkdirSync(helpers, { recursive: true, mode: 0o700 })
+  for (const name of ['protocol-capture-worker.ts', 'protocol-capture-loader.ts', 'protocol-timing-overlay.ts', 'protocol-timing-runtime.ts'])
+    copyFileSync(join(process.cwd(), 'scripts/diagnostics', name), join(helpers, name))
+  writeFileSync(join(root, 'package.json'), '{"type":"module"}', { mode: 0o600 })
+  const nested = join(root, 'private/nested')
+  const snapshotPath = join(nested, 'snapshot.json')
+  const identityPath = join(nested, 'identity.json')
+  const script = `import {cpSync,mkdirSync,writeFileSync} from 'node:fs';
+mkdirSync(${JSON.stringify(join(root, 'node_modules'))},{mode:0o700});
+cpSync('/workspace/node_modules/typescript',${JSON.stringify(join(root, 'node_modules/typescript'))},{recursive:true});
+const {captureBeforeCleanup}=await import(${JSON.stringify(join(helpers, 'protocol-capture-worker.ts'))});
+mkdirSync(${JSON.stringify(nested)},{recursive:true,mode:0o700});
+captureBeforeCleanup(()=>({capacity:2048,total:1,dropped:0,transports:1,rejectedTransports:0,observerErrors:0,rows:[[1,1,1,1,0,1,1]]}),data=>writeFileSync(${JSON.stringify(snapshotPath)},data,{flag:'wx',mode:0o600}));
+writeFileSync(${JSON.stringify(identityPath)},JSON.stringify({uid:process.getuid(),gid:process.getgid()}),{flag:'wx',mode:0o600});`
+  writeFileSync(join(root, 'fixture.mjs'), script, { mode: 0o600 })
+  let stopped = false
+  try {
+    const result = await isolatedContainer(root, image, ['node', join(root, 'fixture.mjs')])
+    stopped = result.stopped === 1
+    assert.deepEqual(result, { exitCode: 0, killed: 0, stopped: 1 })
+    const identity = JSON.parse(readFileSync(identityPath, 'utf8'))
+    assert.deepEqual(identity, { uid: process.getuid!(), gid: process.getgid!() })
+    for (const [path, mode] of [[snapshotPath, 0o600], [join(root, 'private'), 0o700], [nested, 0o700]] as const) {
+      const stat = statSync(path)
+      assert.equal(stat.mode & 0o777, mode)
+      assert.equal(stat.uid, process.getuid!()); assert.equal(stat.gid, process.getgid!())
+    }
+    assert.equal(JSON.parse(readFileSync(snapshotPath, 'utf8')).status, 1)
+    rmSync(root, { recursive: true, force: true })
+    assert.equal(existsSync(root), false)
+  } finally {
+    // Never claim rollback or remove the bind tree if namespace stop is unknown.
+    if (stopped) rmSync(root, { recursive: true, force: true })
   }
 })
