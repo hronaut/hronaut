@@ -1,4 +1,4 @@
-import { continuityResizeDiagnostics } from './continuity-resize-diagnostics.js'
+import { continuityResizeDiagnostics, hasContinuityResizeCapture } from './continuity-resize-diagnostics.js'
 import { mkdir, readFile, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createServer } from 'node:http'
@@ -9,6 +9,7 @@ import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, launchHronaut, expect, test } from './fixtures.js'
 
 test('blocks a resumed write after navigation and rejects stale continuity reconciliation', async ({ appWindow, electronApp, mcpPort, mcpToken }, testInfo) => {
+  testInfo.skip(testInfo.repeatEachIndex > 0 && hasContinuityResizeCapture(), 'Bounded diagnostic stopped after the first captured stall')
   const fixture = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<!doctype html><title>Continuity fixture</title><main>Private fixture</main>') })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const address = fixture.address()

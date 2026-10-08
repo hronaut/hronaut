@@ -44,6 +44,12 @@ case "$run_dialogs" in
     ;;
 esac
 
+if [[ "${HRONAUT_CONTINUITY_RESIZE_DIAGNOSTICS:-false}" == 'true' && "$single_shard" == '8/8' ]]; then
+  export HRONAUT_CONTINUITY_RESIZE_STOP_FILE="$PWD/test-results/continuity-resize-stop"
+  mkdir -p test-results
+  rm -f "$HRONAUT_CONTINUITY_RESIZE_STOP_FILE"
+fi
+
 node scripts/verify-dependency-manifest.ts
 case "${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}" in
   true) npm run build:app ;;
@@ -93,10 +99,10 @@ else
 fi
 
 # Opt-in diagnosis only; preserve the normal shard result and its separate report.
-if [[ "${HRONAUT_CONTINUITY_RESIZE_DIAGNOSTICS:-false}" == 'true' && "$single_shard" == '8/8' ]]; then
+if [[ "${HRONAUT_CONTINUITY_RESIZE_DIAGNOSTICS:-false}" == 'true' && "$single_shard" == '8/8' ]] && ((status == 0)) && [[ ! -e "$HRONAUT_CONTINUITY_RESIZE_STOP_FILE" ]]; then
   if ! HRONAUT_TEST_ISOLATED_DISPLAYS=1 HRONAUT_TEST_SHARD=continuity-resize-diagnostic HRONAUT_TEST_SHARD_INDEX=8 \
     npm run test:integration:run -- tests/integration/workspace-continuity.e2e.ts \
-      --grep 'blocks a resumed write' --workers=1 --repeat-each=20 --retries=0; then
+      --grep 'blocks a resumed write' --workers=1 --repeat-each=20 --retries=0 --max-failures=1; then
     status=1
   fi
 fi
