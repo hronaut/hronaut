@@ -2630,7 +2630,7 @@ export const plPL = {
     "closeTitle": "Zamknij (Escape)",
     "close": "Zamknij sterowanie powiększeniem strony"
   },
-  "downloads": {
+  "downloads": { removeAria: "Usuń {filename} z listy", removeHint: "Usuń z listy; plik pozostanie na dysku",
     "search": "Szukaj nazw plików",
     "filterStatus": "Filtruj stan pobierania",
     "filterAll": "Wszystkie",

@@ -20,6 +20,7 @@ const props = defineProps<{
   pauseDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   resumeDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   cancelDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
+  removeFinished: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
 }>()
@@ -39,6 +40,7 @@ const {
   pause,
   resume,
   cancel,
+  remove,
   clear,
   reveal,
   dispose
@@ -51,16 +53,17 @@ const {
   pauseDownload: props.pauseDownload,
   resumeDownload: props.resumeDownload,
   cancelDownload: props.cancelDownload,
+  removeFinished: props.removeFinished,
   clearFinished: props.clearFinished,
   showInFolder: props.showInFolder
 })
 
-async function changeTransfer(action: 'pause' | 'resume' | 'cancel', downloadId: string, event: MouseEvent): Promise<void> {
+async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove', downloadId: string, event: MouseEvent): Promise<void> {
   const focused = event.currentTarget instanceof HTMLButtonElement
     && document.activeElement === event.currentTarget ? event.currentTarget : null
   const row = focused?.closest('.download-item')
   const panel = row?.closest('.downloads-panel')
-  await (action === 'pause' ? pause(downloadId) : action === 'resume' ? resume(downloadId) : cancel(downloadId))
+  await (action === 'pause' ? pause(downloadId) : action === 'resume' ? resume(downloadId) : action === 'remove' ? remove(downloadId) : cancel(downloadId))
   await nextTick()
   if (!open.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
@@ -163,7 +166,10 @@ onBeforeUnmount(() => { stopVisibleTracking(); dispose() })
           ><IconResume v-if="download.canResume" aria-hidden="true" /><IconPause v-else aria-hidden="true" /></UiButton>
         <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" :title="t('downloads.cancel')" @click="changeTransfer('cancel', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
-        <UiButton appearance="application" v-else-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
+        <div v-else class="download-actions">
+          <UiButton appearance="application" v-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.removeAria', { filename: download.filename })" :title="t('downloads.removeHint')" @click="changeTransfer('remove', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
+        </div>
       </article>
     </div>
     <p v-if="error" class="downloads-error" role="alert">{{ error }}</p>

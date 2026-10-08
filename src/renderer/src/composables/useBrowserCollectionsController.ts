@@ -126,6 +126,10 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveDownloads(() => options.downloadsApi.cancel(downloadId))
   }
 
+  function removeFinishedDownload(downloadId: string): Promise<BrowserDownloadState[]> {
+    return resolveDownloads(() => options.downloadsApi.removeFinished(downloadId))
+  }
+
   function clearFinishedDownloads(): Promise<BrowserDownloadState[]> {
     return resolveDownloads(() => options.downloadsApi.clearFinished())
   }
@@ -199,6 +203,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     resumeDownload,
     cancelDownload,
     clearFinishedDownloads,
+    removeFinishedDownload,
     revealDownload,
     refreshBookmarks,
     addBookmark,

@@ -42,6 +42,7 @@ function createController(initialDownloads = [download('complete', 'completed', 
     pauseDownload,
     resumeDownload,
     cancelDownload,
+    removeFinished: vi.fn(async () => []),
     clearFinished,
     showInFolder
   })

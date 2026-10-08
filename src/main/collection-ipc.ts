@@ -8,7 +8,7 @@ interface CollectionIpcHost {
   assertTrustedSender(event: IpcMainInvokeEvent): void
   bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'remove' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection'>
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
-  downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'manageDownloads' | 'showDownloadInFolder'>
+  downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
 }
@@ -26,6 +26,11 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
       return host.downloads().manageDownloads(action, downloadId)
     })
   }
+  ipcMain.handle('downloads:remove-finished', (event, downloadId: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof downloadId !== 'string' || !downloadId) throw new TypeError('Invalid download ID')
+    return host.downloads().removeFinishedDownload(downloadId)
+  })
   ipcMain.handle('downloads:clear-finished', (event) => {
     host.assertTrustedSender(event)
     return host.downloads().manageDownloads('clear')

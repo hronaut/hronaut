@@ -38,7 +38,8 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
       pauseDownload: vi.fn(async () => []),
       resumeDownload: vi.fn(async () => []),
       cancelDownload: vi.fn(async () => []),
-      clearFinished: vi.fn(async () => []),
+      removeFinished: vi.fn(async () => []),
+    clearFinished: vi.fn(async () => []),
       showInFolder: vi.fn(async () => undefined),
       ...overrides
     }
@@ -169,7 +170,7 @@ describe('DownloadsPanel', () => {
     renderPanel({ pauseDownload: vi.fn(async () => [download('known', state, 100, 100)]) })
     screen.getByRole('button', { name: 'Pause known.bin' }).focus()
     await userEvent.keyboard('{Enter}')
-    expect(screen.getByRole('button', { name: state === 'completed' ? 'Show known.bin in folder' : 'Close downloads' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: state === 'completed' ? 'Show known.bin in folder' : 'Remove known.bin from list' })).toHaveFocus()
   })
 
   it.each(['newer-focus', 'reopen', 'unmount', 'unfocused'] as const)('does not restore outdated transfer focus after %s', async scenario => {
@@ -283,4 +284,43 @@ describe('DownloadsPanel', () => {
     }
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
+})
+
+it('offers individual removal only for finished download records', () => {
+  renderPanel({ removeFinished: vi.fn(async () => []) })
+  expect(screen.getByRole('button', { name: 'Remove complete.bin from list' })).toBeVisible()
+  expect(screen.queryByRole('button', { name: 'Remove known.bin from list' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Remove unknown.bin from list' })).toBeNull()
+})
+
+it('removes one filtered record by keyboard while retaining others and recovering focus', async () => {
+  const other = download('other', 'completed', 100, 100)
+  const removeFinished = vi.fn(async () => [other])
+  renderPanel({ downloads: [download('target', 'cancelled', 0, 100), other], removeFinished })
+  const user = userEvent.setup()
+  const search = screen.getByRole('searchbox')
+  await user.type(search, 'target')
+  const remove = screen.getByRole('button', { name: 'Remove target.bin from list' })
+  expect(remove).toHaveAttribute('title', 'Remove from list; file stays on disk')
+  remove.focus()
+  await user.keyboard('{Enter}')
+  await flushPromises()
+  expect(removeFinished).toHaveBeenCalledExactlyOnceWith('target')
+  expect(screen.getByRole('status')).toHaveTextContent('0 of 1 downloads')
+  expect(search).toHaveFocus()
+  expect(search).toHaveValue('target')
+})
+
+it('keeps the record after a removal failure and supports a deliberate retry', async () => {
+  const removeFinished = vi.fn().mockRejectedValueOnce(new Error('Removal failed')).mockResolvedValue([])
+  renderPanel({ downloads: [download('target', 'completed', 100, 100)], removeFinished })
+  const button = screen.getByRole('button', { name: 'Remove target.bin from list' })
+  await userEvent.click(button)
+  await flushPromises()
+  expect(screen.getByRole('alert')).toHaveTextContent('Removal failed')
+  expect(button).toBeVisible()
+  await userEvent.click(button)
+  await flushPromises()
+  expect(screen.getByText('No downloads yet')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Close downloads' })).toHaveFocus()
 })

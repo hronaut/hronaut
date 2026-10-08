@@ -13,6 +13,7 @@ export interface DownloadsPanelControllerOptions {
   pauseDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   resumeDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   cancelDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
+  removeFinished: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
 }
@@ -94,6 +95,10 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     return runAction(`cancel:${downloadId}`, () => options.cancelDownload(downloadId))
   }
 
+  function remove(downloadId: string): Promise<void> {
+    return runAction(`remove:${downloadId}`, () => options.removeFinished(downloadId))
+  }
+
   function clear(): Promise<void> {
     return runAction('clear', options.clearFinished)
   }
@@ -127,6 +132,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     pause,
     resume,
     cancel,
+    remove,
     clear,
     reveal,
     dispose

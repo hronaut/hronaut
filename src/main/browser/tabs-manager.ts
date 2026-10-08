@@ -6478,6 +6478,10 @@ export class BrowserTabsManager {
     return this.downloadController.listDownloads()
   }
 
+  removeFinishedDownload(downloadId: string): BrowserDownloadState[] {
+    return this.downloadController.removeFinishedDownload(downloadId)
+  }
+
   manageDownloads(action: BrowserDownloadAction, downloadId?: string): BrowserDownloadState[] {
     return this.downloadController.manageDownloads(action, downloadId)
   }

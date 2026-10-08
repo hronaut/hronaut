@@ -2630,7 +2630,7 @@ export const ruRU = {
     "closeTitle": "Закрыть (Escape)",
     "close": "Закрыть управление масштабом страницы"
   },
-  "downloads": {
+  "downloads": { removeAria: "Убрать {filename} из списка", removeHint: "Убрать из списка; файл останется на диске",
     "search": "Поиск по имени файла",
     "filterStatus": "Фильтр состояния загрузок",
     "filterAll": "Все",
