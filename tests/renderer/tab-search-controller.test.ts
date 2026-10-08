@@ -102,6 +102,79 @@ function createController(initialState = browserState(), initiallyOpen = false) 
 }
 
 describe('tab search controller', () => {
+  it('filters result kinds with text and activates only the selected closed match', async () => {
+    const initial = browserState([tab('alpha'), tab('beta', true)])
+    initial.closedTabs = [{ id: 'closed-alpha', title: 'Tab alpha', url: 'https://alpha.example', pinned: false, closedAt: '2026-10-08T10:00:00Z' }]
+    initial.savedTabGroups = [savedGroup('alpha')]
+    const { controller, browser, selectTab } = createController(initial)
+    try {
+      await controller.openPanel()
+      controller.query.value = 'alpha'
+      expect(controller.results.value.map(row => row.kind)).toEqual(['open', 'saved', 'closed'])
+      controller.selection.value = 2
+      controller.resultKind.value = 'saved'
+      expect(controller.selection.value).toBe(0)
+      expect(controller.results.value.map(row => row.kind)).toEqual(['saved'])
+      controller.resultKind.value = 'open'
+      expect(controller.results.value.map(row => row.kind)).toEqual(['open'])
+      controller.resultKind.value = 'closed'
+      expect(controller.results.value.map(row => row.kind)).toEqual(['closed'])
+      controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter' }))
+      await nextTick()
+      expect(browser.reopenClosedTab).toHaveBeenCalledWith('closed-alpha')
+      expect(browser.restoreSavedTabGroup).not.toHaveBeenCalled()
+      expect(selectTab).not.toHaveBeenCalled()
+      await controller.openPanel()
+      expect(controller.resultKind.value).toBe('all')
+      expect(controller.query.value).toBe('')
+    } finally { controller.dispose() }
+  })
+
+  it('keeps filtered selection stable across live updates and clamps empty results', async () => {
+    const initial = browserState()
+    initial.savedTabGroups = [savedGroup('one'), savedGroup('two')]
+    const { controller, state } = createController(initial)
+    try {
+      controller.resultKind.value = 'saved'
+      controller.selection.value = 1
+      state.value = { ...state.value, savedTabGroups: [savedGroup('new'), ...state.value.savedTabGroups] }
+      expect(controller.selectedResult.value?.tab.id).toBe('two')
+      controller.query.value = 'missing'
+      expect(controller.results.value).toEqual([])
+      expect(controller.selection.value).toBe(0)
+      controller.query.value = 'two'
+      expect(controller.selectedResult.value?.tab.id).toBe('two')
+      state.value = { ...state.value, savedTabGroups: [] }
+      expect(controller.results.value).toEqual([])
+      expect(controller.selectedResult.value).toBeUndefined()
+    } finally { controller.dispose() }
+  })
+
+  it('discards pending thumbnails and suppresses further capture while only closed or saved results are shown', async () => {
+    vi.useFakeTimers()
+    const { controller, browser } = createController()
+    const pending = deferred<BrowserTabOverviewPreview[]>()
+    browser.getTabOverviewPreviews.mockImplementationOnce(() => pending.promise)
+    try {
+      await controller.openPanel()
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(1)
+      controller.resultKind.value = 'closed'
+      pending.resolve([{ tabId: 'alpha', navigationGeneration: 1, dataUrl: 'data:image/jpeg;base64,YQ==', width: 1, height: 1 }])
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(controller.previewsByTab.value).toEqual({})
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(1)
+      controller.resultKind.value = 'saved'
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(1)
+      controller.resultKind.value = 'open'
+      await nextTick()
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(2)
+      controller.close()
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(2)
+    } finally { controller.dispose(); vi.useRealTimers() }
+  })
+
   it('does not activate a result with Enter while an overview action is pending', async () => {
     const { controller, browser, selectTab, state } = createController()
     const pending = deferred<BrowserState>()

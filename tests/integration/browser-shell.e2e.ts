@@ -6458,7 +6458,7 @@ test('archives a workspace from its context menu and restores it with the same s
 
   await appWindow.getByRole('button', { name: 'Search tabs' }).click()
   const panel = appWindow.getByRole('dialog', { name: 'Tabs' })
-  await expect(panel.getByText('Archived workspaces')).toBeVisible()
+  await expect(panel.getByRole('heading', { name: /^Archived workspaces/ })).toBeVisible()
   await panel.getByRole('button', { name: 'Restore archived workspace Saved investigation' }).click()
   await expect(appWindow.getByRole('tab', { name: /^Saved research/ })).toBeVisible()
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({ saved: state.savedTabGroups.length, restored: state.mcpTabGroups.find((group) => group.name === 'Saved investigation')?.id }))`)).toEqual({

@@ -600,3 +600,6 @@
 .history-origin-filter > span { @apply min-w-0 flex-1 [overflow-wrap:anywhere]; }
 .history-origin-filter button { @apply flex-none; }
 .history-origin-filter svg { @apply [width:17px] [height:17px]; }
+
+.tab-search-kind-filter { @apply flex flex-none items-center [gap:8px] [margin:0_12px_6px] text-muted [font-size:12px]; }
+.tab-search-kind-filter select { @apply min-w-0 flex-1 [padding:7px_9px] [border:1px_solid_var(--border-soft)] [border-radius:7px] text-copy bg-surface; }
