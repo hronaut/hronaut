@@ -150,8 +150,17 @@ onBeforeUnmount(() => { stopVisibleTracking(); dispose() })
           </div>
         </div>
         <div v-if="isActiveDownload(download)" class="download-actions">
-          <UiButton appearance="application" v-if="download.canResume" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.resumeAria', { filename: download.filename })" :title="t('downloads.resume')" @click="changeTransfer('resume', download.id, $event)"><IconResume aria-hidden="true" /></UiButton>
-          <UiButton appearance="application" v-else-if="download.state === 'progressing' && !download.paused" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.pauseAria', { filename: download.filename })" :title="t('downloads.pause')" @click="changeTransfer('pause', download.id, $event)"><IconPause aria-hidden="true" /></UiButton>
+          <!-- Keep the focused control mounted when native state changes after the action reply. -->
+          <UiButton
+            v-if="download.canResume || (download.state === 'progressing' && !download.paused)"
+            appearance="application"
+            class="download-action"
+            type="button"
+            :disabled="pendingAction !== null"
+            :aria-label="t(download.canResume ? 'downloads.resumeAria' : 'downloads.pauseAria', { filename: download.filename })"
+            :title="t(download.canResume ? 'downloads.resume' : 'downloads.pause')"
+            @click="changeTransfer(download.canResume ? 'resume' : 'pause', download.id, $event)"
+          ><IconResume v-if="download.canResume" aria-hidden="true" /><IconPause v-else aria-hidden="true" /></UiButton>
         <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" :title="t('downloads.cancel')" @click="changeTransfer('cancel', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
         <UiButton appearance="application" v-else-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
