@@ -3,8 +3,10 @@ import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 for (const canceled of [true, false]) {
-  for (const selection of ['replacement', 'other', 'reordered'] as const) {
-    test(`keeps the ${selection} page visible when a delayed tab close ${canceled ? 'is canceled' : 'finishes'}`, async ({ appWindow, electronApp }) => {
+  for (const scenario of ['replacement', 'other', 'reordered', ...(canceled ? ['other-delayed-input' as const] : [])] as const) {
+    const selection = scenario === 'other-delayed-input' ? 'other' : scenario
+    const delayedInput = scenario === 'other-delayed-input'
+    test(`keeps the ${selection} page visible when a delayed tab close ${canceled ? 'is canceled' : 'finishes'}${delayedInput ? ' with delayed input' : ''}`, async ({ appWindow, electronApp }) => {
       const server = createServer((request, response) => {
         response.writeHead(200, { 'content-type': 'text/html' })
         response.end(`<!doctype html><title>${request.url}</title><input id="draft"><script>
@@ -34,16 +36,18 @@ for (const canceled of [true, false]) {
         await expect.poll(() => appWindow.evaluate(() => (
           window as unknown as { hronaut: HronautApi }
         ).hronaut.getState().then(state => state.tabs.every(tab => !tab.loading)))).toBe(true)
-        await electronApp.evaluate(async ({ webContents, dialog }, url) => {
+        const draftDocument = await electronApp.evaluate(async ({ webContents, dialog }, { url, delayedInput }) => {
           const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
           if (!page) throw new Error('Draft page missing')
           page.focus()
-          await page.executeJavaScript("document.querySelector('#draft').focus()")
-          page.sendInputEvent({ type: 'char', keyCode: 'x' })
+          const documentCreatedAt = await page.executeJavaScript("document.querySelector('#draft').focus(); performance.timeOrigin") as number
+          const deliverInput = () => page.sendInputEvent({ type: 'char', keyCode: 'x' })
+          if (!delayedInput) deliverInput()
           const originalClose = page.close.bind(page)
           const originalDialog = dialog.showMessageBox
           const control = {
             started: false,
+            deliverInput,
             release: undefined as (() => void) | undefined,
             restore: () => {
               if (!page.isDestroyed()) Object.defineProperty(page, 'close', { configurable: true, value: originalClose })
@@ -56,7 +60,28 @@ for (const canceled of [true, false]) {
             control.release = () => originalClose(options)
           } })
           Object.defineProperty(dialog, 'showMessageBox', { configurable: true, value: async () => ({ response: 0, checkboxChecked: false }) })
-        }, `${base}/draft`)
+          return documentCreatedAt
+        }, { url: `${base}/draft`, delayedInput })
+        // sendInputEvent queues native input; it is not an acknowledgement that the field changed.
+        // Establish the draft before close can detach its view or change selection.
+        let sawPendingInput = false
+        const draftReady = expect.poll(async () => {
+          const value = await electronApp.evaluate(async ({ webContents }, url) => (
+            webContents.getAllWebContents().find(contents => contents.getURL() === url)!.executeJavaScript("document.querySelector('#draft').value")
+          ), `${base}/draft`)
+          if (value === '') sawPendingInput = true
+          return value
+        }).toBe('x')
+        if (delayedInput) {
+          await expect.poll(() => sawPendingInput).toBe(true)
+          expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & {
+            __delayedClose?: { started: boolean }
+          }).__delayedClose?.started)).toBe(false)
+          await electronApp.evaluate(() => (globalThis as typeof globalThis & {
+            __delayedClose?: { deliverInput(): void }
+          }).__delayedClose?.deliverInput())
+        }
+        await draftReady
         monitoredPages.push(...electronApp.context().pages().filter(page => !monitoredPages.includes(page)))
         for (const page of monitoredPages) page.on('dialog', suppressAutomaticDialogDismissal)
         await appWindow.evaluate((tabId) => {
@@ -91,6 +116,9 @@ for (const canceled of [true, false]) {
         if (canceled) expect(await electronApp.evaluate(async ({ webContents }, url) => (
           webContents.getAllWebContents().find(contents => contents.getURL() === url)?.executeJavaScript("document.querySelector('#draft').value")
         ), `${base}/draft`)).toBe('x')
+        if (canceled) expect(await electronApp.evaluate(async ({ webContents }, url) => (
+          webContents.getAllWebContents().find(contents => contents.getURL() === url)?.executeJavaScript('performance.timeOrigin')
+        ), `${base}/draft`)).toBe(draftDocument)
       } finally {
         for (const page of monitoredPages) page.off('dialog', suppressAutomaticDialogDismissal)
         await electronApp.evaluate(() => {
