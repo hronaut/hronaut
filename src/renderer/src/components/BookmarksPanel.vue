@@ -121,7 +121,8 @@ const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => b
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   if (row.isConnected) {
     // Moving a keyed row can blur its retained control during DOM insertion.
-    if (focused.isConnected && !focused.matches(':disabled, [aria-disabled="true"]')) focused.focus()
+    // aria-disabled actions intentionally remain focusable while pending.
+    if (focused.isConnected && !focused.matches(':disabled')) focused.focus()
     return
   }
   const target = [next, previous,
