@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { flushPromises } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import BookmarksPanel from '../../src/renderer/src/components/BookmarksPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -16,27 +16,176 @@ function bookmark(id: string, title = `Page ${id}`): BrowserBookmark {
   }
 }
 
+function panelProps(overrides: Record<string, unknown> = {}) {
+  return {
+    open: true,
+    bookmarks: [bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Beta page')],
+    dock: 'right' as const,
+    activeUrl: 'https://example.test/alpha',
+    activeTitle: 'Alpha docs',
+    currentBookmark: bookmark('alpha', 'Alpha docs'),
+    listBookmarks: vi.fn(async () => []),
+    addBookmark: vi.fn(async () => []),
+    updateBookmarkDestination: vi.fn(async () => []),
+    renameBookmark: vi.fn(async () => []),
+    removeBookmark: vi.fn(async () => []),
+    openBookmarkInBackground: vi.fn(async () => undefined),
+    openBookmark: vi.fn(async () => undefined),
+    ...overrides
+  }
+}
+
 function renderPanel(overrides: Record<string, unknown> = {}) {
   return render(BookmarksPanel, {
     global: { plugins: [createHronautI18n('en-US')] },
-    props: {
-      open: true,
-      bookmarks: [bookmark('alpha', 'Alpha docs'), bookmark('beta', 'Beta page')],
-      dock: 'right',
-      activeUrl: 'https://example.test/alpha',
-      activeTitle: 'Alpha docs',
-      currentBookmark: bookmark('alpha', 'Alpha docs'),
-      listBookmarks: vi.fn(async () => []),
-      addBookmark: vi.fn(async () => []),
-      updateBookmarkDestination: vi.fn(async () => []),
-      renameBookmark: vi.fn(async () => []),
-      removeBookmark: vi.fn(async () => []),
-      openBookmarkInBackground: vi.fn(async () => undefined),
-      openBookmark: vi.fn(async () => undefined),
-      ...overrides
-    }
+    props: panelProps(overrides)
   })
 }
+
+describe('live bookmark focus recovery', () => {
+  it.each(['open', 'rename', 'destination', 'background', 'remove'])('moves external removal focus to the neighboring %s control', async control => {
+    const view = renderPanel()
+    const target = (title: string) => control === 'open' ? screen.getByRole('button', { name: new RegExp(`^${title}`) })
+      : screen.getByRole('button', { name: control === 'rename' ? `Rename ${title}`
+        : control === 'destination' ? `Edit address for ${title}`
+          : control === 'background' ? `Open ${title} in background tab` : `Remove ${title}` })
+    target('Alpha docs').focus()
+    await view.rerender({ bookmarks: [bookmark('beta', 'Beta page')] })
+    await flushPromises()
+    expect(target('Beta page')).toHaveFocus()
+  })
+
+  it('recovers to the previous row when the last focused row disappears', async () => {
+    const view = renderPanel()
+    screen.getByRole('button', { name: 'Open Beta page in background tab' }).focus()
+    await view.rerender({ bookmarks: [bookmark('alpha', 'Alpha docs')] })
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Open Alpha docs in background tab' })).toHaveFocus()
+  })
+
+  it('does not replace a missing neighboring Rename control with its Save action', async () => {
+    const view = renderPanel()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Rename Beta page' }))
+    screen.getByRole('button', { name: 'Rename Alpha docs' }).focus()
+    await view.rerender({ bookmarks: [bookmark('beta', 'Beta page')] })
+    await flushPromises()
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+    expect(screen.getByRole('textbox', { name: 'Rename Beta page' })).toHaveValue('Beta page')
+  })
+
+  it('keeps the search query and recovers search focus after an external rename leaves its results', async () => {
+    const view = renderPanel()
+    const search = screen.getByRole('searchbox')
+    await userEvent.setup().type(search, 'Alpha docs')
+    screen.getByRole('button', { name: 'Open Alpha docs in background tab' }).focus()
+    await view.rerender({ bookmarks: [bookmark('alpha', 'Renamed page'), bookmark('beta', 'Beta page')] })
+    await flushPromises()
+    expect(search).toHaveValue('Alpha docs')
+    expect(search).toHaveFocus()
+  })
+
+  it('uses Close when an external update empties bookmarks', async () => {
+    const view = renderPanel()
+    screen.getByRole('button', { name: 'Remove Alpha docs' }).focus()
+    await view.rerender({ bookmarks: [] })
+    await flushPromises()
+    expect(screen.getByRole('button', { name: 'Close bookmarks' })).toHaveFocus()
+  })
+
+  it('recovers search focus when an externally removed bookmark was being edited', async () => {
+    const view = renderPanel()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Rename Alpha docs' }))
+    expect(screen.getByRole('textbox', { name: 'Rename Alpha docs' })).toHaveFocus()
+    await view.rerender({ bookmarks: [bookmark('beta', 'Beta page')] })
+    await flushPromises()
+    expect(screen.getByRole('searchbox')).toHaveFocus()
+  })
+
+  it.each(['row', 'assignment', 'search', 'filter'])('preserves collection selection and %s focus during an external membership change', async control => {
+    let changed!: (snapshot: BookmarkCollectionSnapshot) => void
+    const snapshot = { revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: ['alpha', 'beta'] }] }
+    const api = {
+      list: vi.fn(async () => snapshot),
+      onChanged: vi.fn((callback: typeof changed) => { changed = callback; return vi.fn() }),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    renderPanel({ collectionsApi: api })
+    await flushPromises()
+    const filter = screen.getByRole('combobox', { name: 'Filter bookmarks by collection' })
+    await userEvent.setup().selectOptions(filter, 'c:project')
+    const target = control === 'filter' ? filter : control === 'search' ? screen.getByRole('searchbox')
+      : control === 'assignment' ? screen.getByRole('combobox', { name: 'Collection for Alpha docs' })
+        : screen.getByRole('button', { name: 'Open Alpha docs in background tab' })
+    target.focus()
+    changed({ revision: 2, collections: [{ ...snapshot.collections[0], bookmarkIds: ['beta'] }] })
+    await flushPromises()
+    expect(filter).toHaveValue('c:project')
+    expect(screen.queryByRole('button', { name: 'Open Alpha docs in background tab' })).toBeNull()
+    expect(control === 'row' ? screen.getByRole('button', { name: 'Open Beta page in background tab' })
+      : control === 'assignment' ? filter : target).toHaveFocus()
+  })
+
+  it('preserves newer focus moved outside the panel during the DOM update', async () => {
+    const view = renderPanel()
+    const focused = screen.getByRole('button', { name: 'Remove Alpha docs' })
+    const external = document.createElement('button')
+    document.body.append(external)
+    const observer = new MutationObserver(() => { if (!focused.isConnected) external.focus() })
+    observer.observe(screen.getByRole('dialog'), { childList: true, subtree: true })
+    try {
+      focused.focus()
+      await view.rerender({ bookmarks: [bookmark('beta', 'Beta page')] })
+      await flushPromises()
+      expect(external).toHaveFocus()
+    } finally { observer.disconnect(); external.remove() }
+  })
+
+  it('invalidates queued recovery when the same panel closes and reopens before rendering', async () => {
+    let finishLoad!: (bookmarks: BrowserBookmark[]) => void
+    const beta = bookmark('beta', 'Beta page')
+    const wrapper = mount(BookmarksPanel, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: panelProps({ listBookmarks: vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finishLoad = resolve })) })
+    })
+    const panel = screen.getByRole('dialog')
+    const focused = screen.getByRole('button', { name: 'Remove Alpha docs' })
+    const exposed = wrapper.vm as unknown as { toggle(): Promise<void> }
+    let reopened = false
+    const observer = new MutationObserver(() => {
+      if (focused.isConnected || reopened) return
+      reopened = true
+      void exposed.toggle()
+      void exposed.toggle()
+    })
+    observer.observe(panel, { childList: true, subtree: true })
+    try {
+      focused.focus()
+      await wrapper.setProps({ bookmarks: [beta] })
+      await flushPromises()
+      expect(reopened).toBe(true)
+      expect(screen.getByRole('dialog')).toBe(panel)
+      expect(document.body).toHaveFocus()
+      finishLoad([beta])
+      await flushPromises()
+      expect(document.body).toHaveFocus()
+    } finally { observer.disconnect(); wrapper.unmount() }
+  })
+
+  it('preserves newer search focus when an external removal overlaps a pending background action', async () => {
+    let finish!: () => void
+    const view = renderPanel({ openBookmarkInBackground: vi.fn(() => new Promise<void>(resolve => { finish = resolve })) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open Alpha docs in background tab' }))
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Beta')
+    await view.rerender({ bookmarks: [bookmark('beta', 'Beta page')] })
+    finish()
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(search).toHaveValue('Beta')
+  })
+})
 
 describe('BookmarksPanel', () => {
   it('creates a collection, assigns a bookmark and keeps all links when removing the collection', async () => {

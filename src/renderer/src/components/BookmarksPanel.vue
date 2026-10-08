@@ -35,6 +35,9 @@ const props = defineProps<{
 const open = defineModel<boolean>('open', { required: true })
 const bookmarks = defineModel<BrowserBookmark[]>('bookmarks', { required: true })
 const dock = defineModel<PanelDock>('dock', { required: true })
+const panelRoot = ref<HTMLElement | null>(null)
+let focusGeneration = 0
+const stopFocusSessionTracking = watch(open, () => { focusGeneration += 1 }, { flush: 'sync' })
 const { t } = useI18n({ useScope: 'global' })
 const {
   query,
@@ -79,25 +82,66 @@ const anyPending = computed(() => pendingAction.value !== null || collectionsPen
 const visibleBookmarks = computed(() => filteredBookmarks.value.filter(bookmark => collectionController.includes(bookmark.id)))
 const collectionsToolbar = ref<{ cancelEdit: () => void } | null>(null)
 watch(selection, cancelRenameDraft)
-onBeforeUnmount(collectionController.dispose)
+
+// Authoritative bookmark and collection updates can remove a focused row
+// without running one of this panel's action handlers.
+const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => bookmark.id), async (_ids, _previous, onCleanup) => {
+  const focused = document.activeElement
+  const panel = panelRoot.value
+  const row = focused instanceof HTMLElement && panel?.contains(focused)
+    ? focused.closest('.bookmark-item') : null
+  if (!row || !panel || !(focused instanceof HTMLElement)) return
+  const generation = focusGeneration
+  let superseded = false
+  onCleanup(() => { superseded = true })
+  const assignment = focused.matches('.bookmark-collection-assignment select')
+  const editing = focused.closest('.bookmark-editor') || focused.matches('.bookmark-action.confirm')
+  const selector = assignment || editing ? null
+    : focused.matches('.bookmark-open') ? 'button.bookmark-open'
+      : focused.matches('.bookmark-background') ? '.bookmark-background'
+        : focused.matches('.bookmark-destination') ? '.bookmark-destination'
+          : focused.matches('.danger') ? '.bookmark-action.danger'
+            : '.bookmark-action:not(.danger):not(.confirm):not(.bookmark-background):not(.bookmark-destination)'
+  const next = selector ? row.nextElementSibling?.querySelector<HTMLElement>(selector) : null
+  const previous = selector ? row.previousElementSibling?.querySelector<HTMLElement>(selector) : null
+  await nextTick()
+  if (superseded || generation !== focusGeneration || !open.value || panel !== panelRoot.value
+    || !panel.isConnected || row.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  const target = [next, previous,
+    assignment ? panel.querySelector<HTMLSelectElement>('.bookmark-collection-filter select') : null,
+    panel.querySelector<HTMLInputElement>('.bookmark-search-field input'),
+    panel.querySelector<HTMLButtonElement>('.panel-close')
+  ].find(element => element?.isConnected && !element.matches(':disabled, [aria-disabled="true"]'))
+  target?.focus()
+}, { flush: 'pre' })
+
+onBeforeUnmount(() => {
+  focusGeneration += 1
+  stopVisibleTracking()
+  stopFocusSessionTracking()
+  collectionController.dispose()
+  dispose()
+})
 
 async function assignCollection(bookmarkId: string, event: Event): Promise<void> {
+  const generation = focusGeneration
   const select = event.currentTarget instanceof HTMLSelectElement ? event.currentTarget : null
   if (!select) return
   const panel = select.closest('.bookmarks-panel')
   const focused = document.activeElement === select
   await collectionController.assign(bookmarkId, select.value || null)
   await nextTick()
-  if (!focused || !open.value || !panel?.isConnected) return
+  if (generation !== focusGeneration || !focused || !open.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== select) return
   if (select.isConnected) select.focus()
   else panel.querySelector<HTMLSelectElement>('.bookmark-collection-filter select')?.focus()
 }
 
 defineExpose({ toggle, toggleCurrent, handleEscape })
-onBeforeUnmount(dispose)
 
 async function finishRename(operation: () => void | Promise<void>): Promise<void> {
+  const generation = focusGeneration
   const focused = document.activeElement
   const row = focused instanceof HTMLElement
     && (focused.closest('.bookmark-editor') || focused.closest('.bookmark-action.confirm'))
@@ -107,7 +151,7 @@ async function finishRename(operation: () => void | Promise<void>): Promise<void
   const wasDestination = editingDestination.value
   await operation()
   await nextTick()
-  if (!open.value || editingBookmarkId.value || !panel?.isConnected) return
+  if (generation !== focusGeneration || !open.value || editingBookmarkId.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   if (row?.isConnected) row.querySelector<HTMLButtonElement>(wasDestination ? '.bookmark-destination' : '.bookmark-action:not(.danger)')?.focus()
   else panel.querySelector<HTMLInputElement>('.bookmark-search-field input')?.focus()
@@ -122,6 +166,7 @@ function commitRename(bookmarkId: string): Promise<void> {
 }
 
 async function remove(bookmarkId: string, event: MouseEvent): Promise<void> {
+  const generation = focusGeneration
   const focused = event.currentTarget instanceof HTMLButtonElement
     && document.activeElement === event.currentTarget ? event.currentTarget : null
   const row = focused?.closest('.bookmark-item')
@@ -130,7 +175,7 @@ async function remove(bookmarkId: string, event: MouseEvent): Promise<void> {
   const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.bookmark-action.danger')
   await removeEntry(bookmarkId)
   await nextTick()
-  if (!open.value || !panel?.isConnected) return
+  if (generation !== focusGeneration || !open.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   const target = [focused, next, previous,
     panel.querySelector<HTMLInputElement>('.bookmark-search-field input'),
@@ -160,6 +205,7 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
 <template>
   <section
     v-if="open"
+    ref="panelRoot"
     class="bookmarks-panel"
     data-shell-docked-panel
     role="dialog"
