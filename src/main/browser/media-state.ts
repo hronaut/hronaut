@@ -4,12 +4,13 @@ export const MEDIA_STATE_WORLD_ID = 1020
 
 // Only native scalar values are reduced in the isolated world, before IPC.
 // No source URL, error message, track, metadata or media content is acquired.
-export function mediaStateScript(target: { ref?: string; selector?: string }, token: string): string {
+export function mediaStateScript(target: { selector: string }, token: string): string {
+  if (Object.hasOwn(target, 'ref')) throw new TypeError('Media state does not support snapshot refs; provide a unique selector')
   return `(() => {
     const target=${JSON.stringify(target)},token=${JSON.stringify(token)};
     const handles=globalThis.__hronautMediaState??=new Map();
     if(handles.size>=8)return {failure:'busy'};
-    const selector=target.ref?'[data-hronaut-ref="'+CSS.escape(target.ref)+'"]':target.selector;
+    const selector=target.selector;
     let matches;try{matches=document.querySelectorAll(selector)}catch{return {failure:'invalid-selector'}};
     if(matches.length!==1)return {failure:'non-unique-target'};
     const element=matches[0];

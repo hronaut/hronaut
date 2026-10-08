@@ -8,8 +8,8 @@ import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtur
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
 test.use({ trace: 'off', screenshot: 'off', video: 'off' })
-type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'replacement' | 'ref ABA' | 'cancel' | 'pause ABA' | 'global pause ABA' | 'deadline' | 'workspace access ABA' | 'detach reinsert'
-for (const change of ['navigation', 'close', 'replacement', 'ref ABA', 'cancel', 'workspace access ABA', 'ownership release', 'pause ABA', 'global pause ABA', 'detach reinsert', 'deadline'] as InspectionChange[]) {
+type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'replacement' | 'selector id ABA' | 'cancel' | 'pause ABA' | 'global pause ABA' | 'deadline' | 'workspace access ABA' | 'detach reinsert'
+for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', 'cancel', 'workspace access ABA', 'ownership release', 'pause ABA', 'global pause ABA', 'detach reinsert', 'deadline'] as InspectionChange[]) {
   test(`media state publication after audit persistence across ${change}`, async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
@@ -117,10 +117,10 @@ for (const change of ['navigation', 'close', 'replacement', 'ref ABA', 'cancel',
         // Await transport delivery before releasing the held server operation.
         await client.notification({ method: 'notifications/cancelled', params: { requestId: inspectionRequestId, reason: 'Synthetic cancellation' } })
         abort.abort()
-      } else if (change === 'replacement' || change === 'ref ABA') {
+      } else if (change === 'replacement' || change === 'selector id ABA') {
         await electronApp.evaluate(async ({ webContents }, { url, change }) => {
           const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
-          await page.executeJavaScript(change === 'ref ABA'
+          await page.executeJavaScript(change === 'selector id ABA'
             ? "const node=target;node.id='other';node.id='target';void 0"
             : "target.replaceWith(target.cloneNode());void 0", false)
         }, { url, change })

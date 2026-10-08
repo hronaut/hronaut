@@ -5368,8 +5368,9 @@ export class BrowserTabsManager {
     }
   }
 
-  async mediaState(options: { tabId?: string; ref?: string; selector?: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
-    this.validateTarget(options)
+  async mediaState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
+    if (Object.hasOwn(options, 'ref')) throw new TypeError('Media state does not support snapshot refs; provide a unique selector')
+    if (typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1_000) throw new TypeError('Media state requires a nonempty selector of at most 1000 characters')
     const tab = this.getTab(options.tabId)
     const context = this.snapshotDeltaContext(tab)
     const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
@@ -5408,7 +5409,7 @@ export class BrowserTabsManager {
       discard: () => { if (!settled && !tab.webContents.isDestroyed()) void execute(mediaStateSettlementScript(token, true)).catch(() => undefined) }
     }
     try {
-      const raw: unknown = await bounded(execute(mediaStateScript({ ref: options.ref, selector: options.selector }, token)))
+      const raw: unknown = await bounded(execute(mediaStateScript({ selector: options.selector }, token)))
       assertCurrent()
       const report = normalizeMediaState(raw)
       if (deferInspection) { deferInspection(pending); deferred = true } else await pending.finish()

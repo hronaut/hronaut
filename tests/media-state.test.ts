@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeMediaState } from '../src/main/browser/media-state.js'
+import { mediaStateScript, normalizeMediaState } from '../src/main/browser/media-state.js'
 const report = () => ({ kind: 'audio', observedAt: 123, paused: true, ended: false, seeking: false, muted: false, volume: 1, playbackRate: 1, currentTime: 0, duration: { state: 'unknown' }, readyState: 0, networkState: 0, errorCode: null })
 describe('bounded native media report', () => {
   it.each([{ state: 'unknown' }, { state: 'infinite' }, { state: 'finite', seconds: 1.5 }])('retains explicit duration %j and native errors without messages', duration => {
@@ -25,4 +25,10 @@ it.each([
 ])('preserves fixed failure outcome %s without arbitrary messages', (failure, message) => {
   expect(() => normalizeMediaState({ failure })).toThrow(message)
   expect(() => normalizeMediaState({ failure, message: 'private source' })).toThrow('invalid native report')
+})
+
+
+it('rejects ref input before acquisition script construction instead of silently ignoring it', () => {
+  const input = { selector: '#current', ref: 'e1' }
+  expect(() => mediaStateScript(input, 'proof')).toThrow('does not support snapshot refs')
 })
