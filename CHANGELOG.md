@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Inspect bounded native audio/video element state with `browser_media_state`, including hidden audio, without exposing source URLs or changing playback, focus or tab lifecycle.
+
 ## [2.20.0] - 2026-10-08
 
 ### Added

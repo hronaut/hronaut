@@ -2932,3 +2932,20 @@ export interface HronautLicenseApi {
   openPurchase(): Promise<void>
   onChanged(listener: (state: CommercialLicenseState) => void): () => void
 }
+
+/** Native element state only: does not establish audible output or autoplay-policy outcome. */
+export interface BrowserMediaState {
+  kind: 'audio' | 'video'
+  observedAt: number
+  paused: boolean
+  ended: boolean
+  seeking: boolean
+  muted: boolean
+  volume: number
+  playbackRate: number
+  currentTime: number
+  duration: { state: 'unknown' | 'infinite' } | { state: 'finite'; seconds: number }
+  readyState: number
+  networkState: number
+  errorCode: number | null
+}

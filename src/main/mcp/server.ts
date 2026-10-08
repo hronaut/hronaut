@@ -1116,7 +1116,7 @@ function createBrowserMcpServer(
           frameRequest.pending.assertCurrent()
           return settled
         }
-        if (name === 'browser_element_inspect' && !result.isError) {
+        if ((name === 'browser_element_inspect' || name === 'browser_media_state') && !result.isError) {
           // Validate the captured context after every audit/capability await.
           // Opt-in occupancy also settles its page-side identity/type guard.
           const inspection = frameRequest.elementInspection
@@ -1590,7 +1590,7 @@ function createBrowserMcpServer(
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
         const isPasswordOccupancy = name === 'browser_element_inspect' && input.includePasswordOccupancy === true
-        const passiveObservation = isFrameObservation || isPasswordOccupancy
+        const passiveObservation = isFrameObservation || isPasswordOccupancy || name === 'browser_media_state'
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -1710,7 +1710,7 @@ function createBrowserMcpServer(
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
           requireActiveCapabilityDispatch(name, actionInput, isFrameObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
           if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
-          if (name === 'browser_element_inspect' && extra?.signal?.aborted) throw new Error('Element inspection cancelled')
+          if ((name === 'browser_element_inspect' || name === 'browser_media_state') && extra?.signal?.aborted) throw new Error('Element inspection cancelled')
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -1869,7 +1869,7 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
-                ...(name === 'browser_element_inspect' ? { validateInspection: requireCurrentTarget } : {}),
+                ...((name === 'browser_element_inspect' || name === 'browser_media_state') ? { validateInspection: requireCurrentTarget } : {}),
                 ...(name === 'browser_react' ? { reactAuthority: {
                   assertCurrent: requireCurrentTarget,
                   epoch: createHash('sha256').update(JSON.stringify([client.id, controlRevision, writeLease?.generation, capabilityAuthorizationFingerprint])).digest('hex')
@@ -1900,7 +1900,7 @@ function createBrowserMcpServer(
               } as unknown as T)
             try {
               await requireHumanDecision(false, reviewAttempt?.id)
-              if (name === 'browser_element_inspect') requireCurrentTarget()
+              if (name === 'browser_element_inspect' || name === 'browser_media_state') requireCurrentTarget()
               validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl(true)
@@ -3390,6 +3390,19 @@ function createBrowserMcpServer(
       includePasswordOccupancy?: boolean
       validateInspection?: () => void
     }) => textResult(await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
+  )
+  registerWorkspaceTool(
+    'browser_media_state',
+    {
+      description: toolDescription('browser_media_state'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        ref: z.string().max(200).optional(),
+        selector: z.string().max(1_000).optional()
+      }
+    },
+    tabTool('browser_media_state', async (options: { tabId?: string; ref?: string; selector?: string; validateInspection?: () => void }) =>
+      textResult(await manager.mediaState(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
   )
   registerWorkspaceTool(
     'browser_generate_locator',
