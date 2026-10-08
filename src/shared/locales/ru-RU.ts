@@ -2526,7 +2526,7 @@ export const ruRU = {
       "navigation": "URL страницы изменился после базового снимка; это сравнение разных переходов."
     }
   },
-  "tabSearch": {
+  "tabSearch": { resultType: "Тип результатов", allResults: "Все результаты",
     "fullPagePreview": "Просмотр всей страницы",
     "previewAria": "Просмотреть {title}",
     "pagePreview": "Просмотр страницы",

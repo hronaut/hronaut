@@ -78,6 +78,7 @@ describe('TabSearchPanel', () => {
     })
 
     try {
+      expect(screen.getByRole('combobox', { name: 'Result type' })).toHaveValue('all')
       const search = screen.getByRole('searchbox', { name: 'Search tabs' })
       expect(screen.getByRole('dialog', { name: 'Tabs' })).toBeVisible()
       expect(screen.getByRole('dialog', { name: 'Tabs' })).toHaveAttribute('aria-modal', 'true')
@@ -105,6 +106,12 @@ describe('TabSearchPanel', () => {
       await userEvent.setup().keyboard('{Alt>}{Enter}{/Alt}')
       expect(browser.getTabOverviewPagePreview).toHaveBeenCalledTimes(2)
       await userEvent.setup().click(screen.getByRole('button', { name: 'Back to tabs' }))
+      const kind = screen.getByRole('combobox', { name: 'Result type' })
+      await userEvent.setup().selectOptions(kind, 'closed')
+      expect(kind).toHaveFocus()
+      expect(screen.getByText('No matching tabs')).toBeVisible()
+      expect(screen.getByRole('searchbox')).not.toHaveAttribute('aria-activedescendant')
+      await userEvent.setup().selectOptions(kind, 'all')
       const activeSearch = screen.getByRole('searchbox', { name: 'Search tabs' })
       await userEvent.setup().type(activeSearch, 'alpha')
       expect(activeSearch).toHaveAttribute('aria-activedescendant', 'tab-search-open-alpha')

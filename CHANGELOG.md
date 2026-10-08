@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Filter Search tabs by open tabs, recently closed tabs, or archived workspaces while searching titles and addresses.
+
 - Filter human browsing history by an exact HTTP(S) origin, together with title/address search and date filters.
 
 - Remove an individual finished download from the human Downloads list while keeping its file and other transfers.

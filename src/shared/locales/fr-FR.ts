@@ -2526,7 +2526,7 @@ export const frFR = {
       "navigation": "L’URL de la page a changé après la référence ; il s’agit d’une comparaison entre deux navigations."
     }
   },
-  "tabSearch": {
+  "tabSearch": { resultType: "Type de résultat", allResults: "Tous les résultats",
     "fullPagePreview": "Aperçu de la page entière",
     "previewAria": "Aperçu de {title}",
     "pagePreview": "Aperçu de page",

@@ -2526,7 +2526,7 @@ export const esES = {
       "navigation": "La URL de la página cambió después de la referencia; esta es una comparación entre navegaciones."
     }
   },
-  "tabSearch": {
+  "tabSearch": { resultType: "Tipo de resultado", allResults: "Todos los resultados",
     "fullPagePreview": "Vista de página completa",
     "previewAria": "Vista previa de {title}",
     "pagePreview": "Vista previa de página",

@@ -62,6 +62,7 @@ function resultKey(result: TabSearchResult): string {
 export function useTabSearchController(options: TabSearchControllerOptions) {
   const input = ref<HTMLInputElement | null>(null)
   const query = ref('')
+  const resultKind = ref<'all' | 'open' | 'closed' | 'saved'>('all')
   const selection = ref(0)
   const actionPending = ref(false)
   const previewLoading = ref(false)
@@ -79,6 +80,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
   const filteredTabs = computed(() => {
+    if (resultKind.value !== 'all' && resultKind.value !== 'open') return []
     const normalized = query.value.trim().toLocaleLowerCase()
     if (!normalized) return regularTabs.value
     return regularTabs.value.filter((tab) => (
@@ -88,6 +90,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     ))
   })
   const filteredClosedTabs = computed(() => {
+    if (resultKind.value !== 'all' && resultKind.value !== 'closed') return []
     const normalized = query.value.trim().toLocaleLowerCase()
     if (!normalized) return options.state.value.closedTabs
     return options.state.value.closedTabs.filter((tab) => (
@@ -95,6 +98,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     ))
   })
   const filteredSavedTabGroups = computed(() => {
+    if (resultKind.value !== 'all' && resultKind.value !== 'saved') return []
     const normalized = query.value.trim().toLocaleLowerCase()
     if (!normalized) return options.state.value.savedTabGroups
     return options.state.value.savedTabGroups.filter((group) => (
@@ -163,7 +167,8 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   }
 
   function canRefreshPreviews(): boolean {
-    return options.open.value && previewWindowFocused && document.visibilityState !== 'hidden'
+    return options.open.value && (resultKind.value === 'all' || resultKind.value === 'open')
+      && previewWindowFocused && document.visibilityState !== 'hidden'
   }
 
   function stopPreviewRefresh(): void {
@@ -319,6 +324,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   async function openPanel(): Promise<void> {
     const presentation = beginPresentation()
+    resultKind.value = 'all'
     query.value = ''
     const activeIndex = results.value.findIndex((result) => result.kind === 'open' && result.tab.active)
     selection.value = Math.max(0, activeIndex)
@@ -490,9 +496,9 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   }
 
   const stopResultTracking = watch(
-    [query, resultKeys],
-    ([nextQuery, nextKeys], [previousQuery, previousKeys]) => {
-      if (nextQuery !== previousQuery) {
+    [query, resultKind, resultKeys],
+    ([nextQuery, nextKind, nextKeys], [previousQuery, previousKind, previousKeys]) => {
+      if (nextQuery !== previousQuery || nextKind !== previousKind) {
         selection.value = 0
       } else {
         const previousKey = previousKeys[selection.value]
@@ -505,6 +511,10 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     },
     { flush: 'sync' }
   )
+  const stopResultKindTracking = watch(resultKind, () => {
+    clearPreviews()
+    if (canRefreshPreviews()) void loadPreviews()
+  }, { flush: 'sync' })
   const stopOpenTracking = watch(options.open, (nextOpen, previousOpen) => {
     if (previousOpen && !nextOpen) {
       beginPresentation()
@@ -539,6 +549,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     actionToken = null
     actionPending.value = false
     stopResultTracking()
+    stopResultKindTracking()
     stopOpenTracking()
     stopPreviewIdentityTracking()
     window.removeEventListener('blur', handlePreviewWindowBlur)
@@ -549,6 +560,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   return {
     input,
     query,
+    resultKind,
     selection,
     actionPending,
     previewLoading,

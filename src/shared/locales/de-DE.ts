@@ -2526,7 +2526,7 @@ export const deDE = {
       "navigation": "Die Seiten-URL hat sich nach dem Ausgangswert geändert; dies ist ein Vergleich über eine Navigation hinweg."
     }
   },
-  "tabSearch": {
+  "tabSearch": { resultType: "Ergebnistyp", allResults: "Alle Ergebnisse",
     "fullPagePreview": "Ganze Seite ansehen",
     "previewAria": "Vorschau von {title}",
     "pagePreview": "Seitenvorschau",

@@ -2526,7 +2526,7 @@ export const plPL = {
       "navigation": "Adres URL strony zmienił się po ustawieniu stanu bazowego; jest to porównanie między nawigacjami."
     }
   },
-  "tabSearch": {
+  "tabSearch": { resultType: "Typ wyników", allResults: "Wszystkie wyniki",
     "fullPagePreview": "Podgląd całej strony",
     "previewAria": "Podgląd {title}",
     "pagePreview": "Podgląd strony",

@@ -44,6 +44,7 @@ const panel = ref<HTMLElement | null>(null)
 const {
   input,
   query,
+  resultKind,
   selection,
   actionPending,
   previewLoading,
@@ -205,7 +206,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
           <h2 id="tab-search-title">{{ t('tabSearch.heading') }}</h2>
         </div>
         <div v-if="!previewTabId" class="tab-search-summary">
-          <span class="tab-search-live" :class="{ paused: previewRefreshPaused }" :data-preview-count="Object.keys(previewsByTab).length"><span aria-hidden="true" />{{ previewRefreshPaused ? t('tabSearch.previewsPaused') : t('tabSearch.livePreviews') }}</span>
+          <span v-if="resultKind === 'all' || resultKind === 'open'" class="tab-search-live" :class="{ paused: previewRefreshPaused }" :data-preview-count="Object.keys(previewsByTab).length"><span aria-hidden="true" />{{ previewRefreshPaused ? t('tabSearch.previewsPaused') : t('tabSearch.livePreviews') }}</span>
           <span class="tab-search-count">{{ t('tabSearch.countOpen', { count: formatNumber(regularTabs.length) }) }}{{ state.savedTabGroups.length ? ` ${t('tabSearch.countSaved', { count: formatNumber(state.savedTabGroups.length) })}` : '' }}{{ state.closedTabs.length ? ` ${t('tabSearch.countClosed', { count: formatNumber(state.closedTabs.length) })}` : '' }}</span>
         </div>
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('tabSearch.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
@@ -255,6 +256,15 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
         />
         <kbd>⌃/⌘ ⇧ A</kbd>
       </div>
+      <label v-if="regularTabs.length || state.closedTabs.length || state.savedTabGroups.length" class="tab-search-kind-filter">
+        <span>{{ t('tabSearch.resultType') }}</span>
+        <select v-model="resultKind" :disabled="actionPending">
+          <option value="all">{{ t('tabSearch.allResults') }}</option>
+          <option value="open">{{ t('tabSearch.openTabs') }}</option>
+          <option value="closed">{{ t('tabSearch.recentlyClosed') }}</option>
+          <option value="saved">{{ t('tabSearch.archived') }}</option>
+        </select>
+      </label>
       <span id="tab-search-status" class="sr-only" role="status" aria-live="polite">
         {{ t('tabSearch.matches', { count: formatNumber(results.length) }, results.length) }}<template v-if="selectedResult"> {{ t('tabSearch.selected', { item: resultLabel(selectedResult) }) }}</template>
       </span>
