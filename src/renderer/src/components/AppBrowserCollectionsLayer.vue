@@ -32,7 +32,8 @@ const {
   historyPanel,
   openBookmark,
   openBookmarkInBackground,
-  openHistoryEntry
+  openHistoryEntry,
+  openHistoryEntryInBackground
 } = props.controller
 </script>
 
@@ -77,5 +78,6 @@ const {
     :remove-history-entry="browserCollectionsController.removeHistoryEntry"
     :clear-history="browserCollectionsController.clearHistory"
     :open-history-entry="openHistoryEntry"
+    :open-history-entry-in-background="openHistoryEntryInBackground"
   />
 </template>

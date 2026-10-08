@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Open a History result in a background tab while keeping the current page, History panel, search and date filter.
+
 ### Fixed
 
 - Keep Bookmarks keyboard focus reachable when an external bookmark or collection update removes the focused row, while preserving newer focus, search and collection selection.

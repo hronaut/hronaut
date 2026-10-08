@@ -3,6 +3,7 @@ import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBookmark from '~icons/material-symbols/bookmark-add-outline-rounded'
+import IconBackground from '~icons/material-symbols/tab-unselected-rounded'
 import IconBookmarked from '~icons/material-symbols/bookmark-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -22,6 +23,7 @@ const props = defineProps<{
   removeHistoryEntry: (id: string) => Promise<BrowserHistoryEntry[]>
   clearHistory: () => Promise<BrowserHistoryEntry[]>
   openHistoryEntry: (entry: BrowserHistoryEntry) => Promise<void>
+  openHistoryEntryInBackground: (entry: BrowserHistoryEntry) => Promise<void>
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -38,6 +40,7 @@ const {
   filteredEntries,
   toggle,
   openEntry,
+  openInBackground,
   bookmark,
   remove: removeEntry,
   clear,
@@ -55,6 +58,7 @@ const {
   removeHistoryEntry: props.removeHistoryEntry,
   clearHistory: props.clearHistory,
   openHistoryEntry: props.openHistoryEntry,
+  openHistoryEntryInBackground: props.openHistoryEntryInBackground,
   saveHistoryBookmark: props.saveHistoryBookmark,
   confirmClear: () => window.confirm(t('privacyActions.clearHistory'))
 })
@@ -73,7 +77,8 @@ const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry
   let superseded = false
   onCleanup(() => { superseded = true })
   const selector = focused.classList.contains('history-open') ? '.history-open'
-    : focused.classList.contains('history-bookmark') ? '.history-bookmark' : '.history-action.danger'
+    : focused.classList.contains('history-background') ? '.history-background'
+      : focused.classList.contains('history-bookmark') ? '.history-bookmark' : '.history-action.danger'
   const next = row.nextElementSibling?.querySelector<HTMLButtonElement>(selector)
   const previous = row.previousElementSibling?.querySelector<HTMLButtonElement>(selector)
   await nextTick()
@@ -175,6 +180,13 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
             <span>{{ entry.url }}</span>
             <small>{{ entryMeta(entry) }}</small>
           </span>
+        </UiButton>
+        <UiButton appearance="application" class="history-background history-action" type="button"
+          :aria-disabled="pendingAction !== null"
+          :aria-label="t('history.backgroundAria', { title: entry.title })"
+          :title="t('history.background')"
+          @click="openInBackground(entry)">
+          <IconBackground aria-hidden="true" />
         </UiButton>
         <UiButton appearance="application" class="history-bookmark history-action" type="button"
           :aria-disabled="isBookmarked(entry) || pendingAction !== null"

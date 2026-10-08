@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue'
 import type {
   BrowserBookmark,
+  BrowserHistoryEntry,
   BrowserState,
   HronautApi,
   HronautBookmarksApi,
@@ -62,6 +63,10 @@ export function useAppBrowserCollectionsFeatureController(
     await options.syncState(options.browser.newTab({ url: bookmark.url, active: false, focus: false }))
   }
 
+  async function openHistoryEntryInBackground(entry: BrowserHistoryEntry): Promise<void> {
+    await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false }))
+  }
+
   function dispose(): void {
     if (disposed) return
     disposed = true
@@ -88,6 +93,7 @@ export function useAppBrowserCollectionsFeatureController(
     openBookmark: shellController.openBookmark,
     openBookmarkInBackground,
     openHistoryEntry: shellController.openHistoryEntry,
+    openHistoryEntryInBackground,
     dispose
   }
 }

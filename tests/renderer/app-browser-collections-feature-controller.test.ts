@@ -120,6 +120,16 @@ function createHarness() {
 }
 
 describe('useAppBrowserCollectionsFeatureController', () => {
+  it('opens a History result without requesting tab activation or focus', async () => {
+    const h = createHarness()
+    h.controller.historyOpen.value = true
+    await h.controller.openHistoryEntryInBackground(historyEntry('docs'))
+    expect(h.newTab).toHaveBeenCalledExactlyOnceWith({ url: historyEntry('docs').url, active: false, focus: false })
+    expect(h.syncState).toHaveBeenCalledWith(h.newTabResult)
+    expect(h.controller.historyOpen.value).toBe(true)
+    h.controller.dispose()
+  })
+
   it('opens background bookmarks without activation or focus requests', async () => {
     const h = createHarness()
     h.controller.bookmarksOpen.value = true

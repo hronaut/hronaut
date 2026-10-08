@@ -293,7 +293,7 @@
 .history-date-filter select { @apply min-w-0 flex-1 [padding:7px_9px] [border:1px_solid_var(--border-soft)] [border-radius:7px] text-copy bg-surface; }
 .history-list { @apply min-h-0 overflow-y-auto [padding:4px_8px_8px]; }
 .history-item {
-  @apply grid [min-height:76px] [grid-template-columns:minmax(0,_1fr)_34px_34px] items-center [gap:4px] [border-radius:9px];
+  @apply grid [min-height:76px] [grid-template-columns:minmax(0,_1fr)_34px_34px_34px] items-center [gap:4px] [border-radius:9px];
 }
 .history-item:hover { @apply bg-hover; }
 .history-open {
