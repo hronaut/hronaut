@@ -4,7 +4,7 @@ import type { HronautHistoryApi } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('filters exact history origins with search/date, keyboard access and unchanged saved visits', async ({ profileDirectory, mcpPort }, testInfo) => {
-  const entries = [
+  const entries = ([
     ['exact', 'Docs guide', 'https://docs.example/guide'],
     ['old', 'Docs old', 'https://docs.example/old'],
     ['query', 'Query mention', 'https://other.example/?next=https://docs.example/'],
@@ -12,7 +12,7 @@ test('filters exact history origins with search/date, keyboard access and unchan
     ['port', 'Different port', 'https://docs.example:8443/'],
     ['scheme', 'Different scheme', 'http://docs.example/'],
     ['title', 'docs.example title mention', 'https://other.example/title']
-  ].map(([id, title, url]) => ({
+  ] as const).map(([id, title, url]) => ({
     id, title, url, visitCount: 1,
     visitedAt: new Date(Date.now() - (id === 'old' ? 10 * 86_400_000 : 0)).toISOString()
   }))
