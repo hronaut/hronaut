@@ -71,6 +71,7 @@ function createHarness() {
     resume: vi.fn(async () => []),
     list: listDownloads,
     cancel: cancelDownload,
+    removeFinished: vi.fn(async () => []),
     clearFinished: clearFinishedDownloads,
     showInFolder: revealDownload,
     onChanged: onDownloadsChanged

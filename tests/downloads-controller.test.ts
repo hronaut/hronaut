@@ -281,3 +281,42 @@ it.each(['a'.repeat(251) + '.txt', '界'.repeat(83) + 'ab.txt', '😀'.repeat(62
     expect(controller.listDownloads().some(entry => entry.filename.endsWith(' (2).txt'))).toBe(true)
   }
 )
+
+it('removes only the selected finished record and preserves both downloaded files', async () => {
+  const { controller, download } = await fixture()
+  const first = download(1, false, undefined, 'first.txt')
+  first.complete()
+  download(2, false, undefined, 'second.txt').complete()
+  const before = controller.listDownloads()
+  const target = before.find(item => item.filename === 'first.txt')!
+  for (const item of before) await writeFile(item.savePath!, 'synthetic saved bytes')
+  const result = controller.removeFinishedDownload(target.id)
+  expect(result.map(item => item.id)).toEqual(before.filter(item => item.id !== target.id).map(item => item.id))
+  for (const item of before) expect(await readFile(item.savePath!, 'utf8')).toBe('synthetic saved bytes')
+  expect(first.cancel).not.toHaveBeenCalled()
+  expect(() => controller.removeFinishedDownload(target.id)).toThrow('Download record not found')
+})
+
+it.each(['progressing', 'paused', 'interrupted'])('rejects removal of a live %s transfer without cancellation', async state => {
+  const { controller, download } = await fixture()
+  const native = download()
+  const id = controller.listDownloads()[0]!.id
+  if (state === 'paused') controller.manageDownloads('pause', id)
+  if (state === 'interrupted') native.interrupt()
+  expect(() => controller.removeFinishedDownload(id)).toThrow('Only finished download records')
+  expect(controller.listDownloads()).toHaveLength(1)
+  expect(native.cancel).not.toHaveBeenCalled()
+})
+
+it('can remove cancelled and terminal interrupted records', async () => {
+  const { controller, download } = await fixture()
+  download().cancel()
+  download(2, true)
+  const before = controller.listDownloads()
+  expect(before.map(item => item.state).sort()).toEqual(['cancelled', 'interrupted'])
+  for (const item of before) {
+    expect(item.completedAt).toBeTruthy()
+    controller.removeFinishedDownload(item.id)
+  }
+  expect(controller.listDownloads()).toEqual([])
+})

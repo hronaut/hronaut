@@ -2630,7 +2630,7 @@ export const deDE = {
     "closeTitle": "Schließen (Escape)",
     "close": "Steuerung des Seitenzooms schließen"
   },
-  "downloads": {
+  "downloads": { removeAria: "{filename} aus der Liste entfernen", removeHint: "Aus Liste entfernen; Datei bleibt auf dem Datenträger",
     "search": "Dateinamen suchen",
     "filterStatus": "Downloadstatus filtern",
     "filterAll": "Alle",

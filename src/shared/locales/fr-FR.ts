@@ -2630,7 +2630,7 @@ export const frFR = {
     "closeTitle": "Fermer (Escape)",
     "close": "Fermer les contrôles du zoom de la page"
   },
-  "downloads": {
+  "downloads": { removeAria: "Retirer {filename} de la liste", removeHint: "Retirer de la liste ; le fichier reste sur le disque",
     "search": "Rechercher un nom de fichier",
     "filterStatus": "Filtrer l’état des téléchargements",
     "filterAll": "Tous",

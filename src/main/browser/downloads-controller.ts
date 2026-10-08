@@ -87,6 +87,18 @@ export class BrowserDownloadsController {
       .map((download) => ({ ...download }))
   }
 
+  removeFinishedDownload(downloadId: string): BrowserDownloadState[] {
+    this.listDownloads()
+    const download = this.downloads.get(downloadId)
+    if (!download) throw new Error('Download record not found')
+    if (isActiveDownload(download)) throw new Error('Only finished download records can be removed')
+    this.downloads.delete(downloadId)
+    this.downloadWorkspaceIds.delete(downloadId)
+    const downloads = this.listDownloads()
+    this.sendDownloadsChanged(downloads)
+    return downloads
+  }
+
   manageDownloads(action: BrowserDownloadAction, downloadId?: string): BrowserDownloadState[] {
     return this.manageScopedDownloads(action, downloadId)
   }

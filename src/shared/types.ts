@@ -2699,6 +2699,7 @@ export interface HronautDownloadsApi {
   pause(downloadId: string): Promise<BrowserDownloadState[]>
   resume(downloadId: string): Promise<BrowserDownloadState[]>
   cancel(downloadId: string): Promise<BrowserDownloadState[]>
+  removeFinished(downloadId: string): Promise<BrowserDownloadState[]>
   clearFinished(): Promise<BrowserDownloadState[]>
   showInFolder(downloadId: string): Promise<void>
   onChanged(listener: (downloads: BrowserDownloadState[]) => void): () => void
