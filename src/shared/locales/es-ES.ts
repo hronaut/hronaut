@@ -2704,7 +2704,7 @@ export const esES = {
     "removeAria": "Eliminar {title}",
     "remove": "Eliminar marcador"
   },
-  "history": { background: "Abrir en pestaña en segundo plano", backgroundAria: "Abrir {title} en pestaña en segundo plano", dateRange: "Intervalo de fechas", allDates: "Todo", today: "Hoy", last7Days: "Últimos 7 días",
+  "history": { copyAddress: "Copiar dirección", copyAddressAria: "Copiar dirección de {title}", addressCopied: "Dirección copiada", copyFailed: "No se pudo copiar la dirección. Inténtalo de nuevo.", background: "Abrir en pestaña en segundo plano", backgroundAria: "Abrir {title} en pestaña en segundo plano", dateRange: "Intervalo de fechas", allDates: "Todo", today: "Hoy", last7Days: "Últimos 7 días",
     "bookmark": "Añadir a marcadores",
     "bookmarked": "Ya está en marcadores",
     "bookmarkAria": "Añadir {title} a marcadores",

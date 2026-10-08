@@ -2704,7 +2704,7 @@ export const plPL = {
     "removeAria": "Usuń {title}",
     "remove": "Usuń zakładkę"
   },
-  "history": { background: "Otwórz w karcie w tle", backgroundAria: "Otwórz {title} w karcie w tle", dateRange: "Zakres dat", allDates: "Wszystko", today: "Dzisiaj", last7Days: "Ostatnie 7 dni",
+  "history": { copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.", background: "Otwórz w karcie w tle", backgroundAria: "Otwórz {title} w karcie w tle", dateRange: "Zakres dat", allDates: "Wszystko", today: "Dzisiaj", last7Days: "Ostatnie 7 dni",
     "bookmark": "Dodaj zakładkę",
     "bookmarked": "Już w zakładkach",
     "bookmarkAria": "Dodaj zakładkę: {title}",

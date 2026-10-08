@@ -29,6 +29,7 @@ function panelProps(overrides: Record<string, unknown> = {}) {
     clearHistory: vi.fn(async () => []),
     openHistoryEntry: vi.fn(async () => undefined),
     openHistoryEntryInBackground: vi.fn(async () => undefined),
+    copyHistoryAddress: vi.fn(async () => undefined),
     ...overrides
   }
 }
@@ -464,4 +465,119 @@ describe('History bookmark races', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeVisible()
   })
+})
+
+describe('History copy address', () => {
+  it('copies only the stored URL and retains filters, panel and keyboard focus', async () => {
+    const row = { ...entry('alpha', 'Alpha docs'), url: 'https://example.test/path?q=a%20b#part', visitedAt: new Date().toISOString() }
+    const copyHistoryAddress = vi.fn(async () => undefined)
+    const openHistoryEntry = vi.fn(async () => undefined)
+    renderPanel({ entries: [row], copyHistoryAddress, openHistoryEntry })
+    const search = screen.getByRole('searchbox')
+    const date = screen.getByRole('combobox', { name: 'Date range' })
+    await fireEvent.update(search, 'Alpha docs')
+    await fireEvent.update(date, 'today')
+    const copy = screen.getByRole('button', { name: 'Copy address for Alpha docs' })
+    copy.focus()
+    await userEvent.setup().keyboard('{Enter}')
+    expect(copyHistoryAddress).toHaveBeenCalledExactlyOnceWith(row)
+    expect(openHistoryEntry).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Address copied')
+    expect(copy).toHaveFocus()
+    expect(search).toHaveValue('Alpha docs')
+    expect(date).toHaveValue('today')
+    expect(screen.getByRole('dialog')).toBeVisible()
+  })
+
+  it('blocks duplicate pending copies and shows a generic retryable error', async () => {
+    let reject!: (cause: Error) => void
+    const copyHistoryAddress = vi.fn().mockImplementationOnce(() => new Promise<void>((_resolve, rejectCopy) => { reject = rejectCopy })).mockResolvedValue(undefined)
+    renderPanel({ copyHistoryAddress })
+    const copy = screen.getByRole('button', { name: 'Copy address for Alpha docs' })
+    copy.focus()
+    await fireEvent.click(copy)
+    await fireEvent.click(copy)
+    expect(copyHistoryAddress).toHaveBeenCalledTimes(1)
+    expect(copy).toHaveAttribute('aria-disabled', 'true')
+    reject(new Error('sensitive backend detail'))
+    await flushPromises()
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not copy address. Try again.')
+    expect(screen.queryByText('sensitive backend detail')).not.toBeInTheDocument()
+    expect(copy).toHaveFocus()
+    await fireEvent.click(copy)
+    await flushPromises()
+    expect(copyHistoryAddress).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Address copied')
+  })
+
+  it.each(['query', 'date', 'remove', 'url', 'reopen', 'unmount'].flatMap(change => ['success', 'error'].map(result => ({ change, result }))))('ignores stale $result after $change while copying', async ({ change, result }) => {
+    let resolve!: () => void
+    let reject!: (cause: Error) => void
+    const row = { ...entry('alpha', 'Alpha docs'), visitedAt: new Date().toISOString() }
+    const copyHistoryAddress = vi.fn(() => new Promise<void>((yes, no) => { resolve = yes; reject = no }))
+    const view = renderPanel({ entries: [row, entry('beta', 'Beta page')], copyHistoryAddress })
+    const copy = screen.getByRole('button', { name: 'Copy address for Alpha docs' })
+    copy.focus()
+    await fireEvent.click(copy)
+    if (change === 'query') await fireEvent.update(screen.getByRole('searchbox'), 'Alpha')
+    if (change === 'date') await fireEvent.update(screen.getByRole('combobox'), 'today')
+    if (change === 'remove') await view.rerender({ entries: [entry('beta', 'Beta page')] })
+    if (change === 'url') await view.rerender({ entries: [{ ...row, url: 'https://example.test/new' }] })
+    if (change === 'reopen') { await view.rerender({ open: false }); await view.rerender({ open: true }) }
+    if (change === 'unmount') view.unmount()
+    const search = screen.queryByRole('searchbox')
+    search?.focus()
+    if (result === 'success') resolve(); else reject(new Error('late failure'))
+    await flushPromises()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    if (search) expect(search).toHaveFocus()
+  })
+
+  it('recovers to the next Copy control when the copied row disappears without stealing newer focus', async () => {
+    let finish!: () => void
+    const view = renderPanel({ copyHistoryAddress: vi.fn(() => new Promise<void>(resolve => { finish = resolve })) })
+    const copy = screen.getByRole('button', { name: 'Copy address for Alpha docs' })
+    copy.focus()
+    await fireEvent.click(copy)
+    await view.rerender({ entries: [entry('beta', 'Beta page')] })
+    await flushPromises()
+    const next = screen.getByRole('button', { name: 'Copy address for Beta page' })
+    expect(next).toHaveFocus()
+    expect(next).toHaveAttribute('aria-disabled', 'true')
+    finish()
+    await flushPromises()
+    expect(next).toHaveFocus()
+    expect(next).toHaveAttribute('aria-disabled', 'false')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+})
+
+it.each(['success', 'error'])('keeps a newer copy pending when an old session finishes with %s', async result => {
+  let resolveOld!: () => void
+  let rejectOld!: (cause: Error) => void
+  let resolveNew!: () => void
+  const copyHistoryAddress = vi.fn()
+    .mockImplementationOnce(() => new Promise<void>((resolve, reject) => { resolveOld = resolve; rejectOld = reject }))
+    .mockImplementationOnce(() => new Promise<void>(resolve => { resolveNew = resolve }))
+  const view = renderPanel({ copyHistoryAddress })
+  await fireEvent.click(screen.getByRole('button', { name: 'Copy address for Alpha docs' }))
+  await view.rerender({ open: false })
+  await view.rerender({ open: true })
+  const copy = screen.getByRole('button', { name: 'Copy address for Beta page' })
+  copy.focus()
+  await fireEvent.click(copy)
+  if (result === 'success') resolveOld(); else rejectOld(new Error('old failure'))
+  await flushPromises()
+  expect(copy).toHaveAttribute('aria-disabled', 'true')
+  expect(copy).toHaveFocus()
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  await fireEvent.click(copy)
+  expect(copyHistoryAddress).toHaveBeenCalledTimes(2)
+  resolveNew()
+  await flushPromises()
+  expect(copy).toHaveAttribute('aria-disabled', 'false')
+  expect(screen.getByRole('status')).toHaveTextContent('Address copied')
 })

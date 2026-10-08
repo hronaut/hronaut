@@ -2704,7 +2704,7 @@ export const deDE = {
     "removeAria": "{title} entfernen",
     "remove": "Lesezeichen entfernen"
   },
-  "history": { background: "Im Hintergrundtab öffnen", backgroundAria: "{title} im Hintergrundtab öffnen", dateRange: "Zeitraum", allDates: "Alle", today: "Heute", last7Days: "Letzte 7 Tage",
+  "history": { copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.", background: "Im Hintergrundtab öffnen", backgroundAria: "{title} im Hintergrundtab öffnen", dateRange: "Zeitraum", allDates: "Alle", today: "Heute", last7Days: "Letzte 7 Tage",
     "bookmark": "Lesezeichen hinzufügen",
     "bookmarked": "Bereits als Lesezeichen gespeichert",
     "bookmarkAria": "Lesezeichen für {title} hinzufügen",
