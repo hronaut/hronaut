@@ -6,9 +6,9 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 type ShellWindow = typeof window & { hronaut: HronautApi; hronautDownloads: HronautDownloadsApi }
 
 type FocusGate = { held: boolean; release(): void; restore(): void }
-type ProbeGlobal = typeof globalThis & { downloadFocusGate?: FocusGate }
+type ProbeGlobal = typeof globalThis & { downloadFocusGate?: FocusGate; nativeResumeGate?: FocusGate }
 
-for (const scenario of ['Enter', 'Space', 'newer-focus', 'reopen'] as const) {
+for (const scenario of ['Enter', 'Space', 'newer-focus', 'reopen', 'late-native-resume', 'late-native-newer-focus'] as const) {
   test(`keeps download controls reachable with ${scenario}`, async ({ appWindow, electronApp }) => {
     const payload = Buffer.alloc(2 * 1024 * 1024, 'download-focus-fixture\n')
     const pending = new Map<ServerResponse, number>()
@@ -34,9 +34,17 @@ for (const scenario of ['Enter', 'Space', 'newer-focus', 'reopen'] as const) {
       await appWindow.evaluate(url => (window as ShellWindow).hronaut.newTab({ url, active: true }), url)
       await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
         webContents.getAllWebContents().some(contents => contents.getURL() === url), url)).toBe(true)
-      await electronApp.evaluate(({ webContents }, url) => {
-        webContents.getAllWebContents().find(contents => contents.getURL() === url)!.downloadURL(`${url}file.bin`)
-      }, url)
+      await electronApp.evaluate(({ webContents }, { url, delayed }) => {
+        const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+        if (delayed) page.session.once('will-download', (_event, item) => {
+          const original = item.resume.bind(item)
+          const gate: FocusGate = { held: false, release: () => { item.resume = original; original() }, restore: () => { item.resume = original; delete (globalThis as ProbeGlobal).nativeResumeGate } }
+          ;(globalThis as ProbeGlobal).nativeResumeGate = gate
+          // Native state may change after the action reply. Hold that boundary explicitly.
+          item.resume = () => { gate.held = true }
+        })
+        page.downloadURL(`${url}file.bin`)
+      }, { url, delayed: scenario.startsWith('late-native-') })
       await expect.poll(async () => ((await appWindow.evaluate(() => (window as ShellWindow).hronautDownloads.list()))[0]?.receivedBytes ?? 0)).toBeGreaterThan(0)
       const panel = appWindow.getByRole('dialog', { name: 'Downloads', exact: true })
       const pause = panel.getByRole('button', { name: 'Pause file.bin', exact: true })
@@ -73,10 +81,21 @@ for (const scenario of ['Enter', 'Space', 'newer-focus', 'reopen'] as const) {
         await resume.focus(); await appWindow.keyboard.press('Enter')
         await expect(pause).toBeFocused()
       } else {
-        await pause.focus(); await appWindow.keyboard.press(scenario)
+        const key = scenario.startsWith('late-native-') ? 'Enter' : scenario
+        await pause.focus(); await appWindow.keyboard.press(key)
         await expect(resume).toBeFocused()
-        await appWindow.keyboard.press(scenario)
-        await expect(pause).toBeFocused()
+        await appWindow.keyboard.press(key)
+        if (scenario.startsWith('late-native-')) {
+          await expect.poll(() => electronApp.evaluate(() => (globalThis as ProbeGlobal).nativeResumeGate?.held)).toBe(true)
+          await expect(resume).toBeEnabled()
+          await expect(resume).toBeFocused()
+          if (scenario === 'late-native-newer-focus') await panel.getByRole('button', { name: 'Close downloads' }).focus()
+          await electronApp.evaluate(() => (globalThis as ProbeGlobal).nativeResumeGate?.release())
+        }
+        if (scenario === 'late-native-newer-focus') {
+          await expect(pause).toBeEnabled()
+          await expect(panel.getByRole('button', { name: 'Close downloads' })).toBeFocused()
+        } else await expect(pause).toBeFocused()
       }
       release = true
       for (const [response, end] of pending) response.end(payload.subarray(end))
@@ -86,7 +105,7 @@ for (const scenario of ['Enter', 'Space', 'newer-focus', 'reopen'] as const) {
       const [finished] = await appWindow.evaluate(() => (window as ShellWindow).hronautDownloads.list())
       expect(await readFile(finished!.savePath!)).toEqual(payload)
     } finally {
-      await electronApp.evaluate(() => (globalThis as ProbeGlobal).downloadFocusGate?.restore())
+      await electronApp.evaluate(() => { (globalThis as ProbeGlobal).downloadFocusGate?.restore(); (globalThis as ProbeGlobal).nativeResumeGate?.restore() })
       await appWindow.evaluate(async () => {
         for (const download of await (window as ShellWindow).hronautDownloads.list()) {
           if (download.state === 'progressing' || download.canResume) await (window as ShellWindow).hronautDownloads.cancel(download.id)

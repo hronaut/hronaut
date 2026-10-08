@@ -127,6 +127,34 @@ describe('DownloadsPanel', () => {
     expect(screen.getByRole('button', { name: `${action === 'pause' ? 'Resume' : 'Pause'} active.bin` })).toHaveFocus()
   })
 
+  it.each(['pause', 'resume'] as const)('keeps transfer focus when the native %s update arrives after its reply', async action => {
+    const initial = { ...download('active', 'progressing', 25, 100), paused: action === 'resume', canResume: action === 'resume' }
+    const operation = vi.fn(async () => [initial])
+    const view = renderPanel({ downloads: [initial], [`${action}Download`]: operation })
+    const before = screen.getByRole('button', { name: `${action === 'pause' ? 'Pause' : 'Resume'} active.bin` })
+    before.focus()
+    await userEvent.keyboard('{Enter}')
+    await flushPromises()
+    expect(operation).toHaveBeenCalledWith('active')
+    expect(before).toBeEnabled()
+    expect(before).toHaveFocus()
+    await view.rerender({ downloads: [{ ...initial, paused: action === 'pause', canResume: action === 'pause' }] })
+    expect(screen.getByRole('button', { name: `${action === 'pause' ? 'Resume' : 'Pause'} active.bin` })).toHaveFocus()
+  })
+
+  it('preserves newer focus when a late native resume update changes the control', async () => {
+    const initial = { ...download('active', 'progressing', 25, 100), paused: true, canResume: true }
+    const view = renderPanel({ downloads: [initial], resumeDownload: vi.fn(async () => [initial]) })
+    screen.getByRole('button', { name: 'Resume active.bin' }).focus()
+    await userEvent.keyboard('{Enter}')
+    await flushPromises()
+    const close = screen.getByRole('button', { name: 'Close downloads' })
+    close.focus()
+    await view.rerender({ downloads: [{ ...initial, paused: false, canResume: false }] })
+    expect(screen.getByRole('button', { name: 'Pause active.bin' })).toBeEnabled()
+    expect(close).toHaveFocus()
+  })
+
   it('keeps the failed transfer control reachable for retry', async () => {
     renderPanel({ pauseDownload: vi.fn(async () => { throw new Error('Pause failed') }) })
     const pause = screen.getByRole('button', { name: 'Pause known.bin' })
