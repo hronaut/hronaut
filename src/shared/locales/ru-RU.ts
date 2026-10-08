@@ -2665,7 +2665,7 @@ export const ruRU = {
     "cancelled": "Отменено",
     "interrupted": "Прервано"
   },
-  "bookmarks": {
+  "bookmarks": { copyAddress: "Копировать адрес", copyAddressAria: "Копировать адрес «{title}»", addressCopied: "Адрес скопирован", copyFailed: "Не удалось скопировать адрес. Повторите попытку.",
     "collection": "Коллекция",
     "collectionFilter": "Фильтровать закладки по коллекции",
     "allCollections": "Все закладки",

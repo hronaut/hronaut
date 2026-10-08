@@ -122,6 +122,16 @@ function createHarness() {
 }
 
 describe('useAppBrowserCollectionsFeatureController', () => {
+  it('copies the exact stored bookmark address without requesting navigation', async () => {
+    const h = createHarness()
+    const row = { ...bookmark('alpha'), url: 'https://example.test/path?q=a%20b#section' }
+    await h.controller.copyBookmarkAddress(row)
+    expect(h.copyText).toHaveBeenCalledExactlyOnceWith(row.url)
+    expect(h.newTab).not.toHaveBeenCalled()
+    expect(h.syncState).not.toHaveBeenCalled()
+    h.controller.dispose()
+  })
+
   it('copies only the stored History URL through the existing clipboard bridge', async () => {
     const h = createHarness()
     const row = { ...historyEntry('alpha'), url: 'https://example.test/path?q=a%20b#section' }

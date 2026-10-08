@@ -67,6 +67,10 @@ export function useAppBrowserCollectionsFeatureController(
     await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false }))
   }
 
+  function copyBookmarkAddress(bookmark: BrowserBookmark): Promise<void> {
+    return options.browser.copyText(bookmark.url)
+  }
+
   function copyHistoryAddress(entry: BrowserHistoryEntry): Promise<void> {
     return options.browser.copyText(entry.url)
   }
@@ -99,6 +103,7 @@ export function useAppBrowserCollectionsFeatureController(
     openHistoryEntry: shellController.openHistoryEntry,
     openHistoryEntryInBackground,
     copyHistoryAddress,
+    copyBookmarkAddress,
     dispose
   }
 }

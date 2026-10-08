@@ -13,12 +13,16 @@ export interface BookmarksPanelControllerOptions {
   updateBookmarkDestination: (id: string, url: string) => Promise<BrowserBookmark[]>
   removeBookmark: (id: string) => Promise<BrowserBookmark[]>
   openBookmark: (bookmark: BrowserBookmark) => Promise<void>
+  copyBookmarkAddress: (bookmark: BrowserBookmark) => Promise<void>
   openBookmarkInBackground: (bookmark: BrowserBookmark) => Promise<void>
 }
 
 export function useBookmarksPanelController(options: BookmarksPanelControllerOptions) {
   const query = ref('')
   const error = ref('')
+  const copyFeedback = ref<'success' | 'error' | ''>('')
+  const copiedBookmark = ref<{ id: string; url: string } | null>(null)
+  let copyGeneration = 0
   const pendingAction = ref<string | null>(null)
   const editingBookmarkId = ref<string | null>(null)
   const editingBookmarkTitle = ref('')
@@ -36,6 +40,32 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
       || bookmark.url.toLocaleLowerCase().includes(normalized)
     ))
   })
+
+  function resetCopyFeedback(): void {
+    copyGeneration += 1
+    copyFeedback.value = ''
+  }
+
+  const copyTargetVisible = computed(() => !copiedBookmark.value || filteredBookmarks.value.some(
+    item => item.id === copiedBookmark.value!.id && item.url === copiedBookmark.value!.url
+  ))
+  const stopCopyTracking = watch([query, options.open, copyTargetVisible], resetCopyFeedback, { flush: 'sync' })
+
+  async function copyAddress(bookmark: BrowserBookmark): Promise<void> {
+    if (!options.open.value || pendingAction.value || !filteredBookmarks.value.some(
+      item => item.id === bookmark.id && item.url === bookmark.url
+    )) return
+    copiedBookmark.value = { id: bookmark.id, url: bookmark.url }
+    await runAction(`copy:${bookmark.id}`, async () => {
+      const generation = copyGeneration
+      try {
+        await options.copyBookmarkAddress(bookmark)
+        if (generation === copyGeneration) copyFeedback.value = 'success'
+      } catch {
+        if (generation === copyGeneration) copyFeedback.value = 'error'
+      }
+    })
+  }
 
   function resetError(): void {
     error.value = ''
@@ -65,6 +95,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     if (pendingAction.value) return false
     const generation = ++actionGeneration
     resetError()
+    resetCopyFeedback()
     pendingAction.value = actionId
     try {
       const nextBookmarks = await operation()
@@ -114,6 +145,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   async function beginRename(bookmark: BrowserBookmark, destination = false): Promise<void> {
     if (pendingAction.value) return
     resetError()
+    resetCopyFeedback()
     const generation = ++editGeneration
     editingDestination.value = destination
     editingBookmarkUrl.value = bookmark.url
@@ -163,6 +195,8 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
 
   function dispose(): void {
     invalidateActions()
+    resetCopyFeedback()
+    stopCopyTracking()
     stopOpenTracking()
     stopBookmarkTracking()
   }
@@ -170,6 +204,9 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   return {
     query,
     error,
+    copyFeedback,
+    copyAddress,
+    resetCopyFeedback,
     pendingAction,
     editingBookmarkId,
     editingBookmarkTitle,

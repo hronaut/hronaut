@@ -2665,7 +2665,7 @@ export const esES = {
     "cancelled": "Cancelada",
     "interrupted": "Interrumpida"
   },
-  "bookmarks": {
+  "bookmarks": { copyAddress: "Copiar dirección", copyAddressAria: "Copiar dirección de {title}", addressCopied: "Dirección copiada", copyFailed: "No se pudo copiar la dirección. Inténtalo de nuevo.",
     "collection": "Colección",
     "collectionFilter": "Filtrar marcadores por colección",
     "allCollections": "Todos los marcadores",

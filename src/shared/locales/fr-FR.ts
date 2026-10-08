@@ -2665,7 +2665,7 @@ export const frFR = {
     "cancelled": "Annulé",
     "interrupted": "Interrompu"
   },
-  "bookmarks": {
+  "bookmarks": { copyAddress: "Copier l’adresse", copyAddressAria: "Copier l’adresse de {title}", addressCopied: "Adresse copiée", copyFailed: "Impossible de copier l’adresse. Réessayez.",
     "collection": "Collection",
     "collectionFilter": "Filtrer les favoris par collection",
     "allCollections": "Tous les favoris",
