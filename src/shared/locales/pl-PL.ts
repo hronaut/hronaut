@@ -2704,7 +2704,7 @@ export const plPL = {
     "removeAria": "Usuń {title}",
     "remove": "Usuń zakładkę"
   },
-  "history": { dateRange: "Zakres dat", allDates: "Wszystko", today: "Dzisiaj", last7Days: "Ostatnie 7 dni",
+  "history": { background: "Otwórz w karcie w tle", backgroundAria: "Otwórz {title} w karcie w tle", dateRange: "Zakres dat", allDates: "Wszystko", today: "Dzisiaj", last7Days: "Ostatnie 7 dni",
     "bookmark": "Dodaj zakładkę",
     "bookmarked": "Już w zakładkach",
     "bookmarkAria": "Dodaj zakładkę: {title}",

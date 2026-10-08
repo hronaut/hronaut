@@ -18,6 +18,7 @@ export interface HistoryPanelControllerOptions {
   removeHistoryEntry: (id: string) => Promise<BrowserHistoryEntry[]>
   clearHistory: () => Promise<BrowserHistoryEntry[]>
   openHistoryEntry: (entry: BrowserHistoryEntry) => Promise<void>
+  openHistoryEntryInBackground: (entry: BrowserHistoryEntry) => Promise<void>
   saveHistoryBookmark: (url: string, title: string) => Promise<void>
   confirmClear: () => boolean
 }
@@ -114,6 +115,10 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     if (opened) options.open.value = false
   }
 
+  async function openInBackground(entry: BrowserHistoryEntry): Promise<void> {
+    await runAction(`background:${entry.id}`, () => options.openHistoryEntryInBackground(entry))
+  }
+
   function bookmark(entry: BrowserHistoryEntry): Promise<boolean> {
     return runAction(`bookmark:${entry.id}`, () => options.saveHistoryBookmark(entry.url, entry.title))
   }
@@ -155,6 +160,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     resetError,
     toggle,
     openEntry,
+    openInBackground,
     bookmark,
     remove,
     clear,

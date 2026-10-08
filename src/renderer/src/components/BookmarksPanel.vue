@@ -37,6 +37,7 @@ const bookmarks = defineModel<BrowserBookmark[]>('bookmarks', { required: true }
 const dock = defineModel<PanelDock>('dock', { required: true })
 const panelRoot = ref<HTMLElement | null>(null)
 let focusGeneration = 0
+let removalFocusRow: Element | null = null
 const stopFocusSessionTracking = watch(open, () => { focusGeneration += 1 }, { flush: 'sync' })
 const { t } = useI18n({ useScope: 'global' })
 const {
@@ -90,7 +91,7 @@ const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => b
   const panel = panelRoot.value
   const row = focused instanceof HTMLElement && panel?.contains(focused)
     ? focused.closest('.bookmark-item') : null
-  if (!row || !panel || !(focused instanceof HTMLElement)) return
+  if (!row || !panel || !(focused instanceof HTMLElement) || row === removalFocusRow) return
   const generation = focusGeneration
   let superseded = false
   onCleanup(() => { superseded = true })
@@ -173,8 +174,15 @@ async function remove(bookmarkId: string, event: MouseEvent): Promise<void> {
   const panel = row?.closest('.bookmarks-panel')
   const next = row?.nextElementSibling?.querySelector<HTMLButtonElement>('.bookmark-action.danger')
   const previous = row?.previousElementSibling?.querySelector<HTMLButtonElement>('.bookmark-action.danger')
-  await removeEntry(bookmarkId)
-  await nextTick()
+  // A published list can arrive before the request completes and controls enable.
+  // Keep the live-update watcher from taking this action's focus recovery.
+  if (row) removalFocusRow = row
+  try {
+    await removeEntry(bookmarkId)
+    await nextTick()
+  } finally {
+    if (removalFocusRow === row) removalFocusRow = null
+  }
   if (generation !== focusGeneration || !open.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
   const target = [focused, next, previous,
