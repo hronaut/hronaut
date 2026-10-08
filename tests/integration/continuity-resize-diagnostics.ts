@@ -107,11 +107,16 @@ export async function continuityResizeDiagnostics(app: ElectronApplication, info
   const trigger = async () => {
     if (triggered || stopped) return
     triggered = true
-    checkpoint('stallTrigger', { time: Date.now() })
     const stopPath = process.env.HRONAUT_CONTINUITY_RESIZE_STOP_FILE
     if (stopPath) {
-      try { writeFileSync(stopPath, 'captured\n', { flag: 'wx' }) } catch { /* Already captured or unavailable; original oracle remains authoritative. */ }
+      // Claim once across workers/retries before issuing any control/thread probes.
+      // Failure to claim disables only capture, never the original test or its retry.
+      try { writeFileSync(stopPath, 'captured\n', { flag: 'wx' }) } catch {
+        checkpoint('captureNotClaimed', { time: Date.now() })
+        return
+      }
     }
+    checkpoint('stallTrigger', { time: Date.now() })
     const control = async (target: string, action: () => Promise<unknown>) => {
       checkpoint('control', { target, phase: 'start', time: Date.now() })
       const result = await bounded(action)

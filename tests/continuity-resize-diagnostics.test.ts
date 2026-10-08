@@ -47,15 +47,18 @@ it('retains unresolved operation and process evidence with stalled controls and 
   const evidence = JSON.parse(attachments.get('continuity-process')!)
   expect(evidence.operations).toEqual([expect.objectContaining({ label: 'innerWidth', phase: 'start' })])
   expect(evidence.samples.length).toBeGreaterThan(0)
-  expect(evidence.samples[0].main.state).toBeTypeOf('string')
+  if (process.platform === 'linux') expect(evidence.samples[0].main.state).toBeTypeOf('string')
+  else expect(evidence.samples[0].main).toEqual({ unavailable: true })
   const records = (await readFile(join(directory, 'continuity-checkpoint.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))
   expect(records.filter(row => row.kind === 'stallTrigger')).toHaveLength(1)
   expect(records.filter(row => row.kind === 'control' && row.phase === 'deadline').map(row => row.target).sort()).toEqual(['main', 'renderer'])
   const threads = records.filter(row => row.kind === 'threads')
   expect(threads).toHaveLength(3)
   for (const row of threads) {
-    expect(row.main.threads.length).toBeLessThanOrEqual(64)
-    expect(row.renderer.threads.length).toBeLessThanOrEqual(64)
+    for (const target of [row.main, row.renderer]) {
+      if (process.platform === 'linux') expect(target.threads.length).toBeLessThanOrEqual(64)
+      else expect(target).toEqual({ unavailable: true })
+    }
   }
   expect(send).toHaveBeenCalledExactlyOnceWith('Runtime.evaluate', { expression: '1', returnByValue: true })
 }, 6000)
@@ -113,3 +116,26 @@ it('records native setSize completion before a separate failing diagnostic conte
     expect(events).toEqual(['installed', 'setSize:start', 'setSize:end', 'getContentSize:start', 'getContentSize:error'])
   } finally { await probe.stop() }
 })
+
+
+it('claims only one control/thread capture across attempts sharing an experiment while both original actions run', async () => {
+  const first = await setup()
+  const retry = await setup()
+  vi.stubEnv('HRONAUT_CONTINUITY_RESIZE_STOP_FILE', join(first.directory, 'experiment-stop'))
+  const probes = await Promise.all([first, retry].map(item => continuityResizeDiagnostics(item.app, item.info)))
+  const actions = [vi.fn(never), vi.fn(never)]
+  for (const [index, probe] of probes.entries()) void probe!.measure('innerWidth', actions[index]!)
+  try {
+    await new Promise(resolve => setTimeout(resolve, 2200))
+    expect(actions.every(action => action.mock.calls.length === 1)).toBe(true)
+    expect(first.send.mock.calls.length + retry.send.mock.calls.length).toBe(1)
+    const captures = await Promise.all([first, retry].map(async item =>
+      (await readFile(join(item.directory, 'continuity-checkpoint.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line))))
+    const records = captures.flat()
+    expect(records.filter(row => row.kind === 'stallTrigger')).toHaveLength(1)
+    expect(records.filter(row => row.kind === 'captureNotClaimed')).toHaveLength(1)
+    expect(records.filter(row => row.kind === 'control' && row.phase === 'start')).toHaveLength(2)
+    expect(records.filter(row => row.kind === 'threads')).toHaveLength(3)
+    for (const attempt of captures) expect(attempt).toContainEqual(expect.objectContaining({ kind: 'operation', label: 'innerWidth', phase: 'start' }))
+  } finally { await Promise.all(probes.map(probe => probe!.stop())) }
+}, 6000)
