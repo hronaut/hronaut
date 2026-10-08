@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve next-row keyboard focus when a bookmark removal publishes its live update before the removal request finishes.
 - Keep Bookmarks keyboard focus reachable when an external bookmark or collection update removes the focused row, while preserving newer focus, search and collection selection.
 
 ## [2.19.0] - 2026-10-07
