@@ -545,7 +545,7 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).toHaveBeenCalledOnce()
   })
 
-  it('keeps websites on trusted approval even when an agent wallet has Bypass Approve mode', async () => {
+  it.each([false, true])('keeps websites on trusted approval even when an agent wallet has Bypass Approve mode (slow audit: %s)', async slowAudit => {
     const now = () => new Date('2026-09-04T12:00:00.000Z')
     // Keep the permission store's wall clock aligned with the injected broker clock.
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -566,16 +566,45 @@ describe('WalletBroker', () => {
       allowMainnetAgentAutomation: true
     })
 
-    const result = broker.providerRequest(context(), {
+    const enteredAudit = deferred()
+    const releaseAudit = deferred()
+    const append = service.audit.append.bind(service.audit)
+    const auditSpy = vi.spyOn(service.audit, 'append').mockImplementation(async (...args) => {
+      if (slowAudit && args[0] === 'request-simulated') {
+        enteredAudit.resolve()
+        await releaseAudit.promise
+      }
+      return append(...args)
+    })
+    let releaseTimer: ReturnType<typeof setTimeout> | undefined
+    const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'eth_sendTransaction',
       params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    }))
+    onTestFinished(async () => {
+      if (releaseTimer) clearTimeout(releaseTimer)
+      releaseAudit.resolve()
+      await broker.shutdown()
+      await result
+      auditSpy.mockRestore()
     })
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
-      request.operation === 'sign-and-send-transaction'
-    )).at(-1)?.status).toBe('awaiting-human'))
+    if (slowAudit) {
+      await enteredAudit.promise
+      expect(broker.listPending().find(request => request.operation === 'sign-and-send-transaction')?.status).toBe('policy-decision')
+      expect(chain.sign).not.toHaveBeenCalled()
+      expect(chain.broadcast).not.toHaveBeenCalled()
+      // Exercise durable audit work beyond vi.waitFor's default polling budget.
+      releaseTimer = setTimeout(() => releaseAudit.resolve(), 1_100)
+    }
+    const request = await broker.waitForPending(entry => (
+      entry.operation === 'sign-and-send-transaction' && entry.status === 'awaiting-human'
+    ))
+    expect(request.status).toBe('awaiting-human')
     expect(chain.sign).not.toHaveBeenCalled()
-    await broker.reject(broker.listPending().filter((request) => request.operation === 'sign-and-send-transaction').at(-1)!.id)
-    await expect(result).rejects.toThrow('rejected')
+    await broker.reject(request.id)
+    await expect(result).resolves.toEqual({ status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('rejected') }) })
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
   })
 
   it('requires human approval when a mainnet Bypass Approve policy expires in the lifecycle queue', async () => {
