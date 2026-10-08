@@ -1,3 +1,4 @@
+import type { PendingPasswordOccupancy } from '../browser/password-occupancy.js'
 import type { PendingVideoInspection, VideoSourceBinding } from '../browser/video-recorder.js'
 import { videoInspectionSchema } from '../../shared/video-inspection.js'
 import type { PendingFrameObservation } from '../browser/frame-observation.js'
@@ -1034,7 +1035,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; passwordOccupancy?: PendingPasswordOccupancy; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1115,6 +1116,14 @@ function createBrowserMcpServer(
           frameRequest.pending.assertCurrent()
           return settled
         }
+        if (name === 'browser_element_inspect' && input.includePasswordOccupancy === true && !result.isError) {
+          // Keep identity/type and authority guards alive through all audit/capability awaits.
+          const inspection = frameRequest.passwordOccupancy
+          if (!inspection) throw new Error('Password occupancy publication guard is unavailable')
+          await inspection.finish()
+          inspection.assertCurrent()
+          return result // No await between final authority check and publication.
+        }
         if (name === 'browser_video' && input.action === 'inspect' && frameRequest.videoInspection && !result.isError) {
           // No await after this check: capability/human/audit settlement must precede pixel publication.
           const inspection = frameRequest.videoInspection
@@ -1137,6 +1146,7 @@ function createBrowserMcpServer(
         recordReadinessProbe('failed')
         return errorResult(error)
       } finally {
+        frameRequest.passwordOccupancy?.discard()
         frameRequest.pending?.discard()
         frameRequest.videoInspection?.discard()
         finishWorkspaceMutation?.()
@@ -3378,7 +3388,7 @@ function createBrowserMcpServer(
       includeScroll?: boolean
       includePasswordOccupancy?: boolean
       validateOccupancy?: () => void
-    }) => textResult(await manager.elementInspection(options, options.validateOccupancy)))
+    }) => textResult(await manager.elementInspection(options, options.validateOccupancy, options.includePasswordOccupancy === true ? pending => { frameRequests.getStore()!.passwordOccupancy = pending } : undefined)))
   )
   registerWorkspaceTool(
     'browser_generate_locator',

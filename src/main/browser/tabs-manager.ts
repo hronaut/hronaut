@@ -1,4 +1,4 @@
-import { passwordOccupancySettlementScript } from './password-occupancy.js'
+import { passwordOccupancySettlementScript, type PendingPasswordOccupancy } from './password-occupancy.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -5248,7 +5248,7 @@ export class BrowserTabsManager {
     }
   }
 
-  async elementInspection(options: BrowserElementInspectionOptions, validateOccupancy?: () => void): Promise<BrowserElementInspection> {
+  async elementInspection(options: BrowserElementInspectionOptions, validateOccupancy?: () => void, deferOccupancy?: (pending: PendingPasswordOccupancy) => void): Promise<BrowserElementInspection> {
     if (options.includePasswordOccupancy !== undefined && typeof options.includePasswordOccupancy !== 'boolean') throw new TypeError('includePasswordOccupancy must be a boolean')
     const occupancy = options.includePasswordOccupancy === true
     if (occupancy && (options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Password occupancy cannot be combined with CSS provenance or rendered fonts')
@@ -5301,6 +5301,24 @@ export class BrowserTabsManager {
     let cssProvenance: BrowserElementInspection['cssProvenance']
     let renderedFonts: BrowserElementInspection['renderedFonts']
     let occupancySettled = false
+    let occupancyDeferred = false
+    const pendingOccupancy: PendingPasswordOccupancy = {
+      assertCurrent,
+      finish: async () => {
+        if (!occupancyToken) return
+        assertCurrent()
+        const settled = await boundedOccupancy(tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken) }], false))
+        occupancySettled = true
+        assertCurrent()
+        if (settled !== true) throw new Error('Password occupancy target changed or expired during inspection')
+      },
+      discard: () => {
+        if (occupancyToken && !occupancySettled && !tab.webContents.isDestroyed()) {
+          occupancySettled = true
+          void tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken, true) }], false).catch(() => undefined)
+        }
+      }
+    }
     assertCurrent()
     try {
       if (properties || includeFonts) {
@@ -5335,21 +5353,17 @@ export class BrowserTabsManager {
         }
       } else raw = await boundedOccupancy(inspect())
       assertCurrent()
-      if (occupancyToken) {
-        const settled = await boundedOccupancy(tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken) }], false))
-        occupancySettled = true
-        assertCurrent()
-        if (settled !== true) throw new Error('Password occupancy target changed or expired during inspection')
-      }
+      if (occupancyToken && deferOccupancy) {
+        deferOccupancy(pendingOccupancy)
+        occupancyDeferred = true
+      } else if (occupancyToken) await pendingOccupancy.finish()
       return {
         ...normalizeElementInspection({ tabId: tab.id, title: tab.title, url: tab.url, raw }),
         ...(cssProvenance ? { cssProvenance } : {}),
         ...(renderedFonts ? { renderedFonts } : {})
       }
     } finally {
-      if (occupancyToken && !occupancySettled && !tab.webContents.isDestroyed()) {
-        void tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken, true) }], false).catch(() => undefined)
-      }
+      if (!occupancyDeferred) pendingOccupancy.discard()
     }
   }
 
