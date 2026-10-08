@@ -32,6 +32,7 @@ function createController(initialEntries = [entry('alpha')]) {
     clearHistory,
     openHistoryEntry,
     openHistoryEntryInBackground: vi.fn(async () => undefined),
+    copyHistoryAddress: vi.fn(async () => undefined),
     saveHistoryBookmark: vi.fn(async () => undefined),
     confirmClear
   })

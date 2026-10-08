@@ -2704,7 +2704,7 @@ export const frFR = {
     "removeAria": "Supprimer {title}",
     "remove": "Supprimer le favori"
   },
-  "history": { background: "Ouvrir dans un onglet en arrière-plan", backgroundAria: "Ouvrir {title} dans un onglet en arrière-plan", dateRange: "Période", allDates: "Tout", today: "Aujourd’hui", last7Days: "7 derniers jours",
+  "history": { copyAddress: "Copier l’adresse", copyAddressAria: "Copier l’adresse de {title}", addressCopied: "Adresse copiée", copyFailed: "Impossible de copier l’adresse. Réessayez.", background: "Ouvrir dans un onglet en arrière-plan", backgroundAria: "Ouvrir {title} dans un onglet en arrière-plan", dateRange: "Période", allDates: "Tout", today: "Aujourd’hui", last7Days: "7 derniers jours",
     "bookmark": "Ajouter aux favoris",
     "bookmarked": "Déjà dans les favoris",
     "bookmarkAria": "Ajouter {title} aux favoris",

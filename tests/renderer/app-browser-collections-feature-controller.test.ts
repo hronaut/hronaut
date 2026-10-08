@@ -91,11 +91,12 @@ function createHarness() {
   const browserState = {} as BrowserState
   const newTabResult = Promise.resolve(browserState)
   const newTab = vi.fn(() => newTabResult)
+  const copyText = vi.fn(async () => undefined)
   const syncState = vi.fn(async (operation: Promise<BrowserState>) => {
     await operation
   })
   const controller = useAppBrowserCollectionsFeatureController({
-    browser: { newTab },
+    browser: { newTab, copyText },
     downloadsApi,
     bookmarksApi,
     historyApi,
@@ -111,6 +112,7 @@ function createHarness() {
     listDownloads,
     newTab,
     newTabResult,
+    copyText,
     syncState,
     emitDownloads: (downloads: BrowserDownloadState[]) => downloadsChanged(downloads),
     unsubscribeDownloads,
@@ -120,6 +122,16 @@ function createHarness() {
 }
 
 describe('useAppBrowserCollectionsFeatureController', () => {
+  it('copies only the stored History URL through the existing clipboard bridge', async () => {
+    const h = createHarness()
+    const row = { ...historyEntry('alpha'), url: 'https://example.test/path?q=a%20b#section' }
+    await h.controller.copyHistoryAddress(row)
+    expect(h.copyText).toHaveBeenCalledExactlyOnceWith(row.url)
+    expect(h.newTab).not.toHaveBeenCalled()
+    expect(h.syncState).not.toHaveBeenCalled()
+    h.controller.dispose()
+  })
+
   it('opens a History result without requesting tab activation or focus', async () => {
     const h = createHarness()
     h.controller.historyOpen.value = true

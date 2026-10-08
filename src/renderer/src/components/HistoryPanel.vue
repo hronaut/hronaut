@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import IconBookmark from '~icons/material-symbols/bookmark-add-outline-rounded'
 import IconBackground from '~icons/material-symbols/tab-unselected-rounded'
 import IconBookmarked from '~icons/material-symbols/bookmark-rounded'
+import IconCopy from '~icons/material-symbols/content-copy-outline-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
@@ -24,6 +25,7 @@ const props = defineProps<{
   clearHistory: () => Promise<BrowserHistoryEntry[]>
   openHistoryEntry: (entry: BrowserHistoryEntry) => Promise<void>
   openHistoryEntryInBackground: (entry: BrowserHistoryEntry) => Promise<void>
+  copyHistoryAddress: (entry: BrowserHistoryEntry) => Promise<void>
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -37,10 +39,12 @@ const {
   dateRange,
   error,
   pendingAction,
+  copyFeedback,
   filteredEntries,
   toggle,
   openEntry,
   openInBackground,
+  copyAddress,
   bookmark,
   remove: removeEntry,
   clear,
@@ -60,6 +64,7 @@ const {
   openHistoryEntry: props.openHistoryEntry,
   openHistoryEntryInBackground: props.openHistoryEntryInBackground,
   saveHistoryBookmark: props.saveHistoryBookmark,
+  copyHistoryAddress: props.copyHistoryAddress,
   confirmClear: () => window.confirm(t('privacyActions.clearHistory'))
 })
 
@@ -77,6 +82,7 @@ const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry
   let superseded = false
   onCleanup(() => { superseded = true })
   const selector = focused.classList.contains('history-open') ? '.history-open'
+    : focused.classList.contains('history-copy-address') ? '.history-copy-address'
     : focused.classList.contains('history-background') ? '.history-background'
       : focused.classList.contains('history-bookmark') ? '.history-bookmark' : '.history-action.danger'
   const next = row.nextElementSibling?.querySelector<HTMLButtonElement>(selector)
@@ -181,6 +187,11 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
             <small>{{ entryMeta(entry) }}</small>
           </span>
         </UiButton>
+        <UiButton appearance="application" class="history-copy-address history-action" type="button"
+          :aria-disabled="pendingAction !== null"
+          :aria-label="t('history.copyAddressAria', { title: entry.title })"
+          :title="t('history.copyAddress')"
+          @click="copyAddress(entry)"><IconCopy aria-hidden="true" /></UiButton>
         <UiButton appearance="application" class="history-background history-action" type="button"
           :aria-disabled="pendingAction !== null"
           :aria-label="t('history.backgroundAria', { title: entry.title })"
@@ -200,6 +211,8 @@ async function remove(entryId: string, event: MouseEvent): Promise<void> {
       </article>
     </div>
     <p class="history-retention"><IconPrivacy aria-hidden="true" /> {{ t('history.retention') }}</p>
+    <p v-if="copyFeedback === 'success'" class="history-feedback" role="status">{{ t('history.addressCopied') }}</p>
+    <p v-if="copyFeedback === 'error'" class="history-error" role="alert">{{ t('history.copyFailed') }}</p>
     <p v-if="error" class="history-error" role="alert">{{ error }}</p>
   </section>
 </template>

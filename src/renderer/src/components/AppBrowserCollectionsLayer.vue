@@ -33,7 +33,8 @@ const {
   openBookmark,
   openBookmarkInBackground,
   openHistoryEntry,
-  openHistoryEntryInBackground
+  openHistoryEntryInBackground,
+  copyHistoryAddress
 } = props.controller
 </script>
 
@@ -79,5 +80,6 @@ const {
     :clear-history="browserCollectionsController.clearHistory"
     :open-history-entry="openHistoryEntry"
     :open-history-entry-in-background="openHistoryEntryInBackground"
+    :copy-history-address="copyHistoryAddress"
   />
 </template>

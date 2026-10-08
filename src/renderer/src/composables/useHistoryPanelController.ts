@@ -20,6 +20,7 @@ export interface HistoryPanelControllerOptions {
   openHistoryEntry: (entry: BrowserHistoryEntry) => Promise<void>
   openHistoryEntryInBackground: (entry: BrowserHistoryEntry) => Promise<void>
   saveHistoryBookmark: (url: string, title: string) => Promise<void>
+  copyHistoryAddress: (entry: BrowserHistoryEntry) => Promise<void>
   confirmClear: () => boolean
 }
 
@@ -28,6 +29,9 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   const dateRange = ref<HistoryDateRange>('all')
   const now = ref(Date.now())
   const error = ref('')
+  const copyFeedback = ref<'success' | 'error' | ''>('')
+  const copyEntry = ref<{ id: string; url: string } | null>(null)
+  let copyGeneration = 0
   const pendingAction = ref<string | null>(null)
   let actionGeneration = 0
 
@@ -42,6 +46,16 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
           || entry.url.toLocaleLowerCase().includes(normalized))
     })
   })
+
+  function resetCopyFeedback(): void {
+    copyGeneration += 1
+    copyFeedback.value = ''
+  }
+
+  const copyEntryVisible = computed(() => !copyEntry.value || filteredEntries.value.some(
+    entry => entry.id === copyEntry.value!.id && entry.url === copyEntry.value!.url
+  ))
+  const stopCopyTracking = watch([query, dateRange, options.open, copyEntryVisible], resetCopyFeedback, { flush: 'sync' })
 
   let clockTimer: ReturnType<typeof setTimeout> | undefined
   function stopClock(): void {
@@ -86,6 +100,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     if (pendingAction.value) return false
     const generation = ++actionGeneration
     resetError()
+    resetCopyFeedback()
     pendingAction.value = actionId
     try {
       const nextEntries = await operation()
@@ -119,6 +134,21 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     await runAction(`background:${entry.id}`, () => options.openHistoryEntryInBackground(entry))
   }
 
+  async function copyAddress(entry: BrowserHistoryEntry): Promise<void> {
+    if (pendingAction.value || !options.open.value
+      || !filteredEntries.value.some(item => item.id === entry.id && item.url === entry.url)) return
+    copyEntry.value = { id: entry.id, url: entry.url }
+    await runAction(`copy:${entry.id}`, async () => {
+      const generation = copyGeneration
+      try {
+        await options.copyHistoryAddress(entry)
+        if (generation === copyGeneration) copyFeedback.value = 'success'
+      } catch {
+        if (generation === copyGeneration) copyFeedback.value = 'error'
+      }
+    })
+  }
+
   function bookmark(entry: BrowserHistoryEntry): Promise<boolean> {
     return runAction(`bookmark:${entry.id}`, () => options.saveHistoryBookmark(entry.url, entry.title))
   }
@@ -146,6 +176,8 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
 
   function dispose(): void {
     invalidateActions()
+    resetCopyFeedback()
+    stopCopyTracking()
     stopOpenTracking()
     stopClockTracking()
     stopClock()
@@ -156,11 +188,13 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     dateRange,
     error,
     pendingAction,
+    copyFeedback,
     filteredEntries,
     resetError,
     toggle,
     openEntry,
     openInBackground,
+    copyAddress,
     bookmark,
     remove,
     clear,

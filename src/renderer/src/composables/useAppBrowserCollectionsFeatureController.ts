@@ -15,7 +15,7 @@ import {
   type HistoryShellPanel
 } from './useBrowserCollectionsShellController.js'
 
-type CollectionsBrowserApi = Pick<HronautApi, 'newTab'>
+type CollectionsBrowserApi = Pick<HronautApi, 'newTab' | 'copyText'>
 
 export interface AppBookmarksPanelSurface extends BookmarksShellPanel {
   handleEscape: () => void
@@ -67,6 +67,10 @@ export function useAppBrowserCollectionsFeatureController(
     await options.syncState(options.browser.newTab({ url: entry.url, active: false, focus: false }))
   }
 
+  function copyHistoryAddress(entry: BrowserHistoryEntry): Promise<void> {
+    return options.browser.copyText(entry.url)
+  }
+
   function dispose(): void {
     if (disposed) return
     disposed = true
@@ -94,6 +98,7 @@ export function useAppBrowserCollectionsFeatureController(
     openBookmarkInBackground,
     openHistoryEntry: shellController.openHistoryEntry,
     openHistoryEntryInBackground,
+    copyHistoryAddress,
     dispose
   }
 }

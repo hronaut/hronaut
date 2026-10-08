@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Copy a stored History address without leaving the current page, with accessible confirmation and retryable failure feedback.
+
 - Open a History result in a background tab while keeping the current page, History panel, search and date filter.
 
 ### Fixed
