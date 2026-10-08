@@ -1,4 +1,5 @@
-import { passwordOccupancySettlementScript, type PendingPasswordOccupancy } from './password-occupancy.js'
+import { passwordOccupancySettlementScript } from './password-occupancy.js'
+import type { PendingElementInspection } from './element-inspection-publication.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -5248,7 +5249,7 @@ export class BrowserTabsManager {
     }
   }
 
-  async elementInspection(options: BrowserElementInspectionOptions, validateOccupancy?: () => void, deferOccupancy?: (pending: PendingPasswordOccupancy) => void): Promise<BrowserElementInspection> {
+  async elementInspection(options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
     if (options.includePasswordOccupancy !== undefined && typeof options.includePasswordOccupancy !== 'boolean') throw new TypeError('includePasswordOccupancy must be a boolean')
     const occupancy = options.includePasswordOccupancy === true
     if (occupancy && (options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Password occupancy cannot be combined with CSS provenance or rendered fonts')
@@ -5262,17 +5263,15 @@ export class BrowserTabsManager {
     if (occupancy && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error('Password occupancy requires an already active tab')
     this.validateTarget(options)
     const context = this.snapshotDeltaContext(tab)
-    const occupancyWorkspace = occupancy && tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const occupancyPermissionGeneration = occupancyWorkspace ? this.inspectionPermissions.get(occupancyWorkspace) ?? 0 : 0
+    const inspectionWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const inspectionPermissionGeneration = inspectionWorkspace ? this.inspectionPermissions.get(inspectionWorkspace) ?? 0 : 0
     const assertCurrent = (): void => {
-      if (occupancy) {
-        validateOccupancy?.()
-        const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-        if (currentWorkspace !== occupancyWorkspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== occupancyPermissionGeneration) {
-          throw new Error('Workspace permissions changed during password occupancy inspection')
-        }
-        if (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active') throw new Error('Password occupancy requires an already active tab')
+      validateInspection?.()
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (currentWorkspace !== inspectionWorkspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== inspectionPermissionGeneration) {
+        throw new Error('Workspace permissions changed during element inspection')
       }
+      if (occupancy && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error('Password occupancy requires an already active tab')
       const current = this.tabs.get(tab.id)
       if (!current || current !== tab || current.webContents.isDestroyed()) {
         throw new Error('The tab changed during element inspection. Inspect the element again.')
@@ -5301,8 +5300,8 @@ export class BrowserTabsManager {
     let cssProvenance: BrowserElementInspection['cssProvenance']
     let renderedFonts: BrowserElementInspection['renderedFonts']
     let occupancySettled = false
-    let occupancyDeferred = false
-    const pendingOccupancy: PendingPasswordOccupancy = {
+    let inspectionDeferred = false
+    const pendingInspection: PendingElementInspection = {
       assertCurrent,
       finish: async () => {
         if (!occupancyToken) return
@@ -5353,17 +5352,17 @@ export class BrowserTabsManager {
         }
       } else raw = await boundedOccupancy(inspect())
       assertCurrent()
-      if (occupancyToken && deferOccupancy) {
-        deferOccupancy(pendingOccupancy)
-        occupancyDeferred = true
-      } else if (occupancyToken) await pendingOccupancy.finish()
+      if (deferInspection) {
+        deferInspection(pendingInspection)
+        inspectionDeferred = true
+      } else if (occupancyToken) await pendingInspection.finish()
       return {
         ...normalizeElementInspection({ tabId: tab.id, title: tab.title, url: tab.url, raw }),
         ...(cssProvenance ? { cssProvenance } : {}),
         ...(renderedFonts ? { renderedFonts } : {})
       }
     } finally {
-      if (!occupancyDeferred) pendingOccupancy.discard()
+      if (!inspectionDeferred) pendingInspection.discard()
     }
   }
 

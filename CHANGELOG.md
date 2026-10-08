@@ -14,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject stale element-inspection responses when workspace access, tab context or cancellation changes while audit results are being persisted.
+
 - Preserve next-row keyboard focus when a bookmark removal publishes its live update before the removal request finishes.
 - Keep Bookmarks keyboard focus reachable when an external bookmark or collection update removes the focused row, while preserving newer focus, search and collection selection.
 
