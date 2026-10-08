@@ -253,3 +253,33 @@ describe('history panel controller', () => {
     expect(controller.entryMeta(entries.value[0])).toBe('Aug 22, 2026, 12:30 PM · 3 visits')
   })
 })
+
+it('composes visit order with exact origin, last-visit dates and search without changing stored counts', () => {
+  const now = new Date().toISOString()
+  const rows = [
+    { ...entry('recent', 'Reference recent', 2), visitedAt: now },
+    { ...entry('frequent', 'Reference frequent', 9), visitedAt: now },
+    { ...entry('tie', 'Reference tie', 9), visitedAt: now },
+    { ...entry('old', 'Reference old', 20), visitedAt: '2000-01-01T00:00:00Z' },
+    { ...entry('other', 'Reference other', 30), url: 'https://other.test/', visitedAt: now }
+  ]
+  const h = createController(rows)
+  try {
+    h.open.value = true
+    h.controller.sortOrder.value = 'visits'
+    expect(h.controller.filteredEntries.value.map(row => row.id)).toEqual(['other', 'old', 'frequent', 'tie', 'recent'])
+    expect(h.entries.value.map(row => row.id)).toEqual(rows.map(row => row.id))
+    h.controller.filterOrigin(rows[0])
+    h.controller.dateRange.value = 'today'
+    h.controller.query.value = 'reference'
+    expect(h.controller.filteredEntries.value.map(row => row.id)).toEqual(['frequent', 'tie', 'recent'])
+    expect(h.controller.filteredEntries.value.map(row => row.visitCount)).toEqual([9, 9, 2])
+    h.entries.value = rows.map(row => row.id === 'recent' ? { ...row, visitCount: 10 } : row)
+    expect(h.controller.filteredEntries.value.map(row => row.id)).toEqual(['recent', 'frequent', 'tie'])
+    h.controller.query.value = 'missing'
+    expect(h.controller.filteredEntries.value).toEqual([])
+    h.controller.query.value = ''
+    h.controller.sortOrder.value = 'recent'
+    expect(h.controller.filteredEntries.value.map(row => row.id)).toEqual(['recent', 'frequent', 'tie'])
+  } finally { h.controller.dispose() }
+})

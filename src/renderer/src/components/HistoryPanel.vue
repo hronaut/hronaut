@@ -36,6 +36,7 @@ const stopFocusSessionTracking = watch(open, () => { focusGeneration += 1 }, { f
 const { t } = useI18n({ useScope: 'global' })
 const {
   query,
+  sortOrder,
   dateRange,
   origin,
   entryOrigin,
@@ -73,7 +74,7 @@ const {
 
 defineExpose({ toggle })
 
-// Calendar refreshes and authoritative history updates can remove a row without
+// Calendar refreshes and authoritative history updates can move or remove a row without
 // a panel action. Capture its focused control before Vue patches the live list.
 const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry.id), async (_ids, _previous, onCleanup) => {
   const focused = document.activeElement
@@ -93,8 +94,13 @@ const stopVisibleTracking = watch(() => filteredEntries.value.map(entry => entry
   const previous = row.previousElementSibling?.querySelector<HTMLButtonElement>(selector)
   await nextTick()
   if (superseded || generation !== focusGeneration || !open.value || panel !== panelRoot.value
-    || !panel.isConnected || row.isConnected) return
+    || !panel.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
+  if (row.isConnected) {
+    // Keyed moves can blur retained controls, including focusable pending actions.
+    if (focused.isConnected && !focused.matches(':disabled')) focused.focus()
+    return
+  }
   const target = [next, previous,
     panel.querySelector<HTMLInputElement>('.history-search-field input'),
     panel.querySelector<HTMLButtonElement>('.panel-close')
@@ -182,6 +188,13 @@ async function clearOrigin(event: Event): Promise<void> {
         <option value="all">{{ t('history.allDates') }}</option>
         <option value="today">{{ t('history.today') }}</option>
         <option value="last7Days">{{ t('history.last7Days') }}</option>
+      </select>
+    </label>
+    <label v-if="entries.length" class="history-sort-order">
+      <span>{{ t('history.sortOrder') }}</span>
+      <select v-model="sortOrder" :disabled="pendingAction !== null">
+        <option value="recent">{{ t('history.sortRecent') }}</option>
+        <option value="visits">{{ t('history.sortVisits') }}</option>
       </select>
     </label>
     <div v-if="origin" class="history-origin-filter">

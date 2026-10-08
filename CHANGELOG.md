@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Sort human browsing history by most visited within search, date and origin filters, with keyboard focus retained through live visit updates.
+
 - Sort human Bookmarks by title within search and collections, while retaining the default recently updated order and keyboard focus through live renames.
 
 - Filter Search tabs by open tabs, recently closed tabs, or archived workspaces while searching titles and addresses.

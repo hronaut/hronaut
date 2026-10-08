@@ -575,7 +575,7 @@ describe('History copy address', () => {
     copy.focus()
     await fireEvent.click(copy)
     if (change === 'query') await fireEvent.update(screen.getByRole('searchbox'), 'Alpha')
-    if (change === 'date') await fireEvent.update(screen.getByRole('combobox'), 'today')
+    if (change === 'date') await fireEvent.update(screen.getByRole('combobox', { name: 'Date range' }), 'today')
     if (change === 'remove') await view.rerender({ entries: [entry('beta', 'Beta page')] })
     if (change === 'url') await view.rerender({ entries: [{ ...row, url: 'https://example.test/new' }] })
     if (change === 'reopen') { await view.rerender({ open: false }); await view.rerender({ open: true }) }
@@ -634,4 +634,63 @@ it.each(['success', 'error'])('keeps a newer copy pending when an old session fi
   await flushPromises()
   expect(copy).toHaveAttribute('aria-disabled', 'false')
   expect(screen.getByRole('status')).toHaveTextContent('Address copied')
+})
+
+it('orders History by most visits without changing the authoritative list and retains the choice on reopen', async () => {
+  const rows = [entry('recent', 'Recent page', 1), entry('frequent', 'Frequent page', 8)]
+  const view = renderPanel({ entries: rows })
+  const titles = () => [...view.container.querySelectorAll('.history-copy strong')].map(node => node.textContent)
+  expect(titles()).toEqual(['Recent page', 'Frequent page'])
+  const sort = screen.getByRole('combobox', { name: 'Sort history' })
+  expect(sort).toHaveValue('recent')
+  await fireEvent.update(sort, 'visits')
+  expect(titles()).toEqual(['Frequent page', 'Recent page'])
+  expect(rows.map(row => row.id)).toEqual(['recent', 'frequent'])
+  await view.rerender({ open: false })
+  await view.rerender({ open: true })
+  expect(screen.getByRole('combobox', { name: 'Sort history' })).toHaveValue('visits')
+  await fireEvent.update(screen.getByRole('combobox', { name: 'Sort history' }), 'recent')
+  expect(titles()).toEqual(['Recent page', 'Frequent page'])
+})
+
+it.each(['copy', 'background', 'bookmark'])('retains pending %s focus when a visit count update moves its row', async action => {
+  let finish!: () => void
+  const operation = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+  const view = renderPanel({
+    entries: [entry('high', 'Higher', 3), entry('low', 'Lower', 1)],
+    [action === 'copy' ? 'copyHistoryAddress' : action === 'background' ? 'openHistoryEntryInBackground' : 'saveHistoryBookmark']: operation
+  })
+  await fireEvent.update(screen.getByRole('combobox', { name: 'Sort history' }), 'visits')
+  const button = screen.getByRole('button', { name: action === 'copy' ? 'Copy address for Lower' : action === 'background' ? 'Open Lower in background tab' : 'Bookmark Lower' })
+  await userEvent.setup().click(button)
+  expect(button).toHaveAttribute('aria-disabled', 'true')
+  await view.rerender({ entries: [entry('high', 'Higher', 3), entry('low', 'Lower', 5)] })
+  await flushPromises()
+  expect([...view.container.querySelectorAll('.history-copy strong')].map(node => node.textContent)).toEqual(['Lower', 'Higher'])
+  expect(button).toHaveFocus()
+  await fireEvent.click(button)
+  expect(operation).toHaveBeenCalledTimes(1)
+  finish()
+  await flushPromises()
+  expect(button).toHaveFocus()
+})
+
+it.each(['copy', 'background', 'bookmark'])('preserves newer search focus through a pending %s visit reorder', async action => {
+  let finish!: () => void
+  const operation = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+  const view = renderPanel({
+    entries: [entry('high', 'Higher', 3), entry('low', 'Lower', 1)],
+    [action === 'copy' ? 'copyHistoryAddress' : action === 'background' ? 'openHistoryEntryInBackground' : 'saveHistoryBookmark']: operation
+  })
+  await fireEvent.update(screen.getByRole('combobox', { name: 'Sort history' }), 'visits')
+  await userEvent.setup().click(screen.getByRole('button', { name: action === 'copy' ? 'Copy address for Lower' : action === 'background' ? 'Open Lower in background tab' : 'Bookmark Lower' }))
+  const update = view.rerender({ entries: [entry('high', 'Higher', 3), entry('low', 'Lower', 5)] })
+  const search = screen.getByRole('searchbox')
+  search.focus()
+  await update
+  await flushPromises()
+  expect(search).toHaveFocus()
+  finish()
+  await flushPromises()
+  expect(search).toHaveFocus()
 })

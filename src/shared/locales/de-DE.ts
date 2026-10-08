@@ -2704,7 +2704,7 @@ export const deDE = {
     "removeAria": "{title} entfernen",
     "remove": "Lesezeichen entfernen"
   },
-  "history": { origin: "Origin", filterOrigin: "Nach exakter Origin filtern", filterOriginAria: "Verlauf nach Origin von {title} filtern", clearOrigin: "Origin-Filter entfernen", copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.", background: "Im Hintergrundtab öffnen", backgroundAria: "{title} im Hintergrundtab öffnen", dateRange: "Zeitraum", allDates: "Alle", today: "Heute", last7Days: "Letzte 7 Tage",
+  "history": { sortOrder: "Verlauf sortieren", sortRecent: "Zuletzt besucht", sortVisits: "Am häufigsten besucht", origin: "Origin", filterOrigin: "Nach exakter Origin filtern", filterOriginAria: "Verlauf nach Origin von {title} filtern", clearOrigin: "Origin-Filter entfernen", copyAddress: "Adresse kopieren", copyAddressAria: "Adresse von {title} kopieren", addressCopied: "Adresse kopiert", copyFailed: "Adresse konnte nicht kopiert werden. Erneut versuchen.", background: "Im Hintergrundtab öffnen", backgroundAria: "{title} im Hintergrundtab öffnen", dateRange: "Zeitraum", allDates: "Alle", today: "Heute", last7Days: "Letzte 7 Tage",
     "bookmark": "Lesezeichen hinzufügen",
     "bookmarked": "Bereits als Lesezeichen gespeichert",
     "bookmarkAria": "Lesezeichen für {title} hinzufügen",
