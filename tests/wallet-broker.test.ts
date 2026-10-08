@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createPublicKey, verify } from 'node:crypto'
 import { address, getAddressEncoder } from '@solana/kit'
 import { tmpdir } from 'node:os'
@@ -545,13 +545,13 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).toHaveBeenCalledOnce()
   })
 
-  it.each([false, true])('keeps websites on trusted approval even when an agent wallet has Bypass Approve mode (slow audit: %s)', async slowAudit => {
+  it.each(['normal', 'slow-audit', 'assertion-failure'] as const)('keeps websites on trusted approval even when an agent wallet has Bypass Approve mode (%s)', async mode => {
     const now = () => new Date('2026-09-04T12:00:00.000Z')
     // Keep the permission store's wall clock aligned with the injected broker clock.
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(now())
     onTestFinished(() => { vi.useRealTimers() })
-    const { service, wallet } = await setup('mainnet', true, now)
+    const { directory, service, wallet } = await setup('mainnet', true, now)
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain }, now })
     await connect(broker)
@@ -569,42 +569,66 @@ describe('WalletBroker', () => {
     const enteredAudit = deferred()
     const releaseAudit = deferred()
     const append = service.audit.append.bind(service.audit)
+    let inFlightAudit = 0
     const auditSpy = vi.spyOn(service.audit, 'append').mockImplementation(async (...args) => {
-      if (slowAudit && args[0] === 'request-simulated') {
-        enteredAudit.resolve()
-        await releaseAudit.promise
-      }
-      return append(...args)
+      inFlightAudit += 1
+      try {
+        if (mode !== 'normal' && args[0] === 'request-simulated') {
+          enteredAudit.resolve()
+          await releaseAudit.promise
+        }
+        return await append(...args)
+      } finally { inFlightAudit -= 1 }
     })
     let releaseTimer: ReturnType<typeof setTimeout> | undefined
+    let providerSettled = false
     const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'eth_sendTransaction',
       params: [{ to: '0x0000000000000000000000000000000000000002' }]
-    }))
-    onTestFinished(async () => {
-      if (releaseTimer) clearTimeout(releaseTimer)
-      releaseAudit.resolve()
-      await broker.shutdown()
-      await result
-      auditSpy.mockRestore()
-    })
-    if (slowAudit) {
-      await enteredAudit.promise
-      expect(broker.listPending().find(request => request.operation === 'sign-and-send-transaction')?.status).toBe('policy-decision')
-      expect(chain.sign).not.toHaveBeenCalled()
-      expect(chain.broadcast).not.toHaveBeenCalled()
-      // Exercise durable audit work beyond vi.waitFor's default polling budget.
-      releaseTimer = setTimeout(() => releaseAudit.resolve(), 1_100)
+    })).then(outcome => { providerSettled = true; return outcome })
+    if (mode === 'assertion-failure') {
+      onTestFinished(async () => {
+        try {
+          expect(providerSettled).toBe(true)
+          expect(inFlightAudit).toBe(0)
+          await expect(access(directory)).rejects.toMatchObject({ code: 'ENOENT' })
+        } finally { await rm(directory, { recursive: true, force: true }) }
+      })
     }
-    const request = await broker.waitForPending(entry => (
-      entry.operation === 'sign-and-send-transaction' && entry.status === 'awaiting-human'
-    ))
-    expect(request.status).toBe('awaiting-human')
-    expect(chain.sign).not.toHaveBeenCalled()
-    await broker.reject(request.id)
-    await expect(result).resolves.toEqual({ status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('rejected') }) })
-    expect(chain.sign).not.toHaveBeenCalled()
-    expect(chain.broadcast).not.toHaveBeenCalled()
+    const exercise = async () => {
+      try {
+        if (mode !== 'normal') {
+          await enteredAudit.promise
+          expect(broker.listPending().find(request => request.operation === 'sign-and-send-transaction')?.status).toBe('policy-decision')
+          expect(chain.sign).not.toHaveBeenCalled()
+          expect(chain.broadcast).not.toHaveBeenCalled()
+          if (mode === 'assertion-failure') expect.fail('controlled assertion failure with audit held')
+          // Exercise durable audit work beyond vi.waitFor's default polling budget.
+          releaseTimer = setTimeout(() => releaseAudit.resolve(), 1_100)
+        }
+        const request = await broker.waitForPending(entry => (
+          entry.operation === 'sign-and-send-transaction' && entry.status === 'awaiting-human'
+        ))
+        expect(request.status).toBe('awaiting-human')
+        expect(chain.sign).not.toHaveBeenCalled()
+        await broker.reject(request.id)
+        await expect(result).resolves.toEqual({ status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('rejected') }) })
+        expect(chain.sign).not.toHaveBeenCalled()
+        expect(chain.broadcast).not.toHaveBeenCalled()
+      } finally {
+        // Drain the held provider before the file's afterEach removes its directory.
+        if (releaseTimer) clearTimeout(releaseTimer)
+        releaseAudit.resolve()
+        await broker.shutdown()
+        await result
+        auditSpy.mockRestore()
+      }
+    }
+    if (mode === 'assertion-failure') {
+      await expect(exercise()).rejects.toThrow('controlled assertion failure with audit held')
+    } else await exercise()
+    expect(providerSettled).toBe(true)
+    expect(inFlightAudit).toBe(0)
   })
 
   it('requires human approval when a mainnet Bypass Approve policy expires in the lifecycle queue', async () => {
