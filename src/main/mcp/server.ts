@@ -1,3 +1,4 @@
+import type { PendingPasswordOccupancy } from '../browser/password-occupancy.js'
 import type { PendingVideoInspection, VideoSourceBinding } from '../browser/video-recorder.js'
 import { videoInspectionSchema } from '../../shared/video-inspection.js'
 import type { PendingFrameObservation } from '../browser/frame-observation.js'
@@ -1034,7 +1035,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; passwordOccupancy?: PendingPasswordOccupancy; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1115,6 +1116,14 @@ function createBrowserMcpServer(
           frameRequest.pending.assertCurrent()
           return settled
         }
+        if (name === 'browser_element_inspect' && input.includePasswordOccupancy === true && !result.isError) {
+          // Keep identity/type and authority guards alive through all audit/capability awaits.
+          const inspection = frameRequest.passwordOccupancy
+          if (!inspection) throw new Error('Password occupancy publication guard is unavailable')
+          await inspection.finish()
+          inspection.assertCurrent()
+          return result // No await between final authority check and publication.
+        }
         if (name === 'browser_video' && input.action === 'inspect' && frameRequest.videoInspection && !result.isError) {
           // No await after this check: capability/human/audit settlement must precede pixel publication.
           const inspection = frameRequest.videoInspection
@@ -1137,6 +1146,7 @@ function createBrowserMcpServer(
         recordReadinessProbe('failed')
         return errorResult(error)
       } finally {
+        frameRequest.passwordOccupancy?.discard()
         frameRequest.pending?.discard()
         frameRequest.videoInspection?.discard()
         finishWorkspaceMutation?.()
@@ -1578,6 +1588,8 @@ function createBrowserMcpServer(
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
+        const isPasswordOccupancy = name === 'browser_element_inspect' && input.includePasswordOccupancy === true
+        const passiveObservation = isFrameObservation || isPasswordOccupancy
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -1634,7 +1646,7 @@ function createBrowserMcpServer(
             && manager.getMcpGroupState(workspaceId).tabs.length === 0)
         const resolvedTabId = skipsTabTarget
           ? undefined
-          : isFrameObservation ? manager.requireTabInMcpGroup(workspaceId, requestedTabId, true) : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+          : passiveObservation ? manager.requireTabInMcpGroup(workspaceId, requestedTabId, true) : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const definition = toolDefinition(name)
         const actionTarget = browserActionTarget(actionInput)
         const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
@@ -1697,6 +1709,7 @@ function createBrowserMcpServer(
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
           requireActiveCapabilityDispatch(name, actionInput, isFrameObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
           if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
+          if (isPasswordOccupancy && extra?.signal?.aborted) throw new Error('Password occupancy inspection cancelled')
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -1820,13 +1833,13 @@ function createBrowserMcpServer(
               tabId: resolvedTabId,
               toolName: activityToolName,
               phase: 'started',
-              ...(isFrameObservation ? { suppressFollow: true } : {}),
+              ...(passiveObservation ? { suppressFollow: true } : {}),
               occurredAt: Date.now()
             })
           }
           const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
           try {
-            if (!isFrameObservation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
+            if (!passiveObservation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
             }
             // Audit admission and tab wake can outlive pause, access revocation,
@@ -1855,6 +1868,7 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
+                ...(isPasswordOccupancy ? { validateOccupancy: requireCurrentTarget } : {}),
                 ...(name === 'browser_react' ? { reactAuthority: {
                   assertCurrent: requireCurrentTarget,
                   epoch: createHash('sha256').update(JSON.stringify([client.id, controlRevision, writeLease?.generation, capabilityAuthorizationFingerprint])).digest('hex')
@@ -1885,6 +1899,7 @@ function createBrowserMcpServer(
               } as unknown as T)
             try {
               await requireHumanDecision(false, reviewAttempt?.id)
+              if (isPasswordOccupancy) requireCurrentTarget()
               validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl(true)
@@ -1933,7 +1948,7 @@ function createBrowserMcpServer(
             tabId: resolvedTabId,
             toolName: activityToolName,
             phase: activityResult.outcome === 'succeeded' ? 'finished' : 'failed',
-            ...(isFrameObservation ? { suppressFollow: true } : {}),
+            ...(passiveObservation ? { suppressFollow: true } : {}),
             occurredAt: Date.now(),
             result: activityResult
           })
@@ -3360,7 +3375,8 @@ function createBrowserMcpServer(
         selector: z.string().max(1_000).optional(),
         cssProperties: z.array(z.enum(CSS_INSPECTION_PROPERTIES)).min(1).max(8).optional(),
         includeFonts: z.boolean().optional(),
-        includeScroll: z.boolean().optional()
+        includeScroll: z.boolean().optional(),
+        includePasswordOccupancy: z.boolean().optional()
       }
     },
     tabTool('browser_element_inspect', async (options: {
@@ -3370,7 +3386,9 @@ function createBrowserMcpServer(
       cssProperties?: CssInspectionProperty[]
       includeFonts?: boolean
       includeScroll?: boolean
-    }) => textResult(await manager.elementInspection(options)))
+      includePasswordOccupancy?: boolean
+      validateOccupancy?: () => void
+    }) => textResult(await manager.elementInspection(options, options.validateOccupancy, options.includePasswordOccupancy === true ? pending => { frameRequests.getStore()!.passwordOccupancy = pending } : undefined)))
   )
   registerWorkspaceTool(
     'browser_generate_locator',

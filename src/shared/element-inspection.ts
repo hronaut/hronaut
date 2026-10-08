@@ -168,6 +168,8 @@ export function normalizeElementInspection(input: NormalizeElementInspectionInpu
       whiteSpace: cssText(rawTypography.whiteSpace, 100, 'normal'),
       ...(contrastRatio !== undefined ? { contrastRatio } : {})
     },
+    ...(raw.passwordOccupancy === 'empty' || raw.passwordOccupancy === 'nonempty' || raw.passwordOccupancy === 'unknown'
+      ? { passwordOccupancy: raw.passwordOccupancy as 'empty' | 'nonempty' | 'unknown' } : {}),
     accessibility: {
       role: text(rawAccessibility.role, 100, tag),
       name: text(rawAccessibility.name, 500),
@@ -210,6 +212,7 @@ export function formatElementInspectionForAgent(report: BrowserElementInspection
     `Page: ${report.title} (${report.url})`,
     `Selector: ${report.selector}`,
     `Element: ${element}`,
+    report.passwordOccupancy ? `Password occupancy: ${report.passwordOccupancy} (not authentication evidence)` : '',
     report.text ? `Text: ${JSON.stringify(report.text)}` : '',
     `Bounds: x=${Math.round(report.box.x)}, y=${Math.round(report.box.y)}, width=${Math.round(report.box.width)}, height=${Math.round(report.box.height)}`,
     `Box model: content=${report.box.contentWidth}×${report.box.contentHeight}px; padding=${edgeSummary(report.box.padding)}; border=${edgeSummary(report.box.border)}; margin=${edgeSummary(report.box.margin)}; box-sizing=${report.box.boxSizing}`,
