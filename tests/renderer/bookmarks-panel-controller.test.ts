@@ -14,6 +14,7 @@ function bookmark(id: string, title = `Page ${id}`): BrowserBookmark {
 }
 
 function createController(initialBookmarks = [bookmark('alpha')]) {
+  const locale = ref('en-US')
   const open = ref(false)
   const bookmarks = ref(initialBookmarks)
   const activeUrl = ref<string | null>('https://example.test/current')
@@ -26,6 +27,7 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
   const removeBookmark = vi.fn(async (id: string) => bookmarks.value.filter((item) => item.id !== id))
   const openBookmark = vi.fn(async () => undefined)
   const controller = useBookmarksPanelController({
+    locale,
     open,
     bookmarks,
     activeUrl,
@@ -41,6 +43,7 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
     openBookmarkInBackground: vi.fn(async () => undefined)
   })
   return {
+    locale,
     open,
     bookmarks,
     activeUrl,
@@ -209,4 +212,24 @@ describe('bookmarks panel controller', () => {
     expect(open.value).toBe(true)
     controller.dispose()
   })
+})
+
+it('composes locale-aware natural title order with search and live updates without mutating the store', () => {
+  const h = createController([bookmark('10', 'Page 10'), bookmark('2', 'Page 2'), bookmark('tie', 'page 2'), bookmark('z', 'Zebra')])
+  h.controller.sortOrder.value = 'title'
+  expect(h.controller.filteredBookmarks.value.map(entry => entry.id)).toEqual(['2', 'tie', '10', 'z'])
+  expect(h.bookmarks.value.map(entry => entry.id)).toEqual(['10', '2', 'tie', 'z'])
+  h.controller.query.value = 'page'
+  expect(h.controller.filteredBookmarks.value.map(entry => entry.id)).toEqual(['2', 'tie', '10'])
+  h.bookmarks.value = [bookmark('10', 'Page 1'), bookmark('2', 'Page 2'), bookmark('tie', 'page 2')]
+  expect(h.controller.filteredBookmarks.value.map(entry => entry.id)).toEqual(['10', '2', 'tie'])
+  h.controller.query.value = 'missing'
+  expect(h.controller.filteredBookmarks.value).toEqual([])
+  h.controller.query.value = ''
+  h.bookmarks.value = [bookmark('z', 'Zebra'), bookmark('a', 'Äther')]
+  h.locale.value = 'de-DE'
+  expect(h.controller.filteredBookmarks.value.map(entry => entry.id)).toEqual(['a', 'z'])
+  h.locale.value = 'sv-SE'
+  expect(h.controller.filteredBookmarks.value.map(entry => entry.id)).toEqual(['z', 'a'])
+  h.controller.dispose()
 })

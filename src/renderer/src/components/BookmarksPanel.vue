@@ -41,9 +41,10 @@ const panelRoot = ref<HTMLElement | null>(null)
 let focusGeneration = 0
 let removalFocusRow: Element | null = null
 const stopFocusSessionTracking = watch(open, () => { focusGeneration += 1 }, { flush: 'sync' })
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const {
   query,
+  sortOrder,
   error,
   copyFeedback,
   copyAddress,
@@ -66,6 +67,7 @@ const {
   handleEscape: handlePanelEscape,
   dispose
 } = useBookmarksPanelController({
+  locale,
   open,
   bookmarks,
   activeUrl: toRef(props, 'activeUrl'),
@@ -91,7 +93,7 @@ const collectionsToolbar = ref<{ cancelEdit: () => void } | null>(null)
 watch(selection, () => { cancelRenameDraft(); resetCopyFeedback() }, { flush: 'sync' })
 watch(() => visibleBookmarks.value.map(bookmark => `${bookmark.id}:${bookmark.url}`).join('\n'), resetCopyFeedback, { flush: 'sync' })
 
-// Authoritative bookmark and collection updates can remove a focused row
+// Authoritative bookmark and collection updates can move or remove a focused row
 // without running one of this panel's action handlers.
 const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => bookmark.id), async (_ids, _previous, onCleanup) => {
   const focused = document.activeElement
@@ -115,8 +117,13 @@ const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => b
   const previous = selector ? row.previousElementSibling?.querySelector<HTMLElement>(selector) : null
   await nextTick()
   if (superseded || generation !== focusGeneration || !open.value || panel !== panelRoot.value
-    || !panel.isConnected || row.isConnected) return
+    || !panel.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
+  if (row.isConnected) {
+    // Moving a keyed row can blur its retained control during DOM insertion.
+    if (focused.isConnected && !focused.matches(':disabled, [aria-disabled="true"]')) focused.focus()
+    return
+  }
   const target = [next, previous,
     assignment ? panel.querySelector<HTMLSelectElement>('.bookmark-collection-filter select') : null,
     panel.querySelector<HTMLInputElement>('.bookmark-search-field input'),
@@ -249,6 +256,13 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
       <IconSearch aria-hidden="true" />
       <input v-model="query" type="search" :aria-label="t('bookmarks.search')" autocomplete="off" spellcheck="false" :placeholder="t('bookmarks.search')" />
     </div>
+    <label v-if="bookmarks.length" class="bookmark-sort-order">
+      <span>{{ t('bookmarks.sortOrder') }}</span>
+      <select v-model="sortOrder" :disabled="anyPending">
+        <option value="updated">{{ t('bookmarks.sortUpdated') }}</option>
+        <option value="title">{{ t('bookmarks.sortTitle') }}</option>
+      </select>
+    </label>
     <div v-if="!bookmarks.length" class="bookmarks-empty">
       <IconStarOutline aria-hidden="true" />
       <strong>{{ t('bookmarks.empty') }}</strong>
