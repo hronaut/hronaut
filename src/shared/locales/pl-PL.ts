@@ -2704,7 +2704,7 @@ export const plPL = {
     "removeAria": "Usuń {title}",
     "remove": "Usuń zakładkę"
   },
-  "history": { copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.", background: "Otwórz w karcie w tle", backgroundAria: "Otwórz {title} w karcie w tle", dateRange: "Zakres dat", allDates: "Wszystko", today: "Dzisiaj", last7Days: "Ostatnie 7 dni",
+  "history": { origin: "Origin", filterOrigin: "Filtruj według dokładnego origin", filterOriginAria: "Filtruj historię według origin strony {title}", clearOrigin: "Wyczyść filtr origin", copyAddress: "Kopiuj adres", copyAddressAria: "Kopiuj adres strony {title}", addressCopied: "Adres skopiowany", copyFailed: "Nie udało się skopiować adresu. Spróbuj ponownie.", background: "Otwórz w karcie w tle", backgroundAria: "Otwórz {title} w karcie w tle", dateRange: "Zakres dat", allDates: "Wszystko", today: "Dzisiaj", last7Days: "Ostatnie 7 dni",
     "bookmark": "Dodaj zakładkę",
     "bookmarked": "Już w zakładkach",
     "bookmarkAria": "Dodaj zakładkę: {title}",

@@ -293,7 +293,7 @@
 .history-date-filter select { @apply min-w-0 flex-1 [padding:7px_9px] [border:1px_solid_var(--border-soft)] [border-radius:7px] text-copy bg-surface; }
 .history-list { @apply min-h-0 overflow-y-auto [padding:4px_8px_8px]; }
 .history-item {
-  @apply grid [min-height:76px] [grid-template-columns:minmax(0,_1fr)_34px_34px_34px_34px] items-center [gap:4px] [border-radius:9px];
+  @apply grid [min-height:76px] [grid-template-columns:minmax(0,_1fr)_34px_34px_34px_34px_34px] items-center [gap:4px] [border-radius:9px];
 }
 .history-item:hover { @apply bg-hover; }
 .history-open {
@@ -595,3 +595,8 @@
 .bookmark-collection-hint { @apply m-0 text-muted [font-size:11px]; }
 
 .history-feedback, .bookmarks-feedback { @apply m-0 [padding:9px_14px] text-muted [font-size:12px]; }
+
+.history-origin-filter { @apply flex flex-none items-center [gap:8px] [margin:0_12px_8px] text-muted [font-size:12px]; }
+.history-origin-filter > span { @apply min-w-0 flex-1 [overflow-wrap:anywhere]; }
+.history-origin-filter button { @apply flex-none; }
+.history-origin-filter svg { @apply [width:17px] [height:17px]; }
