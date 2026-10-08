@@ -1,3 +1,5 @@
+import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
+import type { BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import { FrameObservationController } from './frame-observation.js'
@@ -5364,6 +5366,55 @@ export class BrowserTabsManager {
     } finally {
       if (!inspectionDeferred) pendingInspection.discard()
     }
+  }
+
+  async mediaState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserMediaState> {
+    if (Object.hasOwn(options, 'ref')) throw new TypeError('Media state does not support snapshot refs; provide a unique selector')
+    if (typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1_000) throw new TypeError('Media state requires a nonempty selector of at most 1000 characters')
+    const tab = this.getTab(options.tabId)
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    const assertCurrent = (): void => {
+      validateInspection?.()
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
+        || currentWorkspace !== workspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) throw new Error('The observation context changed during media inspection')
+      if (isHronautHomeUrl(tab.url) || tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active') throw new Error('Media state unavailable: requires an already active website tab')
+    }
+    assertCurrent()
+    const token = randomUUID()
+    const deadline = Date.now() + 5_000
+    const bounded = async <T>(operation: Promise<T>): Promise<T> => {
+      let timer: NodeJS.Timeout | undefined
+      try {
+        return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Media state inspection expired')), Math.max(1, deadline - Date.now()))
+        })])
+      } finally { if (timer) clearTimeout(timer) }
+    }
+    const execute = (code: string) => tab.webContents.executeJavaScriptInIsolatedWorld(MEDIA_STATE_WORLD_ID, [{ code }], false)
+    let settled = false
+    let deferred = false
+    const pending: PendingElementInspection = {
+      assertCurrent,
+      finish: async () => {
+        assertCurrent()
+        const valid = await bounded(execute(mediaStateSettlementScript(token)))
+        assertCurrent()
+        if (valid !== true) throw new Error('The media target changed before publication')
+        settled = true
+      },
+      discard: () => { if (!settled && !tab.webContents.isDestroyed()) void execute(mediaStateSettlementScript(token, true)).catch(() => undefined) }
+    }
+    try {
+      const raw: unknown = await bounded(execute(mediaStateScript({ selector: options.selector }, token)))
+      assertCurrent()
+      const report = normalizeMediaState(raw)
+      if (deferInspection) { deferInspection(pending); deferred = true } else await pending.finish()
+      return report
+    } finally { if (!deferred) pending.discard() }
   }
 
   async generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
