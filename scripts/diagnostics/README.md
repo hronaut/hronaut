@@ -13,8 +13,8 @@ The exact original top-level `"use strict";` remains first; the observer is
 inserted immediately after it and before the original executable body. The optional
 CLI takes source-bundle, package-manifest, and NEW output-file paths; exclusive
 creation prevents overwriting an installed bundle. Loading that output would
-require an isolated copy of Playwright with its relative dependencies. This PR
-only verifies generation and synthetic execution; it supplies no capture runner.
+require an isolated copy of Playwright with its relative dependencies. This PR includes an explicit opt-in disposable capture runner, verified only
+with synthetic tests. Real browser capture requires separate approval.
 
 The generated module exports `__hronautProtocolTimingSnapshot()` for a future,
 separately reviewed collector. Snapshotting copies the ring; no automatic file,
@@ -83,8 +83,16 @@ is currently taken. The original checkout/installed packages are not patched.
 runs exactly the original named continuity case, its complete 2×2×2 matrix, one
 worker, existing CI retry=1 and failOnFlaky settings, once. No repeat loop or
 extra test deadline is added. It uses a private TMPDIR inside the disposable
-copy. Optional cancellation kills only the child process group. Rollback removes
-only that owned copy; failure to remove it is an explicit invalid-artifact flag.
+copy. The runner requires an immutable, already-installed Docker image ID and
+uses a new container with private PID/IPC namespaces, init and no logging driver.
+There are no added capabilities, privileged flags, host PID/socket mounts or
+host ports. Cancellation stops the container with zero grace, verifies Running=false/Pid=0,
+then removes it and verifies absence, covering detached Electron
+process groups; successful absence verification is required before removing the
+owned copy. Unverified container teardown retains that copy and reports
+`containmentStopped=0`, `cleanup=0`, invalid diagnostics. Docker control failures
+never become cleanup success. The copy path must be visible to the same local
+Docker daemon (use a disposable directory on the shared workspace filesystem).
 No capture or release decision is implied by these exported APIs.
 
 Module resolution from the checkout, playwright and @playwright/test must all
@@ -97,7 +105,7 @@ and at most 2048 seven-number rows. Empty, malformed, oversized or missing
 snapshots are explicit unknown; eviction marks the snapshot partial. Input file
 reads are bounded before allocation/parse (256 KiB snapshot, 1 KiB verdict).
 
-The child uses `stdio: ignore`, including renderer console errors and original
+The container is never attached and uses `--log-driver none`, including renderer console errors and original
 Playwright error logs. A fixed numeric reporter replaces line/HTML output only
 inside this opt-in invocation. Original screenshots/traces may still be generated
 inside the copy to preserve test behavior, but are never uploaded/exported and
@@ -112,3 +120,12 @@ failed or flaky child stays failed even when diagnostics are valid. A future
 hosted caller must preserve that original exit verdict and separately require
 valid publication. No job that uploads generic failure artifacts may wrap this
 runner without another review of the output boundary.
+
+The host-only `tests/proofs/protocol-container-cancellation.ts` test explicitly
+starts synthetic parent/detached-grandchild processes in this same boundary,
+verifies a distinct detached process group and live heartbeat, cancels, verifies
+Docker reports Running=false/Pid=0 before container removal, checks absence and
+that the grandchild heartbeat stopped, and only then removes the copy. It launches no
+Electron/browser. Unit tests separately prove unverified stop retains the copy
+and cannot claim rollback success. This containment correction is not a
+production stall fix and does not clear the failed release gate.

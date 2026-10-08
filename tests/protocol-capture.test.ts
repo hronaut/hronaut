@@ -1,12 +1,22 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
 import { BUNDLE, CASE_FILE, CASE_TITLE, digest, IDENTITY_MARKER, overlayIdentity, patchCaptureCase, patchCaptureFixture, prepareCapture, removeCapture, verifyLoadedBundle, verifyPrepared, verifyResolution, type CaptureManifest } from '../scripts/diagnostics/protocol-capture-loader.js'
 import { captureBeforeCleanup, MAX_ARTIFACT_BYTES, readCaptureFile, sanitizeSnapshot } from '../scripts/diagnostics/protocol-capture-worker.js'
-import { isolatedProcess, readVerdict, runPreparedCapture } from '../scripts/diagnostics/protocol-capture-runner.js'
+import { readVerdict, runPreparedCapture } from '../scripts/diagnostics/protocol-capture-runner.js'
 import { createProtocolTiming } from '../scripts/diagnostics/protocol-timing-runtime.js'
+
+import { isolatedProcess } from './helpers/protocol-synthetic-process.js'
+const containment = vi.hoisted(() => ({ stopped: 1 }))
+vi.mock('../scripts/diagnostics/protocol-capture-container.ts', () => ({
+  isolatedContainer: async (root: string, _image: string, command: string[], signal?: AbortSignal) => {
+    const outcome = await isolatedProcess(process.execPath, command.slice(1), root, { CI: 'true' }, signal)
+    return { ...outcome, stopped: containment.stopped }
+  }
+}))
+const image = 'sha256:' + '1'.repeat(64)
 
 const roots: string[] = []
 const sentinel = 'PRIVATE_URL_EXPRESSION_TOKEN_ERROR_SENTINEL'
@@ -38,7 +48,7 @@ function cached(manifest: CaptureManifest, exports: unknown) {
   const path = join(manifest.root, BUNDLE)
   return { [path]: { filename: path, loaded: true, exports } } as unknown as NodeJS.Dict<NodeModule>
 }
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
+afterEach(() => { containment.stopped = 1; for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 describe('disposable protocol loader and collector', () => {
   it('loads exported runner directly in Node without loading or launching Playwright', async () => {
@@ -193,14 +203,14 @@ const reporter = new Reporter(); reporter.onTestEnd({outcome:()=> 'unexpected'},
 reporter.onTestEnd({outcome:()=> 'flaky'}, {retry:1,status:'passed'}); reporter.onEnd({status:'failed'}); process.exit(1);
 });`)
     const output = join(parent, 'sanitized.json')
-    const result = await runPreparedCapture(manifest, parent, output, 'reviewed-single-capture')
+    const result = await runPreparedCapture(manifest, parent, output, 'reviewed-single-capture', image)
     expect(result.exitCode).toBe(1); expect(result.verdict.flaky).toBe(1); expect(result.artifactValid).toBe(1)
     expect(readFileSync(output, 'utf8')).not.toContain(sentinel); expect(existsSync(root)).toBe(false)
   })
   it('cannot turn passed child with missing snapshot into valid diagnostic evidence', async () => {
     const { manifest, parent, root } = prepared()
     write(join(root, 'node_modules/@playwright/test/cli.js'), "require('fs').writeFileSync('diagnostic-output/verdict.json',JSON.stringify({status:1,flaky:0,attempts:[[0,1]]}))")
-    const result = await runPreparedCapture(manifest, parent, join(parent, 'out.json'), 'reviewed-single-capture')
+    const result = await runPreparedCapture(manifest, parent, join(parent, 'out.json'), 'reviewed-single-capture', image)
     expect(result.exitCode).toBe(0); expect(result.artifactValid).toBe(0); expect(result.captures[0]!.status).toBe(0)
     expect(existsSync(root)).toBe(false)
   })
@@ -209,7 +219,7 @@ reporter.onTestEnd({outcome:()=> 'flaky'}, {retry:1,status:'passed'}); reporter.
       const { manifest, parent, root } = prepared()
       write(join(root, 'node_modules/@playwright/test/cli.js'), "require('fs').writeFileSync('diagnostic-output/verdict.json',JSON.stringify({status:3,flaky:0,attempts:[[0,3]]}));process.exit(1)")
       const controller = new AbortController(); if (cancel) controller.abort()
-      const result = await runPreparedCapture(manifest, parent, join(parent, 'out.json'), 'reviewed-single-capture', controller.signal)
+      const result = await runPreparedCapture(manifest, parent, join(parent, 'out.json'), 'reviewed-single-capture', image, controller.signal)
       expect(result.exitCode).toBe(cancel ? -1 : 1)
       expect(result.killed).toBe(cancel ? 1 : 0)
       expect(result.artifactValid).toBe(0); expect(result.captures[0]!.status).toBe(0)
@@ -221,9 +231,19 @@ reporter.onTestEnd({outcome:()=> 'flaky'}, {retry:1,status:'passed'}); reporter.
     const { manifest, parent, root } = prepared()
     write(join(root, 'node_modules/@playwright/test/cli.js'), 'process.exit(9)')
     const output = join(parent, 'out.json'); write(output, sentinel)
-    const result = await runPreparedCapture(manifest, parent, output, 'reviewed-single-capture')
+    const result = await runPreparedCapture(manifest, parent, output, 'reviewed-single-capture', image)
     expect(result.exitCode).toBe(9); expect(result.publication).toBe(0); expect(result.artifactValid).toBe(0)
     expect(readFileSync(output, 'utf8')).toBe(sentinel); expect(existsSync(root)).toBe(false)
+  })
+
+  it('retains the disposable copy and refuses cleanup success when containment stop is unverified', async () => {
+    const { manifest, parent, root } = prepared()
+    write(join(root, 'node_modules/@playwright/test/cli.js'), 'process.exit(8)')
+    containment.stopped = 0
+    const result = await runPreparedCapture(manifest, parent, join(parent, 'out.json'), 'reviewed-single-capture', image)
+    expect(result.exitCode).toBe(8); expect(result.containmentStopped).toBe(0)
+    expect(result.cleanup).toBe(0); expect(result.artifactValid).toBe(0)
+    expect(existsSync(root)).toBe(true)
   })
 
   it('does not accept arbitrary reporter payloads', () => {
