@@ -76,7 +76,11 @@ if { (( status != 0 )) || [[ "$capture_diagnostics" == true ]]; } && docker insp
   mkdir -p "$artifact_directory"
   extract_directory test-results
   extract_directory playwright-report
-  echo "Integration artifacts: $artifact_directory"
+  if (( status != 0 )); then
+    echo "Failure artifacts: $artifact_directory"
+  else
+    echo "Diagnostic artifacts: $artifact_directory"
+  fi
 fi
 
 exit "$status"
