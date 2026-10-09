@@ -2644,6 +2644,9 @@ export const deDE = {
     "close": "Steuerung des Seitenzooms schließen"
   },
   "downloads": {
+    sortOrder: "Downloads sortieren",
+    sortRecent: "Neueste zuerst",
+    sortFilename: "Dateiname",
     sourceOrigin: "Download-Ursprung: {origin}",
     copyPath: "Gespeicherten Pfad kopieren",
     copyPathAria: "Gespeicherten Pfad für {filename} kopieren",

@@ -5,6 +5,7 @@ import type { BrowserDownloadState } from '../../../shared/types.js'
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
 
 export interface DownloadsPanelControllerOptions {
+  locale: Readonly<Ref<string>>
   open: Readonly<Ref<boolean>>
   downloads: Ref<BrowserDownloadState[]>
   translate: Translate
@@ -21,10 +22,12 @@ export interface DownloadsPanelControllerOptions {
 
 export function useDownloadsPanelController(options: DownloadsPanelControllerOptions) {
   const query = ref('')
+  const sortOrder = ref<'recent' | 'filename'>('recent')
+  const filenameCollator = computed(() => new Intl.Collator(options.locale.value, { numeric: true, sensitivity: 'base' }))
   const statusFilter = ref<'all' | 'active' | 'finished' | 'completed' | 'cancelled' | 'interrupted'>('all')
   const filteredDownloads = computed(() => {
     const text = query.value.trim().toLocaleLowerCase()
-    return options.downloads.value.filter(download => {
+    const matching = options.downloads.value.filter(download => {
       if (text && !download.filename.toLocaleLowerCase().includes(text)
         && !downloadOrigin(download).toLocaleLowerCase().includes(text)) return false
       if (statusFilter.value === 'all') return true
@@ -32,6 +35,9 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
       if (statusFilter.value === 'finished') return !isActiveDownload(download)
       return download.state === statusFilter.value
     })
+    return sortOrder.value === 'filename'
+      ? matching.sort((left, right) => filenameCollator.value.compare(left.filename, right.filename))
+      : matching
   })
   const error = ref('')
   const copyFeedback = ref<'success' | 'error' | ''>('')
@@ -159,6 +165,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     resetError()
     query.value = ''
     statusFilter.value = 'all'
+    sortOrder.value = 'recent'
   }, { flush: 'sync' })
 
   function dispose(): void {
@@ -170,6 +177,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
 
   return {
     query,
+    sortOrder,
     statusFilter,
     filteredDownloads,
     error,

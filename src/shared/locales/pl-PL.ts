@@ -2644,6 +2644,9 @@ export const plPL = {
     "close": "Zamknij sterowanie powiększeniem strony"
   },
   "downloads": {
+    sortOrder: "Sortuj pobrania",
+    sortRecent: "Od najnowszych",
+    sortFilename: "Nazwa pliku",
     sourceOrigin: "Pochodzenie pobrania: {origin}",
     copyPath: "Kopiuj zapisaną ścieżkę",
     copyPathAria: "Kopiuj zapisaną ścieżkę pliku {filename}",

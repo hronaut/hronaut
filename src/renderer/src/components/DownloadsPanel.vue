@@ -29,9 +29,10 @@ const props = defineProps<{
 
 const open = defineModel<boolean>('open', { required: true })
 const downloads = defineModel<BrowserDownloadState[]>('downloads', { required: true })
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const {
   query,
+  sortOrder,
   statusFilter,
   filteredDownloads,
   error,
@@ -51,6 +52,7 @@ const {
   reveal,
   dispose
 } = useDownloadsPanelController({
+  locale,
   open,
   downloads,
   translate: (key, parameters) => t(key, parameters ?? {}),
@@ -67,7 +69,7 @@ const {
 
 let removalFocusRow: Element | null = null
 let focusGeneration = 0
-const stopFocusSessionTracking = watch([open, query, statusFilter], () => { focusGeneration += 1 }, { flush: 'sync' })
+const stopFocusSessionTracking = watch([open, query, statusFilter, sortOrder], () => { focusGeneration += 1 }, { flush: 'sync' })
 
 async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove', downloadId: string, event: MouseEvent): Promise<void> {
   const generation = focusGeneration
@@ -147,6 +149,10 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
         <option value="completed">{{ t('downloads.filterCompleted') }}</option>
         <option value="cancelled">{{ t('downloads.cancelled') }}</option>
         <option value="interrupted">{{ t('downloads.interrupted') }}</option>
+      </select>
+      <select v-model="sortOrder" :aria-label="t('downloads.sortOrder')">
+        <option value="recent">{{ t('downloads.sortRecent') }}</option>
+        <option value="filename">{{ t('downloads.sortFilename') }}</option>
       </select>
     </div>
     <p v-if="downloads.length" class="downloads-filter-summary" role="status">{{ t('downloads.filterSummary', { visible: filteredDownloads.length, total: downloads.length }) }}</p>

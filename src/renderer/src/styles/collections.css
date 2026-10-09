@@ -173,7 +173,8 @@
 }
 .downloads-header-actions > button:hover:not(:disabled) { @apply bg-hover; }
 .downloads-header-actions > button:disabled { @apply cursor-default [opacity:.35]; }
-.downloads-filters { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] [gap:8px] [padding:10px_12px_4px]; }
+.downloads-filters { @apply grid [grid-template-columns:repeat(2,_minmax(0,_1fr))] [gap:8px] [padding:10px_12px_4px]; }
+.downloads-filters input { @apply [grid-column:1_/_-1]; }
 .downloads-filters input,
 .downloads-filters select { @apply min-w-0 [padding:7px_8px] [border:1px_solid_var(--border-soft)] [border-radius:7px] text-copy bg-surface-muted; }
 .downloads-filters input:focus-visible,

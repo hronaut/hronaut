@@ -21,6 +21,7 @@ function download(
 }
 
 function createController(initialDownloads = [download('complete', 'completed', 100, 100)]) {
+  const locale = ref('en-US')
   const open = ref(true)
   const downloads = ref(initialDownloads)
   const cancelDownload = vi.fn(async (id: string) => [download(id, 'cancelled')])
@@ -30,6 +31,7 @@ function createController(initialDownloads = [download('complete', 'completed', 
   const showInFolder = vi.fn(async () => undefined)
   const copySavedPath = vi.fn(async (_path: string): Promise<void> => undefined)
   const controller = useDownloadsPanelController({
+    locale,
     open,
     downloads,
     translate: (key, parameters) => {
@@ -48,10 +50,46 @@ function createController(initialDownloads = [download('complete', 'completed', 
     copySavedPath,
     showInFolder
   })
-  return { open, downloads, pauseDownload, resumeDownload, cancelDownload, clearFinished, showInFolder, copySavedPath, controller }
+  return { locale, open, downloads, pauseDownload, resumeDownload, cancelDownload, clearFinished, showInFolder, copySavedPath, controller }
 }
 
 describe('downloads panel controller', () => {
+  it('sorts filtered filenames naturally with stable ties without changing retained order', () => {
+    const entries = [download('report10', 'completed'), download('report2', 'completed'),
+      { ...download('tie', 'completed'), filename: 'REPORT2.bin' }, download('report1'), download('other', 'completed')]
+    const h = createController(entries)
+    expect(h.controller.filteredDownloads.value).toEqual(entries)
+    h.controller.sortOrder.value = 'filename'
+    h.controller.query.value = 'report'
+    h.controller.statusFilter.value = 'completed'
+    expect(h.controller.filteredDownloads.value.map(item => item.id)).toEqual(['report2', 'tie', 'report10'])
+    expect(h.downloads.value).toEqual(entries)
+    h.downloads.value = [{ ...entries[0], filename: 'report1.bin' }, ...entries.slice(1)]
+    expect(h.controller.filteredDownloads.value.map(item => item.id)).toEqual(['report10', 'report2', 'tie'])
+    h.controller.query.value = 'missing'
+    expect(h.controller.filteredDownloads.value).toEqual([])
+    h.controller.query.value = ''
+    h.controller.sortOrder.value = 'recent'
+    expect(h.controller.filteredDownloads.value.map(item => item.id)).toEqual(['report10', 'report2', 'tie', 'other'])
+    expect(h.cancelDownload).not.toHaveBeenCalled()
+    expect(h.clearFinished).not.toHaveBeenCalled()
+    h.controller.dispose()
+  })
+
+  it('reacts to collation locale and resets filename sorting on reopen', () => {
+    const h = createController([{ ...download('z'), filename: 'Zebra.bin' }, { ...download('a'), filename: 'Äther.bin' }])
+    h.controller.sortOrder.value = 'filename'
+    h.locale.value = 'de-DE'
+    expect(h.controller.filteredDownloads.value.map(item => item.id)).toEqual(['a', 'z'])
+    h.locale.value = 'sv-SE'
+    expect(h.controller.filteredDownloads.value.map(item => item.id)).toEqual(['z', 'a'])
+    h.open.value = false
+    h.open.value = true
+    expect(h.controller.sortOrder.value).toBe('recent')
+    expect(h.controller.filteredDownloads.value).toEqual(h.downloads.value)
+    h.controller.dispose()
+  })
+
   it.each(['  HTTPS://STAGING.TEST:8443  ', 'STAGING.TEST', ':8443'])('searches displayed origins with status intersection: %s', query => {
     const staging = { ...download('report-staging', 'completed'), url: 'https://staging.test:8443/private/report?token=secret' }
     const active = { ...download('report-active'), url: 'https://staging.test:8443/other' }
