@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-10-09
+
 ### Added
 
 - Copy a completed download’s saved path without opening its file or folder, with keyboard access and clipboard feedback that clears when the target or panel context changes.
