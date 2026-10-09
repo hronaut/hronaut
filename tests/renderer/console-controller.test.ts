@@ -382,6 +382,34 @@ describe('console controller', () => {
     controller.dispose()
   })
 
+  it.each((['entry', 'filtered', 'all'] as const).flatMap(previous =>
+    (['entry', 'filtered', 'all'] as const).map(current => ({ previous, current }))
+  ))('clears $previous success while a new $current copy is pending or refused', async ({ previous, current }) => {
+    vi.useFakeTimers()
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.messages.value = [message('copy feedback')]
+    const copy = (scope: 'entry' | 'filtered' | 'all') => scope === 'entry'
+      ? controller.copyEntry(controller.messages.value[0])
+      : scope === 'filtered' ? controller.copyFiltered() : controller.copyAll()
+    try {
+      await copy(previous)
+      if (previous === 'entry') expect(controller.copiedEntryKey.value).not.toBeNull()
+      else expect(controller.copied.value).toBe(previous)
+      copyText.mockReturnValueOnce(pending.promise)
+      const operation = copy(current)
+      expect(controller.copied.value).toBeNull()
+      expect(controller.copiedEntryKey.value).toBeNull()
+      pending.resolve(false)
+      await operation
+      expect(controller.copied.value).toBeNull()
+      expect(controller.copiedEntryKey.value).toBeNull()
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(controller.copied.value).toBeNull()
+      expect(controller.copiedEntryKey.value).toBeNull()
+    } finally { controller.dispose() }
+  })
+
   it('restarts copied feedback when the same console scope is copied again', async () => {
     vi.useFakeTimers()
     const { controller } = createController()

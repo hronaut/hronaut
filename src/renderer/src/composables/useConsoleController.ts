@@ -126,7 +126,8 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     const tab = options.activeTab.value
     if (!tab || !nextMessages.length) return
     const expectedGeneration = generation
-    const sequence = ++copySequence
+    clearCopyFeedback()
+    const sequence = copySequence
     const copiedFilterRevision = filterRevision
     const payload = {
       generatedAt: new Date().toISOString(),

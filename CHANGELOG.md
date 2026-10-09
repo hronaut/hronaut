@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clear stale Console copy-success indicators when another clipboard attempt starts, including attempts that fail, while keeping late results from replacing newer feedback.
+
 - Preserve the latest detached-panel request while the renderer loads its startup settings, so a newer panel does not revert to the window’s initial panel.
 
 ## [2.24.0] - 2026-10-09
