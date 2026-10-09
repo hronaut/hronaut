@@ -2634,6 +2634,7 @@ export const frFR = {
     "close": "Fermer les contrôles du zoom de la page"
   },
   "downloads": {
+    sourceOrigin: "Origine du téléchargement : {origin}",
     copyPath: "Copier le chemin enregistré",
     copyPathAria: "Copier le chemin enregistré de {filename}",
     copiedPath: "Chemin enregistré copié",

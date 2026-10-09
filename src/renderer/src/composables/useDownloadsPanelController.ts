@@ -73,6 +73,13 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     })
   }
 
+  function downloadOrigin(download: BrowserDownloadState): string {
+    try {
+      const url = new URL(download.url)
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : ''
+    } catch { return '' }
+  }
+
   function downloadProgress(download: BrowserDownloadState): number {
     if (download.state === 'completed') return 100
     if (download.totalBytes <= 0) return 0
@@ -170,6 +177,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     canCopyPath,
     pendingAction,
     finishedDownloads,
+    downloadOrigin,
     downloadProgress,
     downloadMeta,
     resetError,

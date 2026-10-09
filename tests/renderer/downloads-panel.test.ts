@@ -476,3 +476,39 @@ describe('Downloads saved-path action', () => {
     expect(screen.queryByText('Saved path copied')).toBeNull()
   })
 })
+
+
+describe('Downloads source origin', () => {
+  it('distinguishes matching filenames by their retained HTTP origins without exposing URL details', () => {
+    const one = { ...download('one', 'completed', 100, 100), filename: 'report.csv', url: 'https://user:secret@staging.example.test:8443/private/report.csv?token=hidden#fragment' }
+    const two = { ...download('two', 'completed', 100, 100), filename: 'report.csv', url: 'https://production.example.test/private/report.csv?token=other' }
+    renderPanel({ downloads: [one, two] })
+    const rows = screen.getAllByRole('article')
+    expect(rows[0]).toHaveTextContent('Download origin: https://staging.example.test:8443')
+    expect(rows[1]).toHaveTextContent('Download origin: https://production.example.test')
+    for (const row of rows) {
+      expect(row.innerHTML).not.toMatch(/user:secret|\/private\/|token=|#fragment/)
+      expect(row.querySelector('a')).toBeNull()
+    }
+  })
+
+  it('updates the origin with its record while preserving filters and transfer state', async () => {
+    const entry = download('report', 'progressing', 50, 100)
+    const view = renderPanel({ downloads: [entry] })
+    const user = userEvent.setup()
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'report')
+    await user.selectOptions(screen.getByRole('combobox'), 'active')
+    await view.rerender({ downloads: [{ ...entry, url: 'http://localhost:4312/new-report', receivedBytes: 75 }] })
+    expect(screen.getByText('Download origin: http://localhost:4312')).toBeVisible()
+    expect(search).toHaveValue('report')
+    expect(screen.getByRole('combobox')).toHaveValue('active')
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '75')
+  })
+
+  it.each(['data:text/plain,private', 'blob:https://example.test/private', 'file:///private/report.csv', 'not a URL'])('omits unavailable source origins: %s', url => {
+    renderPanel({ downloads: [{ ...download('report', 'completed', 100, 100), url }] })
+    expect(screen.queryByText(/^Download origin:/)).toBeNull()
+    expect(screen.getByText('report.bin')).toBeVisible()
+  })
+})

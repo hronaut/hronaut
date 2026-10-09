@@ -2634,6 +2634,7 @@ export const ruRU = {
     "close": "Закрыть управление масштабом страницы"
   },
   "downloads": {
+    sourceOrigin: "Источник загрузки: {origin}",
     copyPath: "Копировать сохранённый путь",
     copyPathAria: "Копировать сохранённый путь для {filename}",
     copiedPath: "Сохранённый путь скопирован",
