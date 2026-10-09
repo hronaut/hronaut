@@ -2634,6 +2634,7 @@ export const deDE = {
     "close": "Steuerung des Seitenzooms schließen"
   },
   "downloads": {
+    sourceOrigin: "Download-Ursprung: {origin}",
     copyPath: "Gespeicherten Pfad kopieren",
     copyPathAria: "Gespeicherten Pfad für {filename} kopieren",
     copiedPath: "Gespeicherter Pfad kopiert",

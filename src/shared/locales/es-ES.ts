@@ -2634,6 +2634,7 @@ export const esES = {
     "close": "Cerrar los controles de zoom de la página"
   },
   "downloads": {
+    sourceOrigin: "Origen de la descarga: {origin}",
     copyPath: "Copiar ruta guardada",
     copyPathAria: "Copiar ruta guardada de {filename}",
     copiedPath: "Ruta guardada copiada",

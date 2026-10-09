@@ -261,3 +261,22 @@ describe('Downloads saved-path copying', () => {
     } finally { h.controller.dispose() }
   })
 })
+
+
+describe('Downloads retained origin labels', () => {
+  it.each([
+    ['https://user:secret@EXAMPLE.test:443/private?token=hidden#fragment', 'https://example.test'],
+    ['http://localhost:4312/report', 'http://localhost:4312'],
+    ['https://[::1]:8443/report', 'https://[::1]:8443'],
+    ['https://bücher.example/report', 'https://xn--bcher-kva.example'],
+    ['blob:https://example.test/private', ''],
+    ['data:text/plain,private', ''],
+    ['file:///private/report.csv', ''],
+    ['javascript:alert(1)', ''],
+    ['not a URL', '']
+  ])('uses only the HTTP(S) origin of %s', (url, expected) => {
+    const h = createController()
+    try { expect(h.controller.downloadOrigin({ ...download('report'), url })).toBe(expected) }
+    finally { h.controller.dispose() }
+  })
+})

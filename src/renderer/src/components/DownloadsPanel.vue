@@ -40,6 +40,7 @@ const {
   canCopyPath,
   pendingAction,
   finishedDownloads,
+  downloadOrigin,
   downloadProgress,
   downloadMeta,
   pause,
@@ -172,6 +173,7 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
         <div class="download-copy">
           <strong :title="download.filename">{{ download.filename }}</strong>
           <span>{{ downloadMeta(download) }}</span>
+          <span v-if="downloadOrigin(download)" class="download-origin" :title="downloadOrigin(download)">{{ t('downloads.sourceOrigin', { origin: downloadOrigin(download) }) }}</span>
           <div v-if="download.state === 'progressing'" class="download-progress" role="progressbar" :aria-label="t('downloads.downloading', { filename: download.filename })" :aria-valuenow="download.totalBytes > 0 ? downloadProgress(download) : undefined" aria-valuemin="0" aria-valuemax="100">
             <span :class="{ indeterminate: download.totalBytes <= 0 }" :style="download.totalBytes > 0 ? { width: `${downloadProgress(download)}%` } : undefined" />
           </div>

@@ -643,6 +643,7 @@ export const enUS = {
   find: {searching: "Searching…", failed: "Search failed", retry: "Retry page search",  region: 'Find in page', text: 'Find text', placeholder: 'Find in page', matchCaseTitle: 'Match case', matchCase: 'Match case', matchCaseShort: 'Aa', previousTitle: 'Previous match (Shift+Enter)', previous: 'Previous match', nextTitle: 'Next match (Enter)', next: 'Next match', closeTitle: 'Close (Escape)', close: 'Close find in page' },
   zoom: { controls: 'Page zoom controls', heading: 'Page zoom', outTitle: 'Zoom out (Ctrl/Cmd+-)', out: 'Zoom out', inTitle: 'Zoom in (Ctrl/Cmd++)', in: 'Zoom in', reset: 'Reset', closeTitle: 'Close (Escape)', close: 'Close page zoom controls' },
   downloads: {
+    sourceOrigin: "Download origin: {origin}",
     copyPath: "Copy saved path",
     copyPathAria: "Copy saved path for {filename}",
     copiedPath: "Saved path copied",

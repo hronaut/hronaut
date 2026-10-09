@@ -2634,6 +2634,7 @@ export const plPL = {
     "close": "Zamknij sterowanie powiększeniem strony"
   },
   "downloads": {
+    sourceOrigin: "Pochodzenie pobrania: {origin}",
     copyPath: "Kopiuj zapisaną ścieżkę",
     copyPathAria: "Kopiuj zapisaną ścieżkę pliku {filename}",
     copiedPath: "Zapisana ścieżka skopiowana",

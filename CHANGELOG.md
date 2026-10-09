@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Identify HTTP(S) downloads by their retained download origin directly in the Downloads list, without displaying URL credentials, paths, query strings, or fragments.
+
 ## [2.22.0] - 2026-10-09
 
 ### Added
