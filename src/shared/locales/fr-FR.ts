@@ -378,6 +378,9 @@ export const frFR = {
       capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
+      "search": "Rechercher les autorisations enregistrées",
+      "searchSummary": "{visible} sur {total} décisions enregistrées",
+      "noMatches": "Aucune décision enregistrée ne correspond à cette recherche.",
       "heading": "Autorisations des sites",
       "description": "Consultez les décisions d’accès mémorisées pour chaque site.",
       "emptyHeading": "Aucune décision enregistrée",

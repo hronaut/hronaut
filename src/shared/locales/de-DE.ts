@@ -378,6 +378,9 @@ export const deDE = {
       capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
+      "search": "Gespeicherte Website-Berechtigungen suchen",
+      "searchSummary": "{visible} von {total} gespeicherten Entscheidungen",
+      "noMatches": "Keine gespeicherten Entscheidungen entsprechen dieser Suche.",
       "heading": "Website-Berechtigungen",
       "description": "Gespeicherte Zugriffsentscheidungen für jede Website prüfen.",
       "emptyHeading": "Keine gespeicherten Entscheidungen",

@@ -378,6 +378,9 @@ export const ruRU = {
       capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
+      "search": "Поиск сохранённых разрешений сайтов",
+      "searchSummary": "{visible} из {total} сохранённых решений",
+      "noMatches": "Нет сохранённых решений, соответствующих поиску.",
       "heading": "Разрешения сайтов",
       "description": "Просматривайте сохранённые решения о доступе для каждого сайта.",
       "emptyHeading": "Сохранённых решений нет",
