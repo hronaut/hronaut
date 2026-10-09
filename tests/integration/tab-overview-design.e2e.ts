@@ -288,7 +288,7 @@ test('keeps many-tab search and keyboard selection usable in narrow light and wi
       const activeColors = await colorCounts(appWindow, activePreview)
       for (const color of ['red', 'green', 'blue', 'yellow']) expect(activeColors[color], `${color} active-tab corner paints before design capture`).toBeGreaterThan(10)
       await appWindow.screenshot({ path: testInfo.outputPath(`many-tabs-${theme}-${width}.png`) })
-      await search.fill('Project task 7')
+      await search.fill('Project task-7')
       await expect(overview.locator('.tab-overview-card')).toHaveCount(1)
       await search.press('Enter')
       await expect(overview).toBeHidden()
