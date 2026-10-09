@@ -324,3 +324,49 @@ it('keeps the record after a removal failure and supports a deliberate retry', a
   expect(screen.getByText('No downloads yet')).toBeVisible()
   expect(screen.getByRole('button', { name: 'Close downloads' })).toHaveFocus()
 })
+
+
+it.each(['next', 'previous'] as const)('keeps removal focus on the %s finished download', async direction => {
+  const target = download('target', 'completed', 100, 100)
+  const keep = download('keep', 'completed', 100, 100)
+  renderPanel({ downloads: direction === 'next' ? [target, keep] : [keep, target], removeFinished: vi.fn(async () => [keep]) })
+  screen.getByRole('button', { name: 'Remove target.bin from list' }).focus()
+  await userEvent.keyboard('{Enter}')
+  await flushPromises()
+  expect(screen.getByRole('button', { name: 'Remove keep.bin from list' })).toHaveFocus()
+})
+
+it('retains removal focus through a live list update before the action reply', async () => {
+  const target = download('target', 'completed', 100, 100)
+  const keep = download('keep', 'completed', 100, 100)
+  let finish!: (downloads: BrowserDownloadState[]) => void
+  const view = renderPanel({ downloads: [target, keep], removeFinished: vi.fn(() => new Promise<BrowserDownloadState[]>(resolve => { finish = resolve })) })
+  screen.getByRole('button', { name: 'Remove target.bin from list' }).focus()
+  await userEvent.keyboard('{Enter}')
+  await view.rerender({ downloads: [keep] })
+  finish([keep])
+  await flushPromises()
+  expect(screen.getByRole('button', { name: 'Remove keep.bin from list' })).toHaveFocus()
+})
+
+
+it.each(['newer-focus', 'filter-change', 'reopen'] as const)('does not reclaim removal focus after %s', async change => {
+  const target = download('target', 'completed', 100, 100)
+  const keep = download('keep', 'completed', 100, 100)
+  let finish!: (downloads: BrowserDownloadState[]) => void
+  const view = renderPanel({ downloads: [target, keep], removeFinished: vi.fn(() => new Promise<BrowserDownloadState[]>(resolve => { finish = resolve })) })
+  screen.getByRole('button', { name: 'Remove target.bin from list' }).focus()
+  await userEvent.keyboard('{Enter}')
+  await view.rerender({ downloads: [keep] })
+  if (change === 'newer-focus') screen.getByRole('button', { name: 'Close downloads' }).focus()
+  if (change === 'filter-change') {
+    await userEvent.type(screen.getByRole('searchbox'), 'keep')
+    await userEvent.clear(screen.getByRole('searchbox'))
+  }
+  if (change === 'reopen') { await view.rerender({ open: false }); await view.rerender({ open: true }) }
+  finish([keep])
+  await flushPromises()
+  expect(screen.getByRole('button', { name: 'Remove keep.bin from list' })).not.toHaveFocus()
+  if (change === 'newer-focus') expect(screen.getByRole('button', { name: 'Close downloads' })).toHaveFocus()
+  if (change === 'filter-change') expect(screen.getByRole('searchbox')).toHaveFocus()
+})

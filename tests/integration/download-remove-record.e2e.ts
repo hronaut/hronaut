@@ -8,7 +8,7 @@ test('removes one real finished download record without deleting files or distur
   const payload = Buffer.from('synthetic download record removal')
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': payload.length,
-      'content-disposition': `attachment; filename="${request.url === '/target' ? 'target' : 'keep'}.bin"` }).end(payload)
+      'content-disposition': `attachment; filename="${request.url === '/target' ? 'target' : request.url === '/cleanup' ? 'cleanup' : 'keep'}.bin"` }).end(payload)
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`
@@ -21,6 +21,16 @@ test('removes one real finished download record without deleting files or distur
       webContents.getAllWebContents().find(page => page.getURL() === args.pageUrl)!.downloadURL(args.url)
     }, { pageUrl, url: origin + path })
     await expect.poll(async () => (await list()).filter(item => item.state === 'completed').length).toBe(2)
+    await electronApp.evaluate(({ webContents }, args) => {
+      webContents.getAllWebContents().find(page => page.getURL() === args.pageUrl)!.downloadURL(args.url)
+    }, { pageUrl, url: origin + '/cleanup' })
+    await expect.poll(async () => (await list()).filter(item => item.state === 'completed').length).toBe(3)
+    const cleanup = (await list()).find(item => item.filename === 'cleanup.bin')!
+    const cleanupButton = appWindow.getByRole('button', { name: 'Remove cleanup.bin from list' })
+    await cleanupButton.focus()
+    await cleanupButton.press('Enter')
+    await expect(appWindow.getByRole('button', { name: 'Remove keep.bin from list' })).toBeFocused()
+    expect(await readFile(cleanup.savePath!)).toEqual(payload)
     const partialPath = join(profileDirectory, 'live-partial.bin')
     await writeFile(partialPath, payload.subarray(0, 5))
     await electronApp.evaluate(({ webContents }, args) => {
