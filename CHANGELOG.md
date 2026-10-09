@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Search Downloads using multiple words across filenames and displayed origins, combined with status and filename sorting, without searching hidden URL details or saved paths.
+
 - Search browsing history using multiple words across a saved title and address, combined with date, origin and visit-order filters.
 
 - Search bookmarks using multiple words across a saved title and address, within the selected collection and sort order.
