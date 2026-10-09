@@ -60,6 +60,28 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
 }
 
 describe('bookmarks panel controller', () => {
+  it.each([
+    ['build alpha.example', ['alpha']],
+    [' ALPHA.EXAMPLE\tBUILD ', ['alpha']],
+    ['guide archive', ['beta']],
+    ['[v2] alpha.example', ['alpha']],
+    ['build beta.example', []],
+    ['build missing', []],
+    ['build', ['alpha']],
+    ['   \t ', ['alpha', 'beta']],
+    ['alpha.example', ['alpha']]
+  ])('matches literal bookmark terms across one title and address: %s', (query, expected) => {
+    const entries = [
+      { ...bookmark('alpha', 'Build report [v2]'), url: 'https://alpha.example/reports' },
+      { ...bookmark('beta', 'Archive guide'), url: 'https://beta.example/docs' }
+    ]
+    const h = createController(entries)
+    h.controller.query.value = query
+    expect(h.controller.filteredBookmarks.value.map(entry => entry.id)).toEqual(expected)
+    expect(h.bookmarks.value).toEqual(entries)
+    h.controller.dispose()
+  })
+
   it('keeps a failed destination draft for retry without changing its title', async () => {
     const h = createController()
     h.open.value = true
