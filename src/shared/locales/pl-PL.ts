@@ -2228,6 +2228,8 @@ export const plPL = {
       "safety": "Znane pola sekretów, treści binarne i multipart są pomijane. Sprawdź dowolny tekst przed udostępnieniem."
     },
     "details": {
+      "copyUrl": "Kopiuj oczyszczony URL",
+      "copiedUrl": "URL skopiowany",
       "copyResponseBody": "Kopiuj oczyszczoną treść odpowiedzi",
       "copiedResponseBody": "Skopiowano treść odpowiedzi",
       "responseSource": "Źródło odpowiedzi",

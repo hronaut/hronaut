@@ -473,6 +473,8 @@ Optional environment variables:
 
 ## Page tools
 
+In **Network**, select a request and choose **Copy sanitized URL** to copy exactly the displayed request URL, including its existing redaction markers. This does not read the request again or replay traffic. Sanitization does not remove every potentially private path or query value; review the displayed URL before sharing it.
+
 In **Network**, **Refresh selected request details** rereads the selected request through the existing sanitized detail reader with its 20,000-character request limit. Use it after a request selected while pending completes. It preserves the list filters and selection, does not replay traffic, and does not refresh the request list. The displayed list summary can remain older until **Refresh network requests** is used. A failed detail read leaves the same selection available to retry; newer selections, Clear, or context changes invalidate late results. Retention limits still apply, so unavailable evidence cannot be recovered by refreshing.
 
 In **Network**, select a request and expand **Response body** to **Copy sanitized response body**. This copies only the text currently displayed, including any redaction, omission or truncation markers. It does not fetch the body again or replay the request. The action is unavailable when no response text is retained; an available empty response copies an empty string. Review the displayed evidence before sharing it.

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Copy a selected Network request’s displayed sanitized URL directly, preserving redaction markers without reacquiring details or replaying traffic.
+
 ## [2.24.0] - 2026-10-09
 
 ### Added
