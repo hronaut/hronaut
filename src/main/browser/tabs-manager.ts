@@ -7120,13 +7120,27 @@ export class BrowserTabsManager {
   async savePdf(options: BrowserPdfOptions = {}): Promise<BrowserPdfExport> {
     const tab = this.getTab(options.tabId)
     const filename = pdfFilename(options.filename, tab.title)
-    const data = await this.withRenderableTab(tab, () => tab.webContents.printToPDF({
-      landscape: options.landscape ?? false,
-      pageSize: options.pageSize ?? 'Letter',
-      printBackground: true,
-      preferCSSPageSize: false
-    }), 'print')
-    const path = await this.writeUniqueDownload(filename, data)
+    const webContents = tab.webContents
+    const navigationGeneration = tab.navigationGeneration
+    const assertCurrent = (): void => {
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
+        throw new Error('The tab closed while exporting its PDF. Open the page and export again.')
+      }
+      if (tab.navigationGeneration !== navigationGeneration) {
+        throw new Error('The page changed while exporting its PDF. Export the current page again.')
+      }
+    }
+    const data = await this.withRenderableTab(tab, () => {
+      assertCurrent()
+      return webContents.printToPDF({
+        landscape: options.landscape ?? false,
+        pageSize: options.pageSize ?? 'Letter',
+        printBackground: true,
+        preferCSSPageSize: false
+      })
+    }, 'print')
+    assertCurrent()
+    const path = await this.writeUniqueDownload(filename, data, assertCurrent)
     return { filename: basename(path), path, bytes: data.length }
   }
 
