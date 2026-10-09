@@ -246,6 +246,7 @@ describe('console controller', () => {
       expect(controller.liveUpdatesPaused.value).toBe(true)
       await vi.advanceTimersByTimeAsync(2_000)
       expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
+      browser.listConsoleMessages.mockResolvedValueOnce([message('new retained')])
       await controller.refresh(true)
       expect(browser.listConsoleMessages).toHaveBeenLastCalledWith('tab-1', true)
       expect(controller.messages.value).toEqual([])

@@ -93,7 +93,8 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       const nextMessages = await options.browser.listConsoleMessages(tab.id, clear)
       if (sequence !== requestSequence || !isCurrent(tab.id, expectedGeneration)) return
       if (clear) clearCopyFeedback()
-      messages.value = nextMessages
+      // Clearing returns the removed records; they are no longer retained.
+      messages.value = clear ? [] : nextMessages
       state.value = 'ready'
     } catch (cause) {
       if (sequence !== requestSequence || !isCurrent(tab.id, expectedGeneration)) return
