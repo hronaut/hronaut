@@ -102,6 +102,34 @@ function createController(initialState = browserState(), initiallyOpen = false) 
 }
 
 describe('tab search controller', () => {
+  it.each([
+    { query: 'build alpha.example', ids: ['open:alpha', 'saved:archive', 'closed:closed'] },
+    { query: '  ALPHA.EXAMPLE\tbuild  ', ids: ['open:alpha', 'saved:archive', 'closed:closed'] },
+    { query: 'team build', ids: ['open:alpha'] },
+    { query: 'archive guide', ids: ['saved:archive'] },
+    { query: 'archive release', ids: ['saved:archive'] },
+    { query: '[v2] alpha.example', ids: ['open:alpha'] },
+    { query: 'build beta.example', ids: [] },
+    { query: '  ', ids: ['open:alpha', 'open:beta', 'saved:archive', 'closed:closed'] },
+    { query: 'build', ids: ['open:alpha', 'saved:archive', 'closed:closed'] }
+  ])('matches every literal term in "$query" within one tab or workspace result', ({ query, ids }) => {
+    const initial = browserState([
+      { ...tab('alpha', true), title: 'Build report [v2]', mcpGroupName: 'Release team' },
+      { ...tab('beta'), title: 'Other page' }
+    ])
+    initial.closedTabs = [{ id: 'closed', title: 'Build archive', url: 'https://alpha.example/closed', pinned: false, closedAt: '2026-10-09T12:00:00Z' }]
+    initial.savedTabGroups = [{ ...savedGroup('archive'), name: 'Release archive', tabs: [
+      { title: 'Build guide', url: 'https://alpha.example/guide', pinned: false },
+      { title: 'Other page', url: 'https://beta.example/other', pinned: false }
+    ] }]
+    const { controller, state } = createController(initial)
+    try {
+      controller.query.value = query
+      expect(controller.results.value.map(row => `${row.kind}:${row.tab.id}`)).toEqual(ids)
+      expect(state.value).toEqual(initial)
+    } finally { controller.dispose() }
+  })
+
   it('updates rendered closed-tab recency without a browser state change', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-09T12:00:00Z'))

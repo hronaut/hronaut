@@ -80,32 +80,32 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   let previewWindowFocused = true
   let actionToken: symbol | null = null
 
+  const searchTerms = computed(() => query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean))
+
+  function matchesQuery(...fields: string[]): boolean {
+    const text = fields.join('\n').toLocaleLowerCase()
+    return searchTerms.value.every(term => text.includes(term))
+  }
+
   const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
   const filteredTabs = computed(() => {
     if (resultKind.value !== 'all' && resultKind.value !== 'open') return []
-    const normalized = query.value.trim().toLocaleLowerCase()
-    if (!normalized) return regularTabs.value
-    return regularTabs.value.filter((tab) => (
-      (tab.title || options.translate('tabSearch.newTabTitle')).toLocaleLowerCase().includes(normalized)
-      || tab.url.toLocaleLowerCase().includes(normalized)
-      || tab.mcpGroupName?.toLocaleLowerCase().includes(normalized)
+    if (!searchTerms.value.length) return regularTabs.value
+    return regularTabs.value.filter(tab => matchesQuery(
+      tab.title || options.translate('tabSearch.newTabTitle'), tab.url, tab.mcpGroupName ?? ''
     ))
   })
   const filteredClosedTabs = computed(() => {
     if (resultKind.value !== 'all' && resultKind.value !== 'closed') return []
-    const normalized = query.value.trim().toLocaleLowerCase()
-    if (!normalized) return options.state.value.closedTabs
-    return options.state.value.closedTabs.filter((tab) => (
-      tab.title.toLocaleLowerCase().includes(normalized) || tab.url.toLocaleLowerCase().includes(normalized)
-    ))
+    if (!searchTerms.value.length) return options.state.value.closedTabs
+    return options.state.value.closedTabs.filter(tab => matchesQuery(tab.title, tab.url))
   })
   const filteredSavedTabGroups = computed(() => {
     if (resultKind.value !== 'all' && resultKind.value !== 'saved') return []
-    const normalized = query.value.trim().toLocaleLowerCase()
-    if (!normalized) return options.state.value.savedTabGroups
-    return options.state.value.savedTabGroups.filter((group) => (
-      group.name.toLocaleLowerCase().includes(normalized)
-      || group.tabs.some((tab) => tab.title.toLocaleLowerCase().includes(normalized) || tab.url.toLocaleLowerCase().includes(normalized))
+    if (!searchTerms.value.length) return options.state.value.savedTabGroups
+    return options.state.value.savedTabGroups.filter(group => (
+      matchesQuery(group.name)
+      || group.tabs.some(tab => matchesQuery(group.name, tab.title, tab.url))
     ))
   })
   const filteredWorkspaceGroups = computed<TabSearchWorkspaceGroup[]>(() => {
