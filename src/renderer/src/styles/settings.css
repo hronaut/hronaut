@@ -392,6 +392,8 @@
 .credential-import-warning { @apply flex [grid-column:1_/_-1] items-start [gap:7px] m-0 [padding-top:10px] [border-top:1px_solid_var(--border-soft)] text-muted [font-size:11px] [line-height:1.5]; }
 .credential-import-warning svg { @apply [width:16px] [height:16px] flex-none [color:var(--warning)]; }
 .permission-remove { @apply [width:32px] [height:32px] p-0; }
+.permissions-settings .permission-remove[aria-disabled="true"],
+.permissions-settings .permission-remove[aria-disabled="true"]:hover { @apply cursor-default opacity-48 bg-transparent; }
 .permission-remove svg { @apply [width:17px] [height:17px]; }
 
 .update-status-pill {
