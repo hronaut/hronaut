@@ -2638,6 +2638,7 @@ export const ruRU = {
     "filterStatus": "Фильтр состояния загрузок",
     "filterAll": "Все",
     "filterActive": "Активные",
+    "filterCompleted": "Успешно завершённые",
     "filterFinished": "Завершённые",
     "filterSummary": "{visible} из {total} загрузок",
     "noMatches": "Подходящих загрузок нет",

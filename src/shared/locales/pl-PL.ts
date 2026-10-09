@@ -2638,6 +2638,7 @@ export const plPL = {
     "filterStatus": "Filtruj stan pobierania",
     "filterAll": "Wszystkie",
     "filterActive": "Aktywne",
+    "filterCompleted": "Ukończone",
     "filterFinished": "Zakończone",
     "filterSummary": "{visible} z {total} pobrań",
     "noMatches": "Brak pasujących pobrań",

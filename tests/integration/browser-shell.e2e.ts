@@ -7466,7 +7466,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await expect(panel.getByText('slow.bin', { exact: true })).toBeVisible()
     await expect(panel.getByRole('progressbar', { name: 'Downloading slow.bin' })).toBeVisible()
     await panel.getByRole('button', { name: 'Cancel slow.bin' }).click()
-    await expect(panel.getByText('Cancelled', { exact: true })).toBeVisible()
+    await expect(panel.getByRole('article').filter({ hasText: 'slow.bin' }).getByText('Cancelled', { exact: true })).toBeVisible()
     await panel.getByRole('button', { name: 'Clear all finished', exact: true }).click()
     await expect(panel.getByText('No downloads yet')).toBeVisible()
     await panel.getByRole('button', { name: 'Close downloads' }).click()
@@ -7480,7 +7480,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await clickPageLink('#complete')
     await expect(panel).toBeVisible()
     await expect(panel.getByText('complete.txt', { exact: true })).toBeVisible()
-    await expect(panel.getByText(/Complete/)).toBeVisible()
+    await expect(panel.getByRole('article').filter({ hasText: 'complete.txt' }).getByText(/Complete/)).toBeVisible()
     await panel.getByRole('button', { name: 'Show complete.txt in folder' }).click()
     await expect.poll(() => electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __hronautRevealedDownload?: string }

@@ -2638,6 +2638,7 @@ export const esES = {
     "filterStatus": "Filtrar estado de descarga",
     "filterAll": "Todas",
     "filterActive": "Activas",
+    "filterCompleted": "Completadas",
     "filterFinished": "Finalizadas",
     "filterSummary": "{visible} de {total} descargas",
     "noMatches": "No hay descargas coincidentes",

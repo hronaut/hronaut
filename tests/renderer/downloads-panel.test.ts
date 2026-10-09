@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import DownloadsPanel from '../../src/renderer/src/components/DownloadsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { BrowserDownloadState } from '../../src/shared/types.js'
+import type { BrowserDownloadState, SupportedLocale } from '../../src/shared/types.js'
 
 function download(
   id: string,
@@ -23,9 +23,9 @@ function download(
   }
 }
 
-function renderPanel(overrides: Record<string, unknown> = {}) {
+function renderPanel(overrides: Record<string, unknown> = {}, locale: SupportedLocale = 'en-US') {
   return render(DownloadsPanel, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [createHronautI18n(locale)] },
     props: {
       open: true,
       downloads: [
@@ -47,6 +47,50 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DownloadsPanel', () => {
+  it('distinguishes successful completion from all finished downloads in French', () => {
+    renderPanel({}, 'fr-FR')
+    const completed = screen.getByRole('option', { name: 'Terminés avec succès' })
+    const finished = screen.getByRole('option', { name: /^Terminés$/ })
+    expect(completed).toHaveAttribute('value', 'completed')
+    expect(finished).toHaveAttribute('value', 'finished')
+  })
+
+  it.each(['completed', 'cancelled', 'interrupted'])('filters exact %s state within filename search without acting on transfers', async state => {
+    const live = { ...download('report-live', 'interrupted', 10, 100), canResume: true }
+    const done = { ...download('report-done', 'interrupted', 10, 100), completedAt: '2026-08-22T01:00:00.000Z' }
+    const records = [download('report-complete', 'completed', 100, 100), download('report-cancel', 'cancelled', 10, 100), live, done, download('other', 'completed', 10, 10)]
+    const cancelDownload = vi.fn(), resumeDownload = vi.fn(), clearFinished = vi.fn()
+    renderPanel({ downloads: records, cancelDownload, resumeDownload, clearFinished })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('searchbox'), 'REPORT')
+    const filter = screen.getByRole('combobox', { name: 'Filter download status' })
+    await user.selectOptions(filter, state)
+    const expected = records.filter(item => item.state === state && item.filename.startsWith('report'))
+    expect(screen.getByRole('status')).toHaveTextContent(`${expected.length} of 5 downloads`)
+    for (const item of records) expect(screen.queryByText(item.filename) !== null).toBe(expected.includes(item))
+    expect(filter).toHaveFocus()
+    expect(cancelDownload).not.toHaveBeenCalled()
+    expect(resumeDownload).not.toHaveBeenCalled()
+    expect(clearFinished).not.toHaveBeenCalled()
+  })
+
+  it('updates exact-state results when a resumable interruption completes and resets on reopen', async () => {
+    const entry = { ...download('transfer', 'interrupted', 10, 100), canResume: true }
+    const view = renderPanel({ downloads: [entry] })
+    const user = userEvent.setup()
+    const filter = screen.getByRole('combobox', { name: 'Filter download status' })
+    await user.selectOptions(filter, 'interrupted')
+    expect(screen.getByText('transfer.bin')).toBeVisible()
+    await view.rerender({ downloads: [{ ...entry, state: 'completed', receivedBytes: 100, canResume: false }] })
+    expect(screen.getByText('No matching downloads')).toBeVisible()
+    expect(filter).toHaveFocus()
+    await user.selectOptions(filter, 'completed')
+    expect(screen.getByText('transfer.bin')).toBeVisible()
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    expect(screen.getByRole('combobox', { name: 'Filter download status' })).toHaveValue('all')
+  })
+
   it('combines filters, counts retained rows, and clears finished entries hidden by the filter', async () => {
     const active = download('report', 'progressing', 1, 100)
     const clearFinished = vi.fn(async () => [active])

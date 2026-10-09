@@ -2638,6 +2638,7 @@ export const deDE = {
     "filterStatus": "Downloadstatus filtern",
     "filterAll": "Alle",
     "filterActive": "Aktiv",
+    "filterCompleted": "Abgeschlossen",
     "filterFinished": "Beendet",
     "filterSummary": "{visible} von {total} Downloads",
     "noMatches": "Keine passenden Downloads",
