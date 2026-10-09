@@ -7,13 +7,28 @@ import type { BrowserVideoState } from '../../src/shared/video.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 // Exercises the real capture, sandboxed WebCodecs encoder, WebM muxer and browser decoder.
-test('records, annotates, trims and decodes a WebM tutorial through MCP and the UI', async ({ capabilities, appWindow }) => {
+test('records, annotates, trims and decodes a WebM tutorial through MCP and the UI', async ({ capabilities, appWindow, electronApp }) => {
   const { client, tabId, openPageTool } = capabilities
   const video = async (action: string, extra: Record<string, unknown> = {}): Promise<BrowserVideoState> => {
     const result = await client.callTool({ name: 'browser_video', arguments: { tabId, action, ...extra } }) as CallToolResult
     expect(result.isError, text(result)).not.toBe(true)
     return JSON.parse(text(result)) as BrowserVideoState
   }
+  // Tab selection can resolve before the shell leaves its compact Home layout.
+  // Recording must start after that resize: later size changes correctly pause it.
+  await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(capabilities.fixtureUrl)
+  await expect.poll(async () => {
+    const shellBottom = await appWindow.locator('.shell').evaluate(element => element.getBoundingClientRect().bottom)
+    return electronApp.evaluate(({ BrowserWindow, webContents }, { url, shellBottom }) => {
+      const window = BrowserWindow.getAllWindows()[0]!
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      const view = window.contentView.children.find(candidate => 'webContents' in candidate && candidate.webContents === page)
+      const bounds = view?.getBounds()
+      const content = window.getContentBounds()
+      return bounds?.y === Math.ceil(Math.ceil(shellBottom) * window.webContents.getZoomFactor())
+        && bounds.height === content.height - bounds.y && bounds.width === content.width
+    }, { url: capabilities.fixtureUrl, shellBottom })
+  }, 'Native recording viewport matches the rendered fixture shell').toBe(true)
   await video('start')
   await expect(appWindow.getByLabel('Recording video', { exact: true })).toBeVisible()
   await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThanOrEqual(6)
