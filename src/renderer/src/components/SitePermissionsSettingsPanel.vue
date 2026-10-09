@@ -28,12 +28,14 @@ const {
 const panelRoot = ref<HTMLElement | null>(null)
 const search = ref('')
 const filteredGroups = computed(() => {
-  const query = search.value.trim().toLocaleLowerCase(locale.value)
-  if (!query) return groups.value
+  const terms = search.value.toLocaleLowerCase(locale.value).trim().split(/\s+/).filter(Boolean)
+  if (!terms.length) return groups.value
   return groups.value.flatMap(group => {
-    const permissions = group.permissions.filter(entry => [
-      group.origin, entry.permission, permissionLabel(entry.permission)
-    ].some(value => value.toLocaleLowerCase(locale.value).includes(query)))
+    const permissions = group.permissions.filter(entry => {
+      const text = [group.origin, entry.permission, permissionLabel(entry.permission)]
+        .join('\n').toLocaleLowerCase(locale.value)
+      return terms.every(term => text.includes(term))
+    })
     return permissions.length ? [{ ...group, permissions }] : []
   })
 })
