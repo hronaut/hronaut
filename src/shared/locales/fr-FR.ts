@@ -2635,7 +2635,7 @@ export const frFR = {
     "filterStatus": "Filtrer l’état des téléchargements",
     "filterAll": "Tous",
     "filterActive": "Actifs",
-    "filterCompleted": "Terminés",
+    "filterCompleted": "Terminés avec succès",
     "filterFinished": "Terminés",
     "filterSummary": "{visible} sur {total} téléchargements",
     "noMatches": "Aucun téléchargement correspondant",

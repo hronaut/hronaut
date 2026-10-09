@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import DownloadsPanel from '../../src/renderer/src/components/DownloadsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { BrowserDownloadState } from '../../src/shared/types.js'
+import type { BrowserDownloadState, SupportedLocale } from '../../src/shared/types.js'
 
 function download(
   id: string,
@@ -23,9 +23,9 @@ function download(
   }
 }
 
-function renderPanel(overrides: Record<string, unknown> = {}) {
+function renderPanel(overrides: Record<string, unknown> = {}, locale: SupportedLocale = 'en-US') {
   return render(DownloadsPanel, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [createHronautI18n(locale)] },
     props: {
       open: true,
       downloads: [
@@ -47,6 +47,14 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DownloadsPanel', () => {
+  it('distinguishes successful completion from all finished downloads in French', () => {
+    renderPanel({}, 'fr-FR')
+    const completed = screen.getByRole('option', { name: 'Terminés avec succès' })
+    const finished = screen.getByRole('option', { name: /^Terminés$/ })
+    expect(completed).toHaveAttribute('value', 'completed')
+    expect(finished).toHaveAttribute('value', 'finished')
+  })
+
   it.each(['completed', 'cancelled', 'interrupted'])('filters exact %s state within filename search without acting on transfers', async state => {
     const live = { ...download('report-live', 'interrupted', 10, 100), canResume: true }
     const done = { ...download('report-done', 'interrupted', 10, 100), completedAt: '2026-08-22T01:00:00.000Z' }
