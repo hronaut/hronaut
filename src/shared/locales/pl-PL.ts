@@ -2393,6 +2393,8 @@ export const plPL = {
   },
   "repro": {
     "checkpoint": {
+      "useSelector": "Użyj selektora w punkcie kontrolnym",
+      "selectorHint": "Ten zapisany selektor może już nie wskazywać tego samego elementu. Sprawdź go na bieżącej stronie i wybierz oczekiwany wynik przed dodaniem punktu kontrolnego.",
       "count": "Liczba elementów",
       "countHint": "Użyj selektorów strukturalnych, np. ul > li lub li:nth-of-type(2). Ukryte elementy są liczone; podaj liczbę od 0 do 500. Dopasowania do pól formularzy, edytowalnych celów i ramek są odrzucane. Strony z ponad 2 000 odwiedzonych elementów są odrzucane.",
       "checked": "Zaznaczone (pole wyboru/przycisk opcji)",

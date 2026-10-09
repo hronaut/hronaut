@@ -34,6 +34,18 @@ const selectedStep = computed(() => (
   ?? props.recording.steps[0]
   ?? null
 ))
+const checkpointSelector = computed(() => {
+  if (!props.recording.active || !props.recording.checkpointContext) return ''
+  const value = selectedStep.value?.target?.selector?.trim() ?? ''
+  return value.length <= 500 ? value : ''
+})
+
+function useCheckpointSelector(): void {
+  if (props.busy || !checkpointSelector.value) return
+  selector.value = checkpointSelector.value
+  // Reusing the same selector still requires a new review of the current page.
+  reviewed.value = false
+}
 
 watch(
   () => `${props.recording.tabId}:${props.recording.startedAt ?? ''}`,
@@ -146,6 +158,10 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
         <div v-if="selectedStep.scroll"><dt>{{ t('repro.position') }}</dt><dd><code>x={{ selectedStep.scroll.x }}, y={{ selectedStep.scroll.y }}</code></dd></div>
         <div><dt>{{ t('repro.page') }}</dt><dd><code>{{ selectedStep.url }}</code></dd></div>
       </dl>
+      <template v-if="checkpointSelector">
+        <UiButton appearance="application" type="button" :disabled="busy" @click="useCheckpointSelector">{{ t('repro.checkpoint.useSelector') }}</UiButton>
+        <p>{{ t('repro.checkpoint.selectorHint') }}</p>
+      </template>
       <p v-if="selectedStep.expectation">{{ t('repro.checkpoint.condition') }}: {{ selectedStep.expectation.condition }} <span v-if="selectedStep.expectation.condition === 'count'">{{ selectedStep.expectation.count }}</span> <span v-if="selectedStep.expectation.text !== undefined">{{ selectedStep.expectation.text }}</span> — {{ t(selectedStep.expectation.observedMatch ? 'repro.checkpoint.matched' : 'repro.checkpoint.notMatched') }}</p>
       <p v-if="selectedStep.valueRedacted" class="repro-step-redacted">{{ t('repro.valueRedacted') }}</p>
     </section>

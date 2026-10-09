@@ -2393,6 +2393,8 @@ export const frFR = {
   },
   "repro": {
     "checkpoint": {
+      "useSelector": "Utiliser le sélecteur pour le point de contrôle",
+      "selectorHint": "Ce sélecteur enregistré peut ne plus désigner le même élément. Vérifiez-le sur la page actuelle et choisissez le résultat attendu avant d’ajouter un point de contrôle.",
       "count": "Nombre d’éléments",
       "countHint": "Utilisez des sélecteurs structurels comme ul > li ou li:nth-of-type(2). Les éléments masqués comptent ; indiquez de 0 à 500. Les correspondances avec des champs, cibles modifiables ou cadres sont rejetées. Les pages dépassant 2 000 éléments visités sont rejetées.",
       "checked": "Coché (case/bouton radio)",

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
@@ -7,6 +7,48 @@ import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserReproRecording, BrowserReproStep } from '../../src/shared/types.js'
 
 const global = { plugins: [createHronautI18n('en-US')] }
+
+describe('recorded selectors for checkpoint drafts', () => {
+  const active = () => ({ ...recording('2026-10-09T11:00:00Z', [step(1), step(2)]), active: true, checkpointContext: 'current-context' })
+
+  it('fills only the selector and requires fresh review even when reusing the same selector', async () => {
+    const view = render(ReproTimeline, { global, props: { locale: 'en-US', recording: active() } })
+    const user = userEvent.setup()
+    const selector = screen.getByLabelText('Selector', { selector: 'input' })
+    const add = screen.getByRole('button', { name: 'Add checkpoint' })
+    await user.selectOptions(screen.getByLabelText('Condition'), 'text')
+    await user.type(screen.getByLabelText('Exact text', { selector: 'input' }), 'Intended result')
+    await user.click(screen.getByRole('button', { name: 'Use selector for checkpoint' }))
+    expect(selector).toHaveValue(step(1).target!.selector)
+    expect(screen.getByLabelText('Condition')).toHaveValue('text')
+    expect(screen.getByLabelText('Exact text', { selector: 'input' })).toHaveValue('Intended result')
+    expect(add).toBeDisabled()
+    expect(view.emitted('checkpoint')).toBeUndefined()
+    await user.click(screen.getByRole('checkbox'))
+    expect(add).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Use selector for checkpoint' }))
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(add).toBeDisabled()
+    await user.click(within(screen.getByRole('listbox', { name: 'Recorded reproduction steps' })).getAllByRole('option')[1])
+    await user.click(screen.getByRole('button', { name: 'Use selector for checkpoint' }))
+    expect(selector).toHaveValue(step(2).target!.selector)
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(add)
+    expect(view.emitted('checkpoint')?.[0]).toEqual([{ context: 'current-context', selector: step(2).target!.selector, condition: 'text', text: 'Intended result', reviewed: true }])
+  })
+
+  it.each(['stopped', 'missing-context', 'busy', 'missing-selector', 'oversized-selector'] as const)('does not offer reuse for %s', async state => {
+    const data = active()
+    if (state === 'stopped') data.active = false
+    if (state === 'missing-context') data.checkpointContext = ''
+    if (state === 'missing-selector') data.steps[0].target!.selector = ''
+    if (state === 'oversized-selector') data.steps[0].target!.selector = 'x'.repeat(501)
+    render(ReproTimeline, { global, props: { locale: 'en-US', recording: data, busy: state === 'busy' } })
+    const button = screen.queryByRole('button', { name: 'Use selector for checkpoint' })
+    if (state === 'busy') expect(button).toBeDisabled()
+    else expect(button).not.toBeInTheDocument()
+  })
+})
 
 function step(index: number, kind: BrowserReproStep['kind'] = 'click'): BrowserReproStep {
   return {

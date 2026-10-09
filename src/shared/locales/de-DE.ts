@@ -2393,6 +2393,8 @@ export const deDE = {
   },
   "repro": {
     "checkpoint": {
+      "useSelector": "Selektor für Prüfpunkt verwenden",
+      "selectorHint": "Dieser aufgezeichnete Selektor bezeichnet möglicherweise nicht mehr dasselbe Element. Prüfen Sie ihn auf der aktuellen Seite und wählen Sie das beabsichtigte Ergebnis, bevor Sie einen Prüfpunkt hinzufügen.",
       "count": "Elementanzahl",
       "countHint": "Strukturelle Selektoren wie ul > li oder li:nth-of-type(2) verwenden. Verborgene Elemente zählen mit; erwartet werden 0 bis 500. Treffer auf Formularfelder, editierbare Ziele und Frames werden abgelehnt. Seiten mit über 2.000 besuchten Elementen werden abgelehnt.",
       "checked": "Ausgewählt (Kontrollkästchen/Optionsfeld)",

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Reuse a recorded Repro step’s selector in the checkpoint form, with fresh review required before recording the intended result.
+
 ## [2.23.0] - 2026-10-09
 
 ### Added
