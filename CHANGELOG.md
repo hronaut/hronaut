@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Filter the human Downloads list by Completed, Cancelled, or Interrupted alongside filename search. Interrupted includes both resumable and terminal interruptions, while existing Active and Finished filters keep their lifecycle meaning.
+
 ### Fixed
 
 - Keep keyboard focus in the bookmark collection filter when a live update removes the selected collection or its open editor, without overriding newer focus or a reopened panel.

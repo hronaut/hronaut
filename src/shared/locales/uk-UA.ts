@@ -492,6 +492,7 @@ export const ukUA = {
     "filterStatus": "Фільтр стану завантажень",
     "filterAll": "Усі",
     "filterActive": "Активні",
+    "filterCompleted": "Успішно завершені",
     "filterFinished": "Завершені",
     "filterSummary": "{visible} із {total} завантажень",
     "noMatches": "Відповідних завантажень немає",

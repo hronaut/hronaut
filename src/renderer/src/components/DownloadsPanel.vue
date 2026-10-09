@@ -137,6 +137,9 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
         <option value="all">{{ t('downloads.filterAll') }}</option>
         <option value="active">{{ t('downloads.filterActive') }}</option>
         <option value="finished">{{ t('downloads.filterFinished') }}</option>
+        <option value="completed">{{ t('downloads.filterCompleted') }}</option>
+        <option value="cancelled">{{ t('downloads.cancelled') }}</option>
+        <option value="interrupted">{{ t('downloads.interrupted') }}</option>
       </select>
     </div>
     <p v-if="downloads.length" class="downloads-filter-summary" role="status">{{ t('downloads.filterSummary', { visible: filteredDownloads.length, total: downloads.length }) }}</p>
