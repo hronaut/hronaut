@@ -2633,7 +2633,12 @@ export const plPL = {
     "closeTitle": "Zamknij (Escape)",
     "close": "Zamknij sterowanie powiększeniem strony"
   },
-  "downloads": { removeAria: "Usuń {filename} z listy", removeHint: "Usuń z listy; plik pozostanie na dysku",
+  "downloads": {
+    copyPath: "Kopiuj zapisaną ścieżkę",
+    copyPathAria: "Kopiuj zapisaną ścieżkę pliku {filename}",
+    copiedPath: "Zapisana ścieżka skopiowana",
+    copyPathFailed: "Nie udało się skopiować zapisanej ścieżki",
+    removeAria: "Usuń {filename} z listy", removeHint: "Usuń z listy; plik pozostanie na dysku",
     "search": "Szukaj nazw plików",
     "filterStatus": "Filtruj stan pobierania",
     "filterAll": "Wszystkie",

@@ -4,6 +4,7 @@ import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
+import IconCopy from '~icons/material-symbols/content-copy-outline-rounded'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconDownloadDone from '~icons/material-symbols/download-done-rounded'
 import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
@@ -23,6 +24,7 @@ const props = defineProps<{
   removeFinished: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
+  copySavedPath: (path: string) => Promise<void>
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -33,6 +35,9 @@ const {
   statusFilter,
   filteredDownloads,
   error,
+  copyFeedback,
+  copyPath,
+  canCopyPath,
   pendingAction,
   finishedDownloads,
   downloadProgress,
@@ -55,7 +60,8 @@ const {
   cancelDownload: props.cancelDownload,
   removeFinished: props.removeFinished,
   clearFinished: props.clearFinished,
-  showInFolder: props.showInFolder
+  showInFolder: props.showInFolder,
+  copySavedPath: props.copySavedPath
 })
 
 let removalFocusRow: Element | null = null
@@ -144,6 +150,7 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
     </div>
     <p v-if="downloads.length" class="downloads-filter-summary" role="status">{{ t('downloads.filterSummary', { visible: filteredDownloads.length, total: downloads.length }) }}</p>
     <p id="downloads-clear-hint" class="downloads-filter-summary">{{ t('downloads.clearFinishedHint') }}</p>
+    <p v-if="copyFeedback" :class="copyFeedback === 'error' ? 'downloads-error' : 'downloads-filter-summary'" :role="copyFeedback === 'error' ? 'alert' : 'status'">{{ t(copyFeedback === 'success' ? 'downloads.copiedPath' : 'downloads.copyPathFailed') }}</p>
     <div v-if="!downloads.length" class="downloads-empty">
       <IconDownload aria-hidden="true" />
       <strong>{{ t('downloads.empty') }}</strong>
@@ -185,6 +192,11 @@ onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVi
         </div>
         <div v-else class="download-actions">
           <UiButton appearance="application" v-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" v-if="canCopyPath(download)" class="download-action download-copy-path" type="button"
+            :aria-disabled="pendingAction !== null"
+            :aria-label="t('downloads.copyPathAria', { filename: download.filename })"
+            :title="t('downloads.copyPath')"
+            @click="copyPath(download.id)"><IconCopy aria-hidden="true" /></UiButton>
           <UiButton appearance="application" class="download-action download-remove" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.removeAria', { filename: download.filename })" :title="t('downloads.removeHint')" @click="changeTransfer('remove', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </article>

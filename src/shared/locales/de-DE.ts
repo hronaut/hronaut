@@ -2633,7 +2633,12 @@ export const deDE = {
     "closeTitle": "Schließen (Escape)",
     "close": "Steuerung des Seitenzooms schließen"
   },
-  "downloads": { removeAria: "{filename} aus der Liste entfernen", removeHint: "Aus Liste entfernen; Datei bleibt auf dem Datenträger",
+  "downloads": {
+    copyPath: "Gespeicherten Pfad kopieren",
+    copyPathAria: "Gespeicherten Pfad für {filename} kopieren",
+    copiedPath: "Gespeicherter Pfad kopiert",
+    copyPathFailed: "Gespeicherter Pfad konnte nicht kopiert werden",
+    removeAria: "{filename} aus der Liste entfernen", removeHint: "Aus Liste entfernen; Datei bleibt auf dem Datenträger",
     "search": "Dateinamen suchen",
     "filterStatus": "Downloadstatus filtern",
     "filterAll": "Alle",

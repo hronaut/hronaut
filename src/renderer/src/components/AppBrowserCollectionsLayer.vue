@@ -35,6 +35,7 @@ const {
   openHistoryEntry,
   openHistoryEntryInBackground,
   copyHistoryAddress,
+  copyDownloadPath,
   copyBookmarkAddress
 } = props.controller
 </script>
@@ -51,6 +52,7 @@ const {
     :remove-finished="browserCollectionsController.removeFinishedDownload"
     :clear-finished="browserCollectionsController.clearFinishedDownloads"
     :show-in-folder="browserCollectionsController.revealDownload"
+    :copy-saved-path="copyDownloadPath"
   />
   <BookmarksPanel
     ref="bookmarksPanel"

@@ -28,6 +28,7 @@ function createController(initialDownloads = [download('complete', 'completed', 
   const resumeDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(id)])
   const clearFinished = vi.fn(async () => [])
   const showInFolder = vi.fn(async () => undefined)
+  const copySavedPath = vi.fn(async (_path: string): Promise<void> => undefined)
   const controller = useDownloadsPanelController({
     open,
     downloads,
@@ -44,9 +45,10 @@ function createController(initialDownloads = [download('complete', 'completed', 
     cancelDownload,
     removeFinished: vi.fn(async () => []),
     clearFinished,
+    copySavedPath,
     showInFolder
   })
-  return { open, downloads, pauseDownload, resumeDownload, cancelDownload, clearFinished, showInFolder, controller }
+  return { open, downloads, pauseDownload, resumeDownload, cancelDownload, clearFinished, showInFolder, copySavedPath, controller }
 }
 
 describe('downloads panel controller', () => {
@@ -145,5 +147,117 @@ describe('downloads panel controller', () => {
     expect(controller.downloadMeta(indeterminate)).toBe('25 B downloaded')
     expect(controller.downloadMeta(completed)).toBe('125 B · Complete')
     controller.dispose()
+  })
+})
+
+
+describe('Downloads saved-path copying', () => {
+  const saved = { ...download('saved', 'completed', 100, 100), savePath: '/tmp/saved report.bin' }
+
+  it.each(['/tmp/saved report.bin', 'C:\\Downloads\\saved report.bin'])('copies the retained path verbatim: %s', async savePath => {
+    const entry = { ...saved, savePath }
+    const h = createController([entry])
+    try {
+      await h.controller.copyPath(entry.id)
+      expect(h.copySavedPath).toHaveBeenCalledExactlyOnceWith(savePath)
+      expect(h.controller.copyFeedback.value).toBe('success')
+      expect(h.downloads.value).toEqual([entry])
+      expect(h.showInFolder).not.toHaveBeenCalled()
+      expect(h.cancelDownload).not.toHaveBeenCalled()
+    } finally { h.controller.dispose() }
+  })
+
+  it.each([
+    { ...saved, state: 'progressing' as const },
+    { ...saved, state: 'cancelled' as const },
+    { ...saved, state: 'interrupted' as const, canResume: true },
+    { ...saved, savePath: undefined },
+    { ...saved, savePath: '' }
+  ])('does not copy an ineligible record: $state / $savePath', async entry => {
+    const h = createController([entry])
+    try {
+      expect(h.controller.canCopyPath(entry)).toBe(false)
+      await h.controller.copyPath(entry.id)
+      expect(h.copySavedPath).not.toHaveBeenCalled()
+    } finally { h.controller.dispose() }
+  })
+
+  it('does not copy hidden or missing records', async () => {
+    const h = createController([saved])
+    try {
+      h.controller.statusFilter.value = 'active'
+      await h.controller.copyPath(saved.id)
+      h.controller.statusFilter.value = 'all'
+      h.controller.query.value = 'missing'
+      await h.controller.copyPath(saved.id)
+      h.controller.query.value = ''
+      await h.controller.copyPath('missing')
+      expect(h.copySavedPath).not.toHaveBeenCalled()
+    } finally { h.controller.dispose() }
+  })
+
+  it('deduplicates pending copies and reports a generic failure before allowing recovery', async () => {
+    const h = createController([saved])
+    let reject!: (cause: Error) => void
+    h.copySavedPath.mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail }))
+    try {
+      const copying = h.controller.copyPath(saved.id)
+      await h.controller.copyPath(saved.id)
+      expect(h.copySavedPath).toHaveBeenCalledTimes(1)
+      expect(h.controller.pendingAction.value).toBe(`copy:${saved.id}`)
+      reject(new Error('Synthetic clipboard failure with private detail'))
+      await copying
+      expect(h.controller.copyFeedback.value).toBe('error')
+      expect(h.controller.error.value).toBe('')
+      expect(h.controller.pendingAction.value).toBeNull()
+      await h.controller.copyPath(saved.id)
+      expect(h.controller.copyFeedback.value).toBe('success')
+    } finally { h.controller.dispose() }
+  })
+
+  describe.each(['success', 'failure'] as const)('late clipboard %s', outcome => {
+    it.each(['reopen', 'query', 'filter', 'path', 'state', 'remove', 'dispose'] as const)('does not restore feedback after %s', async change => {
+      const h = createController([saved])
+      let resolve!: () => void
+      let reject!: (cause: Error) => void
+      h.copySavedPath.mockReturnValueOnce(new Promise<void>((done, fail) => { resolve = done; reject = fail }))
+      try {
+        const copying = h.controller.copyPath(saved.id)
+        if (change === 'reopen') { h.open.value = false; h.open.value = true }
+        else if (change === 'query') { h.controller.query.value = 'missing'; h.controller.query.value = '' }
+        else if (change === 'filter') { h.controller.statusFilter.value = 'active'; h.controller.statusFilter.value = 'all' }
+        else if (change === 'path') { h.downloads.value = [{ ...saved, savePath: '/tmp/replaced.bin' }]; h.downloads.value = [saved] }
+        else if (change === 'state') { h.downloads.value = [{ ...saved, state: 'interrupted' }]; h.downloads.value = [saved] }
+        else if (change === 'remove') { h.downloads.value = []; h.downloads.value = [saved] }
+        else h.controller.dispose()
+        if (outcome === 'success') resolve()
+        else reject(new Error('Old clipboard failure'))
+        await copying
+        expect(h.controller.copyFeedback.value).toBe('')
+      } finally { h.controller.dispose() }
+    })
+  })
+
+  it('keeps a newer copy pending when an older panel-session copy finishes', async () => {
+    const h = createController([saved])
+    let finishOld!: () => void
+    let finishNew!: () => void
+    h.copySavedPath
+      .mockReturnValueOnce(new Promise<void>(resolve => { finishOld = resolve }))
+      .mockReturnValueOnce(new Promise<void>(resolve => { finishNew = resolve }))
+    try {
+      const oldCopy = h.controller.copyPath(saved.id)
+      h.open.value = false
+      h.open.value = true
+      const newCopy = h.controller.copyPath(saved.id)
+      finishOld()
+      await oldCopy
+      expect(h.controller.pendingAction.value).toBe(`copy:${saved.id}`)
+      expect(h.controller.copyFeedback.value).toBe('')
+      finishNew()
+      await newCopy
+      expect(h.controller.copyFeedback.value).toBe('success')
+      expect(h.controller.pendingAction.value).toBeNull()
+    } finally { h.controller.dispose() }
   })
 })

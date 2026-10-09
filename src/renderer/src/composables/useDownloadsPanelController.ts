@@ -16,6 +16,7 @@ export interface DownloadsPanelControllerOptions {
   removeFinished: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
+  copySavedPath: (path: string) => Promise<void>
 }
 
 export function useDownloadsPanelController(options: DownloadsPanelControllerOptions) {
@@ -32,9 +33,45 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     })
   })
   const error = ref('')
+  const copyFeedback = ref<'success' | 'error' | ''>('')
+  const copiedDownload = ref<{ id: string; path: string } | null>(null)
+  let copyGeneration = 0
   const pendingAction = ref<string | null>(null)
   const finishedDownloads = computed(() => options.downloads.value.filter((download) => !isActiveDownload(download)))
   let actionGeneration = 0
+
+  function canCopyPath(download: BrowserDownloadState): boolean {
+    return download.state === 'completed' && typeof download.savePath === 'string' && download.savePath.length > 0
+  }
+
+  function resetCopyFeedback(): void {
+    copyGeneration += 1
+    copyFeedback.value = ''
+  }
+
+  const copyTargetVisible = computed(() => !copiedDownload.value || filteredDownloads.value.some(
+    download => download.id === copiedDownload.value!.id
+      && download.savePath === copiedDownload.value!.path && canCopyPath(download)
+  ))
+  const stopCopyTracking = watch([query, statusFilter, options.open, copyTargetVisible], resetCopyFeedback, { flush: 'sync' })
+
+  async function copyPath(downloadId: string): Promise<void> {
+    if (!options.open.value || pendingAction.value) return
+    const download = filteredDownloads.value.find(entry => entry.id === downloadId)
+    const path = download?.savePath
+    if (!download || !canCopyPath(download) || !path) return
+    resetCopyFeedback()
+    copiedDownload.value = { id: download.id, path }
+    await runAction(`copy:${download.id}`, async () => {
+      const generation = copyGeneration
+      try {
+        await options.copySavedPath(path)
+        if (generation === copyGeneration) copyFeedback.value = 'success'
+      } catch {
+        if (generation === copyGeneration) copyFeedback.value = 'error'
+      }
+    })
+  }
 
   function downloadProgress(download: BrowserDownloadState): number {
     if (download.state === 'completed') return 100
@@ -118,6 +155,8 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
 
   function dispose(): void {
     invalidateActions()
+    resetCopyFeedback()
+    stopCopyTracking()
     stopOpenTracking()
   }
 
@@ -126,6 +165,9 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     statusFilter,
     filteredDownloads,
     error,
+    copyFeedback,
+    copyPath,
+    canCopyPath,
     pendingAction,
     finishedDownloads,
     downloadProgress,

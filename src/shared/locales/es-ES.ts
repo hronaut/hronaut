@@ -2633,7 +2633,12 @@ export const esES = {
     "closeTitle": "Cerrar (Escape)",
     "close": "Cerrar los controles de zoom de la página"
   },
-  "downloads": { removeAria: "Quitar {filename} de la lista", removeHint: "Quitar de la lista; el archivo permanece en el disco",
+  "downloads": {
+    copyPath: "Copiar ruta guardada",
+    copyPathAria: "Copiar ruta guardada de {filename}",
+    copiedPath: "Ruta guardada copiada",
+    copyPathFailed: "No se pudo copiar la ruta guardada",
+    removeAria: "Quitar {filename} de la lista", removeHint: "Quitar de la lista; el archivo permanece en el disco",
     "search": "Buscar nombres de archivo",
     "filterStatus": "Filtrar estado de descarga",
     "filterAll": "Todas",
