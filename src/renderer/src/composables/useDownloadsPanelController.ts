@@ -20,13 +20,15 @@ export interface DownloadsPanelControllerOptions {
 
 export function useDownloadsPanelController(options: DownloadsPanelControllerOptions) {
   const query = ref('')
-  const statusFilter = ref<'all' | 'active' | 'finished'>('all')
+  const statusFilter = ref<'all' | 'active' | 'finished' | 'completed' | 'cancelled' | 'interrupted'>('all')
   const filteredDownloads = computed(() => {
     const filename = query.value.trim().toLocaleLowerCase()
     return options.downloads.value.filter(download => {
       if (filename && !download.filename.toLocaleLowerCase().includes(filename)) return false
       if (statusFilter.value === 'all') return true
-      return statusFilter.value === 'active' ? isActiveDownload(download) : !isActiveDownload(download)
+      if (statusFilter.value === 'active') return isActiveDownload(download)
+      if (statusFilter.value === 'finished') return !isActiveDownload(download)
+      return download.state === statusFilter.value
     })
   })
   const error = ref('')

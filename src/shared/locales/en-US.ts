@@ -644,6 +644,7 @@ export const enUS = {
     "filterStatus": "Filter download status",
     "filterAll": "All",
     "filterActive": "Active",
+    "filterCompleted": "Completed",
     "filterFinished": "Finished",
     "filterSummary": "{visible} of {total} downloads",
     "noMatches": "No matching downloads",
