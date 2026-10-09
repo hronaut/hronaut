@@ -2118,7 +2118,7 @@ export const deDE = {
     "refresh": "Aktualisieren",
     "filterAria": "Netzwerkanfragen filtern",
     "filterPlaceholder": "Anfragen filtern · method:POST status-code:500",
-    "filterTitle": "Freitext mit Filtern wie domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: oder url: kombinieren",
+    "filterTitle": "Freitext mit Filtern wie domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: oder url: kombinieren Statuscodes akzeptieren einen genauen Code (404) oder eine Gruppe (4xx); -status-code:5xx schließt Serverfehler aus.",
     "sort": "Sortieren",
     "sortAria": "Netzwerkanfragen sortieren",
     "sortDirection": "Netzwerkanfragen {direction} sortieren",

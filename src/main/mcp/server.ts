@@ -623,7 +623,7 @@ function toolDescription(name: string): string {
   return toolDefinition(name).description
 }
 
-const NETWORK_FILTER_QUERY_DESCRIPTION = 'Free text plus Chrome-style AND filters: domain (wildcards allowed), is:running, larger-than (B, K/KB, M/MB), method, resource-type, scheme, status-code, and url. Prefix a property with - to exclude matches (for example -domain:metrics.example or -url:poll). Empty operands and malformed status-code, larger-than, or is values match nothing. Quote a phrase that contains spaces.'
+const NETWORK_FILTER_QUERY_DESCRIPTION = 'Free text plus Chrome-style AND filters: domain (wildcards allowed), is:running, larger-than (B, K/KB, M/MB), method, resource-type, scheme, status-code (exact 100–599 or families 1xx–5xx), and url. Prefix a property with - to exclude matches (for example -domain:metrics.example or -url:poll). Empty operands and malformed status-code, larger-than, or is values match nothing. Quote a phrase that contains spaces.'
 
 const textResult = (value: unknown): CallToolResult => ({
   content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }]

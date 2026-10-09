@@ -2118,7 +2118,7 @@ export const ruRU = {
     "refresh": "Обновить",
     "filterAria": "Фильтровать сетевые запросы",
     "filterPlaceholder": "Фильтр запросов · method:POST status-code:500",
-    "filterTitle": "Сочетайте свободный текст с фильтрами domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: или url:",
+    "filterTitle": "Сочетайте свободный текст с фильтрами domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: или url: Код состояния можно задать точно (404) или группой (4xx); -status-code:5xx исключает ошибки сервера.",
     "sort": "Сортировка",
     "sortAria": "Сортировать сетевые запросы",
     "sortDirection": "Сортировать сетевые запросы: {direction}",

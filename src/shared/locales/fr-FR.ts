@@ -2118,7 +2118,7 @@ export const frFR = {
     "refresh": "Actualiser",
     "filterAria": "Filtrer les requêtes réseau",
     "filterPlaceholder": "Filtrer les requêtes · method:POST status-code:500",
-    "filterTitle": "Combinez du texte libre avec les filtres domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: ou url:",
+    "filterTitle": "Combinez du texte libre avec les filtres domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: ou url: Les codes d’état acceptent un code exact (404) ou une famille (4xx) ; -status-code:5xx exclut les erreurs serveur.",
     "sort": "Trier",
     "sortAria": "Trier les requêtes réseau",
     "sortDirection": "Trier les requêtes réseau par ordre {direction}",
