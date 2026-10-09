@@ -2057,6 +2057,9 @@ export const esES = {
     }
   },
   "console": {
+    pauseLiveUpdates: "Pausar actualización de la vista",
+    resumeLiveUpdates: "Reanudar actualización de la vista",
+    liveUpdatesPausedHint: "La actualización de la vista está pausada. El registro continúa con los límites de retención existentes. Se desconoce el número de mensajes nuevos y perdidos. Actualizar realiza una lectura.",
     "kicker": "Sitio actual",
     "heading": "Consola",
     "close": "Cerrar la consola",

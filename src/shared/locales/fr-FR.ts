@@ -2057,6 +2057,9 @@ export const frFR = {
     }
   },
   "console": {
+    pauseLiveUpdates: "Suspendre les mises à jour affichées",
+    resumeLiveUpdates: "Reprendre les mises à jour affichées",
+    liveUpdatesPausedHint: "Les mises à jour affichées sont suspendues. La collecte continue avec les limites de conservation existantes. Le nombre de messages en attente et manqués est inconnu. Actualiser effectue une seule lecture.",
     "kicker": "Site actuel",
     "heading": "Console",
     "close": "Fermer la console",

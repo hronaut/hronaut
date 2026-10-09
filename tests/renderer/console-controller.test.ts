@@ -41,7 +41,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController() {
+function createController(keepsSeparatePanelOpen = () => false) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(false)
   const browser = {
@@ -54,7 +54,7 @@ function createController() {
     browser,
     translate: (key) => key,
     copyText,
-    keepsSeparatePanelOpen: () => false
+    keepsSeparatePanelOpen
   })
   return { activeTab, open, browser, controller, copyText }
 }
@@ -188,6 +188,99 @@ describe('console controller', () => {
       expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
       expect(controller.messages.value).toEqual([message('next response')])
       expect(controller.state.value).toBe('ready')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['resolved', 'rejected'] as const)('freezes displayed rows when an older automatic read is %s, then resumes immediately', async (outcome) => {
+    vi.useFakeTimers()
+    const pending = deferred<BrowserConsoleMessage[]>()
+    const { browser, controller, open } = createController()
+    browser.listConsoleMessages.mockResolvedValueOnce([message('first')]).mockReturnValueOnce(pending.promise)
+    try {
+      open.value = true
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
+      controller.search.value = 'first'
+      controller.excludeText.value = 'noise'
+      controller.level.value = 'error'
+      controller.toggleLiveUpdates()
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
+      if (outcome === 'resolved') pending.resolve([message('stale')])
+      else pending.reject(new Error('stale error'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(controller.messages.value).toEqual([message('first')])
+      expect(controller.error.value).toBe('')
+      expect(controller.state.value).toBe('ready')
+      browser.listConsoleMessages.mockResolvedValueOnce([message('first fresh')])
+      controller.toggleLiveUpdates()
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(3)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(controller.filteredMessages.value).toEqual([message('first fresh')])
+      expect(controller.excludeText.value).toBe('noise')
+      expect(controller.level.value).toBe('error')
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(4)
+    } finally { controller.dispose() }
+  })
+
+  it('allows one explicit read or Clear while paused and discloses the frozen copy scope', async () => {
+    vi.useFakeTimers()
+    const { browser, controller, open, copyText } = createController()
+    browser.listConsoleMessages.mockResolvedValueOnce([message('keep'), message('noise')])
+    try {
+      open.value = true
+      await vi.advanceTimersByTimeAsync(0)
+      controller.toggleLiveUpdates()
+      controller.excludeText.value = 'noise'
+      await controller.copyFiltered()
+      expect(JSON.parse(copyText.mock.calls.at(-1)![0])).toMatchObject({
+        displayUpdatesPaused: true, pendingMessages: 'unknown', missedMessages: 'unknown',
+        messages: [{ message: 'keep' }]
+      })
+      await controller.copyAll()
+      expect((JSON.parse(copyText.mock.calls.at(-1)![0]) as { messages: BrowserConsoleMessage[] }).messages).toHaveLength(2)
+      browser.listConsoleMessages.mockResolvedValueOnce([message('new retained')])
+      await controller.refresh()
+      expect(controller.messages.value).toEqual([message('new retained')])
+      expect(controller.liveUpdatesPaused.value).toBe(true)
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
+      browser.listConsoleMessages.mockResolvedValueOnce([message('new retained')])
+      await controller.refresh(true)
+      expect(browser.listConsoleMessages).toHaveBeenLastCalledWith('tab-1', true)
+      expect(controller.messages.value).toEqual([])
+      expect(controller.liveUpdatesPaused.value).toBe(true)
+      expect(controller.excludeText.value).toBe('noise')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['close', 'reset', 'separate-panel context reset'] as const)('resets pause on %s without stranding a pending manual refresh or accepting its old result', async (action) => {
+    vi.useFakeTimers()
+    const pending = deferred<BrowserConsoleMessage[]>()
+    const { browser, controller, open } = createController(() => action === 'separate-panel context reset')
+    browser.listConsoleMessages.mockResolvedValueOnce([message('first')])
+    try {
+      open.value = true
+      await vi.advanceTimersByTimeAsync(0)
+      controller.toggleLiveUpdates()
+      browser.listConsoleMessages.mockReturnValueOnce(pending.promise)
+      const read = controller.refresh()
+      controller.toggleLiveUpdates()
+      expect(controller.liveUpdatesPaused.value).toBe(true)
+      browser.listConsoleMessages.mockResolvedValueOnce([message('new session')])
+      if (action === 'close') {
+        open.value = false
+        open.value = true
+      } else controller.reset(action === 'separate-panel context reset')
+      expect(open.value).toBe(true)
+      expect(controller.liveUpdatesPaused.value).toBe(false)
+      await vi.advanceTimersByTimeAsync(action === 'close' ? 0 : 1_000)
+      expect(controller.messages.value).toEqual([message('new session')])
+      expect(controller.state.value).toBe('ready')
+      pending.resolve([message('old session')])
+      await read
+      expect(controller.messages.value).toEqual([message('new session')])
     } finally { controller.dispose() }
   })
 

@@ -719,6 +719,7 @@
 .memory-actions { @apply flex flex-wrap justify-end [gap:6px]; }
 
 .console-panel { @apply [width:min(760px,_calc(100vw_-_24px))]; }
+.console-live-status { @apply flex-none text-xs text-muted [margin:0] [padding:8px_12px]; }
 .console-tools { @apply flex flex-wrap flex-none items-center [gap:9px] [padding:10px_12px] [border-bottom:1px_solid_var(--border-soft)]; }
 .console-tools .network-monitor-search { @apply [flex:1_1_180px]; }
 .console-tools .preserve-logs-toggle { @apply [min-height:38px] [padding:0_10px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-copy bg-surface; }

@@ -227,6 +227,7 @@ describe('extracted diagnostic panels', () => {
         search: '',
         excludeText: '',
         level: 'all',
+        liveUpdatesPaused: false,
         state: 'ready',
         messages: [message],
         filteredMessages: [message],
@@ -245,6 +246,14 @@ describe('extracted diagnostic panels', () => {
 
     expect(screen.getByRole('dialog', { name: 'Console' })).toBeVisible()
     expect(screen.getByText('fixture failure')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Pause displayed updates' }))
+    expect(view.emitted().toggleLiveUpdates).toEqual([[]])
+    await view.rerender({ liveUpdatesPaused: true })
+    expect(screen.getByRole('button', { name: 'Resume displayed updates' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent('Log collection continues with existing retention limits. Pending and missed message counts are unknown.')
+    await view.rerender({ state: 'loading' })
+    expect(screen.getByRole('button', { name: 'Resume displayed updates' })).toBeDisabled()
+    await view.rerender({ state: 'ready' })
     await user.type(screen.getByRole('searchbox', { name: 'Filter Console messages' }), 'fixture')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Dock Console' }), 'window')
     await user.click(screen.getByRole('button', { name: 'Copy Console entry' }))

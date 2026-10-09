@@ -36,6 +36,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   const search = ref('')
   const excludeText = ref('')
   const level = ref<BrowserConsoleLevelFilter>('all')
+  const liveUpdatesPaused = ref(false)
   const copied = ref<'filtered' | 'all' | null>(null)
   const copiedEntryKey = ref<string | null>(null)
   let generation = 0
@@ -56,6 +57,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   }
 
   function reset(closePanel = false): void {
+    liveUpdatesPaused.value = false
     generation += 1
     requestSequence += 1
     copySequence += 1
@@ -76,6 +78,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   }
 
   async function refresh(clear = false, silent = false): Promise<void> {
+    if (silent && liveUpdatesPaused.value) return
     const tab = options.activeTab.value
     if (!tab || isHronautHomeUrl(tab.url)) return
     if (silent && pendingRefresh && isCurrent(pendingRefresh.tabId, pendingRefresh.generation)) return
@@ -90,7 +93,8 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       const nextMessages = await options.browser.listConsoleMessages(tab.id, clear)
       if (sequence !== requestSequence || !isCurrent(tab.id, expectedGeneration)) return
       if (clear) clearCopyFeedback()
-      messages.value = nextMessages
+      // Clearing returns the removed records; they are no longer retained.
+      messages.value = clear ? [] : nextMessages
       state.value = 'ready'
     } catch (cause) {
       if (sequence !== requestSequence || !isCurrent(tab.id, expectedGeneration)) return
@@ -99,6 +103,15 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     } finally {
       if (pendingRefresh === pending) pendingRefresh = null
     }
+  }
+
+  function toggleLiveUpdates(): void {
+    if (!options.open.value || state.value === 'loading') return
+    liveUpdatesPaused.value = !liveUpdatesPaused.value
+    if (liveUpdatesPaused.value) {
+      // A poll already in flight must not replace the displayed snapshot.
+      requestSequence += 1
+    } else void refresh()
   }
 
   function entryKey(message: BrowserConsoleMessage): string {
@@ -119,6 +132,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       generatedAt: new Date().toISOString(),
       tabId: tab.id,
       scope,
+      ...(liveUpdatesPaused.value ? { displayUpdatesPaused: true, pendingMessages: 'unknown', missedMessages: 'unknown' } : {}),
       ...(scope === 'filtered' ? {
         filter: { query: search.value.trim() || undefined, level: level.value, excludeText: excludeText.value.trim() || undefined }
       } : {}),
@@ -163,12 +177,20 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       window.clearInterval(refreshTimer)
       refreshTimer = undefined
     }
-    if (!open) return
+    if (!open) {
+      if (liveUpdatesPaused.value) {
+        requestSequence += 1
+        pendingRefresh = null
+        if (state.value === 'loading') state.value = 'idle'
+      }
+      liveUpdatesPaused.value = false
+      return
+    }
     if (state.value === 'idle') void refresh()
     refreshTimer = window.setInterval(() => {
       if (options.open.value) void refresh(false, true)
     }, 1_000)
-  }, { immediate: true })
+  }, { immediate: true, flush: 'sync' })
 
   function dispose(): void {
     stopOpenWatcher()
@@ -187,6 +209,8 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     search,
     excludeText,
     level,
+    liveUpdatesPaused,
+    toggleLiveUpdates,
     copied,
     copiedEntryKey,
     filteredMessages,

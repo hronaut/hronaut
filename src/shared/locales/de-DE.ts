@@ -2057,6 +2057,9 @@ export const deDE = {
     }
   },
   "console": {
+    pauseLiveUpdates: "Anzeigeaktualisierung pausieren",
+    resumeLiveUpdates: "Anzeigeaktualisierung fortsetzen",
+    liveUpdatesPausedHint: "Die Anzeigeaktualisierung ist pausiert. Die Protokollerfassung läuft mit den bisherigen Aufbewahrungsgrenzen weiter. Die Anzahl neuer und verpasster Nachrichten ist unbekannt. Aktualisieren liest einmal.",
     "kicker": "Aktuelle Website",
     "heading": "Konsole",
     "close": "Konsole schließen",

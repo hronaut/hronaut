@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Pause displayed updates in the human Console while bounded log collection continues, with filters and copying on the displayed rows, one-shot refresh, and explicit unknown pending/missed counts.
+
 - Filter the human Downloads list by Completed, Cancelled, or Interrupted alongside filename search. Interrupted includes both resumable and terminal interruptions, while existing Active and Finished filters keep their lifecycle meaning.
 
 ### Fixed
