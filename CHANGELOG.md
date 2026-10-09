@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-10-09
+
 ### Added
 
 - Search saved site-permission decisions by site origin, permission name, or translated label, with visible/total counts and unchanged hidden decisions.
