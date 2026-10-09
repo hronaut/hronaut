@@ -41,7 +41,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController() {
+function createController(keepsSeparatePanelOpen = () => false) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(false)
   const browser = {
@@ -54,7 +54,7 @@ function createController() {
     browser,
     translate: (key) => key,
     copyText,
-    keepsSeparatePanelOpen: () => false
+    keepsSeparatePanelOpen
   })
   return { activeTab, open, browser, controller, copyText }
 }
@@ -254,10 +254,10 @@ describe('console controller', () => {
     } finally { controller.dispose() }
   })
 
-  it.each(['close', 'reset'] as const)('resets pause on %s without stranding a pending manual refresh or accepting its old result', async (action) => {
+  it.each(['close', 'reset', 'separate-panel context reset'] as const)('resets pause on %s without stranding a pending manual refresh or accepting its old result', async (action) => {
     vi.useFakeTimers()
     const pending = deferred<BrowserConsoleMessage[]>()
-    const { browser, controller, open } = createController()
+    const { browser, controller, open } = createController(() => action === 'separate-panel context reset')
     browser.listConsoleMessages.mockResolvedValueOnce([message('first')])
     try {
       open.value = true
@@ -271,7 +271,8 @@ describe('console controller', () => {
       if (action === 'close') {
         open.value = false
         open.value = true
-      } else controller.reset()
+      } else controller.reset(action === 'separate-panel context reset')
+      expect(open.value).toBe(true)
       expect(controller.liveUpdatesPaused.value).toBe(false)
       await vi.advanceTimersByTimeAsync(action === 'close' ? 0 : 1_000)
       expect(controller.messages.value).toEqual([message('new session')])
