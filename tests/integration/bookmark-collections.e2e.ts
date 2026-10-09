@@ -79,5 +79,28 @@ test('organizes bookmarks with keyboard recovery, failed-write retry and applica
     await expect(filter).toBeFocused()
     await expect(panel.locator('.bookmark-item')).toHaveCount(2)
     expect(await instance.window.evaluate('window.hronautBookmarks.list()')).toEqual(entries)
+
+    // A main-process update can remove toolbar controls without a panel action.
+    for (const control of ['rename', 'editor'] as const) {
+      const collection = await instance.window.evaluate(async () => {
+        const api = (window as unknown as { hronautBookmarks: HronautBookmarksApi }).hronautBookmarks
+        const snapshot = await api.collections!.create('External removal')
+        return snapshot.collections.find(item => item.name === 'External removal')!
+      })
+      await filter.selectOption(`c:${collection.id}`)
+      const rename = panel.getByRole('button', { name: 'Rename collection', exact: true })
+      if (control === 'editor') {
+        await rename.click()
+        await expect(panel.getByRole('textbox', { name: 'Collection name', exact: true })).toBeFocused()
+      } else await rename.focus()
+      await instance.window.evaluate(async id => {
+        const api = (window as unknown as { hronautBookmarks: HronautBookmarksApi }).hronautBookmarks
+        await api.collections!.remove(id)
+      }, collection.id)
+      await expect(filter).toHaveValue('unfiled')
+      await expect(filter).toBeFocused()
+      await expect(panel.getByRole('textbox', { name: 'Collection name', exact: true })).toHaveCount(0)
+      expect(await instance.window.evaluate('window.hronautBookmarks.list()')).toEqual(entries)
+    }
   } finally { await closeHronaut(instance.app) }
 })

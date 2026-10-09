@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep keyboard focus in the bookmark collection filter when a live update removes the selected collection or its open editor, without overriding newer focus or a reopened panel.
+
 ## [2.21.0] - 2026-10-09
 
 ### Fixed

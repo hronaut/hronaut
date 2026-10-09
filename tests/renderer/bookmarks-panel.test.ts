@@ -44,6 +44,77 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('live bookmark focus recovery', () => {
+  it.each(['rename', 'remove', 'editor', 'save'])('recovers collection %s focus after external deletion', async control => {
+    let changed!: (snapshot: BookmarkCollectionSnapshot) => void
+    const api = {
+      list: vi.fn(async () => ({ revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: [] }] })),
+      onChanged: vi.fn((callback: typeof changed) => { changed = callback; return vi.fn() }),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    renderPanel({ collectionsApi: api })
+    await flushPromises()
+    const filter = screen.getByRole('combobox', { name: 'Filter bookmarks by collection' })
+    const user = userEvent.setup()
+    await user.selectOptions(filter, 'c:project')
+    if (control === 'editor' || control === 'save') await user.click(screen.getByRole('button', { name: 'Rename collection' }))
+    const focused = control === 'editor' ? screen.getByRole('textbox', { name: 'Collection name' })
+      : screen.getByRole('button', { name: control === 'rename' ? 'Rename collection' : control === 'remove' ? 'Remove collection' : 'Save collection' })
+    focused.focus()
+    changed({ revision: 2, collections: [] })
+    await flushPromises()
+    expect(filter).toHaveValue('unfiled')
+    expect(filter).toHaveFocus()
+    expect(screen.queryByRole('textbox', { name: 'Collection name' })).toBeNull()
+    expect(api.remove).not.toHaveBeenCalled()
+    expect(api.rename).not.toHaveBeenCalled()
+  })
+
+  it.each(['search', 'outside', 'retained', 'reopen', 'unmount'])('respects %s focus ownership during collection deletion', async scenario => {
+    let changed!: (snapshot: BookmarkCollectionSnapshot) => void
+    let snapshot: BookmarkCollectionSnapshot = { revision: 1, collections: [{ id: 'project', name: 'Project', bookmarkIds: [] }] }
+    const api = {
+      list: vi.fn(async () => snapshot),
+      onChanged: vi.fn((callback: typeof changed) => { changed = callback; return vi.fn() }),
+      create: vi.fn(), rename: vi.fn(), remove: vi.fn(), assign: vi.fn()
+    }
+    const wrapper = mount(BookmarksPanel, { attachTo: document.body, global: { plugins: [createHronautI18n('en-US')] }, props: panelProps({ collectionsApi: api }) })
+    const external = document.createElement('button')
+    document.body.append(external)
+    await flushPromises()
+    const filter = screen.getByRole('combobox', { name: 'Filter bookmarks by collection' })
+    await userEvent.setup().selectOptions(filter, 'c:project')
+    const focused = scenario === 'retained' ? screen.getByRole('button', { name: 'New collection' })
+      : screen.getByRole('button', { name: 'Rename collection' })
+    const search = screen.getByRole('searchbox')
+    const panel = screen.getByRole('dialog')
+    let handled = false
+    const observer = new MutationObserver(() => {
+      if (focused.isConnected || handled) return
+      handled = true
+      if (scenario === 'search') search.focus()
+      if (scenario === 'outside') external.focus()
+      if (scenario === 'unmount') wrapper.unmount()
+      if (scenario === 'reopen') {
+        const exposed = wrapper.vm as unknown as { toggle(): Promise<void> }
+        void exposed.toggle()
+        void exposed.toggle()
+      }
+    })
+    observer.observe(panel, { childList: true, subtree: true })
+    try {
+      focused.focus()
+      snapshot = { revision: 2, collections: [] }
+      changed(snapshot)
+      await flushPromises()
+      if (scenario === 'retained') expect(focused).toHaveFocus()
+      else {
+        expect(handled).toBe(true)
+        expect(scenario === 'search' ? search : scenario === 'outside' ? external : document.body).toHaveFocus()
+      }
+      if (scenario === 'reopen') expect(screen.getByRole('dialog')).toBe(panel)
+    } finally { observer.disconnect(); external.remove(); if (scenario !== 'unmount') wrapper.unmount() }
+  })
+
   it.each(['open', 'rename', 'destination', 'background', 'copy', 'remove'])('moves external removal focus to the neighboring %s control', async control => {
     const view = renderPanel()
     const target = (title: string) => control === 'open' ? screen.getByRole('button', { name: new RegExp(`^${title}`) })
