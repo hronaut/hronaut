@@ -49,6 +49,28 @@ function createController(initialEntries = [entry('alpha')]) {
 }
 
 describe('history panel controller', () => {
+  it.each([
+    ['build alpha.example', ['alpha']],
+    [' ALPHA.EXAMPLE\tBUILD ', ['alpha']],
+    ['guide archive', ['beta']],
+    ['[v2] alpha.example', ['alpha']],
+    ['build beta.example', []],
+    ['build missing', []],
+    ['build', ['alpha']],
+    ['   \t ', ['alpha', 'beta']],
+    ['alpha.example', ['alpha']]
+  ])('matches literal history terms across one title and address: %s', (query, expected) => {
+    const rows = [
+      { ...entry('alpha', 'Build report [v2]'), url: 'https://alpha.example/reports' },
+      { ...entry('beta', 'Archive guide'), url: 'https://beta.example/docs' }
+    ]
+    const h = createController(rows)
+    h.controller.query.value = query
+    expect(h.controller.filteredEntries.value.map(row => row.id)).toEqual(expected)
+    expect(h.entries.value).toEqual(rows)
+    h.controller.dispose()
+  })
+
   it('composes canonical HTTP origins with date/text and preserves filters across reopen and live updates', () => {
     const now = new Date().toISOString()
     const rows = [
