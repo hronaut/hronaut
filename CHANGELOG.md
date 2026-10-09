@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Search tabs using multiple words across titles, addresses, and workspace names, together with the existing result-type filter.
+
 ### Fixed
 
 - Clear stale Visual Compare image-copy success feedback while another clipboard attempt is pending or refused.
