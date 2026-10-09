@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Give keyboard-reopened address suggestions a fresh session so delayed events from a closed popup cannot dismiss them or trigger stale navigation.
+
 - Keep recently closed tab labels current while Tab Search stays open, and catch up when the overview regains focus.
 
 - Clear stale diagnostic text-report copy feedback during another attempt and prevent older writes from restoring success while a newer copy is pending or refused.

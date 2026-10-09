@@ -207,6 +207,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   async function moveSelection(offset: -1 | 1): Promise<void> {
     const count = suggestions.value.length
     if (!count) return
+    if (!open.value) openSuggestions()
     if (selection.value < 0) selection.value = offset === 1 ? 0 : count - 1
     else selection.value = (selection.value + offset + count) % count
     open.value = true
