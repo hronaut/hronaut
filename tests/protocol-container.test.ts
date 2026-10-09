@@ -23,7 +23,20 @@ describe('diagnostic container PID boundary', () => {
     expect(e.args()[e.args().indexOf('--user') + 1]).toBe(`${process.getuid?.()}:${process.getgid?.()}`)
     expect(e.args()).toContain('none'); expect(e.args()).toContain('--init')
     for (const forbidden of ['--privileged', '--pid', '--cap-add', '--security-opt', '/var/run/docker.sock']) expect(e.args()).not.toContain(forbidden)
-    expect(e.args().filter(a => a === '--mount')).toHaveLength(1)
+    expect(e.args().filter(a => a === '--mount')).toHaveLength(2)
+  })
+  it('binds only the existing owned temporary directory to a short real path', async () => {
+    const e = engine()
+    const root = '/workspace/long-owned-parent/hronaut-protocol-capture-abcdef'
+    await isolatedContainer(root, image, ['node', 'fixture.js'], undefined, e.fake)
+    const mounts = e.args().flatMap((arg, index, args) => arg === '--mount' ? [args[index + 1]] : [])
+    expect(mounts).toEqual([
+      `type=bind,source=${root},target=${root}`,
+      `type=bind,source=${root}/diagnostic-temp,target=/h-tmp`
+    ])
+    expect(e.args()).toContain('TMPDIR=/h-tmp')
+    expect(e.args()).not.toContain(`TMPDIR=${root}/diagnostic-temp`)
+    expect(e.calls).toEqual(['create', 'start', 'wait', 'remove', 'verify'])
   })
   it('cancels into container removal and verifies absence before claiming containment stopped', async () => {
     const e = engine(); const controller = new AbortController()

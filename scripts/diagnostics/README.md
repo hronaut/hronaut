@@ -82,8 +82,13 @@ is currently taken. The original checkout/installed packages are not patched.
 `runPreparedCapture` requires explicit opt-in and has no CLI/workflow entry. It
 runs exactly the original named continuity case, its complete 2×2×2 matrix, one
 worker, existing CI retry=1 and failOnFlaky settings, once. No repeat loop or
-extra test deadline is added. It uses a private TMPDIR inside the disposable
-copy. The runner requires an immutable, already-installed Docker image ID and
+extra test deadline is added. Its existing owned 0700 `diagnostic-temp` directory
+is also bind-mounted at the real container path `/h-tmp`, used as TMPDIR. This
+short alias avoids Unix socket path overflow without exposing host `/tmp` or
+adding storage outside the owned copy; it is not a symlink to the long path.
+The explicit synthetic `tests/proofs/protocol-short-tmp.ts` preflight checks
+same-inode storage, UID/GID, 0700 mode, writes, Chromium-shaped Unix socket
+binding with byte headroom, and verified container/copy cleanup. The runner requires an immutable, already-installed Docker image ID and
 uses `--pull=never` and a new container with private PID/IPC namespaces, init
 and no logging driver. Container UID/GID are explicitly the host caller UID/GID,
 so 0600 snapshots and nested 0700 directories remain readable/removable by the

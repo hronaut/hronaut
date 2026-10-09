@@ -56,9 +56,12 @@ export async function isolatedContainer(root: string, image: string, command: st
     // Default private PID/IPC namespaces, no added capabilities, privileged mode,
     // host PID namespace, Docker socket, host ports or broader mounts.
     id = await engine.create(['--pull=never', '--user', `${uid}:${gid}`, '--init', '--network', 'bridge', '--log-driver', 'none',
-      '--mount', `type=bind,source=${root},target=${root}`, '--workdir', root,
+      '--mount', `type=bind,source=${root},target=${root}`,
+      // A second view of the same owned directory avoids Unix socket path overflow.
+      // This is a real bind mount, not a symlink back to the long source path.
+      '--mount', `type=bind,source=${root}/diagnostic-temp,target=/h-tmp`, '--workdir', root,
       ...(privateErrors ? ['--env', 'HRONAUT_PRIVATE_SYNTHETIC_ERRORS=1'] : []),
-      '--env', 'CI=true', '--env', `TMPDIR=${root}/diagnostic-temp`,
+      '--env', 'CI=true', '--env', 'TMPDIR=/h-tmp',
       '--env', 'HRONAUT_TEST_ISOLATED_DISPLAYS=1', '--entrypoint', command[0]!, image, ...command.slice(1)])
     if (!idPattern.test(id)) throw new Error('Protocol container identity unavailable')
     if (!signal?.aborted) {
