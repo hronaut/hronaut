@@ -143,8 +143,8 @@
 .find-action {
   @apply grid [width:32px] [height:32px] place-items-center border-0 [border-radius:8px] text-copy bg-transparent cursor-pointer [font-size:16px];
 }
-.find-action:hover:not(:disabled) { @apply bg-hover; }
-.find-action:disabled { @apply cursor-default [opacity:.35]; }
+.find-action:hover:not(:disabled):not([aria-disabled="true"]) { @apply bg-hover; }
+.find-action:disabled, .find-action[aria-disabled="true"] { @apply cursor-default [opacity:.35]; }
 .find-action svg { @apply [width:20px] [height:20px]; }
 .find-option { @apply [font-size:12px] [font-weight:800]; }
 .find-option[aria-pressed=true] { @apply text-accent-copy bg-accent-soft; }
