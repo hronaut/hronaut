@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-10-09
+
 ### Added
 
 - Sort Downloads by filename in natural numeric order, combined with existing search and status filters, while retaining newest-first as the default.
