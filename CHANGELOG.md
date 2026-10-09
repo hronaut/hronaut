@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-10-09
+
 ### Fixed
 
 - Keep keyboard focus on the neighboring finished download after removing a record, including live updates that arrive before the action completes.
