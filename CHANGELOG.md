@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Filter retained Network requests by HTTP status families such as `4xx` or `5xx`, including exclusions, consistently across the human panel, MCP and HAR exports.
+
 - Refresh a selected Network request’s sanitized details after completion without replaying its traffic or changing the list filters.
 
 - Reuse a recorded Repro step’s selector in the checkpoint form, with fresh review required before recording the intended result.

@@ -126,6 +126,11 @@ function requestMatchesPropertyFilter(request: BrowserNetworkRequest, property: 
   if (!expected) return undefined
   if (property === 'method') return request.method.toLowerCase() === expected.toLowerCase()
   if (property === 'status-code') {
+    if (/^[1-5]xx$/i.test(expected)) {
+      const minimum = Number(expected[0]) * 100
+      return typeof request.status === 'number' && Number.isInteger(request.status)
+        && request.status >= minimum && request.status < minimum + 100
+    }
     if (!/^[1-5]\d{2}$/.test(expected)) return undefined
     return request.status !== undefined && String(request.status) === expected
   }

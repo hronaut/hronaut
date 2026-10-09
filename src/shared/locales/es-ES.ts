@@ -2118,7 +2118,7 @@ export const esES = {
     "refresh": "Actualizar",
     "filterAria": "Filtrar solicitudes de red",
     "filterPlaceholder": "Filtrar solicitudes · method:POST status-code:500",
-    "filterTitle": "Combina texto libre con filtros domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: o url:",
+    "filterTitle": "Combina texto libre con filtros domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: o url: Los códigos de estado aceptan un código exacto (404) o una familia (4xx); -status-code:5xx excluye los errores del servidor.",
     "sort": "Ordenar",
     "sortAria": "Ordenar solicitudes de red",
     "sortDirection": "Ordenar solicitudes de red de forma {direction}",

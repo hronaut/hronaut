@@ -79,6 +79,44 @@ const details: BrowserNetworkRequestDetails = {
 }
 
 describe('sanitized network HAR', () => {
+  it.each([1, 2, 3, 4, 5])('matches only integer HTTP status codes in family %ixx', family => {
+    const start = family * 100
+    const requests = [start - 1, start, start + 42, start + 99, start + 100, start + 0.5]
+      .map(status => ({ ...details, id: String(status), status }))
+    const matches = filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: `status-code:${family}xx` }))
+    expect(matches.map(request => request.status)).toEqual([start, start + 42, start + 99])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: `status-code:${start}` })).map(request => request.status)).toEqual([start])
+  })
+
+  it('accepts case-insensitive status-family operands', () => {
+    const request = { ...details, status: 429 }
+    for (const query of ['status-code:4XX', 'STATUS-CODE:4xX', 'status-code:"4Xx"']) {
+      expect(filterNetworkRequests([request], normalizeNetworkHarOptions({ query }))).toEqual([request])
+    }
+  })
+
+  it('combines family exclusions with other AND filters', () => {
+    const requests = [200, 404, 429, 500, 503].map(status => ({ ...details, id: String(status), status }))
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: 'method:POST -status-code:2xx -status-code:4xx' })).map(request => request.status)).toEqual([500, 503])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: 'status-code:4xx -status-code:404' })).map(request => request.status)).toEqual([429])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: 'status-code:4xx status-code:5xx' }))).toEqual([])
+  })
+
+  it('keeps malformed family operands nonmatching even under exclusion', () => {
+    for (const operand of ['0xx', '6xx', '4x', '4xxx', '4x0', '4*', '4XXsuffix', '40x', '>=400', '400-499']) {
+      for (const prefix of ['', '-']) {
+        expect(filterNetworkRequests([details, { ...details, status: 404 }], normalizeNetworkHarOptions({ query: `${prefix}status-code:${operand}` }))).toEqual([])
+      }
+    }
+  })
+
+  it('does not infer a family for pending, failed-without-status or invalid numeric statuses', () => {
+    const requests = [undefined, 0, 600, Number.NaN, Number.POSITIVE_INFINITY].map(status => ({ ...details, status }))
+    requests.push({ ...details, status: undefined, error: 'net::ERR_FAILED' })
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: 'status-code:5xx' }))).toEqual([])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: '-status-code:5xx' }))).toEqual(requests)
+  })
+
   const requestSizeCases: [Record<string, string | string[]>, number][] = [
     [{ 'Content-Length': '4' }, 4],
     [{ 'content-length': ' 0 ' }, 0],
