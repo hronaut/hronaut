@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-10-09
+
 ### Added
 
 - Search tabs using multiple words across titles, addresses, and workspace names, together with the existing result-type filter.
