@@ -2633,7 +2633,12 @@ export const frFR = {
     "closeTitle": "Fermer (Escape)",
     "close": "Fermer les contrôles du zoom de la page"
   },
-  "downloads": { removeAria: "Retirer {filename} de la liste", removeHint: "Retirer de la liste ; le fichier reste sur le disque",
+  "downloads": {
+    copyPath: "Copier le chemin enregistré",
+    copyPathAria: "Copier le chemin enregistré de {filename}",
+    copiedPath: "Chemin enregistré copié",
+    copyPathFailed: "Impossible de copier le chemin enregistré",
+    removeAria: "Retirer {filename} de la liste", removeHint: "Retirer de la liste ; le fichier reste sur le disque",
     "search": "Rechercher un nom de fichier",
     "filterStatus": "Filtrer l’état des téléchargements",
     "filterAll": "Tous",

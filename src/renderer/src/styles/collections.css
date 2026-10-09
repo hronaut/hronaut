@@ -215,6 +215,7 @@
 .downloads-empty > svg { @apply [width:32px] [height:32px] text-accent-copy; }
 .downloads-empty strong { @apply [margin-top:12px] text-copy [font-size:15px]; }
 .downloads-empty span { @apply [margin-top:6px] [font-size:13px]; }
+.download-copy-path[aria-disabled="true"] { @apply cursor-default text-muted; }
 .downloads-error { @apply m-0 [padding:9px_14px] [border-top:1px_solid_rgba(217,_83,_79,_.28)] [color:#b62828] [background:rgba(217,_83,_79,_.08)] [font-size:12px] [line-height:1.4]; }
 
 .bookmarks-button.bookmarked { @apply [color:#b97900] [background:color-mix(in_srgb,_#f5b82e_15%,_transparent)]; }

@@ -2633,7 +2633,12 @@ export const ruRU = {
     "closeTitle": "Закрыть (Escape)",
     "close": "Закрыть управление масштабом страницы"
   },
-  "downloads": { removeAria: "Убрать {filename} из списка", removeHint: "Убрать из списка; файл останется на диске",
+  "downloads": {
+    copyPath: "Копировать сохранённый путь",
+    copyPathAria: "Копировать сохранённый путь для {filename}",
+    copiedPath: "Сохранённый путь скопирован",
+    copyPathFailed: "Не удалось скопировать сохранённый путь",
+    removeAria: "Убрать {filename} из списка", removeHint: "Убрать из списка; файл останется на диске",
     "search": "Поиск по имени файла",
     "filterStatus": "Фильтр состояния загрузок",
     "filterAll": "Все",

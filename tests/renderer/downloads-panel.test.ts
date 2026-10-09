@@ -41,6 +41,7 @@ function renderPanel(overrides: Record<string, unknown> = {}, locale: SupportedL
       removeFinished: vi.fn(async () => []),
     clearFinished: vi.fn(async () => []),
       showInFolder: vi.fn(async () => undefined),
+      copySavedPath: vi.fn(async (_path: string): Promise<void> => undefined),
       ...overrides
     }
   })
@@ -413,4 +414,65 @@ it.each(['newer-focus', 'filter-change', 'reopen'] as const)('does not reclaim r
   expect(screen.getByRole('button', { name: 'Remove keep.bin from list' })).not.toHaveFocus()
   if (change === 'newer-focus') expect(screen.getByRole('button', { name: 'Close downloads' })).toHaveFocus()
   if (change === 'filter-change') expect(screen.getByRole('searchbox')).toHaveFocus()
+})
+
+
+describe('Downloads saved-path action', () => {
+  const saved = { ...download('saved', 'completed', 100, 100), savePath: '/tmp/saved report.bin' }
+
+  it('offers copying only for completed records with a saved path and retains keyboard focus', async () => {
+    const copySavedPath = vi.fn(async (_path: string): Promise<void> => undefined)
+    renderPanel({ copySavedPath, downloads: [saved,
+      { ...download('cancelled', 'cancelled', 1, 100), savePath: '/tmp/partial.bin' },
+      { ...download('interrupted', 'interrupted', 1, 100), savePath: '/tmp/interrupted.bin' },
+      { ...download('active', 'progressing', 1, 100), savePath: '/tmp/active.bin' },
+      download('missing-path', 'completed', 100, 100)] })
+    const user = userEvent.setup()
+    const button = screen.getByRole('button', { name: 'Copy saved path for saved.bin' })
+    expect(screen.getAllByRole('button', { name: /^Copy saved path for / })).toHaveLength(1)
+    button.focus()
+    await user.keyboard('{Enter}')
+    await screen.findByText('Saved path copied')
+    expect(copySavedPath).toHaveBeenCalledExactlyOnceWith(saved.savePath)
+    await waitFor(() => expect(button).toHaveFocus())
+  })
+
+  it('reports a clipboard failure without exposing the error detail', async () => {
+    const copySavedPath = vi.fn(async (): Promise<void> => { throw new Error('Private clipboard detail') })
+    renderPanel({ copySavedPath, downloads: [saved] })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Copy saved path for saved.bin' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not copy saved path')
+    expect(screen.queryByText('Private clipboard detail')).toBeNull()
+  })
+
+  it('does not restore feedback or move focus after filtering away a pending copy target', async () => {
+    let finish!: () => void
+    const copySavedPath = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    renderPanel({ copySavedPath, downloads: [saved] })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Copy saved path for saved.bin' }))
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'missing')
+    finish()
+    await flushPromises()
+    expect(search).toHaveFocus()
+    expect(screen.queryByText('Saved path copied')).toBeNull()
+  })
+
+  it.each([false, true])('handles external removal during a copy without overriding newer focus: %s', async newerFocus => {
+    let finish!: () => void
+    const copySavedPath = vi.fn(() => new Promise<void>(resolve => { finish = resolve }))
+    const other = { ...saved, id: 'other', filename: 'other.bin', savePath: '/tmp/other.bin' }
+    const view = renderPanel({ copySavedPath, downloads: [saved, other] })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Copy saved path for saved.bin' }))
+    await view.rerender({ downloads: [other] })
+    const close = screen.getByRole('button', { name: 'Close downloads' })
+    if (newerFocus) close.focus()
+    finish()
+    await flushPromises()
+    await waitFor(() => expect(newerFocus ? close : screen.getByRole('searchbox')).toHaveFocus())
+    expect(screen.queryByText('Saved path copied')).toBeNull()
+  })
 })
