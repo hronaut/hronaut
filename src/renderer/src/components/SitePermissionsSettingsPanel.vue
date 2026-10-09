@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiIconButton from "../ui/UiIconButton.vue"
+import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -22,6 +23,39 @@ const {
   remove
 } = props.controller
 
+const panelRoot = ref<HTMLElement | null>(null)
+
+// Track row identity before Vue removes or moves the focused control. The same
+// path covers Forget and authoritative permission updates across site groups.
+watch(() => groups.value.flatMap(group => group.permissions.map(entry =>
+  JSON.stringify([entry.origin, entry.permission])
+)).join('\n'), async (_current, _previous, onCleanup) => {
+  const panel = panelRoot.value
+  const focused = document.activeElement
+  if (!panel || !(focused instanceof HTMLElement) || !panel.contains(focused)
+    || !focused.matches('select, button.permission-remove')) return
+  const row = focused.closest('.permission-row')
+  if (!row) return
+  const selector = focused.matches('select') ? 'select' : 'button.permission-remove'
+  const rows = Array.from(panel.querySelectorAll('.permission-row'))
+  const index = rows.indexOf(row)
+  const candidates = [...rows.slice(index + 1), ...rows.slice(0, index).reverse()]
+    .map(candidate => candidate.querySelector<HTMLElement>(selector))
+  let superseded = false
+  onCleanup(() => { superseded = true })
+  await nextTick()
+  if (superseded || panelRoot.value !== panel || !panel.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  if (focused.isConnected) {
+    if (!focused.matches(':disabled')) focused.focus()
+    return
+  }
+  const target = candidates.find(candidate => candidate?.isConnected
+    && !candidate.matches(':disabled, [aria-disabled="true"]'))
+    ?? panel.querySelector<HTMLElement>('.setting-copy h3')
+  target?.focus()
+}, { flush: 'pre' })
+
 async function changePermission(entry: SitePermissionEntry, event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   const decision = input.value as SitePermissionDecision
@@ -30,9 +64,9 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
 </script>
 
 <template>
-  <div class="settings-content permissions-settings">
+  <div ref="panelRoot" class="settings-content permissions-settings">
     <div class="setting-copy">
-      <h3>{{ t('settings.permissions.heading') }}</h3>
+      <h3 tabindex="-1">{{ t('settings.permissions.heading') }}</h3>
       <p>{{ t('settings.permissions.description') }}</p>
     </div>
     <div v-if="!groups.length" class="site-permissions-empty">
@@ -66,7 +100,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             type="button"
             :label="t('runtimeActions.permission.forgetAria', { permission: permissionLabel(permission.permission), origin: group.origin })"
             :title="t('settings.permissions.forget')"
-            :disabled="clearing || isPending(permission)"
+            :aria-disabled="clearing || isPending(permission)"
             @click="remove(permission)"
           >
             <IconDelete aria-hidden="true" />

@@ -98,7 +98,7 @@ If an import fails, Hronaut attempts to remove only profiles created by that imp
 
 ## Site permissions
 
-When a website requests access such as location, notifications, clipboard, camera, or microphone, Hronaut asks before granting it and remembers the Allow or Deny decision for that exact website origin. Open **Settings → Site permissions** to change a saved decision, forget one so Hronaut asks again, or reset the section to clear all saved decisions.
+When a website requests access such as location, notifications, clipboard, camera, or microphone, Hronaut asks before granting it and remembers the Allow or Deny decision for that exact website origin. Open **Settings → Site permissions** to change a saved decision, forget one so Hronaut asks again, or reset the section to clear all saved decisions. When a focused permission row disappears, keyboard focus moves to the next available matching control, then a previous row, or the section heading if none remain. Focus already moved elsewhere is preserved.
 
 ## Updates
 

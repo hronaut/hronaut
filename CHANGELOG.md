@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep keyboard position in Site permissions settings after forgetting a saved decision or receiving a live removal, with a neighboring control or the section heading as the fallback.
+
 - Keep keyboard focus on Find’s Next/Previous match controls during asynchronous searches, while preventing unavailable or duplicate match requests.
 
 ### Documentation
