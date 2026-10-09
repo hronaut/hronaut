@@ -1,4 +1,4 @@
-import { nextTick, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useTabSearchController } from '../../src/renderer/src/composables/useTabSearchController.js'
 import type {
@@ -102,6 +102,59 @@ function createController(initialState = browserState(), initiallyOpen = false) 
 }
 
 describe('tab search controller', () => {
+  it('updates rendered closed-tab recency without a browser state change', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-09T12:00:00Z'))
+    const initial = browserState([])
+    initial.closedTabs = [{ id: 'closed', title: 'Closed fixture', url: 'https://example.test', pinned: true, closedAt: new Date().toISOString() }]
+    const { controller, state } = createController(initial)
+    const label = computed(() => controller.closedTabMeta(state.value.closedTabs[0]))
+    try {
+      await controller.openPanel()
+      controller.resultKind.value = 'closed'
+      expect(label.value).toBe('tabSearch.meta.pinned · tabSearch.meta.justNow')
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(label.value).toBe('tabSearch.meta.pinned · tabSearch.meta.minutesAgo')
+      await vi.advanceTimersByTimeAsync(59 * 60_000)
+      expect(label.value).toBe('tabSearch.meta.pinned · tabSearch.meta.closedAt')
+      expect(state.value.closedTabs).toEqual(initial.closedTabs)
+    } finally { controller.dispose(); vi.useRealTimers() }
+  })
+
+  it.each(['closed', 'filtered', 'kind', 'blurred', 'hidden'] as const)('catches recency up after the overview is %s', async mode => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-09T12:00:00Z'))
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    const initial = browserState([])
+    initial.closedTabs = [{ id: 'closed', title: 'Closed fixture', url: 'https://example.test', pinned: false, closedAt: new Date().toISOString() }]
+    const { controller, state } = createController(initial)
+    const label = computed(() => controller.closedTabMeta(state.value.closedTabs[0]))
+    try {
+      await controller.openPanel()
+      controller.resultKind.value = 'closed'
+      expect(label.value).toBe('tabSearch.meta.justNow')
+      if (mode === 'closed') controller.close()
+      else if (mode === 'filtered') controller.query.value = 'missing'
+      else if (mode === 'kind') controller.resultKind.value = 'open'
+      else if (mode === 'blurred') window.dispatchEvent(new Event('blur'))
+      else { visibility.mockReturnValue('hidden'); document.dispatchEvent(new Event('visibilitychange')) }
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(label.value).toBe('tabSearch.meta.justNow')
+      if (mode === 'closed') await controller.openPanel()
+      else if (mode === 'filtered') controller.query.value = ''
+      else if (mode === 'kind') controller.resultKind.value = 'closed'
+      else if (mode === 'blurred') window.dispatchEvent(new Event('focus'))
+      else { visibility.mockReturnValue('visible'); document.dispatchEvent(new Event('visibilitychange')) }
+      await nextTick()
+      expect(label.value).toBe('tabSearch.meta.minutesAgo')
+      controller.dispose()
+      const timers = vi.getTimerCount()
+      expect(timers).toBe(0)
+      await vi.advanceTimersByTimeAsync(60 * 60_000)
+      expect(label.value).toBe('tabSearch.meta.minutesAgo')
+    } finally { controller.dispose(); visibility.mockRestore(); vi.useRealTimers() }
+  })
+
   it('filters result kinds with text and activates only the selected closed match', async () => {
     const initial = browserState([tab('alpha'), tab('beta', true)])
     initial.closedTabs = [{ id: 'closed-alpha', title: 'Tab alpha', url: 'https://alpha.example', pinned: false, closedAt: '2026-10-08T10:00:00Z' }]

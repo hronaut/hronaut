@@ -62,6 +62,8 @@ function resultKey(result: TabSearchResult): string {
 export function useTabSearchController(options: TabSearchControllerOptions) {
   const input = ref<HTMLInputElement | null>(null)
   const query = ref('')
+  const recencyNow = ref(Date.now())
+  let recencyTimer: ReturnType<typeof setInterval> | null = null
   const resultKind = ref<'all' | 'open' | 'closed' | 'saved'>('all')
   const selection = ref(0)
   const actionPending = ref(false)
@@ -483,7 +485,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   }
 
   function closedTabMeta(tab: BrowserClosedTabState): string {
-    const elapsed = Math.max(0, Date.now() - Date.parse(tab.closedAt))
+    const elapsed = Math.max(0, recencyNow.value - Date.parse(tab.closedAt))
     let closed: string
     if (elapsed < 60_000) closed = options.translate('tabSearch.meta.justNow')
     else if (elapsed < 60 * 60_000) {
@@ -494,6 +496,22 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     }
     return tab.pinned ? `${options.translate('tabSearch.meta.pinned')} · ${closed}` : closed
   }
+
+  function stopRecencyRefresh(): void {
+    if (recencyTimer !== null) clearInterval(recencyTimer)
+    recencyTimer = null
+  }
+
+  const stopRecencyTracking = watch(
+    () => options.open.value && filteredClosedTabs.value.length > 0 && !previewRefreshPaused.value,
+    active => {
+      stopRecencyRefresh()
+      if (!active) return
+      recencyNow.value = Date.now()
+      recencyTimer = setInterval(() => { recencyNow.value = Date.now() }, 60_000)
+    },
+    { immediate: true, flush: 'sync' }
+  )
 
   const stopResultTracking = watch(
     [query, resultKind, resultKeys],
@@ -548,6 +566,8 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     clearPreviews()
     actionToken = null
     actionPending.value = false
+    stopRecencyTracking()
+    stopRecencyRefresh()
     stopResultTracking()
     stopResultKindTracking()
     stopOpenTracking()
