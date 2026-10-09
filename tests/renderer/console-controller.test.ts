@@ -224,6 +224,29 @@ describe('console controller', () => {
     } finally { controller.dispose() }
   })
 
+  it.each(['resolved', 'rejected'] as const)('ignores repeated resume toggles until the pending read is %s', async (outcome) => {
+    const { browser, controller, open } = createController()
+    const pending = deferred<BrowserConsoleMessage[]>()
+    try {
+      open.value = true
+      await vi.waitFor(() => expect(controller.state.value).toBe('ready'))
+      controller.toggleLiveUpdates()
+      browser.listConsoleMessages.mockReturnValueOnce(pending.promise)
+      controller.toggleLiveUpdates()
+      expect(controller.state.value).toBe('loading')
+      const calls = browser.listConsoleMessages.mock.calls.length
+      controller.toggleLiveUpdates()
+      controller.toggleLiveUpdates()
+      expect(controller.liveUpdatesPaused.value).toBe(false)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(calls)
+      if (outcome === 'resolved') pending.resolve([message('fresh')])
+      else pending.reject(new Error('read failed'))
+      await vi.waitFor(() => expect(controller.state.value).toBe(outcome === 'resolved' ? 'ready' : 'error'))
+      controller.toggleLiveUpdates()
+      expect(controller.liveUpdatesPaused.value).toBe(true)
+    } finally { controller.dispose() }
+  })
+
   it('allows one explicit read or Clear while paused and discloses the frozen copy scope', async () => {
     vi.useFakeTimers()
     const { browser, controller, open, copyText } = createController()
