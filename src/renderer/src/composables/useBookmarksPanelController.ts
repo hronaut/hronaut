@@ -36,11 +36,11 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   let actionGeneration = 0
 
   const filteredBookmarks = computed(() => {
-    const normalized = query.value.trim().toLocaleLowerCase()
-    const matching = !normalized ? options.bookmarks.value : options.bookmarks.value.filter((bookmark) => (
-      bookmark.title.toLocaleLowerCase().includes(normalized)
-      || bookmark.url.toLocaleLowerCase().includes(normalized)
-    ))
+    const terms = query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
+    const matching = !terms.length ? options.bookmarks.value : options.bookmarks.value.filter(bookmark => {
+      const text = `${bookmark.title}\n${bookmark.url}`.toLocaleLowerCase()
+      return terms.every(term => text.includes(term))
+    })
     return sortOrder.value === 'title'
       ? [...matching].sort((left, right) => titleCollator.value.compare(left.title, right.title))
       : matching

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Search bookmarks using multiple words across a saved title and address, within the selected collection and sort order.
+
 ## [2.26.0] - 2026-10-09
 
 ### Added

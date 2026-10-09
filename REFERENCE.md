@@ -334,6 +334,8 @@ The same native tab menu can reload, mute, or duplicate a tab while preserving i
 
 ## Save local bookmarks
 
+Human bookmark search matches every whitespace-separated word, case-insensitively, across each saved title and address. Words can appear in either field and in any order; punctuation is literal. Search stays within the selected collection and does not change stored bookmarks or the MCP search contract.
+
 The human Bookmarks panel defaults to **Recently updated**. Choose **Title** under **Sort bookmarks** for language-aware alphabetical ordering with natural number order (Page 2 before Page 10); equivalent titles retain their existing order. Sorting works within search and collection filters, updates after renames, and preserves the focused control when its row moves. The choice survives panel close/reopen for the current application session and resets on restart. It changes only the displayed list, leaving stored bookmarks and the MCP list order unchanged.
 
 Choose **Copy address** beside a saved bookmark to copy its stored URL without opening or editing it. Search and collection filters remain selected. Clipboard failures show a retryable message; changing the panel context clears obsolete feedback.
