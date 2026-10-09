@@ -54,6 +54,16 @@ it.each([
   ['CAMERA', 1],
   ['geolocation', 1],
   ['localhost:4173', 1],
+  ['example.test camera', 1],
+  [' CAMERA   EXAMPLE.TEST ', 1],
+  ['example.test geolocation', 1],
+  ['example.test camera media', 1],
+  ['localhost:4173 notifications', 1],
+  ['localhost:4173 location', 0],
+  ['example.test notifications', 0],
+  ['example.test deny', 0],
+  ['example.test [a-z]', 0],
+  ['   ', 3],
   ['[a-z]', 0]
 ] as const)('filters saved decisions by literal origin or permission query %s', async (query, count) => {
   const { api, controller } = renderPanel(searchablePermissions)
@@ -95,7 +105,7 @@ it('distinguishes no matches from an empty store and updates matches without ste
 it('edits only a visible matching decision and keeps hidden decisions intact', async () => {
   const { api, controller } = renderPanel(searchablePermissions)
   const user = userEvent.setup()
-  await user.type(screen.getByRole('searchbox'), 'camera')
+  await user.type(screen.getByRole('searchbox'), 'example.test camera')
   await user.selectOptions(screen.getByRole('combobox'), 'allow')
   expect(api.set).toHaveBeenCalledExactlyOnceWith('https://example.test', 'media', 'allow')
   expect(controller.entries.value.find(entry => entry.permission === 'media')?.decision).toBe('allow')
@@ -110,11 +120,11 @@ it('keeps a newer search focused when a hidden pending Forget completes', async 
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Forget Location permission for https://example.test' }))
   const search = screen.getByRole('searchbox')
-  await user.type(search, 'camera')
+  await user.type(search, 'example.test camera')
   pending.resolve(true)
   await vi.waitFor(() => expect(controller.entries.value).toHaveLength(2))
   expect(search).toHaveFocus()
-  expect(search).toHaveValue('camera')
+  expect(search).toHaveValue('example.test camera')
   expect(screen.getByRole('status')).toHaveTextContent('1 of 2 saved decisions')
   controller.dispose()
 })
@@ -122,7 +132,7 @@ it('keeps a newer search focused when a hidden pending Forget completes', async 
 it('forgets a filtered decision without removing hidden rows or claiming the store is empty', async () => {
   const { api, controller } = renderPanel(searchablePermissions)
   const user = userEvent.setup()
-  await user.type(screen.getByRole('searchbox'), 'camera')
+  await user.type(screen.getByRole('searchbox'), 'example.test camera')
   await user.click(screen.getByRole('button', { name: 'Forget Camera and microphone permission for https://example.test' }))
   await screen.findByText('No saved decisions match this search.')
   expect(api.remove).toHaveBeenCalledExactlyOnceWith('https://example.test', 'media')
@@ -148,12 +158,12 @@ it('reacts to the localized permission label and keeps raw permission-name searc
   const { controller, i18n } = renderPanel([{ ...locationPermission, permission: 'media' }])
   const user = userEvent.setup()
   const search = screen.getByRole('searchbox')
-  await user.type(search, 'Camera')
+  await user.type(search, 'example.test Camera')
   expect(screen.getAllByRole('combobox')).toHaveLength(1)
   i18n.global.locale.value = 'de-DE'
   await vi.waitFor(() => expect(screen.queryAllByRole('combobox')).toHaveLength(0))
   await user.clear(search)
-  await user.type(search, controller.permissionLabel('media'))
+  await user.type(search, `example.test ${controller.permissionLabel('media')}`)
   expect(screen.getAllByRole('combobox')).toHaveLength(1)
   await user.clear(search)
   await user.type(search, 'media')
