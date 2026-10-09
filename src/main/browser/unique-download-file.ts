@@ -30,6 +30,7 @@ export async function writeUniqueDownloadFile(
       await handle.writeFile(data)
       validate()
       await handle.close()
+      validate()
       return candidate
     } catch (error) {
       await handle.close().catch(() => undefined)

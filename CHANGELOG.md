@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Remove a cancelled video export if its authorization changes while the output file is closing, while preserving an observed replacement file.
+
 ### Added
 
 - Sort human browsing history by most visited within search, date and origin filters, with keyboard focus retained through live visit updates.

@@ -70,6 +70,38 @@ describe('unique export file writer', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
+  it.each([false, true])('cleans up a cancelled export after close, preserving a replacement: %s', async replacement => {
+    const directory = await fixture()
+    const path = join(directory, 'recording.webm')
+    const moved = join(directory, 'moved.webm')
+    const failure = new Error('export cancelled during close')
+    let current = true
+    vi.mocked(open).mockImplementationOnce(async (file, flags, mode) => {
+      const handle = await actualFs.open(file, flags, mode)
+      const close = handle.close.bind(handle)
+      vi.spyOn(handle, 'close').mockImplementationOnce(async () => {
+        await close()
+        if (replacement) {
+          await actualFs.rename(path, moved)
+          await writeFile(path, 'replacement contents')
+        }
+        current = false
+      })
+      return handle
+    })
+
+    await expect(writeUniqueDownloadFile(directory, 'recording.webm', Buffer.from('video'), () => {
+      if (!current) throw failure
+    })).rejects.toBe(failure)
+    if (replacement) {
+      expect(await readFile(path, 'utf8')).toBe('replacement contents')
+      expect(await readFile(moved, 'utf8')).toBe('video')
+    } else {
+      expect(await readdir(directory)).toEqual([])
+      expect(await writeUniqueDownloadFile(directory, 'recording.webm', Buffer.from('retry'))).toBe(path)
+    }
+  })
+
   it('preserves a replacement file when the partial export was moved during a failed write', async () => {
     const directory = await fixture()
     const path = join(directory, 'page.pdf')
