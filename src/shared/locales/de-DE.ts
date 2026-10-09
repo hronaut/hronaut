@@ -2224,6 +2224,8 @@ export const deDE = {
       "safety": "Bekannte Geheimnisfelder sowie binäre und Multipart-Texte werden ausgelassen. Prüfe beliebigen Text vor der Freigabe."
     },
     "details": {
+      "copyResponseBody": "Bereinigten Antworttext kopieren",
+      "copiedResponseBody": "Antworttext kopiert",
       "responseSource": "Antwortquelle",
       "workerResponse": "Worker-Antwort",
       "cacheName": "Cache-Storage-Name",

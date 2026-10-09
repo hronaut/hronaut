@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
@@ -13,6 +13,8 @@ import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type {
   BrowserAccessibilityAudit,
   BrowserConsoleMessage,
+  BrowserNetworkBody,
+  BrowserNetworkRequestDetails,
   BrowserNetworkSearchResult,
   BrowserStorageChangesReport,
   BrowserStorageUsageReport,
@@ -183,6 +185,48 @@ describe('extracted diagnostic panels', () => {
     expect(view.emitted()['update:dock']?.at(-1)).toEqual(['bottom'])
     expect(controller.qualityAuditPanelOpen.value).toBe(false)
     controller.dispose()
+  })
+
+  it.each([
+    { available: true, text: 'safe prefix\n[truncated after 20000 characters]', truncated: true, redacted: true },
+    { available: true, text: '' },
+    { available: false, reason: 'Response is no longer available' },
+    { available: true }
+  ] satisfies BrowserNetworkBody[])('copies exactly the displayed response when available: %j', async body => {
+    const details: BrowserNetworkRequestDetails = {
+      id: 'response-copy', url: 'https://example.test/api', method: 'GET', resourceType: 'fetch',
+      startedAt: '2026-08-21T12:00:00.000Z', status: 200, detailsAvailable: true,
+      request: { headers: {} }, response: { headers: {}, body }
+    }
+    const getNetworkRequestDetails = vi.fn(async () => details)
+    vi.stubGlobal('hronaut', { listNetworkRequests: vi.fn(async () => [details]), getNetworkRequestDetails })
+    const copyText = vi.fn(async () => true)
+    const view = render(NetworkPanel, {
+      global,
+      props: {
+        open: true, dock: 'right', activeTab: activeTab(), locale: 'en-US', copyText,
+        syncState: vi.fn(async (operation: Promise<unknown>) => { await operation }),
+        preservationBusy: false, updatePreservation: vi.fn(), keepsSeparatePanelOpen: () => false
+      }
+    })
+    try {
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('button', { name: 'Refresh network requests' }))
+      await user.click(await within(screen.getByRole('listbox', { name: 'Network requests' })).findByRole('option'))
+      await user.click(await screen.findByText('Response body'))
+      const button = screen.getByRole('button', { name: 'Copy sanitized response body' })
+      if (body.available && typeof body.text === 'string') {
+        expect(button).toBeEnabled()
+        await user.click(button)
+        expect(copyText).toHaveBeenCalledExactlyOnceWith(body.text)
+        expect(screen.getByRole('button', { name: 'Copied response body' })).toBeVisible()
+      } else {
+        expect(button).toBeDisabled()
+        await user.click(button)
+        expect(copyText).not.toHaveBeenCalled()
+      }
+      expect(getNetworkRequestDetails).toHaveBeenCalledOnce()
+    } finally { view.unmount(); vi.unstubAllGlobals() }
   })
 
   it('owns the Network panel shell and content-search disclosure', async () => {

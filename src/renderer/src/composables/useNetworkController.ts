@@ -57,6 +57,7 @@ type NetworkBrowserApi = Pick<
 >
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
+type NetworkDetailsCopyFormat = 'json' | 'response' | BrowserNetworkRequestCopyFormat
 
 export interface NetworkControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -75,7 +76,10 @@ export function useNetworkController(options: NetworkControllerOptions) {
   const selectedRequestId = ref<string | null>(null)
   const requestDetailsLoading = ref(false)
   const monitorError = ref('')
-  const detailsCopied = ref<'json' | BrowserNetworkRequestCopyFormat | null>(null)
+  const detailsCopied = ref<NetworkDetailsCopyFormat | null>(null)
+  const canCopyResponseBody = computed(() => !requestDetailsLoading.value
+    && requestDetails.value?.response.body.available === true
+    && typeof requestDetails.value.response.body.text === 'string')
   const replayState = ref<'idle' | 'confirming' | 'replaying' | 'replayed' | 'error'>('idle')
   const replayMessage = ref('')
   const search = ref('')
@@ -542,16 +546,21 @@ export function useNetworkController(options: NetworkControllerOptions) {
     await selectRequest(request)
   }
 
-  async function copyDetails(format: 'json' | BrowserNetworkRequestCopyFormat = 'json'): Promise<void> {
+  async function copyDetails(format: NetworkDetailsCopyFormat = 'json'): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || !requestDetails.value) return
+    if (format === 'response' && !canCopyResponseBody.value) return
     const expectedGeneration = generation
     const sequence = ++detailsCopySequence
     monitorError.value = ''
+    detailsCopied.value = null
+    feedbackTimers.clear('details')
     try {
       const text = format === 'json'
         ? JSON.stringify(requestDetails.value, null, 2)
-        : formatNetworkRequestCopy(requestDetails.value, format)
+        : format === 'response'
+          ? requestDetails.value.response.body.text!
+          : formatNetworkRequestCopy(requestDetails.value, format)
       if (!await options.copyText(text)) return
       if (
         sequence !== detailsCopySequence
@@ -757,6 +766,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     requestDetailsLoading,
     monitorError,
     detailsCopied,
+    canCopyResponseBody,
     replayState,
     replayMessage,
     search,
