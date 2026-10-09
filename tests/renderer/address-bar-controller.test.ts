@@ -553,6 +553,43 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('saved')
   })
 
+  for (const closeWith of ['Escape', 'dismissal'] as const) {
+    for (const key of ['ArrowDown', 'ArrowUp'] as const) {
+      it.each(['dismissal', 'selection'] as const)(`rejects a stale %s when ${key} reopens after ${closeWith}`, async stale => {
+        const rendered = createHarness({
+          activeTab: tab('blank', 'about:blank'),
+          bookmarks: ['first', 'second'].map(id => ({ id, title: id, url: `https://${id}.example/`, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }))
+        })
+        const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+        await fireEvent.focus(input)
+        await fireEvent.keyDown(input, { key: 'ArrowDown' })
+        await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+        const previous = rendered.overlay.show.mock.calls.at(-1)![0]
+        if (closeWith === 'Escape') await fireEvent.keyDown(input, { key: 'Escape' })
+        else rendered.dismissOverlay(previous.sessionId)
+        await nextTick()
+        const shown = rendered.overlay.show.mock.calls.length
+        await fireEvent.keyDown(input, { key })
+        await waitFor(() => expect(rendered.overlay.show.mock.calls.length).toBeGreaterThan(shown))
+        const reopened = rendered.overlay.show.mock.calls.at(-1)![0]
+        if (stale === 'dismissal') rendered.dismissOverlay(previous.sessionId)
+        else rendered.selectOverlay(previous.suggestions[0].id, previous.sessionId)
+        await nextTick()
+        expect(rendered.onNavigate).not.toHaveBeenCalled()
+        expect(rendered.controller.open.value).toBe(true)
+        expect(reopened.sessionId).not.toBe(previous.sessionId)
+        const index = key === 'ArrowDown' ? 0 : reopened.suggestions.length - 1
+        expect(reopened.selectedIndex).toBe(index)
+        // Moving within the new popup retains its session and updates selection.
+        await fireEvent.keyDown(input, { key })
+        expect(rendered.overlay.show.mock.calls.at(-1)![0].sessionId).toBe(reopened.sessionId)
+        rendered.selectOverlay(reopened.suggestions[index].id, reopened.sessionId)
+        await nextTick()
+        expect(rendered.onNavigate).toHaveBeenCalledExactlyOnceWith(reopened.suggestions[index].url)
+      })
+    }
+  }
+
   it('rolls back the selected listener when dismissed-listener registration fails', () => {
     const unsubscribeSelected = vi.fn()
     const registrationError = new Error('dismissed listener unavailable')
