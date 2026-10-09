@@ -47,13 +47,12 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
   ))
 
   const filteredWebsites = computed(() => {
-    const query = search.value.trim().toLocaleLowerCase()
-    if (!query) return websites.value
-    return websites.value.filter((site) => (
-      site.hostname.toLocaleLowerCase().includes(query)
-      || site.origin.toLocaleLowerCase().includes(query)
-      || site.title.toLocaleLowerCase().includes(query)
-    ))
+    const terms = search.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
+    if (!terms.length) return websites.value
+    return websites.value.filter(site => {
+      const text = `${site.hostname}\n${site.origin}\n${site.title}`.toLocaleLowerCase()
+      return terms.every(term => text.includes(term))
+    })
   })
 
   function errorMessage(error: unknown): string {

@@ -54,6 +54,47 @@ function createController() {
 }
 
 describe('privacy settings controller', () => {
+  it.each([
+    ['example.test report', ['https://example.test']],
+    [' REPORT   EXAMPLE.TEST ', ['https://example.test']],
+    ['https://example.test [v2]', ['https://example.test']],
+    ['report [v2]', ['https://example.test']],
+    ['example.test unrelated', []],
+    ['other.test report', []],
+    ['example.test 999', []],
+    ['example.test [a-z]', []],
+    ['report', ['https://example.test']],
+    ['   ', ['https://example.test', 'https://other.test']]
+  ])('matches website search terms within one retained site: %s', (query, origins) => {
+    const { api, confirm, controller } = createController()
+    const sites = [
+      { ...website('example.test'), title: 'Quarterly report [v2]', historyVisits: 999 },
+      { ...website('other.test'), title: 'Unrelated documentation' }
+    ]
+    controller.websites.value = sites
+    controller.search.value = query
+    expect(controller.filteredWebsites.value.map(site => site.origin)).toEqual(origins)
+    expect(controller.websites.value).toEqual(sites)
+    expect(api.clear).not.toHaveBeenCalled()
+    expect(api.websites).not.toHaveBeenCalled()
+    expect(confirm).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it.each(['site', 'all'])('preserves the explicit %s clear scope while search hides another site', async scope => {
+    const { api, confirm, controller } = createController()
+    const target = { ...website('example.test'), title: 'Quarterly report' }
+    controller.websites.value = [target, website('other.test')]
+    controller.search.value = 'example.test report'
+    expect(controller.filteredWebsites.value).toEqual([target])
+    if (scope === 'site') await controller.clearWebsite(controller.filteredWebsites.value[0])
+    else await controller.clearSelected()
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(api.clear).toHaveBeenCalledExactlyOnceWith(scope === 'site'
+      ? { history: true, origin: target.origin } : { history: true })
+    controller.dispose()
+  })
+
   it('ignores an older website refresh that finishes after a newer refresh', async () => {
     const first = deferred<BrowsingDataWebsiteSummary[]>()
     const { api, controller } = createController()

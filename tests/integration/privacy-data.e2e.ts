@@ -11,6 +11,14 @@ test('clears global history while preserving workspace storage and retained reco
   if (!address || typeof address === 'string') throw new Error('Missing fixture address')
   const origin = `http://127.0.0.1:${address.port}`
   const url = `${origin}/history`
+  const otherServer = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<title>Unrelated documentation</title>')
+  })
+  await new Promise<void>(resolve => otherServer.listen(0, '127.0.0.1', resolve))
+  const otherAddress = otherServer.address()
+  if (!otherAddress || typeof otherAddress === 'string') throw new Error('Missing second fixture address')
+  const otherUrl = `http://127.0.0.1:${otherAddress.port}/other`
   try {
     const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as { activeTabId: string }
     await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toMatchObject([{ url }])
@@ -22,13 +30,29 @@ test('clears global history while preserving workspace storage and retained reco
     await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(origin)}, 'notifications', 'deny')`)
     await expect.poll(() => appWindow.evaluate(`window.hronautBrowsingData.siteSummary(${JSON.stringify(url)}, ${JSON.stringify(state.activeTabId)})`)).toMatchObject({ cookieCount: 1, historyEntries: 1 })
     expect(await appWindow.evaluate(`window.hronautBrowsingData.siteSummary(${JSON.stringify(url)}).catch(error => error.message)`)).toContain('Tab ID is required')
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(otherUrl)}, active: false })`)
+    await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(2)
     await appWindow.keyboard.press('Control+Shift+Delete')
     const dialog = appWindow.getByRole('tabpanel', { name: 'Settings' })
     await expect(dialog.getByRole('heading', { name: 'Global history', exact: true })).toBeVisible()
     await expect(dialog.getByRole('checkbox')).toHaveCount(1)
     await expect(dialog.getByText('Global history & legacy data')).toHaveCount(0)
+    const search = dialog.getByRole('searchbox', { name: 'Search websites', exact: true })
+    await search.fill(`unrelated ${origin}`)
+    await expect(dialog.locator('.janitor-site')).toHaveCount(0)
+    await search.fill(` HISTORY   ${origin.toUpperCase()} `)
+    await expect(dialog.locator('.janitor-site')).toHaveCount(1)
+    await expect(dialog.getByRole('button', { name: `Clear history for ${origin}`, exact: true })).toBeVisible()
+    await expect(search).toBeFocused()
+    expect(await appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(2)
     appWindow.once('dialog', confirmation => { void confirmation.accept() })
     await dialog.getByRole('button', { name: `Clear history for ${origin}` }).click()
+    await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toMatchObject([{ url: otherUrl }])
+    await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toHaveLength(1)
+    await expect(dialog.locator('.janitor-site')).toHaveCount(0)
+    await expect(search).toHaveValue(` HISTORY   ${origin.toUpperCase()} `)
+    appWindow.once('dialog', confirmation => { void confirmation.accept() })
+    await dialog.getByRole('button', { name: 'Clear history… (1)', exact: true }).click()
     await expect.poll(() => appWindow.evaluate('window.hronautBrowsingData.summary()')).toMatchObject({ historyEntries: 0, bookmarkCount: 1, permissionDecisionCount: 1 })
     expect(await electronApp.evaluate(async ({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
@@ -38,5 +62,8 @@ test('clears global history while preserving workspace storage and retained reco
     await dialog.getByRole('button', { name: 'Close settings' }).click()
     await appWindow.getByRole('button', { name: 'Site controls for 127.0.0.1' }).click()
     await expect(appWindow.getByRole('dialog', { name: '127.0.0.1' }).getByRole('button', { name: 'Site storage', exact: true })).toBeVisible()
-  } finally { await closeFixtureServer(server) }
+  } finally {
+    await closeFixtureServer(server)
+    await closeFixtureServer(otherServer)
+  }
 })

@@ -76,6 +76,8 @@ Open **Settings → Search engine** to choose Google, DuckDuckGo, Bing, Brave Se
 
 Open **Settings → Workspaces & data** to review active and archived workspaces, manage one workspace, or copy selected cookies and local storage between two workspaces. Moving data requires both workspaces archived. The **Global history** section clears application-wide browsing history for one origin or all origins. It preserves bookmarks, saved passwords, permissions, downloads, settings, open tabs, and workspace website data.
 
+Under **Visited websites**, **Search websites** matches every whitespace-separated word across one site's hostname, full origin and retained title, in any order. Matching is literal and case-insensitive. Filtering only changes the visible list: a row's clear action still targets its exact origin, while **Clear history…** still clears all history, including hidden sites.
+
 The website inventory combines history, open tabs, bookmarks, saved accounts, and permission decisions. Website-scoped history clearing matches the exact origin.
 
 For the current page, open **Site controls** at the left of the address. It shows cookies from that tab's isolated workspace, exact-origin history, and saved permission decisions. **Site storage** opens the inspector for that workspace. Use its website-data controls to clear cookies, local storage, IndexedDB, service workers, caches, or other site storage within that workspace.
