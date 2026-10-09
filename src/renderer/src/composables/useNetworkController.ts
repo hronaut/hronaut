@@ -57,7 +57,7 @@ type NetworkBrowserApi = Pick<
 >
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
-type NetworkDetailsCopyFormat = 'json' | 'response' | BrowserNetworkRequestCopyFormat
+type NetworkDetailsCopyFormat = 'json' | 'response' | 'url' | BrowserNetworkRequestCopyFormat
 
 export interface NetworkControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -567,7 +567,9 @@ export function useNetworkController(options: NetworkControllerOptions) {
         ? JSON.stringify(requestDetails.value, null, 2)
         : format === 'response'
           ? requestDetails.value.response.body.text!
-          : formatNetworkRequestCopy(requestDetails.value, format)
+          : format === 'url'
+            ? requestDetails.value.url
+            : formatNetworkRequestCopy(requestDetails.value, format)
       if (!await options.copyText(text)) return
       if (
         sequence !== detailsCopySequence

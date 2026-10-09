@@ -2228,6 +2228,8 @@ export const esES = {
       "safety": "Se omiten campos secretos conocidos, cuerpos binarios y cuerpos multipart. Revisa cualquier texto antes de compartirlo."
     },
     "details": {
+      "copyUrl": "Copiar URL saneada",
+      "copiedUrl": "URL copiada",
       "copyResponseBody": "Copiar cuerpo de respuesta saneado",
       "copiedResponseBody": "Cuerpo de respuesta copiado",
       "responseSource": "Origen de la respuesta",

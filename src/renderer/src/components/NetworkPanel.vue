@@ -413,6 +413,11 @@ onBeforeUnmount(dispose)
                           ? t('network.details.replayed')
                           : t('network.details.replay') }}
                   </UiButton>
+                  <UiButton appearance="application" type="button" @click="copySanitizedNetworkDetails('url')">
+                    <IconCheck v-if="networkDetailsCopied === 'url'" aria-hidden="true" />
+                    <IconCopy v-else aria-hidden="true" />
+                    {{ networkDetailsCopied === 'url' ? t('network.details.copiedUrl') : t('network.details.copyUrl') }}
+                  </UiButton>
                   <UiButton appearance="application" type="button" @click="copySanitizedNetworkDetails('json')">
                     <IconCheck v-if="networkDetailsCopied === 'json'" aria-hidden="true" />
                     <IconCode v-else aria-hidden="true" />

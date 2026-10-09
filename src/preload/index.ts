@@ -1,5 +1,6 @@
 import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
 import { contextBridge, ipcRenderer } from 'electron'
+import { createPanelRequestBuffer } from './panel-requests.js'
 import type {
   AppSettings,
   LanguagePreference,
@@ -492,17 +493,15 @@ const updatesApi: HronautUpdatesApi = {
 }
 
 contextBridge.exposeInMainWorld('hronautUpdates', updatesApi)
+const panelRequests = createPanelRequestBuffer()
+ipcRenderer.on('panel-window:show-panel', (_event, panel: DetachablePanelId) => panelRequests.receive(panel))
 const panelWindowApi: HronautPanelWindowApi = {
   open: (panel: DetachablePanelId) => ipcRenderer.invoke('panel-window:open', panel),
   close: () => ipcRenderer.invoke('panel-window:close'),
   setActive: (panel: DetachablePanelId) => ipcRenderer.invoke('panel-window:set-active', panel),
   redock: (panel: DetachablePanelId, dock: Exclude<PanelDock, 'window'>) =>
     ipcRenderer.invoke('panel-window:redock', panel, dock),
-  onPanelRequested: (listener) => {
-    const handler = (_event: Electron.IpcRendererEvent, panel: DetachablePanelId): void => listener(panel)
-    ipcRenderer.on('panel-window:show-panel', handler)
-    return () => ipcRenderer.removeListener('panel-window:show-panel', handler)
-  },
+  onPanelRequested: panelRequests.subscribe,
   onActivePanelChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, panel: DetachablePanelId): void => listener(panel)
     ipcRenderer.on('panel-window:active-panel', handler)

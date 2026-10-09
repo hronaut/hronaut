@@ -712,6 +712,21 @@ describe('network controller', () => {
   })
 
   it.each([
+    'https://example.test/path?q=visible&token=%5BREDACTED%5D',
+    'https://%5BREDACTED%5D:%5BREDACTED%5D@example.test/',
+    'file:///tmp/retained-page.html'
+  ])('copies the displayed URL verbatim without reacquisition or replay: %s', async (url) => {
+    const { browser, controller, copyText } = createController()
+    controller.requestDetails.value = { ...details('copy'), url }
+    await controller.copyDetails('url')
+    expect(copyText).toHaveBeenCalledExactlyOnceWith(url)
+    expect(browser.getNetworkRequestDetails).not.toHaveBeenCalled()
+    expect(browser.replayNetworkRequest).not.toHaveBeenCalled()
+    expect(controller.detailsCopied.value).toBe('url')
+    controller.dispose()
+  })
+
+  it.each([
     '{"visible":"kept","accessToken":"[REDACTED]"}',
     'prefix\n[truncated after 20000 characters]',
     '[binary body omitted]',
@@ -742,12 +757,12 @@ describe('network controller', () => {
     controller.dispose()
   })
 
-  it.each(['selection', 'reset', 'dispose'] as const)('ignores response-copy feedback after %s', async (change) => {
+  it.each((['response', 'url'] as const).flatMap((format) => (['selection', 'reset', 'dispose'] as const).map((change) => ({ format, change }))))('ignores $format-copy feedback after $change', async ({ format, change }) => {
     const pending = deferred<boolean>()
     const { controller, copyText } = createController()
     controller.requestDetails.value = details('older')
     copyText.mockImplementationOnce(() => pending.promise)
-    const operation = controller.copyDetails('response')
+    const operation = controller.copyDetails(format)
     if (change === 'selection') await controller.selectRequest(request('newer'))
     else controller[change]()
     pending.resolve(true)
@@ -756,22 +771,22 @@ describe('network controller', () => {
     controller.dispose()
   })
 
-  it('reports a response clipboard failure without successful copy feedback', async () => {
+  it.each(['response', 'url'] as const)('reports a %s clipboard failure without successful copy feedback', async (format) => {
     const { controller, copyText } = createController()
     controller.requestDetails.value = details('copy')
     copyText.mockRejectedValueOnce(new Error('Clipboard unavailable'))
-    await controller.copyDetails('response')
+    await controller.copyDetails(format)
     expect(controller.monitorError.value).toBe('Clipboard unavailable')
     expect(controller.detailsCopied.value).toBeNull()
     controller.dispose()
   })
 
-  it('keeps newer JSON copy feedback when an older response copy completes', async () => {
+  it.each(['response', 'url'] as const)('keeps newer JSON copy feedback when an older %s copy completes', async (format) => {
     const pending = deferred<boolean>()
     const { controller, copyText } = createController()
     controller.requestDetails.value = details('copy')
     copyText.mockImplementationOnce(() => pending.promise)
-    const older = controller.copyDetails('response')
+    const older = controller.copyDetails(format)
     await controller.copyDetails('json')
     pending.resolve(true)
     await older
@@ -779,18 +794,18 @@ describe('network controller', () => {
     controller.dispose()
   })
 
-  it('clears previous response success when another clipboard write is refused', async () => {
+  it.each(['response', 'url'] as const)('clears previous %s success when another clipboard write is refused', async (format) => {
     const { controller, copyText } = createController()
     controller.requestDetails.value = details('copy')
-    await controller.copyDetails('response')
-    expect(controller.detailsCopied.value).toBe('response')
+    await controller.copyDetails(format)
+    expect(controller.detailsCopied.value).toBe(format)
     copyText.mockResolvedValueOnce(false)
-    await controller.copyDetails('response')
+    await controller.copyDetails(format)
     expect(controller.detailsCopied.value).toBeNull()
     controller.dispose()
   })
 
-  it.each(['curl', 'response'] as const)('restarts copied feedback when %s is copied again', async (format) => {
+  it.each(['curl', 'response', 'url'] as const)('restarts copied feedback when %s is copied again', async (format) => {
     vi.useFakeTimers()
     const { controller } = createController()
     controller.requestDetails.value = details('copy')

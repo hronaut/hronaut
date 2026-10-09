@@ -2228,6 +2228,8 @@ export const deDE = {
       "safety": "Bekannte Geheimnisfelder sowie binäre und Multipart-Texte werden ausgelassen. Prüfe beliebigen Text vor der Freigabe."
     },
     "details": {
+      "copyUrl": "Bereinigte URL kopieren",
+      "copiedUrl": "URL kopiert",
       "copyResponseBody": "Bereinigten Antworttext kopieren",
       "copiedResponseBody": "Antworttext kopiert",
       "responseSource": "Antwortquelle",

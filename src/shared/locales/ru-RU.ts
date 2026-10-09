@@ -2228,6 +2228,8 @@ export const ruRU = {
       "safety": "Известные поля секретов, двоичные и multipart-тела исключены. Проверяйте произвольный текст перед публикацией."
     },
     "details": {
+      "copyUrl": "Копировать очищенный URL",
+      "copiedUrl": "URL скопирован",
       "copyResponseBody": "Копировать очищенное тело ответа",
       "copiedResponseBody": "Тело ответа скопировано",
       "responseSource": "Источник ответа",
