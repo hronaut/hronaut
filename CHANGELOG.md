@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Identify HTTP(S) downloads by their retained download origin directly in the Downloads list, without displaying URL credentials, paths, query strings, or fragments.
 
+### Documentation
+
+- Clarify when a final Repro checkpoint replaces the exported assertion TODO, with a short workflow for turning an intended result into a regression test.
+
 ## [2.22.0] - 2026-10-09
 
 ### Added
