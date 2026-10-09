@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import SitePermissionsSettingsPanel from '../../src/renderer/src/components/SitePermissionsSettingsPanel.vue'
 import { useSitePermissionsController } from '../../src/renderer/src/composables/useSitePermissionsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { SitePermissionEntry } from '../../src/shared/types.js'
+import type { SitePermissionEntry, SupportedLocale } from '../../src/shared/types.js'
 
 const locationPermission: SitePermissionEntry = {
   origin: 'https://example.test',
@@ -19,10 +19,12 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function renderPanel(entries = [locationPermission]) {
+function renderPanel(entries = [locationPermission], locale: SupportedLocale = 'en-US') {
+  const i18n = createHronautI18n(locale)
   const api = {
-    set: vi.fn(async (_origin: string, _name: string, decision: 'allow' | 'deny') => ({
-      ...locationPermission,
+    set: vi.fn(async (origin: string, permission: string, decision: 'allow' | 'deny') => ({
+      origin,
+      permission,
       decision
     })),
     remove: vi.fn(async () => true),
@@ -31,15 +33,133 @@ function renderPanel(entries = [locationPermission]) {
   const controller = useSitePermissionsController({
     api,
     onError: vi.fn(),
-    translate: (key) => key === 'runtime.permissions.location' ? 'Location' : key
+    translate: (key) => i18n.global.t(key)
   })
   controller.replace(entries)
   const view = render(SitePermissionsSettingsPanel, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [i18n] },
     props: { controller }
   })
-  return { api, controller, view }
+  return { api, controller, view, i18n }
 }
+
+const searchablePermissions: SitePermissionEntry[] = [
+  locationPermission,
+  { ...locationPermission, permission: 'media', decision: 'deny' },
+  { ...locationPermission, origin: 'http://localhost:4173', permission: 'notifications' }
+]
+
+it.each([
+  [' EXAMPLE.TEST ', 2],
+  ['CAMERA', 1],
+  ['geolocation', 1],
+  ['localhost:4173', 1],
+  ['[a-z]', 0]
+] as const)('filters saved decisions by literal origin or permission query %s', async (query, count) => {
+  const { api, controller } = renderPanel(searchablePermissions)
+  const user = userEvent.setup()
+  const search = screen.getByRole('searchbox', { name: 'Search saved site permissions' })
+  await user.click(search)
+  await user.paste(query)
+  expect(screen.queryAllByRole('combobox')).toHaveLength(count)
+  expect(screen.getByRole('status')).toHaveTextContent(`${count} of 3 saved decisions`)
+  expect(search).toHaveFocus()
+  expect(controller.entries.value).toHaveLength(3)
+  expect(api.set).not.toHaveBeenCalled()
+  expect(api.remove).not.toHaveBeenCalled()
+  expect(api.clear).not.toHaveBeenCalled()
+  await user.clear(search)
+  expect(screen.getAllByRole('combobox')).toHaveLength(3)
+  controller.dispose()
+})
+
+it('distinguishes no matches from an empty store and updates matches without stealing search focus', async () => {
+  const { controller } = renderPanel(searchablePermissions)
+  const user = userEvent.setup()
+  const search = screen.getByRole('searchbox', { name: 'Search saved site permissions' })
+  await user.type(search, 'new.example.test')
+  expect(screen.getByText('No saved decisions match this search.')).toBeVisible()
+  expect(screen.queryByText('No saved decisions', { exact: true })).not.toBeInTheDocument()
+  const added = { ...locationPermission, origin: 'https://new.example.test' }
+  controller.replace([...searchablePermissions, added])
+  await vi.waitFor(() => expect(screen.getByRole('combobox')).toHaveAccessibleName('Location permission for https://new.example.test'))
+  expect(screen.getByRole('status')).toHaveTextContent('1 of 4 saved decisions')
+  expect(search).toHaveFocus()
+  controller.replace(searchablePermissions)
+  await screen.findByText('No saved decisions match this search.')
+  expect(search).toHaveValue('new.example.test')
+  expect(search).toHaveFocus()
+  controller.dispose()
+})
+
+it('edits only a visible matching decision and keeps hidden decisions intact', async () => {
+  const { api, controller } = renderPanel(searchablePermissions)
+  const user = userEvent.setup()
+  await user.type(screen.getByRole('searchbox'), 'camera')
+  await user.selectOptions(screen.getByRole('combobox'), 'allow')
+  expect(api.set).toHaveBeenCalledExactlyOnceWith('https://example.test', 'media', 'allow')
+  expect(controller.entries.value.find(entry => entry.permission === 'media')?.decision).toBe('allow')
+  expect(controller.entries.value.filter(entry => entry.permission !== 'media')).toEqual(expect.arrayContaining([searchablePermissions[0], searchablePermissions[2]]))
+  controller.dispose()
+})
+
+it('keeps a newer search focused when a hidden pending Forget completes', async () => {
+  const pending = deferred<boolean>()
+  const { api, controller } = renderPanel(searchablePermissions)
+  api.remove.mockImplementationOnce(() => pending.promise)
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Forget Location permission for https://example.test' }))
+  const search = screen.getByRole('searchbox')
+  await user.type(search, 'camera')
+  pending.resolve(true)
+  await vi.waitFor(() => expect(controller.entries.value).toHaveLength(2))
+  expect(search).toHaveFocus()
+  expect(search).toHaveValue('camera')
+  expect(screen.getByRole('status')).toHaveTextContent('1 of 2 saved decisions')
+  controller.dispose()
+})
+
+it('forgets a filtered decision without removing hidden rows or claiming the store is empty', async () => {
+  const { api, controller } = renderPanel(searchablePermissions)
+  const user = userEvent.setup()
+  await user.type(screen.getByRole('searchbox'), 'camera')
+  await user.click(screen.getByRole('button', { name: 'Forget Camera and microphone permission for https://example.test' }))
+  await screen.findByText('No saved decisions match this search.')
+  expect(api.remove).toHaveBeenCalledExactlyOnceWith('https://example.test', 'media')
+  expect(screen.getByRole('status')).toHaveTextContent('0 of 2 saved decisions')
+  expect(screen.getByRole('heading', { name: 'Site permissions' })).toHaveFocus()
+  expect(controller.entries.value).toEqual(expect.arrayContaining([searchablePermissions[0], searchablePermissions[2]]))
+  controller.dispose()
+})
+
+it('keeps section reset scoped to all saved decisions while a search is active', async () => {
+  const { api, controller } = renderPanel(searchablePermissions)
+  await userEvent.setup().type(screen.getByRole('searchbox'), 'camera')
+  await controller.clear()
+  await screen.findByText('No saved decisions', { exact: true })
+  expect(api.clear).toHaveBeenCalledOnce()
+  expect(controller.entries.value).toEqual([])
+  expect(screen.getByRole('searchbox')).toHaveValue('camera')
+  expect(screen.getByRole('status')).toHaveTextContent('0 of 0 saved decisions')
+  controller.dispose()
+})
+
+it('reacts to the localized permission label and keeps raw permission-name search available', async () => {
+  const { controller, i18n } = renderPanel([{ ...locationPermission, permission: 'media' }])
+  const user = userEvent.setup()
+  const search = screen.getByRole('searchbox')
+  await user.type(search, 'Camera')
+  expect(screen.getAllByRole('combobox')).toHaveLength(1)
+  i18n.global.locale.value = 'de-DE'
+  await vi.waitFor(() => expect(screen.queryAllByRole('combobox')).toHaveLength(0))
+  await user.clear(search)
+  await user.type(search, controller.permissionLabel('media'))
+  expect(screen.getAllByRole('combobox')).toHaveLength(1)
+  await user.clear(search)
+  await user.type(search, 'media')
+  expect(screen.getAllByRole('combobox')).toHaveLength(1)
+  controller.dispose()
+})
 
 describe('SitePermissionsSettingsPanel', () => {
   it('renders grouped permission decisions through the extracted controller', () => {

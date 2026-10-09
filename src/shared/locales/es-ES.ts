@@ -378,6 +378,9 @@ export const esES = {
       capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
+      "search": "Buscar permisos de sitios guardados",
+      "searchSummary": "{visible} de {total} decisiones guardadas",
+      "noMatches": "Ninguna decisión guardada coincide con esta búsqueda.",
       "heading": "Permisos de sitios",
       "description": "Revisa las decisiones de acceso recordadas para cada sitio.",
       "emptyHeading": "No hay decisiones guardadas",

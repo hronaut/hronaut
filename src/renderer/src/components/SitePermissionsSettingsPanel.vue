@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import UiIconButton from "../ui/UiIconButton.vue"
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
-import type { SitePermissionDecision, SitePermissionEntry } from '../../../shared/types'
+import IconSearch from '~icons/material-symbols/search-rounded'
+import { formatNumber } from '../../../shared/format'
+import type { SitePermissionDecision, SitePermissionEntry, SupportedLocale } from '../../../shared/types'
 import type { SitePermissionsController } from '../composables/useSitePermissionsController'
 
 const props = defineProps<{
   controller: SitePermissionsController
 }>()
 
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const {
   groups,
   clearing,
@@ -24,10 +26,24 @@ const {
 } = props.controller
 
 const panelRoot = ref<HTMLElement | null>(null)
+const search = ref('')
+const filteredGroups = computed(() => {
+  const query = search.value.trim().toLocaleLowerCase(locale.value)
+  if (!query) return groups.value
+  return groups.value.flatMap(group => {
+    const permissions = group.permissions.filter(entry => [
+      group.origin, entry.permission, permissionLabel(entry.permission)
+    ].some(value => value.toLocaleLowerCase(locale.value).includes(query)))
+    return permissions.length ? [{ ...group, permissions }] : []
+  })
+})
+const totalCount = computed(() => groups.value.reduce((sum, group) => sum + group.permissions.length, 0))
+const visibleCount = computed(() => filteredGroups.value.reduce((sum, group) => sum + group.permissions.length, 0))
+const localNumber = (value: number): string => formatNumber(locale.value as SupportedLocale, value)
 
 // Track row identity before Vue removes or moves the focused control. The same
 // path covers Forget and authoritative permission updates across site groups.
-watch(() => groups.value.flatMap(group => group.permissions.map(entry =>
+watch(() => filteredGroups.value.flatMap(group => group.permissions.map(entry =>
   JSON.stringify([entry.origin, entry.permission])
 )).join('\n'), async (_current, _previous, onCleanup) => {
   const panel = panelRoot.value
@@ -69,13 +85,19 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
       <h3 tabindex="-1">{{ t('settings.permissions.heading') }}</h3>
       <p>{{ t('settings.permissions.description') }}</p>
     </div>
+    <label class="settings-search permission-search">
+      <IconSearch aria-hidden="true" />
+      <input v-model="search" type="search" :aria-label="t('settings.permissions.search')" :placeholder="t('settings.permissions.search')" maxlength="256" autocomplete="off" spellcheck="false" />
+    </label>
+    <p class="permission-search-summary" role="status">{{ t('settings.permissions.searchSummary', { visible: localNumber(visibleCount), total: localNumber(totalCount) }) }}</p>
     <div v-if="!groups.length" class="site-permissions-empty">
       <span class="empty-permission-icon" aria-hidden="true"><IconPrivacy /></span>
       <strong>{{ t('settings.permissions.emptyHeading') }}</strong>
       <p>{{ t('settings.permissions.emptyDescription') }}</p>
     </div>
+    <p v-else-if="!filteredGroups.length" class="settings-search-empty">{{ t('settings.permissions.noMatches') }}</p>
     <div v-else class="permission-sites" :aria-busy="clearing">
-      <section v-for="group in groups" :key="group.origin" class="permission-site">
+      <section v-for="group in filteredGroups" :key="group.origin" class="permission-site">
         <h4>{{ group.origin }}</h4>
         <div
           v-for="permission in group.permissions"

@@ -378,6 +378,9 @@ export const plPL = {
       capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
+      "search": "Szukaj zapisanych uprawnień witryn",
+      "searchSummary": "{visible} z {total} zapisanych decyzji",
+      "noMatches": "Brak zapisanych decyzji pasujących do wyszukiwania.",
       "heading": "Uprawnienia witryn",
       "description": "Przeglądaj zapamiętane decyzje dostępu dla każdej witryny.",
       "emptyHeading": "Brak zapisanych decyzji",
