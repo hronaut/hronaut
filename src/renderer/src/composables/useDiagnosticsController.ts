@@ -162,6 +162,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     promise: Promise<BrowserDomChangesReport>
   } | undefined
   const feedbackTimers = new Map<CopyFeedback, number>()
+  const copySequences = new Map<CopyFeedback, number>()
 
   function begin(domain: Domain): { tab: BrowserTabState; generation: number; sequence: number } | null {
     const tab = options.activeTab.value
@@ -206,6 +207,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   function resetCopyFeedback(): void {
     for (const timer of feedbackTimers.values()) window.clearTimeout(timer)
     feedbackTimers.clear()
+    copySequences.clear()
     debugReportCopied.value = false
     reproCopied.value = false
     reproPlaywrightCopied.value = false
@@ -217,12 +219,18 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
 
   async function copyWithFeedback(key: CopyFeedback, payload: string, copied: Ref<boolean>): Promise<void> {
     const expectedGeneration = generation
+    const sequence = (copySequences.get(key) ?? 0) + 1
+    copySequences.set(key, sequence)
+    const previous = feedbackTimers.get(key)
+    if (previous !== undefined) window.clearTimeout(previous)
+    feedbackTimers.delete(key)
+    copied.value = false
     const reportDomain = key === 'debug' || key === 'quality' || key === 'issues' ? key : undefined
     const expectedReportSequence = reportDomain ? sequences[reportDomain] : undefined
     const recorder = key === 'dom' ? 'dom'
       : key === 'repro' || key === 'repro-playwright' ? 'repro' : undefined
     const expectedRecorderGeneration = recorder ? recorderCopyGenerations[recorder] : undefined
-    if (!await options.copyText(payload) || expectedGeneration !== generation) return
+    if (!await options.copyText(payload) || expectedGeneration !== generation || sequence !== copySequences.get(key)) return
     if (reportDomain && expectedReportSequence !== sequences[reportDomain]) return
     if (recorder && expectedRecorderGeneration !== recorderCopyGenerations[recorder]) return
     copied.value = true

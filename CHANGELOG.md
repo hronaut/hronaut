@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear stale diagnostic text-report copy feedback during another attempt and prevent older writes from restoring success while a newer copy is pending or refused.
+
 ## [2.25.0] - 2026-10-09
 
 ### Added
