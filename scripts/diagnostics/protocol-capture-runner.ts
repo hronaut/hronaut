@@ -43,8 +43,10 @@ export async function runPreparedCapture(manifest: CaptureManifest, temporaryPar
     assertPlainPath(manifest.root, cli)
     mkdirSync(join(manifest.root, 'diagnostic-temp'), { mode: 0o700 })
     if (privateErrorDirectory) {
-      const rel = relative(dirname(resolve(outputFile)), resolve(privateErrorDirectory))
-      if (!(rel === '..' || rel.startsWith('..' + sep)) || realpathSync(dirname(privateErrorDirectory)) !== dirname(privateErrorDirectory)) throw 0
+      const publicParent = realpathSync(dirname(resolve(outputFile)))
+      const privateParent = realpathSync(dirname(resolve(privateErrorDirectory)))
+      const rel = relative(publicParent, resolve(privateErrorDirectory))
+      if (!(rel === '..' || rel.startsWith('..' + sep)) || privateParent !== dirname(privateErrorDirectory)) throw 0
       mkdirSync(privateErrorDirectory, { mode: 0o700 })
       if ((statSync(privateErrorDirectory).mode & 0o777) !== 0o700) throw 0
       mkdirSync(join(manifest.root, 'diagnostic-private'), { mode: 0o700 })

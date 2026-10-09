@@ -231,6 +231,21 @@ const reporter = new Reporter(); reporter.onTestEnd({outcome:()=> 'unexpected'},
     expect(readFileSync(output, 'utf8')).not.toContain(sentinel)
   })
 
+  it('rejects private errors inside a public tree reached through a symlink', async () => {
+    const { manifest, parent, root } = prepared()
+    const publicTree = fresh()
+    const publicAlias = join(parent, 'public-alias')
+    symlinkSync(publicTree, publicAlias)
+    const privateDirectory = join(publicTree, 'private-errors')
+    write(join(root, 'node_modules/@playwright/test/cli.js'), 'process.exit(0)')
+    const result = await runPreparedCapture(manifest, parent, join(publicAlias, 'out.json'), 'reviewed-single-capture', image, undefined, privateDirectory)
+    expect(result.exitCode).toBe(-1)
+    expect(existsSync(privateDirectory)).toBe(false)
+    expect(result.privateErrorsRetained).toBe(0)
+    expect(result.cleanup).toBe(1)
+    expect(existsSync(root)).toBe(false)
+  })
+
   it('cannot turn passed child with missing snapshot into valid diagnostic evidence', async () => {
     const { manifest, parent, root } = prepared()
     write(join(root, 'node_modules/@playwright/test/cli.js'), "require('fs').writeFileSync('diagnostic-output/verdict.json',JSON.stringify({status:1,flaky:0,attempts:[[0,1]]}))")
