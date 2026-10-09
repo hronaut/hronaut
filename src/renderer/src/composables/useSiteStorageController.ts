@@ -153,7 +153,8 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     const tab = options.activeTab.value
     if (!tab || !feedbackViewOpen(key)) return
     const expectedGeneration = generation
-    const sequence = ++copySequences[key]
+    resetCopyFeedback(key, target)
+    const sequence = copySequences[key]
     if (!await options.copyText(payload)) return
     if (
       sequence !== copySequences[key]
