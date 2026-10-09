@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Refresh a selected Network request’s sanitized details after completion without replaying its traffic or changing the list filters.
+
 - Reuse a recorded Repro step’s selector in the checkpoint form, with fresh review required before recording the intended result.
 
 ## [2.23.0] - 2026-10-09

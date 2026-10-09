@@ -413,7 +413,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     }
   }
 
-  async function loadRequestDetails(request: BrowserNetworkRequest): Promise<void> {
+  async function loadRequestDetails(request: Pick<BrowserNetworkRequest, 'id'>): Promise<void> {
     const tab = options.activeTab.value
     if (!tab) return
     const expectedGeneration = generation
@@ -446,6 +446,13 @@ export function useNetworkController(options: NetworkControllerOptions) {
     if (!options.activeTab.value) return
     resetReplayFeedback()
     await loadRequestDetails(request)
+  }
+
+  async function refreshSelectedRequest(): Promise<void> {
+    const id = selectedRequestId.value
+    if (!id || requestDetailsLoading.value || replayState.value === 'replaying') return
+    resetReplayFeedback()
+    await loadRequestDetails({ id })
   }
 
   async function replaySelectedRequest(): Promise<void> {
@@ -813,6 +820,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     moveRoute,
     clearRoutes,
     selectRequest,
+    refreshSelectedRequest,
     resetReplayFeedback,
     replaySelectedRequest,
     selectRelatedRequest,

@@ -2108,6 +2108,7 @@ export const deDE = {
     }
   },
   "network": {
+    refreshSelectedDetails: "Details der ausgewählten Anfrage aktualisieren",
     "kicker": "Aktuelle Website",
     "heading": "Netzwerk",
     "close": "Netzwerkmonitor schließen",
