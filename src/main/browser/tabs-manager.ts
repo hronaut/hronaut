@@ -8841,7 +8841,6 @@ export class BrowserTabsManager {
     if (tab.pinned) return 'Pinned tabs stay active.'
     if (tab.pageLifecycleState !== 'active' || tab.pageLifecycleOperation) return 'A tab with an explicit page hold stays active.'
     if (tab.loading) return 'A loading tab cannot sleep.'
-    if (this.renderQueues.has(tab.webContents.id)) return 'A tab rendering a page capture or PDF stays active.'
     if (tab.audible) return 'A tab playing audio stays active.'
     if (tab.dialog) return 'A tab with an open dialog stays active.'
     if (tab.webContents.isDevToolsOpened() || this.devToolsOpening.has(tab.webContents.id)) {
@@ -8864,6 +8863,7 @@ export class BrowserTabsManager {
     if (this.downloadController.hasActiveDownload(tab.id)) {
       return 'A tab with an active download stays active.'
     }
+    if (this.renderQueues.has(tab.webContents.id)) return 'A tab rendering a page capture or PDF stays active.'
     return undefined
   }
 

@@ -7,6 +7,8 @@ import type { BrowserVideoState } from '../../src/shared/video.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { test, expect, text } from './capability-fixtures.js'
 
+type SleepCaptureGlobal = typeof globalThis & { __sleepCapture?: { held: boolean; restore(): void } }
+
 type TestWindow = Window & { hronaut: HronautApi; hronautSettings: HronautSettingsApi; hronautShell: HronautShellApi }
 
 test('two agents export distinct progressing background tabs while the human keeps a third selected', async ({ capabilities, appWindow, mcpPort, mcpToken }, testInfo) => {
@@ -96,14 +98,32 @@ test('two agents export distinct progressing background tabs while the human kee
 
 
 test('background capture pauses for hidden chrome, hidden window and suspend without silently resuming', async ({ capabilities, appWindow, electronApp }, testInfo) => {
-  const { tabId, fixtureOrigin } = capabilities
+  const { tabId, fixtureOrigin, fixtureUrl } = capabilities
   const humanId = (await appWindow.evaluate(url => (window as unknown as TestWindow).hronaut.newTab({ url, active: true }), `${fixtureOrigin}/?human`)).activeTabId
   const video = (action: 'start' | 'get' | 'resume' | 'clear') => appWindow.evaluate(({ id, action }) => (window as unknown as TestWindow).hronaut.manageVideo({ tabId: id, action }), { id: tabId, action })
   const windowHandle = await electronApp.browserWindow(appWindow)
   try {
     await video('start')
     await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThan(1)
+    await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
+      const original = page.capturePage.bind(page)
+      let release!: () => void
+      const barrier = new Promise<void>(resolve => { release = resolve })
+      const gate = { held: false, restore: () => { page.capturePage = original; release() } }
+      ;(globalThis as SleepCaptureGlobal).__sleepCapture = gate
+      page.capturePage = async (...args: Parameters<Electron.WebContents['capturePage']>) => {
+        if (!args[1]?.stayHidden || !args[1]?.stayAwake) return original(...args)
+        page.capturePage = original
+        const image = await original(...args)
+        gate.held = true
+        await barrier
+        return image
+      }
+    }, fixtureUrl)
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as SleepCaptureGlobal).__sleepCapture?.held)).toBe(true)
     await expect(appWindow.evaluate(id => (window as unknown as TestWindow).hronaut.setTabSleeping(id, true), tabId)).rejects.toThrow('recording video')
+    await electronApp.evaluate(() => (globalThis as SleepCaptureGlobal).__sleepCapture?.restore())
     await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(true))
     await expect.poll(async () => (await video('get')).status).toBe('paused')
     await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false))
@@ -149,6 +169,11 @@ test('background capture pauses for hidden chrome, hidden window and suspend wit
     expect((await video('get')).status).toBe('paused')
     expect(await appWindow.evaluate(async () => (await (window as unknown as TestWindow).hronaut.getState()).activeTabId)).toBe(humanId)
   } finally {
+    await electronApp.evaluate(() => {
+      const probe = globalThis as SleepCaptureGlobal
+      probe.__sleepCapture?.restore()
+      delete probe.__sleepCapture
+    })
     await appWindow.evaluate(() => (window as unknown as TestWindow).hronautShell.setBrowserContentOccluded(false))
     await windowHandle.evaluate(window => {
       const probe = window as typeof window & { __restoreVideoMinimize?: () => void }
