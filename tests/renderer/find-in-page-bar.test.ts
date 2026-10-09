@@ -97,12 +97,68 @@ describe('FindInPageBar', () => {
 
     expect(screen.queryByText('1 / 3')).not.toBeInTheDocument()
     expect(screen.getByText('Searching…')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Next match' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Previous match' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next match' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: 'Previous match' })).toHaveAttribute('aria-disabled', 'true')
     pending.resolve({ activeMatchOrdinal: 1, matches: 2 })
     await screen.findByText('1 / 2')
     expect(screen.queryByText('Searching…')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Next match' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Next match' })).toHaveAttribute('aria-disabled', 'false')
+  })
+
+  it.each(['Next match', 'Previous match'])('keeps %s focusable while preventing duplicate searches', async name => {
+    const pending = deferred<BrowserFindResult>()
+    const { browser } = renderBar()
+    const user = userEvent.setup()
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+    await screen.findByText('1 / 3')
+    browser.findInPage.mockImplementationOnce(() => pending.promise)
+    const button = screen.getByRole('button', { name })
+    await user.click(button)
+    expect(button).not.toBeDisabled()
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toHaveFocus()
+    await user.keyboard('{Enter}')
+    await fireEvent.click(button)
+    expect(browser.findInPage).toHaveBeenCalledTimes(2)
+    pending.resolve({ activeMatchOrdinal: 2, matches: 3 })
+    await screen.findByText('2 / 3')
+    expect(button).toHaveAttribute('aria-disabled', 'false')
+    expect(button).toHaveFocus()
+  })
+
+  it.each(['zero', 'failed'])('retains the activated match button after a %s result', async outcome => {
+    const { browser } = renderBar()
+    const user = userEvent.setup()
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+    await screen.findByText('1 / 3')
+    if (outcome === 'failed') browser.findInPage.mockRejectedValueOnce(new Error('Synthetic find error'))
+    else browser.findInPage.mockResolvedValueOnce({ activeMatchOrdinal: 0, matches: 0 })
+    const button = screen.getByRole('button', { name: 'Next match' })
+    await user.click(button)
+    await vi.waitFor(() => expect(button).toHaveAttribute('aria-disabled', 'true'))
+    expect(button).not.toBeDisabled()
+    expect(button).toHaveFocus()
+    await fireEvent.click(button)
+    expect(browser.findInPage).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['empty', 'zero', 'failed'])('does not navigate unavailable matches after %s input', async state => {
+    const { browser } = renderBar({ browser: { findInPage: async () => {
+      if (state === 'failed') throw new Error('Synthetic find error')
+      return { activeMatchOrdinal: 0, matches: 0 }
+    } } })
+    if (state !== 'empty') {
+      await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'missing')
+      await vi.waitFor(() => expect(screen.queryByText('Searching…')).not.toBeInTheDocument())
+    }
+    browser.findInPage.mockClear()
+    for (const name of ['Next match', 'Previous match']) {
+      const button = screen.getByRole('button', { name })
+      expect(button).not.toBeDisabled()
+      expect(button).toHaveAttribute('aria-disabled', 'true')
+      await fireEvent.click(button)
+    }
+    expect(browser.findInPage).not.toHaveBeenCalled()
   })
 
   it('restarts the current search when match case changes', async () => {
@@ -162,7 +218,7 @@ describe('FindInPageBar', () => {
     await first.promise
     await vi.waitFor(() => expect(screen.getByText('Searching…')).toBeVisible())
     expect(screen.queryByText('1 / 9')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Next match' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next match' })).toHaveAttribute('aria-disabled', 'true')
     second.resolve({ activeMatchOrdinal: 1, matches: 2 })
     await screen.findByText('1 / 2')
   })
@@ -276,7 +332,7 @@ it('distinguishes failed searches from no matches and retries the preserved quer
   expect(screen.queryByText('0 / 0')).not.toBeInTheDocument()
   expect(screen.queryByText(/private-native-error-canary/)).not.toBeInTheDocument()
   expect(search).toHaveValue('needle')
-  expect(screen.getByRole('button', { name: 'Next match' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Next match' })).toHaveAttribute('aria-disabled', 'true')
   await user.click(screen.getByRole('button', { name: 'Retry page search' }))
   await screen.findByText('1 / 3')
   expect(search).toHaveFocus()

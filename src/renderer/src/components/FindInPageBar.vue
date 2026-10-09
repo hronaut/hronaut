@@ -65,6 +65,11 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
   }
 }
 
+function navigateMatch(forward: boolean): void {
+  if (searching.value || !query.value || !result.value.matches) return
+  void search(forward, false)
+}
+
 function handleSearchInput(event: Event): void {
   if ((event as InputEvent).isComposing) return
   void search(true, true)
@@ -177,8 +182,8 @@ defineExpose({ close, openForTab })
       type="button"
       :title="t('find.previousTitle')"
       :aria-label="t('find.previous')"
-      :disabled="searching || !query || !result.matches"
-      @click="search(false, false)"
+      :aria-disabled="searching || !query || !result.matches"
+      @click="navigateMatch(false)"
     >
       <IconKeyboardArrowUp aria-hidden="true" />
     </UiButton>
@@ -187,8 +192,8 @@ defineExpose({ close, openForTab })
       type="button"
       :title="t('find.nextTitle')"
       :aria-label="t('find.next')"
-      :disabled="searching || !query || !result.matches"
-      @click="search(true, false)"
+      :aria-disabled="searching || !query || !result.matches"
+      @click="navigateMatch(true)"
     >
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
