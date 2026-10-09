@@ -2057,6 +2057,9 @@ export const plPL = {
     }
   },
   "console": {
+    pauseLiveUpdates: "Wstrzymaj aktualizacje widoku",
+    resumeLiveUpdates: "Wznów aktualizacje widoku",
+    liveUpdatesPausedHint: "Aktualizacje widoku są wstrzymane. Zbieranie dziennika trwa z dotychczasowymi limitami przechowywania. Liczba nowych i pominiętych wiadomości jest nieznana. Odśwież odczytuje dziennik jeden raz.",
     "kicker": "Bieżąca witryna",
     "heading": "Konsola",
     "close": "Zamknij konsolę",

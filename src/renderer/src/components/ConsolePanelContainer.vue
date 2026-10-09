@@ -23,6 +23,8 @@ const {
   search,
   excludeText,
   level,
+  liveUpdatesPaused,
+  toggleLiveUpdates,
   copied,
   copiedEntryKey,
   filteredMessages,
@@ -56,6 +58,7 @@ onBeforeUnmount(dispose)
     v-model:exclude-text="excludeText"
     v-model:level="level"
     :state="state"
+    :live-updates-paused="liveUpdatesPaused"
     :messages="messages"
     :filtered-messages="filteredMessages"
     :error="error"
@@ -70,6 +73,7 @@ onBeforeUnmount(dispose)
     @preserve-change="updatePreservation"
     @clear="refresh(true)"
     @refresh="refresh()"
+    @toggle-live-updates="toggleLiveUpdates"
     @copy-entry="copyEntry"
     @copy-all="copyAll"
     @copy-filtered="copyFiltered"

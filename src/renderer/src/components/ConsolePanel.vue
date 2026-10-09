@@ -17,6 +17,7 @@ import PanelDockPicker from './PanelDockPicker.vue'
 
 const props = defineProps<{
   state: 'idle' | 'loading' | 'ready' | 'error'
+  liveUpdatesPaused: boolean
   messages: BrowserConsoleMessage[]
   filteredMessages: BrowserConsoleMessage[]
   error: string
@@ -34,6 +35,7 @@ const emit = defineEmits<{
   preserveChange: [event: Event]
   clear: []
   refresh: []
+  toggleLiveUpdates: []
   copyEntry: [message: BrowserConsoleMessage]
   copyAll: []
   copyFiltered: []
@@ -100,6 +102,7 @@ function entryKey(message: BrowserConsoleMessage): string {
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('console.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
+    <p v-if="liveUpdatesPaused" class="console-live-status" role="status">{{ t('console.liveUpdatesPausedHint') }}</p>
     <div class="console-tools">
       <label class="network-monitor-search">
         <IconSearch aria-hidden="true" />
@@ -169,7 +172,7 @@ function entryKey(message: BrowserConsoleMessage): string {
       <div v-if="!filteredMessages.length" class="network-monitor-empty compact">
         <IconTerminal aria-hidden="true" />
         <strong>{{ messages.length ? t('console.noMatches') : t('console.noMessages') }}</strong>
-        <span>{{ messages.length ? t('console.changeFilter') : t('console.useWebsite') }}</span>
+        <span v-if="messages.length || !liveUpdatesPaused">{{ messages.length ? t('console.changeFilter') : t('console.useWebsite') }}</span>
       </div>
     </div>
     <footer>
@@ -177,6 +180,7 @@ function entryKey(message: BrowserConsoleMessage): string {
       <div class="console-actions">
         <UiButton appearance="application" type="button" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('console.clear') }}</UiButton>
         <UiButton appearance="application" type="button" @click="emit('refresh')"><IconRefresh aria-hidden="true" /> {{ t('console.refresh') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="state === 'loading'" :aria-pressed="liveUpdatesPaused" @click="emit('toggleLiveUpdates')">{{ liveUpdatesPaused ? t('console.resumeLiveUpdates') : t('console.pauseLiveUpdates') }}</UiButton>
         <UiButton appearance="application" type="button" :disabled="!messages.length" @click="emit('copyAll')">
           <IconCheck v-if="copied === 'all'" aria-hidden="true" />
           <IconCopy v-else aria-hidden="true" />
