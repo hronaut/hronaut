@@ -180,7 +180,7 @@ function entryKey(message: BrowserConsoleMessage): string {
       <div class="console-actions">
         <UiButton appearance="application" type="button" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('console.clear') }}</UiButton>
         <UiButton appearance="application" type="button" @click="emit('refresh')"><IconRefresh aria-hidden="true" /> {{ t('console.refresh') }}</UiButton>
-        <UiButton appearance="application" type="button" :disabled="state === 'loading'" :aria-pressed="liveUpdatesPaused" @click="emit('toggleLiveUpdates')">{{ liveUpdatesPaused ? t('console.resumeLiveUpdates') : t('console.pauseLiveUpdates') }}</UiButton>
+        <UiButton appearance="application" type="button" :aria-disabled="state === 'loading'" :aria-pressed="liveUpdatesPaused" @click="state !== 'loading' && emit('toggleLiveUpdates')">{{ liveUpdatesPaused ? t('console.resumeLiveUpdates') : t('console.pauseLiveUpdates') }}</UiButton>
         <UiButton appearance="application" type="button" :disabled="!messages.length" @click="emit('copyAll')">
           <IconCheck v-if="copied === 'all'" aria-hidden="true" />
           <IconCopy v-else aria-hidden="true" />

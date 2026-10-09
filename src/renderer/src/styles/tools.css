@@ -759,6 +759,8 @@
 .console-panel > footer { @apply flex-wrap; }
 .console-actions { @apply flex flex-wrap justify-end [gap:6px]; }
 .console-panel > footer button:disabled { @apply [opacity:.4] cursor-default; }
+.console-panel > footer button[aria-disabled="true"],
+.console-panel > footer button[aria-disabled="true"]:hover { @apply [opacity:.4] cursor-default bg-surface-raised; }
 .console-panel > footer button.primary { @apply border-accent text-button-copy bg-accent; }
 .console-panel > footer button.primary:hover:not(:disabled) { @apply [background:color-mix(in_srgb,_var(--accent)_84%,_black)]; }
 

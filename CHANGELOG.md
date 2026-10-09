@@ -12,6 +12,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Reuse a recorded Repro step’s selector in the checkpoint form, with fresh review required before recording the intended result.
 
+### Fixed
+
+- Keep keyboard focus on Console’s pause/resume control while resumed updates are loading, without accepting duplicate toggles or stealing focus moved elsewhere.
+
 ## [2.23.0] - 2026-10-09
 
 ### Added
