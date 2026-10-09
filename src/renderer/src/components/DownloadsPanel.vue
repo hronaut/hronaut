@@ -58,16 +58,30 @@ const {
   showInFolder: props.showInFolder
 })
 
+let removalFocusRow: Element | null = null
+let focusGeneration = 0
+const stopFocusSessionTracking = watch([open, query, statusFilter], () => { focusGeneration += 1 }, { flush: 'sync' })
+
 async function changeTransfer(action: 'pause' | 'resume' | 'cancel' | 'remove', downloadId: string, event: MouseEvent): Promise<void> {
+  const generation = focusGeneration
   const focused = event.currentTarget instanceof HTMLButtonElement
     && document.activeElement === event.currentTarget ? event.currentTarget : null
   const row = focused?.closest('.download-item')
   const panel = row?.closest('.downloads-panel')
-  await (action === 'pause' ? pause(downloadId) : action === 'resume' ? resume(downloadId) : action === 'remove' ? remove(downloadId) : cancel(downloadId))
-  await nextTick()
-  if (!open.value || !panel?.isConnected) return
+  const next = action === 'remove' ? row?.nextElementSibling?.querySelector<HTMLButtonElement>('.download-remove') : null
+  const previous = action === 'remove' ? row?.previousElementSibling?.querySelector<HTMLButtonElement>('.download-remove') : null
+  // A published removal can arrive before its reply enables the other controls.
+  // Leave this action responsible for focus instead of the live-list watcher.
+  if (action === 'remove' && row) removalFocusRow = row
+  try {
+    await (action === 'pause' ? pause(downloadId) : action === 'resume' ? resume(downloadId) : action === 'remove' ? remove(downloadId) : cancel(downloadId))
+    await nextTick()
+  } finally {
+    if (removalFocusRow === row) removalFocusRow = null
+  }
+  if (generation !== focusGeneration || !open.value || !panel?.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
-  const target = [focused, row?.querySelector<HTMLButtonElement>('.download-action'),
+  const target = [focused, row?.querySelector<HTMLButtonElement>('.download-action'), next, previous,
     !row?.isConnected ? panel.querySelector<HTMLInputElement>('.downloads-filters input') : null,
     panel.querySelector<HTMLButtonElement>('.panel-close')
   ].find(element => element?.isConnected && !element.matches(':disabled'))
@@ -80,7 +94,7 @@ const stopVisibleTracking = watch(() => filteredDownloads.value.map(download => 
   const focused = document.activeElement
   const row = focused instanceof HTMLElement ? focused.closest('.download-item') : null
   const panel = row?.closest('.downloads-panel')
-  if (!row || !panel) return
+  if (!row || !panel || row === removalFocusRow) return
   await nextTick()
   if (!open.value || !panel.isConnected || row.isConnected) return
   if (document.activeElement !== document.body && document.activeElement !== focused) return
@@ -102,7 +116,7 @@ async function clearDownloads(event: MouseEvent): Promise<void> {
   target?.focus()
 }
 
-onBeforeUnmount(() => { stopVisibleTracking(); dispose() })
+onBeforeUnmount(() => { focusGeneration += 1; stopFocusSessionTracking(); stopVisibleTracking(); dispose() })
 </script>
 
 <template>
@@ -168,7 +182,7 @@ onBeforeUnmount(() => { stopVisibleTracking(); dispose() })
         </div>
         <div v-else class="download-actions">
           <UiButton appearance="application" v-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
-          <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.removeAria', { filename: download.filename })" :title="t('downloads.removeHint')" @click="changeTransfer('remove', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="download-action download-remove" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.removeAria', { filename: download.filename })" :title="t('downloads.removeHint')" @click="changeTransfer('remove', download.id, $event)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </article>
     </div>

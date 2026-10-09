@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep keyboard focus on the neighboring finished download after removing a record, including live updates that arrive before the action completes.
+
 - Reject PDF exports when the source tab closes or navigates while printing or writing the file, including a navigation already pending when export starts. Keep tabs awake while a page capture or PDF is rendering.
 
 - Remove a cancelled video export if its authorization changes while the output file is closing, while preserving an observed replacement file.
