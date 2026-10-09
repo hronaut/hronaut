@@ -9,9 +9,21 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 type PdfGate = { ready: boolean; bytes: number; release(): void; restore(): void }
 type PdfTestGlobal = typeof globalThis & { __pdfExportGate?: PdfGate }
 
-for (const change of ['navigate', 'reload', 'close', 'unchanged'] as const) {
-  test(`settles a PDF export after ${change} while native print completion is held`, async ({ electronApp, mcpPort, mcpToken, profileDirectory }) => {
-    const server = createServer((_request, response) => {
+for (const change of ['navigate', 'reload', 'close', 'unchanged', 'pending-navigation', 'sleep'] as const) {
+  test(change === 'sleep' ? 'blocks background tab sleep until a shell PDF export finishes' : `settles a PDF export after ${change} while native print completion is held`, async ({ appWindow, electronApp, mcpPort, mcpToken, profileDirectory }) => {
+    let releaseResponse: (() => void) | undefined
+    let notifyRequest!: () => void
+    const requestReceived = new Promise<void>(resolve => { notifyRequest = resolve })
+    const server = createServer((request, response) => {
+      if (request.url === '/pending') {
+        releaseResponse = () => {
+          if (response.writableEnded) return
+          response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+          response.end('<!doctype html><title>New PDF document</title><h1>Replacement document</h1>')
+        }
+        notifyRequest()
+        return
+      }
       response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
       response.end('<!doctype html><title>PDF lifecycle</title><h1>Printable fixture</h1>')
     })
@@ -35,7 +47,9 @@ for (const change of ['navigate', 'reload', 'close', 'unchanged'] as const) {
         requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
       }))
       const { id: workspaceId } = parsed(await call('browser_workspaces', { action: 'create', name: 'PDF lifecycle', storage: 'scratch' })) as { id: string }
-      const state = parsed(await call('browser_new_tab', { workspaceId, url })) as { tabs: Array<{ id: string; url: string }> }
+      const state = (change === 'sleep'
+        ? await appWindow.evaluate(`window.hronaut.newTab(${JSON.stringify({ url, active: false })})`)
+        : parsed(await call('browser_new_tab', { workspaceId, url }))) as { tabs: Array<{ id: string; url: string }> }
       const tabId = state.tabs.find(tab => tab.url === url)?.id
       expect(tabId).toBeTruthy()
       await expect.poll(() => electronApp.evaluate(async ({ webContents }, target) => {
@@ -61,11 +75,34 @@ for (const change of ['navigate', 'reload', 'close', 'unchanged'] as const) {
         }
       }, url)
       const filename = 'document-lifecycle.pdf'
-      if (change === 'unchanged') await writeFile(join(profileDirectory, filename), 'existing file')
-      pending = call('browser_pdf_save', { workspaceId, tabId, filename })
+      if (change === 'unchanged' || change === 'sleep') await writeFile(join(profileDirectory, filename), 'existing file')
+      if (change === 'pending-navigation') {
+        await electronApp.evaluate(({ webContents }, target) => {
+          const contents = webContents.getAllWebContents().find(page => page.getURL() === target)!
+          void contents.loadURL(`${target}pending`).catch(() => undefined)
+        }, url)
+        await requestReceived
+        expect(await electronApp.evaluate(({ webContents }, target) => {
+          const contents = webContents.getAllWebContents().find(page => page.getURL() === target)!
+          return { loading: contents.isLoadingMainFrame(), url: contents.getURL(), frameUrl: contents.mainFrame.url }
+        }, url)).toEqual({ loading: true, url, frameUrl: url })
+      }
+      pending = change === 'sleep'
+        ? appWindow.evaluate(`window.hronaut.savePdf(${JSON.stringify({ tabId, filename })}).then(value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] }), () => ({ isError: true, content: [] }))`) as Promise<CallToolResult>
+        : call('browser_pdf_save', { workspaceId, tabId, filename })
+      pending = pending.catch(() => ({ isError: true, content: [{ type: 'text', text: 'TRANSPORT_REJECTED' }] }))
       await expect.poll(() => electronApp.evaluate(() => (globalThis as PdfTestGlobal).__pdfExportGate?.ready)).toBe(true)
       expect(await electronApp.evaluate(() => (globalThis as PdfTestGlobal).__pdfExportGate?.bytes)).toBeGreaterThan(1000)
-      if (change !== 'unchanged') {
+      if (change === 'pending-navigation') {
+        releaseResponse!()
+        await expect.poll(() => electronApp.evaluate(async ({ webContents }, target) => {
+          const contents = webContents.getAllWebContents().find(page => page.getURL() === `${target}pending`)
+          return contents ? contents.executeJavaScript("document.querySelector('h1')?.textContent") : null
+        }, url)).toBe('Replacement document')
+      } else if (change === 'sleep') {
+        await expect(appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)).rejects.toThrow('rendering a page capture or PDF')
+        expect(await appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.sleeping)`)).toBe(false)
+      } else if (change !== 'unchanged') {
         await electronApp.evaluate(async ({ webContents }, { target, action }) => {
           const contents = webContents.getAllWebContents().find(page => page.getURL() === target)!
           if (action === 'close') contents.close()
@@ -74,24 +111,30 @@ for (const change of ['navigate', 'reload', 'close', 'unchanged'] as const) {
       }
       await electronApp.evaluate(() => (globalThis as PdfTestGlobal).__pdfExportGate!.release())
       const result = await pending
-      if (change === 'unchanged') {
+      expect(result.content).not.toEqual([{ type: 'text', text: 'TRANSPORT_REJECTED' }])
+      if (change === 'unchanged' || change === 'sleep') {
         const saved = parsed(result) as { filename: string; path: string; bytes: number }
         expect(saved.filename).toBe('document-lifecycle (1).pdf')
         expect(await readFile(join(profileDirectory, filename), 'utf8')).toBe('existing file')
         const bytes = await readFile(saved.path)
         expect(bytes.length).toBe(saved.bytes)
         expect(bytes.subarray(0, 5).toString()).toBe('%PDF-')
+        if (change === 'sleep') {
+          await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)
+          expect(await appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.sleeping)`)).toBe(true)
+        }
       } else {
         expect((await readdir(profileDirectory)).filter(name => name.endsWith('.pdf'))).toEqual([])
         expect(result.isError).toBe(true)
       }
     } finally {
+      releaseResponse?.()
       await electronApp.evaluate(() => {
         const state = globalThis as PdfTestGlobal
         state.__pdfExportGate?.restore()
         state.__pdfExportGate?.release()
         delete state.__pdfExportGate
-      })
+      }).catch(() => undefined)
       await pending?.catch(() => undefined)
       await client.close()
       await closeFixtureServer(server)
