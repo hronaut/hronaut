@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-10-09
+
 ### Added
 
 - Search Downloads by the displayed HTTP(S) origin as well as filename, combined with the existing status filter, without searching hidden URL fields.
