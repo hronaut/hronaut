@@ -158,11 +158,86 @@ function createController() {
   return { activeTab, browser, controller, copyText }
 }
 
+const textCopyKinds = ['debug', 'repro', 'playwright', 'dom', 'issues', 'quality'] as const
+
+function prepareTextCopy(kind: typeof textCopyKinds[number]) {
+  const h = createController()
+  const report = { tabId: 'tab-1', url: 'https://example.test/app' }
+  h.controller.debugReport.value = report as BrowserDebugReport
+  h.controller.reproRecording.value = reproRecording()
+  h.controller.domChangesReport.value = domReport(false)
+  h.controller.inspectorIssuesReport.value = report as BrowserInspectorIssuesReport
+  h.controller.qualityAuditReport.value = report as BrowserQualityAudit
+  const action = {
+    debug: { copy: h.controller.copyDebugReport, copied: h.controller.debugReportCopied },
+    repro: { copy: h.controller.copyReproRecording, copied: h.controller.reproCopied },
+    playwright: { copy: h.controller.copyReproPlaywright, copied: h.controller.reproPlaywrightCopied },
+    dom: { copy: h.controller.copyDomChanges, copied: h.controller.domChangesCopied },
+    issues: { copy: h.controller.copyInspectorIssues, copied: h.controller.inspectorIssuesCopied },
+    quality: { copy: h.controller.copyQualityAudit, copied: h.controller.qualityAuditCopied }
+  }[kind]
+  return { ...h, ...action }
+}
+
 afterEach(() => {
   vi.useRealTimers()
 })
 
 describe('diagnostics controller', () => {
+  it.each(textCopyKinds.flatMap(kind => [true, false].map(succeeded => ({ kind, succeeded }))))(
+    'clears prior $kind feedback during a new write (success: $succeeded)', async ({ kind, succeeded }) => {
+      vi.useFakeTimers()
+      const h = prepareTextCopy(kind)
+      const pending = deferred<boolean>()
+      await h.copy()
+      expect(h.copied.value).toBe(true)
+      const payload = h.copyText.mock.calls[0]
+      await vi.advanceTimersByTimeAsync(1_000)
+      h.copyText.mockImplementationOnce(() => pending.promise)
+      const operation = h.copy()
+      expect(h.copied.value).toBe(false)
+      expect(h.copyText.mock.calls[1]).toEqual(payload)
+      pending.resolve(succeeded)
+      await operation
+      expect(h.copied.value).toBe(succeeded)
+      await vi.advanceTimersByTimeAsync(600)
+      expect(h.copied.value).toBe(succeeded)
+      await vi.advanceTimersByTimeAsync(900)
+      expect(h.copied.value).toBe(false)
+      h.controller.dispose()
+    }
+  )
+
+  it.each(textCopyKinds)('ignores older %s copy completion while a newer write is pending or refused', async kind => {
+    const h = prepareTextCopy(kind)
+    const first = deferred<boolean>(), second = deferred<boolean>()
+    h.copyText.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise)
+    const older = h.copy(), newer = h.copy()
+    first.resolve(true)
+    await older
+    expect(h.copied.value).toBe(false)
+    second.resolve(false)
+    await newer
+    expect(h.copied.value).toBe(false)
+    h.controller.dispose()
+  })
+
+  it('keeps another diagnostic report copy indicator independent', async () => {
+    vi.useFakeTimers()
+    const h = prepareTextCopy('debug')
+    await h.copy()
+    const pending = deferred<boolean>()
+    h.copyText.mockImplementationOnce(() => pending.promise)
+    const quality = h.controller.copyQualityAudit()
+    expect(h.copied.value).toBe(true)
+    expect(h.controller.qualityAuditCopied.value).toBe(false)
+    pending.resolve(true)
+    await quality
+    expect(h.copied.value).toBe(true)
+    expect(h.controller.qualityAuditCopied.value).toBe(true)
+    h.controller.dispose()
+  })
+
   it.each(['switch', 'reload', 'dispose'] as const)('does not measure after allocation clear loses its context through %s', async (change) => {
     const pending = deferred<BrowserMemoryReport>()
     const { activeTab, browser, controller } = createController()
