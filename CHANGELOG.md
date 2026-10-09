@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clear stale Site Storage report copy-success indicators during another clipboard attempt, including refused writes, without changing report contents.
+
 - Clear stale Console copy-success indicators when another clipboard attempt starts, including attempts that fail, while keeping late results from replacing newer feedback.
 
 - Preserve the latest detached-panel request while the renderer loads its startup settings, so a newer panel does not revert to the window’s initial panel.

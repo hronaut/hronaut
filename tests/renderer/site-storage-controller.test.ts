@@ -191,6 +191,40 @@ describe('site-storage controller', () => {
     expect(controller.state.value).toBe('idle')
   })
 
+  it.each((['usage', 'changes', 'indexedDb', 'pwa'] as const).flatMap(view =>
+    [true, false].map(succeeded => ({ view, succeeded }))
+  ))('clears previous $view success while a later copy is pending (success: $succeeded)', async ({ view, succeeded }) => {
+    vi.useFakeTimers()
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.usageReport.value = usageReport()
+    controller.changesReport.value = { status: 'compared' } as BrowserStorageChangesReport
+    controller.indexedDbReport.value = { entries: [], offset: 0 } as unknown as BrowserIndexedDbReport
+    controller.pwaReport.value = { caches: [] } as unknown as BrowserPwaReport
+    controller[`${view}Open`].value = true
+    const copy = {
+      usage: controller.copyUsage, changes: controller.copyChanges,
+      indexedDb: controller.copyIndexedDb, pwa: controller.copyPwa
+    }[view]
+    await copy()
+    expect(controller[`${view}Copied`].value).toBe(true)
+    const firstPayload = copyText.mock.calls[0]
+    await vi.advanceTimersByTimeAsync(1_000)
+    copyText.mockImplementationOnce(() => pending.promise)
+    const operation = copy()
+    expect(controller[`${view}Copied`].value).toBe(false)
+    expect(copyText.mock.calls[1]).toEqual(firstPayload)
+    pending.resolve(succeeded)
+    await operation
+    expect(controller[`${view}Copied`].value).toBe(succeeded)
+    // The old timer must not shorten the new success indicator.
+    await vi.advanceTimersByTimeAsync(600)
+    expect(controller[`${view}Copied`].value).toBe(succeeded)
+    await vi.advanceTimersByTimeAsync(900)
+    expect(controller[`${view}Copied`].value).toBe(false)
+    controller.dispose()
+  })
+
   it('restarts copied feedback when the same storage report is copied again', async () => {
     vi.useFakeTimers()
     const { controller } = createController()
