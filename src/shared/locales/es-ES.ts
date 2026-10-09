@@ -2393,6 +2393,8 @@ export const esES = {
   },
   "repro": {
     "checkpoint": {
+      "useSelector": "Usar selector para el punto de control",
+      "selectorHint": "Puede que este selector grabado ya no identifique el mismo elemento. Revísalo en la página actual y elige el resultado esperado antes de añadir un punto de control.",
       "count": "Cantidad de elementos",
       "countHint": "Usa selectores estructurales como ul > li o li:nth-of-type(2). Se incluyen elementos ocultos; indica de 0 a 500. Se rechazan coincidencias con controles de formulario, destinos editables y marcos. Se rechazan páginas con más de 2.000 elementos visitados.",
       "checked": "Marcado (casilla/botón de opción)",
