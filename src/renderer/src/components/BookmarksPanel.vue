@@ -93,6 +93,25 @@ const collectionsToolbar = ref<{ cancelEdit: () => void } | null>(null)
 watch(selection, () => { cancelRenameDraft(); resetCopyFeedback() }, { flush: 'sync' })
 watch(() => visibleBookmarks.value.map(bookmark => `${bookmark.id}:${bookmark.url}`).join('\n'), resetCopyFeedback, { flush: 'sync' })
 
+// A collection can disappear through a live update while its toolbar is focused.
+// Recover only a removed control; retained controls and newer human focus win.
+const stopCollectionFocusTracking = watch(
+  [() => collectionController.selected.value?.id, collectionController.editor],
+  async (_current, _previous, onCleanup) => {
+    const panel = panelRoot.value
+    const focused = document.activeElement
+    if (!(focused instanceof HTMLElement) || !panel?.querySelector('.bookmark-collections')?.contains(focused)) return
+    const generation = focusGeneration
+    let superseded = false
+    onCleanup(() => { superseded = true })
+    await nextTick()
+    if (superseded || generation !== focusGeneration || !open.value || panel !== panelRoot.value
+      || !panel.isConnected || focused.isConnected) return
+    if (document.activeElement !== document.body && document.activeElement !== focused) return
+    panel.querySelector<HTMLSelectElement>('.bookmark-collection-filter select')?.focus()
+  }, { flush: 'pre' }
+)
+
 // Authoritative bookmark and collection updates can move or remove a focused row
 // without running one of this panel's action handlers.
 const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => bookmark.id), async (_ids, _previous, onCleanup) => {
@@ -135,6 +154,7 @@ const stopVisibleTracking = watch(() => visibleBookmarks.value.map(bookmark => b
 
 onBeforeUnmount(() => {
   focusGeneration += 1
+  stopCollectionFocusTracking()
   stopVisibleTracking()
   stopFocusSessionTracking()
   collectionController.dispose()
