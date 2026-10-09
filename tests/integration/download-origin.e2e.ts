@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import type { BrowserDownloadState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('attributes similar report downloads to their retained origins without opening or changing them', async ({ appWindow, electronApp }) => {
+test('attributes and filters similar report downloads by retained origins without opening or changing them', async ({ appWindow, electronApp }) => {
   const contents = ['synthetic staging report', 'synthetic production report']
   const servers = contents.map((body, index) => createServer((request, response) => {
     if (request.url?.startsWith('/private/report')) {
@@ -59,6 +59,28 @@ test('attributes similar report downloads to their retained origins without open
     }
     await expect(status).toBeFocused()
     await expect(panel.getByRole('searchbox')).toHaveValue('report')
+    const search = panel.getByRole('searchbox')
+    for (const origin of origins) {
+      await search.fill(origin.toUpperCase())
+      await expect(panel.getByRole('article')).toHaveCount(1)
+      await expect(panel.locator('.download-origin')).toHaveText(`Download origin: ${origin}`)
+      await expect(panel.getByRole('status')).toHaveText('1 of 2 downloads')
+      await status.selectOption('cancelled')
+      await expect(panel.getByText('No matching downloads')).toBeVisible()
+      await status.selectOption('completed')
+      await expect(panel.getByRole('article')).toHaveCount(1)
+    }
+    for (const omitted of ['private/report', 'synthetic-secret', 'token=']) {
+      await search.fill(omitted)
+      await expect(panel.getByText('No matching downloads')).toBeVisible()
+    }
+    await search.fill('report')
+    await expect(panel.getByRole('article')).toHaveCount(2)
+    await expect(search).toBeFocused()
+    for (const [index, origin] of origins.entries()) {
+      const entry = entries.find(item => new URL(item.url).origin === origin)!
+      expect(await readFile(entry.savePath!, 'utf8')).toBe(contents[index])
+    }
     expect(await appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.map(tab => ({ id: tab.id, active: tab.active })))')).toEqual(tabsBefore)
     expect(await appWindow.evaluate('window.hronautDownloads.list()')).toEqual(entries)
   } finally { await Promise.all(servers.map(server => closeFixtureServer(server))) }

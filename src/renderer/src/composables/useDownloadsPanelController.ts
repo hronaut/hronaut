@@ -23,9 +23,10 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   const query = ref('')
   const statusFilter = ref<'all' | 'active' | 'finished' | 'completed' | 'cancelled' | 'interrupted'>('all')
   const filteredDownloads = computed(() => {
-    const filename = query.value.trim().toLocaleLowerCase()
+    const text = query.value.trim().toLocaleLowerCase()
     return options.downloads.value.filter(download => {
-      if (filename && !download.filename.toLocaleLowerCase().includes(filename)) return false
+      if (text && !download.filename.toLocaleLowerCase().includes(text)
+        && !downloadOrigin(download).toLocaleLowerCase().includes(text)) return false
       if (statusFilter.value === 'all') return true
       if (statusFilter.value === 'active') return isActiveDownload(download)
       if (statusFilter.value === 'finished') return !isActiveDownload(download)

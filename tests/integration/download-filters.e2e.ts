@@ -49,7 +49,7 @@ test('filters real resumable transfers and clears finished downloads across hidd
     expect(resumeEntry).toMatchObject({ state: 'interrupted', canResume: true })
     const panel = appWindow.getByRole('dialog', { name: 'Downloads', exact: true })
     await expect(panel).toBeVisible()
-    const search = panel.getByRole('searchbox', { name: 'Search filenames' })
+    const search = panel.getByRole('searchbox', { name: 'Search filenames or origins' })
     const status = panel.getByRole('combobox', { name: 'Filter download status' })
     await status.selectOption('completed')
     await expect(panel.getByRole('status')).toHaveText('1 of 3 downloads')

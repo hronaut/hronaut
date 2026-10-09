@@ -52,6 +52,58 @@ function createController(initialDownloads = [download('complete', 'completed', 
 }
 
 describe('downloads panel controller', () => {
+  it.each(['  HTTPS://STAGING.TEST:8443  ', 'STAGING.TEST', ':8443'])('searches displayed origins with status intersection: %s', query => {
+    const staging = { ...download('report-staging', 'completed'), url: 'https://staging.test:8443/private/report?token=secret' }
+    const active = { ...download('report-active'), url: 'https://staging.test:8443/other' }
+    const production = { ...download('report-production', 'completed'), url: 'https://production.test/report' }
+    const h = createController([staging, active, production])
+    try {
+      h.controller.query.value = query
+      expect(h.controller.filteredDownloads.value).toEqual([staging, active])
+      h.controller.statusFilter.value = 'completed'
+      expect(h.controller.filteredDownloads.value).toEqual([staging])
+      h.controller.statusFilter.value = 'active'
+      expect(h.controller.filteredDownloads.value).toEqual([active])
+      expect(h.downloads.value).toEqual([staging, active, production])
+      expect(h.cancelDownload).not.toHaveBeenCalled()
+      expect(h.resumeDownload).not.toHaveBeenCalled()
+    } finally { h.controller.dispose() }
+  })
+
+  it.each(['private-user', 'private-password', 'private-path', 'query-secret', 'fragment-secret', 'local-secret', 'data-secret', 'blob-secret'])('does not search omitted URL content: %s', query => {
+    const h = createController([
+      { ...download('report'), url: 'https://private-user:private-password@example.test/private-path?key=query-secret#fragment-secret' },
+      { ...download('local'), url: 'file:///local-secret/report' },
+      { ...download('data'), url: 'data:text/plain,data-secret' },
+      { ...download('blob'), url: 'blob:https://blob-secret.test/id' }
+    ])
+    try {
+      h.controller.query.value = query
+      expect(h.controller.filteredDownloads.value).toEqual([])
+      h.controller.query.value = 'EXAMPLE.TEST'
+      expect(h.controller.filteredDownloads.value.map(entry => entry.id)).toEqual(['report'])
+    } finally { h.controller.dispose() }
+  })
+
+  it('keeps filename matches when origins are unavailable and canonicalizes displayed origins', () => {
+    const entries = [
+      { ...download('report-invalid'), url: 'not a url' },
+      { ...download('report-local'), url: 'file:///tmp/report' },
+      { ...download('report-normalized'), url: 'https://EXAMPLE.TEST:443/report' }
+    ]
+    const h = createController(entries)
+    try {
+      h.controller.query.value = 'REPORT'
+      expect(h.controller.filteredDownloads.value).toEqual(entries)
+      h.controller.query.value = 'https://example.test'
+      expect(h.controller.filteredDownloads.value).toEqual([entries[2]])
+      h.controller.query.value = ':443'
+      expect(h.controller.filteredDownloads.value).toEqual([])
+      h.controller.query.value = '  '
+      expect(h.controller.filteredDownloads.value).toEqual(entries)
+    } finally { h.controller.dispose() }
+  })
+
   it('combines filename and lifecycle filters without treating resumable interruptions as finished', () => {
     const active = download('report-live')
     const resumable = { ...download('report-retry', 'interrupted'), canResume: true }
@@ -65,7 +117,7 @@ describe('downloads panel controller', () => {
     h.controller.statusFilter.value = 'finished'
     expect(h.controller.filteredDownloads.value).toEqual([complete, cancelled, interrupted])
     h.controller.query.value = 'https://'
-    expect(h.controller.filteredDownloads.value).toEqual([])
+    expect(h.controller.filteredDownloads.value).toEqual([complete, cancelled, interrupted])
     expect(h.controller.finishedDownloads.value).toEqual([complete, cancelled, interrupted])
     h.controller.dispose()
   })

@@ -498,7 +498,7 @@ export const ukUA = {
     copiedPath: "Збережений шлях скопійовано",
     copyPathFailed: "Не вдалося скопіювати збережений шлях",
     removeAria: "Прибрати {filename} зі списку", removeHint: "Прибрати зі списку; файл залишиться на диску",
-    "search": "Пошук за назвою файлу",
+    "search": "Пошук за назвою файлу або джерелом",
     "filterStatus": "Фільтр стану завантажень",
     "filterAll": "Усі",
     "filterActive": "Активні",
@@ -506,7 +506,7 @@ export const ukUA = {
     "filterFinished": "Завершені",
     "filterSummary": "{visible} із {total} завантажень",
     "noMatches": "Відповідних завантажень немає",
-    "changeFilters": "Змініть фільтр назви файлу або стану.",
+    "changeFilters": "Змініть пошуковий фільтр або фільтр стану.",
     "clearFinishedHint": "Очищає всі завершені завантаження, зокрема приховані фільтрами.",
 
     destinationUnavailable: "Не вдалося підготувати місце завантаження",

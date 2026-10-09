@@ -2648,7 +2648,7 @@ export const frFR = {
     copiedPath: "Chemin enregistré copié",
     copyPathFailed: "Impossible de copier le chemin enregistré",
     removeAria: "Retirer {filename} de la liste", removeHint: "Retirer de la liste ; le fichier reste sur le disque",
-    "search": "Rechercher un nom de fichier",
+    "search": "Rechercher un nom de fichier ou une origine",
     "filterStatus": "Filtrer l’état des téléchargements",
     "filterAll": "Tous",
     "filterActive": "Actifs",
@@ -2656,7 +2656,7 @@ export const frFR = {
     "filterFinished": "Terminés",
     "filterSummary": "{visible} sur {total} téléchargements",
     "noMatches": "Aucun téléchargement correspondant",
-    "changeFilters": "Modifiez le filtre de nom de fichier ou d’état.",
+    "changeFilters": "Modifiez le filtre de recherche ou d’état.",
     "clearFinishedHint": "Efface tous les téléchargements terminés, y compris ceux masqués par les filtres.",
 
     "destinationUnavailable": "Impossible de préparer la destination du téléchargement",

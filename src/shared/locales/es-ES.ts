@@ -2648,7 +2648,7 @@ export const esES = {
     copiedPath: "Ruta guardada copiada",
     copyPathFailed: "No se pudo copiar la ruta guardada",
     removeAria: "Quitar {filename} de la lista", removeHint: "Quitar de la lista; el archivo permanece en el disco",
-    "search": "Buscar nombres de archivo",
+    "search": "Buscar nombres de archivo u orígenes",
     "filterStatus": "Filtrar estado de descarga",
     "filterAll": "Todas",
     "filterActive": "Activas",
@@ -2656,7 +2656,7 @@ export const esES = {
     "filterFinished": "Finalizadas",
     "filterSummary": "{visible} de {total} descargas",
     "noMatches": "No hay descargas coincidentes",
-    "changeFilters": "Cambia el filtro de nombre de archivo o estado.",
+    "changeFilters": "Cambia el filtro de búsqueda o estado.",
     "clearFinishedHint": "Borra todas las descargas finalizadas, incluidas las ocultas por filtros.",
 
     "destinationUnavailable": "No se pudo preparar el destino de la descarga",

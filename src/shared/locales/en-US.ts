@@ -650,7 +650,7 @@ export const enUS = {
     copiedPath: "Saved path copied",
     copyPathFailed: "Could not copy saved path",
     removeAria: "Remove {filename} from list", removeHint: "Remove from list; file stays on disk",
-    "search": "Search filenames",
+    "search": "Search filenames or origins",
     "filterStatus": "Filter download status",
     "filterAll": "All",
     "filterActive": "Active",
@@ -658,7 +658,7 @@ export const enUS = {
     "filterFinished": "Finished",
     "filterSummary": "{visible} of {total} downloads",
     "noMatches": "No matching downloads",
-    "changeFilters": "Change the filename or status filter.",
+    "changeFilters": "Change the search or status filter.",
     "clearFinishedHint": "Clears all finished downloads, including those hidden by filters.",
 
     destinationUnavailable: "Could not prepare download destination",

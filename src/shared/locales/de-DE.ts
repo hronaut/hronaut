@@ -2648,7 +2648,7 @@ export const deDE = {
     copiedPath: "Gespeicherter Pfad kopiert",
     copyPathFailed: "Gespeicherter Pfad konnte nicht kopiert werden",
     removeAria: "{filename} aus der Liste entfernen", removeHint: "Aus Liste entfernen; Datei bleibt auf dem Datenträger",
-    "search": "Dateinamen suchen",
+    "search": "Dateinamen oder Ursprünge suchen",
     "filterStatus": "Downloadstatus filtern",
     "filterAll": "Alle",
     "filterActive": "Aktiv",
@@ -2656,7 +2656,7 @@ export const deDE = {
     "filterFinished": "Beendet",
     "filterSummary": "{visible} von {total} Downloads",
     "noMatches": "Keine passenden Downloads",
-    "changeFilters": "Ändern Sie den Dateinamen- oder Statusfilter.",
+    "changeFilters": "Ändern Sie den Such- oder Statusfilter.",
     "clearFinishedHint": "Entfernt alle beendeten Downloads, auch die durch Filter ausgeblendeten.",
 
     "destinationUnavailable": "Downloadziel konnte nicht vorbereitet werden",
