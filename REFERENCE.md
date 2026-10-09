@@ -471,6 +471,8 @@ Optional environment variables:
 
 ## Page tools
 
+In **Network**, select a request and expand **Response body** to **Copy sanitized response body**. This copies only the text currently displayed, including any redaction, omission or truncation markers. It does not fetch the body again or replay the request. The action is unavailable when no response text is retained; an available empty response copies an empty string. Review the displayed evidence before sharing it.
+
 Page tools groups actions by task: **Inspect & simulate**, **Diagnose & reproduce**, **Audit & optimize**, and **Export & account**. Search within the panel by tool name, description, category, or familiar terms such as `cookies` and `screenshot`. The result count updates as you type, and empty groups disappear. Press Down Arrow in search to focus the first available action, or Escape to clear the query. Reopening the panel shows every tool again. Cards wrap their descriptions and adapt to the panel width, including narrow side docks. The groups use real section headings for keyboard and assistive-technology orientation; the Command Palette also provides direct access from anywhere in the application.
 
 For screenshots, humans can drag an area from the toolbar, pick one complete element from Page tools, or use the Command Palette to copy the visible viewport or complete scrollable page. All four modes write a PNG directly to the system clipboard for pasting into an agent chat; application toasts report success and actionable clipboard errors without covering or changing the address field.

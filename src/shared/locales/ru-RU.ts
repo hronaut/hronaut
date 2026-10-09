@@ -2224,6 +2224,8 @@ export const ruRU = {
       "safety": "Известные поля секретов, двоичные и multipart-тела исключены. Проверяйте произвольный текст перед публикацией."
     },
     "details": {
+      "copyResponseBody": "Копировать очищенное тело ответа",
+      "copiedResponseBody": "Тело ответа скопировано",
       "responseSource": "Источник ответа",
       "workerResponse": "Ответ worker",
       "cacheName": "Имя Cache Storage",

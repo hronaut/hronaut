@@ -636,17 +636,96 @@ describe('network controller', () => {
     expect(controller.routeState.value).toBe('ready')
   })
 
-  it('restarts copied feedback when the same request format is copied again', async () => {
+  it.each([
+    '{"visible":"kept","accessToken":"[REDACTED]"}',
+    'prefix\n[truncated after 20000 characters]',
+    '[binary body omitted]',
+    ''
+  ])('copies only the retained response text %j without reacquiring it', async (body) => {
+    const { browser, controller, copyText } = createController()
+    controller.requestDetails.value = details('copy')
+    controller.requestDetails.value.response.body = { available: true, text: body }
+    await controller.copyDetails('response')
+    expect(copyText).toHaveBeenCalledExactlyOnceWith(body)
+    expect(browser.getNetworkRequestDetails).not.toHaveBeenCalled()
+    expect(browser.replayNetworkRequest).not.toHaveBeenCalled()
+    expect(controller.detailsCopied.value).toBe('response')
+    controller.dispose()
+  })
+
+  it.each([
+    { available: false, text: 'must not copy', reason: 'Unavailable' },
+    { available: true },
+    { text: 'availability unknown' }
+  ])('does not copy an unavailable response body %j', async (body) => {
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('copy')
+    controller.requestDetails.value.response.body = body
+    await controller.copyDetails('response')
+    expect(copyText).not.toHaveBeenCalled()
+    expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it.each(['selection', 'reset', 'dispose'] as const)('ignores response-copy feedback after %s', async (change) => {
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('older')
+    copyText.mockImplementationOnce(() => pending.promise)
+    const operation = controller.copyDetails('response')
+    if (change === 'selection') await controller.selectRequest(request('newer'))
+    else controller[change]()
+    pending.resolve(true)
+    await operation
+    expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('reports a response clipboard failure without successful copy feedback', async () => {
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('copy')
+    copyText.mockRejectedValueOnce(new Error('Clipboard unavailable'))
+    await controller.copyDetails('response')
+    expect(controller.monitorError.value).toBe('Clipboard unavailable')
+    expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('keeps newer JSON copy feedback when an older response copy completes', async () => {
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('copy')
+    copyText.mockImplementationOnce(() => pending.promise)
+    const older = controller.copyDetails('response')
+    await controller.copyDetails('json')
+    pending.resolve(true)
+    await older
+    expect(controller.detailsCopied.value).toBe('json')
+    controller.dispose()
+  })
+
+  it('clears previous response success when another clipboard write is refused', async () => {
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('copy')
+    await controller.copyDetails('response')
+    expect(controller.detailsCopied.value).toBe('response')
+    copyText.mockResolvedValueOnce(false)
+    await controller.copyDetails('response')
+    expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it.each(['curl', 'response'] as const)('restarts copied feedback when %s is copied again', async (format) => {
     vi.useFakeTimers()
     const { controller } = createController()
     controller.requestDetails.value = details('copy')
 
-    await controller.copyDetails('curl')
+    await controller.copyDetails(format)
     await vi.advanceTimersByTimeAsync(1_000)
-    await controller.copyDetails('curl')
+    await controller.copyDetails(format)
     await vi.advanceTimersByTimeAsync(600)
 
-    expect(controller.detailsCopied.value).toBe('curl')
+    expect(controller.detailsCopied.value).toBe(format)
     await vi.advanceTimersByTimeAsync(900)
     expect(controller.detailsCopied.value).toBeNull()
     controller.dispose()

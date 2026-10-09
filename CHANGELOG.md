@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Copy the displayed sanitized Network response body directly, retaining redaction and truncation markers without fetching or replaying the request.
+
 - Identify HTTP(S) downloads by their retained download origin directly in the Downloads list, without displaying URL credentials, paths, query strings, or fragments.
 
 ### Fixed

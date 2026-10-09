@@ -56,6 +56,7 @@ const {
   requestDetailsLoading: networkRequestDetailsLoading,
   monitorError: networkMonitorError,
   detailsCopied: networkDetailsCopied,
+  canCopyResponseBody,
   replayState: networkReplayState,
   replayMessage: networkReplayMessage,
   search: networkSearch,
@@ -634,6 +635,11 @@ onBeforeUnmount(dispose)
               </details>
               <details>
                 <summary>{{ t('network.details.responseBody') }} <span v-if="networkRequestDetails.response.body.redacted">{{ t('network.details.sanitized') }}</span></summary>
+                <UiButton appearance="application" type="button" :disabled="!canCopyResponseBody" @click="copySanitizedNetworkDetails('response')">
+                  <IconCheck v-if="networkDetailsCopied === 'response'" aria-hidden="true" />
+                  <IconCopy v-else aria-hidden="true" />
+                  {{ networkDetailsCopied === 'response' ? t('network.details.copiedResponseBody') : t('network.details.copyResponseBody') }}
+                </UiButton>
                 <pre v-if="networkRequestDetails.response.body.available">{{ networkRequestDetails.response.body.text }}</pre>
                 <p v-else>{{ networkRequestDetails.response.body.reason }}</p>
               </details>

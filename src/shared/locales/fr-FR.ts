@@ -2224,6 +2224,8 @@ export const frFR = {
       "safety": "Les champs de secrets connus ainsi que les corps binaires et multipart sont omis. Vérifiez tout texte arbitraire avant de le partager."
     },
     "details": {
+      "copyResponseBody": "Copier le corps de réponse expurgé",
+      "copiedResponseBody": "Corps de réponse copié",
       "responseSource": "Source de la réponse",
       "workerResponse": "Réponse du worker",
       "cacheName": "Nom Cache Storage",
