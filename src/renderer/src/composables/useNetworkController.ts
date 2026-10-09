@@ -256,9 +256,10 @@ export function useNetworkController(options: NetworkControllerOptions) {
     try {
       const nextRequests = await options.browser.listNetworkRequests(tab.id, clear)
       if (sequence !== monitorRequestSequence || !isCurrent(tab.id, expectedGeneration)) return
-      requests.value = nextRequests
+      // Clearing returns the removed records; they are no longer retained.
+      requests.value = clear ? [] : nextRequests
       monitorState.value = 'ready'
-      if (selectedRequestId.value && !nextRequests.some((request) => request.id === selectedRequestId.value)) {
+      if (selectedRequestId.value && !requests.value.some((request) => request.id === selectedRequestId.value)) {
         clearRequestSelection()
       }
     } catch (cause) {
