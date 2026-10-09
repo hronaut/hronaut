@@ -607,6 +607,10 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   async function copyVisualDiff(): Promise<void> {
     const request = begin('visual')
     if (!request || visualCompareReport.value?.status !== 'compared') return
+    const previous = feedbackTimers.get('visual')
+    if (previous !== undefined) window.clearTimeout(previous)
+    feedbackTimers.delete('visual')
+    visualCompareCopied.value = false
     visualCompareError.value = ''
     try {
       await options.browser.copyVisualDiff(request.tab.id)

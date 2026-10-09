@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clear stale Visual Compare image-copy success feedback while another clipboard attempt is pending or refused.
+
 - Give keyboard-reopened address suggestions a fresh session so delayed events from a closed popup cannot dismiss them or trigger stale navigation.
 
 - Keep recently closed tab labels current while Tab Search stays open, and catch up when the overview regains focus.

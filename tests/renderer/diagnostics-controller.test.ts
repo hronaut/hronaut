@@ -9,7 +9,8 @@ import type {
   BrowserQualityAudit,
   BrowserInspectorIssuesReport,
   BrowserReproRecording,
-  BrowserTabState
+  BrowserTabState,
+  BrowserVisualCompareView
 } from '../../src/shared/types.js'
 
 function tab(id = 'tab-1'): BrowserTabState {
@@ -158,6 +159,18 @@ function createController() {
   return { activeTab, browser, controller, copyText }
 }
 
+function prepareVisualCopy() {
+  const h = createController()
+  const report: BrowserVisualCompareView = {
+    action: 'compare', status: 'compared', tabId: 'tab-1', title: 'Example',
+    url: 'https://example.test/app', threshold: 16, caveats: []
+  }
+  h.controller.visualCompareReport.value = report
+  h.controller.visualCompareState.value = 'ready'
+  h.browser.visualCompare.mockResolvedValue(report)
+  return { ...h, report }
+}
+
 const textCopyKinds = ['debug', 'repro', 'playwright', 'dom', 'issues', 'quality'] as const
 
 function prepareTextCopy(kind: typeof textCopyKinds[number]) {
@@ -184,6 +197,62 @@ afterEach(() => {
 })
 
 describe('diagnostics controller', () => {
+  it.each([true, false])('clears prior image-copy feedback during another attempt (success: %s)', async succeeded => {
+    vi.useFakeTimers()
+    const h = prepareVisualCopy()
+    const pending = deferred<void>()
+    try {
+      await h.controller.copyVisualDiff()
+      expect(h.controller.visualCompareCopied.value).toBe(true)
+      await vi.advanceTimersByTimeAsync(1_000)
+      h.browser.copyVisualDiff.mockImplementationOnce(async () => {
+        await pending.promise
+        if (!succeeded) throw new Error('Clipboard refused')
+      })
+      const operation = h.controller.copyVisualDiff()
+      expect(h.controller.visualCompareCopied.value).toBe(false)
+      pending.resolve()
+      await operation
+      expect(h.controller.visualCompareCopied.value).toBe(succeeded)
+      expect(h.controller.visualCompareReport.value).toEqual(h.report)
+      expect(h.controller.visualCompareError.value).toBe(succeeded ? '' : 'Clipboard refused')
+      await vi.advanceTimersByTimeAsync(600)
+      expect(h.controller.visualCompareCopied.value).toBe(succeeded)
+      await vi.advanceTimersByTimeAsync(900)
+      expect(h.controller.visualCompareCopied.value).toBe(false)
+    } finally { h.controller.dispose() }
+  })
+
+  it('ignores an older image-copy completion while another copy is pending', async () => {
+    const h = prepareVisualCopy()
+    const first = deferred<void>(), second = deferred<void>()
+    h.browser.copyVisualDiff.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise)
+    try {
+      const older = h.controller.copyVisualDiff(), newer = h.controller.copyVisualDiff()
+      first.resolve()
+      await older
+      expect(h.controller.visualCompareCopied.value).toBe(false)
+      second.resolve()
+      await newer
+      expect(h.controller.visualCompareCopied.value).toBe(true)
+    } finally { h.controller.dispose() }
+  })
+
+  it.each(['report', 'navigation', 'dispose'] as const)('drops image-copy completion after %s supersedes it', async change => {
+    const h = prepareVisualCopy()
+    const pending = deferred<void>()
+    h.browser.copyVisualDiff.mockImplementationOnce(() => pending.promise)
+    try {
+      const operation = h.controller.copyVisualDiff()
+      if (change === 'report') await h.controller.manageVisualCompare('get')
+      else if (change === 'navigation') h.activeTab.value = { ...tab(), navigationGeneration: 1 }
+      else h.controller.dispose()
+      pending.resolve()
+      await operation
+      expect(h.controller.visualCompareCopied.value).toBe(false)
+    } finally { h.controller.dispose() }
+  })
+
   it.each(textCopyKinds.flatMap(kind => [true, false].map(succeeded => ({ kind, succeeded }))))(
     'clears prior $kind feedback during a new write (success: $succeeded)', async ({ kind, succeeded }) => {
       vi.useFakeTimers()
