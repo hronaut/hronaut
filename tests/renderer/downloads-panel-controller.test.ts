@@ -54,6 +54,28 @@ function createController(initialDownloads = [download('complete', 'completed', 
 }
 
 describe('downloads panel controller', () => {
+  it.each([
+    ['report staging.test', ['staging']],
+    [' STAGING.TEST\tREPORT ', ['staging']],
+    ['report [v2]', ['staging']],
+    ['[v2] staging.test', ['staging']],
+    ['report production.test', []],
+    ['report missing', []],
+    ['report', ['staging']],
+    ['   \t ', ['staging', 'production']],
+    ['staging.test', ['staging']]
+  ])('matches literal terms across one filename and displayed origin: %s', (query, expected) => {
+    const entries = [
+      { ...download('staging', 'completed'), filename: 'report [v2].csv', url: 'https://staging.test/export' },
+      { ...download('production', 'completed'), filename: 'archive.csv', url: 'https://production.test/export' }
+    ]
+    const h = createController(entries)
+    h.controller.query.value = query
+    expect(h.controller.filteredDownloads.value.map(item => item.id)).toEqual(expected)
+    expect(h.downloads.value).toEqual(entries)
+    h.controller.dispose()
+  })
+
   it('sorts filtered filenames naturally with stable ties without changing retained order', () => {
     const entries = [download('report10', 'completed'), download('report2', 'completed'),
       { ...download('tie', 'completed'), filename: 'REPORT2.bin' }, download('report1'), download('other', 'completed')]
@@ -108,15 +130,17 @@ describe('downloads panel controller', () => {
     } finally { h.controller.dispose() }
   })
 
-  it.each(['private-user', 'private-password', 'private-path', 'query-secret', 'fragment-secret', 'local-secret', 'data-secret', 'blob-secret'])('does not search omitted URL content: %s', query => {
+  it.each(['private-user', 'private-password', 'private-path', 'query-secret', 'fragment-secret', 'local-secret', 'data-secret', 'blob-secret', 'saved-path-secret'])('does not search omitted URL content or saved paths: %s', query => {
     const h = createController([
-      { ...download('report'), url: 'https://private-user:private-password@example.test/private-path?key=query-secret#fragment-secret' },
+      { ...download('report'), url: 'https://private-user:private-password@example.test/private-path?key=query-secret#fragment-secret', savePath: '/tmp/saved-path-secret/report.bin' },
       { ...download('local'), url: 'file:///local-secret/report' },
       { ...download('data'), url: 'data:text/plain,data-secret' },
       { ...download('blob'), url: 'blob:https://blob-secret.test/id' }
     ])
     try {
       h.controller.query.value = query
+      expect(h.controller.filteredDownloads.value).toEqual([])
+      h.controller.query.value = `report ${query}`
       expect(h.controller.filteredDownloads.value).toEqual([])
       h.controller.query.value = 'EXAMPLE.TEST'
       expect(h.controller.filteredDownloads.value.map(entry => entry.id)).toEqual(['report'])

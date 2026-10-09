@@ -48,7 +48,7 @@ test('sorts real downloads by filename while preserving filters, saved files and
     await sort.selectOption('filename')
     await expect(filenames).toHaveText(names)
     await expect(sort).toBeFocused()
-    await panel.getByRole('searchbox').fill('report')
+    await panel.getByRole('searchbox').fill('127.0.0.1 report')
     await panel.getByRole('combobox', { name: 'Filter download status' }).selectOption('completed')
     await expect(filenames).toHaveText(names)
     const second = before.find(entry => entry.filename === names[1])!

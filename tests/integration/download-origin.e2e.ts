@@ -63,6 +63,9 @@ test('attributes and filters similar report downloads by retained origins withou
     for (const origin of origins) {
       await search.fill(origin.toUpperCase())
       await expect(panel.getByRole('article')).toHaveCount(1)
+      await search.fill(`REPORT   ${origin.toUpperCase()}`)
+      await expect(panel.getByRole('article')).toHaveCount(1)
+      await expect(search).toBeFocused()
       await expect(panel.locator('.download-origin')).toHaveText(`Download origin: ${origin}`)
       await expect(panel.getByRole('status')).toHaveText('1 of 2 downloads')
       await status.selectOption('cancelled')
@@ -72,6 +75,8 @@ test('attributes and filters similar report downloads by retained origins withou
     }
     for (const omitted of ['private/report', 'synthetic-secret', 'token=']) {
       await search.fill(omitted)
+      await expect(panel.getByText('No matching downloads')).toBeVisible()
+      await search.fill(`report ${omitted}`)
       await expect(panel.getByText('No matching downloads')).toBeVisible()
     }
     await search.fill('report')

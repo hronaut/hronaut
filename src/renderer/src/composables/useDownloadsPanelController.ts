@@ -26,10 +26,12 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   const filenameCollator = computed(() => new Intl.Collator(options.locale.value, { numeric: true, sensitivity: 'base' }))
   const statusFilter = ref<'all' | 'active' | 'finished' | 'completed' | 'cancelled' | 'interrupted'>('all')
   const filteredDownloads = computed(() => {
-    const text = query.value.trim().toLocaleLowerCase()
+    const terms = query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
     const matching = options.downloads.value.filter(download => {
-      if (text && !download.filename.toLocaleLowerCase().includes(text)
-        && !downloadOrigin(download).toLocaleLowerCase().includes(text)) return false
+      if (terms.length) {
+        const text = `${download.filename}\n${downloadOrigin(download)}`.toLocaleLowerCase()
+        if (!terms.every(term => text.includes(term))) return false
+      }
       if (statusFilter.value === 'all') return true
       if (statusFilter.value === 'active') return isActiveDownload(download)
       if (statusFilter.value === 'finished') return !isActiveDownload(download)
