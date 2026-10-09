@@ -97,7 +97,7 @@ describe('DownloadsPanel', () => {
     const clearFinished = vi.fn(async () => [active])
     renderPanel({ downloads: [active, download('visible', 'completed', 100, 100), download('hidden', 'cancelled', 0, 100)], clearFinished })
     const user = userEvent.setup()
-    await user.type(screen.getByRole('searchbox', { name: 'Search filenames' }), 'VISIBLE')
+    await user.type(screen.getByRole('searchbox', { name: 'Search filenames or origins' }), 'VISIBLE')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Filter download status' }), 'finished')
     expect(screen.getByRole('status')).toHaveTextContent('1 of 3 downloads')
     expect(screen.queryByText('hidden.bin')).not.toBeInTheDocument()

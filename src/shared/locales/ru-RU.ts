@@ -2648,7 +2648,7 @@ export const ruRU = {
     copiedPath: "Сохранённый путь скопирован",
     copyPathFailed: "Не удалось скопировать сохранённый путь",
     removeAria: "Убрать {filename} из списка", removeHint: "Убрать из списка; файл останется на диске",
-    "search": "Поиск по имени файла",
+    "search": "Поиск по имени файла или источнику",
     "filterStatus": "Фильтр состояния загрузок",
     "filterAll": "Все",
     "filterActive": "Активные",
@@ -2656,7 +2656,7 @@ export const ruRU = {
     "filterFinished": "Завершённые",
     "filterSummary": "{visible} из {total} загрузок",
     "noMatches": "Подходящих загрузок нет",
-    "changeFilters": "Измените фильтр имени файла или состояния.",
+    "changeFilters": "Измените поисковый фильтр или фильтр состояния.",
     "clearFinishedHint": "Очищает все завершённые загрузки, включая скрытые фильтрами.",
 
     "destinationUnavailable": "Не удалось подготовить место загрузки",

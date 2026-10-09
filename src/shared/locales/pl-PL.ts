@@ -2648,7 +2648,7 @@ export const plPL = {
     copiedPath: "Zapisana ścieżka skopiowana",
     copyPathFailed: "Nie udało się skopiować zapisanej ścieżki",
     removeAria: "Usuń {filename} z listy", removeHint: "Usuń z listy; plik pozostanie na dysku",
-    "search": "Szukaj nazw plików",
+    "search": "Szukaj nazw plików lub źródeł",
     "filterStatus": "Filtruj stan pobierania",
     "filterAll": "Wszystkie",
     "filterActive": "Aktywne",
@@ -2656,7 +2656,7 @@ export const plPL = {
     "filterFinished": "Zakończone",
     "filterSummary": "{visible} z {total} pobrań",
     "noMatches": "Brak pasujących pobrań",
-    "changeFilters": "Zmień filtr nazwy pliku lub stanu.",
+    "changeFilters": "Zmień filtr wyszukiwania lub stanu.",
     "clearFinishedHint": "Czyści wszystkie zakończone pobrania, także ukryte przez filtry.",
 
     "destinationUnavailable": "Nie udało się przygotować miejsca pobierania",

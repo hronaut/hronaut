@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Search Downloads by the displayed HTTP(S) origin as well as filename, combined with the existing status filter, without searching hidden URL fields.
+
 - Filter retained Network requests by HTTP status families such as `4xx` or `5xx`, including exclusions, consistently across the human panel, MCP and HAR exports.
 
 - Refresh a selected Network request’s sanitized details after completion without replaying its traffic or changing the list filters.
