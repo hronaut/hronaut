@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Copy a selected Network request’s displayed sanitized URL directly, preserving redaction markers without reacquiring details or replaying traffic.
 
+### Fixed
+
+- Preserve the latest detached-panel request while the renderer loads its startup settings, so a newer panel does not revert to the window’s initial panel.
+
 ## [2.24.0] - 2026-10-09
 
 ### Added
