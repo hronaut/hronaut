@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSyn
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { createRequire } from 'node:module'
-import { BUNDLE, CASE_FILE, CASE_TITLE, digest, IDENTITY_MARKER, overlayIdentity, patchCaptureCase, patchCaptureFixture, prepareCapture, removeCapture, verifyLoadedBundle, verifyPrepared, verifyResolution, type CaptureManifest } from '../scripts/diagnostics/protocol-capture-loader.js'
+import { BUNDLE, CASE_FILE, CASE_TITLE, digest, IDENTITY_MARKER, overlayIdentity, patchCaptureCase, patchCaptureFixture, patchCaptureDisplay, prepareCapture, removeCapture, verifyLoadedBundle, verifyPrepared, verifyResolution, type CaptureManifest } from '../scripts/diagnostics/protocol-capture-loader.js'
 import { captureBeforeCleanup, MAX_ARTIFACT_BYTES, readCaptureFile, sanitizeSnapshot } from '../scripts/diagnostics/protocol-capture-worker.js'
 import { readVerdict, runPreparedCapture } from '../scripts/diagnostics/protocol-capture-runner.js'
 import { createProtocolTiming } from '../scripts/diagnostics/protocol-timing-runtime.js'
@@ -11,9 +11,9 @@ import { createProtocolTiming } from '../scripts/diagnostics/protocol-timing-run
 import { isolatedProcess } from './helpers/protocol-synthetic-process.js'
 const containment = vi.hoisted(() => ({ stopped: 1, interrupt: '' }))
 vi.mock('../scripts/diagnostics/protocol-capture-container.ts', () => ({
-  isolatedContainer: async (root: string, _image: string, command: string[], signal?: AbortSignal) => {
+  isolatedContainer: async (root: string, _image: string, command: string[], signal?: AbortSignal, _engine?: unknown, privateErrors = false) => {
     if (containment.interrupt) process.emit(containment.interrupt as 'SIGTERM')
-    const outcome = await isolatedProcess(process.execPath, command.slice(1), root, { CI: 'true' }, signal)
+    const outcome = await isolatedProcess(process.execPath, command.slice(1), root, { CI: 'true', HRONAUT_PRIVATE_SYNTHETIC_ERRORS: privateErrors ? '1' : undefined }, signal)
     return { ...outcome, stopped: containment.stopped }
   }
 }))
@@ -31,7 +31,9 @@ function snapshot() {
 function prepared() {
   const parent = fresh(); const root = mkdtempSync(join(parent, 'hronaut-protocol-capture-'))
   for (const name of ['', 'node_modules/playwright', 'node_modules/@playwright/test', 'node_modules/playwright-core'])
-    write(join(root, name, 'package.json'), '{"type":"commonjs"}')
+    write(join(root, name, 'package.json'), name ? '{"type":"commonjs"}' : '{"type":"module"}')
+  for (const name of ['protocol-capture-startup.ts', 'protocol-capture-preload.ts'])
+    write(join(root, 'scripts/diagnostics', name), readFileSync(join('scripts/diagnostics', name), 'utf8'))
   const body = '"use strict";\n'
   const bundle = body + `${IDENTITY_MARKER}"${digest(body)}";\n`
   write(join(root, BUNDLE), bundle)
@@ -40,9 +42,11 @@ function prepared() {
   write(join(root, 'playwright.config.ts'), readFileSync('playwright.config.ts', 'utf8'))
   const fixture = patchCaptureFixture(readFileSync('tests/integration/fixtures.ts', 'utf8'))
   write(join(root, 'tests/integration/fixtures.ts'), fixture)
+  const display = patchCaptureDisplay(readFileSync('tests/integration/worker-display.ts', 'utf8'))
+  write(join(root, 'tests/integration/worker-display.ts'), display)
   const sourceRoot = join(parent, 'original')
   write(join(sourceRoot, BUNDLE), bundle)
-  const manifest: CaptureManifest = { root, sourceRoot, sourceBundleHash: digest(bundle), bundleHash: digest(bundle), identity: overlayIdentity(bundle), caseHash: digest(caseSource), fixtureHash: digest(fixture) }
+  const manifest: CaptureManifest = { root, sourceRoot, sourceBundleHash: digest(bundle), bundleHash: digest(bundle), identity: overlayIdentity(bundle), caseHash: digest(caseSource), fixtureHash: digest(fixture), displayHash: digest(display) }
   return { parent, root, manifest }
 }
 function cached(manifest: CaptureManifest, exports: unknown) {
@@ -94,7 +98,7 @@ describe('disposable protocol loader and collector', () => {
   it('injects primary snapshot before all existing case/fixture cleanup, leaving body unchanged', () => {
     const original = readFileSync(CASE_FILE, 'utf8'); const patched = patchCaptureCase(original)
     expect(patched).toContain('  } finally {\n    collectBeforeCleanup(testInfo.retry)\n    await Promise.allSettled(clients.map(client => client.close()))')
-    expect(patched.replace("import { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n", '').replace('    collectBeforeCleanup(testInfo.retry)\n', '')).toBe(original)
+    expect(patched.replace("import { recordStartup } from '../../scripts/diagnostics/protocol-capture-startup.js'\n", '').replace('    recordStartup(3, 1)\n', '').replace('    recordStartup(3, 2)\n', '').replace("import { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n", '').replace('    collectBeforeCleanup(testInfo.retry)\n', '')).toBe(original)
     expect(new RegExp(`${CASE_TITLE}$`).test(`electron workspace-continuity.e2e.ts ${CASE_TITLE}`)).toBe(true)
   })
   it('captures timeout fallback before fixture diagnostics even when case finally has not run', () => {
@@ -106,7 +110,11 @@ describe('disposable protocol loader and collector', () => {
     expect(primary).toBeLessThan(patched.indexOf('const collect = () => collectRendererDiagnostics(app)', start))
     expect(primary).toBeLessThan(patched.indexOf('await attachActivityDiagnostics(app, info)', start))
     expect(primary).toBeLessThan(patched.indexOf('await closeHronaut(app)', start))
-    expect(patched.replace("import { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n", '')
+    expect(patched.replace("import { recordStartup, startupReason } from '../../scripts/diagnostics/protocol-capture-startup.js'\n", '').replace(`    recordStartup(9, 1)
+    let instance: HronautInstance
+    try { instance = await launchHronaut(profileDirectory, mcpPort) }
+    catch (error) { recordStartup(9, 3, startupReason(error)); throw error }
+    recordStartup(9, 2)`, '    const instance = await launchHronaut(profileDirectory, mcpPort)').replace("import { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n", '')
       .replace('  try { collectBeforeCleanup(base.info().retry) } catch { /* Diagnostic collection never replaces the original verdict. */ }\n', '')).toBe(original)
     const file = join(fresh(), 'first.json')
     captureBeforeCleanup(snapshot, data => writeFileSync(file, data, { flag: 'wx' }))
@@ -161,6 +169,7 @@ describe('disposable protocol loader and collector', () => {
     write(join(root, 'node_modules/playwright-core/package.json'), '{"version":"1.63.0"}')
     write(join(root, CASE_FILE), readFileSync(CASE_FILE, 'utf8'))
     write(join(root, 'tests/integration/fixtures.ts'), readFileSync('tests/integration/fixtures.ts', 'utf8'))
+    write(join(root, 'tests/integration/worker-display.ts'), readFileSync('tests/integration/worker-display.ts', 'utf8'))
     mkdirSync(join(root, 'scripts/diagnostics'), { recursive: true })
     const result = prepareCapture(root, parent)
     expect(result.root).not.toBe(root)
@@ -200,7 +209,7 @@ fs.writeFileSync('raw-trace.zip','${sentinel}');
 fs.writeFileSync('diagnostic-output/attempt-0.json',${JSON.stringify(JSON.stringify(clean))});
 fs.writeFileSync('diagnostic-output/attempt-1.json',${JSON.stringify(JSON.stringify(clean))});
 import(${JSON.stringify(new URL('../scripts/diagnostics/protocol-capture-reporter.ts', import.meta.url).href)}).then(({default: Reporter}) => {
-const reporter = new Reporter(); reporter.onTestEnd({outcome:()=> 'unexpected'}, {retry:0,status:'failed',error:{message:'${sentinel}'}});
+const reporter = new Reporter(); reporter.onTestEnd({outcome:()=> 'unexpected'}, {retry:0,status:'failed',errors:[{message:'${sentinel}'}]});
 reporter.onTestEnd({outcome:()=> 'flaky'}, {retry:1,status:'passed'}); reporter.onEnd({status:'failed'}); process.exit(1);
 });`)
     const output = join(parent, 'sanitized.json')
@@ -208,6 +217,20 @@ reporter.onTestEnd({outcome:()=> 'flaky'}, {retry:1,status:'passed'}); reporter.
     expect(result.exitCode).toBe(1); expect(result.verdict.flaky).toBe(1); expect(result.artifactValid).toBe(1)
     expect(readFileSync(output, 'utf8')).not.toContain(sentinel); expect(existsSync(root)).toBe(false)
   })
+  it('retains explicitly opted-in local errors privately while public startup/verdict stays numeric', async () => {
+    const { manifest, parent, root } = prepared()
+    const privateDirectory = join(fresh(), 'private-errors')
+    write(join(root, 'node_modules/@playwright/test/cli.js'), `import(${JSON.stringify(new URL('../scripts/diagnostics/protocol-capture-reporter.ts', import.meta.url).href)}).then(({default: Reporter}) => {
+const reporter = new Reporter(); reporter.onTestEnd({outcome:()=> 'unexpected'}, {retry:0,status:'failed',errors:[{message:'${sentinel}',code:'EACCES'}]}); reporter.onEnd({status:'failed'}); process.exit(1);
+});`)
+    const output = join(parent, 'out.json')
+    const result = await runPreparedCapture(manifest, parent, output, 'reviewed-single-capture', image, undefined, privateDirectory)
+    expect(result.exitCode).toBe(1); expect(result.privateErrorsRetained).toBe(1)
+    expect(result.startup.status).toBe(1)
+    expect(readFileSync(join(privateDirectory, 'attempt-0.txt'), 'utf8')).toBe(sentinel)
+    expect(readFileSync(output, 'utf8')).not.toContain(sentinel)
+  })
+
   it('cannot turn passed child with missing snapshot into valid diagnostic evidence', async () => {
     const { manifest, parent, root } = prepared()
     write(join(root, 'node_modules/@playwright/test/cli.js'), "require('fs').writeFileSync('diagnostic-output/verdict.json',JSON.stringify({status:1,flaky:0,attempts:[[0,1]]}))")

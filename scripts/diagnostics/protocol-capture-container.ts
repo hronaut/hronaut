@@ -41,7 +41,7 @@ export const dockerEngine: ContainerEngine = {
   async absent(id) { return await docker(['container', 'ls', '--all', '--no-trunc', '--filter', `id=${id}`, '--format', '{{.ID}}']) === '' }
 }
 
-export async function isolatedContainer(root: string, image: string, command: string[], signal?: AbortSignal, engine: ContainerEngine = dockerEngine): Promise<ContainerOutcome> {
+export async function isolatedContainer(root: string, image: string, command: string[], signal?: AbortSignal, engine: ContainerEngine = dockerEngine, privateErrors = false): Promise<ContainerOutcome> {
   // Only an immutable local image ID; no implicit pull, tag resolution or build.
   if (!/^sha256:[a-f0-9]{64}$/.test(image) || !root.startsWith('/') || root.includes(',') || command.length === 0)
     return { exitCode: null, killed: 0, stopped: 0 }
@@ -57,6 +57,7 @@ export async function isolatedContainer(root: string, image: string, command: st
     // host PID namespace, Docker socket, host ports or broader mounts.
     id = await engine.create(['--pull=never', '--user', `${uid}:${gid}`, '--init', '--network', 'bridge', '--log-driver', 'none',
       '--mount', `type=bind,source=${root},target=${root}`, '--workdir', root,
+      ...(privateErrors ? ['--env', 'HRONAUT_PRIVATE_SYNTHETIC_ERRORS=1'] : []),
       '--env', 'CI=true', '--env', `TMPDIR=${root}/diagnostic-temp`,
       '--env', 'HRONAUT_TEST_ISOLATED_DISPLAYS=1', '--entrypoint', command[0]!, image, ...command.slice(1)])
     if (!idPattern.test(id)) throw new Error('Protocol container identity unavailable')

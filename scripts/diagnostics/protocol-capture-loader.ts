@@ -12,15 +12,16 @@ export const IDENTITY_MARKER = 'module.exports.__hronautProtocolTimingIdentity =
 export const digest = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex')
 export function fail(): never { throw new Error('Protocol capture boundary rejected') }
 
-export interface CaptureManifest { root: string; bundleHash: string; identity: string; caseHash: string; fixtureHash: string; sourceRoot: string; sourceBundleHash: string }
+export interface CaptureManifest { root: string; bundleHash: string; identity: string; caseHash: string; fixtureHash: string; displayHash: string; sourceRoot: string; sourceBundleHash: string }
 const CONFIG_HASH = '584d2559ae6a4e41ce5b9856d4ee72c56a0d2e7414a5cdf46afde19c23e5abfe'
+const DISPLAY_HASH = 'dbeae9f61d8cdb29fb2791e4c3551c34ff8858dd139b3083ff6bd35165ad7841'
 const FIXTURES_HASH = 'bb450c6a8adf6d0fea79c72ecdf9081835e7e834f8cc99fa8fffa4ff0511cc84'
 
 export function verifyPrepared(manifest: CaptureManifest): void {
   const bundle = verifyResolution(manifest.root)
   const source = readFileSync(bundle, 'utf8')
   if (digest(source) !== manifest.bundleHash || overlayIdentity(source) !== manifest.identity) fail()
-  for (const [path, hash] of [[CASE_FILE, manifest.caseHash], ['playwright.config.ts', CONFIG_HASH], ['tests/integration/fixtures.ts', manifest.fixtureHash]]) {
+  for (const [path, hash] of [[CASE_FILE, manifest.caseHash], ['playwright.config.ts', CONFIG_HASH], ['tests/integration/fixtures.ts', manifest.fixtureHash], ['tests/integration/worker-display.ts', manifest.displayHash]]) {
     assertPlainPath(manifest.root, join(manifest.root, path!))
     if (digest(readFileSync(join(manifest.root, path!))) !== hash) fail()
   }
@@ -89,7 +90,11 @@ export function patchCaptureCase(source: string): string {
   const anchor = '  } finally {\n    await Promise.allSettled(clients.map(client => client.close()))'
   const end = source.indexOf("\ntest('retains the continuity guard across application restart until explicit fresh review'")
   if (end < 0 || source.slice(0, end).split(anchor).length !== 2) fail()
-  return "import { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n" + source.slice(0, end).replace(anchor,
+  const bridge = '    }, state.activeTabId)).toBe(false)'
+  const bridgeStart = '    await expect.poll(() => appWindow.evaluate(async id => {'
+  if (source.slice(0, end).split(bridgeStart).length !== 2) fail()
+  if (source.slice(0, end).split(bridge).length !== 2) fail()
+  return "import { recordStartup } from '../../scripts/diagnostics/protocol-capture-startup.js'\nimport { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n" + source.slice(0, end).replace(bridgeStart, '    recordStartup(3, 1)\n' + bridgeStart).replace(bridge, bridge + '\n    recordStartup(3, 2)').replace(anchor,
     "  } finally {\n    collectBeforeCleanup(testInfo.retry)\n    await Promise.allSettled(clients.map(client => client.close()))") + source.slice(end)
 }
 
@@ -97,8 +102,24 @@ export function patchCaptureFixture(source: string): string {
   if (digest(source) !== FIXTURES_HASH) fail()
   const anchor = '  const recorder = activityDiagnostics(app)\n  let cleanupFailed = false'
   if (source.split(anchor).length !== 2) fail()
-  return "import { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n" + source.replace(anchor,
+  const admission = '    const instance = await launchHronaut(profileDirectory, mcpPort)'
+  if (source.split(admission).length !== 2) fail()
+  return "import { recordStartup, startupReason } from '../../scripts/diagnostics/protocol-capture-startup.js'\nimport { collectBeforeCleanup } from '../../scripts/diagnostics/protocol-capture-worker.js'\n" + source.replace(admission, `    recordStartup(9, 1)
+    let instance: HronautInstance
+    try { instance = await launchHronaut(profileDirectory, mcpPort) }
+    catch (error) { recordStartup(9, 3, startupReason(error)); throw error }
+    recordStartup(9, 2)`).replace(anchor,
     '  try { collectBeforeCleanup(base.info().retry) } catch { /* Diagnostic collection never replaces the original verdict. */ }\n' + anchor)
+}
+
+export function patchCaptureDisplay(source: string): string {
+  if (digest(source) !== DISPLAY_HASH) fail()
+  return "import { recordStartup, startupReason, startupSignal } from '../../scripts/diagnostics/protocol-capture-startup.js'\n" + source
+    .replace("  const child = spawn('Xvfb', [", "  recordStartup(4, 1)\n  const child = spawn('Xvfb', [")
+    .replace("  let stderr = ''", "  child.once('spawn', () => recordStartup(4, 2))\n  child.once('error', error => recordStartup(4, 3, startupReason(error)))\n  child.once('exit', (code, signal) => recordStartup(4, 4, startupSignal(signal), code))\n  let stderr = ''")
+    .replace('    const display = await new Promise<string>', '    recordStartup(5, 1)\n    const display = await new Promise<string>')
+    .replace('    return { display, close }', '    recordStartup(5, 2)\n    return { display, close }')
+    .replace('  } catch (error) {\n    await close()', '  } catch (error) {\n    recordStartup(5, 3, startupReason(error))\n    await close()')
 }
 
 // Preparation only. This neither requires Playwright nor starts a child process.
@@ -113,12 +134,13 @@ function prepareCaptureInternal(sourceRoot: string, temporaryParent: string): Ca
   const generated = buildProtocolTimingOverlay(readFileSync(originalBundle, 'utf8'), typeof version === 'string' ? version : '')
   const test = patchCaptureCase(readFileSync(join(source, CASE_FILE), 'utf8'))
   const fixture = patchCaptureFixture(readFileSync(join(source, 'tests/integration/fixtures.ts'), 'utf8'))
+  const display = patchCaptureDisplay(readFileSync(join(source, 'tests/integration/worker-display.ts'), 'utf8'))
   const parent = realpathSync(temporaryParent)
   if (parent === source || parent.startsWith(source + sep)) fail()
   const root = mkdtempSync(join(parent, 'hronaut-protocol-capture-'))
   try {
     // Exclude only top-level VCS/artifact caches. Preserve dependencies and app build.
-    const excluded = new Set(['diagnostic-output', '.git', 'test-results', 'playwright-report', 'ci-artifacts', 'evidence'])
+    const excluded = new Set(['diagnostic-private', 'diagnostic-output', '.git', 'test-results', 'playwright-report', 'ci-artifacts', 'evidence'])
     cpSync(source, root, { recursive: true, dereference: false, filter: path => !excluded.has(relative(source, path).split(sep)[0] ?? '') })
     verifyResolution(root)
     rmSync(join(root, BUNDLE))
@@ -127,7 +149,9 @@ function prepareCaptureInternal(sourceRoot: string, temporaryParent: string): Ca
     writeFileSync(join(root, CASE_FILE), test)
     assertPlainPath(root, join(root, 'tests/integration/fixtures.ts'))
     writeFileSync(join(root, 'tests/integration/fixtures.ts'), fixture)
-    const manifest = { root, bundleHash: digest(generated), identity: overlayIdentity(generated), caseHash: digest(test), fixtureHash: digest(fixture), sourceRoot: source, sourceBundleHash: digest(readFileSync(originalBundle)) }
+    assertPlainPath(root, join(root, 'tests/integration/worker-display.ts'))
+    writeFileSync(join(root, 'tests/integration/worker-display.ts'), display)
+    const manifest = { root, bundleHash: digest(generated), identity: overlayIdentity(generated), caseHash: digest(test), fixtureHash: digest(fixture), displayHash: digest(display), sourceRoot: source, sourceBundleHash: digest(readFileSync(originalBundle)) }
     verifyPrepared(manifest)
     const manifestPath = join(root, 'scripts/diagnostics/capture-manifest.json')
     assertPlainPath(root, dirname(manifestPath))

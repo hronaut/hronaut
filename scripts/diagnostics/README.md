@@ -143,3 +143,39 @@ container UID/GID, checks mode/ownership of its 0600 snapshot and 0700 parent
 folders, reads the snapshot from the non-root host, and removes the nested copy
 without permission changes. Unit coverage exercises both signal handlers at the
 actual runner entry and verifies awaited cleanup and restored listeners.
+
+## Startup evidence after the first unknown local capture
+
+The one authorized capture on head 38ca1c43 reported two failed attempts and no
+snapshot. That result does not establish a resize stall or a concrete setup
+cause. Raw errors were not retained, so there is no historical raw log to inspect.
+The next diagnostic change records setup progress before fixture admission;
+it does not claim to repair Electron startup and does not authorize another run.
+
+A Node `--import` observer records package resolution and driver entry; the
+pinned bundle records runtime initialization, Electron launch/initialization and
+exit. Disposable, hash-pinned Xvfb/fixture/case patches record display readiness,
+fixture admission and success of the ORIGINAL preload bridge `getState` call.
+No extra CDP call is added. Spawn/cleanup/error ordering, original promises,
+error identity, assertions, timeouts and retry policy stay in place. Checkpoint
+file writes occur at startup/exit boundaries, never protocol send/receive.
+
+Each process retains the first 32 six-number rows in an 8 KiB file; collection
+accepts at most eight files and marks capped evidence. Rows are
+`[stage, state, reason, exitCode, workerIndex, monotonicMs]`; workerIndex -1 is
+unknown/launcher. Exit -1 is unavailable. Stages 1–11 and states/reasons are
+fixed enums documented in protocol-capture-startup.ts. Unknown errors map to 0;
+no error message, stack, URL, path or environment value enters public output.
+Missing or malformed startup evidence is unknown and cannot make a missing
+protocol snapshot valid. Additional instrumentation may perturb startup timing.
+
+For a separately authorized LOCAL synthetic run, the runner can accept a new
+private error directory outside the public output parent. It must be newly
+created mode 0700. This explicitly enables at most two reporter error tails per
+attempt (1024 UTF-16 code units each, at most two attempts), written 0600 and
+copied with a 16 KiB/file read limit BEFORE disposable cleanup. These raw tails
+may contain sensitive error details: they are private local evidence, never part
+of the numeric envelope or uploaded/checksummed public artifact tree. Only the
+retained-file count is public. Default behavior remains no raw retention. Private
+collection failure cannot change the original exit/flaky verdict. No trace,
+screenshot or arbitrary raw stream export is introduced.

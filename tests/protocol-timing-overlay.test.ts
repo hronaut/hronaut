@@ -57,13 +57,26 @@ describe('pinned offline protocol timing overlay', () => {
       })();
     `, { performance })
     expect(result).toEqual({ receiverIsUndefined: true, assignmentError: 'ReferenceError' })
-    expect(patched.startsWith('"use strict";\nconst hronautTiming')).toBe(true)
+    expect(patched.startsWith('"use strict";\nfunction hronautStartup')).toBe(true)
   })
 
   it('rejects removed, displaced or unexpected original directive prologues', () => {
     for (const source of [original.replace('"use strict";\n', ''), '\n' + original,
       '#!/usr/bin/env node\n' + original, original.replace('"use strict";', '"use other";')])
       expect(() => buildProtocolTimingOverlay(source, PINNED_VERSION)).toThrow('pin mismatch')
+  })
+
+  it('preserves Electron exit callback order and return while adding only classified exit data', () => {
+    const hook = patched.match(/onExit: (\(code, signal\) => \{ const result = app\?\.emit\(ElectronApplication.Events.Close\); hronautStartup\(7, 4, void 0, code, signal\); return result; \})/)?.[1]
+    expect(hook).toBeDefined()
+    const order: unknown[] = []
+    const callback = runInNewContext(`(${hook})`, {
+      app: { emit: () => { order.push('original'); return true } },
+      ElectronApplication: { Events: { Close: 'close' } },
+      hronautStartup: (...args: unknown[]) => { order.push(args) }
+    })
+    expect(callback(7, 'SIGTERM')).toBe(true)
+    expect(order).toEqual(['original', [7, 4, undefined, 7, 'SIGTERM']])
   })
 
   it('rejects malformed receive tokens without retaining attacker values', () => {

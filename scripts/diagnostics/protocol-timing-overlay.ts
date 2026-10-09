@@ -59,10 +59,35 @@ export function buildProtocolTimingOverlay(source: string, version: string): str
   if (session.split(callbackAnchor).length !== 2) throw new Error('Protocol timing overlay session anchor mismatch')
   patched = patched.slice(0, sessionStart) + session.replace(callbackAnchor,
     callbackAnchor + '\n          hronautTiming.callback(this._connection._transport, object);') + patched.slice(sessionEnd)
+  const electronStart = patched.indexOf('// packages/playwright-core/src/server/electron/electron.ts')
+  const electronEnd = patched.indexOf('// packages/playwright-core/src/server/firefox/ffConnection.ts', electronStart)
+  if (electronStart < 0 || electronEnd < 0) throw new Error('Protocol timing overlay Electron module mismatch')
+  let electron = patched.slice(electronStart, electronEnd)
+  const electronReplace = (before: string, after: string) => {
+    if (electron.split(before).length !== 2) throw new Error('Protocol timing overlay Electron anchor mismatch')
+    electron = electron.replace(before, after)
+  }
+  electronReplace('        const { launchedProcess, gracefullyClose, kill } = await progress2.race(launchProcess({',
+    '        hronautStartup(6, 1);\n        const { launchedProcess, gracefullyClose, kill } = await progress2.race(launchProcess({')
+  electronReplace('          onExit: () => app?.emit(ElectronApplication.Events.Close)',
+    '          onExit: (code, signal) => { const result = app?.emit(ElectronApplication.Events.Close); hronautStartup(7, 4, void 0, code, signal); return result; }')
+  electronReplace('        const waitForXserverError = waitForLine(progress2, launchedProcess, /Unable to open X display/)',
+    '        hronautStartup(6, 2);\n        const waitForXserverError = waitForLine(progress2, launchedProcess, /Unable to open X display/)')
+  electronReplace('          await progress2.race(app.initialize());',
+    '          hronautStartup(8, 1);\n          await progress2.race(app.initialize());\n          hronautStartup(8, 2);')
+  electronReplace('        } catch (error) {\n          await progress2.race(kill());',
+    '        } catch (error) {\n          hronautStartup(6, 3, error);\n          await progress2.race(kill());')
+  patched = patched.slice(0, electronStart) + electron + patched.slice(electronEnd)
+  const startup = `function hronautStartup(stage, state, error, code = -1, signal) {
+    try {
+      const sink = require(require("node:path").resolve(__dirname, "../../../scripts/diagnostics/protocol-capture-startup.ts"));
+      sink.recordStartup(stage, state, signal ? sink.startupSignal(signal) : sink.startupReason(error), code);
+    } catch {}
+  }\n`;
   const runtime = ts.transpileModule(readFileSync(new URL('./protocol-timing-runtime.ts', import.meta.url), 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.CommonJS }
   }).outputText
-  const body = `${prologue}const hronautTiming = (() => { const exports = {};\n${runtime}\nreturn exports.createProtocolTiming(); })();\n${patched.slice(prologue.length)}\nmodule.exports.__hronautProtocolTimingSnapshot = () => hronautTiming.snapshot();\n`
+  const body = `${prologue}${startup}const hronautTiming = (() => { const exports = {};\n${runtime}\nreturn exports.createProtocolTiming(); })();\n${patched.slice(prologue.length)}\nhronautStartup(2, 2);\nmodule.exports.__hronautProtocolTimingSnapshot = () => hronautTiming.snapshot();\n`
   const identity = createHash('sha256').update(body).digest('hex')
   return body + `module.exports.__hronautProtocolTimingIdentity = "${identity}";\n`
 }
