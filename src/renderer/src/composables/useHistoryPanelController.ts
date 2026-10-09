@@ -38,14 +38,15 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   let actionGeneration = 0
 
   const filteredEntries = computed(() => {
-    const normalized = query.value.trim().toLocaleLowerCase()
+    const terms = query.value.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean)
     const bounds = historyDateBounds(dateRange.value, now.value)
-    const matching = !normalized && !bounds && !origin.value ? options.entries.value : options.entries.value.filter((entry) => {
+    const matching = !terms.length && !bounds && !origin.value ? options.entries.value : options.entries.value.filter((entry) => {
       const visited = Date.parse(entry.visitedAt)
-      return (!origin.value || entryOrigin(entry) === origin.value)
-        && (!bounds || (visited >= bounds[0] && visited < bounds[1]))
-        && (!normalized || entry.title.toLocaleLowerCase().includes(normalized)
-          || entry.url.toLocaleLowerCase().includes(normalized))
+      if (origin.value && entryOrigin(entry) !== origin.value) return false
+      if (bounds && !(visited >= bounds[0] && visited < bounds[1])) return false
+      if (!terms.length) return true
+      const text = `${entry.title}\n${entry.url}`.toLocaleLowerCase()
+      return terms.every(term => text.includes(term))
     })
     return sortOrder.value === 'visits'
       ? [...matching].sort((left, right) => right.visitCount - left.visitCount)
