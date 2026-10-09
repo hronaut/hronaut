@@ -2644,6 +2644,9 @@ export const esES = {
     "close": "Cerrar los controles de zoom de la página"
   },
   "downloads": {
+    sortOrder: "Ordenar descargas",
+    sortRecent: "Más recientes primero",
+    sortFilename: "Nombre de archivo",
     sourceOrigin: "Origen de la descarga: {origin}",
     copyPath: "Copiar ruta guardada",
     copyPathAria: "Copiar ruta guardada de {filename}",

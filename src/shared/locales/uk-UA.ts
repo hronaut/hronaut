@@ -492,6 +492,9 @@ export const ukUA = {
   find: {searching: "Пошук…", failed: "Пошук не вдався", retry: "Повторити пошук на сторінці",  region: 'Пошук на сторінці', text: 'Текст для пошуку', placeholder: 'Знайти на сторінці', matchCaseTitle: 'Враховувати регістр', matchCase: 'Враховувати регістр', matchCaseShort: 'Aa', previousTitle: 'Попередній збіг (Shift+Enter)', previous: 'Попередній збіг', nextTitle: 'Наступний збіг (Enter)', next: 'Наступний збіг', closeTitle: 'Закрити (Escape)', close: 'Закрити пошук на сторінці' },
   zoom: { controls: 'Керування масштабом сторінки', heading: 'Масштаб сторінки', outTitle: 'Зменшити масштаб (Ctrl/Cmd+-)', out: 'Зменшити масштаб', inTitle: 'Збільшити масштаб (Ctrl/Cmd++)', in: 'Збільшити масштаб', reset: 'Скинути', closeTitle: 'Закрити (Escape)', close: 'Закрити керування масштабом сторінки' },
   downloads: {
+    sortOrder: "Порядок завантажень",
+    sortRecent: "Спочатку найновіші",
+    sortFilename: "Назва файлу",
     sourceOrigin: "Джерело завантаження: {origin}",
     copyPath: "Копіювати збережений шлях",
     copyPathAria: "Копіювати збережений шлях для {filename}",

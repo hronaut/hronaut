@@ -2644,6 +2644,9 @@ export const ruRU = {
     "close": "Закрыть управление масштабом страницы"
   },
   "downloads": {
+    sortOrder: "Порядок загрузок",
+    sortRecent: "Сначала новые",
+    sortFilename: "Имя файла",
     sourceOrigin: "Источник загрузки: {origin}",
     copyPath: "Копировать сохранённый путь",
     copyPathAria: "Копировать сохранённый путь для {filename}",

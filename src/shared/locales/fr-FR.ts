@@ -2644,6 +2644,9 @@ export const frFR = {
     "close": "Fermer les contrôles du zoom de la page"
   },
   "downloads": {
+    sortOrder: "Trier les téléchargements",
+    sortRecent: "Plus récents en premier",
+    sortFilename: "Nom du fichier",
     sourceOrigin: "Origine du téléchargement : {origin}",
     copyPath: "Copier le chemin enregistré",
     copyPathAria: "Copier le chemin enregistré de {filename}",

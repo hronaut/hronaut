@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Sort Downloads by filename in natural numeric order, combined with existing search and status filters, while retaining newest-first as the default.
+
 - Copy a selected Network request’s displayed sanitized URL directly, preserving redaction markers without reacquiring details or replaying traffic.
 
 ### Fixed
