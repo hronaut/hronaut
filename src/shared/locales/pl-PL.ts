@@ -2108,6 +2108,7 @@ export const plPL = {
     }
   },
   "network": {
+    refreshSelectedDetails: "Odśwież szczegóły wybranego żądania",
     "kicker": "Bieżąca witryna",
     "heading": "Sieć",
     "close": "Zamknij monitor sieci",

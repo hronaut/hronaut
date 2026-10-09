@@ -102,6 +102,7 @@ const {
   moveRoute: moveNetworkRoute,
   clearRoutes: clearActiveNetworkRoutes,
   selectRequest: selectNetworkRequest,
+  refreshSelectedRequest: refreshSelectedNetworkRequest,
   replaySelectedRequest: replaySelectedNetworkRequest,
   selectRelatedRequest: selectRelatedNetworkRequest,
   closeContentSearch: closeNetworkContentSearch,
@@ -346,6 +347,14 @@ onBeforeUnmount(dispose)
             </div>
           </div>
           <div class="network-request-details" aria-live="polite">
+            <div v-if="networkSelectedRequestId" class="network-detail-actions">
+              <div class="network-detail-copy-actions">
+                <UiButton appearance="application" type="button"
+                  :aria-disabled="networkRequestDetailsLoading || networkReplayState === 'replaying'"
+                  @click="refreshSelectedNetworkRequest"
+                ><IconRefresh aria-hidden="true" /> {{ t('network.refreshSelectedDetails') }}</UiButton>
+              </div>
+            </div>
             <div v-if="networkRequestDetailsLoading" class="network-monitor-empty compact" role="status">
               <IconProgress class="state-spinner" aria-hidden="true" />
               <strong>{{ t('network.detailsLoading') }}</strong>

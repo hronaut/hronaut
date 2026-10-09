@@ -914,6 +914,8 @@
 .network-detail-copy-actions { @apply flex flex-wrap justify-end [gap:5px]; }
 .network-detail-actions button { @apply inline-flex items-center [gap:5px] [min-height:28px] [padding:5px_8px] [border:1px_solid_var(--border)] [border-radius:6px] text-copy bg-surface-muted [font-size:11px] [font-weight:750]; }
 .network-detail-actions button:hover { @apply border-accent text-accent-copy; }
+.network-detail-actions button[aria-disabled="true"],
+.network-detail-actions button[aria-disabled="true"]:hover { @apply cursor-default opacity-48 border-border text-copy bg-surface-muted; }
 .network-detail-actions button svg { @apply [width:14px] [height:14px]; }
 .network-detail-actions button.danger { @apply border-danger text-danger [background:color-mix(in_srgb,_var(--danger)_10%,_var(--surface-muted))]; }
 .network-detail-actions button.complete { @apply [border-color:var(--success)] [color:var(--success)]; }

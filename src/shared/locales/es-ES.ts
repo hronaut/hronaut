@@ -2108,6 +2108,7 @@ export const esES = {
     }
   },
   "network": {
+    refreshSelectedDetails: "Actualizar detalles de la solicitud seleccionada",
     "kicker": "Sitio actual",
     "heading": "Red",
     "close": "Cerrar monitor de red",

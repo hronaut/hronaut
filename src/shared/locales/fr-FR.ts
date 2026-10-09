@@ -2108,6 +2108,7 @@ export const frFR = {
     }
   },
   "network": {
+    refreshSelectedDetails: "Actualiser les détails de la requête sélectionnée",
     "kicker": "Site actuel",
     "heading": "Réseau",
     "close": "Fermer le moniteur réseau",

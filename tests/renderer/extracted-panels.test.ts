@@ -229,6 +229,47 @@ describe('extracted diagnostic panels', () => {
     } finally { view.unmount(); vi.unstubAllGlobals() }
   })
 
+  it('keeps selected-detail refresh reachable while loading and after failure', async () => {
+    const details: BrowserNetworkRequestDetails = {
+      id: 'refresh-one', url: 'https://example.test/api', method: 'GET', resourceType: 'fetch',
+      startedAt: '2026-08-21T12:00:00.000Z', status: 200, detailsAvailable: true,
+      request: { headers: {} }, response: { headers: {}, body: { available: true, text: 'first' } }
+    }
+    const getNetworkRequestDetails = vi.fn(async () => details)
+    const replayNetworkRequest = vi.fn()
+    vi.stubGlobal('hronaut', { listNetworkRequests: vi.fn(async () => [details]), getNetworkRequestDetails, replayNetworkRequest })
+    const view = render(NetworkPanel, {
+      global,
+      props: {
+        open: true, dock: 'right', activeTab: activeTab(), locale: 'en-US', copyText: vi.fn(async () => true),
+        syncState: vi.fn(async (operation: Promise<unknown>) => { await operation }),
+        preservationBusy: false, updatePreservation: vi.fn(), keepsSeparatePanelOpen: () => false
+      }
+    })
+    try {
+      const user = userEvent.setup()
+      expect(screen.queryByRole('button', { name: 'Refresh selected request details' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Refresh network requests' }))
+      await user.click(await within(screen.getByRole('listbox', { name: 'Network requests' })).findByRole('option'))
+      const refresh = await screen.findByRole('button', { name: 'Refresh selected request details' })
+      let reject!: (reason: Error) => void
+      getNetworkRequestDetails.mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail }))
+      await user.click(refresh)
+      expect(refresh).toHaveFocus()
+      expect(refresh).toHaveAttribute('aria-disabled', 'true')
+      await user.click(refresh)
+      expect(getNetworkRequestDetails).toHaveBeenCalledTimes(2)
+      reject(new Error('Retained details temporarily unavailable'))
+      await screen.findByText('Retained details temporarily unavailable')
+      expect(refresh).toHaveFocus()
+      expect(refresh).toHaveAttribute('aria-disabled', 'false')
+      await user.click(refresh)
+      await vi.waitFor(() => expect(getNetworkRequestDetails).toHaveBeenCalledTimes(3))
+      expect(getNetworkRequestDetails).toHaveBeenLastCalledWith('tab-1', 'refresh-one', 20_000)
+      expect(replayNetworkRequest).not.toHaveBeenCalled()
+    } finally { view.unmount(); vi.unstubAllGlobals() }
+  })
+
   it('owns the Network panel shell and content-search disclosure', async () => {
     const view = render(NetworkPanel, {
       global,

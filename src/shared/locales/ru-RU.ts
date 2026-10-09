@@ -2108,6 +2108,7 @@ export const ruRU = {
     }
   },
   "network": {
+    refreshSelectedDetails: "Обновить сведения о выбранном запросе",
     "kicker": "Текущий сайт",
     "heading": "Сеть",
     "close": "Закрыть монитор сети",

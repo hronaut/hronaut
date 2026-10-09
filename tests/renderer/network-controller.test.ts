@@ -55,6 +55,81 @@ function details(id: string, method = 'GET'): BrowserNetworkRequestDetails {
   }
 }
 
+describe('explicit selected request refresh', () => {
+  it('rereads the same request with existing bounds and preserves filters without replay', async () => {
+    const { controller, browser } = createController()
+    try {
+      await controller.selectRequest(request('pending'))
+      controller.search.value = 'method:GET'
+      controller.resourceFilter.value = 'fetch/xhr'
+      const completed = details('pending')
+      completed.response.body.text = 'completed response'
+      browser.getNetworkRequestDetails.mockResolvedValueOnce(completed)
+      await controller.refreshSelectedRequest()
+      expect(browser.getNetworkRequestDetails).toHaveBeenLastCalledWith('tab-1', 'pending', 20_000)
+      expect(controller.requestDetails.value).toEqual(completed)
+      expect(controller.search.value).toBe('method:GET')
+      expect(controller.resourceFilter.value).toBe('fetch/xhr')
+      expect(browser.listNetworkRequests).not.toHaveBeenCalled()
+      expect(browser.replayNetworkRequest).not.toHaveBeenCalled()
+    } finally { controller.dispose() }
+  })
+
+  it('ignores missing selections, duplicate reads and an active replay', async () => {
+    const { controller, browser } = createController()
+    try {
+      await controller.refreshSelectedRequest()
+      expect(browser.getNetworkRequestDetails).not.toHaveBeenCalled()
+      await controller.selectRequest(request('one'))
+      controller.replayState.value = 'replaying'
+      await controller.refreshSelectedRequest()
+      expect(browser.getNetworkRequestDetails).toHaveBeenCalledTimes(1)
+      controller.replayState.value = 'idle'
+      const pending = deferred<BrowserNetworkRequestDetails>()
+      browser.getNetworkRequestDetails.mockReturnValueOnce(pending.promise)
+      const refreshing = controller.refreshSelectedRequest()
+      await controller.refreshSelectedRequest()
+      expect(browser.getNetworkRequestDetails).toHaveBeenCalledTimes(2)
+      pending.resolve(details('one'))
+      await refreshing
+    } finally { controller.dispose() }
+  })
+
+  it.each(['selection', 'clear', 'reset', 'tab-change'] as const)('discards a late refresh after %s', async action => {
+    const { controller, browser, activeTab } = createController()
+    try {
+      await controller.selectRequest(request('old'))
+      const pending = deferred<BrowserNetworkRequestDetails>()
+      browser.getNetworkRequestDetails.mockReturnValueOnce(pending.promise)
+      const refreshing = controller.refreshSelectedRequest()
+      if (action === 'selection') await controller.selectRequest(request('new'))
+      if (action === 'clear') await controller.refresh(true)
+      if (action === 'reset') controller.reset()
+      if (action === 'tab-change') activeTab.value = tab('other-tab')
+      pending.resolve(details('old'))
+      await refreshing
+      expect(controller.requestDetails.value?.id).not.toBe('old')
+      if (action === 'selection') expect(controller.requestDetails.value?.id).toBe('new')
+    } finally { controller.dispose() }
+  })
+
+  it('keeps the exact selection retryable after a failed read', async () => {
+    const { controller, browser } = createController()
+    try {
+      await controller.selectRequest(request('one'))
+      browser.getNetworkRequestDetails.mockRejectedValueOnce(new Error('Details unavailable'))
+      await controller.refreshSelectedRequest()
+      expect(controller.requestDetails.value).toBeNull()
+      expect(controller.selectedRequestId.value).toBe('one')
+      expect(controller.monitorError.value).toBe('Details unavailable')
+      expect(controller.requestDetailsLoading.value).toBe(false)
+      await controller.refreshSelectedRequest()
+      expect(controller.requestDetails.value?.id).toBe('one')
+      expect(controller.monitorError.value).toBe('')
+    } finally { controller.dispose() }
+  })
+})
+
 function route(id: string): BrowserNetworkRouteSummary {
   return {
     id,
