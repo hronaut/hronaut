@@ -187,6 +187,86 @@ afterEach(() => {
 })
 
 describe('network controller', () => {
+  it('discards the removed records returned by Clear and preserves filters', async () => {
+    const { browser, controller } = createController()
+    controller.requests.value = [request('old')]
+    controller.search.value = 'old'
+    await controller.selectRequest(request('old'))
+    browser.listNetworkRequests.mockResolvedValueOnce([request('old')])
+    try {
+      await controller.refresh(true)
+      expect(browser.listNetworkRequests).toHaveBeenLastCalledWith('tab-1', true)
+      expect(controller.requests.value).toEqual([])
+      expect(controller.filteredRequests.value).toEqual([])
+      expect(controller.selectedRequestId.value).toBeNull()
+      expect(controller.requestDetails.value).toBeNull()
+      expect(controller.search.value).toBe('old')
+      expect(controller.monitorState.value).toBe('ready')
+      browser.listNetworkRequests.mockResolvedValueOnce([request('new')])
+      await controller.refresh()
+      expect(controller.requests.value).toEqual([request('new')])
+    } finally { controller.dispose() }
+  })
+
+  it('rejects an older refresh after clearing displayed records', async () => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRequest[]>()
+    browser.listNetworkRequests.mockReturnValueOnce(pending.promise).mockResolvedValueOnce([request('old')])
+    try {
+      const reading = controller.refresh()
+      await controller.refresh(true)
+      pending.resolve([request('old')])
+      await reading
+      expect(controller.requests.value).toEqual([])
+    } finally { controller.dispose() }
+  })
+
+  it('keeps a newer refresh when an older Clear completes', async () => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRequest[]>()
+    browser.listNetworkRequests.mockReturnValueOnce(pending.promise).mockResolvedValueOnce([request('new')])
+    try {
+      const clearing = controller.refresh(true)
+      await controller.refresh()
+      pending.resolve([request('old')])
+      await clearing
+      expect(controller.requests.value).toEqual([request('new')])
+    } finally { controller.dispose() }
+  })
+
+  it('retires a request selected while Clear is pending, including its late details', async () => {
+    const { browser, controller } = createController()
+    const clearing = deferred<BrowserNetworkRequest[]>()
+    const selecting = deferred<BrowserNetworkRequestDetails>()
+    controller.requests.value = [request('old')]
+    browser.listNetworkRequests.mockReturnValueOnce(clearing.promise)
+    browser.getNetworkRequestDetails.mockReturnValueOnce(selecting.promise)
+    try {
+      const clear = controller.refresh(true)
+      const select = controller.selectRequest(request('old'))
+      clearing.resolve([request('old')])
+      await clear
+      expect(controller.selectedRequestId.value).toBeNull()
+      expect(controller.requestDetailsLoading.value).toBe(false)
+      selecting.resolve(details('old'))
+      await select
+      expect(controller.requestDetails.value).toBeNull()
+      expect(controller.detailsCopied.value).toBeNull()
+    } finally { controller.dispose() }
+  })
+
+  it('retains displayed records when Clear fails', async () => {
+    const { browser, controller } = createController()
+    controller.requests.value = [request('old')]
+    browser.listNetworkRequests.mockRejectedValueOnce(new Error('Clear failed'))
+    try {
+      await controller.refresh(true)
+      expect(controller.requests.value).toEqual([request('old')])
+      expect(controller.monitorState.value).toBe('error')
+      expect(controller.monitorError.value).toBe('Clear failed')
+    } finally { controller.dispose() }
+  })
+
   it.each(['switch', 'reset'] as const)('discards a related request selection after a context %s', async (action) => {
     const { activeTab, browser, controller } = createController()
     const selecting = controller.selectRelatedRequest(request('old'))
