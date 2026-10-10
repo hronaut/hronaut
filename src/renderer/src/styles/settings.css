@@ -266,6 +266,8 @@
 .janitor-site-meta { @apply flex flex-wrap [gap:5px] [margin-top:7px]; }
 .janitor-site-meta span { @apply [padding:3px_6px] [border-radius:5px] text-muted bg-surface-muted [font-size:11px] [line-height:1.2]; }
 .janitor-clear-button { @apply [min-width:82px]; }
+.privacy-settings .janitor-clear-button[aria-disabled="true"],
+.privacy-settings .janitor-clear-button[aria-disabled="true"]:hover { @apply cursor-default opacity-48 bg-transparent; }
 .janitor-empty { @apply [min-height:170px] border-0; }
 .janitor-status { @apply block [min-height:18px] [margin-top:10px]; }
 

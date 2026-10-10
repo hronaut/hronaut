@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCleaning from '~icons/material-symbols/cleaning-services-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -52,10 +53,34 @@ const {
   clearWebsite,
   websiteMeta
 } = props.controller
+
+const panelRoot = ref<HTMLElement | null>(null)
+watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_current, _previous, onCleanup) => {
+  const panel = panelRoot.value
+  const focused = document.activeElement
+  if (!panel || !(focused instanceof HTMLButtonElement) || !panel.contains(focused)
+    || !focused.matches('button.janitor-clear-button')) return
+  const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>('button.janitor-clear-button'))
+  const index = buttons.indexOf(focused)
+  const candidates = [...buttons.slice(index + 1), ...buttons.slice(0, index).reverse()]
+  let superseded = false
+  onCleanup(() => { superseded = true })
+  await nextTick()
+  if (superseded || panelRoot.value !== panel || !panel.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  if (focused.isConnected) {
+    if (!focused.matches(':disabled')) focused.focus()
+    return
+  }
+  const target = candidates.find(candidate => candidate.isConnected
+    && !candidate.matches(':disabled, [aria-disabled="true"]'))
+    ?? panel.querySelector<HTMLElement>('#history-data-heading')
+  target?.focus()
+}, { flush: 'pre' })
 </script>
 
 <template>
-  <div class="settings-content privacy-settings">
+  <div ref="panelRoot" class="settings-content privacy-settings">
     <div class="setting-copy">
       <h3>{{ t('settings.privacy.heading') }}</h3>
       <p>{{ t('settings.privacy.description') }}</p>
@@ -85,7 +110,7 @@ const {
     </section>
     <section class="history-data-section" aria-labelledby="history-data-heading">
       <div class="setting-copy">
-        <h4 id="history-data-heading">{{ t('settings.privacy.historyHeading') }}</h4>
+        <h4 id="history-data-heading" tabindex="-1">{{ t('settings.privacy.historyHeading') }}</h4>
         <p>{{ t('settings.privacy.historyDescription') }}</p>
       </div>
     <fieldset class="privacy-category-options" :disabled="clearing">
@@ -146,7 +171,8 @@ const {
           class="janitor-clear-button"
           type="button"
           :aria-label="t('settings.privacy.clearSiteAria', { origin: site.origin })"
-          :disabled="selectedCount === 0 || clearing"
+          :disabled="selectedCount === 0"
+          :aria-disabled="clearing"
           @click="clearWebsite(site)"
         >
           <IconProgress v-if="clearingOrigin === site.origin" class="state-spinner" aria-hidden="true" />
