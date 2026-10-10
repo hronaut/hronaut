@@ -710,6 +710,72 @@ describe('network controller', () => {
     expect(controller.monitorState.value).toBe('idle')
   })
 
+  it.each(['query', 'case', 'query ABA', 'case ABA'] as const)('retires pending content search ownership after %s edits', async edit => {
+    for (const outcome of ['success', 'failure'] as const) {
+      const { browser, controller } = createController()
+      const pending = deferred<BrowserNetworkSearchResult>()
+      browser.searchNetwork.mockReturnValueOnce(pending.promise)
+      controller.contentSearchOpen.value = true
+      controller.contentSearchQuery.value = 'example'
+      const searching = controller.runContentSearch()
+      if (edit.startsWith('query')) {
+        controller.contentSearchQuery.value = 'different'
+        if (edit.endsWith('ABA')) controller.contentSearchQuery.value = 'example'
+      } else {
+        controller.contentSearchCaseSensitive.value = true
+        if (edit.endsWith('ABA')) controller.contentSearchCaseSensitive.value = false
+      }
+      const stateAfterEdit = controller.contentSearchState.value
+      if (outcome === 'success') pending.resolve(searchResult())
+      else pending.reject(new Error('Old search delivery failed'))
+      await searching
+      expect(stateAfterEdit).toBe('idle')
+      expect(controller.contentSearchResult.value).toBeNull()
+      expect(controller.contentSearchState.value).toBe('idle')
+      expect(controller.contentSearchError.value).toBe('')
+      expect(controller.contentSearchOpen.value).toBe(true)
+      expect(browser.searchNetwork).toHaveBeenCalledTimes(1)
+      controller.dispose()
+    }
+  })
+
+  it.each(['query', 'case'] as const)('clears settled search matches and errors after %s edits without automatically searching', async edit => {
+    const { browser, controller } = createController()
+    controller.contentSearchQuery.value = 'example'
+    browser.searchNetwork.mockResolvedValueOnce(searchResult())
+    await controller.runContentSearch()
+    if (edit === 'query') controller.contentSearchQuery.value = 'different'
+    else controller.contentSearchCaseSensitive.value = true
+    expect(controller.contentSearchResult.value).toBeNull()
+    expect(controller.contentSearchState.value).toBe('idle')
+    browser.searchNetwork.mockRejectedValueOnce(new Error('Current search failed'))
+    await controller.runContentSearch()
+    expect(controller.contentSearchError.value).toBe('Current search failed')
+    if (edit === 'query') controller.contentSearchQuery.value = ''
+    else controller.contentSearchCaseSensitive.value = false
+    expect(controller.contentSearchError.value).toBe('')
+    expect(controller.contentSearchState.value).toBe('idle')
+    expect(browser.searchNetwork).toHaveBeenCalledTimes(2)
+    controller.dispose()
+  })
+
+  it('keeps a newer search result when the retired search settles later', async () => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkSearchResult>()
+    browser.searchNetwork.mockReturnValueOnce(pending.promise)
+    controller.contentSearchQuery.value = 'example'
+    const first = controller.runContentSearch()
+    controller.contentSearchQuery.value = 'different'
+    const next = { ...searchResult(), query: 'different' }
+    browser.searchNetwork.mockResolvedValueOnce(next)
+    await controller.runContentSearch()
+    pending.resolve(searchResult())
+    await first
+    expect(controller.contentSearchResult.value).toEqual(next)
+    expect(controller.contentSearchState.value).toBe('complete')
+    controller.dispose()
+  })
+
   it.each(['success', 'failure'] as const)('ignores a pending content search %s after clearing the network log', async (outcome) => {
     const { browser, controller } = createController()
     const pending = deferred<BrowserNetworkSearchResult>()

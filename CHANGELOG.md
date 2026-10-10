@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear Network content-search matches and errors when the query or Match case setting changes, and ignore replies from searches started before those edits. Submit Search to inspect the edited query.
+
 ## [2.33.0] - 2026-10-10
 
 ### Added
