@@ -62,7 +62,11 @@ export default class CaptureOrderReporter implements Reporter {
   private omittedOutcomes = 0
   private detailCount = 0
   private planned: number[] = []
-  constructor(private readonly output = resolve('capture-order-evidence/outcomes.json')) {}
+  private readonly output: string
+  // Playwright supplies reporter options, including its own internal fields.
+  constructor(options: { outputFile?: string } = {}) {
+    this.output = resolve(options.outputFile ?? 'capture-order-evidence/outcomes.json')
+  }
   onBegin(_config: FullConfig, suite: Suite): void {
     this.planned = suite.allTests().map(manifestIndex)
     this.save('running')

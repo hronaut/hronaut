@@ -64,7 +64,7 @@ it('retains every original test attempt and retry outcome independently of the d
   const directory = mkdtempSync(join(tmpdir(), 'capture-reporter-'))
   try {
     const output = join(directory, 'outcomes.json')
-    const reporter = new CaptureOrderReporter(output)
+    const reporter = new CaptureOrderReporter({ outputFile: output })
     const tests = readFileSync('scripts/diagnostics/capture-order.txt', 'utf8').trim().split('\n').map(row => {
       const [, file, ...title] = row.split(' › ')
       return { title: title.join(' › '), location: { file, line: 1, column: 1 } } as TestCase
