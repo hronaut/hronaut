@@ -37,6 +37,16 @@ test('keeps keyboard position when removing saved-password rows', async ({ appWi
     const panel = appWindow.locator('.credentials-settings')
     const remove = (username: string) => panel.getByRole('button', { name: `Remove saved password for ${username} on https://focus.example`, exact: true })
     await expect(panel.locator('.credential-remove')).toHaveCount(3)
+    const search = panel.getByRole('searchbox', { name: 'Search saved passwords', exact: true })
+    await search.fill('FOCUS.example middle')
+    await expect(panel.locator('.credential-remove')).toHaveCount(1)
+    await expect(remove('Middle')).toBeVisible()
+    await expect(panel.getByRole('status')).toHaveText('1 of 3 saved passwords')
+    await search.fill('Alpha Zulu')
+    await expect(panel.locator('.credential-remove')).toHaveCount(0)
+    await expect(panel.getByText('No saved passwords match this search.', { exact: true })).toBeVisible()
+    await search.fill('')
+    await expect(panel.locator('.credential-remove')).toHaveCount(3)
     await remove('Middle').focus()
     for (const { username, next, remaining } of [
       { username: 'Middle', next: 'Zulu', remaining: 2 },

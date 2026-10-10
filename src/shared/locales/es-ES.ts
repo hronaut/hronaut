@@ -391,6 +391,10 @@ export const esES = {
       "help": "Al eliminar una decisión, Hronaut volverá a preguntar la próxima vez que el sitio necesite el permiso."
     },
     "passwords": {
+      "search": "Buscar contraseñas guardadas",
+      "searchSummary": "{visible} de {total} contraseñas guardadas",
+      "noMatches": "Ninguna contraseña guardada coincide con esta búsqueda.",
+
       "importHeading": "Importar desde otro navegador",
       "importDescription": "Exporta las contraseñas como CSV desde Chrome, Edge, Firefox u otro gestor y elige ese archivo.",
       "importButton": "Elegir CSV del navegador…",

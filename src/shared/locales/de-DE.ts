@@ -391,6 +391,10 @@ export const deDE = {
       "help": "Nach dem Entfernen fragt Hronaut beim nächsten Berechtigungsbedarf erneut."
     },
     "passwords": {
+      "search": "Gespeicherte Passwörter suchen",
+      "searchSummary": "{visible} von {total} gespeicherten Passwörtern",
+      "noMatches": "Keine gespeicherten Passwörter entsprechen dieser Suche.",
+
       "importHeading": "Aus einem anderen Browser importieren",
       "importDescription": "Passwörter aus Chrome, Edge, Firefox oder einem anderen Passwortmanager als CSV exportieren und diese Datei auswählen.",
       "importButton": "Browser-CSV auswählen…",

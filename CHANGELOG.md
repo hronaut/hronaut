@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Search saved passwords using multiple words across displayed account names and website origins, with matching and total counts.
+
 ### Fixed
 
 - Keep keyboard focus while removing a saved password, then move to a neighboring password or the Saved passwords heading without overriding newer focus.

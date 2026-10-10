@@ -391,6 +391,10 @@ export const plPL = {
       "help": "Po usunięciu decyzji Hronaut zapyta ponownie przy następnej prośbie witryny."
     },
     "passwords": {
+      "search": "Szukaj zapisanych haseł",
+      "searchSummary": "{visible} z {total} zapisanych haseł",
+      "noMatches": "Żadne zapisane hasło nie pasuje do wyszukiwania.",
+
       "importHeading": "Importuj z innej przeglądarki",
       "importDescription": "Wyeksportuj hasła jako CSV z Chrome, Edge, Firefox lub innego menedżera, a następnie wybierz ten plik.",
       "importButton": "Wybierz CSV przeglądarki…",

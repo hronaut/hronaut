@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import UiIconButton from "../ui/UiIconButton.vue"
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
+import IconSearch from '~icons/material-symbols/search-rounded'
+import { formatNumber } from '../../../shared/format'
+import type { SupportedLocale } from '../../../shared/types'
 import IconKey from '~icons/material-symbols/key-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import CredentialImportCard from './CredentialImportCard.vue'
@@ -13,7 +16,7 @@ const props = defineProps<{
   controller: CredentialsController
 }>()
 
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const {
   entries,
   storage,
@@ -22,8 +25,18 @@ const {
   isPending,
   remove
 } = props.controller
+const search = ref('')
+const filteredEntries = computed(() => {
+  const terms = search.value.toLocaleLowerCase(locale.value).trim().split(/\s+/).filter(Boolean)
+  if (!terms.length) return entries.value
+  return entries.value.filter(entry => {
+    const text = [entry.username || t('credentialPicker.unnamed'), entry.origin].join('\n').toLocaleLowerCase(locale.value)
+    return terms.every(term => text.includes(term))
+  })
+})
+const localNumber = (value: number): string => formatNumber(locale.value as SupportedLocale, value)
 const panelRoot = ref<HTMLElement | null>(null)
-watch(() => entries.value.map(entry => entry.id).join('\n'), async (_current, _previous, onCleanup) => {
+watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_current, _previous, onCleanup) => {
   const panel = panelRoot.value
   const focused = document.activeElement
   if (!panel || !(focused instanceof HTMLButtonElement) || !panel.contains(focused)
@@ -58,13 +71,21 @@ watch(() => entries.value.map(entry => entry.id).join('\n'), async (_current, _p
       <p>{{ storage.reason }}</p>
     </div>
     <CredentialImportCard v-if="storage.available" :import-from-csv="importFromCsv" />
+    <template v-if="storage.available">
+      <label class="settings-search credential-search">
+        <IconSearch aria-hidden="true" />
+        <input v-model="search" type="search" :aria-label="t('settings.passwords.search')" :placeholder="t('settings.passwords.search')" maxlength="256" autocomplete="off" spellcheck="false" />
+      </label>
+      <p class="permission-search-summary" role="status">{{ t('settings.passwords.searchSummary', { visible: localNumber(filteredEntries.length), total: localNumber(entries.length) }) }}</p>
+    </template>
     <div v-if="storage.available && !entries.length" class="site-permissions-empty">
       <span class="empty-permission-icon" aria-hidden="true"><IconKey /></span>
       <strong>{{ t('settings.passwords.emptyHeading') }}</strong>
       <p>{{ t('settings.passwords.emptyDescription') }}</p>
     </div>
+    <p v-else-if="storage.available && !filteredEntries.length" class="settings-search-empty">{{ t('settings.passwords.noMatches') }}</p>
     <div v-else-if="storage.available" class="permission-sites">
-      <section v-for="credential in entries" :key="credential.id" class="permission-site">
+      <section v-for="credential in filteredEntries" :key="credential.id" class="permission-site">
         <div class="credential-row">
           <span class="permission-name">
             <strong>{{ credential.username || t('credentialPicker.unnamed') }}</strong>

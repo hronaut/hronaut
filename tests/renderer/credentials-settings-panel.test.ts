@@ -36,11 +36,12 @@ function renderPanel(entries = [savedCredential]) {
   })
   controller.storage.value = { available: true, backend: 'test vault' }
   controller.replace(entries)
+  const i18n = createHronautI18n('en-US')
   const view = render(CredentialsSettingsPanel, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [i18n] },
     props: { controller }
   })
-  return { api, controller, view }
+  return { api, controller, view, i18n }
 }
 
 describe('CredentialsSettingsPanel', () => {
@@ -50,7 +51,7 @@ describe('CredentialsSettingsPanel', () => {
     expect(screen.getByRole('heading', { name: 'Saved passwords' })).toBeVisible()
     expect(screen.getByText('Person')).toBeVisible()
     expect(screen.getByText('https://example.test')).toBeVisible()
-    expect(screen.queryByLabelText(/password/i, { selector: 'input' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/password/i, { selector: 'input:not([type="search"])' })).not.toBeInTheDocument()
     controller.dispose()
   })
 
@@ -139,5 +140,102 @@ it('does not restore old password focus after unmount', async () => {
   await vi.waitFor(() => expect(controller.entries.value).toHaveLength(2))
   expect(newer).toHaveFocus()
   newer.remove()
+  controller.dispose()
+})
+
+it('searches words across saved username and origin without changing retained accounts', async () => {
+  const { controller } = renderPanel(entries)
+  const search = screen.getByRole('searchbox', { name: 'Search saved passwords' })
+  await userEvent.setup().type(search, 'EXAMPLE   middle')
+  expect(screen.getAllByRole('button', { name: /Remove saved password for/ })).toHaveLength(1)
+  expect(screen.getByRole('button', { name: removeName(entries[1]) })).toBeVisible()
+  expect(screen.getByRole('status')).toHaveTextContent('1 of 3 saved passwords')
+  expect(controller.entries.value).toHaveLength(3)
+  controller.dispose()
+})
+
+it.each(['Alpha Zulu', 'person', '2026-08-22', 'unknown'])('does not match unrelated rows or hidden metadata: %s', async query => {
+  const { controller } = renderPanel(entries.map(entry => ({ ...entry, id: `person-${entry.id}` })))
+  await userEvent.setup().type(screen.getByRole('searchbox', { name: 'Search saved passwords' }), query)
+  expect(screen.queryByRole('button', { name: /Remove saved password for/ })).not.toBeInTheDocument()
+  expect(screen.getByText('No saved passwords match this search.')).toBeVisible()
+  expect(screen.queryByText('No saved passwords')).not.toBeInTheDocument()
+  expect(controller.entries.value).toHaveLength(3)
+  controller.dispose()
+})
+
+it('clears a search back to stable account order', async () => {
+  const { controller } = renderPanel(entries)
+  const user = userEvent.setup()
+  const search = screen.getByRole('searchbox', { name: 'Search saved passwords' })
+  await user.type(search, 'Zulu')
+  await user.clear(search)
+  expect(screen.getAllByRole('button', { name: /Remove saved password for/ }).map(button => button.getAttribute('aria-label'))).toEqual(entries.map(removeName))
+  expect(search).toHaveFocus()
+  controller.dispose()
+})
+
+it('removes only the filtered account and retains hidden accounts', async () => {
+  const { api, controller } = renderPanel(entries)
+  const user = userEvent.setup()
+  await user.type(screen.getByRole('searchbox', { name: 'Search saved passwords' }), 'Middle example')
+  await user.click(screen.getByRole('button', { name: removeName(entries[1]) }))
+  await vi.waitFor(() => expect(screen.getByRole('heading', { name: 'Saved passwords' })).toHaveFocus())
+  expect(api.remove).toHaveBeenCalledExactlyOnceWith('Middle')
+  expect(controller.entries.value.map(entry => entry.id)).toEqual(['Alpha', 'Zulu'])
+  expect(screen.getByRole('status')).toHaveTextContent('0 of 2 saved passwords')
+  controller.dispose()
+})
+
+it('refreshes filtered metadata after a live credential update', async () => {
+  const { controller } = renderPanel(entries)
+  const search = screen.getByRole('searchbox', { name: 'Search saved passwords' })
+  await userEvent.setup().type(search, 'new-person new.test')
+  controller.replace([...entries, { ...savedCredential, id: 'new', username: 'new-person', origin: 'https://new.test' }])
+  expect(await screen.findByRole('button', { name: 'Remove saved password for new-person on https://new.test' })).toBeVisible()
+  expect(search).toHaveFocus()
+  expect(screen.getByRole('status')).toHaveTextContent('1 of 4 saved passwords')
+  controller.dispose()
+})
+
+it('searches the displayed unnamed-account label and reacts to locale changes', async () => {
+  const { controller, i18n } = renderPanel([{ ...savedCredential, username: '' }])
+  const search = screen.getByRole('searchbox', { name: 'Search saved passwords' })
+  await userEvent.setup().type(search, 'unnamed example')
+  expect(screen.getByRole('status')).toHaveTextContent('1 of 1 saved passwords')
+  i18n.global.locale.value = 'uk-UA'
+  await nextTick()
+  expect(screen.queryByRole('button', { name: /https:\/\/example.test/ })).not.toBeInTheDocument()
+  await userEvent.setup().clear(search)
+  await userEvent.setup().type(search, i18n.global.t('credentialPicker.unnamed'))
+  expect(screen.getByRole('button', { name: /https:\/\/example.test/ })).toBeVisible()
+  expect(search).toHaveFocus()
+  controller.dispose()
+})
+
+it('hides account search while secure storage is unavailable', async () => {
+  const { controller } = renderPanel()
+  controller.storage.value = { available: false, reason: 'Secure storage unavailable' }
+  await nextTick()
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Remove saved password/ })).not.toBeInTheDocument()
+  expect(screen.getByText('Secure storage unavailable')).toBeVisible()
+  controller.dispose()
+})
+
+it('preserves a newer search while a pending removal finishes', async () => {
+  const { api, controller } = renderPanel(entries)
+  let resolve!: (removed: boolean) => void
+  api.remove.mockReturnValueOnce(new Promise(done => { resolve = done }))
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: removeName(entries[1]) }))
+  const search = screen.getByRole('searchbox', { name: 'Search saved passwords' })
+  await user.type(search, 'Zulu')
+  resolve(true)
+  await vi.waitFor(() => expect(controller.entries.value).toHaveLength(2))
+  expect(search).toHaveFocus()
+  expect(search).toHaveValue('Zulu')
+  expect(screen.getAllByRole('button', { name: /Remove saved password for/ })).toHaveLength(1)
+  expect(screen.getByRole('button', { name: removeName(entries[2]) })).toBeVisible()
   controller.dispose()
 })

@@ -370,7 +370,7 @@
 .site-permissions-empty p { @apply [max-width:380px] [margin:7px_0_0] [font-size:13px] [line-height:1.5]; }
 .empty-permission-icon { @apply grid [width:38px] [height:38px] place-items-center rounded-full text-accent-copy bg-accent-soft [font-size:20px]; }
 .empty-permission-icon svg { @apply [width:21px] [height:21px]; }
-.permission-search { @apply [margin-top:18px] w-full; }
+.permission-search, .credential-search { @apply [margin-top:18px] w-full; }
 .permission-search-summary { @apply [margin:8px_0_0] text-muted [font-size:12px]; }
 .permission-sites { @apply [margin-top:20px]; }
 .permission-site { @apply overflow-hidden [border:1px_solid_var(--border-soft)] [border-radius:10px] bg-surface; }

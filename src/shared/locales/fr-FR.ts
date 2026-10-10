@@ -391,6 +391,10 @@ export const frFR = {
       "help": "Après suppression, Hronaut reposera la question lors de la prochaine demande du site."
     },
     "passwords": {
+      "search": "Rechercher des mots de passe enregistrés",
+      "searchSummary": "{visible} sur {total} mots de passe enregistrés",
+      "noMatches": "Aucun mot de passe enregistré ne correspond à cette recherche.",
+
       "importHeading": "Importer depuis un autre navigateur",
       "importDescription": "Exportez les mots de passe au format CSV depuis Chrome, Edge, Firefox ou un autre gestionnaire, puis choisissez ce fichier.",
       "importButton": "Choisir le CSV du navigateur…",
