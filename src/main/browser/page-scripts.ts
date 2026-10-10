@@ -1,4 +1,5 @@
 import { passwordOccupancySource } from './password-occupancy.js'
+import { formValiditySource } from './form-validity.js'
 import { elementScrollGeometrySource } from './element-scroll-geometry.js'
 import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
 import { snapshotTextHelpersSource } from './snapshot-text.js'
@@ -598,7 +599,7 @@ export function elementPickerInspectionAtPointScript(
   })()`
 }
 
-export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean }, occupancyToken?: string): string {
+export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean; includeValidity?: boolean }, occupancyToken?: string): string {
   return `(() => {
     ${elementInspectionHelpersSource()}
     const target = ${JSON.stringify(target)};
@@ -609,6 +610,7 @@ export function elementInspectionScript(target: { ref?: string; selector?: strin
     return {
       ...hronautInspectElement(element),
       ...(target.includePasswordOccupancy === true ? { passwordOccupancy: ${passwordOccupancySource(occupancyToken ?? '')} } : {}),
+      ...(target.includeValidity === true ? { formValidity: ${formValiditySource(occupancyToken ?? '')} } : {}),
       ...(target.includeScroll === true ? { scrollGeometry: ${elementScrollGeometrySource()} } : {}),
       ...(target.includeFonts === true ? { renderedFontsEligible: element instanceof HTMLElement
         && element.children.length === 0 && !element.shadowRoot

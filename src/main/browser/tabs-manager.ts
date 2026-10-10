@@ -1,6 +1,7 @@
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
 import type { BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
+import { formValiditySettlementScript } from './form-validity.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
@@ -5270,15 +5271,22 @@ export class BrowserTabsManager {
   async elementInspection(options: BrowserElementInspectionOptions, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserElementInspection> {
     if (options.includePasswordOccupancy !== undefined && typeof options.includePasswordOccupancy !== 'boolean') throw new TypeError('includePasswordOccupancy must be a boolean')
     const occupancy = options.includePasswordOccupancy === true
+    if (options.includeValidity !== undefined && typeof options.includeValidity !== 'boolean') throw new TypeError('includeValidity must be a boolean')
+    const validity = options.includeValidity === true
+    if (validity && (options.ref !== undefined || !options.selector)) throw new Error('Form validity requires a unique selector; snapshot refs are unsupported')
+    if (validity && (occupancy || options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Form validity cannot be combined with password occupancy, CSS provenance or rendered fonts')
+    const guarded = occupancy || validity
+    const inspectionLabel = validity ? 'Form validity' : 'Password occupancy'
+    const settlementScript = validity ? formValiditySettlementScript : passwordOccupancySettlementScript
     if (occupancy && (options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Password occupancy cannot be combined with CSS provenance or rendered fonts')
-    const occupancyToken = occupancy ? randomUUID() : undefined
+    const inspectionToken = guarded ? randomUUID() : undefined
     const properties = normalizeCssProperties(options.cssProperties)
     if (options.includeFonts !== undefined && typeof options.includeFonts !== 'boolean') throw new TypeError('includeFonts must be a boolean')
     if (options.includeScroll !== undefined && typeof options.includeScroll !== 'boolean') throw new TypeError('includeScroll must be a boolean')
     const includeFonts = options.includeFonts === true
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')
-    if (occupancy && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error('Password occupancy requires an already active tab')
+    if (guarded && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error(`${inspectionLabel} requires an already active tab`)
     this.validateTarget(options)
     const context = this.snapshotDeltaContext(tab)
     const inspectionWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
@@ -5289,7 +5297,7 @@ export class BrowserTabsManager {
       if (currentWorkspace !== inspectionWorkspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== inspectionPermissionGeneration) {
         throw new Error('Workspace permissions changed during element inspection')
       }
-      if (occupancy && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error('Password occupancy requires an already active tab')
+      if (guarded && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error(`${inspectionLabel} requires an already active tab`)
       const current = this.tabs.get(tab.id)
       if (!current || current !== tab || current.webContents.isDestroyed()) {
         throw new Error('The tab changed during element inspection. Inspect the element again.')
@@ -5300,39 +5308,39 @@ export class BrowserTabsManager {
       }
     }
     const deadline = Date.now() + 5_000
-    const boundedOccupancy = async <T>(operation: Promise<T>): Promise<T> => {
-      if (!occupancy) return operation
+    const boundedInspection = async <T>(operation: Promise<T>): Promise<T> => {
+      if (!guarded) return operation
       let timer: NodeJS.Timeout | undefined
       try {
         return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(() => reject(new Error('Password occupancy inspection expired')), Math.max(1, deadline - Date.now()))
+          timer = setTimeout(() => reject(new Error(`${inspectionLabel} inspection expired`)), Math.max(1, deadline - Date.now()))
         })])
       } finally { if (timer) clearTimeout(timer) }
     }
     const inspect = () => tab.webContents.executeJavaScriptInIsolatedWorld(
       ELEMENT_INSPECTION_WORLD_ID,
-      [{ code: elementInspectionScript(options, occupancyToken) }],
+      [{ code: elementInspectionScript(options, inspectionToken) }],
       false
     )
     let raw: unknown
     let cssProvenance: BrowserElementInspection['cssProvenance']
     let renderedFonts: BrowserElementInspection['renderedFonts']
-    let occupancySettled = false
+    let inspectionSettled = false
     let inspectionDeferred = false
     const pendingInspection: PendingElementInspection = {
       assertCurrent,
       finish: async () => {
-        if (!occupancyToken) return
+        if (!inspectionToken) return
         assertCurrent()
-        const settled = await boundedOccupancy(tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken) }], false))
-        occupancySettled = true
+        const settled = await boundedInspection(tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: settlementScript(inspectionToken) }], false))
+        inspectionSettled = true
         assertCurrent()
-        if (settled !== true) throw new Error('Password occupancy target changed or expired during inspection')
+        if (settled !== true) throw new Error(`${inspectionLabel} target changed or expired during inspection`)
       },
       discard: () => {
-        if (occupancyToken && !occupancySettled && !tab.webContents.isDestroyed()) {
-          occupancySettled = true
-          void tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: passwordOccupancySettlementScript(occupancyToken, true) }], false).catch(() => undefined)
+        if (inspectionToken && !inspectionSettled && !tab.webContents.isDestroyed()) {
+          inspectionSettled = true
+          void tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: settlementScript(inspectionToken, true) }], false).catch(() => undefined)
         }
       }
     }
@@ -5368,12 +5376,12 @@ export class BrowserTabsManager {
             raw = await inspect()
           }
         }
-      } else raw = await boundedOccupancy(inspect())
+      } else raw = await boundedInspection(inspect())
       assertCurrent()
       if (deferInspection) {
         deferInspection(pendingInspection)
         inspectionDeferred = true
-      } else if (occupancyToken) await pendingInspection.finish()
+      } else if (inspectionToken) await pendingInspection.finish()
       return {
         ...normalizeElementInspection({ tabId: tab.id, title: tab.title, url: tab.url, raw }),
         ...(cssProvenance ? { cssProvenance } : {}),
