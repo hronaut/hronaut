@@ -1,10 +1,19 @@
 import { FORM_VALIDITY_FLAGS } from '../../shared/form-validity.js'
 
+// Both entry points accept only the internal randomUUID handle, never page input.
+function tokenLiteral(token: string): string {
+  if (typeof token !== 'string' || token.length !== 36
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(token)) {
+    throw new TypeError('Invalid form validity inspection token')
+  }
+  return `'${token}'`
+}
+
 // Runs in the existing trusted inspection isolated world. Only fixed native
 // booleans cross IPC; no value, constraint string or validation message is read.
 export function formValiditySource(token: string): string {
   return `(() => {
-    const token=${JSON.stringify(token)};
+    const token=${tokenLiteral(token)};
     const handles=globalThis.__hronautFormValidity??=new Map();
     if(handles.size>=8)throw Error('Form validity inspection is busy');
     const matches=document.querySelectorAll(target.selector);
@@ -17,8 +26,21 @@ export function formValiditySource(token: string): string {
       if(typeof getter!=='function')throw Error('Native accessor unavailable');
       return Reflect.apply(getter,object,[]);
     };
+    // On these three native brands attachInternals must throw before mutation:
+    // HTML's steps 1/3 distinguish internal is-value from a non-custom control.
+    // Chromium's exact non-custom refusal is the only accepted result. Unknown
+    // wording/API behavior fails closed. No validation message or value is read.
+    const uncustomized=()=>{
+      if(!prototype)return false;
+      try{Reflect.apply(HTMLElement.prototype.attachInternals,element,[]);return false}
+      catch(error){return error instanceof DOMException
+        &&read(DOMException.prototype,error,'name')==='NotSupportedError'
+        &&read(DOMException.prototype,error,'message')===
+          "Failed to execute 'attachInternals' on 'HTMLElement': Unable to attach ElementInternals to non-custom elements."}
+    };
     const eligible=()=>Boolean(prototype)&&element.isConnected&&element.getRootNode()===document
       &&!element.hasAttribute('is')&&!element.hasAttribute('hidden')&&!element.isContentEditable
+      &&uncustomized()
       &&(!(element instanceof HTMLInputElement)||!['password','file','hidden'].includes(read(HTMLInputElement.prototype,element,'type')))
       &&!/(?:^|\\s)(?:one-time-code|cc-\\S+)(?:\\s|$)/i.test(element.getAttribute('autocomplete')||'')
       &&element.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})
@@ -55,5 +77,5 @@ export function formValiditySource(token: string): string {
 }
 
 export function formValiditySettlementScript(token: string, cancel = false): string {
-  return `(() => {const handle=globalThis.__hronautFormValidity?.get(${JSON.stringify(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
+  return `(() => {const handle=globalThis.__hronautFormValidity?.get(${tokenLiteral(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
 }

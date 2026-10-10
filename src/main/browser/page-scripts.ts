@@ -610,7 +610,7 @@ export function elementInspectionScript(target: { ref?: string; selector?: strin
     return {
       ...hronautInspectElement(element),
       ...(target.includePasswordOccupancy === true ? { passwordOccupancy: ${passwordOccupancySource(occupancyToken ?? '')} } : {}),
-      ...(target.includeValidity === true ? { formValidity: ${formValiditySource(occupancyToken ?? '')} } : {}),
+      ...(target.includeValidity === true ? { formValidity: ${target.includeValidity === true ? formValiditySource(occupancyToken ?? '') : 'undefined'} } : {}),
       ...(target.includeScroll === true ? { scrollGeometry: ${elementScrollGeometrySource()} } : {}),
       ...(target.includeFonts === true ? { renderedFontsEligible: element instanceof HTMLElement
         && element.children.length === 0 && !element.shadowRoot
