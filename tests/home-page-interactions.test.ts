@@ -639,3 +639,63 @@ describe('Home workspace hub', () => {
     expect(document.querySelector<HTMLInputElement>('[data-workspace-preference="deletionProtected"]')?.checked).toBe(true)
   })
 })
+
+
+describe('Home tool-reference search terms', () => {
+  const tools: McpDashboardState['tools'] = [
+    { name: 'browser_network_request', category: 'Inspection', description: 'Inspect response [body] metadata' },
+    { name: 'browser_console', category: 'Inspection', description: 'Read response messages' },
+    { name: 'browser_storage', category: 'Inspection', description: 'List saved keys' }
+  ]
+  const names = () => Array.from(document.querySelectorAll<HTMLElement>('#tool-grid .tool'), node => node.dataset.tool)
+  function searchFor(value: string) {
+    const search = document.querySelector<HTMLInputElement>('#tool-search')!
+    search.value = value
+    search.dispatchEvent(new Event('input'))
+    return search
+  }
+
+  it.each(['network response', 'RESPONSE   network', ' inspection\tNETWORK response '])(
+    'matches every word across one tool name, category and description: %s', query => {
+      mount().update({ ...state, tools })
+      searchFor(query)
+      expect(names()).toEqual(['browser_network_request'])
+      expect(document.querySelector<HTMLElement>('#tool-empty')!.hidden).toBe(true)
+    }
+  )
+
+  it.each([
+    { query: 'network storage', expected: [] },
+    { query: 'network [body]', expected: ['browser_network_request'] },
+    { query: 'network .*', expected: [] }
+  ])('requires literal terms within the same tool: $query', ({ query, expected }) => {
+    mount().update({ ...state, tools })
+    searchFor(query)
+    expect(names()).toEqual(expected)
+    expect(document.querySelector<HTMLElement>('#tool-empty')!.hidden).toBe(expected.length > 0)
+  })
+
+  it('retains matching expanded cards, focus and query through dashboard updates and restores catalog order on clear', () => {
+    const home = mount()
+    home.update({ ...state, tools })
+    const retained = document.querySelector<HTMLDetailsElement>('[data-tool="browser_network_request"]')!
+    retained.open = true
+    const search = searchFor('response network')
+    search.focus()
+    expect(names()).toEqual(['browser_network_request'])
+    expect(document.querySelector('[data-tool="browser_network_request"]')).toBe(retained)
+    home.update({ ...state, totalRequests: 4, tools: [
+      ...tools, { name: 'browser_network_search', category: 'Inspection', description: 'Search response snippets' }
+    ] })
+    expect(names()).toEqual(['browser_network_request', 'browser_network_search'])
+    expect(search.value).toBe('response network')
+    expect(document.activeElement).toBe(search)
+    expect(document.querySelector('[data-tool="browser_network_request"]')).toBe(retained)
+    expect(retained.open).toBe(true)
+    searchFor('   ')
+    expect(names()).toEqual([...tools.map(tool => tool.name), 'browser_network_search'])
+    expect(document.querySelector<HTMLElement>('#tool-empty')!.hidden).toBe(true)
+    expect(retained.open).toBe(true)
+    expect(document.activeElement).toBe(search)
+  })
+})
