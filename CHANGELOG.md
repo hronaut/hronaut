@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Search visited websites in Workspaces & data using multiple words across each site's hostname, origin and retained title.
+
 - Search saved site permissions using multiple words across each decision's origin, internal permission name and translated label.
 
 - Search Downloads using multiple words across filenames and displayed origins, combined with status and filename sorting, without searching hidden URL details or saved paths.
