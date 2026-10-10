@@ -1,4 +1,15 @@
 import { expect, test } from './fixtures.js'
+import { attachCaptureDiagnostic, attachCaptureResources, installCaptureDiagnostic } from './capture-order-diagnostic.js'
+import type { CaptureDiagnosticGlobal } from './capture-order-diagnostic.js'
+
+test.beforeEach(async ({ electronApp }, info) => {
+  await attachCaptureResources(info, 'before')
+  await installCaptureDiagnostic(electronApp)
+})
+test.afterEach(async ({ electronApp }, info) => {
+  await attachCaptureDiagnostic(electronApp, info)
+  await attachCaptureResources(info, 'after')
+})
 
 type ReadinessProbe = typeof globalThis & { clipboardReadinessProbe?: { restore(): Promise<void> } }
 
@@ -19,6 +30,7 @@ for (const { method, holdReadinessScript } of [
         let release!: () => void
         const pending = new Promise<void>(resolve => { release = resolve })
         page.executeJavaScript = function (script, userGesture) {
+          if (script === 'document.readyState') (globalThis as CaptureDiagnosticGlobal).__captureOrderDiagnostic?.record('readiness-injection-hit')
           return script === 'document.readyState' ? pending.then(() => 'complete') : original.call(this, script, userGesture)
         }
         ;(globalThis as ReadinessProbe).clipboardReadinessProbe = {
@@ -37,12 +49,14 @@ for (const { method, holdReadinessScript } of [
         const original = clipboard[operation].bind(clipboard)
         if (operation === 'write') {
           clipboard.write = async (...args) => {
+            (globalThis as CaptureDiagnosticGlobal).__captureOrderDiagnostic?.record('clipboard-injection-hit', { operation: 'write' })
             clipboard.write = original as typeof clipboard.write
             await Promise.resolve()
             throw new Error(`Rejected async clipboard write (${args.length})`)
           }
         } else {
           clipboard.read = async () => {
+            (globalThis as CaptureDiagnosticGlobal).__captureOrderDiagnostic?.record('clipboard-injection-hit', { operation: 'read' })
             clipboard.read = original as typeof clipboard.read
             await Promise.resolve()
             throw new Error('Rejected async clipboard read')
