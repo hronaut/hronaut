@@ -1,5 +1,5 @@
 // DIAGNOSTIC BRANCH ONLY. Closed schema shared with the artifact exporter.
-export const eventNames = ['installed', 'created', 'destroyed', 'navigation-start', 'navigation-commit',
+export const eventNames = ['observation-unavailable', 'installed', 'created', 'destroyed', 'navigation-start', 'navigation-commit',
   'load-start', 'load-stop', 'renderer-gone', 'add-enter', 'add-return', 'add-throw',
   'remove-enter', 'remove-return', 'remove-throw', 'bounds-enter', 'bounds-return', 'bounds-throw',
   'visible-enter', 'visible-return', 'visible-throw', 'capture-start', 'capture-success', 'capture-error',

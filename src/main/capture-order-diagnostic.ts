@@ -10,9 +10,19 @@ let enabled = false
 let owner: Owner = 'other'
 const generations = new Map<number, { attachmentGeneration: number; layoutGeneration: number; navigationGeneration: number }>()
 function record(event: EventName, detail: Omit<CaptureEvent, 'event' | 'ms'> = {}): void {
-  if (enabled) ring.record({ event, ms: performance.now() - started, ...detail })
+  if (!enabled) return
+  try { ring.record({ event, ms: performance.now() - started, ...detail }) } catch {
+    // Instrumentation must never replace an application return or exception.
+    try { ring.record({ event, ms: 0, unavailable: true }) } catch { /* No safe observation remains. */ }
+  }
 }
-export function captureDiagnosticEvent(event: EventName, id: number): void { record(event, { id }) }
+function observeSafely(event: EventName, detail: () => Omit<CaptureEvent, 'event' | 'ms'>): void {
+  if (!enabled) return
+  try { record(event, detail()) } catch { record(event, { unavailable: true }) }
+}
+export function captureDiagnosticEvent(event: EventName, page: WebContents): void {
+  observeSafely(event, () => ({ id: page.id }))
+}
 export function diagnosticCapture(page: WebContents, label: Owner, ...args: Parameters<WebContents['capturePage']>): ReturnType<WebContents['capturePage']> {
   const previous = owner
   owner = label
@@ -36,9 +46,15 @@ function snapshot(page: WebContents): Omit<CaptureEvent, 'event' | 'ms'> {
 export function installCaptureDiagnostic(): void {
   if (process.env.HRONAUT_CAPTURE_DIAGNOSTIC !== '1' || enabled) return
   enabled = true
+  try { installObservers() } catch { record('observation-unavailable') }
+}
+function installObservers(): void {
   const preexisting = webContents.getAllWebContents()
   record('installed', { preexisting: preexisting.length })
   const observe = (page: WebContents): void => {
+    try { observePage(page) } catch { record('observation-unavailable') }
+  }
+  const observePage = (page: WebContents): void => {
     if (generations.has(page.id)) return
     if (generations.size >= 64) { ring.omittedContents++; return }
     const id = page.id
@@ -60,10 +76,11 @@ export function installCaptureDiagnostic(): void {
     page.capturePage = function (...args) {
       const call = ++sequence
       const label = owner
-      record('capture-start', { ...snapshot(page), call, active: ++active, owner: label })
+      active++
+      observeSafely('capture-start', () => ({ ...snapshot(page), call, active, owner: label }))
       const failed = (error: unknown): void => {
-        record('capture-error', { ...snapshot(page), call, active, owner: label,
-          unknownViz: error instanceof Error && error.message.includes('UnknownVizError') })
+        observeSafely('capture-error', () => ({ ...snapshot(page), call, active, owner: label,
+          unknownViz: error instanceof Error && error.message.includes('UnknownVizError') }))
       }
       let pending: ReturnType<WebContents['capturePage']>
       try { pending = original.apply(this, args) } catch (error) {
@@ -72,15 +89,19 @@ export function installCaptureDiagnostic(): void {
         throw error
       }
       // Observe settlement without replacing the promise returned to production code.
-      void pending.then(image => {
-        try {
-          const size = image.getSize()
-          record('capture-success', { ...snapshot(page), call, active, owner: label,
-            imageWidth: size.width, imageHeight: size.height, empty: image.isEmpty() })
-        } finally { active-- }
-      }, error => {
-        try { failed(error) } finally { active-- }
-      }).catch(() => { ring.invalid++ })
+      try {
+        void pending.then(image => {
+          try {
+            observeSafely('capture-success', () => {
+              const size = image.getSize()
+              return { ...snapshot(page), call, active, owner: label,
+                imageWidth: size.width, imageHeight: size.height, empty: image.isEmpty() }
+            })
+          } finally { active-- }
+        }, error => {
+          try { failed(error) } finally { active-- }
+        }).catch(() => { ring.invalid++ })
+      } catch { active--; record('observation-unavailable', { call }) }
       return pending
     }
   }
@@ -90,39 +111,54 @@ export function installCaptureDiagnostic(): void {
     const original = View.prototype[method]
     View.prototype[method] = function (...args: [View, number?]) {
       const [child] = args
-      const page = (child as WebContentsView).webContents
-      if (!page) return Reflect.apply(original, this, args)
-      record(`${prefix}-enter`, snapshot(page))
-      try {
-        const result = Reflect.apply(original, this, args)
-        const generation = generations.get(page.id)
+      const read = () => {
+        const page = (child as WebContentsView).webContents
+        return page ? snapshot(page) : {}
+      }
+      observeSafely(`${prefix}-enter`, read)
+      let result: ReturnType<typeof original>
+      try { result = Reflect.apply(original, this, args) } catch (error) {
+        observeSafely(`${prefix}-throw`, read)
+        throw error
+      }
+      observeSafely(`${prefix}-return`, () => {
+        const page = (child as WebContentsView).webContents
+        const generation = page && generations.get(page.id)
         if (generation) generation.attachmentGeneration++
-        record(`${prefix}-return`, snapshot(page))
-        return result
-      } catch (error) { record(`${prefix}-throw`, snapshot(page)); throw error }
+        return read()
+      })
+      return result
     }
   }
   const bounds = WebContentsView.prototype.setBounds
   WebContentsView.prototype.setBounds = function (value) {
-    record('bounds-enter', snapshot(this.webContents))
-    try {
-      const result = bounds.call(this, value)
+    observeSafely('bounds-enter', () => snapshot(this.webContents))
+    let result: ReturnType<typeof bounds>
+    try { result = bounds.call(this, value) } catch (error) {
+      observeSafely('bounds-throw', () => snapshot(this.webContents))
+      throw error
+    }
+    observeSafely('bounds-return', () => {
       const generation = generations.get(this.webContents.id)
       if (generation) generation.layoutGeneration++
-      record('bounds-return', { ...snapshot(this.webContents), ...this.getBounds() })
-      return result
-    } catch (error) { record('bounds-throw', snapshot(this.webContents)); throw error }
+      return { ...snapshot(this.webContents), ...this.getBounds() }
+    })
+    return result
   }
   const visible = WebContentsView.prototype.setVisible
   WebContentsView.prototype.setVisible = function (value) {
-    record('visible-enter', snapshot(this.webContents))
-    try {
-      const result = visible.call(this, value)
+    observeSafely('visible-enter', () => snapshot(this.webContents))
+    let result: ReturnType<typeof visible>
+    try { result = visible.call(this, value) } catch (error) {
+      observeSafely('visible-throw', () => snapshot(this.webContents))
+      throw error
+    }
+    observeSafely('visible-return', () => {
       const generation = generations.get(this.webContents.id)
       if (generation) generation.layoutGeneration++
-      record('visible-return', { ...snapshot(this.webContents), visible: this.getVisible() })
-      return result
-    } catch (error) { record('visible-throw', snapshot(this.webContents)); throw error }
+      return { ...snapshot(this.webContents), visible: this.getVisible() }
+    })
+    return result
   }
   const save = (): void => {
     // Only an explicit diagnostic path supplied by the isolated fixture; never exported.
@@ -134,6 +170,7 @@ export function installCaptureDiagnostic(): void {
   app.on('will-quit', () => { record('will-quit'); save() })
   ;(globalThis as CaptureDiagnosticGlobal).__captureOrderDiagnostic = { record, save, snapshot: () => ring.snapshot() }
 }
+
 export type CaptureDiagnosticGlobal = typeof globalThis & {
   __captureOrderDiagnostic?: { record: typeof record; save(): void; snapshot(): ReturnType<CaptureRing['snapshot']> }
 }

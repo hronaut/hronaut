@@ -9748,7 +9748,7 @@ export class BrowserTabsManager {
           && !this.window.isMinimized()
           && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
         ) {
-          captureDiagnosticEvent('active-fast-path', webContents.id)
+          captureDiagnosticEvent('active-fast-path', webContents)
           return await operation()
         }
 
@@ -9830,7 +9830,7 @@ export class BrowserTabsManager {
   }
 
   private async waitForPresentation(webContents: BrowserTab['view']['webContents']): Promise<void> {
-    captureDiagnosticEvent('presentation-start', webContents.id)
+    captureDiagnosticEvent('presentation-start', webContents)
     await new Promise<void>((resolve, reject) => {
       let finished = false
       let invalidateTimer: NodeJS.Timeout | undefined
@@ -9841,11 +9841,11 @@ export class BrowserTabsManager {
         if (!frameSubscriptionActive) return
         frameSubscriptionActive = false
         try {
-          captureDiagnosticEvent('presentation-end', webContents.id)
+          captureDiagnosticEvent('presentation-end', webContents)
           webContents.endFrameSubscription()
-          captureDiagnosticEvent('presentation-end-return', webContents.id)
+          captureDiagnosticEvent('presentation-end-return', webContents)
         } catch {
-          captureDiagnosticEvent('presentation-end-throw', webContents.id)
+          captureDiagnosticEvent('presentation-end-throw', webContents)
           // The tab may have been destroyed while waiting for its compositor frame.
         }
       }
@@ -9869,15 +9869,15 @@ export class BrowserTabsManager {
       )
       try {
         frameSubscriptionActive = true
-        captureDiagnosticEvent('subscription-enter', webContents.id)
+        captureDiagnosticEvent('subscription-enter', webContents)
         try {
           webContents.beginFrameSubscription(false, () => {
-            captureDiagnosticEvent('presentation-frame', webContents.id)
+            captureDiagnosticEvent('presentation-frame', webContents)
             finish()
           })
-          captureDiagnosticEvent('subscription-return', webContents.id)
+          captureDiagnosticEvent('subscription-return', webContents)
         } catch (error) {
-          captureDiagnosticEvent('subscription-throw', webContents.id)
+          captureDiagnosticEvent('subscription-throw', webContents)
           throw error
         }
         const invalidate = (): void => {
@@ -9909,7 +9909,7 @@ export class BrowserTabsManager {
             // capturePage manages its own capturer count. Probe only after ending
             // the missed frame subscription: overlapping both capture mechanisms
             // can leave the direct capture pending under renderer pressure.
-            captureDiagnosticEvent('presentation-probe', webContents.id)
+            captureDiagnosticEvent('presentation-probe', webContents)
             const image = await diagnosticCapture(webContents, 'presentation-probe')
             if (!image.isEmpty()) finish()
           } catch {
