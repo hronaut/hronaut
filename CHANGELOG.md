@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clear earlier MCP endpoint copy success while another clipboard write is pending or fails, preserving feedback only for the latest successful attempt.
+
 - Label IndexedDB copying as “Copy filtered” when a record filter is active, so the button accurately describes the existing filtered-copy scope in every supported language.
 
 - Clear IndexedDB copy feedback when the record filter changes, including clipboard operations that finish after a filter change.
