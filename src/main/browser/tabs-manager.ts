@@ -221,6 +221,7 @@ import {
   type MemorySaverTimeoutMinutes
 } from '../../shared/memory-saver.js'
 import { uuidV7 } from '../uuid-v7.js'
+import { RendererRecovery } from './renderer-recovery.js'
 import {
   credentialFillContext,
   isCurrentCredentialFillContext,
@@ -1261,8 +1262,7 @@ export class BrowserTabsManager {
   private readonly dialogMonitorAttachPromises = new Map<number, Promise<void>>()
   private readonly defaultExecutionContexts = new Map<number, Map<string, number>>()
   private readonly devToolsOpening = new Set<number>()
-  private readonly recoveringRenderers = new Set<number>()
-  private readonly recoveringRendererExits = new Set<number>()
+  private readonly rendererRecovery = new RendererRecovery()
   private readonly renderQueues = new Map<number, Promise<void>>()
   private workspaceTemplateImporter?: WorkspaceTemplateImporter
   private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
@@ -4477,6 +4477,7 @@ export class BrowserTabsManager {
 
   private async reloadPage(tabId: string | undefined, ignoreCache: boolean): Promise<BrowserState> {
     const tab = this.getTab(tabId)
+    if (this.rendererRecovery.isRecovering(tab.webContents)) throw new Error('The tab renderer is already being recovered.')
     this.prepareDiagnosticNavigation(tab)
     if (tab.sleeping || tab.wakePromise) {
       await this.wakeTab(tab.id)
@@ -4490,25 +4491,27 @@ export class BrowserTabsManager {
         ? { extraHeaders: 'Cache-Control: no-cache\r\nPragma: no-cache\r\n' }
         : undefined).catch(() => undefined)
     } else if (pageProblem?.kind === 'unresponsive') {
-      const webContentsId = tab.webContents.id
-      this.recoveringRenderers.add(webContentsId)
+      const contents = tab.webContents
+      const navigationGeneration = tab.navigationGeneration
+      const isCurrent = (): boolean => this.tabs.get(tab.id) === tab
+        && tab.webContents === contents && !contents.isDestroyed()
+        && tab.navigationGeneration === navigationGeneration
       try {
-        tab.webContents.forcefullyCrashRenderer()
-        if (ignoreCache) tab.webContents.reloadIgnoringCache()
-        else tab.webContents.reload()
+        await this.rendererRecovery.recover(contents, async () => {
+          if (!isCurrent()) throw new Error('The page changed while recovering its renderer.')
+          // Reloading before the old process exits can stop at its crash rather
+          // than load a replacement. Await that one intentional exit first.
+          if (ignoreCache) contents.reloadIgnoringCache()
+          else contents.reload()
+          await this.waitForPage(tab.id, 30_000)
+        })
       } catch (error) {
-        this.recoveringRenderers.delete(webContentsId)
-        this.recoveringRendererExits.delete(webContentsId)
-        if (this.tabs.get(tab.id) === tab) {
+        if (isCurrent() && !tab.pageProblem) {
           tab.pageProblem = pageProblem
           this.changed(false)
         }
         throw error
       }
-      setTimeout(() => {
-        this.recoveringRenderers.delete(webContentsId)
-        this.recoveringRendererExits.delete(webContentsId)
-      }, 5_000).unref()
     } else {
       if (ignoreCache) tab.webContents.reloadIgnoringCache()
       else tab.webContents.reload()
@@ -7190,7 +7193,7 @@ export class BrowserTabsManager {
         stopSettlement = setImmediate(() => {
           stopSettlement = undefined
           if (rendererUnavailable() || (
-            webContents.isCrashed() && !this.recoveringRenderers.has(webContents.id)
+            webContents.isCrashed() && !this.rendererRecovery.expectsExit(webContents)
           )) {
             rejectForRendererUnavailable()
             return
@@ -8321,9 +8324,6 @@ export class BrowserTabsManager {
     })
     webContents.on('did-start-loading', () => {
       if (tab.sleeping) return
-      if (this.recoveringRendererExits.delete(webContents.id)) {
-        this.recoveringRenderers.delete(webContents.id)
-      }
       tab.loading = true
       tab.sleeping = false
       tab.lastActiveAt = Date.now()
@@ -8491,10 +8491,7 @@ export class BrowserTabsManager {
       this.invalidateTabOverviewPreview(tab)
       this.tabOverviewPreviewCaptures.cancelPending(tab.id)
       this.tabOverviewPreviewableTabs.delete(tab.id)
-      if (this.recoveringRenderers.has(webContents.id)) {
-        this.recoveringRendererExits.add(webContents.id)
-        return
-      }
+      if (this.rendererRecovery.expectsExit(webContents)) return
       this.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
       if (tab.pageLifecycleState !== 'active') {

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Wait for an unresponsive renderer to exit before loading its replacement, and keep later crashes, navigation and tab closure visible during recovery.
+
 ## [2.31.0] - 2026-10-10
 
 ### Added
