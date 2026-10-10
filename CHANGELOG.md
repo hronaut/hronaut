@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Record reviewed URL-path outcomes in Repro and export matching Playwright assertions, without inspecting page content or treating a route match as business success.
+
 - Inspect native form constraint flags with `browser_element_inspect`'s opt-in `includeValidity`, without returning field values or validation messages, invoking validation UI, or submitting a form.
 
 ### Fixed

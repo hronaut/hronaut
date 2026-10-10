@@ -12,7 +12,7 @@ afterEach(() => document.body.replaceChildren())
 
 describe('bounded count checkpoints', () => {
   it.each([0, 1, 500])('accepts explicit integer %i', count => {
-    expect(reproCheckpointSchema.parse({ ...request, count }).count).toBe(count)
+    expect(reproCheckpointSchema.parse({ ...request, count })).toMatchObject({ count })
   })
   it.each([undefined, '', '0', null, -1, 0.5, 501, NaN, Infinity])('rejects missing or invalid count %j', count => {
     expect(reproCheckpointSchema.safeParse({ ...request, count }).success).toBe(false)

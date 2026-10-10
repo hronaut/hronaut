@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { MAX_REPRO_COUNT, validReproCountSelector } from './repro-count.js'
+import { validReproUrlPath } from './repro-url-path.js'
 
 /** Expectations are supplied intentionally, never inferred from captured page text. */
-export const reproCheckpointSchema = z.object({
+const elementCheckpointSchema = z.object({
   context: z.string().uuid(),
   selector: z.string().trim().min(1).max(500),
   condition: z.enum(['visible', 'hidden', 'text', 'checked', 'unchecked', 'count']),
@@ -21,11 +22,20 @@ export const reproCheckpointSchema = z.object({
   }
 })
 
+export const reproCheckpointSchema = z.union([elementCheckpointSchema, z.object({
+  context: z.string().uuid(),
+  condition: z.literal('urlPath'),
+  path: z.string().min(1).max(2048).refine(validReproUrlPath, 'Provide a serialized pathname only, without an origin, query or fragment'),
+  reviewed: z.literal(true)
+}).strict()])
+
+export type BrowserReproElementCheckpointInput = z.infer<typeof elementCheckpointSchema>
 export type BrowserReproCheckpointInput = z.infer<typeof reproCheckpointSchema>
 
 export interface BrowserReproExpectation {
   condition: BrowserReproCheckpointInput['condition']
   count?: number
   text?: string
+  path?: string
   observedMatch: boolean
 }

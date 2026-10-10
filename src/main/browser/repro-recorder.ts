@@ -147,6 +147,18 @@ export class BrowserReproRecorder<T extends ReproTab> {
     assertCurrent()
     const operation = recording!.queue.catch(() => undefined).then(async () => {
       assertCurrent()
+      if (request.condition === 'urlPath') {
+        const currentUrl = page.getURL()
+        if (currentUrl.length > 16384) throw new Error('Checkpoint URL exceeds its observation limit')
+        const current = new URL(currentUrl)
+        if (!['http:', 'https:'].includes(current.protocol)) throw new Error('URL-path checkpoints require an HTTP(S) page')
+        assertCurrent()
+        this.addReproStep(tab, {
+          kind: 'expect', description: 'Expected result: urlPath',
+          expectation: { condition: 'urlPath', path: request.path, observedMatch: current.pathname === request.path }
+        })
+        return
+      }
       const result = await this.readPageWithDeadline(
         page.executeJavaScript(reproCheckpointScript(request), true),
         'Checkpoint page read timed out; expectation was not recorded. Check the page and retry.'
@@ -264,7 +276,8 @@ export class BrowserReproRecorder<T extends ReproTab> {
       recording.checkpointObservation = tab.observationGeneration
     }
     return {
-      formatVersion: recording?.steps.some(step => step.expectation?.condition === 'count') ? 3 : 2,
+      formatVersion: recording?.steps.some(step => step.expectation?.condition === 'urlPath') ? 4
+        : recording?.steps.some(step => step.expectation?.condition === 'count') ? 3 : 2,
       ...(recording?.active ? { checkpointContext: recording.checkpointContext } : {}),
       tabId: tab.id,
       title: redactDiagnosticText(tab.title).slice(0, 500),
