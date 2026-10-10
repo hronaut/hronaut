@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Recheck agent authority and cancellation before committing MCP PDF exports, and clean up the owned export when either changes during the file write.
+
 - A failed Network request-condition reorder no longer restores a condition removed while its native update was pending or overwrites newer condition-list edits.
 
 ## [2.32.0] - 2026-10-10

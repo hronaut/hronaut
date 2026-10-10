@@ -7147,14 +7147,23 @@ export class BrowserTabsManager {
     return result
   }
 
-  async savePdf(options: BrowserPdfOptions = {}): Promise<BrowserPdfExport> {
+  async savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void): Promise<BrowserPdfExport> {
     const tab = this.getTab(options.tabId)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
     const filename = pdfFilename(options.filename, tab.title)
     const webContents = tab.webContents
     const navigationGeneration = tab.navigationGeneration
     let documentCommitted = false
     const onDocumentCommitted = (): void => { documentCommitted = true }
     const assertCurrent = (): void => {
+      validateExport?.()
+      if (validateExport) {
+        const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+        if (currentWorkspace !== workspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration) {
+          throw new Error('Workspace access changed while exporting its PDF. Export again with current authority.')
+        }
+      }
       if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
         throw new Error('The tab closed while exporting its PDF. Open the page and export again.')
       }
@@ -7162,6 +7171,7 @@ export class BrowserTabsManager {
         throw new Error('The page changed while exporting its PDF. Export the current page again.')
       }
     }
+    assertCurrent()
     // A navigation may already have started when export is requested. Its
     // later commit does not increment navigationGeneration a second time.
     webContents.on('did-navigate', onDocumentCommitted)

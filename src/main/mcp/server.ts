@@ -1873,6 +1873,10 @@ function createBrowserMcpServer(
                 ...actionInput,
                 tabId: resolvedTabId,
                 ...((name === 'browser_element_inspect' || name === 'browser_media_state') ? { validateInspection: requireCurrentTarget } : {}),
+                ...(name === 'browser_pdf_save' ? { validateExport: () => {
+                  if (extra?.signal?.aborted) throw new Error('PDF export cancelled')
+                  requireCurrentTarget()
+                } } : {}),
                 ...(name === 'browser_react' ? { reactAuthority: {
                   assertCurrent: requireCurrentTarget,
                   epoch: createHash('sha256').update(JSON.stringify([client.id, controlRevision, writeLease?.generation, capabilityAuthorizationFingerprint])).digest('hex')
@@ -3919,12 +3923,16 @@ function createBrowserMcpServer(
         pageSize: z.enum(['A4', 'Letter', 'Legal']).optional()
       }
     },
-    tabTool('browser_pdf_save', async (options: {
+    tabTool('browser_pdf_save', async ({ validateExport, ...options }: {
       tabId?: string
       filename?: string
       landscape?: boolean
       pageSize?: 'A4' | 'Letter' | 'Legal'
-    }) => textResult(await manager.savePdf(options)))
+      validateExport?: () => void
+    }) => {
+      if (!validateExport) throw new Error('PDF export authority is unavailable')
+      return textResult(await manager.savePdf(options, validateExport))
+    })
   )
   registerWorkspaceTool(
     'browser_resize',
