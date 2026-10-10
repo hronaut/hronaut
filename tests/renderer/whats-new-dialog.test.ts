@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { flushPromises } from '@vue/test-utils'
 import { computed, ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import WhatsNewDialog from '../../src/renderer/src/components/WhatsNewDialog.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AppReleaseHistoryEntry } from '../../src/shared/types.js'
@@ -44,7 +45,70 @@ function renderDialog(overrides: Record<string, unknown> = {}) {
   return { controller, openUrl }
 }
 
+let restoreShell: (() => void) | undefined
+afterEach(() => { restoreShell?.(); restoreShell = undefined })
+
+function installFocusCheck(isWindowFocused: () => Promise<boolean>): void {
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'hronautShell')
+  Object.defineProperty(window, 'hronautShell', { configurable: true, value: { isWindowFocused } })
+  restoreShell = () => {
+    if (descriptor) Object.defineProperty(window, 'hronautShell', descriptor)
+    else Reflect.deleteProperty(window, 'hronautShell')
+  }
+}
+
+async function pendingLastPage() {
+  const hasMore = ref(true)
+  let finish!: () => void
+  const pending = new Promise<void>(resolve => { finish = resolve })
+  const loadMore = vi.fn(async () => { await pending; hasMore.value = false; return true })
+  const result = renderDialog({ hasMore, loadMore })
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Load older releases' }))
+  return { ...result, finish, user }
+}
+
 describe('WhatsNewDialog', () => {
+  for (const fails of [false, true]) {
+    it(`does not restore pagination focus when native focus is unavailable (check rejects: ${fails})`, async () => {
+      const { finish } = await pendingLastPage()
+      const check = vi.fn(async () => { if (fails) throw new Error('Focus IPC unavailable'); return false })
+      installFocusCheck(check)
+      finish()
+      await flushPromises()
+      expect(screen.getByRole('button', { name: 'View all on GitHub' })).not.toHaveFocus()
+      expect(check).toHaveBeenCalledOnce()
+    })
+  }
+
+  for (const race of ['moved', 'reopened', 'busy', 'replacement'] as const) {
+    it(`revalidates pagination ownership after a delayed native focus check: ${race}`, async () => {
+      const { controller, finish, user } = await pendingLastPage()
+      let resolveFocus!: (value: boolean) => void
+      const pendingFocus = new Promise<boolean>(resolve => { resolveFocus = resolve })
+      const check = vi.fn(async () => true).mockImplementationOnce(() => pendingFocus)
+      installFocusCheck(check)
+      finish()
+      await vi.waitFor(() => expect(check).toHaveBeenCalledOnce())
+      const original = screen.getByRole('button', { name: 'View all on GitHub' })
+      const focus = vi.spyOn(original, 'focus')
+      if (race === 'moved') {
+        const close = screen.getByRole('button', { name: "Close What's new" })
+        close.focus()
+        close.blur()
+      } else if (race === 'reopened') {
+        await user.click(screen.getByRole('button', { name: "Close What's new" }))
+        controller.open.value = true
+      } else if (race === 'busy') controller.operation.value = 'refresh'
+      else controller.hasMore.value = true
+      await flushPromises()
+      resolveFocus(true)
+      await flushPromises()
+      expect(focus).not.toHaveBeenCalled()
+      expect(screen.queryByRole('button', { name: 'Load older releases' }) ?? original).not.toHaveFocus()
+    })
+  }
+
   for (const succeeded of [true, false]) {
     it(`restores pagination focus if Chromium blurs the disabled control (success: ${succeeded})`, async () => {
       const operation = ref<string | null>(null)

@@ -9,7 +9,7 @@ import IconLaunch from '~icons/material-symbols/open-in-new-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
-import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
+import { applicationHasFocus, useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { formatReleaseNotes } from '../release-notes.js'
 
 const props = defineProps<{
@@ -33,11 +33,15 @@ async function loadOlder(event: MouseEvent): Promise<void> {
   const sequence = ++paginationFocusSequence
   await loadMore()
   await nextTick()
-  if (!ownedFocus || sequence !== paginationFocusSequence || !open.value || busy.value
-    || panel.value !== dialog || !dialog.isConnected) return
-  if (document.activeElement !== document.body && document.activeElement !== button) return
-  const target = button.isConnected ? button : dialog.querySelector<HTMLButtonElement>('.whats-new-footer button')
-  if (target && !target.disabled) target.focus({ preventScroll: true })
+  const canRestore = () => ownedFocus && sequence === paginationFocusSequence && open.value && !busy.value
+    && panel.value === dialog && dialog.isConnected
+    && (document.activeElement === document.body || document.activeElement === button)
+  const currentTarget = () => button.isConnected ? button : dialog.querySelector<HTMLButtonElement>('.whats-new-footer button')
+  if (!canRestore()) return
+  const target = currentTarget()
+  if (!target || target.disabled || !dialog.contains(target) || !await applicationHasFocus()) return
+  if (!canRestore() || currentTarget() !== target || !target.isConnected || !dialog.contains(target) || target.disabled) return
+  target.focus({ preventScroll: true })
 }
 const formattedReleases = computed(() => releases.value.map((release) => ({
   ...release,

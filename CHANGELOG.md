@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Restore “What's new” pagination focus after loading older releases or a failed request, including the final-page action, without overriding newer focus or a closed dialog.
+- Restore “What's new” pagination focus after loading older releases or a failed request, including the final-page action, only while Hronaut is natively focused and without overriding newer focus or a closed dialog.
 
 ## [2.29.0] - 2026-10-10
 
