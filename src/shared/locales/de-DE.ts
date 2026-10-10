@@ -2403,7 +2403,7 @@ export const deDE = {
       "useSelector": "Selektor für Prüfpunkt verwenden",
       "selectorHint": "Dieser aufgezeichnete Selektor bezeichnet möglicherweise nicht mehr dasselbe Element. Prüfen Sie ihn auf der aktuellen Seite und wählen Sie das beabsichtigte Ergebnis, bevor Sie einen Prüfpunkt hinzufügen.",
       "count": "Elementanzahl",
-      "countHint": "Strukturelle Selektoren wie ul > li oder li:nth-of-type(2) verwenden. Verborgene Elemente zählen mit; erwartet werden 0 bis 500. Treffer auf Formularfelder, editierbare Ziele und Frames werden abgelehnt. Seiten mit über 2.000 besuchten Elementen werden abgelehnt.",
+      "urlPath": "URL-Pfad", "urlPathHint": "Nur den HTTP(S)-Pfad vergleichen, etwa /orders/complete. Ursprung, Abfrage und Fragment werden ignoriert. Einen serialisierten Pfad ohne Geheimnisse eingeben und vor dem Export prüfen.", "countHint": "Strukturelle Selektoren wie ul > li oder li:nth-of-type(2) verwenden. Verborgene Elemente zählen mit; erwartet werden 0 bis 500. Treffer auf Formularfelder, editierbare Ziele und Frames werden abgelehnt. Seiten mit über 2.000 besuchten Elementen werden abgelehnt.",
       "checked": "Ausgewählt (Kontrollkästchen/Optionsfeld)",
       "unchecked": "Nicht ausgewählt (Kontrollkästchen/Optionsfeld)","title": "Prüfpunkt für das erwartete Ergebnis", "condition": "Bedingung", "visible": "Sichtbar", "hidden": "Verborgen", "text": "Exakter Text", "review": "Ich habe Ziel und Text zur Weitergabe geprüft; dies ist das gewünschte Ergebnis, kein Erfolgsnachweis.", "add": "Prüfpunkt hinzufügen", "matched": "Stimmt derzeit überein", "notMatched": "Stimmt derzeit nicht überein"},
     "selectorUnavailable": "Kein eindeutiger Selektor; diesen Schritt manuell nachbilden.",

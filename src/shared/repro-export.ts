@@ -1,6 +1,7 @@
 import type { BrowserReproRecording, BrowserReproStep } from './types.js'
 import { validReproCount, validReproCountSelector } from './repro-count.js'
 import { javascriptLiteral } from './javascript-literal.js'
+import { validReproUrlPath } from './repro-url-path.js'
 
 function quoted(value: string): string {
   return javascriptLiteral(value)
@@ -20,9 +21,12 @@ function targetExpression(step: BrowserReproStep): string | null {
 }
 
 export function formatReproAsPlaywright(recording: BrowserReproRecording): string {
-  const supportedCount = (step: BrowserReproStep) => recording.formatVersion === 3 && step.expectation?.condition === 'count'
+  const supportedPath = (step: BrowserReproStep) => recording.formatVersion === 4 && step.kind === 'expect'
+    && step.target === undefined && step.expectation?.condition === 'urlPath' && validReproUrlPath(step.expectation.path)
+    && typeof step.expectation.observedMatch === 'boolean' && step.expectation.text === undefined && step.expectation.count === undefined
+  const supportedCount = (step: BrowserReproStep) => (recording.formatVersion === 3 || recording.formatVersion === 4) && step.expectation?.condition === 'count'
     && typeof step.expectation.observedMatch === 'boolean' && validReproCount(step.expectation.count) && validReproCountSelector(step.target?.selector) && step.expectation.text === undefined
-  const supportedExpectation = (step: BrowserReproStep) => step.kind === 'expect' && Boolean(step.target?.selector)
+  const supportedExpectation = (step: BrowserReproStep) => supportedPath(step) || step.kind === 'expect' && Boolean(step.target?.selector)
     && (supportedCount(step) || step.expectation?.condition === 'visible' || step.expectation?.condition === 'hidden' || step.expectation?.condition === 'checked' || step.expectation?.condition === 'unchecked'
       || (step.expectation?.condition === 'text' && typeof step.expectation.text === 'string'))
   const lines = [
@@ -44,7 +48,9 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
 
   for (const step of recording.steps) {
     const target = targetExpression(step)
-    if (step.kind === 'expect' && target && step.expectation) {
+    if (supportedPath(step)) {
+      lines.push(`  await expect(page).toHaveURL(url => ['http:', 'https:'].includes(url.protocol) && url.pathname === ${quoted(step.expectation!.path!)})`)
+    } else if (step.kind === 'expect' && target && step.expectation) {
       const expectation = step.expectation
       if (supportedCount(step)) {
         lines.push(`  await expect(${target}).toHaveCount(${expectation.count})`)

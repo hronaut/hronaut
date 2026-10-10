@@ -16,7 +16,7 @@ function fixture() {
   const tab = {
     id: 'recording-tab', title: 'Recorder fixture', url: 'https://example.test/',
     navigationGeneration: 1, observationGeneration: 1,
-    webContents: { executeJavaScript, isDestroyed: () => false } as unknown as WebContents,
+    webContents: { executeJavaScript, isDestroyed: () => false, getURL: (): string => tab.url } as unknown as WebContents,
     view: { getBounds: () => ({ x: 0, y: 0, width: 800, height: 600 }) },
     reproRecording: undefined as BrowserReproRecordingInternal | undefined
   }
@@ -29,6 +29,39 @@ function fixture() {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('reproduction recorder data contracts', () => {
+  it('observes URL paths without evaluating page-authored code', async () => {
+    const f = fixture()
+    const start = await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockRejectedValue(new Error('Page code must not run'))
+    f.tab.url = 'https://example.test/complete?token=private#private'
+    const result = await f.recorder.manage(f.tab, 'checkpoint', { context: start.checkpointContext, condition: 'urlPath', path: '/complete', reviewed: true })
+    expect(result.steps.at(-1)?.expectation).toEqual({ condition: 'urlPath', path: '/complete', observedMatch: true })
+    expect(JSON.stringify(result)).not.toContain('private')
+  })
+
+  it.each(['navigation', 'control', 'clear'])('rejects a queued URL checkpoint after %s changes', async change => {
+    const f = fixture()
+    const start = await f.recorder.manage(f.tab, 'start')
+    let release!: () => void
+    f.tab.reproRecording!.queue = new Promise<void>(resolve => { release = resolve })
+    const pending = f.recorder.manage(f.tab, 'checkpoint', { context: start.checkpointContext, condition: 'urlPath', path: '/', reviewed: true })
+    const rejected = expect(pending).rejects.toThrow('context changed')
+    if (change === 'navigation') f.tab.navigationGeneration++
+    else if (change === 'control') f.tab.observationGeneration++
+    else await f.recorder.manage(f.tab, 'clear')
+    release()
+    await rejected
+    expect((await f.recorder.manage(f.tab, 'get')).steps.some(step => step.kind === 'expect')).toBe(false)
+  })
+
+  it.each(['file:///private', 'about:blank', 'https://example.test/' + 'a'.repeat(16384)])('rejects unsupported or excessive current URLs', async url => {
+    const f = fixture()
+    const start = await f.recorder.manage(f.tab, 'start')
+    f.tab.url = url
+    await expect(f.recorder.manage(f.tab, 'checkpoint', { context: start.checkpointContext, condition: 'urlPath', path: '/', reviewed: true })).rejects.toThrow()
+    expect((await f.recorder.manage(f.tab, 'get')).steps.some(step => step.kind === 'expect')).toBe(false)
+  })
+
   it.each(['click', 'key'] as const)('drains a failed %s capture into one private-data-free unresolved step', async kind => {
     const f = fixture()
     await f.recorder.manage(f.tab, 'start')

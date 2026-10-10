@@ -11,6 +11,28 @@ const global = { plugins: [createHronautI18n('en-US')] }
 describe('recorded selectors for checkpoint drafts', () => {
   const active = () => ({ ...recording('2026-10-09T11:00:00Z', [step(1), step(2)]), active: true, checkpointContext: 'current-context' })
 
+  it('requires fresh pathname review and emits no selector or stale text/count', async () => {
+    const view = render(ReproTimeline, { global, props: { locale: 'en-US', recording: active() } })
+    const user = userEvent.setup()
+    await user.selectOptions(screen.getByLabelText('Condition'), 'urlPath')
+    expect(screen.queryByLabelText('Selector', { selector: 'input' })).not.toBeInTheDocument()
+    const path = screen.getByLabelText('URL pathname', { selector: 'input' })
+    const add = screen.getByRole('button', { name: 'Add checkpoint' })
+    await user.type(path, '/orders?secret')
+    await user.click(screen.getByRole('checkbox'))
+    expect(add).toBeDisabled()
+    await user.clear(path)
+    await user.type(path, '/orders/complete')
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(add)
+    expect(view.emitted('checkpoint')?.[0]).toEqual([{ context: 'current-context', condition: 'urlPath', path: '/orders/complete', reviewed: true }])
+    expect(add).toBeDisabled()
+    await user.click(screen.getByRole('checkbox'))
+    await view.rerender({ recording: { ...active(), checkpointContext: 'new-context' } })
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+  })
+
   it('fills only the selector and requires fresh review even when reusing the same selector', async () => {
     const view = render(ReproTimeline, { global, props: { locale: 'en-US', recording: active() } })
     const user = userEvent.setup()

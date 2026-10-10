@@ -1954,7 +1954,7 @@ export interface BrowserReproStep {
 }
 
 export interface BrowserReproRecording {
-  formatVersion?: 2 | 3
+  formatVersion?: 2 | 3 | 4
   checkpointContext?: string
   tabId: string
   title: string
