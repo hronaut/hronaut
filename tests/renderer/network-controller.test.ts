@@ -1116,3 +1116,87 @@ describe('network controller', () => {
     controller.dispose()
   })
 })
+
+describe('Network condition draft ownership', () => {
+  const draft = (controller: ReturnType<typeof createController>['controller']) => ({
+    mode: controller.routeMode.value, pattern: controller.routePattern.value,
+    method: controller.routeMethod.value, times: controller.routeTimes.value,
+    abort: controller.routeAbort.value, throttle: controller.routeThrottle.value,
+    status: controller.routeStatus.value, headers: controller.routeHeaders.value, body: controller.routeBody.value
+  })
+  for (const phase of ['native add', 'state synchronization'] as const) {
+    it.each(['mode', 'pattern', 'method', 'times', 'abort', 'throttle', 'status', 'headers', 'body', 'round trip'] as const)(`preserves newer %s edits during ${phase}`, async field => {
+      const { controller, browser } = createController()
+      const pendingAdd = deferred<BrowserNetworkRouteSummary[]>()
+      const pendingState = deferred<BrowserState>()
+      browser.addNetworkRoute.mockReturnValueOnce(pendingAdd.promise)
+      browser.getState.mockReturnValueOnce(pendingState.promise)
+      controller.routeMode.value = 'fulfill'
+      controller.routePattern.value = 'https://example.test/first'
+      controller.routeBody.value = 'original body'
+      try {
+        const adding = controller.addRouteFromDraft()
+        if (phase === 'state synchronization') {
+          pendingAdd.resolve([route('first')])
+          await vi.waitFor(() => expect(browser.getState).toHaveBeenCalledOnce())
+        }
+        if (field === 'mode') controller.routeMode.value = 'throttle'
+        if (field === 'pattern') controller.routePattern.value = 'https://example.test/next'
+        if (field === 'method') controller.routeMethod.value = 'POST'
+        if (field === 'times') controller.routeTimes.value = 3
+        if (field === 'abort') controller.routeAbort.value = 'Failed'
+        if (field === 'throttle') controller.routeThrottle.value = 'slow-3g'
+        if (field === 'status') controller.routeStatus.value = 409
+        if (field === 'headers') controller.routeHeaders.value = '{"x-next":"yes"}'
+        if (field === 'body') controller.routeBody.value = 'next body'
+        if (field === 'round trip') {
+          controller.routeBody.value = 'temporary edit'
+          controller.routeBody.value = 'original body'
+        }
+        const newer = draft(controller)
+        pendingAdd.resolve([route('first')])
+        pendingState.resolve(state(tab()))
+        await adding
+        expect(draft(controller)).toEqual(newer)
+        expect(controller.routes.value).toEqual([route('first')])
+        expect(controller.routeState.value).toBe('ready')
+        expect(browser.addNetworkRoute).toHaveBeenCalledExactlyOnceWith('tab-1', {
+          urlPattern: 'https://example.test/first', times: 1,
+          response: { status: 200, headers: {}, body: 'original body' }
+        })
+      } finally { controller.dispose() }
+    })
+  }
+
+  it.each(['reset', 'tab change', 'dispose'] as const)('does not clear a later draft after %s invalidates the add', async action => {
+    const { controller, browser, activeTab } = createController()
+    const pending = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
+    controller.routePattern.value = 'https://example.test/first'
+    try {
+      const adding = controller.addRouteFromDraft()
+      if (action === 'reset') controller.reset()
+      if (action === 'tab change') activeTab.value = tab('other-tab')
+      if (action === 'dispose') controller.dispose()
+      controller.routePattern.value = 'https://example.test/later'
+      pending.resolve([route('first')])
+      await adding
+      expect(controller.routePattern.value).toBe('https://example.test/later')
+      expect(controller.routes.value).toEqual([])
+      expect(browser.getState).not.toHaveBeenCalled()
+    } finally { controller.dispose() }
+  })
+
+  it('clears an unchanged successfully submitted draft', async () => {
+    const { controller, browser } = createController()
+    controller.routePattern.value = 'https://example.test/first'
+    controller.routeBody.value = 'submitted body'
+    browser.addNetworkRoute.mockResolvedValueOnce([route('first')])
+    try {
+      await controller.addRouteFromDraft()
+      expect(controller.routePattern.value).toBe('')
+      expect(controller.routeBody.value).toBe('')
+      expect(controller.routes.value).toEqual([route('first')])
+    } finally { controller.dispose() }
+  })
+})

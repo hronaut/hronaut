@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve Network request-condition draft edits made while an earlier condition is being added, including edits during the following state refresh.
+
 - Recheck agent authority and cancellation before committing MCP PDF exports and publishing their results after audit settlement. Clean up the owned export when either changes during the file write; retain already committed files after a late publication rejection.
 
 - A failed Network request-condition reorder no longer restores a condition removed while its native update was pending or overwrites newer condition-list edits.
