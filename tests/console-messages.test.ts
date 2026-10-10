@@ -23,6 +23,36 @@ const messages: BrowserConsoleMessage[] = [
 ]
 
 describe('Console message helpers', () => {
+  it('matches every inclusion word across one message, source and stack', () => {
+    expect(filterConsoleMessages(messages, '  FAILED\tNETWORK.JS\nloadprofile app.js ', 'all')).toEqual([messages[3]])
+    expect(filterConsoleMessages(messages, 'app.js request', 'all')).toEqual([messages[3]])
+    expect(filterConsoleMessages(messages, 'request request network', 'all')).toEqual([messages[3], messages[1]])
+  })
+
+  it('does not combine words from separate messages or search hidden metadata', () => {
+    expect(filterConsoleMessages(messages, 'cache request', 'all')).toEqual([])
+    expect(filterConsoleMessages(messages, 'request 2026-08-15', 'all')).toEqual([])
+    expect(filterConsoleMessages(messages, 'request error', 'all')).toEqual([])
+    expect(filterConsoleMessages(messages, 'request 18', 'all')).toEqual([])
+  })
+
+  it('combines word search with severity and literal whole-string exclusion', () => {
+    expect(filterConsoleMessages(messages, 'request network', 'warning')).toEqual([messages[1]])
+    expect(filterConsoleMessages(messages, 'request network', 'all', 'request failed')).toEqual([messages[1]])
+    expect(filterConsoleMessages(messages, 'request network', 'all', 'request network')).toEqual([messages[3], messages[1]])
+    expect(filterConsoleMessages(messages, 'request network', 'all', 'loadprofile')).toEqual([messages[1]])
+  })
+
+  it('keeps empty searches, punctuation, retained objects and newest-first ordering', () => {
+    const retained = messages.map(message => ({ ...message, repeatCount: 3 }))
+    const before = structuredClone(retained)
+    expect(filterConsoleMessages(retained, '\t \n', 'all')).toEqual([...retained].reverse())
+    expect(filterConsoleMessages(retained, 'request .*', 'all')).toEqual([])
+    expect(filterConsoleMessages(retained, 'request network', 'all')).toEqual([retained[3], retained[1]])
+    expect(filterConsoleMessages(retained, 'request network', 'all')[0]).toBe(retained[3])
+    expect(retained).toEqual(before)
+  })
+
   it('excludes a literal substring across message, source and stack while preserving inclusion and level filters', () => {
     expect(filterConsoleMessages(messages, '', 'all', ' NETWORK ')).toEqual([messages[2], messages[0]])
     expect(filterConsoleMessages(messages, 'request', 'all', 'loadprofile')).toEqual([messages[1]])

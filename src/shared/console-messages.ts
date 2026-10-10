@@ -78,11 +78,11 @@ export function filterConsoleMessages(
   level: BrowserConsoleLevelFilter,
   excludeText = ''
 ): BrowserConsoleMessage[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const terms = query.toLocaleLowerCase().split(/\s+/).filter(Boolean)
   const normalizedExclusion = excludeText.trim().toLocaleLowerCase()
   return messages
     .filter(message => level === 'all' || browserConsoleLevel(message.level) === level)
-    .filter(message => !normalizedQuery || matchesConsoleText(message, normalizedQuery))
+    .filter(message => terms.every(term => matchesConsoleText(message, term)))
     .filter(message => !normalizedExclusion || !matchesConsoleText(message, normalizedExclusion))
     .slice()
     .reverse()
