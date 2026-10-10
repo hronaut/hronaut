@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { useSiteStorageController } from '../../src/renderer/src/composables/useSiteStorageController.js'
 import type {
   BrowserIndexedDbReport,
@@ -76,11 +77,12 @@ function indexedDbReport(): BrowserIndexedDbReport {
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((next) => (resolve = next))
-  return { promise, resolve }
+  let reject!: (error: Error) => void
+  const promise = new Promise<Value>((next, fail) => { resolve = next; reject = fail })
+  return { promise, resolve, reject }
 }
 
-function createController(manageStorage = vi.fn(async () => storageResult())) {
+function createController(manageStorage = vi.fn(async () => storageResult()), copyTextOverride?: CopyTextWithFeedback) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(true)
   const confirm = vi.fn(() => true)
@@ -91,7 +93,7 @@ function createController(manageStorage = vi.fn(async () => storageResult())) {
     inspectPwa: vi.fn(async () => null as unknown as BrowserPwaReport),
     storageChanges: vi.fn(async () => null as unknown as BrowserStorageChangesReport)
   }
-  const copyText = vi.fn(async () => true)
+  const copyText = vi.fn(copyTextOverride ?? (async () => true))
   const controller = useSiteStorageController({
     activeTab,
     open,
@@ -221,12 +223,12 @@ describe('site-storage controller', () => {
     }[view]
     await copy()
     expect(controller[`${view}Copied`].value).toBe(true)
-    const firstPayload = copyText.mock.calls[0]
+    const firstPayload = copyText.mock.calls[0][0]
     await vi.advanceTimersByTimeAsync(1_000)
     copyText.mockImplementationOnce(() => pending.promise)
     const operation = copy()
     expect(controller[`${view}Copied`].value).toBe(false)
-    expect(copyText.mock.calls[1]).toEqual(firstPayload)
+    expect(copyText.mock.calls[1][0]).toEqual(firstPayload)
     pending.resolve(succeeded)
     await operation
     expect(controller[`${view}Copied`].value).toBe(succeeded)
@@ -493,10 +495,125 @@ describe('retained IndexedDB search terms', () => {
     controller.indexedDbReport.value = report
     controller.indexedDbSearch.value = 'theme dark'
     await controller.copyIndexedDb()
-    expect(copyText).toHaveBeenCalledWith(JSON.stringify({ ...report, entries: [report.entries[0]] }, null, 2))
+    expect(copyText).toHaveBeenCalledWith(JSON.stringify({ ...report, entries: [report.entries[0]] }, null, 2), expect.any(Function))
     expect(controller.indexedDbReport.value).toEqual(report)
     expect(browser.inspectIndexedDb).not.toHaveBeenCalled()
     expect(browser.manageStorage).not.toHaveBeenCalled()
     controller.dispose()
+  })
+})
+
+
+describe('Site Storage report copy failure ownership', () => {
+  const views = ['usage', 'changes', 'indexedDb', 'pwa'] as const
+  function setup(copyText: CopyTextWithFeedback) {
+    const context = createController(undefined, copyText)
+    const { controller, browser } = context
+    const reports = {
+      usage: usageReport(), changes: { status: 'compared' } as BrowserStorageChangesReport,
+      indexedDb: indexedDbReport(), pwa: { caches: [] } as unknown as BrowserPwaReport
+    }
+    browser.inspectStorageUsage.mockResolvedValue(reports.usage)
+    browser.storageChanges.mockResolvedValue(reports.changes)
+    browser.inspectIndexedDb.mockResolvedValue(reports.indexedDb)
+    browser.inspectPwa.mockResolvedValue(reports.pwa)
+    controller.usageReport.value = reports.usage
+    controller.changesReport.value = reports.changes
+    controller.indexedDbReport.value = reports.indexedDb
+    controller.pwaReport.value = reports.pwa
+    return { ...context, copies: {
+      usage: controller.copyUsage, changes: controller.copyChanges,
+      indexedDb: controller.copyIndexedDb, pwa: controller.copyPwa
+    } }
+  }
+
+  it.each(views.flatMap(view =>
+    (['refresh', 'newer', 'view', 'reset', 'dispose', 'tab', 'url', 'close', 'reopen'] as const).map(action => ({ view, action }))
+  ))('suppresses obsolete $view failure toasts after $action', async ({ view, action }) => {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const nativeCopy = vi.fn(async (_text: string): Promise<void> => {}).mockReturnValueOnce(pending.promise)
+    const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+    const { controller, copies, activeTab, open } = setup(shell.copyText)
+    controller[`${view}Open`].value = true
+    try {
+      const copying = copies[view]()
+      expect(nativeCopy).toHaveBeenCalledOnce()
+      if (action === 'refresh') await controller.refreshActiveView()
+      else if (action === 'newer') await copies[view]()
+      else if (action === 'view') await controller.selectKind('local-storage')
+      else if (action === 'reset') controller.reset()
+      else if (action === 'dispose') controller.dispose()
+      else if (action === 'tab') activeTab.value = tab('tab-2')
+      else if (action === 'url') activeTab.value = { ...tab(), url: 'https://example.test/other' }
+      else { open.value = false; if (action === 'reopen') open.value = true }
+      pending.reject(new Error('Obsolete storage clipboard refusal'))
+      await copying
+      expect(showToast).not.toHaveBeenCalled()
+      expect(controller[`${view}Copied`].value).toBe(action === 'newer')
+    } finally { controller.dispose() }
+  })
+
+  it.each(views)('keeps current %s failures visible', async view => {
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({
+      browser: { copyText: vi.fn().mockRejectedValue(new Error('Current storage clipboard refusal')) },
+      translate: key => key, showToast
+    })
+    const { controller, copies } = setup(shell.copyText)
+    controller[`${view}Open`].value = true
+    try {
+      await copies[view]()
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current storage clipboard refusal')
+      expect(controller[`${view}Copied`].value).toBe(false)
+    } finally { controller.dispose() }
+  })
+
+  it.each(views)('clears completed %s success on close and rejects hidden copies', async view => {
+    const copyText = vi.fn(async () => true)
+    const { controller, copies, open } = setup(copyText)
+    controller[`${view}Open`].value = true
+    try {
+      await copies[view]()
+      expect(controller[`${view}Copied`].value).toBe(true)
+      open.value = false
+      expect(controller[`${view}Copied`].value).toBe(false)
+      await copies[view]()
+      expect(copyText).toHaveBeenCalledOnce()
+      open.value = true
+      await copies[view]()
+      expect(controller[`${view}Copied`].value).toBe(true)
+    } finally { controller.dispose() }
+  })
+
+  it.each(views)('retains relevant %s failure feedback when only the local-entry search changes', async view => {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({ browser: { copyText: vi.fn(() => pending.promise) }, translate: key => key, showToast })
+    const { controller, copies } = setup(shell.copyText)
+    controller[`${view}Open`].value = true
+    try {
+      const copying = copies[view]()
+      controller.search.value = 'unrelated entry filter'
+      pending.reject(new Error('Relevant storage clipboard refusal'))
+      await copying
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Relevant storage clipboard refusal')
+    } finally { controller.dispose() }
+  })
+
+  it('invalidates IndexedDB failure feedback across a filter change away and back', async () => {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({ browser: { copyText: vi.fn(() => pending.promise) }, translate: key => key, showToast })
+    const { controller } = setup(shell.copyText)
+    controller.indexedDbOpen.value = true
+    try {
+      const copying = controller.copyIndexedDb()
+      controller.indexedDbSearch.value = 'theme'
+      controller.indexedDbSearch.value = ''
+      pending.reject(new Error('Obsolete filtered storage clipboard refusal'))
+      await copying
+      expect(showToast).not.toHaveBeenCalled()
+    } finally { controller.dispose() }
   })
 })
