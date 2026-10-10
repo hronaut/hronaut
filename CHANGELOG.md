@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Search retained Console messages using multiple words across message text, source and stack frames, with every word matching the same entry.
+
 ### Fixed
 
 - Clear Network HAR copy feedback when export filters change, discard obsolete pending exports, and suppress late clipboard failure toasts after newer HAR actions.
