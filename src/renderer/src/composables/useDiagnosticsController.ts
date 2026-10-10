@@ -1,3 +1,4 @@
+import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 import type { BrowserReproCheckpointInput } from '../../../shared/repro-checkpoint.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { ref, watch, type Ref } from 'vue'
@@ -66,7 +67,7 @@ export interface DiagnosticsControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   browser: DiagnosticsBrowserApi
   translate: Translate
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   closeTransientPanels: () => void
   keepsSeparatePanelOpen: () => boolean
 }
@@ -230,9 +231,13 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     const recorder = key === 'dom' ? 'dom'
       : key === 'repro' || key === 'repro-playwright' ? 'repro' : undefined
     const expectedRecorderGeneration = recorder ? recorderCopyGenerations[recorder] : undefined
-    if (!await options.copyText(payload) || expectedGeneration !== generation || sequence !== copySequences.get(key)) return
-    if (reportDomain && expectedReportSequence !== sequences[reportDomain]) return
-    if (recorder && expectedRecorderGeneration !== recorderCopyGenerations[recorder]) return
+    const ownsFeedback = (): boolean => (
+      expectedGeneration === generation
+      && sequence === copySequences.get(key)
+      && (!reportDomain || expectedReportSequence === sequences[reportDomain])
+      && (!recorder || expectedRecorderGeneration === recorderCopyGenerations[recorder])
+    )
+    if (!await options.copyText(payload, ownsFeedback) || !ownsFeedback()) return
     copied.value = true
     scheduleFeedbackReset(key, () => (copied.value = false))
   }
