@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.27.0] - 2026-10-10
+
 ### Added
 
 - Search visited websites in Workspaces & data using multiple words across each site's hostname, origin and retained title.
