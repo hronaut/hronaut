@@ -1,3 +1,4 @@
+import { captureDiagnosticEvent, diagnosticCapture } from '../capture-order-diagnostic.js'
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
 import type { BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
@@ -5523,7 +5524,7 @@ export class BrowserTabsManager {
       }
       captureRect.width = Math.min(captureRect.width, Math.max(1, bounds.width - captureRect.x))
       captureRect.height = Math.min(captureRect.height, Math.max(1, bounds.height - captureRect.y))
-      const image = await webContents.capturePage(captureRect)
+      const image = await diagnosticCapture(webContents, 'foreground', captureRect)
       if (image.isEmpty()) throw new Error('The selected website area did not produce an image')
       return image.toPNG()
     })
@@ -6155,7 +6156,7 @@ export class BrowserTabsManager {
       if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
       if (!/^https?:/.test(tab.url) || new URL(tab.url).origin !== origin || tab.sleeping || tab.pageLifecycleState !== 'active' || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('Keep Hronaut visible and the recording tab awake at its original origin')
       const image = await captureStableVideoImage(
-        () => this.withRenderableTab(tab, () => tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })),
+        () => this.withRenderableTab(tab, () => diagnosticCapture(tab.webContents, 'foreground', undefined, { stayHidden: true, stayAwake: true })),
         () => tab.navigationGeneration,
         () => tab.webContents.isLoadingMainFrame()
       )
@@ -6800,7 +6801,7 @@ export class BrowserTabsManager {
       assertCurrent()
       const environment = clip ? await this.visualCompareContext(tab) : undefined
       assertCurrent()
-      const captured = await tab.webContents.capturePage()
+      const captured = await diagnosticCapture(tab.webContents, 'foreground')
       assertCurrent()
       if (captured.isEmpty()) throw new Error('Could not capture the visible page for comparison')
       const source = captured.getSize()
@@ -7059,7 +7060,7 @@ export class BrowserTabsManager {
         })
         return { data: Buffer.from(data, 'base64'), mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' }
       }
-      const captured = await webContents.capturePage()
+      const captured = await diagnosticCapture(webContents, 'foreground')
       const original = captured.getSize()
       const bounded = boundedScreenshotSize(original.width, original.height, options.maxWidth, options.maxHeight)
       const image = bounded.width === original.width && bounded.height === original.height
@@ -7093,7 +7094,7 @@ export class BrowserTabsManager {
         assertCurrent()
         await execute(screenshotAnnotationScript(id, refs))
         assertCurrent()
-        const captured = await contents.capturePage()
+        const captured = await diagnosticCapture(contents, 'foreground')
         assertCurrent()
         if (captured.isEmpty()) throw new Error('Could not capture the visible page for annotation')
         const rows: unknown = await execute(screenshotAnnotationScript(id))
@@ -9746,7 +9747,10 @@ export class BrowserTabsManager {
           this.window.isVisible()
           && !this.window.isMinimized()
           && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-        ) return await operation()
+        ) {
+          captureDiagnosticEvent('active-fast-path', webContents.id)
+          return await operation()
+        }
 
         const originalBounds = tab.view.getBounds()
         // A visible host already has a compositor surface. Position the capture
@@ -9826,6 +9830,7 @@ export class BrowserTabsManager {
   }
 
   private async waitForPresentation(webContents: BrowserTab['view']['webContents']): Promise<void> {
+    captureDiagnosticEvent('presentation-start', webContents.id)
     await new Promise<void>((resolve, reject) => {
       let finished = false
       let invalidateTimer: NodeJS.Timeout | undefined
@@ -9836,8 +9841,11 @@ export class BrowserTabsManager {
         if (!frameSubscriptionActive) return
         frameSubscriptionActive = false
         try {
+          captureDiagnosticEvent('presentation-end', webContents.id)
           webContents.endFrameSubscription()
+          captureDiagnosticEvent('presentation-end-return', webContents.id)
         } catch {
+          captureDiagnosticEvent('presentation-end-throw', webContents.id)
           // The tab may have been destroyed while waiting for its compositor frame.
         }
       }
@@ -9861,7 +9869,17 @@ export class BrowserTabsManager {
       )
       try {
         frameSubscriptionActive = true
-        webContents.beginFrameSubscription(false, () => finish())
+        captureDiagnosticEvent('subscription-enter', webContents.id)
+        try {
+          webContents.beginFrameSubscription(false, () => {
+            captureDiagnosticEvent('presentation-frame', webContents.id)
+            finish()
+          })
+          captureDiagnosticEvent('subscription-return', webContents.id)
+        } catch (error) {
+          captureDiagnosticEvent('subscription-throw', webContents.id)
+          throw error
+        }
         const invalidate = (): void => {
           if (webContents.isDestroyed()) {
             finish(new Error('The tab closed while waiting for a renderable frame'))
@@ -9891,7 +9909,8 @@ export class BrowserTabsManager {
             // capturePage manages its own capturer count. Probe only after ending
             // the missed frame subscription: overlapping both capture mechanisms
             // can leave the direct capture pending under renderer pressure.
-            const image = await webContents.capturePage()
+            captureDiagnosticEvent('presentation-probe', webContents.id)
+            const image = await diagnosticCapture(webContents, 'presentation-probe')
             if (!image.isEmpty()) finish()
           } catch {
             // The compositor may still be attaching. Retry within the same
@@ -10616,8 +10635,8 @@ export class BrowserTabsManager {
     const captured = await this.nativePreviewCapture.run(
       tab.webContents,
       () => mode === 'overview'
-        ? tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: false })
-        : tab.webContents.capturePage(),
+        ? diagnosticCapture(tab.webContents, 'thumbnail', undefined, { stayHidden: true, stayAwake: false })
+        : diagnosticCapture(tab.webContents, 'thumbnail'),
       () => { this.tabOverviewPreviewableTabs.delete(tab.id) },
       () => this.resumeTabOverviewPreviewAfterLateCapture(tab)
     )

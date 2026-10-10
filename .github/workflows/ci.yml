@@ -25,6 +25,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 4
 
       - name: Verify reviewed commit and record capacity
         env:
@@ -33,23 +34,24 @@ jobs:
           set -euo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-          mkdir -p ci-artifacts
-          git rev-parse HEAD > ci-artifacts/source.txt
-          df -h > ci-artifacts/capacity.txt
-          docker info --format '{{.Driver}}' > ci-artifacts/docker-driver.txt
+          test "$GITHUB_RUN_ATTEMPT" = 1
+          git merge-base --is-ancestor 6b999354e79595c69edf585ed3ce9c87d63758bf HEAD
+          node scripts/diagnostics/capture-order-metadata.mjs
 
-      - name: Run one bounded predecessor-order experiment
+      - name: Run original complete shard 2 once
         run: |
           set -euo pipefail
           docker compose --file compose.test.ci.yaml build integration
-          docker image inspect hronaut-tests-integration --format '{{.Id}}' > ci-artifacts/image-id.txt
+          CAPTURE_IMAGE_ID="$(docker image inspect hronaut-tests-integration --format '{{.Id}}')" node scripts/diagnostics/capture-order-metadata.mjs
           docker compose --file compose.test.ci.yaml run --name "capture-order-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" integration \
             bash -ceu '
               node scripts/verify-dependency-manifest.ts
               npm run build:app
-              HRONAUT_TEST_ISOLATED_DISPLAYS=1 HRONAUT_TEST_SHARD_INDEX=2 \
-                npm run test:integration:run -- --test-list scripts/diagnostics/capture-order.txt \
-                --workers=1 --retries=0 --trace=retain-on-failure \
+              npx playwright test --list --shard=2/8 --reporter=json > /tmp/capture-collection.json
+              node scripts/diagnostics/verify-capture-collection.ts /tmp/capture-collection.json
+              HRONAUT_CAPTURE_DIAGNOSTIC=1 HRONAUT_TEST_ISOLATED_DISPLAYS=1 HRONAUT_TEST_SHARD_INDEX=2 \
+                npm run test:integration:run -- --shard=2/8 \
+                --workers=1 --trace=retain-on-failure \
                 --reporter=./scripts/diagnostics/capture-order-reporter.ts
             '
 
@@ -69,10 +71,7 @@ jobs:
           name: capture-order-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ci-artifacts/outcomes.json
-            ci-artifacts/source.txt
-            ci-artifacts/capacity.txt
-            ci-artifacts/docker-driver.txt
-            ci-artifacts/image-id.txt
+            ci-artifacts/provenance.json
           if-no-files-found: error
           retention-days: 7
 

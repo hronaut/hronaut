@@ -63,3 +63,71 @@
 [electron] › clipboard-async.e2e.ts › reports asynchronous image clipboard write rejection and recovers the queue
 [electron] › clipboard-async.e2e.ts › reports asynchronous image clipboard read rejection and recovers the queue
 [electron] › clipboard-async.e2e.ts › reports asynchronous image clipboard read rejection and recovers the queue with an unresolved readiness script
+[electron] › clipboard-async.e2e.ts › serializes a second copy behind an unfinished asynchronous clipboard write
+[electron] › command-palette.e2e.ts › keeps IME-owned Enter and Escape inside the command palette input
+[electron] › command-palette.e2e.ts › finds global and website commands from the accessible command palette
+[electron] › command-palette.e2e.ts › preserves a selected global command when live tab state removes website commands
+[electron] › command-palette.e2e.ts › opens Developer Tools from the palette for a tab unlocked during global input lock
+[electron] › compact-rail-native-overlap.e2e.ts › physical compact rail tab click reaches chrome at 1 scale
+[electron] › compact-rail-native-overlap.e2e.ts › keeps address suggestions anchored while the compact toolbar reflows at 1 scale
+[electron] › compact-rail-native-overlap.e2e.ts › physical compact rail tab click reaches chrome at 1.25 scale
+[electron] › compact-rail-native-overlap.e2e.ts › keeps address suggestions anchored while the compact toolbar reflows at 1.25 scale
+[electron] › compact-utilities.e2e.ts › keeps all seven named utility icons and Settings after MCP at minimum rail width and large scale
+[electron] › compact-utilities.e2e.ts › Settings actions have visible button surfaces, comfortable targets, and keyboard focus
+[electron] › concurrent-close-selection.e2e.ts › keeps a live page attached when another close purges the destroyed active tab before its close completes
+[electron] › connection-journey.e2e.ts › separates listener, connected client, and first page probe and preserves keyboard control
+[electron] › console-copy-feedback.e2e.ts › clears Console copy success while a later clipboard write is pending and after it fails
+[electron] › console-copy-toast-ownership.e2e.ts › suppresses an obsolete Console clipboard failure toast after filter ownership changes
+[electron] › console-copy-toast-ownership.e2e.ts › suppresses an obsolete Console clipboard failure toast after newer ownership changes
+[electron] › console-exclusion.e2e.ts › excludes Console noise without deleting retained messages or changing Copy all
+[electron] › console-format.e2e.ts › presents primitive Console templates consistently without changing stacks or event counts
+[electron] › console-live-updates.e2e.ts › pauses displayed Console updates while capture continues, with explicit refresh and resume
+[electron] › console-resume-focus.e2e.ts › retains Console resume focus during a pending read without stealing later focus
+[electron] › console-search-terms.e2e.ts › searches words across retained Console messages and stacks while preserving copy and paused scope
+[electron] › cookie-navigation.e2e.ts › keeps cookie list scoped to the original origin during navigation
+[electron] › cookie-navigation.e2e.ts › keeps cookie set scoped to the original origin during navigation
+[electron] › coordinate-click.e2e.ts › uses bounded canvas coordinates and keeps horizontal scrolling horizontal
+[electron] › credential-accounts.e2e.ts › captures distinct accounts through two-step and scripted-form logins in Chromium
+[electron] › credential-native-focus.e2e.ts › does not claim native focus after saved-password neighbor recovery
+[electron] › credential-native-focus.e2e.ts › does not claim native focus after saved-password heading recovery
+[electron] › credential-native-focus.e2e.ts › does not claim native focus after saved-password retained recovery
+[electron] › credential-native-focus.e2e.ts › does not override outer Settings search focus after a delayed native check
+[electron] › credential-picker-search.e2e.ts › combines account and site search terms within the active website account chooser
+[electron] › credential-remove-focus.e2e.ts › keeps keyboard position when removing saved-password rows
+[electron] › credentials.e2e.ts › exposes metadata-only password controls and fails closed without secure storage
+[electron] › credentials.e2e.ts › imports a confirmed browser CSV without exposing plaintext outside the main process
+[electron] › credentials.e2e.ts › fills the visible login form instead of hidden or unrelated fields
+[electron] › credentials.e2e.ts › reports a partial credential mutation when the username event invalidates the password field
+[electron] › credentials.e2e.ts › requires focus to disambiguate multiple visible login forms
+[electron] › credentials.e2e.ts › rejects new-password forms and leaves formless usernames untouched
+[electron] › css-provenance.e2e.ts › inspects explicit CSS candidates without changing the page or disrupting debugger owners
+[electron] › cyberpunk-turbo.e2e.ts › selects Cyberpunk Turbo and applies it to chrome, Home and address suggestions
+[electron] › cyberpunk-turbo.e2e.ts › restores the Cyberpunk Turbo preference after restarting the application
+[electron] › desktop-design.e2e.ts › fresh profiles provide a workspace rail with reachable named actions across desktop layouts
+[electron] › desktop-design.e2e.ts › settings search supports keyboard selection, recovery, and a fresh search on reopening
+[electron] › desktop-design.e2e.ts › Home view navigation supports keyboard selection, search, and recovery
+[electron] › desktop-design.e2e.ts › the navigation mute button controls only the active tab and follows changes from other controls
+[electron] › desktop-design.e2e.ts › every Home view remains accessible in light and dark
+[electron] › detached-panel-startup.e2e.ts › retains the latest detached panel request while renderer startup settings are pending
+[electron] › detached-startup.e2e.ts › starts detached Page tools without primary-window startup errors and preserves wallet isolation
+[electron] › diagnostic-action-validation.e2e.ts › rejects malformed recorder actions without stopping an active recording
+[electron] › diagnostic-copy-feedback.e2e.ts › clears Debug report copy success while a later clipboard write is pending and after it fails
+[electron] › diagnostic-copy-toasts.e2e.ts › suppresses an obsolete diagnostic clipboard failure toast after refresh ownership changes
+[electron] › diagnostic-copy-toasts.e2e.ts › suppresses an obsolete diagnostic clipboard failure toast after newer ownership changes
+[electron] › dialog-outside-click.e2e.ts › keeps the create workspace draft after outside clicks and selection drags
+[electron] › dialog-outside-click.e2e.ts › keeps the edit workspace draft after outside clicks and selection drags
+[electron] › dialog-outside-click.e2e.ts › keeps Settings and the selected theme after clicking its backdrop
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording start result captured before navigation
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording start result captured before same-url navigation
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording start result captured before close
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording start result captured before clear
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording get result captured before clear
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording start result captured before stop
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording get result captured before stop
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording start result captured before restart
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording get result captured before restart
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording start result captured before refresh
+[electron] › dom-changes-lifecycle.e2e.ts › rejects a DOM recording get result captured before refresh
+[electron] › download-collisions.e2e.ts › keeps website download paths collision-safe and portable
+[electron] › download-controls.e2e.ts › resumes an interrupted download when the server supports ranges
+[electron] › download-controls.e2e.ts › resumes an interrupted download when the server ignores ranges

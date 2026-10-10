@@ -1,3 +1,4 @@
+import { installCaptureDiagnostic } from './capture-order-diagnostic.js'
 import { registerIncidentPackageIpc } from './incident-package-ipc.js'
 import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
@@ -184,6 +185,8 @@ import type {
   AddressSuggestionSelection
 } from '../shared/address-suggestions.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
+
+installCaptureDiagnostic()
 
 let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'

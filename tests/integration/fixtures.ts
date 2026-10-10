@@ -1,3 +1,5 @@
+import { beginCaptureCollection, captureDiagnosticPath, finishCaptureCollection } from './capture-order-diagnostic.js'
+import type { CaptureDiagnosticGlobal } from './capture-order-diagnostic.js'
 import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -70,6 +72,7 @@ export async function blockFileDestination(path: string): Promise<() => Promise<
 }
 
 export interface HronautFixtures {
+  captureDiagnostics: void
   electronTraces: ElectronTraceRecorder
   appWindow: Page
   electronApp: ElectronApplication
@@ -95,6 +98,9 @@ export async function launchHronaut(
     await writeFile(settingsPath, `${JSON.stringify({ interfaceScale, tabPosition: 'top', mcpToolSet: 'complete' }, null, 2)}\n`, 'utf8')
   }
   const environment = { ...process.env }
+  const diagnosticPath = captureDiagnosticPath(base.info())
+  if (diagnosticPath) environment.HRONAUT_CAPTURE_DIAGNOSTIC_PATH = diagnosticPath
+  else delete environment.HRONAUT_CAPTURE_DIAGNOSTIC_PATH
   if (mcpPort === undefined) delete environment.HRONAUT_MCP_PORT
   else environment.HRONAUT_MCP_PORT = String(mcpPort)
   const app = await electron.launch({
@@ -193,6 +199,9 @@ export async function closeHronaut(app: ElectronApplication): Promise<void> {
     return
   }
   await settleWithin(app.evaluate(({ app }) => {
+    const probe = (globalThis as CaptureDiagnosticGlobal).__captureOrderDiagnostic
+    probe?.record('before-close')
+    probe?.save()
     const scope = globalThis as typeof globalThis & {
       __hronautQaRendererExits?: { listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void }
     }
@@ -273,6 +282,10 @@ export async function useHronautFixture(
 }
 
 export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
+  captureDiagnostics: [async ({}, use, info) => {
+    await beginCaptureCollection(info)
+    try { await use() } finally { await finishCaptureCollection(info) }
+  }, { auto: true }],
   workerDisplay: [async ({}, use) => {
     if (process.env.HRONAUT_TEST_ISOLATED_DISPLAYS !== '1') {
       await use()
