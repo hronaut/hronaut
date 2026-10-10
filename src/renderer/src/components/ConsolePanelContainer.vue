@@ -3,12 +3,13 @@ import { onBeforeUnmount, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { BrowserTabState, PanelDock, SupportedLocale } from '../../../shared/types'
 import { useConsoleController } from '../composables/useConsoleController'
+import type { CopyTextWithFeedback } from '../composables/useShellFeedbackController'
 import ConsolePanel from './ConsolePanel.vue'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
   locale: SupportedLocale
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   preservationBusy: boolean
   updatePreservation: (event: Event) => unknown
   keepsSeparatePanelOpen: () => boolean

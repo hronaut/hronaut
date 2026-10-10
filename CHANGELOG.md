@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Suppress obsolete Console clipboard failure toasts after a newer copy, filtered-view change or tab context reset, while keeping current failures visible.
+
 - Clear Network HAR copy feedback when export filters change, discard obsolete pending exports, and suppress late clipboard failure toasts after newer HAR actions.
 
 - Keep saved-password list focus recovery from overriding another native window or a newer focus action while an account removal or inventory update completes.
