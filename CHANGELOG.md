@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Filter loaded IndexedDB records using multiple words across keys, primary keys, value types and retained previews, without reading additional records or values.
+
 ## [2.28.0] - 2026-10-10
 
 ### Added

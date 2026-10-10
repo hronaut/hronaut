@@ -118,15 +118,14 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }[kind.value]))
 
   const filteredIndexedDbEntries = computed(() => {
-    const query = indexedDbSearch.value.trim().toLocaleLowerCase()
+    const terms = indexedDbSearch.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
     const entries = indexedDbReport.value?.entries ?? []
-    if (!query) return entries
-    return entries.filter((entry) => (
-      entry.key.toLocaleLowerCase().includes(query)
-      || entry.primaryKey.toLocaleLowerCase().includes(query)
-      || entry.valueType.toLocaleLowerCase().includes(query)
-      || entry.valuePreview?.toLocaleLowerCase().includes(query)
-    ))
+    if (!terms.length) return entries
+    return entries.filter((entry) => {
+      const text = [entry.key, entry.primaryKey, entry.valueType, entry.valuePreview ?? '']
+        .join('\n').toLocaleLowerCase()
+      return terms.every(term => text.includes(term))
+    })
   })
 
   function isCurrent(tabId: string, expectedGeneration: number): boolean {

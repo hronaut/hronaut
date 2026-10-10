@@ -61,6 +61,19 @@ function usageReport(): BrowserStorageUsageReport {
   }
 }
 
+function indexedDbReport(): BrowserIndexedDbReport {
+  return {
+    tabId: 'tab-1', url: 'https://example.test/app', origin: 'https://example.test',
+    databases: [{ name: 'private-database', version: 1 }], selectedObjectStore: 'settings',
+    offset: 50, limit: 50, hasMore: true, valuesIncluded: true, truncated: true, caveats: ['private-caveat'],
+    entries: [
+      { key: 'theme', primaryKey: 'display-1', keyType: 'String', valueType: 'Object', valuePreview: 'dark preview', valueTruncated: true },
+      { key: 'accent', primaryKey: 'display-2', keyType: 'String', valueType: 'Object', valuePreview: 'blue' },
+      { key: 'omitted', primaryKey: 'display-3', keyType: 'String', valueType: 'Object', valueTruncated: true }
+    ]
+  }
+}
+
 function deferred<Value>() {
   let resolve!: (value: Value) => void
   const promise = new Promise<Value>((next) => (resolve = next))
@@ -372,6 +385,63 @@ describe('retained site-storage search terms', () => {
     expect(controller.filteredItems.value).toEqual([])
     controller.result.value = { ...storageResult(), items: [{ key: 'large', value: 'hidden-tail', valueBytes: 11 }] }
     expect(controller.filteredItems.value).toHaveLength(1)
+    expect(browser.manageStorage).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+})
+
+describe('retained IndexedDB search terms', () => {
+  it.each(['THEME dark', 'dark   theme', '  theme\tdark  ', 'display-1 OBJECT dark'])('combines fields within one loaded record: %s', query => {
+    const { controller, browser } = createController()
+    const report = indexedDbReport()
+    controller.indexedDbReport.value = report
+    controller.indexedDbSearch.value = query
+    expect(controller.filteredIndexedDbEntries.value).toEqual([report.entries[0]])
+    expect(controller.indexedDbReport.value).toEqual(report)
+    expect(browser.inspectIndexedDb).not.toHaveBeenCalled()
+    expect(browser.manageStorage).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('requires every term in the same entry and restores retained order for blank search', () => {
+    const { controller } = createController()
+    const report = indexedDbReport()
+    controller.indexedDbReport.value = report
+    controller.indexedDbSearch.value = 'theme blue'
+    expect(controller.filteredIndexedDbEntries.value).toEqual([])
+    controller.indexedDbSearch.value = ' \t '
+    expect(controller.filteredIndexedDbEntries.value).toEqual(report.entries)
+    controller.dispose()
+  })
+
+  it('searches only existing fields and retained previews without acquiring omitted data', () => {
+    const { controller, browser } = createController()
+    controller.indexedDbReport.value = indexedDbReport()
+    controller.indexedDbSearch.value = 'omitted object'
+    expect(controller.filteredIndexedDbEntries.value.map(entry => entry.key)).toEqual(['omitted'])
+    for (const query of ['theme hidden-tail', 'private-database', 'private-caveat', 'String']) {
+      controller.indexedDbSearch.value = query
+      expect(controller.filteredIndexedDbEntries.value).toEqual([])
+    }
+    controller.indexedDbSearch.value = 'theme hidden-tail'
+    controller.indexedDbReport.value = { ...indexedDbReport(), entries: [
+      { key: 'theme', primaryKey: 'display-1', keyType: 'String', valueType: 'Object', valuePreview: 'hidden-tail' }
+    ] }
+    expect(controller.filteredIndexedDbEntries.value).toHaveLength(1)
+    expect(browser.inspectIndexedDb).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('copies only matching loaded entries while preserving report bounds and metadata', async () => {
+    const { controller, browser, copyText } = createController()
+    const report = indexedDbReport()
+    controller.indexedDbOpen.value = true
+    controller.indexedDbReport.value = report
+    controller.indexedDbSearch.value = 'theme dark'
+    await controller.copyIndexedDb()
+    expect(copyText).toHaveBeenCalledWith(JSON.stringify({ ...report, entries: [report.entries[0]] }, null, 2))
+    expect(controller.indexedDbReport.value).toEqual(report)
+    expect(browser.inspectIndexedDb).not.toHaveBeenCalled()
     expect(browser.manageStorage).not.toHaveBeenCalled()
     controller.dispose()
   })
