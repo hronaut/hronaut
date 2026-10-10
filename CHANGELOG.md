@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-10-10
+
 ### Added
 
 - Search retained Console messages using multiple words across message text, source and stack frames, with every word matching the same entry.
