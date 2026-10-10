@@ -82,7 +82,7 @@ const entries = ['Alpha', 'Middle', 'Zulu'].map(username => ({ ...savedCredentia
 const removeName = (entry: CredentialSummary) => `Remove saved password for ${entry.username} on ${entry.origin}`
 
 let restoreShell: (() => void) | undefined
-afterEach(() => { restoreShell?.(); restoreShell = undefined })
+afterEach(() => { restoreShell?.(); restoreShell = undefined; vi.restoreAllMocks() })
 function installFocusCheck(isWindowFocused: () => Promise<boolean>): void {
   const descriptor = Object.getOwnPropertyDescriptor(window, 'hronautShell')
   Object.defineProperty(window, 'hronautShell', { configurable: true, value: { isWindowFocused } })
@@ -112,7 +112,7 @@ for (const mode of ['neighbor', 'heading', 'retained'] as const) {
   }
 }
 
-for (const race of ['moved', 'superseded', 'unmounted', 'pending-target'] as const) {
+for (const race of ['moved', 'outside-moved', 'superseded', 'unmounted', 'pending-target'] as const) {
   it(`does not restore stale password focus after a delayed native check: ${race}`, async () => {
     const { controller, api, view } = renderPanel(entries)
     screen.getByRole('button', { name: removeName(entries[1]) }).focus()
@@ -125,10 +125,20 @@ for (const race of ['moved', 'superseded', 'unmounted', 'pending-target'] as con
     controller.replace([entries[0], entries[2]])
     await vi.waitFor(() => expect(check).toHaveBeenCalledOnce())
     let finishRemoval: ((value: boolean) => void) | undefined
+    let outside: HTMLInputElement | undefined
     if (race === 'moved') {
       const search = screen.getByRole('searchbox', { name: 'Search saved passwords' })
       search.focus()
       search.blur()
+    } else if (race === 'outside-moved') {
+      outside = document.createElement('input')
+      outside.type = 'search'
+      outside.addEventListener('focusin', event => event.stopPropagation())
+      document.body.append(outside)
+      outside.focus()
+      expect(outside).toHaveFocus()
+      outside.blur()
+      expect(document.body).toHaveFocus()
     } else if (race === 'superseded') controller.replace([entries[0]])
     else if (race === 'unmounted') view.unmount()
     else {
@@ -138,12 +148,29 @@ for (const race of ['moved', 'superseded', 'unmounted', 'pending-target'] as con
     await flushPromises()
     resolveFocus(true)
     await flushPromises()
+    outside?.remove()
     expect(focus).not.toHaveBeenCalled()
     finishRemoval?.(false)
     await flushPromises()
     controller.dispose()
   })
 }
+
+it('removes the document focus observer when each password panel unmounts', () => {
+  const add = vi.spyOn(document, 'addEventListener')
+  const remove = vi.spyOn(document, 'removeEventListener')
+  for (let index = 0; index < 2; index += 1) {
+    add.mockClear()
+    remove.mockClear()
+    const { controller, view } = renderPanel(entries)
+    const observers = add.mock.calls.filter(([type, , capture]) => type === 'focusin' && capture === true)
+    expect(observers).toHaveLength(1)
+    view.unmount()
+    expect(remove.mock.calls.filter(([type, listener, capture]) => type === 'focusin'
+      && listener === observers[0][1] && capture === true)).toHaveLength(1)
+    controller.dispose()
+  }
+})
 
 it.each([0, 1, 2])('moves focus to a neighboring password after removing row %i', async index => {
   const { api, controller } = renderPanel(entries)

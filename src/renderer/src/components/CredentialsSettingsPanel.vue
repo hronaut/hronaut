@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiIconButton from "../ui/UiIconButton.vue"
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -38,6 +38,9 @@ const filteredEntries = computed(() => {
 const localNumber = (value: number): string => formatNumber(locale.value as SupportedLocale, value)
 const panelRoot = ref<HTMLElement | null>(null)
 let focusSequence = 0
+const invalidateFocusRecovery = (): void => { focusSequence += 1 }
+onMounted(() => document.addEventListener('focusin', invalidateFocusRecovery, true))
+onBeforeUnmount(() => document.removeEventListener('focusin', invalidateFocusRecovery, true))
 watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_current, _previous, onCleanup) => {
   const sequence = focusSequence
   const panel = panelRoot.value
@@ -68,7 +71,7 @@ watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_cur
 </script>
 
 <template>
-  <div ref="panelRoot" class="settings-content credentials-settings" @focusin="focusSequence += 1">
+  <div ref="panelRoot" class="settings-content credentials-settings">
     <div class="setting-copy">
       <h3 id="saved-passwords-heading" tabindex="-1">{{ t('settings.passwords.heading') }}</h3>
       <p>{{ t('settings.passwords.description') }}</p>
