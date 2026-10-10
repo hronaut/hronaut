@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep keyboard focus while removing a saved password, then move to a neighboring password or the Saved passwords heading without overriding newer focus.
+
 - Keep keyboard focus while clearing a website's history, then move to a neighboring retained website or the Global history heading without overriding newer focus.
 
 ## [2.27.0] - 2026-10-10

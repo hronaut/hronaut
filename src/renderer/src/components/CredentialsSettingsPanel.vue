@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiIconButton from "../ui/UiIconButton.vue"
+import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -21,12 +22,35 @@ const {
   isPending,
   remove
 } = props.controller
+const panelRoot = ref<HTMLElement | null>(null)
+watch(() => entries.value.map(entry => entry.id).join('\n'), async (_current, _previous, onCleanup) => {
+  const panel = panelRoot.value
+  const focused = document.activeElement
+  if (!panel || !(focused instanceof HTMLButtonElement) || !panel.contains(focused)
+    || !focused.matches('button.credential-remove')) return
+  const buttons = Array.from(panel.querySelectorAll<HTMLButtonElement>('button.credential-remove'))
+  const index = buttons.indexOf(focused)
+  const candidates = [...buttons.slice(index + 1), ...buttons.slice(0, index).reverse()]
+  let superseded = false
+  onCleanup(() => { superseded = true })
+  await nextTick()
+  if (superseded || panelRoot.value !== panel || !panel.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  if (focused.isConnected) {
+    if (!focused.matches(':disabled')) focused.focus()
+    return
+  }
+  const target = candidates.find(candidate => candidate.isConnected
+    && !candidate.matches(':disabled, [aria-disabled="true"]'))
+    ?? panel.querySelector<HTMLElement>('#saved-passwords-heading')
+  target?.focus()
+}, { flush: 'pre' })
 </script>
 
 <template>
-  <div class="settings-content credentials-settings">
+  <div ref="panelRoot" class="settings-content credentials-settings">
     <div class="setting-copy">
-      <h3>{{ t('settings.passwords.heading') }}</h3>
+      <h3 id="saved-passwords-heading" tabindex="-1">{{ t('settings.passwords.heading') }}</h3>
       <p>{{ t('settings.passwords.description') }}</p>
     </div>
     <div v-if="!storage.available" class="settings-info security-warning">
@@ -51,7 +75,7 @@ const {
             type="button"
             :label="t('settings.passwords.removeAria', { username: credential.username || t('settings.passwords.unnamed'), origin: credential.origin })"
             :title="t('settings.passwords.remove')"
-            :disabled="isPending(credential.id)"
+            :aria-disabled="isPending(credential.id)"
             @click="remove(credential.id)"
           >
             <IconDelete aria-hidden="true" />
