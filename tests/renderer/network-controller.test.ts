@@ -261,6 +261,127 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('HAR copy filter ownership', () => {
+  function changeFilter(controller: ReturnType<typeof createController>['controller'], filter: string): void {
+    if (filter === 'query') controller.search.value = 'method:POST'
+    else if (filter === 'resource') controller.resourceFilter.value = 'fetch/xhr'
+    else controller.failuresOnly.value = true
+  }
+
+  it.each(['query', 'resource', 'failures'])('clears completed HAR copy feedback synchronously after changing %s', async filter => {
+    const { controller, copyText } = createController()
+    try {
+      await controller.copyHar()
+      expect(controller.harCopied.value).toBe(true)
+      changeFilter(controller, filter)
+      expect(controller.harCopied.value).toBe(false)
+      expect(copyText).toHaveBeenCalledOnce()
+    } finally { controller.dispose() }
+  })
+
+  it.each(['query', 'resource', 'failures'].flatMap(filter => ['success', 'failure'].map(outcome => ({ filter, outcome }))))(
+    'discards an export finishing with $outcome after a $filter change without another copy', async ({ filter, outcome }) => {
+      const { controller, browser, copyText } = createController()
+      const har = await browser.createNetworkHar()
+      const pending = deferred<typeof har>()
+      browser.createNetworkHar.mockReturnValueOnce(pending.promise)
+      try {
+        const copying = controller.copyHar()
+        changeFilter(controller, filter)
+        controller.monitorError.value = 'Newer monitor error'
+        if (outcome === 'success') pending.resolve(har)
+        else pending.reject(new Error('Obsolete HAR export failed'))
+        await copying
+        expect(copyText).not.toHaveBeenCalled()
+        expect(controller.harCopied.value).toBe(false)
+        expect(controller.monitorError.value).toBe('Newer monitor error')
+      } finally { controller.dispose() }
+    }
+  )
+
+  it.each(['success', 'false', 'rejection'])('ignores stale clipboard %s after an export filter changes', async outcome => {
+    const { controller, copyText } = createController()
+    const pending = deferred<boolean>()
+    copyText.mockReturnValueOnce(pending.promise)
+    try {
+      const copying = controller.copyHar()
+      await vi.waitFor(() => expect(copyText).toHaveBeenCalledOnce())
+      controller.search.value = 'new filter'
+      controller.monitorError.value = 'Newer monitor error'
+      if (outcome === 'rejection') pending.reject(new Error('Obsolete clipboard refusal'))
+      else pending.resolve(outcome === 'success')
+      await copying
+      expect(controller.harCopied.value).toBe(false)
+      expect(controller.monitorError.value).toBe('Newer monitor error')
+    } finally { controller.dispose() }
+  })
+
+  it('invalidates a pending HAR even when the query changes back before the next render', async () => {
+    const { controller, browser, copyText } = createController()
+    const har = await browser.createNetworkHar()
+    const pending = deferred<typeof har>()
+    browser.createNetworkHar.mockReturnValueOnce(pending.promise)
+    try {
+      const copying = controller.copyHar()
+      controller.search.value = 'temporary query'
+      controller.search.value = ''
+      pending.resolve(har)
+      await copying
+      expect(copyText).not.toHaveBeenCalled()
+      expect(controller.harCopied.value).toBe(false)
+    } finally { controller.dispose() }
+  })
+
+  it('copies the new filter with unchanged export bounds after discarding an old export', async () => {
+    const { controller, browser, copyText } = createController()
+    const har = await browser.createNetworkHar()
+    const pending = deferred<typeof har>()
+    browser.createNetworkHar.mockReturnValueOnce(pending.promise)
+    try {
+      const older = controller.copyHar()
+      controller.search.value = 'method:POST'
+      controller.resourceFilter.value = 'fetch/xhr'
+      controller.failuresOnly.value = true
+      await controller.copyHar()
+      pending.resolve(har)
+      await older
+      expect(browser.createNetworkHar).toHaveBeenLastCalledWith({ tabId: 'tab-1', query: 'method:POST', resourceType: 'fetch/xhr', errorsOnly: true, includeBodies: false, maxRequests: 100 })
+      expect(copyText).toHaveBeenCalledOnce()
+      expect(controller.harCopied.value).toBe(true)
+    } finally { controller.dispose() }
+  })
+
+  it('preserves HAR feedback for non-export controls and does not reset details or file-save feedback', async () => {
+    const { controller } = createController()
+    try {
+      await controller.copyHar()
+      controller.sortBy.value = 'size'
+      controller.sortDirection.value = 'desc'
+      controller.contentSearchQuery.value = 'body text'
+      expect(controller.harCopied.value).toBe(true)
+      controller.detailsCopied.value = 'url'
+      controller.harSaveState.value = 'saved'
+      controller.search.value = 'new filter'
+      expect(controller.detailsCopied.value).toBe('url')
+      expect(controller.harSaveState.value).toBe('saved')
+    } finally { controller.dispose() }
+  })
+
+  it('discards pending HAR work after disposal', async () => {
+    const { controller, browser, copyText } = createController()
+    const har = await browser.createNetworkHar()
+    const pending = deferred<typeof har>()
+    browser.createNetworkHar.mockReturnValueOnce(pending.promise)
+    const copying = controller.copyHar()
+    controller.dispose()
+    controller.search.value = 'changed after disposal'
+    pending.resolve(har)
+    await copying
+    expect(copyText).not.toHaveBeenCalled()
+    expect(controller.harCopied.value).toBe(false)
+  })
+})
+
 describe('network controller', () => {
   it('discards the removed records returned by Clear and preserves filters', async () => {
     const { browser, controller } = createController()

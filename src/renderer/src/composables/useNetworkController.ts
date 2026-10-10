@@ -1,5 +1,5 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
-import { computed, nextTick, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import type {
   BrowserNetworkAbortReason,
   BrowserNetworkHar,
@@ -121,6 +121,11 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let replaySequence = 0
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
+  const stopHarFilterTracking = watch([search, resourceFilter, failuresOnly], () => {
+    harCopySequence += 1
+    harCopied.value = false
+    feedbackTimers.clear('har')
+  }, { flush: 'sync' })
 
   const resourceFilters = computed(() => [
     { value: '', label: options.translate('network.filters.all') },
@@ -762,6 +767,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   function dispose(): void {
+    stopHarFilterTracking()
     invalidateRequests()
     resetReplayFeedback()
     feedbackTimers.clearAll()

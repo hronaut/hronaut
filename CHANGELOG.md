@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clear Network HAR copy feedback when export filters change and discard pending exports before they can copy an obsolete selection.
+
 - Keep saved-password list focus recovery from overriding another native window or a newer focus action while an account removal or inventory update completes.
 
 - Restore “What's new” pagination focus after loading older releases or a failed request, including the final-page action, only while Hronaut is natively focused and without overriding newer focus or a closed dialog.
