@@ -12,6 +12,7 @@ import {
   type BrowserConsoleLevelFilter
 } from '../../../shared/console-messages.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
+import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 
 type ConsoleBrowserApi = Pick<
   HronautApi,
@@ -25,7 +26,7 @@ export interface ConsoleControllerOptions {
   open: Ref<boolean>
   browser: ConsoleBrowserApi
   translate: Translate
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   keepsSeparatePanelOpen: () => boolean
 }
 
@@ -140,13 +141,14 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       messages: nextMessages,
       caveat: options.translate('debugReport.caveats.console')
     }
-    if (!await options.copyText(JSON.stringify(payload, null, 2))) return
-    if (
-      sequence !== copySequence
-      || (scope === 'filtered' && copiedFilterRevision !== filterRevision)
-      || !isCurrent(tab.id, expectedGeneration)
-      || options.activeTab.value?.url !== tab.url
-    ) return
+    const ownsFeedback = () => (
+      sequence === copySequence
+      && (scope !== 'filtered' || copiedFilterRevision === filterRevision)
+      && isCurrent(tab.id, expectedGeneration)
+      && options.activeTab.value?.url === tab.url
+    )
+    if (!await options.copyText(JSON.stringify(payload, null, 2), ownsFeedback)) return
+    if (!ownsFeedback()) return
     if (scope === 'entry') {
       const key = selectedEntryKey ?? entryKey(nextMessages[0])
       copiedEntryKey.value = key

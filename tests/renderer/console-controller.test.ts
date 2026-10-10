@@ -1,6 +1,7 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useConsoleController } from '../../src/renderer/src/composables/useConsoleController.js'
+import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import type { BrowserConsoleMessage, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(id = 'tab-1'): BrowserTabState {
@@ -41,7 +42,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController(keepsSeparatePanelOpen = () => false) {
+function createController(keepsSeparatePanelOpen = () => false, feedback?: CopyTextWithFeedback) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const open = ref(false)
   const browser = {
@@ -53,7 +54,7 @@ function createController(keepsSeparatePanelOpen = () => false) {
     open,
     browser,
     translate: (key) => key,
-    copyText,
+    copyText: feedback ?? copyText,
     keepsSeparatePanelOpen
   })
   return { activeTab, open, browser, controller, copyText }
@@ -64,6 +65,70 @@ afterEach(() => {
 })
 
 describe('console controller', () => {
+  it.each(['search', 'level', 'exclusion', 'newer', 'reset', 'dispose', 'tab', 'url'] as const)(
+    'suppresses obsolete Console failure toasts through the production helper after %s changes', async action => {
+      const pending = deferred<void>()
+      const nativeCopy = vi.fn(async (_text: string): Promise<void> => {}).mockReturnValueOnce(pending.promise)
+      const showToast = vi.fn()
+      const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+      const { controller, activeTab } = createController(undefined, shell.copyText)
+      controller.messages.value = [message('first')]
+      try {
+        const older = controller.copyFiltered()
+        expect(nativeCopy).toHaveBeenCalledOnce()
+        if (action === 'search') { controller.search.value = 'first'; controller.search.value = '' }
+        else if (action === 'level') controller.level.value = 'error'
+        else if (action === 'exclusion') controller.excludeText.value = 'other'
+        else if (action === 'newer') await controller.copyAll()
+        else if (action === 'reset') controller.reset()
+        else if (action === 'dispose') controller.dispose()
+        else if (action === 'tab') activeTab.value = tab('tab-2')
+        else activeTab.value = { ...tab(), url: 'https://example.test/other' }
+        pending.reject(new Error('Obsolete Console clipboard refusal'))
+        await older
+        expect(showToast).not.toHaveBeenCalled()
+        expect(controller.copied.value).toBe(action === 'newer' ? 'all' : null)
+      } finally { controller.dispose() }
+    }
+  )
+
+  it.each(['filtered', 'all', 'entry'] as const)('keeps current %s clipboard failures visible', async scope => {
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({
+      browser: { copyText: vi.fn().mockRejectedValue(new Error('Current Console clipboard refusal')) },
+      translate: key => key, showToast
+    })
+    const { controller } = createController(undefined, shell.copyText)
+    controller.messages.value = [message('first')]
+    try {
+      if (scope === 'entry') await controller.copyEntry(controller.messages.value[0])
+      else if (scope === 'all') await controller.copyAll()
+      else await controller.copyFiltered()
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current Console clipboard refusal')
+      expect(controller.copied.value).toBeNull()
+      expect(controller.copiedEntryKey.value).toBeNull()
+    } finally { controller.dispose() }
+  })
+
+  it.each(['all', 'entry'] as const)('keeps pending %s copy errors relevant across filter changes', async scope => {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({
+      browser: { copyText: vi.fn(() => pending.promise) }, translate: key => key, showToast
+    })
+    const { controller } = createController(undefined, shell.copyText)
+    controller.messages.value = [message('first')]
+    try {
+      const copying = scope === 'all' ? controller.copyAll() : controller.copyEntry(controller.messages.value[0])
+      controller.search.value = 'changed'
+      controller.level.value = 'warning'
+      controller.excludeText.value = 'first'
+      pending.reject(new Error('Still relevant Console clipboard refusal'))
+      await copying
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Still relevant Console clipboard refusal')
+    } finally { controller.dispose() }
+  })
+
   it('keeps filtered event counts and clipboard aligned without removing excluded records', async () => {
     const { controller, copyText } = createController()
     controller.messages.value = [message('failure'), { ...message('heartbeat'), repeatCount: 4 }]
