@@ -34,6 +34,8 @@ export class CaptureRing {
   dropped = 0
   invalid = 0
   omittedContents = 0
+  counts: Partial<Record<EventName, number>> = {}
+  preexisting = -1
   frozen = false
   beforeClose = false
   beforeQuit = false
@@ -45,6 +47,8 @@ export class CaptureRing {
     if (row.event === 'will-quit') this.willQuit = true
     const projected = projectEvent(row)
     if (!projected) { this.invalid++; return }
+    this.counts[row.event] = (this.counts[row.event] ?? 0) + 1
+    if (row.event === 'installed') this.preexisting = row.preexisting ?? -1
     if (this.frozen && this.post >= 128) { this.dropped++; return }
     if (!this.frozen && this.events.length === 512) { this.events.shift(); this.evicted++ }
     this.events.push(projected)
@@ -52,20 +56,25 @@ export class CaptureRing {
     if (row.event === 'capture-error') this.frozen = true
   }
   snapshot() {
-    return { events: [...this.events], evicted: this.evicted, dropped: this.dropped, invalid: this.invalid,
+    return { counts: { ...this.counts }, preexisting: this.preexisting, events: [...this.events], evicted: this.evicted, dropped: this.dropped, invalid: this.invalid,
       omittedContents: this.omittedContents, frozen: this.frozen, beforeClose: this.beforeClose, beforeQuit: this.beforeQuit, willQuit: this.willQuit }
   }
 }
 export function projectSnapshot(value: unknown): ReturnType<CaptureRing['snapshot']> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return
   const row = value as Record<string, unknown>
-  if (Object.keys(row).sort().join(',') !== 'beforeClose,beforeQuit,dropped,events,evicted,frozen,invalid,omittedContents,willQuit') return
+  if (Object.keys(row).sort().join(',') !== 'beforeClose,beforeQuit,counts,dropped,events,evicted,frozen,invalid,omittedContents,preexisting,willQuit') return
   if (!Array.isArray(row.events) || row.events.length > 640 || ['frozen', 'beforeClose', 'beforeQuit', 'willQuit'].some(key => typeof row[key] !== 'boolean')) return
   for (const key of ['evicted', 'dropped', 'invalid', 'omittedContents']) {
     if (!Number.isSafeInteger(row[key]) || (row[key] as number) < 0) return
   }
+  if (!Number.isSafeInteger(row.preexisting) || (row.preexisting as number) < -1) return
+  if (!row.counts || typeof row.counts !== 'object' || Array.isArray(row.counts)) return
+  for (const [key, count] of Object.entries(row.counts)) {
+    if (!eventNames.includes(key as EventName) || !Number.isSafeInteger(count) || (count as number) < 0) return
+  }
   const events = row.events.map(projectEvent)
   if (events.some(event => !event)) return
-  return { events: events as CaptureEvent[], evicted: row.evicted as number, dropped: row.dropped as number,
+  return { counts: { ...row.counts } as Partial<Record<EventName, number>>, preexisting: row.preexisting as number, events: events as CaptureEvent[], evicted: row.evicted as number, dropped: row.dropped as number,
     invalid: row.invalid as number, omittedContents: row.omittedContents as number, frozen: row.frozen as boolean, beforeClose: row.beforeClose as boolean, beforeQuit: row.beforeQuit as boolean, willQuit: row.willQuit as boolean }
 }

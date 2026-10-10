@@ -35,7 +35,7 @@ export function boundedOutcome(test: Pick<TestCase, 'title' | 'location'>, resul
   const attachment = result.attachments.find(item => item.name === 'bounded-native-capture-events' && item.contentType === 'application/json')
   let telemetry: ReturnType<typeof projectProcesses>
   let telemetryOmitted = Boolean(attachment && !retainTelemetry)
-  if (attachment && retainTelemetry) {
+  if (attachment) {
     try {
       if (attachment.path && !attachment.body && statSync(attachment.path).size > maximumAttachmentBytes) throw new Error('oversize')
       const body = attachment.body ?? (attachment.path ? readFileSync(attachment.path) : undefined)
@@ -47,7 +47,13 @@ export function boundedOutcome(test: Pick<TestCase, 'title' | 'location'>, resul
   return { ordinal, manifestIndex: manifestIndex(test), status: result.status,
     retry: result.retry, durationMs: result.duration,
     unknownVizError: result.errors.some(error => error.message?.includes('UnknownVizError')),
-    telemetryMissing: !attachment, telemetryOmitted, ...(telemetry ? { telemetry } : {}) }
+    telemetryMissing: !attachment, telemetryOmitted,
+    coverage: telemetry?.processes.map(process => {
+      if (!process.data) return process
+      const { events: _events, ...summary } = process.data
+      return summary
+    }), omittedProcesses: telemetry?.omittedProcesses,
+    ...(telemetry && retainTelemetry ? { telemetry } : {}) }
 }
 export default class CaptureOrderReporter implements Reporter {
   private ordinal = 0
@@ -74,7 +80,16 @@ export default class CaptureOrderReporter implements Reporter {
   onEnd(result: FullResult): void { this.save(result.status) }
   private save(status: string): void {
     mkdirSync(dirname(this.output), { recursive: true })
-    writeFileSync(this.output, JSON.stringify({ status, planned: this.planned, observedTests: this.ordinal,
-      runnerErrors: this.runnerErrors, omittedOutcomes: this.omittedOutcomes, outcomes: this.outcomes }))
+    const report = { status, planned: this.planned, observedTests: this.ordinal,
+      runnerErrors: this.runnerErrors, omittedOutcomes: this.omittedOutcomes, outcomes: this.outcomes }
+    let encoded = JSON.stringify(report)
+    if (Buffer.byteLength(encoded) > 12 * 1024 * 1024) {
+      // Preserve outcomes and coverage even if a future schema enlarges detail.
+      encoded = JSON.stringify({ ...report, detailBudgetExceeded: true, outcomes: this.outcomes.map(outcome => {
+        const { telemetry: _telemetry, ...summary } = outcome
+        return { ...summary, telemetryOmitted: true }
+      }) })
+    }
+    writeFileSync(this.output, encoded)
   }
 }

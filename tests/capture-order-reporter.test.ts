@@ -54,6 +54,8 @@ describe('bounded failure ring', () => {
     expect(state.evicted).toBe(89)
     expect(state.dropped).toBe(173)
     expect(state.snapshot().willQuit).toBe(true)
+    expect(state.snapshot().counts['created']).toBe(900)
+    expect(state.snapshot().counts['capture-error']).toBe(1)
     expect(projectSnapshot(state.snapshot())).toEqual(state.snapshot())
   })
 })
@@ -79,6 +81,7 @@ it('retains every original test attempt and retry outcome independently of the d
     expect(result.outcomes).toHaveLength(266)
     expect(result.outcomes.filter((row: { retry: number }) => row.retry === 1)).toHaveLength(133)
     expect(result.outcomes.filter((row: { telemetry?: unknown }) => row.telemetry)).toHaveLength(8)
+    expect(result.outcomes.every((row: { coverage?: unknown[] }) => row.coverage?.length === 1)).toBe(true)
     expect(result.omittedOutcomes).toBe(0)
     expect(result.status).toBe('failed')
   } finally { rmSync(directory, { recursive: true }) }

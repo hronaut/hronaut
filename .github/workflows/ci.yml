@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          fetch-depth: 4
+          fetch-depth: 8
 
       - name: Verify reviewed commit and record capacity
         env:
@@ -49,7 +49,7 @@ jobs:
               npm run build:app
               npx playwright test --list --shard=2/8 --reporter=json > /tmp/capture-collection.json
               node scripts/diagnostics/verify-capture-collection.ts /tmp/capture-collection.json
-              HRONAUT_CAPTURE_DIAGNOSTIC=1 HRONAUT_TEST_ISOLATED_DISPLAYS=1 HRONAUT_TEST_SHARD_INDEX=2 \
+              HRONAUT_CAPTURE_DIAGNOSTIC=1 HRONAUT_TEST_ISOLATED_DISPLAYS=1 HRONAUT_TEST_SHARD=shard-2 HRONAUT_TEST_SHARD_INDEX=2 \
                 npm run test:integration:run -- --shard=2/8 \
                 --workers=1 --trace=retain-on-failure \
                 --reporter=./scripts/diagnostics/capture-order-reporter.ts
