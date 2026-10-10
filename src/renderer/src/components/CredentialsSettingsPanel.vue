@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiIconButton from "../ui/UiIconButton.vue"
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -11,6 +11,7 @@ import IconKey from '~icons/material-symbols/key-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import CredentialImportCard from './CredentialImportCard.vue'
 import type { CredentialsController } from '../composables/useCredentialsController'
+import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
 
 const props = defineProps<{
   controller: CredentialsController
@@ -36,7 +37,12 @@ const filteredEntries = computed(() => {
 })
 const localNumber = (value: number): string => formatNumber(locale.value as SupportedLocale, value)
 const panelRoot = ref<HTMLElement | null>(null)
+let focusSequence = 0
+const invalidateFocusRecovery = (): void => { focusSequence += 1 }
+onMounted(() => document.addEventListener('focusin', invalidateFocusRecovery, true))
+onBeforeUnmount(() => document.removeEventListener('focusin', invalidateFocusRecovery, true))
 watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_current, _previous, onCleanup) => {
+  const sequence = focusSequence
   const panel = panelRoot.value
   const focused = document.activeElement
   if (!panel || !(focused instanceof HTMLButtonElement) || !panel.contains(focused)
@@ -46,17 +52,21 @@ watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_cur
   const candidates = [...buttons.slice(index + 1), ...buttons.slice(0, index).reverse()]
   let superseded = false
   onCleanup(() => { superseded = true })
-  await nextTick()
-  if (superseded || panelRoot.value !== panel || !panel.isConnected) return
-  if (document.activeElement !== document.body && document.activeElement !== focused) return
-  if (focused.isConnected) {
-    if (!focused.matches(':disabled')) focused.focus()
-    return
+  const canRestore = (): boolean => !superseded && sequence === focusSequence
+    && panelRoot.value === panel && panel.isConnected
+    && (document.activeElement === document.body || document.activeElement === focused)
+  const currentTarget = (): HTMLElement | null => {
+    if (focused.isConnected && panel.contains(focused)) return focused.matches(':disabled') ? null : focused
+    return candidates.find(candidate => candidate.isConnected && panel.contains(candidate)
+      && !candidate.matches(':disabled, [aria-disabled="true"]'))
+      ?? panel.querySelector<HTMLElement>('#saved-passwords-heading')
   }
-  const target = candidates.find(candidate => candidate.isConnected
-    && !candidate.matches(':disabled, [aria-disabled="true"]'))
-    ?? panel.querySelector<HTMLElement>('#saved-passwords-heading')
-  target?.focus()
+  await nextTick()
+  if (!canRestore()) return
+  const target = currentTarget()
+  if (!target || !await applicationHasFocus()) return
+  if (!canRestore() || currentTarget() !== target || !target.isConnected || !panel.contains(target)) return
+  target.focus()
 }, { flush: 'pre' })
 </script>
 
