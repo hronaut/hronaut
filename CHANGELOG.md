@@ -4,19 +4,22 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.33.0] - 2026-10-10
+
 ### Added
 
-- Record reviewed URL-path outcomes in Repro and export matching Playwright assertions, without inspecting page content or treating a route match as business success.
-
-- Inspect native form constraint flags with `browser_element_inspect`'s opt-in `includeValidity`, without returning field values or validation messages, invoking validation UI, or submitting a form.
+- Inspect passive, value-free native form constraint flags with `browser_element_inspect`'s opt-in `includeValidity`. The validity data includes no field values or validation messages; collecting it invokes no validation UI and does not submit a form or establish submission acceptance.
+- Record reviewed URL-path outcomes in Repro and export matching Playwright assertions. Matching compares the serialized pathname and ignores origin, query and fragment; it does not inspect page content or establish business success. Review pathnames before sharing because they may contain private data.
 
 ### Fixed
 
+- Recheck agent authority and cancellation before committing MCP PDF exports and before publishing their results after audit settlement. Native rendering is not interrupted immediately. Pre-commit cleanup is best-effort; late rejection may retain an already committed PDF. Inspect the destination before retrying.
+- A failed Network request-condition reorder no longer restores a condition removed while its native update was pending or overwrites newer condition-list edits.
 - Preserve Network request-condition draft edits made while an earlier condition is being added, including edits during the following state refresh.
 
-- Recheck agent authority and cancellation before committing MCP PDF exports and publishing their results after audit settlement. Clean up the owned export when either changes during the file write; retain already committed files after a late publication rejection.
+### Known issue
 
-- A failed Network request-condition reorder no longer restores a condition removed while its native update was pending or overwrites newer condition-list edits.
+- An intermittent native screenshot UnknownVizError remains unexplained. Controlled and original-order diagnostics did not reproduce it; no capture fix is claimed.
 
 ## [2.32.0] - 2026-10-10
 
