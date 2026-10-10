@@ -11,6 +11,7 @@ import IconKey from '~icons/material-symbols/key-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import CredentialImportCard from './CredentialImportCard.vue'
 import type { CredentialsController } from '../composables/useCredentialsController'
+import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
 
 const props = defineProps<{
   controller: CredentialsController
@@ -36,7 +37,9 @@ const filteredEntries = computed(() => {
 })
 const localNumber = (value: number): string => formatNumber(locale.value as SupportedLocale, value)
 const panelRoot = ref<HTMLElement | null>(null)
+let focusSequence = 0
 watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_current, _previous, onCleanup) => {
+  const sequence = focusSequence
   const panel = panelRoot.value
   const focused = document.activeElement
   if (!panel || !(focused instanceof HTMLButtonElement) || !panel.contains(focused)
@@ -46,22 +49,26 @@ watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_cur
   const candidates = [...buttons.slice(index + 1), ...buttons.slice(0, index).reverse()]
   let superseded = false
   onCleanup(() => { superseded = true })
-  await nextTick()
-  if (superseded || panelRoot.value !== panel || !panel.isConnected) return
-  if (document.activeElement !== document.body && document.activeElement !== focused) return
-  if (focused.isConnected) {
-    if (!focused.matches(':disabled')) focused.focus()
-    return
+  const canRestore = (): boolean => !superseded && sequence === focusSequence
+    && panelRoot.value === panel && panel.isConnected
+    && (document.activeElement === document.body || document.activeElement === focused)
+  const currentTarget = (): HTMLElement | null => {
+    if (focused.isConnected && panel.contains(focused)) return focused.matches(':disabled') ? null : focused
+    return candidates.find(candidate => candidate.isConnected && panel.contains(candidate)
+      && !candidate.matches(':disabled, [aria-disabled="true"]'))
+      ?? panel.querySelector<HTMLElement>('#saved-passwords-heading')
   }
-  const target = candidates.find(candidate => candidate.isConnected
-    && !candidate.matches(':disabled, [aria-disabled="true"]'))
-    ?? panel.querySelector<HTMLElement>('#saved-passwords-heading')
-  target?.focus()
+  await nextTick()
+  if (!canRestore()) return
+  const target = currentTarget()
+  if (!target || !await applicationHasFocus()) return
+  if (!canRestore() || currentTarget() !== target || !target.isConnected || !panel.contains(target)) return
+  target.focus()
 }, { flush: 'pre' })
 </script>
 
 <template>
-  <div ref="panelRoot" class="settings-content credentials-settings">
+  <div ref="panelRoot" class="settings-content credentials-settings" @focusin="focusSequence += 1">
     <div class="setting-copy">
       <h3 id="saved-passwords-heading" tabindex="-1">{{ t('settings.passwords.heading') }}</h3>
       <p>{{ t('settings.passwords.description') }}</p>

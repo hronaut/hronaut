@@ -1,7 +1,8 @@
 import { nextTick } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import CredentialsSettingsPanel from '../../src/renderer/src/components/CredentialsSettingsPanel.vue'
 import { useCredentialsController } from '../../src/renderer/src/composables/useCredentialsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -79,6 +80,70 @@ describe('CredentialsSettingsPanel', () => {
 
 const entries = ['Alpha', 'Middle', 'Zulu'].map(username => ({ ...savedCredential, id: username, username }))
 const removeName = (entry: CredentialSummary) => `Remove saved password for ${entry.username} on ${entry.origin}`
+
+let restoreShell: (() => void) | undefined
+afterEach(() => { restoreShell?.(); restoreShell = undefined })
+function installFocusCheck(isWindowFocused: () => Promise<boolean>): void {
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'hronautShell')
+  Object.defineProperty(window, 'hronautShell', { configurable: true, value: { isWindowFocused } })
+  restoreShell = () => {
+    if (descriptor) Object.defineProperty(window, 'hronautShell', descriptor)
+    else Reflect.deleteProperty(window, 'hronautShell')
+  }
+}
+
+for (const mode of ['neighbor', 'heading', 'retained'] as const) {
+  for (const rejects of [false, true]) {
+    it(`does not restore ${mode} password focus without native authority (rejects: ${rejects})`, async () => {
+      const { controller } = renderPanel(mode === 'heading' ? [savedCredential] : entries)
+      const original = screen.getByRole('button', { name: removeName(mode === 'heading' ? savedCredential : entries[mode === 'retained' ? 2 : 1]) })
+      original.focus()
+      const target = mode === 'heading' ? screen.getByRole('heading', { name: 'Saved passwords' })
+        : screen.getByRole('button', { name: removeName(entries[2]) })
+      const focus = vi.spyOn(target, 'focus')
+      const check = vi.fn(async () => { if (rejects) throw new Error('Focus unavailable'); return false })
+      installFocusCheck(check)
+      controller.replace(mode === 'heading' ? [] : [entries[0], entries[2]])
+      await flushPromises()
+      expect(focus).not.toHaveBeenCalled()
+      expect(check).toHaveBeenCalledOnce()
+      controller.dispose()
+    })
+  }
+}
+
+for (const race of ['moved', 'superseded', 'unmounted', 'pending-target'] as const) {
+  it(`does not restore stale password focus after a delayed native check: ${race}`, async () => {
+    const { controller, api, view } = renderPanel(entries)
+    screen.getByRole('button', { name: removeName(entries[1]) }).focus()
+    const target = screen.getByRole('button', { name: removeName(entries[2]) })
+    const focus = vi.spyOn(target, 'focus')
+    let resolveFocus!: (value: boolean) => void
+    const pendingFocus = new Promise<boolean>(resolve => { resolveFocus = resolve })
+    const check = vi.fn(() => pendingFocus)
+    installFocusCheck(check)
+    controller.replace([entries[0], entries[2]])
+    await vi.waitFor(() => expect(check).toHaveBeenCalledOnce())
+    let finishRemoval: ((value: boolean) => void) | undefined
+    if (race === 'moved') {
+      const search = screen.getByRole('searchbox', { name: 'Search saved passwords' })
+      search.focus()
+      search.blur()
+    } else if (race === 'superseded') controller.replace([entries[0]])
+    else if (race === 'unmounted') view.unmount()
+    else {
+      api.remove.mockReturnValueOnce(new Promise(resolve => { finishRemoval = resolve }))
+      void controller.remove(entries[2].id)
+    }
+    await flushPromises()
+    resolveFocus(true)
+    await flushPromises()
+    expect(focus).not.toHaveBeenCalled()
+    finishRemoval?.(false)
+    await flushPromises()
+    controller.dispose()
+  })
+}
 
 it.each([0, 1, 2])('moves focus to a neighboring password after removing row %i', async index => {
   const { api, controller } = renderPanel(entries)
