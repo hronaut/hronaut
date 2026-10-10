@@ -56,6 +56,39 @@ afterEach(() => {
 })
 
 describe('Home action recovery', () => {
+  it.each([true, false].flatMap(previous => [true, false].map(next => ({ previous, next }))))(
+    'resets prior copy feedback while another Home copy is pending ($previous to $next)',
+    async ({ previous, next }) => {
+      let finish!: () => void
+      let fail!: (error: Error) => void
+      const pending = new Promise<void>((resolve, reject) => { finish = resolve; fail = reject })
+      const copyText = vi.fn()
+        .mockImplementationOnce(() => previous ? Promise.resolve() : Promise.reject(new Error('First failure')))
+        .mockReturnValueOnce(pending)
+      mount({ copyText })
+      const copy = button('[data-copy-target="endpoint"]')
+      const label = copy.textContent
+      copy.click()
+      await settle()
+      expect(copy.textContent).toBe(previous ? 'Copied' : 'Copy failed')
+      await vi.advanceTimersByTimeAsync(1_000)
+      copy.click()
+      expect(copy.textContent).toBe(label)
+      expect(copy.title).toBe('')
+      expect(document.querySelector('#copy-status')!.textContent).toBe('')
+      if (next) finish()
+      else fail(new Error('Next failure'))
+      await settle()
+      expect(copy.textContent).toBe(next ? 'Copied' : 'Copy failed')
+      await vi.advanceTimersByTimeAsync(300)
+      expect(copy.textContent).toBe(next ? 'Copied' : 'Copy failed')
+      await vi.advanceTimersByTimeAsync(900)
+      expect(copy.textContent).toBe(label)
+      expect(copyText).toHaveBeenNthCalledWith(2, state.endpoint)
+      window.getSelection()?.removeAllRanges()
+    }
+  )
+
   it('preserves selected readiness text when a status refresh has unchanged content', async () => {
     const page = mount()
     await settle()
