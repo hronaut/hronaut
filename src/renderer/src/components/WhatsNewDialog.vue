@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import UiIconButton from '../ui/UiIconButton.vue'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
@@ -21,6 +21,24 @@ const props = defineProps<{
 const { t, locale } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
 const { open, releases, state, error, operation, hasMore, busy, close, refresh, loadMore } = props.controller
+let paginationFocusSequence = 0
+function invalidatePaginationFocus(): void { paginationFocusSequence += 1 }
+watch(open, invalidatePaginationFocus, { flush: 'sync' })
+
+async function loadOlder(event: MouseEvent): Promise<void> {
+  const dialog = panel.value
+  const button = event.currentTarget
+  if (!dialog || !(button instanceof HTMLButtonElement)) return
+  const ownedFocus = document.activeElement === button
+  const sequence = ++paginationFocusSequence
+  await loadMore()
+  await nextTick()
+  if (!ownedFocus || sequence !== paginationFocusSequence || !open.value || busy.value
+    || panel.value !== dialog || !dialog.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== button) return
+  const target = button.isConnected ? button : dialog.querySelector<HTMLButtonElement>('.whats-new-footer button')
+  if (target && !target.disabled) target.focus({ preventScroll: true })
+}
 const formattedReleases = computed(() => releases.value.map((release) => ({
   ...release,
   displayTitle: release.title === `Hronaut ${release.version}` ? '' : release.title,
@@ -61,6 +79,7 @@ useModalDialogFocus({
       aria-labelledby="whats-new-title"
       :aria-busy="busy"
       tabindex="-1"
+      @focusin="invalidatePaginationFocus"
     >
       <header class="whats-new-header">
         <h2 id="whats-new-title">{{ t('updates.history.title') }}</h2>
@@ -117,7 +136,7 @@ useModalDialogFocus({
       <footer class="whats-new-footer">
         <span v-if="error && releases.length > 0" role="alert">{{ error }}</span>
         <span v-else>{{ t('updates.history.source') }}</span>
-        <UiButton v-if="hasMore" :disabled="busy" @click="loadMore">
+        <UiButton v-if="hasMore" :disabled="busy" @click="loadOlder">
           <IconProgress v-if="operation === 'more'" class="state-spinner" aria-hidden="true" />
           {{ operation === 'more' ? t('updates.history.loadingMore') : t('updates.history.loadMore') }}
         </UiButton>

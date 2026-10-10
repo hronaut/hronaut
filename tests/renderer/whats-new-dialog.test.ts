@@ -45,6 +45,86 @@ function renderDialog(overrides: Record<string, unknown> = {}) {
 }
 
 describe('WhatsNewDialog', () => {
+  for (const succeeded of [true, false]) {
+    it(`restores pagination focus if Chromium blurs the disabled control (success: ${succeeded})`, async () => {
+      const operation = ref<string | null>(null)
+      let finish!: () => void
+      const pending = new Promise<void>(resolve => { finish = resolve })
+      const loadMore = vi.fn(async () => {
+        operation.value = 'more'
+        await pending
+        operation.value = null
+        return succeeded
+      })
+      renderDialog({ operation, busy: computed(() => operation.value !== null), loadMore })
+      const user = userEvent.setup()
+      const older = screen.getByRole('button', { name: 'Load older releases' })
+      await user.click(older)
+      expect(older).toBeDisabled()
+      // Model the BODY focus observed in real Electron while this control is disabled.
+      // JSDOM cannot blur a disabled button, so briefly enable it for the blur itself.
+      older.removeAttribute('disabled')
+      older.blur()
+      older.setAttribute('disabled', '')
+      expect(document.body).toHaveFocus()
+      finish()
+      await vi.waitFor(() => expect(older).toHaveFocus())
+    })
+  }
+
+  it('moves pagination focus to the remaining footer action after the last page', async () => {
+    const operation = ref<string | null>(null)
+    const hasMore = ref(true)
+    let finish!: () => void
+    const pending = new Promise<void>(resolve => { finish = resolve })
+    const loadMore = vi.fn(async () => {
+      operation.value = 'more'
+      await pending
+      hasMore.value = false
+      operation.value = null
+      return true
+    })
+    renderDialog({ operation, hasMore, busy: computed(() => operation.value !== null), loadMore })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Load older releases' }))
+    expect(screen.getByRole('button', { name: 'Loading…' })).toBeDisabled()
+    finish()
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'View all on GitHub' })).toHaveFocus())
+  })
+
+  it('does not take focus back from another dialog control when pagination completes', async () => {
+    const hasMore = ref(true)
+    let finish!: () => void
+    const pending = new Promise<void>(resolve => { finish = resolve })
+    const loadMore = vi.fn(async () => { await pending; hasMore.value = false; return true })
+    renderDialog({ hasMore, loadMore })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Load older releases' }))
+    const close = screen.getByRole('button', { name: "Close What's new" })
+    close.focus()
+    finish()
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'View all on GitHub' })).toBeVisible())
+    expect(close).toHaveFocus()
+  })
+
+  it('does not restore pagination focus into a reopened dialog after a late completion', async () => {
+    const hasMore = ref(true)
+    let finish!: () => void
+    const pending = new Promise<void>(resolve => { finish = resolve })
+    const loadMore = vi.fn(async () => { await pending; hasMore.value = false; return false })
+    const { controller } = renderDialog({ hasMore, loadMore })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Load older releases' }))
+    await user.click(screen.getByRole('button', { name: "Close What's new" }))
+    controller.open.value = true
+    await vi.waitFor(() => expect(screen.getByRole('dialog', { name: "What's new" })).toBeVisible())
+    const refresh = screen.getByRole('button', { name: 'Refresh release history' })
+    refresh.focus()
+    finish()
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'View all on GitHub' })).toBeVisible())
+    expect(refresh).toHaveFocus()
+  })
+
   it('renders sanitized categorized history and routes every link through trusted navigation', async () => {
     const { openUrl } = renderDialog()
     const user = userEvent.setup()
