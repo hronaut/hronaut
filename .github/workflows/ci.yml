@@ -49,7 +49,8 @@ jobs:
               npm run build:app
               HRONAUT_TEST_ISOLATED_DISPLAYS=1 HRONAUT_TEST_SHARD_INDEX=2 \
                 npm run test:integration:run -- --test-list scripts/diagnostics/capture-order.txt \
-                --workers=1 --retries=0 --trace=on
+                --workers=1 --retries=0 --trace=retain-on-failure \
+                --reporter=./scripts/diagnostics/capture-order-reporter.ts
             '
 
       - name: Preserve success and failure evidence
@@ -58,8 +59,7 @@ jobs:
           set -euo pipefail
           container="capture-order-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           if docker inspect "$container" >/dev/null 2>&1; then
-            docker cp "$container:/workspace/test-results" ci-artifacts/
-            docker cp "$container:/workspace/playwright-report" ci-artifacts/
+            docker cp "$container:/workspace/capture-order-evidence/outcomes.json" ci-artifacts/outcomes.json
           fi
 
       - name: Upload diagnostic evidence
@@ -67,7 +67,12 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: capture-order-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ci-artifacts/
+          path: |
+            ci-artifacts/outcomes.json
+            ci-artifacts/source.txt
+            ci-artifacts/capacity.txt
+            ci-artifacts/docker-driver.txt
+            ci-artifacts/image-id.txt
           if-no-files-found: error
           retention-days: 7
 
