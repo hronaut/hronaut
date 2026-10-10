@@ -13,6 +13,7 @@ import type {
   HronautApi,
   SupportedLocale
 } from '../../../shared/types.js'
+import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 
 type SiteStorageBrowserApi = Pick<
@@ -29,7 +30,7 @@ export interface SiteStorageControllerOptions {
   locale: Readonly<Ref<SupportedLocale>>
   browser: SiteStorageBrowserApi
   translate: Translate
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   confirm: (message: string) => boolean
   keepsSeparatePanelOpen: () => boolean
 }
@@ -153,20 +154,30 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
 
   async function copyReport(key: StorageFeedback, payload: string, target: Ref<boolean>): Promise<void> {
     const tab = options.activeTab.value
-    if (!tab || !feedbackViewOpen(key)) return
+    if (!tab || !options.open.value || !feedbackViewOpen(key)) return
     const expectedGeneration = generation
     resetCopyFeedback(key, target)
     const sequence = copySequences[key]
-    if (!await options.copyText(payload)) return
-    if (
-      sequence !== copySequences[key]
-      || !isCurrent(tab.id, expectedGeneration)
-      || options.activeTab.value?.url !== tab.url
-      || !feedbackViewOpen(key)
-    ) return
+    const ownsFeedback = (): boolean => (
+      sequence === copySequences[key]
+      && isCurrent(tab.id, expectedGeneration)
+      && options.activeTab.value?.url === tab.url
+      && options.open.value
+      && feedbackViewOpen(key)
+    )
+    if (!await options.copyText(payload, ownsFeedback)) return
+    if (!ownsFeedback()) return
     target.value = true
     feedbackTimers.schedule(key, () => (target.value = false))
   }
+
+  const stopOpenFeedback = watch(options.open, (open) => {
+    if (open) return
+    resetCopyFeedback('usage', usageCopied)
+    resetCopyFeedback('changes', changesCopied)
+    resetCopyFeedback('indexed-db', indexedDbCopied)
+    resetCopyFeedback('pwa', pwaCopied)
+  }, { flush: 'sync' })
 
   function invalidateRequests(): void {
     generation += 1
@@ -565,6 +576,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
 
   function dispose(): void {
     stopIndexedDbSearchFeedback()
+    stopOpenFeedback()
     invalidateRequests()
     feedbackTimers.clearAll()
   }

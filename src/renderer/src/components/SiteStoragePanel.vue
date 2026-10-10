@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CopyTextWithFeedback } from '../composables/useShellFeedbackController.js'
 import UiButton from "../ui/UiButton.vue"
 import { onBeforeUnmount, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -26,7 +27,7 @@ import SiteStorageUsageView from './SiteStorageUsageView.vue'
 const props = defineProps<{
   activeTab?: BrowserTabState
   locale: SupportedLocale
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   keepsSeparatePanelOpen: () => boolean
 }>()
 

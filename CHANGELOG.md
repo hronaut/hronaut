@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Site Storage clipboard errors scoped to the current report and clear copy feedback when the panel closes.
 - Suppress obsolete Network request-detail clipboard failure toasts after selecting or refreshing a request, making a newer copy or resetting the tab context, while keeping current failures visible.
 
 ## [2.30.0] - 2026-10-10
