@@ -385,6 +385,8 @@
 .permission-row select { @apply [width:100px] [padding:7px_9px] [border:1px_solid_var(--border-soft)] [border-radius:7px] outline-none text-copy bg-surface-raised [font-size:13px]; }
 .permission-row select:focus { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
 .credential-row { @apply grid [min-height:64px] items-center [gap:12px] [padding:10px_12px_10px_14px] [grid-template-columns:minmax(0,_1fr)_32px]; }
+.credentials-settings .credential-remove[aria-disabled="true"],
+.credentials-settings .credential-remove[aria-disabled="true"]:hover { @apply cursor-default opacity-48 bg-transparent; }
 .credential-remove { @apply [justify-self:end]; }
 .credential-import-card { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] items-center [gap:12px_18px] [padding:16px] [border:1px_solid_var(--border-soft)] [border-radius:12px] bg-surface-muted; }
 .credential-import-card h4 { @apply m-0 [font-size:15px]; }
