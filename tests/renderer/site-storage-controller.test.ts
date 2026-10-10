@@ -317,3 +317,62 @@ describe('site-storage controller', () => {
   )
 
 })
+
+describe('retained site-storage search terms', () => {
+  it.each(['THEME dark', 'dark   theme', '  theme\tdark  '])('matches key and value together: %s', query => {
+    const { controller, browser } = createController()
+    const retained = { ...storageResult(), itemCount: 2, items: [
+      { key: 'theme', value: 'dark', valueBytes: 4 },
+      { key: 'accent', value: 'blue', valueBytes: 4 }
+    ] }
+    controller.result.value = retained
+    controller.search.value = query
+    expect(controller.filteredItems.value).toEqual([retained.items[0]])
+    expect(controller.result.value).toEqual(retained)
+    expect(browser.manageStorage).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('combines cookie names, retained values and domains without searching path or protected values', () => {
+    const { controller, browser } = createController()
+    controller.kind.value = 'cookies'
+    controller.result.value = { ...storageResult(), kind: 'cookies', itemCount: 2, items: [
+      { key: 'theme', value: 'dark', domain: 'example.test', path: '/hidden-path', valueBytes: 4 },
+      { key: 'session', domain: 'example.test', path: '/', valueBytes: 12, protected: true }
+    ] }
+    controller.search.value = 'EXAMPLE dark theme'
+    expect(controller.filteredItems.value.map(item => item.key)).toEqual(['theme'])
+    controller.search.value = 'session example'
+    expect(controller.filteredItems.value).toEqual([expect.objectContaining({ key: 'session', protected: true })])
+    controller.search.value = 'hidden-path'
+    expect(controller.filteredItems.value).toEqual([])
+    controller.search.value = 'session dark'
+    expect(controller.filteredItems.value).toEqual([])
+    expect(browser.manageStorage).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('never combines terms from separate entries and restores retained order for whitespace', () => {
+    const { controller } = createController()
+    const items = [{ key: 'theme', value: 'dark', valueBytes: 4 }, { key: 'accent', value: 'blue', valueBytes: 4 }]
+    controller.result.value = { ...storageResult(), itemCount: 2, items }
+    controller.search.value = 'theme blue'
+    expect(controller.filteredItems.value).toEqual([])
+    controller.search.value = ' \t '
+    expect(controller.filteredItems.value).toEqual(items)
+    controller.dispose()
+  })
+
+  it('uses only retained truncated previews and refreshes matching results without extra reads', () => {
+    const { controller, browser } = createController()
+    controller.result.value = { ...storageResult(), items: [{ key: 'large', value: 'visible preview', valueBytes: 20000, valueTruncated: true }] }
+    controller.search.value = 'large preview'
+    expect(controller.filteredItems.value).toHaveLength(1)
+    controller.search.value = 'large hidden-tail'
+    expect(controller.filteredItems.value).toEqual([])
+    controller.result.value = { ...storageResult(), items: [{ key: 'large', value: 'hidden-tail', valueBytes: 11 }] }
+    expect(controller.filteredItems.value).toHaveLength(1)
+    expect(browser.manageStorage).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+})
