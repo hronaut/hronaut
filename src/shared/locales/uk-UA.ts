@@ -775,6 +775,7 @@ export const ukUA = {
       tooltipAttention: 'Hronaut — потрібна увага: {reason}'
     },
     context: {
+      resolveAttention: 'Позначити як вирішене',
       workspace: 'Робочий простір: {name}', newTabWorkspace: 'Нова вкладка в робочому просторі', editWorkspace: 'Редагувати робочий простір…', sleepWorkspaceTabs: 'Приспати доступні вкладки', archiveWorkspace: 'Архівувати робочий простір', workspaceUnavailable: 'Робочий простір недоступний',
       splitView: 'Розділений перегляд', sideBySide: 'Поруч', stacked: 'Один над одним', swapTabs: 'Поміняти вкладки', exitSplit: 'Вийти з розділеного перегляду', openSplit: 'Відкрити в розділеному перегляді', openBeside: 'Відкрити вкладку поруч',
       newTab: 'Нова вкладка', reloadTab: 'Перезавантажити вкладку', reloadNoCache: 'Перезавантажити вкладку без кешу', duplicateTab: 'Дублювати вкладку', muteTab: 'Вимкнути звук вкладки', unmuteTab: 'Увімкнути звук вкладки', pinTab: 'Закріпити вкладку', unpinTab: 'Відкріпити вкладку', freezePage: 'Заморозити сторінку для перевірки', resumePage: 'Відновити сторінку', pageLifecycleUnknown: 'Результат зупинки сторінки невідомий', wakeTab: 'Пробудити вкладку', sleepTab: 'Приспати вкладку',

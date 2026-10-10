@@ -813,6 +813,8 @@ export interface TabsManagerOptions {
   getLocale: () => SupportedLocale
   getTabPosition: () => TabPosition
   toolbarHeight?: number
+  getTabAttention?: (tabId: string, workspaceId: string | undefined) => { id: string } | undefined
+  resolveTabAttention?: (id: string, tabId: string, workspaceId: string | undefined) => void
   onUserInteraction?: () => void
   onCredentialSubmitted?: (candidate: BrowserCredentialCandidate) => void
   onShortcutRequested?: (action: BrowserShortcutAction) => void
@@ -3630,7 +3632,18 @@ export class BrowserTabsManager {
           }
     const shouldSleepTab = !tab.sleeping
     const verticalTabs = this.options.getTabPosition() === 'left'
+    const attentionWorkspaceId = tab.mcpGroupId
+    const attention = this.options.getTabAttention?.(tab.id, attentionWorkspaceId)
     const menu = Menu.buildFromTemplate([
+      ...(attention ? [{
+        id: 'resolve-attention',
+        label: this.text('native.context.resolveAttention'),
+        click: () => runAction('resolve the attention request', () => {
+          if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
+            || tab.mcpGroupId !== attentionWorkspaceId) return
+          this.options.resolveTabAttention?.(attention.id, tab.id, attentionWorkspaceId)
+        })
+      }, { type: 'separator' as const }] : []),
       {
         id: 'new-tab',
         label: this.text('native.context.newTab'),

@@ -89,6 +89,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_saved_workspaces: destructiveTool('Manage saved workspaces', false, false),
   browser_status: readOnlyTool('Show browser status'),
   browser_show: nonDestructiveTool('Show Hronaut', true, false),
+  browser_user_attention: readOnlyTool('Wait for human attention resolution'),
   browser_request_user_attention: nonDestructiveTool('Request user attention', false, false),
   browser_tabs: readOnlyTool('List browser tabs'),
   browser_new_tab: nonDestructiveTool('Open a new tab'),
@@ -209,6 +210,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
     category: 'Session',
     description: 'Alert a person to a manual browser step with a tray pulse, system notification, and a visible marker on the requested tab. Supply a short, secret-free notificationMessage for the system notification.'
   },
+  { name: 'browser_user_attention', category: 'Session', description: 'Inspect or wait up to 60000 ms for an exact attention request in your authorized workspace. Only the human tab-menu Mark as resolved action resolves it; acknowledgement or dismissal does not. Reports timeout, supersession, expiry or target closure separately. Runtime history retains at most 100 requests; unresolved requests expire after 24 hours and restart clears history; unavailable history grants no permission. Resolution never approves another action or consequential review.' },
   { name: 'browser_tabs', category: 'Session', description: 'List tabs and navigation state in the selected agent workspace.' },
   { name: 'browser_new_tab', category: 'Session', description: 'Open a tab inside the selected agent workspace; show it when Follow agents is enabled.' },
   { name: 'browser_select_tab', category: 'Session', description: 'Select the active tab in the agent workspace. It becomes visible when Follow agents is enabled.' },
@@ -322,6 +324,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
   'browser_status',
   'browser_show',
   'browser_request_user_attention',
+  'browser_user_attention',
   'browser_tabs',
   'browser_new_tab',
   'browser_select_tab',

@@ -3210,6 +3210,7 @@ export const frFR = {
       "tooltipAttention": "Hronaut — attention requise : {reason}"
     },
     "context": {
+      "resolveAttention": "Marquer comme résolu",
       "workspace": "Espace de travail : {name}",
       "newTabWorkspace": "Nouvel onglet dans l’espace de travail",
       "editWorkspace": "Modifier l’espace de travail…",

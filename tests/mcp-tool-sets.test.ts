@@ -55,13 +55,14 @@ describe('MCP tool sets', () => {
     const qa = mcpToolCatalogForSet('qa').map(({ name }) => name)
     const all = mcpToolCatalogForSet('complete').map(({ name }) => name)
 
-    expect(browse).toHaveLength(34)
+    expect(browse).toHaveLength(35)
     expect(browse).toEqual([
       'browser_workspaces',
       'browser_saved_workspaces',
       'browser_status',
       'browser_show',
       'browser_request_user_attention',
+      'browser_user_attention',
       'browser_tabs',
       'browser_new_tab',
       'browser_select_tab',
@@ -109,7 +110,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(84)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(85)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -127,6 +128,7 @@ describe('MCP tool sets', () => {
         'browser_preflight',
         'browser_reconciliation',
         'browser_status',
+        'browser_user_attention',
         'browser_tabs',
         'browser_storage_usage',
         'browser_indexeddb',
