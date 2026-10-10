@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-10-10
+
 ### Added
 
 - Search the Home tool reference using multiple words across each tool’s name, category and description.
