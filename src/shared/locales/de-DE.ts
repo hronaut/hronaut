@@ -2819,6 +2819,7 @@ export const deDE = {
       "filter": "IndexedDB-Datensätze filtern",
       "filterPlaceholder": "Geladene Schlüssel oder Werte filtern",
       "copyLoaded": "Geladene kopieren",
+      "copyFiltered": "Gefilterte kopieren",
       "keyPath": "Schlüsselpfad",
       "autoIncrement": "Automatische Erhöhung",
       "manualKeys": "Manuelle Schlüssel",

@@ -2819,6 +2819,7 @@ export const frFR = {
       "filter": "Filtrer les enregistrements IndexedDB",
       "filterPlaceholder": "Filtrer les clés ou valeurs chargées",
       "copyLoaded": "Copier les éléments chargés",
+      "copyFiltered": "Copier les résultats filtrés",
       "keyPath": "Chemin de clé",
       "autoIncrement": "Incrémentation automatique",
       "manualKeys": "Clés manuelles",

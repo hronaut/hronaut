@@ -57,7 +57,7 @@ function localNumber(value: number): string { return formatNumber(props.locale, 
       </div>
       <div v-if="store" class="indexeddb-tools">
         <label class="site-storage-search"><IconSearch aria-hidden="true" /><input v-model="search" type="search" :aria-label="t('siteStorage.indexed.filter')" :placeholder="t('siteStorage.indexed.filterPlaceholder')" autocomplete="off" /></label>
-        <UiButton appearance="application" type="button" :disabled="!report.entries.length || state === 'loading'" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.indexed.copyLoaded') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="!report.entries.length || state === 'loading'" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t(search.trim() ? 'siteStorage.indexed.copyFiltered' : 'siteStorage.indexed.copyLoaded') }}</UiButton>
       </div>
       <div v-if="store" class="indexeddb-schema">
         <span>{{ t('siteStorage.indexed.keyPath') }} <code>{{ JSON.stringify(report.selectedDatabase?.objectStores?.find((item) => item.name === store)?.keyPath ?? null) }}</code></span>
