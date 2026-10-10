@@ -5,6 +5,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication, Page } from '@playwright/test'
 import type { ReactInspectionAction, ReactInspectionResult } from '../../src/shared/react-inspection.js'
+import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test as base } from './fixtures.js'
 import { reactInspectionBundle } from './react-inspection-bundle.js'
 
@@ -81,7 +82,19 @@ export const test = base.extend<{ react: ReactFixture }>({
         return contents.id
       }, origin + '/initial')
       const react = (action: ReactInspectionAction, subtreeId?: string) => call('browser_react', { workspaceId: workspace.id, tabId, action, ...(subtreeId ? { subtreeId } : {}) })
-      const navigate = async (path: string) => { await success(call('browser_navigate', { workspaceId: workspace.id, tabId, url: origin + path })) }
+      const navigate = async (path: string) => {
+        const url = origin + path
+        const state = await success<BrowserState>(call('browser_navigate', { workspaceId: workspace.id, tabId, url }))
+        // An aborted native load can return successful state for another URL.
+        expect(state.tabs.find(tab => tab.id === tabId)?.url, 'Fixture navigation must reach its requested destination').toBe(url)
+        // MCP and Playwright observe navigation through separate transports.
+        await page.waitForURL(url, { waitUntil: 'load', timeout: 8_000 })
+        if (!path.startsWith('/bare')) {
+          // Agent tabs may be hidden, so readiness cannot depend on animation frames.
+          await page.waitForFunction(url => location.href === url
+            && typeof (globalThis as typeof globalThis & { fixtureSawHook?: unknown }).fixtureSawHook === 'boolean', url, { polling: 100, timeout: 8_000 })
+        }
+      }
       const readMenu = async () => {
         await captureMenu(electronApp)
         await appWindow.evaluate(id => (window as unknown as {hronaut: {showTabContextMenu(id: string): Promise<void>}}).hronaut.showTabContextMenu(id), tabId)
