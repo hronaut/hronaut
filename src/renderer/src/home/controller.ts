@@ -116,7 +116,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       const value = target.textContent ?? ''
       const sequence = ++state.sequence
       const feedbackSequence = ++copyFeedbackSequence
-      clearTimeout(state.timer); button.title = state.title; text('copy-status', '')
+      clearTimeout(state.timer); button.textContent = state.label; button.title = state.title; text('copy-status', '')
       try {
         if (!api?.copyText) throw new Error(messages.copy.unavailable)
         await api.copyText(value)

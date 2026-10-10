@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Restore Home copy-button labels while a new clipboard write is pending instead of leaving an earlier success or failure visible.
+
 - Clear earlier MCP endpoint copy success while another clipboard write is pending or fails, preserving feedback only for the latest successful attempt.
 
 - Label IndexedDB copying as “Copy filtered” when a record filter is active, so the button accurately describes the existing filtered-copy scope in every supported language.
