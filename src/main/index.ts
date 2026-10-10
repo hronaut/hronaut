@@ -1,3 +1,4 @@
+import { UserAttentionLifecycle } from './user-attention-lifecycle.js'
 import { registerIncidentPackageIpc } from './incident-package-ipc.js'
 import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
@@ -293,6 +294,7 @@ let updateOperation: UpdateOperation | null = null
 let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
 let mcpTokenConfiguration: McpTokenConfiguration | null = null
+const userAttentionLifecycle = new UserAttentionLifecycle()
 let userAttention: UserAttentionRequest | null = null
 let attentionDecisionId: string | undefined
 let attentionRequestGeneration = 0
@@ -1344,7 +1346,7 @@ function setTrayContextMenu(): void {
               clearUserAttention()
             }
           },
-          { label: text('native.tray.dismissAttention'), click: clearUserAttention },
+          { label: text('native.tray.dismissAttention'), click: () => clearUserAttention('dismissed') },
           { type: 'separator' as const }
         ]
       : []),
@@ -1375,7 +1377,8 @@ function renderAttentionPulse(): void {
   tray.setImage(attentionPulseOn ? trayAttentionIcon : trayIcon)
 }
 
-function clearUserAttention(): void {
+function clearUserAttention(disposition: 'acknowledged' | 'dismissed' = 'acknowledged'): void {
+  if (userAttention) userAttentionLifecycle.acknowledge(userAttention.id, disposition)
   attentionRequestGeneration += 1
   attentionDecisionId = undefined
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
@@ -1397,6 +1400,7 @@ function clearUserAttention(): void {
 }
 
 function reconcileUserAttention(state: BrowserState): void {
+  userAttentionLifecycle.reconcile(state.tabs, state.mcpTabGroups.map(workspace => workspace.id))
   const request = userAttention
   if (!request) return
   const workspaceExists = !request.workspaceId
@@ -1428,6 +1432,8 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
     throw new Error('User attention request was superseded by a newer request.')
   }
   if (input.expiresAt !== undefined && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now())) throw new Error('User attention request expired')
+  if (input.workspaceId && !input.humanWaitingDecisionId) userAttentionLifecycle.request(request)
+  else userAttentionLifecycle.supersede()
   userAttention = request
   attentionNotification?.close()
   attentionNotification = null
@@ -1435,10 +1441,11 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   attentionDecisionId = input.humanWaitingDecisionId
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
   attentionExpiryTimer = null
-  if (input.expiresAt !== undefined) {
+  const attentionExpiresAt = input.expiresAt ?? (input.workspaceId && !input.humanWaitingDecisionId ? Date.now() + 86_400_000 : undefined)
+  if (attentionExpiresAt !== undefined) {
     attentionExpiryTimer = setTimeout(() => {
       if (userAttention?.id === request.id) clearUserAttention()
-    }, Math.min(86_400_000, Math.max(1, input.expiresAt - Date.now())))
+    }, Math.min(86_400_000, Math.max(1, attentionExpiresAt - Date.now())))
     attentionExpiryTimer.unref()
   }
   if (attentionPulseTimer) clearInterval(attentionPulseTimer)
@@ -3653,6 +3660,11 @@ async function createWindow(startMinimized = false): Promise<void> {
     getTabPosition: () => settings.tabPosition,
     configureSession: configureBrowserSession,
     onUserInteraction: acknowledgeUserAttention,
+    getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
+    resolveTabAttention: (id, tabId, workspaceId) => {
+      if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
+      if (userAttention?.id === id) clearUserAttention()
+    },
     onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
       auditReceipts?.recordSiteAccess(workspaceId, decision, source)
     },
@@ -4051,6 +4063,7 @@ function createRuntimeMcpServer(
     version: app.getVersion(),
     toolSet: settings.mcpToolSet,
     showWindowInactive,
+    userAttentionLifecycle,
     getUserAttention: () => (userAttention ? { ...userAttention } : null),
     requestUserAttention,
     bookmarks: {

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Resolve an agent’s tab attention request explicitly from the tab context menu, and inspect or await that exact human resolution through the read-only `browser_user_attention` MCP tool. Notification acknowledgement remains separate from task completion.
+
 ### Fixed
 
 - Wait for an unresponsive renderer to exit before loading its replacement, and keep later crashes, navigation and tab closure visible during recovery.

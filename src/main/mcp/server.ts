@@ -1,3 +1,4 @@
+import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
 import type { PendingElementInspection } from '../browser/element-inspection-publication.js'
 import type { PendingVideoInspection, VideoSourceBinding } from '../browser/video-recorder.js'
 import { videoInspectionSchema } from '../../shared/video-inspection.js'
@@ -284,6 +285,7 @@ class WalletAgentSessionRegistry {
 }
 
 export interface McpHttpServerOptions {
+  userAttentionLifecycle?: UserAttentionLifecycle
   humanWaiting?: HumanWaitingService
   taskRuns?: TaskRunService
   actionTracker?: McpActionTracker
@@ -913,7 +915,8 @@ function createBrowserMcpServer(
   humanWaiting?: HumanWaitingService,
   taskRuns?: TaskRunService,
   workspaceLeases = new WorkspaceWriteLeaseRegistry(),
-  assertAutomationAccess?: () => void
+  assertAutomationAccess?: () => void,
+  userAttentionLifecycle?: UserAttentionLifecycle
 ): { server: McpServer } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -979,7 +982,7 @@ function createBrowserMcpServer(
       ?? (typeof input.workspaceId === 'string' ? input.workspaceId : undefined)
     const toolsWithoutPageOrigin = new Set([
       'browser_workspaces', 'browser_saved_workspaces', 'browser_bookmarks', 'browser_visit_history',
-      'browser_show', 'browser_request_user_attention', 'browser_human_waiting', 'browser_task_runs'
+      'browser_show', 'browser_request_user_attention', 'browser_user_attention', 'browser_human_waiting', 'browser_task_runs'
     ])
     if (workspaceId && !toolsWithoutPageOrigin.has(name) && name !== 'browser_new_tab') {
       try {
@@ -2779,6 +2782,29 @@ function createBrowserMcpServer(
       if (tabId) await manager.selectTabAndWait(tabId, { focus: false })
       showWindowInactive()
       return textResult('Browser window is visible without taking keyboard or mouse focus.')
+    })
+  )
+  registerTool(
+    'browser_user_attention',
+    {
+      description: toolDescription('browser_user_attention'),
+      inputSchema: {
+        workspaceId: workspaceIdSchema,
+        requestId: z.uuid().describe('Exact id returned by browser_request_user_attention.'),
+        action: z.enum(['status', 'wait']).default('status'),
+        timeoutMs: z.number().int().min(1).max(60_000).default(30_000)
+      }
+    },
+    tool(async (input: { workspaceId: string; requestId: string; action: 'status' | 'wait'; timeoutMs: number }, extra) => {
+      const authorize = (): void => {
+        requireAgentWorkspace(input.workspaceId)
+        requireActiveCapabilityDispatch('browser_user_attention', input)
+      }
+      authorize()
+      if (!userAttentionLifecycle) throw new Error('Attention history unavailable')
+      return textResult(input.action === 'wait'
+        ? await userAttentionLifecycle.wait(input.requestId, input.workspaceId, input.timeoutMs, authorize, extra?.signal)
+        : userAttentionLifecycle.status(input.requestId, input.workspaceId))
     })
   )
   registerWorkspaceTool(
@@ -4953,7 +4979,8 @@ export class McpHttpServer {
             this.options.humanWaiting,
             this.options.taskRuns,
             this.workspaceLeases,
-            this.options.assertAutomationAccess
+            this.options.assertAutomationAccess,
+            this.options.userAttentionLifecycle
           )
           session.server = mcp.server
           session.transport = transport

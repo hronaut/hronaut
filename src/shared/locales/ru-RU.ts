@@ -3210,6 +3210,7 @@ export const ruRU = {
       "tooltipAttention": "Hronaut — требуется внимание: {reason}"
     },
     "context": {
+      "resolveAttention": "Отметить как решённое",
       "workspace": "Рабочая область: {name}",
       "newTabWorkspace": "Новая вкладка в рабочей области",
       "editWorkspace": "Изменить рабочую область…",

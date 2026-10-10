@@ -3210,6 +3210,7 @@ export const deDE = {
       "tooltipAttention": "Hronaut — Aufmerksamkeit erforderlich: {reason}"
     },
     "context": {
+      "resolveAttention": "Als erledigt markieren",
       "workspace": "Arbeitsbereich: {name}",
       "newTabWorkspace": "Neuer Tab im Arbeitsbereich",
       "editWorkspace": "Arbeitsbereich bearbeiten…",

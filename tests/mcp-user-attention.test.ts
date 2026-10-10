@@ -1,3 +1,4 @@
+import { UserAttentionLifecycle } from '../src/main/user-attention-lifecycle.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -35,6 +36,39 @@ describe('MCP user-attention presentation failures', () => {
     await server?.stop()
     client = undefined
     server = undefined
+  })
+
+  it('keeps request status and waiting workspace-authorized and read-only', async () => {
+    const lifecycle = new UserAttentionLifecycle()
+    lifecycle.request({ id: tabId, tabId, workspaceId, reason: 'Manual task', requestedAt: new Date().toISOString() })
+    const manager = {
+      suspendWorkspaceContinuity: vi.fn(), requireWorkspaceContinuityDispatch: vi.fn(),
+      beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
+      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
+      requireTabInMcpGroup: vi.fn(() => tabId), tabBelongsToMcpGroup: vi.fn(() => true),
+      wakeTab: vi.fn(), isWorkspaceAgentAccessible: vi.fn(() => true),
+      listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]), listSavedTabGroups: vi.fn(() => []),
+      mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
+      getState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] })),
+      getMcpGroupState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] }))
+    }
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', userAttentionLifecycle: lifecycle,
+      showWindowInactive: vi.fn(), getUserAttention: () => null, requestUserAttention: vi.fn(),
+      bookmarks: {} as never, history: {} as never, siteData: {} as never
+    })
+    client = new Client({ name: 'attention-lifecycle-authorization', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(await server.start())))
+    const call = (arguments_: Record<string, unknown>) => client!.callTool({ name: 'browser_user_attention', arguments: arguments_ }) as Promise<CallToolResult>
+    expect((await call({ workspaceId, requestId: tabId })).isError).toBe(true)
+    await authorizeWorkspace(client)
+    expect(JSON.parse(text(await call({ workspaceId, requestId: tabId })))).toMatchObject({ id: tabId, state: 'pending' })
+    expect((await call({ workspaceId: otherWorkspaceId, requestId: tabId })).isError).toBe(true)
+    expect(JSON.parse(text(await call({ workspaceId, requestId: tabId, action: 'wait', timeoutMs: 1 })))).toMatchObject({ outcome: 'timed-out' })
+    lifecycle.resolve(tabId, tabId, workspaceId)
+    expect(JSON.parse(text(await call({ workspaceId, requestId: tabId, action: 'wait' })))).toMatchObject({ outcome: 'resolved' })
+    expect(manager.wakeTab).not.toHaveBeenCalled()
+    expect(manager.beginWorkspaceContinuityAction).not.toHaveBeenCalled()
   })
 
   it('awaits rejected attention and show callbacks before reporting success', async () => {

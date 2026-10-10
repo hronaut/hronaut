@@ -3210,6 +3210,7 @@ export const plPL = {
       "tooltipAttention": "Hronaut — wymagana uwaga: {reason}"
     },
     "context": {
+      "resolveAttention": "Oznacz jako rozwiązane",
       "workspace": "Obszar roboczy: {name}",
       "newTabWorkspace": "Nowa karta w obszarze roboczym",
       "editWorkspace": "Edytuj obszar roboczy…",
