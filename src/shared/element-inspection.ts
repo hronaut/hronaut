@@ -1,4 +1,5 @@
 import { normalizeScrollGeometry } from './element-scroll-geometry.js'
+import { normalizeFormValidity } from './form-validity.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkUrl } from './network-details.js'
 import type {
@@ -122,6 +123,7 @@ export function normalizeElementInspection(input: NormalizeElementInspectionInpu
 
   return {
     ...(raw.scrollGeometry !== undefined ? { scrollGeometry: normalizeScrollGeometry(raw.scrollGeometry) } : {}),
+    ...(raw.formValidity !== undefined ? { formValidity: normalizeFormValidity(raw.formValidity) } : {}),
     tabId: input.tabId,
     title: text(input.title, 200),
     url: redactNetworkUrl(input.url),
@@ -213,6 +215,7 @@ export function formatElementInspectionForAgent(report: BrowserElementInspection
     `Selector: ${report.selector}`,
     `Element: ${element}`,
     report.passwordOccupancy ? `Password occupancy: ${report.passwordOccupancy} (not authentication evidence)` : '',
+    report.formValidity ? `Native form validity: ${JSON.stringify(report.formValidity)} (not submission acceptance)` : '',
     report.text ? `Text: ${JSON.stringify(report.text)}` : '',
     `Bounds: x=${Math.round(report.box.x)}, y=${Math.round(report.box.y)}, width=${Math.round(report.box.width)}, height=${Math.round(report.box.height)}`,
     `Box model: content=${report.box.contentWidth}×${report.box.contentHeight}px; padding=${edgeSummary(report.box.padding)}; border=${edgeSummary(report.box.border)}; margin=${edgeSummary(report.box.margin)}; box-sizing=${report.box.boxSizing}`,

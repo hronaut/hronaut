@@ -686,6 +686,7 @@ export interface BrowserSnapshotCopyResult {
 }
 
 export interface BrowserElementInspectionOptions {
+  includeValidity?: boolean
   includePasswordOccupancy?: boolean
   tabId?: string
   ref?: string
@@ -747,7 +748,14 @@ export type BrowserScrollGeometry = {
   documentScroller: 'html' | 'body' | null
 } | { status: 'unavailable'; reason: 'unsupported-cssom' | 'invalid-or-out-of-range' }
 
+export type BrowserFormValidity = {
+  status: 'observed'
+  willValidate: boolean
+  validity: Record<'valueMissing' | 'typeMismatch' | 'patternMismatch' | 'tooLong' | 'tooShort' | 'rangeUnderflow' | 'rangeOverflow' | 'stepMismatch' | 'badInput' | 'customError' | 'valid', boolean>
+} | { status: 'unavailable'; reason: 'unsupported-target' | 'native-unavailable' }
+
 export interface BrowserElementInspection {
+  formValidity?: BrowserFormValidity
   passwordOccupancy?: 'empty' | 'nonempty' | 'unknown'
   scrollGeometry?: BrowserScrollGeometry
   cssProvenance?: BrowserCssProvenance

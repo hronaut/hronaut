@@ -1592,8 +1592,8 @@ function createBrowserMcpServer(
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
-        const isPasswordOccupancy = name === 'browser_element_inspect' && input.includePasswordOccupancy === true
-        const passiveObservation = isFrameObservation || isPasswordOccupancy || name === 'browser_media_state'
+        const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true)
+        const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state'
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -3403,7 +3403,8 @@ function createBrowserMcpServer(
         cssProperties: z.array(z.enum(CSS_INSPECTION_PROPERTIES)).min(1).max(8).optional(),
         includeFonts: z.boolean().optional(),
         includeScroll: z.boolean().optional(),
-        includePasswordOccupancy: z.boolean().optional()
+        includePasswordOccupancy: z.boolean().optional(),
+        includeValidity: z.boolean().optional()
       }
     },
     tabTool('browser_element_inspect', async (options: {
@@ -3414,6 +3415,7 @@ function createBrowserMcpServer(
       includeFonts?: boolean
       includeScroll?: boolean
       includePasswordOccupancy?: boolean
+      includeValidity?: boolean
       validateInspection?: () => void
     }) => textResult(await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
   )

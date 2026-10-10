@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Inspect native form constraint flags with `browser_element_inspect`'s opt-in `includeValidity`, without returning field values or validation messages, invoking validation UI, or submitting a form.
+
 ### Fixed
 
 - A failed Network request-condition reorder no longer restores a condition removed while its native update was pending or overwrites newer condition-list edits.
