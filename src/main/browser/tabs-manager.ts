@@ -6437,7 +6437,7 @@ export class BrowserTabsManager {
       createdAt: new Date().toISOString()
     }
 
-    tab.networkRoutes.push(route)
+    tab.networkRoutes = [...tab.networkRoutes, route]
     try {
       await this.applyNetworkRoutes(tab)
     } catch (error) {
@@ -6450,9 +6450,9 @@ export class BrowserTabsManager {
 
   async removeNetworkRoute(tabId: string | undefined, routeId: string): Promise<BrowserNetworkRouteSummary[]> {
     const tab = this.getTab(tabId)
-    const previousLength = tab.networkRoutes.length
-    tab.networkRoutes = tab.networkRoutes.filter((route) => route.id !== routeId)
-    if (tab.networkRoutes.length === previousLength) throw new Error(`Network route not found: ${routeId}`)
+    const remainingRoutes = tab.networkRoutes.filter((route) => route.id !== routeId)
+    if (remainingRoutes.length === tab.networkRoutes.length) throw new Error(`Network route not found: ${routeId}`)
+    tab.networkRoutes = remainingRoutes
     await this.applyNetworkRoutes(tab)
     this.changed(false)
     return this.networkRoutes(tab.id)
@@ -6468,14 +6468,20 @@ export class BrowserTabsManager {
     if (currentIndex < 0) throw new Error(`Network route not found: ${routeId}`)
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
     if (targetIndex < 0 || targetIndex >= tab.networkRoutes.length) return this.networkRoutes(tab.id)
-    const [route] = tab.networkRoutes.splice(currentIndex, 1)
+    const previousRoutes = tab.networkRoutes
+    const reorderedRoutes = [...previousRoutes]
+    const [route] = reorderedRoutes.splice(currentIndex, 1)
     if (!route) throw new Error(`Network route disappeared while moving: ${routeId}`)
-    tab.networkRoutes.splice(targetIndex, 0, route)
+    reorderedRoutes.splice(targetIndex, 0, route)
+    tab.networkRoutes = reorderedRoutes
     try {
       await this.applyNetworkRoutes(tab)
     } catch (error) {
-      tab.networkRoutes.splice(targetIndex, 1)
-      tab.networkRoutes.splice(currentIndex, 0, route)
+      // A later edit or consumed rule owns a different list. Rolling back its
+      // indices could restore a retired mock or discard a newer condition.
+      if (tab.networkRoutes === reorderedRoutes && this.tabs.get(tab.id) === tab) {
+        tab.networkRoutes = previousRoutes
+      }
       throw error
     }
     this.changed(false)

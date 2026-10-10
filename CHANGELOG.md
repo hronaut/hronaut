@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- A failed Network request-condition reorder no longer restores a condition removed while its native update was pending or overwrites newer condition-list edits.
+
 ## [2.32.0] - 2026-10-10
 
 ### Added
