@@ -391,6 +391,60 @@ describe('retained site-storage search terms', () => {
 })
 
 describe('retained IndexedDB search terms', () => {
+  it('clears completed copy feedback immediately when the filter changes', async () => {
+    vi.useFakeTimers()
+    const { controller, copyText, browser } = createController()
+    controller.indexedDbOpen.value = true
+    controller.indexedDbReport.value = indexedDbReport()
+    controller.indexedDbSearch.value = 'theme'
+    await controller.copyIndexedDb()
+    expect(controller.indexedDbCopied.value).toBe(true)
+    controller.indexedDbSearch.value = 'accent'
+    expect(controller.indexedDbCopied.value).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(copyText).toHaveBeenCalledOnce()
+    expect(browser.inspectIndexedDb).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('does not revive feedback from a copy after the filter changes away and back', async () => {
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.indexedDbOpen.value = true
+    controller.indexedDbReport.value = indexedDbReport()
+    controller.indexedDbSearch.value = 'theme'
+    copyText.mockImplementationOnce(() => pending.promise)
+    const operation = controller.copyIndexedDb()
+    controller.indexedDbSearch.value = 'accent'
+    controller.indexedDbSearch.value = 'theme'
+    pending.resolve(true)
+    await operation
+    expect(controller.indexedDbCopied.value).toBe(false)
+    await controller.copyIndexedDb()
+    expect(controller.indexedDbCopied.value).toBe(true)
+    controller.dispose()
+  })
+
+  it('keeps newer filtered copy feedback when an earlier clipboard write finishes', async () => {
+    vi.useFakeTimers()
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.indexedDbOpen.value = true
+    controller.indexedDbReport.value = indexedDbReport()
+    controller.indexedDbSearch.value = 'theme'
+    copyText.mockImplementationOnce(() => pending.promise)
+    const first = controller.copyIndexedDb()
+    controller.indexedDbSearch.value = 'accent'
+    await controller.copyIndexedDb()
+    expect(controller.indexedDbCopied.value).toBe(true)
+    pending.resolve(true)
+    await first
+    expect(controller.indexedDbCopied.value).toBe(true)
+    await vi.advanceTimersByTimeAsync(1_500)
+    expect(controller.indexedDbCopied.value).toBe(false)
+    controller.dispose()
+  })
+
   it.each(['THEME dark', 'dark   theme', '  theme\tdark  ', 'display-1 OBJECT dark'])('combines fields within one loaded record: %s', query => {
     const { controller, browser } = createController()
     const report = indexedDbReport()

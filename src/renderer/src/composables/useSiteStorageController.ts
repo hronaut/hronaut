@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type {
   BrowserIndexedDbReport,
   BrowserPwaReport,
@@ -146,6 +146,10 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     feedbackTimers.clear(key)
     target.value = false
   }
+
+  const stopIndexedDbSearchFeedback = watch(indexedDbSearch, () => {
+    resetCopyFeedback('indexed-db', indexedDbCopied)
+  }, { flush: 'sync' })
 
   async function copyReport(key: StorageFeedback, payload: string, target: Ref<boolean>): Promise<void> {
     const tab = options.activeTab.value
@@ -560,6 +564,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   function dispose(): void {
+    stopIndexedDbSearchFeedback()
     invalidateRequests()
     feedbackTimers.clearAll()
   }
