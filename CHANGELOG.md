@@ -6,8 +6,6 @@ All notable changes to Hronaut are documented in this file.
 
 ## [2.32.0] - 2026-10-10
 
-Includes the improvements prepared for the unpublished 2.31.0 candidate.
-
 ### Added
 
 - Resolve an agent’s tab attention request explicitly from the tab context menu, and inspect or await that exact human resolution through the read-only `browser_user_attention` MCP tool. Notification acknowledgement remains separate from task completion.
@@ -26,6 +24,10 @@ Includes the improvements prepared for the unpublished 2.31.0 candidate.
 ### Known issue
 
 - An intermittent native screenshot UnknownVizError remains unexplained. Controlled and original-order diagnostics did not reproduce it; no capture fix is claimed.
+
+### Notes
+
+- Includes the improvements prepared for the unpublished 2.31.0 candidate.
 
 ## [2.31.0] - 2026-10-10
 
