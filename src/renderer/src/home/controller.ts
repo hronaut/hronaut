@@ -154,7 +154,11 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   let renderedCatalog = ''
   function renderTools(): void {
     const query = element<HTMLInputElement>('tool-search').value.trim().toLocaleLowerCase(locale)
-    const tools = dashboard.tools.filter(tool => `${tool.name} ${tool.category} ${tool.description}`.toLocaleLowerCase(locale).includes(query))
+    const terms = query.split(/\s+/).filter(Boolean)
+    const tools = dashboard.tools.filter(tool => {
+      const text = `${tool.name} ${tool.category} ${tool.description}`.toLocaleLowerCase(locale)
+      return terms.every(term => text.includes(term))
+    })
     element('tool-empty').hidden = !query || tools.length > 0
     if (JSON.stringify(tools) === renderedCatalog) return
     renderedCatalog = JSON.stringify(tools)

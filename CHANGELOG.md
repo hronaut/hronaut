@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Search the Home tool reference using multiple words across each tool’s name, category and description.
+
 ### Fixed
 
 - Suppress obsolete MCP endpoint clipboard errors after a newer copy or endpoint change, while keeping current failures visible.
