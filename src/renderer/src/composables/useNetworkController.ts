@@ -576,12 +576,13 @@ export function useNetworkController(options: NetworkControllerOptions) {
           : format === 'url'
             ? requestDetails.value.url
             : formatNetworkRequestCopy(requestDetails.value, format)
-      if (!await options.copyText(text)) return
-      if (
-        sequence !== detailsCopySequence
-        || !isCurrent(tab.id, expectedGeneration)
-        || options.activeTab.value?.url !== tab.url
-      ) return
+      const ownsFeedback = () => (
+        sequence === detailsCopySequence
+        && isCurrent(tab.id, expectedGeneration)
+        && options.activeTab.value?.url === tab.url
+      )
+      if (!await options.copyText(text, ownsFeedback)) return
+      if (!ownsFeedback()) return
       detailsCopied.value = format
       feedbackTimers.schedule('details', () => {
         if (detailsCopied.value === format) detailsCopied.value = null
