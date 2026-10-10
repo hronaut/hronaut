@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Label IndexedDB copying as “Copy filtered” when a record filter is active, so the button accurately describes the existing filtered-copy scope in every supported language.
+
 - Clear IndexedDB copy feedback when the record filter changes, including clipboard operations that finish after a filter change.
 
 ## [2.28.0] - 2026-10-10

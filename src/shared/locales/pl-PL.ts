@@ -2819,6 +2819,7 @@ export const plPL = {
       "filter": "Filtruj rekordy IndexedDB",
       "filterPlaceholder": "Filtruj wczytane klucze lub wartości",
       "copyLoaded": "Kopiuj wczytane",
+      "copyFiltered": "Kopiuj przefiltrowane",
       "keyPath": "Ścieżka klucza",
       "autoIncrement": "Automatyczne zwiększanie",
       "manualKeys": "Klucze ręczne",

@@ -2819,6 +2819,7 @@ export const esES = {
       "filter": "Filtrar registros de IndexedDB",
       "filterPlaceholder": "Filtrar claves o valores cargados",
       "copyLoaded": "Copiar lo cargado",
+      "copyFiltered": "Copiar resultados filtrados",
       "keyPath": "Ruta de clave",
       "autoIncrement": "Incremento automático",
       "manualKeys": "Claves manuales",

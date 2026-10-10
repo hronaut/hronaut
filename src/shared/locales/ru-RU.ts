@@ -2819,6 +2819,7 @@ export const ruRU = {
       "filter": "Фильтровать записи IndexedDB",
       "filterPlaceholder": "Фильтр по загруженным ключам или значениям",
       "copyLoaded": "Копировать загруженное",
+      "copyFiltered": "Копировать отфильтрованное",
       "keyPath": "Путь ключа",
       "autoIncrement": "Автоинкремент",
       "manualKeys": "Ручные ключи",
