@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Filter loaded IndexedDB records using multiple words across keys, primary keys, value types and retained previews, without reading additional records or values.
 
+### Fixed
+
+- Clear IndexedDB copy feedback when the record filter changes, including clipboard operations that finish after a filter change.
+
 ## [2.28.0] - 2026-10-10
 
 ### Added

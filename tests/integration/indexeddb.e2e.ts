@@ -280,6 +280,13 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
     await expect(search).toBeFocused()
     await storagePanel.getByRole('button', { name: 'Copy loaded' }).click()
     await expect(storagePanel.getByRole('button', { name: 'Copied' })).toBeVisible()
+    await search.fill('language')
+    expect(await storagePanel.getByRole('button', { name: /^(Copy loaded|Copied)$/ }).innerText()).toBe('Copy loaded')
+    await expect(visibleRecords).toHaveCount(1)
+    await expect(visibleRecords).toContainText('en-CA')
+    await expect(search).toBeFocused()
+    await storagePanel.getByRole('button', { name: 'Copy loaded' }).click()
+    await expect(storagePanel.getByRole('button', { name: 'Copied' })).toBeVisible()
   } finally {
     await client.close()
     await closeFixtureServer(server)
