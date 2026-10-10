@@ -123,6 +123,12 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let replaySequence = 0
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
+  const stopContentSearchInputTracking = watch([contentSearchQuery, contentSearchCaseSensitive], () => {
+    contentSearchSequence += 1
+    contentSearchState.value = 'idle'
+    contentSearchResult.value = null
+    contentSearchError.value = ''
+  }, { flush: 'sync' })
   const stopRouteDraftTracking = watch([
     routeMode, routePattern, routeMethod, routeTimes, routeAbort,
     routeThrottle, routeStatus, routeHeaders, routeBody
@@ -777,6 +783,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   function dispose(): void {
+    stopContentSearchInputTracking()
     stopRouteDraftTracking()
     stopHarFilterTracking()
     invalidateRequests()
