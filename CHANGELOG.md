@@ -4,13 +4,28 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-10-10
+
+Includes the improvements prepared for the unpublished 2.31.0 candidate.
+
 ### Added
 
 - Resolve an agent’s tab attention request explicitly from the tab context menu, and inspect or await that exact human resolution through the read-only `browser_user_attention` MCP tool. Notification acknowledgement remains separate from task completion.
 
+- Search the Home tool reference using multiple words across each tool’s name, category and description.
+
 ### Fixed
 
 - Wait for an unresponsive renderer to exit before loading its replacement, and keep later crashes, navigation and tab closure visible during recovery.
+
+- Suppress obsolete MCP endpoint clipboard errors after a newer copy or endpoint change, while keeping current failures visible.
+- Suppress obsolete diagnostic text-export clipboard errors after a newer copy, report refresh, recorder mutation or tab context change, while keeping current failures visible.
+- Keep Site Storage clipboard errors scoped to the current report and clear copy feedback when the panel closes.
+- Suppress obsolete Network request-detail clipboard failure toasts after selecting or refreshing a request, making a newer copy or resetting the tab context, while keeping current failures visible.
+
+### Known issue
+
+- An intermittent native screenshot UnknownVizError remains unexplained. Controlled and original-order diagnostics did not reproduce it; no capture fix is claimed.
 
 ## [2.31.0] - 2026-10-10
 
