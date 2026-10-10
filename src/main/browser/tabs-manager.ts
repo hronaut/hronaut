@@ -3,6 +3,7 @@ import type { BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
 import { formValiditySettlementScript } from './form-validity.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
+import type { PendingPdfExport } from './pdf-export-publication.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -7147,14 +7148,25 @@ export class BrowserTabsManager {
     return result
   }
 
-  async savePdf(options: BrowserPdfOptions = {}): Promise<BrowserPdfExport> {
+  async savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
     const tab = this.getTab(options.tabId)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
     const filename = pdfFilename(options.filename, tab.title)
     const webContents = tab.webContents
     const navigationGeneration = tab.navigationGeneration
     let documentCommitted = false
+    let publicationDeferred = false
     const onDocumentCommitted = (): void => { documentCommitted = true }
+    const discard = (): void => { webContents.removeListener('did-navigate', onDocumentCommitted) }
     const assertCurrent = (): void => {
+      validateExport?.()
+      if (validateExport) {
+        const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+        if (currentWorkspace !== workspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration) {
+          throw new Error('Workspace access changed while exporting its PDF. Export again with current authority.')
+        }
+      }
       if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
         throw new Error('The tab closed while exporting its PDF. Open the page and export again.')
       }
@@ -7162,6 +7174,7 @@ export class BrowserTabsManager {
         throw new Error('The page changed while exporting its PDF. Export the current page again.')
       }
     }
+    assertCurrent()
     // A navigation may already have started when export is requested. Its
     // later commit does not increment navigationGeneration a second time.
     webContents.on('did-navigate', onDocumentCommitted)
@@ -7177,9 +7190,13 @@ export class BrowserTabsManager {
       }, 'print')
       assertCurrent()
       const path = await this.writeUniqueDownload(filename, data, assertCurrent)
+      if (deferExport) {
+        deferExport({ assertCurrent, discard })
+        publicationDeferred = true
+      }
       return { filename: basename(path), path, bytes: data.length }
     } finally {
-      webContents.removeListener('did-navigate', onDocumentCommitted)
+      if (!publicationDeferred) discard()
     }
   }
 

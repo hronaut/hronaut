@@ -1,5 +1,6 @@
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
 import type { PendingElementInspection } from '../browser/element-inspection-publication.js'
+import type { PendingPdfExport } from '../browser/pdf-export-publication.js'
 import type { PendingVideoInspection, VideoSourceBinding } from '../browser/video-recorder.js'
 import { videoInspectionSchema } from '../../shared/video-inspection.js'
 import type { PendingFrameObservation } from '../browser/frame-observation.js'
@@ -1038,7 +1039,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1137,6 +1138,12 @@ function createBrowserMcpServer(
             ...(inspection.image ? [{ type: 'image' as const, data: Buffer.from(inspection.image).toString('base64'), mimeType: 'image/png' as const }] : [])
           ] }
         }
+        if (name === 'browser_pdf_save' && !result.isError) {
+          const publication = frameRequest.pdfExport
+          if (!publication) throw new Error('PDF export publication guard is unavailable')
+          publication.assertCurrent()
+          return result // No await after the final cancellation/context/authority check.
+        }
         recordReadinessProbe(result.isError ? 'failed' : 'verified')
         return result
       } catch (error) {
@@ -1153,6 +1160,7 @@ function createBrowserMcpServer(
         frameRequest.elementInspection?.discard()
         frameRequest.pending?.discard()
         frameRequest.videoInspection?.discard()
+        frameRequest.pdfExport?.discard()
         finishWorkspaceMutation?.()
       }
     })) as never)
@@ -1873,6 +1881,10 @@ function createBrowserMcpServer(
                 ...actionInput,
                 tabId: resolvedTabId,
                 ...((name === 'browser_element_inspect' || name === 'browser_media_state') ? { validateInspection: requireCurrentTarget } : {}),
+                ...(name === 'browser_pdf_save' ? { validateExport: () => {
+                  if (extra?.signal?.aborted) throw new Error('PDF export cancelled')
+                  requireCurrentTarget()
+                } } : {}),
                 ...(name === 'browser_react' ? { reactAuthority: {
                   assertCurrent: requireCurrentTarget,
                   epoch: createHash('sha256').update(JSON.stringify([client.id, controlRevision, writeLease?.generation, capabilityAuthorizationFingerprint])).digest('hex')
@@ -3919,12 +3931,16 @@ function createBrowserMcpServer(
         pageSize: z.enum(['A4', 'Letter', 'Legal']).optional()
       }
     },
-    tabTool('browser_pdf_save', async (options: {
+    tabTool('browser_pdf_save', async ({ validateExport, ...options }: {
       tabId?: string
       filename?: string
       landscape?: boolean
       pageSize?: 'A4' | 'Letter' | 'Legal'
-    }) => textResult(await manager.savePdf(options)))
+      validateExport?: () => void
+    }) => {
+      if (!validateExport) throw new Error('PDF export authority is unavailable')
+      return textResult(await manager.savePdf(options, validateExport, pending => { frameRequests.getStore()!.pdfExport = pending }))
+    })
   )
   registerWorkspaceTool(
     'browser_resize',
