@@ -1,142 +1,85 @@
-name: CI
+name: Capture order diagnostic (draft only)
 
-# Routine improvements defer test execution to the immutable-tag release gate.
-# Keep an explicit full-check entry point for investigation or release rehearsal.
+# This branch is an experiment, not a replacement gate. Never merge this workflow.
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Independently reviewed diagnostic commit SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: capture-order-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  validate:
+  capture-order-diagnostic:
+    if: github.ref == 'refs/heads/diagnostic/clipboard-capture-order'
     runs-on: ubuntu-latest
-    env:
-      HRONAUT_TYPECHECK_JOBS: "1"
+    timeout-minutes: 30
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
         with:
-          node-version: 24
-          cache: npm
+          persist-credentials: false
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Restore static-analysis state
-        uses: actions/cache/restore@v6
-        with:
-          path: |
-            node_modules/.cache/eslint
-            tsconfig.node.tsbuildinfo
-            tsconfig.web.tsbuildinfo
-            tsconfig.website.tsbuildinfo
-          key: static-analysis-v2-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'package.json', 'eslint.config.mjs', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-${{ github.sha }}
-          restore-keys: |
-            static-analysis-v2-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'package.json', 'eslint.config.mjs', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-
-
-      - name: Run static validation
-        run: npm run validate
-
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Save static-analysis state
-        if: success()
-        uses: actions/cache/save@v6
-        with:
-          path: |
-            node_modules/.cache/eslint
-            tsconfig.node.tsbuildinfo
-            tsconfig.web.tsbuildinfo
-            tsconfig.website.tsbuildinfo
-          key: static-analysis-v2-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'package.json', 'eslint.config.mjs', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-${{ github.sha }}
-
-  integration-shard:
-    name: Electron integration shard ${{ matrix.shard }}/8
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Run Electron integration tests in Docker
+      - name: Verify reviewed commit and record capacity
         env:
-          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/8"
-          HRONAUT_INTEGRATION_SHARD_WORKERS: "1"
-          HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
-        run: bash scripts/run-integration-ci.sh
-
-      - name: Upload Electron failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
-          path: ci-artifacts/
-          if-no-files-found: ignore
-          retention-days: 7
-
-  integration:
-    name: integration
-    if: always()
-    needs: integration-shard
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify every Electron shard passed
-        env:
-          SHARD_RESULT: ${{ needs.integration-shard.result }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
         run: |
-          if [[ "$SHARD_RESULT" != 'success' ]]; then
-            echo "Electron integration shards finished with $SHARD_RESULT." >&2
-            exit 1
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          mkdir -p ci-artifacts
+          git rev-parse HEAD > ci-artifacts/source.txt
+          df -h > ci-artifacts/capacity.txt
+          docker info --format '{{.Driver}}' > ci-artifacts/docker-driver.txt
+
+      - name: Run one bounded predecessor-order experiment
+        run: |
+          set -euo pipefail
+          docker compose --file compose.test.ci.yaml build integration
+          docker image inspect hronaut-tests-integration --format '{{.Id}}' > ci-artifacts/image-id.txt
+          docker compose --file compose.test.ci.yaml run --name "capture-order-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" integration \
+            bash -ceu '
+              node scripts/verify-dependency-manifest.ts
+              npm run build:app
+              HRONAUT_TEST_ISOLATED_DISPLAYS=1 HRONAUT_TEST_SHARD_INDEX=2 \
+                npm run test:integration:run -- --test-list scripts/diagnostics/capture-order.txt \
+                --workers=1 --retries=0 --trace=retain-on-failure \
+                --reporter=./scripts/diagnostics/capture-order-reporter.ts
+            '
+
+      - name: Preserve success and failure evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          container="capture-order-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if docker inspect "$container" >/dev/null 2>&1; then
+            docker cp "$container:/workspace/capture-order-evidence/outcomes.json" ci-artifacts/outcomes.json
           fi
 
-  package-release-candidate:
-    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'release/')
-    needs:
-      - validate
-      - integration
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            command: package:linux
-          - os: macos-latest
-            command: package:mac
-          - os: windows-latest
-            command: package:win
-    runs-on: ${{ matrix.os }}
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Install Node.js
-        uses: actions/setup-node@v7
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          node-version: 24
-          cache: npm
+          name: capture-order-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ci-artifacts/outcomes.json
+            ci-artifacts/source.txt
+            ci-artifacts/capacity.txt
+            ci-artifacts/docker-driver.txt
+            ci-artifacts/image-id.txt
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Install Linux packaging tools
-        if: runner.os == 'Linux'
+      - name: Remove only this experiment container
+        if: always()
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rpm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build release packages
-        run: npm run ${{ matrix.command }}
+          container="capture-order-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if docker inspect "$container" >/dev/null 2>&1; then
+            docker rm --force "$container"
+          fi

@@ -1,0 +1,65 @@
+[electron] › browser-shell.e2e.ts › reports a rejected browser shortcut without breaking the shell
+[electron] › browser-shell.e2e.ts › reports rejected shell controls without an unhandled renderer rejection
+[electron] › browser-shell.e2e.ts › keeps the newer collection panel open when a Downloads refresh finishes late
+[electron] › browser-shell.e2e.ts › rolls back rejected diagnostic log preservation without an unhandled renderer rejection
+[electron] › browser-shell.e2e.ts › keeps a newer browser event when a viewport response returns stale state
+[electron] › browser-shell.e2e.ts › floats bookmark and history suggestions above pages while allowing duplicate addresses
+[electron] › browser-shell.e2e.ts › suggests a page visited through a link with a long URL fragment
+[electron] › browser-shell.e2e.ts › suggests a committed address before every page resource finishes loading
+[electron] › browser-shell.e2e.ts › searches open and recently closed tabs, then restores any selected page
+[electron] › browser-shell.e2e.ts › focuses the selected website after direct and visual-overview tab selection
+[electron] › browser-shell.e2e.ts › bootstraps a live tab preview when its first capture finishes after the overview opens
+[electron] › browser-shell.e2e.ts › resumes a live tab preview after a timed-out native capture eventually settles
+[electron] › browser-shell.e2e.ts › keeps the visual tab overview grouped, responsive, lock-safe, and passive for sleeping tabs
+[electron] › browser-shell.e2e.ts › duplicates navigation history and safely bulk-manages tabs from the native menu
+[electron] › browser-shell.e2e.ts › reports stale native tab context actions without throwing into Electron
+[electron] › browser-shell.e2e.ts › pins tabs from the native menu and tab search while preserving closed-tab state
+[electron] › browser-shell.e2e.ts › contains rejected tab-search mutations and keeps the panel usable
+[electron] › browser-shell.e2e.ts › puts an active website tab to sleep from its native context menu and wakes it again
+[electron] › browser-shell.e2e.ts › keeps plaintext-only editable drafts awake when Memory Saver runs
+[electron] › browser-shell.e2e.ts › keeps an edited page open until the user confirms its beforeunload close
+[electron] › browser-shell.e2e.ts › rolls back pinning when a sleeping tab cannot wake and permits a retry
+[electron] › browser-shell.e2e.ts › rolls back selection when a sleeping tab cannot wake and permits a retry
+[electron] › browser-shell.e2e.ts › keeps the active tab when a sleeping close replacement cannot wake
+[electron] › browser-shell.e2e.ts › finishes a pending tab close after the website interaction lock engages
+[electron] › browser-shell.e2e.ts › keeps a newer selection authoritative while an active close wakes its replacement
+[electron] › browser-shell.e2e.ts › uses the next close replacement when the pending sleeping replacement closes
+[electron] › browser-shell.e2e.ts › commits one close when duplicate requests wait on the same sleeping replacement
+[electron] › browser-shell.e2e.ts › rechecks a reordered sleeping close replacement before committing the close
+[electron] › browser-shell.e2e.ts › does not override a newer tab selection when a sleeping tab finishes waking
+[electron] › browser-shell.e2e.ts › treats tab closure as cancellation while a sleeping selection is waking
+[electron] › browser-shell.e2e.ts › does not override a newer tab selection while a context-menu sleep check is pending
+[electron] › browser-shell.e2e.ts › keeps native element picking behind modal priority
+[electron] › browser-shell.e2e.ts › creates, renames, and permanently closes an isolated human workspace
+[electron] › browser-shell.e2e.ts › keeps the workspace editor trustworthy while a save is pending
+[electron] › browser-shell.e2e.ts › keeps the latest workspace editor request when native events resolve out of order
+[electron] › browser-shell.e2e.ts › does not open a delayed native workspace editor over newer Settings
+[electron] › browser-shell.e2e.ts › archives a workspace from its context menu and restores it with the same stable workspace id
+[electron] › browser-shell.e2e.ts › reorders pinned and regular tabs by dragging and saves the new order
+[electron] › browser-shell.e2e.ts › restores pinned tabs ahead of regular tabs after restart
+[electron] › browser-shell.e2e.ts › saves, searches, renames, and removes local bookmarks
+[electron] › browser-shell.e2e.ts › records, searches, removes, and clears local browsing history
+[electron] › browser-shell.e2e.ts › does not count restored tabs as new browsing-history visits
+[electron] › browser-shell.e2e.ts › renders a sanitized page favicon and exposes per-tab audio controls
+[electron] › browser-shell.e2e.ts › finds text from a website shortcut and navigates page matches
+[electron] › browser-shell.e2e.ts › invalidates page matches after same-tab navigation and cleans up failed native searches
+[electron] › browser-shell.e2e.ts › zooms website content with familiar shortcuts and visible controls
+[electron] › browser-shell.e2e.ts › shows a native webpage context menu and suppresses it while human interaction is locked
+[electron] › browser-shell.e2e.ts › preserves intercepted new-tab requests and background disposition
+[electron] › browser-shell.e2e.ts › shows live download progress with cancel, clear, and reveal-in-folder actions
+[electron] › browser-shell.e2e.ts › locks website input without moving focus away from the current page
+[electron] › browser-shell.e2e.ts › keeps human input blocked while an agent acts in a locked tab
+[electron] › browser-shell.e2e.ts › locks website input while keeping trusted browser chrome usable
+[electron] › browser-shell.e2e.ts › rolls back tab and global interaction locks when the native input guard fails
+[electron] › browser-shell.e2e.ts › preserves the human focus owner after agent input in a locked tab
+[electron] › browser-shell.e2e.ts › does not restore stale shell focus when trusted chrome closes in the background
+[electron] › browser-shell.e2e.ts › preserves human focus across agent presentation, input, and active tab changes
+[electron] › browser-shell.e2e.ts › picks a page element and copies safe agent-ready DOM context from an MCP-created tab
+[electron] › browser-shell.e2e.ts › drags a page area and copies the screenshot image for agent chat
+[electron] › browser-shell.e2e.ts › shows typed agent setup, connection activity, and the live tool catalog on Home
+[electron] › browser-shell.e2e.ts › controls whether bounded diagnostic logs survive page navigation
+[electron] › browser-shell.e2e.ts › quits cleanly while a tab navigation is still active
+[electron] › capture-navigation-feedback.e2e.ts › clears pending screenshot feedback when the captured tab reloads
+[electron] › clipboard-async.e2e.ts › reports asynchronous image clipboard write rejection and recovers the queue
+[electron] › clipboard-async.e2e.ts › reports asynchronous image clipboard read rejection and recovers the queue
+[electron] › clipboard-async.e2e.ts › reports asynchronous image clipboard read rejection and recovers the queue with an unresolved readiness script
