@@ -86,10 +86,17 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     return initializePromise
   }
 
+  function clearCopiedFeedback(): void {
+    if (copiedTimer !== undefined) window.clearTimeout(copiedTimer)
+    copiedTimer = undefined
+    copied.value = false
+  }
+
   async function copyEndpoint(): Promise<boolean> {
     const endpoint = options.endpoint.value
     const operationGeneration = generation
     const sequence = ++copySequence
+    clearCopiedFeedback()
     if (!await options.copyText(endpoint)) return false
     if (
       operationGeneration !== generation
@@ -142,9 +149,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
 
   const stopEndpointTracking = watch(options.endpoint, () => {
     copySequence += 1
-    if (copiedTimer !== undefined) window.clearTimeout(copiedTimer)
-    copiedTimer = undefined
-    copied.value = false
+    clearCopiedFeedback()
   }, { flush: 'sync' })
 
   function dispose(): void {
@@ -155,9 +160,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     copySequence += 1
     initializePromise = null
     pauseBusy.value = false
-    if (copiedTimer !== undefined) window.clearTimeout(copiedTimer)
-    copiedTimer = undefined
-    copied.value = false
+    clearCopiedFeedback()
     detachListener()
   }
 
