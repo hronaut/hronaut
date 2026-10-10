@@ -262,6 +262,70 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+describe('Network detail copy failure ownership', () => {
+  it.each((['json', 'curl', 'fetch', 'response', 'url'] as const).flatMap(format =>
+    (['selection', 'refresh', 'newer', 'reset', 'dispose', 'tab', 'url'] as const).map(action => ({ format, action }))
+  ))('suppresses obsolete $format detail-copy failure toasts after $action changes', async ({ format, action }) => {
+    const pending = deferred<void>()
+    const nativeCopy = vi.fn(async (_text: string): Promise<void> => {}).mockReturnValueOnce(pending.promise)
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+    const { controller, activeTab } = createController(shell.copyText)
+    await controller.selectRequest(request('older'))
+    try {
+      const older = controller.copyDetails(format)
+      expect(nativeCopy).toHaveBeenCalledOnce()
+      if (action === 'selection') await controller.selectRequest(request('newer'))
+      else if (action === 'refresh') await controller.refreshSelectedRequest()
+      else if (action === 'newer') await controller.copyDetails(format === 'json' ? 'url' : 'json')
+      else if (action === 'reset') controller.reset()
+      else if (action === 'dispose') controller.dispose()
+      else if (action === 'tab') activeTab.value = tab('tab-2')
+      else activeTab.value = { ...tab(), url: 'https://example.test/other' }
+      pending.reject(new Error('Obsolete detail clipboard refusal'))
+      await older
+      expect(showToast).not.toHaveBeenCalled()
+      expect(controller.detailsCopied.value).toBe(action === 'newer' ? (format === 'json' ? 'url' : 'json') : null)
+      expect(controller.monitorError.value).toBe('')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['json', 'curl', 'fetch', 'response', 'url'] as const)('keeps current %s detail-copy failures visible', async format => {
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({
+      browser: { copyText: vi.fn().mockRejectedValue(new Error('Current detail clipboard refusal')) },
+      translate: key => key, showToast
+    })
+    const { controller } = createController(shell.copyText)
+    controller.requestDetails.value = details('current')
+    try {
+      await controller.copyDetails(format)
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current detail clipboard refusal')
+      expect(controller.detailsCopied.value).toBeNull()
+    } finally { controller.dispose() }
+  })
+
+  it.each(['json', 'curl', 'fetch', 'response', 'url'] as const)('keeps %s detail-copy failures relevant when only list filters change', async format => {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({
+      browser: { copyText: vi.fn(() => pending.promise) }, translate: key => key, showToast
+    })
+    const { controller } = createController(shell.copyText)
+    controller.requestDetails.value = details('current')
+    try {
+      const copying = controller.copyDetails(format)
+      controller.search.value = 'different'
+      controller.resourceFilter.value = 'image'
+      controller.failuresOnly.value = true
+      pending.reject(new Error('Relevant detail clipboard refusal'))
+      await copying
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Relevant detail clipboard refusal')
+    } finally { controller.dispose() }
+  })
+
+})
+
 describe('HAR copy filter ownership', () => {
   it.each(['query', 'resource', 'failures', 'newer', 'reset', 'dispose', 'tab-change'])(
     'suppresses obsolete HAR failure toasts through the production feedback helper after %s', async action => {
@@ -881,7 +945,7 @@ describe('network controller', () => {
     const { browser, controller, copyText } = createController()
     controller.requestDetails.value = { ...details('copy'), url }
     await controller.copyDetails('url')
-    expect(copyText).toHaveBeenCalledExactlyOnceWith(url)
+    expect(copyText).toHaveBeenCalledExactlyOnceWith(url, expect.any(Function))
     expect(browser.getNetworkRequestDetails).not.toHaveBeenCalled()
     expect(browser.replayNetworkRequest).not.toHaveBeenCalled()
     expect(controller.detailsCopied.value).toBe('url')
@@ -898,7 +962,7 @@ describe('network controller', () => {
     controller.requestDetails.value = details('copy')
     controller.requestDetails.value.response.body = { available: true, text: body }
     await controller.copyDetails('response')
-    expect(copyText).toHaveBeenCalledExactlyOnceWith(body)
+    expect(copyText).toHaveBeenCalledExactlyOnceWith(body, expect.any(Function))
     expect(browser.getNetworkRequestDetails).not.toHaveBeenCalled()
     expect(browser.replayNetworkRequest).not.toHaveBeenCalled()
     expect(controller.detailsCopied.value).toBe('response')

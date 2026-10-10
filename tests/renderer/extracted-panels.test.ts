@@ -218,7 +218,7 @@ describe('extracted diagnostic panels', () => {
       if (body.available && typeof body.text === 'string') {
         expect(button).toBeEnabled()
         await user.click(button)
-        expect(copyText).toHaveBeenCalledExactlyOnceWith(body.text)
+        expect(copyText).toHaveBeenCalledExactlyOnceWith(body.text, expect.any(Function))
         expect(screen.getByRole('button', { name: 'Copied response body' })).toBeVisible()
       } else {
         expect(button).toBeDisabled()
