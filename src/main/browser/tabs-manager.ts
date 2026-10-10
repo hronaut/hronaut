@@ -3,6 +3,7 @@ import type { BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
 import { formValiditySettlementScript } from './form-validity.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
+import type { PendingPdfExport } from './pdf-export-publication.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -7147,7 +7148,7 @@ export class BrowserTabsManager {
     return result
   }
 
-  async savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void): Promise<BrowserPdfExport> {
+  async savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
     const tab = this.getTab(options.tabId)
     const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
     const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
@@ -7155,7 +7156,9 @@ export class BrowserTabsManager {
     const webContents = tab.webContents
     const navigationGeneration = tab.navigationGeneration
     let documentCommitted = false
+    let publicationDeferred = false
     const onDocumentCommitted = (): void => { documentCommitted = true }
+    const discard = (): void => { webContents.removeListener('did-navigate', onDocumentCommitted) }
     const assertCurrent = (): void => {
       validateExport?.()
       if (validateExport) {
@@ -7187,9 +7190,13 @@ export class BrowserTabsManager {
       }, 'print')
       assertCurrent()
       const path = await this.writeUniqueDownload(filename, data, assertCurrent)
+      if (deferExport) {
+        deferExport({ assertCurrent, discard })
+        publicationDeferred = true
+      }
       return { filename: basename(path), path, bytes: data.length }
     } finally {
-      webContents.removeListener('did-navigate', onDocumentCommitted)
+      if (!publicationDeferred) discard()
     }
   }
 
