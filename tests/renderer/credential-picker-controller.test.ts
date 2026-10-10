@@ -120,3 +120,64 @@ describe('credential picker controller', () => {
     controller.dispose()
   })
 })
+
+it.each(['BOB example', 'example   bob', 'smith bob', '  bob\tSMITH  '])('matches all account chooser search terms: %s', query => {
+  const { controller } = createController([
+    credential('bob', 'Bob Smith'), credential('alice', 'Alice'),
+    credential('foreign', 'Bob Smith', 'https://foreign.test')
+  ])
+  controller.query.value = query
+  expect(controller.credentials.value.map(entry => entry.id)).toEqual(['bob'])
+  controller.dispose()
+})
+
+it.each(['Bob Alice', 'hidden-id', '2026-08-22', 'foreign'])('rejects unrelated account or hidden metadata terms: %s', query => {
+  const { controller } = createController([
+    credential('hidden-id', 'Bob'), credential('alice', 'Alice'),
+    credential('foreign', 'Bob', 'https://foreign.test')
+  ])
+  controller.query.value = query
+  expect(controller.credentials.value).toEqual([])
+  controller.dispose()
+})
+
+it('preserves origin scope and keyboard-selected identity while matching account search terms', async () => {
+  const { controller, credentials, fillCredential, origin } = createController([
+    credential('bob', 'Bob Smith'), credential('alice', 'Alice Smith'),
+    credential('foreign', 'Carol Smith', 'https://foreign.test')
+  ])
+  await controller.openPanel()
+  controller.query.value = 'smith example'
+  await controller.moveSelection(1)
+  expect(controller.selectedCredential.value?.id).toBe('alice')
+  credentials.value = [credential('new', 'New Smith'), ...credentials.value]
+  expect(controller.selectedCredential.value?.id).toBe('alice')
+  controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter' }))
+  await vi.waitFor(() => expect(fillCredential).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 'alice' })))
+  controller.query.value = '  '
+  expect(controller.credentials.value.map(entry => entry.id)).toEqual(['new', 'bob', 'alice'])
+  origin.value = null
+  expect(controller.credentials.value).toEqual([])
+  controller.dispose()
+})
+
+it('uses the supplied locale and translated unnamed label reactively', () => {
+  const locale = ref('tr-TR')
+  const unnamed = ref('Unnamed account')
+  const controller = useCredentialPickerController({
+    open: ref(true), origin: ref('https://example.test'),
+    credentials: ref([credential('name', 'ISIK'), credential('unnamed', '')]),
+    locale, translate: () => unnamed.value, fillCredential: vi.fn()
+  })
+  controller.query.value = 'ısık example'
+  expect(controller.credentials.value.map(entry => entry.id)).toEqual(['name'])
+  locale.value = 'en-US'
+  expect(controller.credentials.value).toEqual([])
+  controller.query.value = 'account unnamed'
+  expect(controller.credentials.value.map(entry => entry.id)).toEqual(['unnamed'])
+  unnamed.value = 'Безіменний обліковий запис'
+  expect(controller.credentials.value).toEqual([])
+  controller.query.value = 'запис БЕЗІМЕННИЙ'
+  expect(controller.credentials.value.map(entry => entry.id)).toEqual(['unnamed'])
+  controller.dispose()
+})

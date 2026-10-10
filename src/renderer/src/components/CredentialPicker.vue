@@ -19,7 +19,7 @@ const props = defineProps<{
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
 const {
   input,
@@ -38,6 +38,7 @@ const {
   open,
   credentials: toRef(props, 'credentials'),
   origin: toRef(props, 'origin'),
+  locale,
   translate: (key) => t(key),
   fillCredential: props.fillCredential
 })

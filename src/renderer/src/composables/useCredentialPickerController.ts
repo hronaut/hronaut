@@ -8,6 +8,7 @@ export interface CredentialPickerControllerOptions {
   open: Ref<boolean>
   credentials: Readonly<Ref<CredentialSummary[]>>
   origin: Readonly<Ref<string | null>>
+  locale?: Readonly<Ref<string>>
   translate: Translate
   fillCredential: (credential: CredentialSummary) => unknown
 }
@@ -20,12 +21,14 @@ export function useCredentialPickerController(options: CredentialPickerControlle
     ? options.credentials.value.filter((credential) => credential.origin === options.origin.value)
     : [])
   const credentials = computed(() => {
-    const normalizedQuery = query.value.trim().toLocaleLowerCase()
-    if (!normalizedQuery) return activeCredentials.value
-    return activeCredentials.value.filter((credential) => (
-      (credential.username || options.translate('credentialPicker.unnamed')).toLocaleLowerCase().includes(normalizedQuery)
-      || credential.origin.toLocaleLowerCase().includes(normalizedQuery)
-    ))
+    const locale = options.locale?.value
+    const terms = query.value.trim().toLocaleLowerCase(locale).split(/\s+/).filter(Boolean)
+    if (!terms.length) return activeCredentials.value
+    return activeCredentials.value.filter((credential) => {
+      const text = [credential.username || options.translate('credentialPicker.unnamed'), credential.origin]
+        .join('\n').toLocaleLowerCase(locale)
+      return terms.every(term => text.includes(term))
+    })
   })
   const credentialIds = computed(() => credentials.value.map((credential) => credential.id))
   const selectedCredential = computed(() => credentials.value[selection.value])
