@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Suppress obsolete diagnostic text-export clipboard errors after a newer copy, report refresh, recorder mutation or tab context change, while keeping current failures visible.
 - Keep Site Storage clipboard errors scoped to the current report and clear copy feedback when the panel closes.
 - Suppress obsolete Network request-detail clipboard failure toasts after selecting or refreshing a request, making a newer copy or resetting the tab context, while keeping current failures visible.
 

@@ -1,5 +1,6 @@
 import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { useDiagnosticsController } from '../../src/renderer/src/composables/useDiagnosticsController.js'
 import type {
   BrowserDebugReport,
@@ -36,8 +37,9 @@ function tab(id = 'tab-1'): BrowserTabState {
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((next) => (resolve = next))
-  return { promise, resolve }
+  let reject!: (error: Error) => void
+  const promise = new Promise<Value>((next, fail) => { resolve = next; reject = fail })
+  return { promise, resolve, reject }
 }
 
 function memoryReport(action: BrowserMemoryReport['action'] = 'measure'): BrowserMemoryReport {
@@ -128,9 +130,9 @@ function reproRecording(): BrowserReproRecording {
   }
 }
 
-function createController() {
+function createController(copyTextOverride?: CopyTextWithFeedback) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
-  const copyText = vi.fn(async () => true)
+  const copyText = vi.fn(copyTextOverride ?? (async () => true))
   const browser = {
     measurePerformance: vi.fn(async () => performanceReport()),
     inspectDesign: vi.fn(),
@@ -173,8 +175,8 @@ function prepareVisualCopy() {
 
 const textCopyKinds = ['debug', 'repro', 'playwright', 'dom', 'issues', 'quality'] as const
 
-function prepareTextCopy(kind: typeof textCopyKinds[number]) {
-  const h = createController()
+function prepareTextCopy(kind: typeof textCopyKinds[number], copyTextOverride?: CopyTextWithFeedback) {
+  const h = createController(copyTextOverride)
   const report = { tabId: 'tab-1', url: 'https://example.test/app' }
   h.controller.debugReport.value = report as BrowserDebugReport
   h.controller.reproRecording.value = reproRecording()
@@ -260,12 +262,12 @@ describe('diagnostics controller', () => {
       const pending = deferred<boolean>()
       await h.copy()
       expect(h.copied.value).toBe(true)
-      const payload = h.copyText.mock.calls[0]
+      const payload = h.copyText.mock.calls[0][0]
       await vi.advanceTimersByTimeAsync(1_000)
       h.copyText.mockImplementationOnce(() => pending.promise)
       const operation = h.copy()
       expect(h.copied.value).toBe(false)
-      expect(h.copyText.mock.calls[1]).toEqual(payload)
+      expect(h.copyText.mock.calls[1][0]).toEqual(payload)
       pending.resolve(succeeded)
       await operation
       expect(h.copied.value).toBe(succeeded)
@@ -573,7 +575,7 @@ describe('diagnostics controller', () => {
       expect(actions.copied.value).toBe(false)
       await actions.copy()
       expect(actions.copied.value).toBe(true)
-      expect(copyText).toHaveBeenLastCalledWith(JSON.stringify({ ...report, title: 'Refreshed' }, null, 2))
+      expect(copyText).toHaveBeenLastCalledWith(JSON.stringify({ ...report, title: 'Refreshed' }, null, 2), expect.any(Function))
       controller.dispose()
     }
   )
@@ -769,5 +771,87 @@ describe('diagnostics controller', () => {
 
     expect(controller.debugReportCopied.value).toBe(false)
     controller.dispose()
+  })
+})
+
+
+describe('diagnostic text-copy failure ownership', () => {
+  function prepareFailure(kind: typeof textCopyKinds[number]) {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const nativeCopy = vi.fn(async (_text: string): Promise<void> => {}).mockReturnValueOnce(pending.promise)
+    const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+    return { ...prepareTextCopy(kind, shell.copyText), pending, showToast, nativeCopy }
+  }
+
+  it.each(textCopyKinds.flatMap(kind =>
+    (['newer', 'reset', 'dispose', 'tab', 'url', 'navigation'] as const).map(action => ({ kind, action }))
+  ))('suppresses obsolete $kind failure toasts after $action', async ({ kind, action }) => {
+    const h = prepareFailure(kind)
+    try {
+      const copying = h.copy()
+      expect(h.nativeCopy).toHaveBeenCalledOnce()
+      if (action === 'newer') await h.copy()
+      else if (action === 'reset') h.controller.resetForContext()
+      else if (action === 'dispose') h.controller.dispose()
+      else {
+        if (action === 'tab') h.activeTab.value = tab('tab-2')
+        else if (action === 'url') h.activeTab.value = { ...tab(), url: 'https://example.test/other' }
+        else h.activeTab.value = { ...tab(), navigationGeneration: 1 }
+        await nextTick()
+        // Returning to the same visible context must not revive the old operation.
+        h.activeTab.value = tab()
+        await nextTick()
+      }
+      h.pending.reject(new Error('Obsolete diagnostic clipboard refusal'))
+      await copying
+      expect(h.showToast).not.toHaveBeenCalled()
+      expect(h.copied.value).toBe(action === 'newer')
+    } finally { h.controller.dispose() }
+  })
+
+  it.each(['debug', 'issues', 'quality'] as const)('suppresses an obsolete %s failure after refreshing its report', async kind => {
+    const h = prepareFailure(kind)
+    const report = { tabId: 'tab-1', url: 'https://example.test/app', title: 'Refreshed' }
+    h.browser.createDebugReport.mockResolvedValue(report)
+    h.browser.runQualityAudit.mockResolvedValue(report)
+    h.browser.listInspectorIssues.mockResolvedValue(report)
+    try {
+      const copying = h.copy()
+      await { debug: h.controller.runDebugReport, issues: h.controller.refreshInspectorIssues, quality: h.controller.runQualityAudit }[kind]()
+      h.pending.reject(new Error('Obsolete refreshed diagnostic clipboard refusal'))
+      await copying
+      expect(h.showToast).not.toHaveBeenCalled()
+      expect(h.copied.value).toBe(false)
+    } finally { h.controller.dispose() }
+  })
+
+  it.each((['repro', 'playwright', 'dom'] as const).flatMap(kind =>
+    (['start', 'stop', 'clear', 'get'] as const).map(action => ({ kind, action }))
+  ))('keeps $kind failure ownership for reads but invalidates mutations: $action', async ({ kind, action }) => {
+    const h = prepareFailure(kind)
+    h.browser.manageRepro.mockResolvedValue(reproRecording())
+    h.browser.manageDomChanges.mockResolvedValue(domReport())
+    try {
+      const copying = h.copy()
+      if (kind === 'dom') await h.controller.manageDomChanges(action)
+      else await h.controller.manageRepro(action)
+      h.pending.reject(new Error('Recorder clipboard refusal'))
+      await copying
+      if (action === 'get') expect(h.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Recorder clipboard refusal')
+      else expect(h.showToast).not.toHaveBeenCalled()
+      expect(h.copied.value).toBe(false)
+    } finally { h.controller.dispose() }
+  })
+
+  it.each(textCopyKinds)('keeps current %s failures visible', async kind => {
+    const h = prepareFailure(kind)
+    try {
+      const copying = h.copy()
+      h.pending.reject(new Error('Current diagnostic clipboard refusal'))
+      await copying
+      expect(h.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current diagnostic clipboard refusal')
+      expect(h.copied.value).toBe(false)
+    } finally { h.controller.dispose() }
   })
 })
