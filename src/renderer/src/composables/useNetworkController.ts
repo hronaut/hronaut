@@ -1,5 +1,5 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
-import { computed, nextTick, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import type {
   BrowserNetworkAbortReason,
   BrowserNetworkHar,
@@ -39,6 +39,7 @@ import {
   normalizeNetworkHarOptions
 } from '../../../shared/network-har.js'
 import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
+import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 
 type NetworkBrowserApi = Pick<
   HronautApi,
@@ -64,7 +65,7 @@ export interface NetworkControllerOptions {
   open: Ref<boolean>
   browser: NetworkBrowserApi
   translate: Translate
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   syncState: (operation: Promise<BrowserState>) => Promise<void>
   keepsSeparatePanelOpen: () => boolean
 }
@@ -121,6 +122,11 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let replaySequence = 0
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
+  const stopHarFilterTracking = watch([search, resourceFilter, failuresOnly], () => {
+    harCopySequence += 1
+    harCopied.value = false
+    feedbackTimers.clear('har')
+  }, { flush: 'sync' })
 
   const resourceFilters = computed(() => [
     { value: '', label: options.translate('network.filters.all') },
@@ -608,7 +614,9 @@ export function useNetworkController(options: NetworkControllerOptions) {
     try {
       const har: BrowserNetworkHar = await options.browser.createNetworkHar(harOptions(tab.id))
       if (sequence !== harCopySequence || !isCurrent(tab.id, expectedGeneration)) return
-      if (!await options.copyText(JSON.stringify(har, null, 2))) return
+      if (!await options.copyText(JSON.stringify(har, null, 2), () => (
+        sequence === harCopySequence && isCurrent(tab.id, expectedGeneration)
+      ))) return
       if (sequence !== harCopySequence || !isCurrent(tab.id, expectedGeneration)) return
       harCopied.value = true
       feedbackTimers.schedule('har', () => (harCopied.value = false))
@@ -762,6 +770,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   function dispose(): void {
+    stopHarFilterTracking()
     invalidateRequests()
     resetReplayFeedback()
     feedbackTimers.clearAll()

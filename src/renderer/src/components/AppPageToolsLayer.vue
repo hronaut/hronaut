@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CopyTextWithFeedback } from '../composables/useShellFeedbackController.js'
 import type {
   BrowserState,
   BrowserTabState,
@@ -42,7 +43,7 @@ const props = defineProps<{
   siteManagementController: AppSiteManagementFeatureController
   credentialStorageAvailable: boolean
   syncState: (operation: Promise<BrowserState>) => Promise<void>
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   closeTransientPanels: () => void
   openSupport: (url: string) => Promise<void>
   preservationBusy: boolean
