@@ -6450,9 +6450,9 @@ export class BrowserTabsManager {
 
   async removeNetworkRoute(tabId: string | undefined, routeId: string): Promise<BrowserNetworkRouteSummary[]> {
     const tab = this.getTab(tabId)
-    const previousLength = tab.networkRoutes.length
-    tab.networkRoutes = tab.networkRoutes.filter((route) => route.id !== routeId)
-    if (tab.networkRoutes.length === previousLength) throw new Error(`Network route not found: ${routeId}`)
+    const remainingRoutes = tab.networkRoutes.filter((route) => route.id !== routeId)
+    if (remainingRoutes.length === tab.networkRoutes.length) throw new Error(`Network route not found: ${routeId}`)
+    tab.networkRoutes = remainingRoutes
     await this.applyNetworkRoutes(tab)
     this.changed(false)
     return this.networkRoutes(tab.id)

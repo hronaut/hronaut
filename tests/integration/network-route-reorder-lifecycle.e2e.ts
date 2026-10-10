@@ -4,7 +4,7 @@ import { expect, test } from './capability-fixtures.js'
 type RouteGate = { ready: boolean; release(): void; restore(): void }
 type RouteGlobal = typeof globalThis & { __routeReorderGate?: RouteGate }
 
-for (const action of ['clear', 'remove-moving', 'remove-neighbor', 'add', 'move', 'unchanged'] as const) {
+for (const action of ['clear', 'remove-moving', 'remove-neighbor', 'remove-unknown', 'remove-stale', 'add', 'move', 'unchanged'] as const) {
   test(`failed network reorder preserves ${action} while native application is pending`, async ({ capabilities, appWindow, electronApp }) => {
     const { tabId, fixtureUrl, fixtureOrigin } = capabilities
     const routes = await appWindow.evaluate(async ({ tabId, origin }) => {
@@ -13,6 +13,13 @@ for (const action of ['clear', 'remove-moving', 'remove-neighbor', 'add', 'move'
       return api.addNetworkRoute(tabId, { urlPattern: `${origin}/route-target`, response: { status: 418, body: 'moving mock' }, times: 2 })
     }, { tabId, origin: fixtureOrigin })
     const [neighbor, moving] = routes
+    const missingId = action === 'remove-stale' ? await appWindow.evaluate(async ({ tabId, origin }) => {
+      const api = (window as unknown as { hronaut: HronautApi }).hronaut
+      const added = await api.addNetworkRoute(tabId, { urlPattern: `${origin}/retired-route`, abort: 'Failed' })
+      const staleId = added.at(-1)!.id
+      await api.removeNetworkRoute(tabId, staleId)
+      return staleId
+    }, { tabId, origin: fixtureOrigin }) : '00000000-0000-4000-8000-000000000000'
     await electronApp.evaluate(({ webContents }, url) => {
       const contents = webContents.getAllWebContents().find(page => page.getURL() === url)!
       const debuggerApi = contents.debugger
@@ -39,7 +46,15 @@ for (const action of ['clear', 'remove-moving', 'remove-neighbor', 'add', 'move'
     }, { tabId, routeId: moving!.id })
     try {
       await expect.poll(() => electronApp.evaluate(() => (globalThis as RouteGlobal).__routeReorderGate?.ready)).toBe(true)
-      if (action !== 'unchanged') {
+      if (action === 'remove-unknown' || action === 'remove-stale') {
+        const error = await appWindow.evaluate(async ({ tabId, routeId }) => {
+          try {
+            await (window as unknown as { hronaut: HronautApi }).hronaut.removeNetworkRoute(tabId, routeId)
+            return 'unexpected success'
+          } catch (error) { return String(error) }
+        }, { tabId, routeId: missingId })
+        expect(error).toContain(`Network route not found: ${missingId}`)
+      } else if (action !== 'unchanged') {
         later = appWindow.evaluate(async ({ tabId, action, movingId, neighborId, origin }) => {
           const api = (window as unknown as { hronaut: HronautApi }).hronaut
           if (action === 'clear') return api.clearNetworkRoutes(tabId)
