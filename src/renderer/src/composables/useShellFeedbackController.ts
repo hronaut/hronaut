@@ -11,6 +11,9 @@ interface ShellFeedbackFailure {
   error: unknown
 }
 
+// The optional gate controls failure presentation, not the clipboard write itself.
+export type CopyTextWithFeedback = (text: string, shouldReportFailure?: () => boolean) => Promise<boolean>
+
 export interface ShellFeedbackControllerOptions {
   browser: ShellFeedbackBrowserApi
   translate: (key: string, parameters?: Record<string, unknown>) => string
@@ -41,11 +44,12 @@ export function useShellFeedbackController(options: ShellFeedbackControllerOptio
     options.showToast('error', title, message)
   }
 
-  async function copyText(text: string): Promise<boolean> {
+  async function copyText(text: string, shouldReportFailure?: () => boolean): Promise<boolean> {
     try {
       await options.browser.copyText(text)
       return true
     } catch (error) {
+      if (shouldReportFailure && !shouldReportFailure()) return false
       options.showToast(
         'error',
         options.translate('runtime.capture.copyFailed'),

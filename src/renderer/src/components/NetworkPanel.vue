@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import type { CopyTextWithFeedback } from '../composables/useShellFeedbackController.js'
 import { onBeforeUnmount, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -39,7 +40,7 @@ import PanelDockPicker from './PanelDockPicker.vue'
 const props = defineProps<{
   activeTab?: BrowserTabState
   locale: SupportedLocale
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   syncState: (operation: Promise<BrowserState>) => Promise<void>
   preservationBusy: boolean
   updatePreservation: (event: Event) => unknown

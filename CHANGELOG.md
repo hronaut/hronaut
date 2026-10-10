@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Clear Network HAR copy feedback when export filters change and discard pending exports before they can copy an obsolete selection.
+- Clear Network HAR copy feedback when export filters change, discard obsolete pending exports, and suppress late clipboard failure toasts after newer HAR actions.
 
 - Keep saved-password list focus recovery from overriding another native window or a newer focus action while an account removal or inventory update completes.
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useShellFeedbackController } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 
 function createController() {
-  const copyText = vi.fn(async (_text: string) => undefined)
+  const copyText = vi.fn(async (_text: string): Promise<void> => undefined)
   const showToast = vi.fn()
   const translate = vi.fn((key: string) => `translated:${key}`)
   const controller = useShellFeedbackController({
@@ -14,6 +14,33 @@ function createController() {
 }
 
 describe('shell feedback controller', () => {
+  it.each([true, false])('gates only caller-owned failure presentation when allowed=%s', async allowed => {
+    const { controller, copyText, showToast } = createController()
+    copyText.mockRejectedValueOnce(new Error('Guarded clipboard refusal'))
+    await expect(controller.copyText('guarded', () => allowed)).resolves.toBe(false)
+    expect(copyText).toHaveBeenCalledExactlyOnceWith('guarded')
+    expect(showToast).toHaveBeenCalledTimes(allowed ? 1 : 0)
+  })
+
+  it('checks failure ownership when a pending native write rejects', async () => {
+    const { controller, copyText, showToast } = createController()
+    let reject!: (reason: Error) => void
+    copyText.mockReturnValueOnce(new Promise<void>((_resolve, fail) => { reject = fail }))
+    let current = true
+    const copying = controller.copyText('pending', () => current)
+    current = false
+    reject(new Error('Late refusal'))
+    await expect(copying).resolves.toBe(false)
+    expect(showToast).not.toHaveBeenCalled()
+  })
+
+  it('does not cancel clipboard writes when failure presentation is no longer owned', async () => {
+    const { controller, copyText, showToast } = createController()
+    await expect(controller.copyText('still dispatched', () => false)).resolves.toBe(true)
+    expect(copyText).toHaveBeenCalledExactlyOnceWith('still dispatched')
+    expect(showToast).not.toHaveBeenCalled()
+  })
+
   it('reports browser actions and startup failures with normalized fallbacks', () => {
     const { controller, showToast } = createController()
 

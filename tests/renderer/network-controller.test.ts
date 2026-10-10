@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useNetworkController } from '../../src/renderer/src/composables/useNetworkController.js'
+import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import type {
   BrowserNetworkHarExport,
   BrowserNetworkRequest,
@@ -191,7 +192,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController() {
+function createController(copyTextOverride?: CopyTextWithFeedback) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const synced: BrowserState[] = []
   const browser = {
@@ -244,7 +245,7 @@ function createController() {
     clearNetworkRoutes: vi.fn(async () => state(tab('tab-1'))),
     getState: vi.fn(async () => state(tab('tab-1')))
   }
-  const copyText = vi.fn(async () => true)
+  const copyText = vi.fn(copyTextOverride ?? (async () => true))
   const controller = useNetworkController({
     activeTab,
     open: ref(true),
@@ -262,6 +263,46 @@ afterEach(() => {
 })
 
 describe('HAR copy filter ownership', () => {
+  it.each(['query', 'resource', 'failures', 'newer', 'reset', 'dispose', 'tab-change'])(
+    'suppresses obsolete HAR failure toasts through the production feedback helper after %s', async action => {
+      const pending = deferred<void>()
+      const nativeCopy = vi.fn(async (_text: string) => {}).mockReturnValueOnce(pending.promise)
+      const showToast = vi.fn()
+      const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+      const { controller, activeTab } = createController(shell.copyText)
+      try {
+        const older = controller.copyHar()
+        await vi.waitFor(() => expect(nativeCopy).toHaveBeenCalledOnce())
+        if (action === 'query') controller.search.value = 'changed'
+        else if (action === 'resource') controller.resourceFilter.value = 'fetch/xhr'
+        else if (action === 'failures') controller.failuresOnly.value = true
+        else if (action === 'newer') await controller.copyHar()
+        else if (action === 'tab-change') activeTab.value = tab('tab-2')
+        else if (action === 'reset') controller.reset()
+        else controller.dispose()
+        pending.reject(new Error('Obsolete native clipboard refusal'))
+        await older
+        expect(showToast).not.toHaveBeenCalled()
+        expect(controller.harCopied.value).toBe(action === 'newer')
+        expect(controller.monitorError.value).toBe('')
+      } finally { controller.dispose() }
+    }
+  )
+
+  it('keeps current HAR clipboard failures visible through the production feedback helper', async () => {
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({
+      browser: { copyText: vi.fn().mockRejectedValue(new Error('Current native clipboard refusal')) },
+      translate: key => key, showToast
+    })
+    const { controller } = createController(shell.copyText)
+    try {
+      await controller.copyHar()
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current native clipboard refusal')
+      expect(controller.harCopied.value).toBe(false)
+    } finally { controller.dispose() }
+  })
+
   function changeFilter(controller: ReturnType<typeof createController>['controller'], filter: string): void {
     if (filter === 'query') controller.search.value = 'method:POST'
     else if (filter === 'resource') controller.resourceFilter.value = 'fetch/xhr'
@@ -515,7 +556,7 @@ describe('network controller', () => {
     else older.reject(new Error('Older export failed'))
     await firstCopy
     expect(copyText).toHaveBeenCalledOnce()
-    expect(copyText).toHaveBeenCalledWith(expect.stringContaining('newer export'))
+    expect(copyText).toHaveBeenCalledWith(expect.stringContaining('newer export'), expect.any(Function))
     expect(controller.harCopied.value).toBe(true)
     expect(controller.monitorError.value).toBe('')
     controller.dispose()
