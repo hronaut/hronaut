@@ -116,12 +116,17 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let monitorRequestSequence = 0
   let routeRequestSequence = 0
   let routeMutationSequence = 0
+  let routeDraftGeneration = 0
   let requestDetailsSequence = 0
   let detailsCopySequence = 0
   let harCopySequence = 0
   let replaySequence = 0
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
+  const stopRouteDraftTracking = watch([
+    routeMode, routePattern, routeMethod, routeTimes, routeAbort,
+    routeThrottle, routeStatus, routeHeaders, routeBody
+  ], () => { routeDraftGeneration += 1 }, { flush: 'sync' })
   const stopHarFilterTracking = watch([search, resourceFilter, failuresOnly], () => {
     harCopySequence += 1
     harCopied.value = false
@@ -325,6 +330,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     if (!tab) return
     const expectedGeneration = generation
     const sequence = beginRouteMutation()
+    const submittedDraftGeneration = routeDraftGeneration
     routeState.value = 'saving'
     routeError.value = ''
     try {
@@ -351,7 +357,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       await options.syncState(options.browser.getState())
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routes.value = nextRoutes
-      resetRouteDraft()
+      if (routeDraftGeneration === submittedDraftGeneration) resetRouteDraft()
       routeState.value = 'ready'
     } catch (cause) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
@@ -771,6 +777,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   function dispose(): void {
+    stopRouteDraftTracking()
     stopHarFilterTracking()
     invalidateRequests()
     resetReplayFeedback()
