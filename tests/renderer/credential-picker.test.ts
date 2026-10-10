@@ -55,7 +55,7 @@ describe('CredentialPicker', () => {
     const search = screen.getByRole('combobox', { name: 'Search saved accounts' })
 
     expect(screen.getByRole('dialog', { name: 'Choose an account' })).toBeVisible()
-    await user.type(search, 'bob')
+    await user.type(search, 'EXAMPLE bob')
     expect(screen.getByRole('option', { name: /Bob/ })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Enter}')
     await vi.waitFor(() => expect(fillCredential).toHaveBeenCalledWith(expect.objectContaining({ id: 'bob' })))

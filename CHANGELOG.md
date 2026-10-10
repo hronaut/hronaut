@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Search the current website’s account chooser using multiple words across account names and origins, with locale-aware matching and existing keyboard selection.
+
 - Search saved passwords using multiple words across displayed account names and website origins, with matching and total counts.
 
 ### Fixed
