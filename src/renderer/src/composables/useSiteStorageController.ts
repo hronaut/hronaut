@@ -102,14 +102,13 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   })
 
   const filteredItems = computed(() => {
-    const query = search.value.trim().toLocaleLowerCase()
+    const terms = search.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
     const items = result.value?.items ?? []
-    if (!query) return items
-    return items.filter((item) => (
-      item.key.toLocaleLowerCase().includes(query)
-      || item.value?.toLocaleLowerCase().includes(query)
-      || item.domain?.toLocaleLowerCase().includes(query)
-    ))
+    if (!terms.length) return items
+    return items.filter((item) => {
+      const text = [item.key, item.value ?? '', item.domain ?? ''].join('\n').toLocaleLowerCase()
+      return terms.every(term => text.includes(term))
+    })
   })
 
   const kindLabel = computed(() => options.translate({
