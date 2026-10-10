@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-10-10
+
 ### Added
 
 - Filter retained site-storage entries using multiple words across keys, value previews and cookie domains, without loading additional data.
