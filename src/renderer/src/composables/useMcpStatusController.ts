@@ -1,10 +1,11 @@
 import { computed, ref, watch, type Ref } from 'vue'
+import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
 import type { HronautMcpApi, McpControlState } from '../../../shared/types.js'
 
 export interface McpStatusControllerOptions {
   api: HronautMcpApi
   endpoint: Readonly<Ref<string>>
-  copyText: (text: string) => Promise<boolean>
+  copyText: CopyTextWithFeedback
   onPauseError: (error: unknown) => void
 }
 
@@ -97,12 +98,12 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     const operationGeneration = generation
     const sequence = ++copySequence
     clearCopiedFeedback()
-    if (!await options.copyText(endpoint)) return false
-    if (
-      operationGeneration !== generation
-      || sequence !== copySequence
-      || options.endpoint.value !== endpoint
-    ) return false
+    const ownsFeedback = (): boolean => (
+      operationGeneration === generation
+      && sequence === copySequence
+      && options.endpoint.value === endpoint
+    )
+    if (!await options.copyText(endpoint, ownsFeedback) || !ownsFeedback()) return false
     copied.value = true
     if (copiedTimer !== undefined) window.clearTimeout(copiedTimer)
     copiedTimer = window.setTimeout(() => {

@@ -22,7 +22,7 @@ import { useCommercialLicenseController } from '../features/settings/support/use
 import { useCredentialsController } from './useCredentialsController.js'
 import { useDownloadSettingsController } from './useDownloadSettingsController.js'
 import { useMcpSettingsController } from './useMcpSettingsController.js'
-import { useMcpStatusController } from './useMcpStatusController.js'
+import { useMcpStatusController, type McpStatusControllerOptions } from './useMcpStatusController.js'
 import { usePerformanceSettingsController } from './usePerformanceSettingsController.js'
 import { usePrivacySettingsController } from './usePrivacySettingsController.js'
 import { useReleaseHistoryController } from './useReleaseHistoryController.js'
@@ -87,7 +87,7 @@ export interface AppSettingsFeatureControllerOptions {
   closeHelpDialog: () => void
   closeTransientPanels: () => void
   applyTheme: (settings: AppSettings) => void
-  copyText: (text: string) => Promise<boolean>
+  copyText: McpStatusControllerOptions['copyText']
   translate: Translate
   formatNumber: (value: number) => string
   confirm: (message: string) => boolean

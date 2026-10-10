@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useShellFeedbackController, type CopyTextWithFeedback } from '../../src/renderer/src/composables/useShellFeedbackController.js'
 import { useMcpStatusController } from '../../src/renderer/src/composables/useMcpStatusController.js'
 import type { HronautMcpApi, McpControlState } from '../../src/shared/types.js'
 
@@ -17,7 +18,7 @@ function control(overrides: Partial<McpControlState> = {}): McpControlState {
   return { status: 'ready', paused: false, ...overrides }
 }
 
-function createController(getState: () => Promise<McpControlState> = async () => control()) {
+function createController(getState: () => Promise<McpControlState> = async () => control(), copyTextOverride?: CopyTextWithFeedback) {
   let listener: ((state: McpControlState) => void) | undefined
   const setPaused = vi.fn(async (paused: boolean) => control({ status: paused ? 'paused' : 'ready', paused }))
   const unsubscribe = vi.fn(() => { listener = undefined })
@@ -29,7 +30,7 @@ function createController(getState: () => Promise<McpControlState> = async () =>
       return unsubscribe
     })
   }
-  const copyText = vi.fn(async () => true)
+  const copyText = vi.fn(copyTextOverride ?? (async () => true))
   const onPauseError = vi.fn()
   const endpoint = ref('http://127.0.0.1:47812/mcp')
   const controller = useMcpStatusController({ api, endpoint, copyText, onPauseError })
@@ -170,7 +171,7 @@ describe('MCP status controller', () => {
     await expect(controller.copyEndpoint()).resolves.toBe(true)
     await vi.advanceTimersByTimeAsync(600)
 
-    expect(copyText).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:47812/mcp')
+    expect(copyText).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:47812/mcp', expect.any(Function))
     expect(controller.copied.value).toBe(true)
     await vi.advanceTimersByTimeAsync(900)
     expect(controller.copied.value).toBe(false)
@@ -194,7 +195,7 @@ describe('MCP status controller', () => {
     expect(controller.copied.value).toBe(succeeded)
     await vi.advanceTimersByTimeAsync(900)
     expect(controller.copied.value).toBe(false)
-    expect(copyText).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:47812/mcp')
+    expect(copyText).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:47812/mcp', expect.any(Function))
     expect(setPaused).not.toHaveBeenCalled()
     controller.dispose()
   })
@@ -345,4 +346,57 @@ describe('MCP status controller', () => {
     pausing.resolve(control({ status: 'paused', paused: true }))
     await expect(pauseOperation).resolves.toBe(false)
   })
+})
+
+
+describe('MCP endpoint clipboard failure ownership', () => {
+  function prepareFailure() {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const nativeCopy = vi.fn(async (_text: string): Promise<void> => {}).mockReturnValueOnce(pending.promise)
+    const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+    return { ...createController(undefined, shell.copyText), pending, showToast, nativeCopy }
+  }
+
+  it.each(['newer-success', 'newer-failure', 'endpoint', 'endpoint-return', 'dispose'] as const)(
+    'suppresses obsolete endpoint failure toasts after %s', async action => {
+      const h = prepareFailure()
+      try {
+        const copying = h.controller.copyEndpoint()
+        expect(h.nativeCopy).toHaveBeenCalledExactlyOnceWith('http://127.0.0.1:47812/mcp')
+        if (action === 'newer-success') await expect(h.controller.copyEndpoint()).resolves.toBe(true)
+        else if (action === 'newer-failure') {
+          h.nativeCopy.mockRejectedValueOnce(new Error('Current endpoint refusal'))
+          await expect(h.controller.copyEndpoint()).resolves.toBe(false)
+        } else if (action === 'dispose') h.controller.dispose()
+        else {
+          h.endpoint.value = 'http://127.0.0.1:47813/mcp'
+          if (action === 'endpoint-return') h.endpoint.value = 'http://127.0.0.1:47812/mcp'
+        }
+        h.pending.reject(new Error('Obsolete endpoint refusal'))
+        await expect(copying).resolves.toBe(false)
+        if (action === 'newer-failure') expect(h.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current endpoint refusal')
+        else expect(h.showToast).not.toHaveBeenCalled()
+        expect(h.controller.copied.value).toBe(action === 'newer-success')
+      } finally { h.controller.dispose() }
+    }
+  )
+
+  it.each(['current', 'summary-close', 'refresh', 'pause', 'state'] as const)(
+    'keeps relevant endpoint failure feedback after %s', async action => {
+      const h = prepareFailure()
+      await h.controller.initialize()
+      try {
+        const copying = h.controller.copyEndpoint()
+        if (action === 'summary-close') { h.controller.summaryOpen.value = true; h.controller.summaryOpen.value = false }
+        else if (action === 'refresh') await h.controller.refresh()
+        else if (action === 'pause') await h.controller.togglePaused()
+        else if (action === 'state') h.emit(control({ status: 'paused', paused: true }))
+        h.pending.reject(new Error('Relevant endpoint refusal'))
+        await expect(copying).resolves.toBe(false)
+        expect(h.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Relevant endpoint refusal')
+        expect(h.controller.copied.value).toBe(false)
+      } finally { h.controller.dispose() }
+    }
+  )
 })

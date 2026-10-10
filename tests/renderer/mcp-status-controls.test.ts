@@ -99,7 +99,7 @@ describe('McpStatusControls', () => {
     expect(screen.getByText('Client initialization')).toBeVisible()
     expect(screen.getByText('Read-only probe')).toBeVisible()
     await userEvent.setup().click(screen.getByRole('button', { name: 'Copy URL' }))
-    expect(copyText).toHaveBeenCalledWith('http://127.0.0.1:47812/mcp')
+    expect(copyText).toHaveBeenCalledWith('http://127.0.0.1:47812/mcp', expect.any(Function))
     expect(screen.getAllByRole('button', { name: /MCP URL copied/ })).toHaveLength(1)
     await userEvent.setup().keyboard('{Escape}')
     expect(screen.getByRole('button', { name: /MCP ready/ })).toHaveFocus()
