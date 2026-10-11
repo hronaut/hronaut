@@ -181,6 +181,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       refreshTimer = undefined
     }
     if (!open) {
+      clearCopyFeedback()
       if (liveUpdatesPaused.value) {
         requestSequence += 1
         pendingRefresh = null

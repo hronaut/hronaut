@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Retire Console copy feedback when closing the panel, so a delayed clipboard result cannot restore an old “Copied” indicator or display an obsolete error after closing or reopening. Clipboard writes already dispatched are not undone; retained messages and filters are preserved.
+
 - Keep Network condition controls busy and retain their displayed list while a condition edit is pending. Overlapping refreshes coalesce into one read after settlement, so uncommitted conditions stay hidden and rules consumed or changed during state synchronization are reconciled without clearing a mutation error or newer draft.
 
 ## [2.34.0] - 2026-10-11
