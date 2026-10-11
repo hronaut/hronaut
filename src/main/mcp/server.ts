@@ -1039,7 +1039,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1137,6 +1137,11 @@ function createBrowserMcpServer(
             { type: 'text', text: JSON.stringify(inspection.report) },
             ...(inspection.image ? [{ type: 'image' as const, data: Buffer.from(inspection.image).toString('base64'), mimeType: 'image/png' as const }] : [])
           ] }
+        }
+        if (name === 'browser_network_request' && !result.isError) {
+          if (!frameRequest.networkPublication) throw new Error('Network detail publication guard is unavailable')
+          frameRequest.networkPublication()
+          return result // No await after validating the retained request and its authority.
         }
         if (name === 'browser_pdf_save' && !result.isError) {
           const publication = frameRequest.pdfExport
@@ -1880,7 +1885,7 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
-                ...((name === 'browser_element_inspect' || name === 'browser_media_state') ? { validateInspection: requireCurrentTarget } : {}),
+                ...((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_network_request') ? { validateInspection: requireCurrentTarget } : {}),
                 ...(name === 'browser_click' ? { validateClick: (validateContext: () => void) => {
                   try {
                     if (extra?.signal?.aborted) throw new Error('Native click cancelled; earlier input effects are not rolled back')
@@ -4420,13 +4425,16 @@ function createBrowserMcpServer(
         copyAs: z.enum(['json', 'curl', 'fetch']).optional()
       }
     },
-    tabTool('browser_network_request', async ({ requestId, tabId, maxChars, copyAs }: {
+    tabTool('browser_network_request', async ({ requestId, tabId, maxChars, copyAs, validateInspection }: {
       requestId: string
       tabId?: string
       maxChars?: number
       copyAs?: 'json' | BrowserNetworkRequestCopyFormat
+      validateInspection?: () => void
     }) => {
-      const details = await manager.networkRequestDetails(tabId, requestId, maxChars)
+      const details = await manager.networkRequestDetails(tabId, requestId, maxChars, true, assertCurrent => {
+        frameRequests.getStore()!.networkPublication = () => { validateInspection?.(); assertCurrent() }
+      })
       return textResult(copyAs && copyAs !== 'json' ? formatNetworkRequestCopy(details, copyAs) : details)
     })
   )

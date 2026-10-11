@@ -22,7 +22,7 @@ import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
-import { recordNetworkDebuggerMessage, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
+import { recordNetworkDebuggerMessage, retireNetworkPriorityObservations, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
 import { DEFAULT_RENDERING_DEBUG } from '../../shared/browser-environment.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from './emulation-state.js'
@@ -1767,7 +1767,10 @@ export class BrowserTabsManager {
       if ((group.agentAccess !== false) !== updates.agentAccess) {
         this.inspectionPermissions.set(group, (this.inspectionPermissions.get(group) ?? 0) + 1)
         // A permission round-trip must not let an older image commit afterward.
-        for (const tab of this.tabs.values()) if (tab.mcpGroupId === groupId) tab.visualComparisonGeneration += 1
+        for (const tab of this.tabs.values()) if (tab.mcpGroupId === groupId) {
+          tab.visualComparisonGeneration += 1
+          retireNetworkPriorityObservations(tab)
+        }
       }
       group.agentAccess = updates.agentAccess
     }
@@ -4571,6 +4574,10 @@ export class BrowserTabsManager {
   }
 
   setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
+    if (this.allAgentsPaused !== paused || this.agentPauseOverridesAllowed !== allowTabOverrides
+      || this.globallyResumedAgentTabIds.size > 0) {
+      for (const tab of this.tabs.values()) retireNetworkPriorityObservations(tab)
+    }
     this.allAgentsPaused = paused
     this.agentPauseOverridesAllowed = allowTabOverrides
     this.globallyResumedAgentTabIds.clear()
@@ -4581,6 +4588,7 @@ export class BrowserTabsManager {
     const tab = this.getTab(tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Agent control is only available for page tabs.')
     if (this.allAgentsPaused && !this.agentPauseOverridesAllowed) throw new Error('Agents are temporarily paused for a protected operation.')
+    if (this.isTabAgentPaused(tab.id) !== paused) retireNetworkPriorityObservations(tab)
     if (this.allAgentsPaused) {
       if (paused) this.globallyResumedAgentTabIds.delete(tab.id)
       else this.globallyResumedAgentTabIds.add(tab.id)
@@ -6309,11 +6317,16 @@ export class BrowserTabsManager {
     tabId: string | undefined,
     requestId: string,
     maxChars = 20_000,
-    includeBody = true
+    includeBody = true,
+    deferPublication?: (assertCurrent: () => void) => void
   ): Promise<BrowserNetworkRequestDetails> {
     const tab = this.getTab(tabId)
     const request = this.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
     if (!request) throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
+    const navigationGeneration = tab.navigationGeneration
+    const priorityGeneration = tab.networkPriorityGeneration ?? 0
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
     const boundedMaxChars = Math.min(Math.max(Math.round(maxChars), 1_000), 100_000)
     const requestContentType = headerValue(request.requestHeaders, 'content-type')
     const responseContentType = request.mimeType || headerValue(request.responseHeaders, 'content-type')
@@ -6350,6 +6363,19 @@ export class BrowserTabsManager {
         }
       }
     }
+    const assertCurrent = (): void => {
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
+        || currentWorkspace !== workspace
+        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || tab.navigationGeneration !== navigationGeneration
+        || (tab.networkPriorityGeneration ?? 0) !== priorityGeneration
+        || !this.currentNetworkRequests(tab).includes(request)) {
+        throw new Error('Network request observation changed while reading details. Call browser_network for current request IDs.')
+      }
+    }
+    assertCurrent()
+    deferPublication?.(assertCurrent)
     const timing = deriveNetworkTiming(request.resourceTiming, request.completedMonotonicSeconds)
     const serverTiming = parseServerTimingHeaders(request.responseHeaders)
     const responseHeaders = redactNetworkHeaders(request.responseHeaders)
@@ -6363,6 +6389,10 @@ export class BrowserTabsManager {
 
     return {
       ...this.networkRequestSummary(request),
+      priority: {
+        initial: request.initialPriority ?? null,
+        latestObserved: request.latestPriority ?? null
+      },
       request: {
         headers: redactNetworkHeaders(request.requestHeaders),
         ...(request.requestBody !== undefined
@@ -8355,6 +8385,7 @@ export class BrowserTabsManager {
       }
     })
     webContents.debugger.on('detach', () => {
+      retireNetworkPriorityObservations(tab)
       tab.dialog = undefined
       tab.mainFrameId = undefined
       tab.networkDebuggerEnabled = false
@@ -8434,6 +8465,7 @@ export class BrowserTabsManager {
       tab.pageLifecycleUnknownRequest = undefined
       tab.pageLifecycleAnimations = undefined
       tab.navigationGeneration += 1
+      retireNetworkPriorityObservations(tab)
       this.invalidateTabOverviewPreview(tab)
       this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
         this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)

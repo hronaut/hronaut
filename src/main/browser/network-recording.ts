@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   BrowserNetworkRequest,
+  BrowserNetworkPriority,
   BrowserNetworkInitiator,
   BrowserWebSocketMessage,
   BrowserEventSourceMessage
@@ -32,6 +33,7 @@ export interface BrowserNetworkRecordingState {
   mainFrameId?: string
   networkRequests: BrowserNetworkRequestRecord[]
   networkCaptureSequence: number
+  networkPriorityGeneration?: number
   observationGeneration: number
   securitySnapshot?: {
     url: string
@@ -43,6 +45,10 @@ export interface BrowserNetworkRecordingState {
 }
 
 export interface BrowserNetworkRequestRecord extends BrowserNetworkRequest {
+  priorityGeneration?: number
+  initialPriority?: BrowserNetworkPriority
+  latestPriority?: BrowserNetworkPriority
+  priorityMonotonicSeconds?: number
   captureSequence: number
   observationGeneration: number
   cdpRequestId?: string
@@ -69,6 +75,16 @@ export interface BrowserNetworkRequestRecord extends BrowserNetworkRequest {
 interface CdpNetworkResponseMetadata extends CdpNetworkResponseSourceInput {
   serviceWorkerResponseSource?: unknown
   cacheStorageCacheName?: unknown
+}
+
+/** Retain historical values, but stop attaching new events across document/debugger ownership. */
+export function retireNetworkPriorityObservations(tab: BrowserNetworkRecordingState): void {
+  tab.networkPriorityGeneration = (tab.networkPriorityGeneration ?? 0) + 1
+}
+
+function nativePriority(value: unknown): BrowserNetworkPriority | undefined {
+  return value === 'VeryLow' || value === 'Low' || value === 'Medium' || value === 'High' || value === 'VeryHigh'
+    ? value : undefined
 }
 
 function applyNetworkResponseMetadata(
@@ -297,6 +313,7 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
         method?: string
         headers?: Record<string, string>
         postData?: string
+        initialPriority?: unknown
       }
       redirectResponse?: {
         status?: number
@@ -359,6 +376,9 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
         ? new Date((details.wallTime as number) * 1_000).toISOString()
         : new Date().toISOString(),
       ...(Number.isFinite(details.timestamp) ? { startedMonotonicSeconds: details.timestamp } : {}),
+      priorityGeneration: tab.networkPriorityGeneration ?? 0,
+      initialPriority: nativePriority(request.initialPriority),
+      latestPriority: nativePriority(request.initialPriority),
       detailsAvailable: true,
       requestHeaders: request.headers ? { ...request.headers } : {},
       ...(initiator ? { initiator } : {}),
@@ -380,6 +400,25 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
     && candidate.completedAt === undefined
   ))
   if (!request) return
+
+  if (method === 'Network.resourceChangedPriority') {
+    const { timestamp, newPriority } = params as { timestamp?: unknown; newPriority?: unknown }
+    // Chromium reuses IDs across redirect hops. Only accept an observation
+    // strictly newer than this retained hop and its last priority observation.
+    // Completed, retired, evicted and cleared records never reach this branch.
+    if ((request.priorityGeneration ?? 0) !== (tab.networkPriorityGeneration ?? 0)
+      || tab.networkRequests.filter((candidate) => candidate.cdpRequestId === requestId
+        && candidate.observationGeneration === tab.observationGeneration && candidate.completedAt === undefined).length !== 1
+      || typeof timestamp !== 'number' || !Number.isFinite(timestamp)
+      || request.startedMonotonicSeconds === undefined
+      || !Number.isFinite(request.startedMonotonicSeconds)
+      || request.startedMonotonicSeconds < 0
+      || timestamp <= request.startedMonotonicSeconds
+      || (request.priorityMonotonicSeconds !== undefined && timestamp <= request.priorityMonotonicSeconds)) return
+    request.latestPriority = nativePriority(newPriority)
+    request.priorityMonotonicSeconds = timestamp
+    return
+  }
 
   if (method === 'Network.responseReceived') {
     const responseDetails = params as {

@@ -1654,7 +1654,16 @@ export interface BrowserEventSourceDetails {
   droppedMessages: number
 }
 
+export type BrowserNetworkPriority = 'VeryLow' | 'Low' | 'Medium' | 'High' | 'VeryHigh'
+
+export interface BrowserNetworkPriorityObservation {
+  initial: BrowserNetworkPriority | null
+  latestObserved: BrowserNetworkPriority | null
+}
+
 export interface BrowserNetworkRequestDetails extends BrowserNetworkRequest {
+  /** Native scheduling observations; null means unavailable, not a default priority. */
+  priority?: BrowserNetworkPriorityObservation
   request: {
     headers: Record<string, string | string[]>
     body?: BrowserNetworkBody

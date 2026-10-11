@@ -1,3 +1,4 @@
+import { networkPriorityMessages } from './network-priority.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -12,6 +13,7 @@ export const ukUA = {
   licenseNotice: {"expired": "Автоматизацію агентів заблоковано. Активуйте або поновіть ліцензію. Збережені дані залишаються доступними.", "manage": "Налаштування ліцензії", "purchase": "Придбати або поновити ↗"},
   pwaLifecycle: pwaLifecycleMessages['uk-UA'],
   softNavigation: softNavigationMessages['uk-UA'],
+  networkPriority: networkPriorityMessages['uk-UA'],
   lcpAttribution: lcpAttributionMessages['uk-UA'],
   browserImport: browserImportMessages['uk-UA'],
   video: enUS.video,

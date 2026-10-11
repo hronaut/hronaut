@@ -1,3 +1,4 @@
+import { networkPriorityMessages } from './network-priority.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -12,6 +13,7 @@ export const ruRU = {
   licenseNotice: {"expired": "Автоматизация агентов заблокирована. Активируйте или продлите лицензию. Сохранённые данные остаются доступными.", "manage": "Настройки лицензии", "purchase": "Купить или продлить ↗"},
   pwaLifecycle: pwaLifecycleMessages['ru-RU'],
   softNavigation: softNavigationMessages['ru-RU'],
+  networkPriority: networkPriorityMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],
   video: enUS.video,

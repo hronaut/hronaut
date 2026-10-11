@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Show Chromium’s initial and latest observed request priority in selected Network details, `browser_network_request`, and sanitized JSON copy. Missing observations stay unavailable; scheduling priority does not establish transfer order, server handling or an LCP cause.
+
 ### Fixed
 
 - Retire pending Copy HAR results and feedback when clearing the Network list, so an older export cannot copy cleared records or restore obsolete success/error messages. Clipboard writes already dispatched are not undone.
