@@ -9385,7 +9385,14 @@ export class BrowserTabsManager {
     try {
       // Recheck after lifting the compositor barrier, immediately before input.
       validateInput?.()
-      if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
+      if (mouse) {
+        // CDP points use CSS pixels; Electron's native mouse events include
+        // the page zoom. Capture that transform at dispatch, after any wait.
+        const zoomFactor = webContents.getZoomFactor()
+        mouse.x *= zoomFactor
+        mouse.y *= zoomFactor
+        this.authorizedAgentMouseInput.set(webContents.id, mouse)
+      }
       if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
       return await webContents.debugger.sendCommand(method, commandParams)
     } finally {

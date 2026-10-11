@@ -11,15 +11,16 @@ type AdmissionGate = {
 }
 type AdmissionGlobal = typeof globalThis & { __inputAdmissionGate?: AdmissionGate }
 
-for (const locked of [false, true]) {
+for (const zoom of [0.8, 1, 1.25, 2]) for (const locked of [false, true]) {
   for (const directInput of ['none', 'mouse', 'keyboard'] as const) {
-    test(`native click after ${directInput} input with lock ${locked}`, async ({ capabilities, electronApp, appWindow }) => {
+    test(`native click after ${directInput} input with lock ${locked} at zoom ${zoom}`, async ({ capabilities, electronApp, appWindow }) => {
       const { client, tabId, fixtureUrl } = capabilities
       let pending: Promise<CallToolResult> | undefined
       const generation = (): Promise<number> => appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionGeneration ?? 0, tabId)
       try {
-        await electronApp.evaluate(async ({ webContents }, url) => {
+        await electronApp.evaluate(async ({ webContents }, { url, zoom }) => {
           const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
+          page.setZoomFactor(zoom)
           await page.executeJavaScript(`document.body.innerHTML='<button id="agent" style="position:fixed;left:100px;top:100px;width:150px;height:80px">Agent target</button><button id="human" style="position:fixed;left:350px;top:100px;width:150px;height:80px">Direct target</button>';window.agentClicks=0;window.directInputs=0;document.querySelector('#agent').onclick=()=>window.agentClicks++;document.querySelector('#human').onmousedown=()=>window.directInputs++;document.body.onkeydown=()=>window.directInputs++;document.querySelector('#human').focus();`)
           const api = page.debugger
           const original = api.sendCommand
@@ -31,7 +32,7 @@ for (const locked of [false, true]) {
             if (!page.isDestroyed()) api.sendCommand = original
           } }
           const onMouse = (event: Electron.Event, input: Electron.MouseInputEvent): void => {
-            if (input.type === 'mouseDown' && input.x === 400 && input.y === 140 && gate.nativeEvents.length < 32) gate.nativeEvents.push({ type: input.type, prevented: event.defaultPrevented })
+            if (input.type === 'mouseDown' && input.x === 400 * zoom && input.y === 140 * zoom && gate.nativeEvents.length < 32) gate.nativeEvents.push({ type: input.type, prevented: event.defaultPrevented })
           }
           const onKeyboard = (event: Electron.Event, input: Electron.Input): void => {
             if (input.key === 'x' && input.type === 'keyDown' && gate.nativeEvents.length < 32) gate.nativeEvents.push({ type: input.type, prevented: event.defaultPrevented })
@@ -49,25 +50,25 @@ for (const locked of [false, true]) {
             }
             return result
           }
-        }, fixtureUrl)
+        }, { url: fixtureUrl, zoom })
         await appWindow.evaluate(({ id, locked }) => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, locked), { id: tabId, locked })
         const before = await generation()
         pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#agent', native: true } }) as Promise<CallToolResult>
         await expect.poll(() => electronApp.evaluate(() => (globalThis as AdmissionGlobal).__inputAdmissionGate?.ready)).toBe(true)
         if (directInput !== 'none') {
-          await electronApp.evaluate(({ webContents }, { url, directInput }) => {
+          await electronApp.evaluate(({ webContents }, { url, directInput, zoom }) => {
             const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
             page.focus()
             // Deliberately differs from the outstanding CDP mouse movement.
             // This exercises native admission, not proof of physical origin.
             if (directInput === 'mouse') {
-              page.sendInputEvent({ type: 'mouseDown', x: 400, y: 140, button: 'left', clickCount: 1 })
-              page.sendInputEvent({ type: 'mouseUp', x: 400, y: 140, button: 'left', clickCount: 1 })
+              page.sendInputEvent({ type: 'mouseDown', x: 400 * zoom, y: 140 * zoom, button: 'left', clickCount: 1 })
+              page.sendInputEvent({ type: 'mouseUp', x: 400 * zoom, y: 140 * zoom, button: 'left', clickCount: 1 })
             } else {
               page.sendInputEvent({ type: 'keyDown', keyCode: 'X' })
               page.sendInputEvent({ type: 'keyUp', keyCode: 'X' })
             }
-          }, { url: fixtureUrl, directInput })
+          }, { url: fixtureUrl, directInput, zoom })
           await expect.poll(() => electronApp.evaluate(() => (globalThis as AdmissionGlobal).__inputAdmissionGate!.nativeEvents.length)).toBe(1)
           expect(await electronApp.evaluate(() => (globalThis as AdmissionGlobal).__inputAdmissionGate!.nativeEvents)).toEqual([{ type: directInput === 'mouse' ? 'mouseDown' : 'keyDown', prevented: locked }])
           if (!locked) await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.directInputs'), fixtureUrl)).toBe(1)

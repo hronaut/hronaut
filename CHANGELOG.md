@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Stop a pending native click after an unlocked, mismatched key-down or mouse-down reaches the page, while preserving input-lock behavior. Event matching does not distinguish same-shaped physical and CDP input.
+- Stop a pending native click after an unlocked, mismatched key-down or mouse-down reaches the page, while keeping mismatched locked input blocked. Match expected pointer coordinates at the current page zoom so legitimate zoomed clicks remain usable. Event matching does not distinguish same-shaped physical and CDP input.
 
 - Recheck authority and cancellation between MCP native-click input phases. A pause, access change or navigation stops later presses; a successful press still receives its release. Earlier hover or click effects are not rolled back, so inspect the page before retrying.
 
