@@ -51,6 +51,23 @@ for (const loseAck of [false, true]) {
   })
 }
 
+test('wheel uses viewport coordinates after the document scrolls in both axes', async ({ capabilities, electronApp }, testInfo) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  await electronApp.evaluate(async ({ webContents }, url) => {
+    await webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript(`document.body.style.cssText='margin:0;min-width:3000px;min-height:3000px';document.body.innerHTML='<div id="canvas" style="position:absolute;left:380px;top:680px;width:400px;height:300px">Canvas</div>';window.scrolledWheelEvents=[];document.querySelector('#canvas').addEventListener('wheel',e=>{window.scrolledWheelEvents.push({clientX:e.clientX,clientY:e.clientY,pageX:e.pageX,pageY:e.pageY,deltaX:e.deltaX,deltaY:e.deltaY,trusted:e.isTrusted});e.preventDefault()},{passive:false});scrollTo(300,600);void 0`)
+  }, fixtureUrl)
+  const observe = () => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript(`({scroll:[scrollX,scrollY],rect:[document.querySelector('#canvas').getBoundingClientRect().x,document.querySelector('#canvas').getBoundingClientRect().y],events:window.scrolledWheelEvents})`), fixtureUrl)
+  await expect.poll(observe).toEqual({ scroll: [300, 600], rect: [80, 80], events: [] })
+  await observeCommands(electronApp, fixtureUrl)
+  const result = await client.callTool({ name: 'browser_wheel', arguments: { tabId, x: 150.5, y: 150.25, deltaX: -11.5, deltaY: 7.25 } }) as CallToolResult
+  expect(result.isError, text(result)).not.toBe(true)
+  expect(JSON.parse(text(result))).toMatchObject({ status: 'DISPATCH_ACKNOWLEDGED' })
+  await expect.poll(observe).toEqual({ scroll: [300, 600], rect: [80, 80], events: [{ clientX: 150, clientY: 150, pageX: 450, pageY: 750, deltaX: -11.5, deltaY: 7.25, trusted: true }] })
+  const raw = await commands(electronApp)
+  expect(raw).toEqual([{ method: 'Input.dispatchMouseEvent', params: { type: 'mouseWheel', x: 150.5, y: 150.25, deltaX: -11.5, deltaY: 7.25, buttons: 0, modifiers: 0 } }])
+  await testInfo.attach('wheel-scrolled-document', { body: JSON.stringify({ result, observed: await observe(), raw }), contentType: 'application/json' })
+})
+
 test('wheel scrolls the hit nested scroller in both axes and directions', async ({ capabilities, electronApp }, testInfo) => {
   const { client, tabId, fixtureUrl } = capabilities
   await electronApp.evaluate(async ({ webContents }, url) => {
