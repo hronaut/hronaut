@@ -3,9 +3,11 @@ import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { holdRestartListener, waitForRestartMcp, type RestartGlobal } from './mcp-restart-readiness.js'
 import { blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
-test('supports optional LAN authentication and returns to localhost after remote access is disabled', async ({ profileDirectory, mcpPort }) => {
+for (const heldListener of [false, true]) {
+test(`supports optional LAN authentication and returns to localhost after remote access is disabled${heldListener ? ' with held final listener' : ''}`, async ({ profileDirectory, mcpPort }) => {
   test.setTimeout(120_000)
   const address = Object.values(networkInterfaces()).flat().find(entry => entry?.family === 'IPv4' && !entry.internal)?.address
   if (!address) throw new Error('LAN listener regression needs a non-loopback IPv4 interface')
@@ -19,6 +21,7 @@ test('supports optional LAN authentication and returns to localhost after remote
     } catch { return 0 }
   }
   let instance = await launchHronaut(profileDirectory, mcpPort)
+  let finalChecks: Promise<void> | undefined
   try {
     expect(await health()).toBe(0)
     await expect(instance.window.evaluate('window.hronautSettings.setMcpRemoteAccess("true")')).rejects.toThrow(/must be a boolean/)
@@ -58,10 +61,33 @@ test('supports optional LAN authentication and returns to localhost after remote
     expect(await health()).toBe(200)
     await instance.window.evaluate('window.hronautSettings.setMcpRemoteAccess(false)')
     expect(await health()).toBe(200)
+    const previousProcess = instance.app.process()
     await closeHronaut(instance.app)
-    instance = await launchHronaut(profileDirectory, mcpPort)
-    expect(await health(token)).toBe(0)
-    await instance.window.evaluate('window.hronautSettings.setMcpAuthentication(false)')
-    await expect.poll(async () => (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).status).toBe(200)
-  } finally { await closeHronaut(instance.app) }
+    const args = heldListener ? ['--require', await holdRestartListener(profileDirectory)] : []
+    instance = await launchHronaut(profileDirectory, mcpPort, 1, [], args)
+    if (heldListener) await expect.poll(() => instance.app.evaluate(() => typeof (globalThis as RestartGlobal).__releaseRestartMcpListener)).toBe('function')
+    let lanProbeStarted = false
+    finalChecks = (async () => {
+      await waitForRestartMcp(previousProcess, instance, mcpPort)
+      // Prove LAN rejection only while this new process serves localhost health.
+      lanProbeStarted = true
+      expect(await health(token)).toBe(0)
+      await instance.window.evaluate('window.hronautSettings.setMcpAuthentication(false)')
+      await expect.poll(async () => (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).status).toBe(200)
+    })()
+    void finalChecks.catch(() => undefined)
+    if (heldListener) {
+      // An unbound listener also rejects LAN requests. Observe the real held
+      // server after verification starts: the LAN probe must not start yet.
+      expect(await instance.app.evaluate(() => (globalThis as RestartGlobal).__restartMcpListener?.listening)).toBe(false)
+      expect(lanProbeStarted, 'LAN denial must wait for the restarted process to own a ready localhost listener').toBe(false)
+      await instance.app.evaluate(() => (globalThis as RestartGlobal).__releaseRestartMcpListener!())
+    }
+    await finalChecks
+  } finally {
+    await instance.app.evaluate(() => (globalThis as RestartGlobal).__releaseRestartMcpListener?.()).catch(() => undefined)
+    await finalChecks?.catch(() => undefined)
+    await closeHronaut(instance.app)
+  }
 })
+}
