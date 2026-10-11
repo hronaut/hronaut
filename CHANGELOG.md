@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Keep Network condition controls busy and retain their displayed list while a condition edit is pending. An overlapping automatic refresh no longer displays an uncommitted condition or re-enables controls before native application finishes.
+- Keep Network condition controls busy and retain their displayed list while a condition edit is pending. Overlapping refreshes coalesce into one read after settlement, so uncommitted conditions stay hidden and rules consumed or changed during state synchronization are reconciled without clearing a mutation error or newer draft.
 
 ## [2.34.0] - 2026-10-11
 
