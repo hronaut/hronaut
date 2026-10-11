@@ -1,0 +1,40 @@
+{
+  "provenance": "Generated locally with FFmpeg from two one-second constant-color lavfi sources; no third-party media. VP9 lossless,128x72,1fps. No runtime FFmpeg dependency.",
+  "commandTemplate": "ffmpeg -f lavfi -i color=c=FIRST:s=128x72:r=1:d=1 -f lavfi -i color=c=SECOND:s=128x72:r=1:d=1 -filter_complex '[0:v][1:v]concat=n=2:v=1:a=0' -c:v libvpx-vp9 -lossless 1 OUTPUT.webm",
+  "files": {
+    "green-red.webm": {
+      "bytes": 586,
+      "sha256": "4655030c0f4c70aaa649f9f48bdef461c7dbac4bd28400cef5fe3fec51cf1cae",
+      "decodedFrames": 2,
+      "sampledRgbFrames": [
+        [
+          0,
+          254,
+          0
+        ],
+        [
+          253,
+          0,
+          0
+        ]
+      ]
+    },
+    "red-green.webm": {
+      "bytes": 584,
+      "sha256": "aa39f5fae500f1367e8ca82bf94c7f71ae2cbfaee8567d5b107c5388f507baad",
+      "decodedFrames": 2,
+      "sampledRgbFrames": [
+        [
+          253,
+          0,
+          0
+        ],
+        [
+          0,
+          254,
+          0
+        ]
+      ]
+    }
+  }
+}
