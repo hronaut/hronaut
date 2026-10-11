@@ -10,9 +10,15 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Retire pending Network copies when closing the panel: unfinished HAR exports no longer start a clipboard write after close, and late clipboard replies cannot revive old success or error feedback. Retained requests, selection and filters remain available; already-dispatched clipboard writes and pending file saves are not undone.
+
 - Retire Console copy feedback when closing the panel, so a delayed clipboard result cannot restore an old “Copied” indicator or display an obsolete error after closing or reopening. Clipboard writes already dispatched are not undone; retained messages and filters are preserved.
 
 - Keep Network condition controls busy and retain their displayed list while a condition edit is pending. Overlapping refreshes coalesce into one read after settlement, so uncommitted conditions stay hidden and rules consumed or changed during state synchronization are reconciled without clearing a mutation error or newer draft.
+
+### Known issue
+
+- A cross-origin-frame native-click test failed its immediate parent-page click-count assertion on the first attempt in main CI 38115599919. The instrumented baseline/barrier comparison did not reproduce that failure; its cause remains unresolved. Later passing candidates do not establish a repair.
 
 ## [2.34.0] - 2026-10-11
 

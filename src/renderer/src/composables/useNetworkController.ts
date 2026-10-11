@@ -124,6 +124,16 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let replaySequence = 0
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
+  const stopPanelOpenTracking = watch(options.open, (open) => {
+    if (open) return
+    // Closing retires copy ownership; an already-dispatched write cannot be undone.
+    detailsCopySequence += 1
+    harCopySequence += 1
+    detailsCopied.value = null
+    harCopied.value = false
+    feedbackTimers.clear('details')
+    feedbackTimers.clear('har')
+  }, { flush: 'sync' })
   const stopContentSearchInputTracking = watch([contentSearchQuery, contentSearchCaseSensitive], () => {
     contentSearchSequence += 1
     contentSearchState.value = 'idle'
@@ -813,6 +823,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   function dispose(): void {
+    stopPanelOpenTracking()
     stopContentSearchInputTracking()
     stopRouteDraftTracking()
     stopHarFilterTracking()
