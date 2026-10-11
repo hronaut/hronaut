@@ -12,6 +12,24 @@ function debuggerHarness(failAt?: number, releaseFailure?: Error) {
 }
 
 describe('native pointer drag', () => {
+  it('uses only the release channel after authority rejects a move following a successful press', async () => {
+    const sendCommand = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined)
+      .mockRejectedValue(new Error('authority changed'))
+    const release = vi.fn(async () => undefined)
+    await expect(dispatchNativeDrag({ sendCommand }, { x: 10, y: 20 }, { x: 90, y: 60 }, { sendCommand: release }))
+      .rejects.toThrow('authority changed')
+    expect(sendCommand).toHaveBeenCalledTimes(3)
+    expect(release).toHaveBeenCalledExactlyOnceWith('Input.dispatchMouseEvent', expect.objectContaining({ type: 'mouseReleased', button: 'left', buttons: 0 }))
+  })
+
+  it('does not dispatch a cleanup release when the initial press is rejected', async () => {
+    const sendCommand = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error('authority changed'))
+    const release = vi.fn()
+    await expect(dispatchNativeDrag({ sendCommand }, { x: 10, y: 20 }, { x: 90, y: 60 }, { sendCommand: release }))
+      .rejects.toThrow('authority changed')
+    expect(release).not.toHaveBeenCalled()
+  })
+
   it('dispatches a pressed drag sequence and a final release', async () => {
     const { sendCommand, debuggerApi } = debuggerHarness()
 

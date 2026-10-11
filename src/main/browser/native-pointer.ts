@@ -10,7 +10,8 @@ export interface PointerPoint {
 export async function dispatchNativeDrag(
   debuggerApi: PointerDebugger,
   from: PointerPoint,
-  to: PointerPoint
+  to: PointerPoint,
+  releaseDebugger: PointerDebugger = debuggerApi
 ): Promise<void> {
   await debuggerApi.sendCommand('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -37,7 +38,7 @@ export async function dispatchNativeDrag(
     dragFailure = error
   }
   try {
-    await debuggerApi.sendCommand('Input.dispatchMouseEvent', {
+    await releaseDebugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1
     })
   } catch (releaseFailure) {

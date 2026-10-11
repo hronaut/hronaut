@@ -5581,24 +5581,6 @@ export class BrowserTabsManager {
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
-    const clickContext = this.snapshotDeltaContext(tab)
-    let documentCommitted = false
-    const onDocumentCommitted = (): void => { documentCommitted = true }
-    const clickWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = clickWorkspace ? this.inspectionPermissions.get(clickWorkspace) ?? 0 : 0
-    const assertClickContext = (): void => {
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (documentCommitted || this.destroyed || currentWorkspace !== clickWorkspace
-        || (validateClick && (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration)
-        || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
-        || snapshotDeltaInvalidationReason(clickContext, this.snapshotDeltaContext(tab))) {
-        throw new Error('Native click context changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
-      }
-    }
-    const assertNativeClickCurrent = (): void => {
-      if (validateClick) validateClick(assertClickContext)
-      else assertClickContext()
-    }
     const dialogAction = target.dialogAction
     if (target.promptText !== undefined && dialogAction !== 'accept') {
       throw new TypeError('promptText requires dialogAction: accept')
@@ -5612,7 +5594,8 @@ export class BrowserTabsManager {
     // A reload may already be pending when the click begins. Its commit does
     // not increment navigationGeneration again, but replaces the target document.
     const nativeInput = dialogAction === undefined && (coordinatePoint !== undefined || target.native || target.doubleClick)
-    if (nativeInput) webContents.on('did-navigate', onDocumentCommitted)
+    const authority = nativeInput ? this.nativeInputAuthority(tab, validateClick) : undefined
+    const assertNativeClickCurrent = (): void => { authority?.validate() }
     try {
       if (coordinatePoint) {
         await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
@@ -5676,7 +5659,7 @@ export class BrowserTabsManager {
       this.assertClickTargetEnabled(result)
       return result
     } finally {
-      if (nativeInput) webContents.removeListener('did-navigate', onDocumentCommitted)
+      authority?.dispose()
     }
   }
 
@@ -5782,24 +5765,29 @@ export class BrowserTabsManager {
     selector?: string
     x?: number
     y?: number
-  }): Promise<unknown> {
+  }, validateInput?: (validateContext: () => void) => void): Promise<unknown> {
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'hover')
-    const webContents = this.getTab(target.tabId).webContents
-    const point = coordinatePoint ?? await webContents.executeJavaScript(targetPointScript(target), true) as {
-      x: number
-      y: number
-      tag: string
-    }
-    if (coordinatePoint) await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
-    await this.showAgentPointer(webContents, point, 'move')
-    await this.withAgentInput(webContents, () => this.withDebugger(webContents, () =>
-      this.agentInputDebugger(webContents).sendCommand('Input.dispatchMouseEvent', {
-        type: 'mouseMoved',
-        x: point.x,
-        y: point.y
-      })
-    ))
-    return { ok: true, ...point }
+    const tab = this.getTab(target.tabId)
+    const webContents = tab.webContents
+    const authority = this.nativeInputAuthority(tab, validateInput)
+    try {
+      const point = coordinatePoint ?? await webContents.executeJavaScript(targetPointScript(target), true) as {
+        x: number
+        y: number
+        tag: string
+      }
+      if (coordinatePoint) await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
+      await this.showAgentPointer(webContents, point, 'move')
+      await this.withAgentInput(webContents, () => this.withDebugger(webContents, () =>
+        this.agentInputDebugger(webContents, authority.validate).sendCommand('Input.dispatchMouseEvent', {
+          type: 'mouseMoved',
+          x: point.x,
+          y: point.y
+        })
+      ))
+      authority.validate()
+      return { ok: true, ...point }
+    } finally { authority.dispose() }
   }
 
   async drag(options: {
@@ -5812,27 +5800,33 @@ export class BrowserTabsManager {
     startY?: number
     endX?: number
     endY?: number
-  }): Promise<unknown> {
+  }, validateInput?: (validateContext: () => void) => void): Promise<unknown> {
     const source = { ref: options.sourceRef, selector: options.sourceSelector }
     const target = { ref: options.targetRef, selector: options.targetSelector }
     const coordinatePoints = this.coordinateDragPointsOrValidateTargets(options, source, target)
-    const webContents = this.getTab(options.tabId).webContents
-    const { from, to } = coordinatePoints
-      ?? await webContents.executeJavaScript(dragPointsScript(source, target), true) as {
-        from: { x: number; y: number; tag: string }
-        to: { x: number; y: number; tag: string }
+    const tab = this.getTab(options.tabId)
+    const webContents = tab.webContents
+    const authority = this.nativeInputAuthority(tab, validateInput)
+    try {
+      const { from, to } = coordinatePoints
+        ?? await webContents.executeJavaScript(dragPointsScript(source, target), true) as {
+          from: { x: number; y: number; tag: string }
+          to: { x: number; y: number; tag: string }
+        }
+      if (coordinatePoints) {
+        await this.assertPointInsideVisibleViewport(webContents, from, 'drag')
+        await this.assertPointInsideVisibleViewport(webContents, to, 'drag')
       }
-    if (coordinatePoints) {
-      await this.assertPointInsideVisibleViewport(webContents, from, 'drag')
-      await this.assertPointInsideVisibleViewport(webContents, to, 'drag')
-    }
-    await this.showAgentPointer(webContents, from, 'drag-start')
-    await this.withAgentInput(webContents, () => this.withDebugger(
-      webContents,
-      () => dispatchNativeDrag(this.agentInputDebugger(webContents), from, to)
-    ))
-    await this.showAgentPointer(webContents, to, 'drag-end', from)
-    return { ok: true, from, to }
+      await this.showAgentPointer(webContents, from, 'drag-start')
+      await this.withAgentInput(webContents, () => this.withDebugger(
+        webContents,
+        () => dispatchNativeDrag(this.agentInputDebugger(webContents, authority.validate), from, to, this.agentInputDebugger(webContents))
+      ))
+      authority.validate()
+      await this.showAgentPointer(webContents, to, 'drag-end', from)
+      authority.validate()
+      return { ok: true, from, to }
+    } finally { authority.dispose() }
   }
 
   async resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
@@ -6664,13 +6658,18 @@ export class BrowserTabsManager {
     }
   }
 
-  async press(key: string, tabId?: string): Promise<void> {
-    const webContents = this.getTab(tabId).webContents
+  async press(key: string, tabId?: string, validateInput?: (validateContext: () => void) => void): Promise<void> {
+    const tab = this.getTab(tabId)
+    const webContents = tab.webContents
     const input = parseBrowserKeyPress(key)
-    await this.withAgentInput(webContents, () => this.withDebugger(
-      webContents,
-      () => dispatchNativeKeyPress(this.agentInputDebugger(webContents), input)
-    ))
+    const authority = this.nativeInputAuthority(tab, validateInput)
+    try {
+      await this.withAgentInput(webContents, () => this.withDebugger(
+        webContents,
+        () => dispatchNativeKeyPress(this.agentInputDebugger(webContents, authority.validate), input, this.agentInputDebugger(webContents))
+      ))
+      authority.validate()
+    } finally { authority.dispose() }
   }
 
   async evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
@@ -9420,6 +9419,32 @@ export class BrowserTabsManager {
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
     return this.isHumanInteractionLocked(tab)
       && !this.isAuthorizedAgentMouseInput(tab.webContents.id, mouse)
+  }
+
+  private nativeInputAuthority(
+    tab: BrowserTab,
+    validateInput?: (validateContext: () => void) => void
+  ): { validate: () => void; dispose: () => void } {
+    const webContents = tab.webContents
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    let documentCommitted = false
+    const onCommitted = (): void => { documentCommitted = true }
+    const assertContext = (): void => {
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (documentCommitted || this.destroyed || currentWorkspace !== workspace
+        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
+        throw new Error('Native input context changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+      }
+    }
+    webContents.on('did-navigate', onCommitted)
+    return {
+      validate: () => { if (validateInput) validateInput(assertContext); else assertContext() },
+      dispose: () => { webContents.removeListener('did-navigate', onCommitted) }
+    }
   }
 
   private agentInputDebugger(
