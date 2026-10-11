@@ -99,7 +99,8 @@ describe('diagnostic review regressions', () => {
     const workflow = readFileSync('.github/workflows/ci.yml', 'utf8')
     const guard = workflow.split('\n').find(line => line.includes('[[ "$EXPECTED_SHA"'))!.trim()
     expect(workflow.indexOf(guard)).toBeLessThan(workflow.indexOf('uses: actions/checkout'))
-    expect(workflow).toContain('ref: ${{ inputs.expected_sha }}')
+    expect(workflow).toContain('ref: ${{ github.sha }}')
+    expect(workflow).not.toContain('ref: ${{ inputs.expected_sha }}')
     const sha = 'a'.repeat(40)
     for (const [expected, status] of [[sha, 0], ['b'.repeat(40), 1], ['', 1], ['$(exit 0)', 1], ['A'.repeat(40), 1]] as const) {
       expect(spawnSync('bash', ['-c', guard], { env: { EXPECTED_SHA: expected, GITHUB_SHA: sha } }).status).toBe(status)

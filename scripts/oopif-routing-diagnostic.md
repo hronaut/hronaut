@@ -24,7 +24,8 @@ Dispatch the already-registered `ci.yml` once with ref
 `diagnostic/oopif-routing-readiness`. Verify the branch SHA still equals the
 reviewed SHA before dispatch and supply it as required input `expected_sha`.
 The executable first step validates 40 lowercase hex characters and equality to
-GITHUB_SHA before checkout. Checkout pins that SHA, and a second check verifies
+GITHUB_SHA before checkout. Checkout pins the trusted `github.sha` context (equal to the admitted input after
+the guard), avoiding input-driven checkout. A second check verifies
 HEAD before Docker execution. A missing, malformed or mismatched SHA fails closed.
 Verify the resulting run's head SHA. Never
 rerun an unchanged failure to green. The draft replaces this branch's manual CI
