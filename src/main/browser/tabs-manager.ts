@@ -8196,7 +8196,11 @@ export class BrowserTabsManager {
         repeat: input.isAutoRepeat,
         composing: input.isComposing
       }) : null
-      if (this.shouldBlockHumanKeyboardInput(tab, input)) {
+      // Match one expected event even on an unlocked tab. The surrounding
+      // awaited operation is not evidence that every arriving event is ours.
+      // A matching shape is admission, not proof of native input origin.
+      const expectedAgentInput = this.consumeExpectedAgentKeyboardInput(webContents.id, input)
+      if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
         event.preventDefault()
         if (shortcut) {
           this.options.onUserInteraction?.()
@@ -8211,7 +8215,7 @@ export class BrowserTabsManager {
         return
       }
       this.reproRecorder.observeReproKeyboard(tab, input)
-      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !this.agentInputWebContents.has(webContents.id)) {
+      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
         tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
@@ -8243,12 +8247,16 @@ export class BrowserTabsManager {
         }
         return
       }
-      if (this.shouldBlockHumanMouseInput(tab, mouse)) {
+      const expectedAgentInput = this.consumeExpectedAgentMouseInput(webContents.id, mouse)
+      if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
         event.preventDefault()
         return
       }
       this.reproRecorder.observeReproMouse(tab, mouse)
-      if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !this.agentInputWebContents.has(webContents.id)) {
+      // Context-menu events can be a secondary effect of an admitted key or
+      // button event; retain their existing operation-level treatment.
+      if ((mouse.type === 'mouseDown' && !expectedAgentInput)
+        || (mouse.type === 'contextMenu' && !this.agentInputWebContents.has(webContents.id))) {
         tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
@@ -9341,16 +9349,6 @@ export class BrowserTabsManager {
     tab.webContents.focus()
   }
 
-  private shouldBlockHumanKeyboardInput(tab: BrowserTab, input: Electron.Input): boolean {
-    return this.isHumanInteractionLocked(tab)
-      && !this.isAuthorizedAgentKeyboardInput(tab.webContents.id, input)
-  }
-
-  private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
-    return this.isHumanInteractionLocked(tab)
-      && !this.isAuthorizedAgentMouseInput(tab.webContents.id, mouse)
-  }
-
   private agentInputDebugger(
     webContents: BrowserTab['view']['webContents'],
     validateInput?: () => void
@@ -9387,7 +9385,14 @@ export class BrowserTabsManager {
     try {
       // Recheck after lifting the compositor barrier, immediately before input.
       validateInput?.()
-      if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
+      if (mouse) {
+        // CDP points use CSS pixels; Electron's native mouse events include
+        // the page zoom. Capture that transform at dispatch, after any wait.
+        const zoomFactor = webContents.getZoomFactor()
+        mouse.x *= zoomFactor
+        mouse.y *= zoomFactor
+        this.authorizedAgentMouseInput.set(webContents.id, mouse)
+      }
       if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
       return await webContents.debugger.sendCommand(method, commandParams)
     } finally {
@@ -9469,7 +9474,7 @@ export class BrowserTabsManager {
     return { type, key, code, modifiers, autoRepeat: commandParams.autoRepeat === true }
   }
 
-  private isAuthorizedAgentMouseInput(
+  private consumeExpectedAgentMouseInput(
     webContentsId: number,
     mouse: Electron.MouseInputEvent
   ): boolean {
@@ -9488,7 +9493,7 @@ export class BrowserTabsManager {
     return matches
   }
 
-  private isAuthorizedAgentKeyboardInput(
+  private consumeExpectedAgentKeyboardInput(
     webContentsId: number,
     input: Electron.Input
   ): boolean {
