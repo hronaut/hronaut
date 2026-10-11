@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   recordNetworkDebuggerMessage as record,
+  retireNetworkPriorityObservations,
   type BrowserNetworkRecordingState
 } from '../src/main/browser/network-recording.js'
 
@@ -204,5 +205,84 @@ describe('network event recording', () => {
     expect(tab.networkRequests).toHaveLength(500)
     expect(tab.networkRequests[0]!.captureSequence).toBe(2)
     expect(tab.networkRequests[499]!.captureSequence).toBe(501)
+  })
+})
+
+describe('bounded native priority observations', () => {
+  function image(tab: BrowserNetworkRecordingState, priority: unknown = 'Low', timestamp: unknown = 10): void {
+    start(tab, 'image', { timestamp, request: { url: 'https://example.test/image', method: 'GET', initialPriority: priority } })
+  }
+  function change(tab: BrowserNetworkRecordingState, newPriority: unknown = 'High', timestamp: unknown = 11): void {
+    record(tab, 'Network.resourceChangedPriority', { requestId: 'image', newPriority, timestamp })
+  }
+  it.each(['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh'])('retains initial %s and only the latest observation', priority => {
+    const tab = state(); image(tab, priority)
+    expect(tab.networkRequests[0]?.initialPriority).toBe(priority)
+    expect(tab.networkRequests[0]?.latestPriority).toBe(priority)
+    change(tab, 'High'); change(tab, 'VeryHigh', 12)
+    expect(tab.networkRequests[0]).toMatchObject({ initialPriority: priority, latestPriority: 'VeryHigh', priorityMonotonicSeconds: 12 })
+  })
+  it.each([undefined, null, 'HIGHEST', '', 42, { secret: 'private' }, ['High']])('omits unsupported priority %j', priority => {
+    const tab = state()
+    start(tab, 'image', { request: { url: 'https://example.test/image', method: 'GET', initialPriority: priority } })
+    // Explicit undefined must not use the fixture's default argument.
+    record(tab, 'Network.resourceChangedPriority', { requestId: 'image', timestamp: 11, newPriority: priority })
+    expect(tab.networkRequests[0]?.initialPriority).toBeUndefined()
+    expect(tab.networkRequests[0]?.latestPriority).toBeUndefined()
+    expect(JSON.stringify(tab.networkRequests)).not.toContain('private')
+  })
+  it('makes a newer unsupported observation unavailable without changing the initial value', () => {
+    const tab = state(); image(tab); change(tab); change(tab, 'future enum', 12); change(tab, 'VeryHigh', 11.5)
+    expect(tab.networkRequests[0]?.initialPriority).toBe('Low')
+    expect(tab.networkRequests[0]?.latestPriority).toBeUndefined()
+    change(tab, 'Medium', 13)
+    expect(tab.networkRequests[0]?.latestPriority).toBe('Medium')
+  })
+  it.each([undefined, null, NaN, Infinity, -1, '11', 9, 10])('ignores invalid or preceding event timestamp %j', timestamp => {
+    const tab = state(); image(tab)
+    record(tab, 'Network.resourceChangedPriority', { requestId: 'image', timestamp, newPriority: 'High' })
+    expect(tab.networkRequests[0]?.latestPriority).toBe('Low')
+  })
+  it.each([undefined, null, NaN, Infinity, -1, '10'])('does not guess priority ordering without a valid start %j', timestamp => {
+    const tab = state()
+    start(tab, 'image', { timestamp, request: { url: 'https://example.test/image', method: 'GET', initialPriority: 'Low' } })
+    change(tab)
+    expect(tab.networkRequests[0]?.latestPriority).toBe('Low')
+  })
+  it('ignores duplicate and out-of-order changes', () => {
+    const tab = state(); image(tab); change(tab, 'High', 12); change(tab, 'Low', 12); change(tab, 'Medium', 11)
+    expect(tab.networkRequests[0]?.latestPriority).toBe('High')
+  })
+  it('does not carry a reused CDP ID priority across a redirect hop', () => {
+    const tab = state(); image(tab); change(tab)
+    start(tab, 'image', { timestamp: 20, redirectResponse: { status: 302 }, request: { url: 'https://example.test/redirected', method: 'GET', initialPriority: 'VeryLow' } })
+    change(tab, 'VeryHigh', 19); change(tab, 'VeryHigh', 20)
+    expect(tab.networkRequests[1]?.latestPriority).toBe('VeryLow')
+    change(tab, 'Medium', 21)
+    expect(tab.networkRequests.map(r => [r.initialPriority, r.latestPriority])).toEqual([['Low', 'High'], ['VeryLow', 'Medium']])
+  })
+  it('does not guess between ambiguous active records', () => {
+    const tab = state(); image(tab); image(tab, 'Medium'); change(tab)
+    expect(tab.networkRequests.map(r => r.latestPriority)).toEqual(['Low', 'Medium'])
+  })
+  it.each(['Network.loadingFinished', 'Network.loadingFailed'])('does not update completed records after %s', method => {
+    const tab = state(); image(tab); record(tab, method, { requestId: 'image', timestamp: 11 }); change(tab, 'High', 12)
+    expect(tab.networkRequests[0]?.latestPriority).toBe('Low')
+  })
+  it.each(['clear', 'eviction', 'observation', 'document/debugger'])('retires late changes after %s', boundary => {
+    const tab = state(); image(tab); const old = tab.networkRequests[0]!
+    if (boundary === 'clear') tab.networkRequests = []
+    if (boundary === 'eviction') for (let i = 0; i < 501; i++) start(tab, `later-${i}`)
+    if (boundary === 'observation') tab.observationGeneration++
+    if (boundary === 'document/debugger') retireNetworkPriorityObservations(tab)
+    change(tab)
+    expect(old.latestPriority).toBe('Low')
+    expect(tab.networkRequests.length).toBeLessThanOrEqual(500)
+  })
+  it('admits fresh request observations after debugger retirement without altering retained values', () => {
+    const tab = state(); image(tab); retireNetworkPriorityObservations(tab); change(tab)
+    start(tab, 'fresh', { timestamp: 20, request: { url: 'https://example.test/fresh', method: 'GET', initialPriority: 'Medium' } })
+    record(tab, 'Network.resourceChangedPriority', { requestId: 'fresh', timestamp: 21, newPriority: 'High' })
+    expect(tab.networkRequests.map(r => r.latestPriority)).toEqual(['Low', 'High'])
   })
 })

@@ -35,6 +35,7 @@ import type {
 import { useNetworkController } from '../composables/useNetworkController'
 import NetworkContentSearch from './NetworkContentSearch.vue'
 import NetworkRequestConditions from './NetworkRequestConditions.vue'
+import NetworkRequestPriority from './NetworkRequestPriority.vue'
 import PanelDockPicker from './PanelDockPicker.vue'
 
 const props = defineProps<{
@@ -367,6 +368,7 @@ onBeforeUnmount(dispose)
                 <small>{{ networkRequestDetails.response.protocol || networkRequestDetails.resourceType }}</small>
               </header>
               <code class="network-detail-url">{{ networkRequestDetails.url }}</code>
+              <NetworkRequestPriority :priority="networkRequestDetails.priority" />
               <details v-if="networkRequestDetails.responseSource" class="network-response-origin" open>
                 <summary>
                   {{ t('network.details.responseSource') }}

@@ -1,3 +1,4 @@
+import { networkPriorityMessages } from './network-priority.js'
 import { incidentPathMessages } from './incident-paths.js'
 import { reactInspectionMessages } from './react-inspection.js'
 import { pwaLifecycleMessages } from './pwa-lifecycle.js'
@@ -12,6 +13,7 @@ export const frFR = {
   licenseNotice: {"expired": "L’automatisation par les agents est bloquée. Activez ou renouvelez votre licence. Les données enregistrées restent disponibles.", "manage": "Paramètres de licence", "purchase": "Acheter ou renouveler ↗"},
   pwaLifecycle: pwaLifecycleMessages['fr-FR'],
   softNavigation: softNavigationMessages['fr-FR'],
+  networkPriority: networkPriorityMessages['fr-FR'],
   lcpAttribution: lcpAttributionMessages['fr-FR'],
   browserImport: browserImportMessages['fr-FR'],
   video: enUS.video,
