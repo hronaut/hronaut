@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Recheck file-upload authority and captured tab/document context immediately before assigning files. Pause, access revocation, cancellation or context changes during asynchronous preparation now prevent the commit and retain conservative no-retry outcome reporting.
+
 ## [2.35.0] - 2026-10-11
 
 ### Added
