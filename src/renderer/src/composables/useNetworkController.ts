@@ -296,7 +296,9 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   async function refreshRoutes(silent = false): Promise<void> {
     const tab = options.activeTab.value
-    if (!tab || isHronautHomeUrl(tab.url)) return
+    // Main can expose a proposed list while Chromium is still applying it.
+    // Keep the mutation's busy state and displayed list until it settles.
+    if (!tab || isHronautHomeUrl(tab.url) || routeState.value === 'saving') return
     const expectedGeneration = generation
     const sequence = ++routeRequestSequence
     if (!silent) routeState.value = 'loading'

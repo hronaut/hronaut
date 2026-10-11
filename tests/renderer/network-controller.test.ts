@@ -1062,6 +1062,61 @@ describe('network controller', () => {
     expect(controller.routeState.value).toBe('ready')
   })
 
+  it.each(['add', 'remove', 'move', 'clear'] as const)('keeps %s in progress when a condition refresh is requested', async action => {
+    const { browser, controller, activeTab } = createController()
+    const pending = deferred<BrowserNetworkRouteSummary[]>()
+    const clearing = deferred<BrowserState>()
+    activeTab.value = tab('tab-1', 2)
+    controller.routes.value = [route('first'), route('second')]
+    controller.routePattern.value = 'https://example.test/api/new'
+    browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.removeNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.moveNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.clearNetworkRoutes.mockReturnValueOnce(clearing.promise)
+    browser.listNetworkRoutes.mockResolvedValue([route('uncommitted')])
+    try {
+      const changing = action === 'add' ? controller.addRouteFromDraft()
+        : action === 'remove' ? controller.removeRoute('first')
+          : action === 'move' ? controller.moveRoute('second', 'up') : controller.clearRoutes()
+      await controller.refreshRoutes(true)
+      expect(controller.routeState.value).toBe('saving')
+      expect(controller.routes.value).toEqual([route('first'), route('second')])
+      pending.resolve([route('committed')])
+      clearing.resolve(state(tab('tab-1')))
+      await changing
+      expect(controller.routeState.value).toBe('ready')
+      expect(controller.routes.value).toEqual(action === 'clear' ? [] : [route('committed')])
+      browser.listNetworkRoutes.mockResolvedValue([route('fresh')])
+      await controller.refreshRoutes()
+      expect(controller.routes.value).toEqual([route('fresh')])
+    } finally {
+      pending.resolve([])
+      clearing.resolve(state(tab('tab-1')))
+      controller.dispose()
+    }
+  })
+
+  it('does not retain an uncommitted condition after a refreshed add fails', async () => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.listNetworkRoutes.mockResolvedValue([route('uncommitted')])
+    controller.routePattern.value = 'https://example.test/api/new'
+    try {
+      const adding = controller.addRouteFromDraft()
+      await controller.refreshRoutes()
+      pending.reject(new Error('Condition application failed'))
+      await adding
+      expect(controller.routes.value).toEqual([])
+      expect(controller.routeState.value).toBe('error')
+      expect(controller.routeError.value).toBe('Condition application failed')
+      browser.listNetworkRoutes.mockResolvedValue([route('fresh')])
+      await controller.refreshRoutes()
+      expect(controller.routes.value).toEqual([route('fresh')])
+      expect(controller.routeError.value).toBe('')
+    } finally { controller.dispose() }
+  })
+
   it.each([
     'https://example.test/path?q=visible&token=%5BREDACTED%5D',
     'https://%5BREDACTED%5D:%5BREDACTED%5D@example.test/',
