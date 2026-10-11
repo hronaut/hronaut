@@ -194,6 +194,7 @@ function deferred<Value>() {
 
 function createController(copyTextOverride?: CopyTextWithFeedback) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
+  const open = ref(true)
   const synced: BrowserState[] = []
   const browser = {
     listNetworkRequests: vi.fn(async () => [] as BrowserNetworkRequest[]),
@@ -248,14 +249,14 @@ function createController(copyTextOverride?: CopyTextWithFeedback) {
   const copyText = vi.fn(copyTextOverride ?? (async () => true))
   const controller = useNetworkController({
     activeTab,
-    open: ref(true),
+    open,
     browser,
     translate: (key) => key,
     copyText,
     syncState: async (operation) => { synced.push(await operation) },
     keepsSeparatePanelOpen: () => false
   })
-  return { activeTab, synced, browser, controller, copyText }
+  return { activeTab, open, synced, browser, controller, copyText }
 }
 
 afterEach(() => {
@@ -1478,5 +1479,126 @@ describe('Network condition draft ownership', () => {
       expect(controller.routeBody.value).toBe('')
       expect(controller.routes.value).toEqual([route('first')])
     } finally { controller.dispose() }
+  })
+})
+
+
+describe('Network copy panel-close ownership', () => {
+  it.each(['success', 'failure'].flatMap(outcome => [false, true].map(reopen => ({ outcome, reopen }))))('retires a pending HAR export after close (reopen=$reopen, $outcome)', async ({ outcome, reopen }) => {
+    const { controller, browser, copyText, open } = createController()
+    const har = await browser.createNetworkHar()
+    const pending = deferred<typeof har>()
+    browser.createNetworkHar.mockReturnValueOnce(pending.promise)
+    try {
+      const operation = controller.copyHar()
+      open.value = false
+      if (reopen) open.value = true
+      controller.monitorError.value = 'Current message'
+      if (outcome === 'success') pending.resolve(har)
+      else pending.reject(new Error('Obsolete export failure'))
+      await operation
+      expect(copyText).not.toHaveBeenCalled()
+      expect(controller.harCopied.value).toBe(false)
+      expect(controller.monitorError.value).toBe('Current message')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['details', 'har'].flatMap(kind => ['success', 'false', 'failure'].flatMap(outcome => [false, true].map(reopen => ({ kind, outcome, reopen })))))('retires $kind clipboard $outcome after close (reopen=$reopen)', async ({ kind, outcome, reopen }) => {
+    const { controller, copyText, open } = createController()
+    controller.requestDetails.value = details('retained')
+    const pending = deferred<boolean>()
+    copyText.mockReturnValueOnce(pending.promise)
+    try {
+      const operation = kind === 'har' ? controller.copyHar() : controller.copyDetails('url')
+      await vi.waitFor(() => expect(copyText).toHaveBeenCalledOnce())
+      open.value = false
+      if (reopen) open.value = true
+      controller.monitorError.value = 'Current message'
+      if (outcome === 'failure') pending.reject(new Error('Obsolete clipboard failure'))
+      else pending.resolve(outcome === 'success')
+      await operation
+      expect(controller.detailsCopied.value).toBeNull()
+      expect(controller.harCopied.value).toBe(false)
+      expect(controller.monitorError.value).toBe('Current message')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['details', 'har'].flatMap(kind => [false, true].map(reopen => ({ kind, reopen }))))('suppresses obsolete native $kind failure toasts after close (reopen=$reopen)', async ({ kind, reopen }) => {
+    const pending = deferred<void>()
+    const nativeCopy = vi.fn(async () => {}).mockReturnValueOnce(pending.promise)
+    const showToast = vi.fn()
+    const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+    const { controller, open } = createController(shell.copyText)
+    controller.requestDetails.value = details('retained')
+    try {
+      const operation = kind === 'har' ? controller.copyHar() : controller.copyDetails('url')
+      await vi.waitFor(() => expect(nativeCopy).toHaveBeenCalledOnce())
+      open.value = false
+      if (reopen) open.value = true
+      pending.reject(new Error('Obsolete native failure'))
+      await operation
+      expect(showToast).not.toHaveBeenCalled()
+      open.value = true
+      nativeCopy.mockRejectedValueOnce(new Error('Current native failure'))
+      await (kind === 'har' ? controller.copyHar() : controller.copyDetails('url'))
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current native failure')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['details', 'har'])('preserves a newer $kind copy after reopen when an older copy settles', async kind => {
+    const { controller, copyText, open } = createController()
+    controller.requestDetails.value = details('retained')
+    const pending = deferred<boolean>()
+    copyText.mockReturnValueOnce(pending.promise)
+    try {
+      const older = kind === 'har' ? controller.copyHar() : controller.copyDetails('url')
+      await vi.waitFor(() => expect(copyText).toHaveBeenCalledOnce())
+      open.value = false
+      open.value = true
+      await (kind === 'har' ? controller.copyHar() : controller.copyDetails('json'))
+      pending.resolve(true)
+      await older
+      expect(kind === 'har' ? controller.harCopied.value : controller.detailsCopied.value).toBe(kind === 'har' ? true : 'json')
+    } finally { controller.dispose() }
+  })
+
+  it('clears copy timers on close while retaining requests, selection, filters and a pending file save', async () => {
+    vi.useFakeTimers()
+    const { controller, browser, open } = createController()
+    const saved = await browser.saveNetworkHar()
+    const pending = deferred<typeof saved>()
+    browser.saveNetworkHar.mockReturnValueOnce(pending.promise)
+    try {
+      controller.requests.value = [request('retained')]
+      await controller.selectRequest(request('retained'))
+      controller.search.value = 'method:GET'
+      await controller.copyDetails('url')
+      await controller.copyHar()
+      expect(vi.getTimerCount()).toBe(2)
+      const saving = controller.saveHar()
+      open.value = false
+      expect(controller.detailsCopied.value).toBeNull()
+      expect(controller.harCopied.value).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+      expect(controller.requests.value).toEqual([request('retained')])
+      expect(controller.selectedRequestId.value).toBe('retained')
+      expect(controller.requestDetails.value).toEqual(details('retained'))
+      expect(controller.search.value).toBe('method:GET')
+      expect(controller.harSaveState.value).toBe('saving')
+      pending.resolve(saved)
+      await saving
+      expect(controller.harSaveState.value).toBe('saved')
+      expect(controller.harExport.value).toEqual(saved)
+    } finally { controller.dispose() }
+  })
+
+  it('stops the close watcher when disposed', () => {
+    const { controller, open } = createController()
+    controller.dispose()
+    controller.detailsCopied.value = 'url'
+    controller.harCopied.value = true
+    open.value = false
+    expect(controller.detailsCopied.value).toBe('url')
+    expect(controller.harCopied.value).toBe(true)
   })
 })
