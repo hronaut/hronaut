@@ -65,6 +65,74 @@ afterEach(() => {
 })
 
 describe('console controller', () => {
+  for (const reopen of [false, true]) for (const scope of ['filtered', 'all', 'entry'] as const) {
+    it.each(['success', 'failure'] as const)(`retires pending ${scope} clipboard %s after close${reopen ? ' and reopen' : ''}`, async outcome => {
+      const pending = deferred<void>()
+      const showToast = vi.fn()
+      const shell = useShellFeedbackController({
+        browser: { copyText: vi.fn(() => pending.promise) }, translate: key => key, showToast
+      })
+      const { controller, open } = createController(undefined, shell.copyText)
+      try {
+        open.value = true
+        await controller.refresh()
+        controller.messages.value = [message('retained console copy')]
+        const copying = scope === 'entry' ? controller.copyEntry(controller.messages.value[0])
+          : scope === 'all' ? controller.copyAll() : controller.copyFiltered()
+        open.value = false
+        if (reopen) open.value = true
+        if (outcome === 'success') pending.resolve()
+        else pending.reject(new Error('Closed Console clipboard refusal'))
+        await copying
+        expect(showToast).not.toHaveBeenCalled()
+        expect(controller.copied.value).toBeNull()
+        expect(controller.copiedEntryKey.value).toBeNull()
+        expect(controller.messages.value).toEqual([message('retained console copy')])
+      } finally { pending.resolve(); controller.dispose() }
+    })
+  }
+
+  it.each(['filtered', 'all', 'entry'] as const)('clears completed %s copy feedback when closing without clearing messages or filters', async scope => {
+    const { controller, open } = createController()
+    try {
+      open.value = true
+      await controller.refresh()
+      controller.messages.value = [message('retained console copy')]
+      controller.search.value = 'retained'
+      if (scope === 'entry') await controller.copyEntry(controller.messages.value[0])
+      else if (scope === 'all') await controller.copyAll()
+      else await controller.copyFiltered()
+      expect(scope === 'entry' ? controller.copiedEntryKey.value : controller.copied.value).not.toBeNull()
+      open.value = false
+      expect(controller.copied.value).toBeNull()
+      expect(controller.copiedEntryKey.value).toBeNull()
+      expect(controller.messages.value).toHaveLength(1)
+      expect(controller.search.value).toBe('retained')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['success', 'failure'] as const)('preserves a newer copy after reopen and late older %s', async outcome => {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const nativeCopy = vi.fn(async () => {}).mockReturnValueOnce(pending.promise)
+    const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+    const { controller, open } = createController(undefined, shell.copyText)
+    try {
+      open.value = true
+      await controller.refresh()
+      controller.messages.value = [message('retained console copy')]
+      const older = controller.copyFiltered()
+      open.value = false
+      open.value = true
+      await controller.copyAll()
+      if (outcome === 'success') pending.resolve()
+      else pending.reject(new Error('Closed Console clipboard refusal'))
+      await older
+      expect(controller.copied.value).toBe('all')
+      expect(showToast).not.toHaveBeenCalled()
+    } finally { pending.resolve(); controller.dispose() }
+  })
+
   it.each(['search', 'level', 'exclusion', 'newer', 'reset', 'dispose', 'tab', 'url'] as const)(
     'suppresses obsolete Console failure toasts through the production helper after %s changes', async action => {
       const pending = deferred<void>()
