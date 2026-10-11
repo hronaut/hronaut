@@ -685,6 +685,18 @@ const errorResult = (error: unknown): CallToolResult => {
   }
 }
 
+function pageObservationPublicationFailure(error: unknown): CallToolResult {
+  const outcome = {
+    status: 'OUTCOME_UNKNOWN',
+    reason: error instanceof WorkspaceWriteLeaseError ? error.code : 'OBSERVATION_NOT_PUBLISHED',
+    dispatch: 'dispatched', effects: 'possible', retrySafe: false,
+    observation: 'discarded', postcondition: 'unknown', reconciliationRequired: true,
+    ...(error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : {}),
+    nextAction: 'The observation completed but publication authority changed. Its content was discarded. Capturing may have woken, selected or scrolled the page; those effects are not rolled back. Inspect current state and authorization before continuing; do not automatically replay the request.'
+  }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
 export function closedTabWaitResult(error: unknown, targetWasRemoved = false): CallToolResult | undefined {
   if (!(error instanceof Error)) return undefined
   const closedDuringManagerWait = error.message.startsWith('The tab closed while waiting')
@@ -1056,7 +1068,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1068,6 +1080,7 @@ function createBrowserMcpServer(
       const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
         ? args[0] as Record<string, unknown> : {}
       const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
+      const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
       const frameRequest = frameRequests.getStore()!
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
         if (isFrameObservation || (name !== 'browser_status' && name !== 'browser_snapshot')) return
@@ -1113,6 +1126,10 @@ function createBrowserMcpServer(
         try {
           await authorizeCapability(name, isFrameObservation && frameRequest.tabId ? { ...input, tabId: frameRequest.tabId } : input, 'active-dispatch')
         } catch (error) {
+          if (isPageObservation && !result.isError) {
+            recordReadinessProbe('failed')
+            return pageObservationPublicationFailure(error)
+          }
           if (!(error instanceof McpCapabilityAuthorizationError)) throw error
           const readOnly = mcpCapabilityOperationClass(name, input) === 'read'
           const outcome = {
@@ -1171,6 +1188,16 @@ function createBrowserMcpServer(
           publication.assertCurrent()
           return result // No await after the final cancellation/context/authority check.
         }
+        if (isPageObservation && !result.isError) {
+          try {
+            if (!frameRequest.pageObservationPublication) throw new Error('Page observation publication guard is unavailable')
+            frameRequest.pageObservationPublication()
+          } catch (error) {
+            recordReadinessProbe('failed')
+            return pageObservationPublicationFailure(error)
+          }
+        }
+        // No await after the final page observation authority/cancellation check.
         recordReadinessProbe(result.isError ? 'failed' : 'verified')
         return result
       } catch (error) {
@@ -1627,6 +1654,7 @@ function createBrowserMcpServer(
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
+        const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
         const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true)
         const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state'
         const controlRevision = actionTracker.controlRevision
@@ -1746,7 +1774,7 @@ function createBrowserMcpServer(
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-          requireActiveCapabilityDispatch(name, actionInput, isFrameObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
+          requireActiveCapabilityDispatch(name, actionInput, isFrameObservation || isPageObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
           if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
           if ((name === 'browser_element_inspect' || name === 'browser_media_state') && extra?.signal?.aborted) throw new Error('Element inspection cancelled')
           requireContinuity()
@@ -1758,6 +1786,14 @@ function createBrowserMcpServer(
           }
         }
         if (isFrameObservation) { const request = frameRequests.getStore()!; request.assertCurrent = requireCurrentTarget; request.tabId = resolvedTabId }
+        if (isPageObservation) {
+          const requireObservationWorkspace = manager.captureWorkspaceObservationGuard(workspaceId)
+          frameRequests.getStore()!.pageObservationPublication = () => {
+            if (extra?.signal?.aborted) throw new Error('Page observation cancelled')
+            requireCurrentTarget()
+            requireObservationWorkspace()
+          }
+        }
         if (name === 'browser_tabs' && input.search !== undefined) {
           frameRequests.getStore()!.tabDiscoveryPublication = () => {
             if (extra?.signal?.aborted) throw new Error('Tab discovery cancelled')

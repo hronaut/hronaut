@@ -1652,6 +1652,18 @@ export class BrowserTabsManager {
     return !!group && group.agentAccess !== false
   }
 
+  captureWorkspaceObservationGuard(workspaceId: string): () => void {
+    const workspace = this.mcpTabGroups.get(workspaceId)
+    if (!workspace || workspace.agentAccess === false) throw new Error('Workspace observation access is unavailable')
+    const generation = this.inspectionPermissions.get(workspace) ?? 0
+    return () => {
+      if (this.destroyed || this.mcpTabGroups.get(workspaceId) !== workspace
+        || workspace.agentAccess === false || (this.inspectionPermissions.get(workspace) ?? 0) !== generation) {
+        throw new Error('Workspace access changed before observation publication. Obtain fresh state before reading again.')
+      }
+    }
+  }
+
   async createMcpTabGroup(
     name: string,
     color?: BrowserTabGroupColor,
