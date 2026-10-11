@@ -1,10 +1,12 @@
+import { NativeInputCleanupError } from '../src/main/browser/native-input-cleanup.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
-it.each([true, false])('settles activity when review persistence fails (verified: %s), then tracks later calls', async verified => {
+it.each([['verified', 'storage'], ['failed', 'storage'], ['cleanup', 'storage'], ['cleanup', 'authorization']] as const)('settles %s activity when review finalization fails: %s', async (phase, failure) => {
+  const verified = phase === 'verified'
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
   const tabId = '01912345-6790-7abc-8def-0123456789ab'
   const reviewId = '01912345-6791-7abc-8def-0123456789ab'
@@ -33,11 +35,15 @@ it.each([true, false])('settles activity when review persistence fails (verified
       mcpTabGroups: [workspace]
     }))
   }
-  if (!verified) manager.click.mockRejectedValueOnce(new Error('Page dispatch failed'))
+  if (!verified) manager.click.mockRejectedValueOnce(phase === 'cleanup' ? new NativeInputCleanupError(new Error('Re-lock failed')) : new Error('Page dispatch failed'))
   const waiting = {
     requireDispatch: vi.fn(async () => undefined),
     beginReviewedDispatch: vi.fn(async () => ({ id: reviewId, revision: reviewRevision })),
-    finishReviewedDispatch: vi.fn(async () => { throw new Error('Review storage failed') })
+    finishReviewedDispatch: vi.fn(async (_workspace: string, _id: string, _revision: string, _outcome: string, authorize: () => void) => {
+      if (failure === 'authorization') manager.isWorkspaceAgentAccessible.mockReturnValue(false)
+      authorize()
+      throw new Error('Review storage failed')
+    })
   }
   const auditReceipts = {
     isRecording: vi.fn(() => true),
@@ -68,16 +74,24 @@ it.each([true, false])('settles activity when review persistence fails (verified
       } : undefined
     })
     expect(failed.isError).toBe(true)
-    expect(JSON.stringify(failed)).toContain('Review storage failed')
+    if (phase === 'cleanup') expect(failed.structuredContent, JSON.stringify(failed)).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false, reviewFinalization: 'failed' })
+    else expect(JSON.stringify(failed)).toContain('Review storage failed')
     expect(waiting.finishReviewedDispatch).toHaveBeenCalledOnce()
     expect(waiting.finishReviewedDispatch).toHaveBeenCalledWith(workspaceId, reviewId, reviewRevision, verified ? 'verified' : 'unknown', expect.any(Function))
     expect(manager.click).toHaveBeenCalledOnce()
     expect(server.getDashboardState()).toMatchObject({
       completedToolCalls: 1,
-      recentActivity: [{ toolName: 'browser_click', outcome: 'failed', result: { outcome: 'failed', dispatch: 'dispatched', effects: 'possible' } }]
+      recentActivity: [{ toolName: 'browser_click', outcome: 'failed', result: { outcome: phase === 'cleanup' ? 'outcome-unknown' : 'failed', dispatch: 'dispatched', effects: 'possible' } }]
     })
-    expect((await call('browser_click', { workspaceId, selector: '#submit' })).isError).not.toBe(true)
-    expect(server.getDashboardState()).toMatchObject({ completedToolCalls: 2, outcomeTotals: { failed: 1, succeeded: 1 } })
+    if (phase === 'cleanup') {
+      if (failure === 'authorization') {
+        expect((await call('browser_click', { workspaceId, selector: '#submit' })).isError).toBe(true)
+        expect(manager.click).toHaveBeenCalledOnce()
+      }
+    } else {
+      expect((await call('browser_click', { workspaceId, selector: '#submit' })).isError).not.toBe(true)
+      expect(server.getDashboardState()).toMatchObject({ completedToolCalls: 2, outcomeTotals: { failed: 1, succeeded: 1 } })
+    }
   } finally {
     await client.close()
     await server.stop()

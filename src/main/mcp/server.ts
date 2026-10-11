@@ -637,15 +637,19 @@ const textResult = (value: unknown): CallToolResult => ({
 const isTimeoutError = (error: unknown): boolean => error instanceof Error
   && (error.name === 'TimeoutError' || /(?:timed out|timeout)/iu.test(error.message))
 
-const errorResult = (error: unknown): CallToolResult => {
-  if (error instanceof NativeInputCleanupError) {
-    const outcome = {
-      status: 'OUTCOME_UNKNOWN', reason: 'NATIVE_INPUT_CLEANUP_FAILED', retrySafe: false,
-      effects: 'possible',
-      nextAction: 'Native input was dispatched and cleanup may be incomplete. Inspect the visible page and input state before continuing; do not automatically replay the action. Effects are not rolled back.'
-    }
-    return { ...textResult(outcome), structuredContent: outcome, isError: true }
+const nativeInputCleanupResult = (reviewFinalizationFailed = false): CallToolResult => {
+  const outcome = {
+    status: 'OUTCOME_UNKNOWN', reason: 'NATIVE_INPUT_CLEANUP_FAILED', retrySafe: false,
+    effects: 'possible',
+    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+    nextAction: 'Native input was dispatched and cleanup may be incomplete. Inspect the visible page and input state before continuing; do not automatically replay the action. Effects are not rolled back.'
+      + (reviewFinalizationFailed ? ' Review finalization failed; its recorded state is not confirmed and must be reconciled before continuing.' : '')
   }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
+const errorResult = (error: unknown): CallToolResult => {
+  if (error instanceof NativeInputCleanupError) return nativeInputCleanupResult()
   if (error instanceof WorkspaceWriteLeaseError) {
     const outcome = {
       status: error.code === 'WORKSPACE_BUSY' ? 'BUSY' : 'LEASE_LOST',
@@ -938,6 +942,9 @@ function createBrowserMcpServer(
     try {
       return await handler(input, extra)
     } catch (error) {
+      // Keep trusted native-dispatch provenance until workspace settlement has
+      // recorded its uncertain outcome and attempted review finalization.
+      if (error instanceof NativeInputCleanupError) throw error
       return errorResult(error)
     }
   }
@@ -1994,8 +2001,14 @@ function createBrowserMcpServer(
           } catch (error) {
             if (!(error instanceof NativeInputCleanupError)) throw error
             invalidatedOutcome = 'outcome-unknown'
-            await finishReviewedAttempt('unknown')
-            return errorResult(error)
+            try {
+              await finishReviewedAttempt('unknown')
+            } catch {
+              // Authorization/persistence failure must remain visible without
+              // replacing the no-replay contract for acknowledged native input.
+              return nativeInputCleanupResult(true)
+            }
+            return nativeInputCleanupResult()
           } finally {
             finishContinuityAction()
           }
