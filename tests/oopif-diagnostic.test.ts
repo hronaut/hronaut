@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
-import { collectPartial, fixtureObserver, safeDiagnostic } from './integration/oopif-diagnostic.js'
+import { collectPartial, collectWindowed, fixtureObserver, safeDiagnostic } from './integration/oopif-diagnostic.js'
 
 describe('diagnostic-only OOPIF export', () => {
   it('reconstructs an allowlist and removes page bodies, URLs, paths, payloads and arbitrary strings', () => {
@@ -105,5 +105,38 @@ describe('diagnostic review regressions', () => {
     for (const [expected, status] of [[sha, 0], ['b'.repeat(40), 1], ['', 1], ['$(exit 0)', 1], ['A'.repeat(40), 1]] as const) {
       expect(spawnSync('bash', ['-c', guard], { env: { EXPECTED_SHA: expected, GITHUB_SHA: sha } }).status).toBe(status)
     }
+  })
+})
+
+
+describe('bounded final observation window', () => {
+  it('retains late child click and send plus later root receipt and native events', async () => {
+    vi.useFakeTimers()
+    try {
+      const pending = collectWindowed({
+        root: async observe => { if (observe) await new Promise(resolve => setTimeout(resolve, 300)); return { settledHits: observe ? 1 : 0, rootEvents: observe ? [{ kind: 'message-receive' }] : [] } },
+        child: async observe => { if (observe) await new Promise(resolve => setTimeout(resolve, 200)); return { childHits: observe ? 1 : 0, childEvents: observe ? [{ kind: 'click' }, { kind: 'message-send' }] : [] } },
+        native: async observe => ({ nativeEvents: observe ? [{ kind: 'mouseDown' }] : [], nativeDropped: observe ? 2 : 0 }),
+        frames: async () => ({ framesAfter: [] })
+      })
+      await vi.advanceTimersByTimeAsync(301)
+      const value = JSON.parse(safeDiagnostic(await pending))
+      expect(value).toMatchObject({ interpretation: 'inconclusive', observationAgreement: 'agree', settledHits: 1, childHits: 1, early: { settledHits: 0, childHits: 0, counters: { nativeDropped: 0 } }, counters: { nativeDropped: 2 } })
+      expect(value.childEvents.map((event: { kind: string }) => event.kind)).toEqual(['click', 'message-send'])
+      expect(value.captureTimes.native.start).toBeGreaterThanOrEqual(value.captureTimes.root.end)
+      expect(value.captureTimes.child.end - value.captureTimes.child.start).toBeGreaterThanOrEqual(200)
+    } finally { vi.useRealTimers() }
+  })
+  it('retains early records on final failure and labels unavailable results inconclusive', async () => {
+    const value = JSON.parse(safeDiagnostic(await collectWindowed({
+      root: async () => ({ settledHits: 1 }), child: async observe => { if (observe) throw new Error('private error'); return { childHits: 0, childErrors: 1 } },
+      native: async () => ({ commands: [{ kind: 'mousePressed' }] }), frames: async () => ({ framesAfter: [] })
+    })))
+    expect(value).toMatchObject({ observationAgreement: 'unavailable', interpretation: 'inconclusive', availability: { child: 'rejected' }, early: { childHits: 0, counters: { childErrors: 1 } } })
+    expect(JSON.stringify(value)).not.toContain('private error')
+  })
+  it('labels discordant final counters inconclusive', async () => {
+    const value = await collectWindowed({ root: async () => ({ settledHits: 1 }), child: async () => ({ childHits: 0 }), native: async () => ({}), frames: async () => ({}) })
+    expect(value).toMatchObject({ observationAgreement: 'discordant', interpretation: 'inconclusive' })
   })
 })

@@ -22,21 +22,46 @@ export type PartStatus = 'fulfilled' | 'rejected' | 'timeout'
 export async function collectPartial(
   readers: Record<string, () => Promise<Record<string, unknown>>>,
   timeoutMs = 1500
-): Promise<{ data: Record<string, unknown>; availability: Record<string, PartStatus> }> {
+): Promise<{ data: Record<string, unknown>; availability: Record<string, PartStatus>; captureTimes: Record<string, { start: number; end: number }> }> {
   const data: Record<string, unknown> = {}
   const availability: Record<string, PartStatus> = Object.fromEntries(Object.keys(readers).map(key => [key, 'timeout']))
+  const captureTimes: Record<string, { start: number; end: number }> = {}
   let active = true
   let timer: ReturnType<typeof setTimeout> | undefined
   const pending = Object.entries(readers).map(async ([key, read]) => {
+    captureTimes[key] = { start: Date.now(), end: 0 }
     try {
       const result = await read()
-      if (active) { Object.assign(data, result); availability[key] = 'fulfilled' }
-    } catch { if (active) availability[key] = 'rejected' }
+      if (active) { Object.assign(data, result); availability[key] = 'fulfilled'; captureTimes[key]!.end = Date.now() }
+    } catch { if (active) { availability[key] = 'rejected'; captureTimes[key]!.end = Date.now() } }
   })
   await Promise.race([Promise.all(pending), new Promise<void>(resolve => { timer = setTimeout(resolve, timeoutMs) })])
   active = false
   clearTimeout(timer)
-  return { data, availability }
+  for (const key of Object.keys(captureTimes)) if (!captureTimes[key]!.end) captureTimes[key]!.end = Date.now()
+  return { data, availability, captureTimes }
+}
+
+// Early data survives all final-window failures. All waits occur after the original assertion.
+export async function collectWindowed(readers: Record<'native' | 'frames' | 'root' | 'child', (observe: boolean) => Promise<Record<string, unknown>>>): Promise<Record<string, unknown>> {
+  const early = await collectPartial(Object.fromEntries(Object.entries(readers).map(([key, read]) => [key, () => read(false)])), 300)
+  const starts: Record<string, number> = { root: Date.now(), child: 0, native: 0, frames: 0 }
+  const root = Promise.resolve().then(() => { starts.root = Date.now(); return readers.root(true) })
+  const child = Promise.resolve().then(() => { starts.child = Date.now(); return readers.child(true) })
+  let windowTimer: ReturnType<typeof setTimeout> | undefined
+  const windowDone = Promise.race([Promise.allSettled([root, child]), new Promise<void>(resolve => { windowTimer = setTimeout(resolve, 600) })]).finally(() => clearTimeout(windowTimer))
+  const final = await collectPartial({
+    root: () => root, child: () => child,
+    native: async () => { await windowDone; starts.native = Date.now(); return readers.native(true) },
+    frames: async () => { await windowDone; starts.frames = Date.now(); return readers.frames(true) }
+  })
+  for (const key of Object.keys(starts)) final.captureTimes[key]!.start = starts[key]!
+  const available = Object.values(final.availability).every(status => status === 'fulfilled')
+  return { ...final.data, availability: final.availability, captureTimes: final.captureTimes, available,
+    early: { ...early.data, availability: early.availability, captureTimes: early.captureTimes, available: Object.values(early.availability).every(status => status === 'fulfilled') },
+    observationAgreement: !available ? 'unavailable' : final.data.settledHits === final.data.childHits ? 'agree' : 'discordant',
+    interpretation: 'inconclusive'
+  }
 }
 
 const kinds = new Set(['pointermove', 'mousemove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'load', 'loading', 'interactive', 'complete', 'message-receive', 'message-send', 'observer-installed', 'mouseDown', 'mouseUp', 'mouseMove', 'mousePressed', 'mouseReleased', 'mouseMoved'])
@@ -46,7 +71,7 @@ const rows = (value: unknown, limit: number): unknown[] => Array.isArray(value) 
 const role = (value: unknown): string => value === 'root' || value === 'child' ? value : 'unknown'
 
 // Reconstruct the entire export; never spread untrusted diagnostic objects.
-export function safeDiagnostic(value: unknown): string {
+export function safeDiagnostic(value: unknown, includeEarly = true): string {
   const input = object(value)
   const events = (value: unknown, limit = 32): unknown[] => rows(value, limit).map(value => {
     const event = object(value)
@@ -62,6 +87,10 @@ export function safeDiagnostic(value: unknown): string {
   const exportDropped = Object.fromEntries(([['rootEvents', 32], ['childEvents', 32], ['nativeEvents', 32], ['commands', 12], ['frameSamples', 12], ['framesBefore', 4], ['framesAfter', 4]] as const).map(([key, limit]) => [key, Array.isArray(input[key!]) ? Math.min(1000000, Math.max(0, (input[key!] as unknown[]).length - Number(limit))) : 0]))
   const output = JSON.stringify({
     availability, counters, exportDropped,
+    interpretation: 'inconclusive',
+    observationAgreement: input.observationAgreement === 'agree' || input.observationAgreement === 'discordant' ? input.observationAgreement : 'unavailable',
+    captureTimes: Object.fromEntries(['native', 'root', 'child', 'frames'].map(key => { const time = object(object(input.captureTimes)[key]); return [key, { start: number(time.start), end: number(time.end) }] })),
+    early: includeEarly && input.early ? JSON.parse(safeDiagnostic(input.early, false)) : undefined,
     rootObserverAvailable: typeof input.rootObserverAvailable === 'boolean' ? input.rootObserverAvailable : null,
     childObserverAvailable: typeof input.childObserverAvailable === 'boolean' ? input.childObserverAvailable : null,
     truncated: Object.values(counters).some(value => value !== null && value >= 1000000) || ['rootDropped', 'childDropped', 'nativeDropped', 'commandDropped', 'frameDropped'].some(key => (counters[key] ?? 0) > 0) || Object.values(exportDropped).some(value => value > 0),

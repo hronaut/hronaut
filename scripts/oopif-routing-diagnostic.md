@@ -56,7 +56,7 @@ There is no startup/test retry beyond the original Playwright retry policy.
 Inline fixture listeners record root/child pointer and mouse receivers, fixed
 button/document/other target roles, trusted flags, local/screen coordinates,
 Date.now timestamps, DOM event timestamps, document readiness/load, and synthetic
-postMessage send/receive times. The child click counter is read after the original
+postMessage send/receive times. The child click counter is read in early and final observations after the original
 assertion; it is not an extra pre-assertion read. The original onclick and parent
 message-count behavior remain. A capture listener records clicks before onclick.
 
@@ -69,22 +69,34 @@ Native hooks lack DOM target, trust, frame identity and screen coordinates; thes
 unavailable fields are null/unknown, not inferred from input shape. Frame snapshots
 do not observe native attachment events before probe installation.
 
-Only after the original assertion, an event-driven observer checks the parent's
-message delivery for up to 500ms. The complete collection await is capped at
-1500ms and cannot replace the assertion. Native records, frame snapshots, root
-observation and child reads settle independently. Already returned records survive
-another reader's rejection or the global timeout; late completions cannot mutate
-the returned record. Fixed per-reader availability enums distinguish fulfilled,
-rejected, timeout and unavailable. Observer availability is separately recorded.
-There is no repeated click, pre-click sleep, screenshot, paint wait, or hit-test
-readiness substitution in baseline. All observer callbacks are no-throw and
-native hooks are restored by the existing finally cleanup.
+Only after the original assertion, an early phase independently collects native,
+frame, root and child snapshots with a 300ms overall bound. A final phase gives
+root postMessage delivery and child click delivery their own event-driven windows
+of up to 500ms. Child completion queues a microtask after the click dispatch, so
+the original onclick/send and capture listeners can be recorded before snapshot.
+Final native/frame snapshots follow settlement of both DOM reads, or a bounded
+600ms barrier if a DOM read hangs. The final phase has a 1500ms overall bound.
+
+Early records survive all final read failures; each phase exposes its own drop,
+error and availability metadata. Completed final records survive another reader's
+rejection/timeout, and late settlements cannot mutate the returned report. Each
+reader has host-clock capture start/end times (IPC request/settlement boundaries,
+not an atomic cross-process snapshot). Native/frame final start times exclude the
+barrier wait. Root/child windows can differ; their counters may still disagree.
+The report labels observation agreement as agree/discordant/unavailable and always
+labels causal interpretation inconclusive. Neither a discordant window nor a
+missing reader supports a postMessage-only-delay conclusion.
+
+No collection replaces the original assertion. There is no repeated click,
+pre-click sleep, screenshot, paint wait, or hit-test readiness substitution in
+baseline. All observer callbacks are no-throw and native hooks are restored by
+the existing finally cleanup. The added waits occur only after the assertion.
 
 Instrumentation still perturbs timing: extra inline script parsing/listeners,
 clock reads, bounded array writes, and synchronous frame enumeration. It is not
 byte-identical replay. Date.now has millisecond granularity and cross-process
 DOM event timestamps have different time origins. Post-assertion collection and
-file writes can affect later tests and retries. The 500ms/1500ms bounds are
+file writes can affect later tests and retries. The 300ms/500ms/600ms/1500ms bounds are
 observation limits, not application success timeouts. Missing/capped observations
 or green runs cannot establish the cause or a production repair.
 
@@ -96,7 +108,8 @@ port, page body/text, DOM attributes, message payload, raw tool result, exceptio
 profile path, environment, secret, trace or screenshot. DOM reads are restricted
 to the two exact loopback synthetic fixture URLs.
 
-Each target attempt exports at most 64KiB, two attempts per arm. Root/child/native
+Each target attempt exports at most 64KiB including early and final records, two
+attempts per arm. The same field/array allowlists apply independently to both phases. Root/child/native
 event arrays have at most 32 entries each; commands and command-frame snapshots
 have at most 12; each frame snapshot at most four frames. Observers count dropped events and observer errors, saturating at 1,000,000.
 Counter saturation or any drop sets the truncation indicator; exporter truncation

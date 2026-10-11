@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { collectPartial, diagnosticArm, diagnosticEnabled, fixtureObserver, saveDiagnostic } from './oopif-diagnostic.js'
+import { collectWindowed, diagnosticArm, diagnosticEnabled, fixtureObserver, saveDiagnostic } from './oopif-diagnostic.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
@@ -87,7 +87,7 @@ for (const scenario of ['desktop', 'mobile-no-meta', 'cross-origin-frame'] as co
       if (diagnostic) {
         try {
           const port = (server.address() as { port: number } | null)?.port
-          const partial = await collectPartial({
+          const partial = await collectWindowed({
             native: () => electronApp.evaluate(() => {
               const probe = (globalThis as Scope).__coordinateReview
               if (!probe) throw new Error('unavailable')
@@ -99,24 +99,24 @@ for (const scenario of ['desktop', 'mobile-no-meta', 'cross-origin-frame'] as co
               if (!page) throw new Error('unavailable')
               return { framesAfter: [page.mainFrame, ...page.mainFrame.frames].map(frame => ({ role: frame.url === url ? 'root' : frame.url === `http://localhost:${port}/child` ? 'child' : 'unknown', processId: frame.processId, routingId: frame.routingId })) }
             }, port),
-            root: () => electronApp.evaluate(async ({ webContents }, port) => {
+            root: observe => electronApp.evaluate(async ({ webContents }, { port, observe }) => {
               const page = webContents.getAllWebContents().find(page => page.getURL() === `http://127.0.0.1:${port}/`)
               if (!page) throw new Error('unavailable')
               // Post-assertion only. Independent settlement preserves other observations.
-              const root = await page.executeJavaScript(`new Promise(resolve=>{const snapshot=()=>({hits:window.hits,state:window.__oopif});if(window.hits>0){resolve(snapshot());return}let timer;const finish=()=>{clearTimeout(timer);removeEventListener('message',listener);resolve(snapshot())};const listener=e=>{if(e.data==='child-click')queueMicrotask(finish)};addEventListener('message',listener);timer=setTimeout(finish,500)})`)
+              const root = await page.executeJavaScript(`new Promise(resolve=>{const snapshot=()=>({hits:window.hits,state:window.__oopif});if(!${observe}||window.hits>0){resolve(snapshot());return}let timer;const finish=()=>{clearTimeout(timer);removeEventListener('message',listener);resolve(snapshot())};const listener=e=>{if(e.data==='child-click')queueMicrotask(finish)};addEventListener('message',listener);timer=setTimeout(finish,500)})`)
               if (!root.state) throw new Error('unavailable')
               return { settledHits: root.hits, rootEvents: root.state.events, rootObserverAvailable: root.state.available, rootDropped: root.state.dropped, rootErrors: root.state.errors }
-            }, port),
-            child: () => electronApp.evaluate(async ({ webContents }, port) => {
+            }, { port, observe }),
+            child: observe => electronApp.evaluate(async ({ webContents }, { port, observe }) => {
               const page = webContents.getAllWebContents().find(page => page.getURL() === `http://127.0.0.1:${port}/`)
               const child = page?.mainFrame.frames.find(frame => frame.url === `http://localhost:${port}/child`)
               if (!child) throw new Error('unavailable')
-              const state = await child.executeJavaScript('window.__oopif') as { clicks: number; events: unknown[]; dropped: number; errors: number; available: boolean } | undefined
+              const state = await child.executeJavaScript(`new Promise(resolve=>{const snapshot=()=>window.__oopif;if(!${observe}||window.__oopif?.clicks>0){resolve(snapshot());return}let timer;const finish=()=>{clearTimeout(timer);removeEventListener('click',listener,true);resolve(snapshot())};const listener=()=>queueMicrotask(finish);addEventListener('click',listener,true);timer=setTimeout(finish,500)})`) as { clicks: number; events: unknown[]; dropped: number; errors: number; available: boolean } | undefined
               if (!state) throw new Error('unavailable')
               return { childHits: state.clicks, childEvents: state.events, childObserverAvailable: state.available, childDropped: state.dropped, childErrors: state.errors }
-            }, port)
+            }, { port, observe })
           })
-          Object.assign(evidence, partial.data, { availability: partial.availability, available: Object.values(partial.availability).every(status => status === 'fulfilled') })
+          Object.assign(evidence, partial)
         } catch { evidence.available = false }
         await saveDiagnostic(evidence, testInfo.retry)
       }
