@@ -348,6 +348,35 @@ describe('MCP capability profile authentication', () => {
     return { created, profiles, showWindowInactive }
   }
 
+  it.each(['revoke', 'origin'] as const)('withholds compact tab discovery after capability %s during audit settlement', async change => {
+    const tabId = '01912345-6790-7abc-8def-0123456789ab'
+    const workspace = { id: WORKSPACE_ID, name: 'Discovery', contextClass: 'standard' }
+    let origin = 'https://allowed.example'
+    let revoke = async (): Promise<void> => undefined
+    const manager = {
+      listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+      createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+      isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+      beginWorkspaceContinuityAction: () => () => undefined,
+      getMcpDiscoveryTabs: () => [{ id: tabId, title: 'Private discovery canary', url: origin + '/' }],
+      getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, title: 'Private discovery canary', url: origin + '/' }] })
+    }
+    const auditReceipts = { execute: async (_id: string, request: { toolName: string; operation(): Promise<unknown> }) => {
+      const result = await request.operation()
+      if (request.toolName === 'browser_tabs') {
+        if (change === 'revoke') await revoke()
+        else origin = 'https://outside.example'
+      }
+      return result
+    } }
+    const profile = await connectProfile({ name: 'Tab reader', allowedTools: ['browser_workspaces', 'browser_tabs'], operationClasses: ['read', 'browser-state'], origins: [origin] }, undefined, { manager, auditReceipts })
+    revoke = () => profile.profiles.revoke(profile.created.profile.id).then(() => undefined)
+    expect((await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Discovery' } })).isError).not.toBe(true)
+    const result = await client!.callTool({ name: 'browser_tabs', arguments: { workspaceId: WORKSPACE_ID, search: {} } })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).not.toContain('Private discovery canary')
+  })
+
   for (const boundary of ['human-decision', 'audit-receipt'] as const) {
     it.each(['clear', 'edit', 'close', 'origin', 'revoke'] as const)(`discards video pixels after %s during final ${boundary}`, async change => {
       const tabId = '01912345-6790-7abc-8def-0123456789ab'

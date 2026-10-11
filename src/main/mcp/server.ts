@@ -1,3 +1,4 @@
+import { compactTabDiscovery, TAB_DISCOVERY_LIMITS, type TabDiscoverySearch } from './tab-discovery.js'
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
 import type { PendingElementInspection } from '../browser/element-inspection-publication.js'
 import type { PendingPdfExport } from '../browser/pdf-export-publication.js'
@@ -1039,7 +1040,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1137,6 +1138,11 @@ function createBrowserMcpServer(
             { type: 'text', text: JSON.stringify(inspection.report) },
             ...(inspection.image ? [{ type: 'image' as const, data: Buffer.from(inspection.image).toString('base64'), mimeType: 'image/png' as const }] : [])
           ] }
+        }
+        if (name === 'browser_tabs' && input.search !== undefined && !result.isError) {
+          if (!frameRequest.tabDiscoveryPublication) throw new Error('Tab discovery publication guard is unavailable')
+          frameRequest.tabDiscoveryPublication()
+          return result // No await after final workspace/control/capability checks.
         }
         if (name === 'browser_network_request' && !result.isError) {
           if (!frameRequest.networkPublication) throw new Error('Network detail publication guard is unavailable')
@@ -1736,6 +1742,12 @@ function createBrowserMcpServer(
           }
         }
         if (isFrameObservation) { const request = frameRequests.getStore()!; request.assertCurrent = requireCurrentTarget; request.tabId = resolvedTabId }
+        if (name === 'browser_tabs' && input.search !== undefined) {
+          frameRequests.getStore()!.tabDiscoveryPublication = () => {
+            if (extra?.signal?.aborted) throw new Error('Tab discovery cancelled')
+            requireCurrentTarget()
+          }
+        }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
         let activityStarted = false
@@ -2870,8 +2882,17 @@ function createBrowserMcpServer(
   )
   registerWorkspaceTool(
     'browser_tabs',
-    { description: toolDescription('browser_tabs'), inputSchema: {} },
-    tool(async ({ workspaceId }: { workspaceId?: string }) => textResult(manager.getMcpGroupState(workspaceId!).tabs.map(mcpWorkspaceTab)))
+    { description: toolDescription('browser_tabs'), inputSchema: {
+      search: z.object({
+        query: z.string().max(TAB_DISCOVERY_LIMITS.queryChars).optional().describe('Literal, case-insensitive whitespace-separated terms; each term must match the same tab’s projected title or address. An empty query lists eligible tabs.'),
+        limit: z.number().int().min(1).max(TAB_DISCOVERY_LIMITS.results).optional().describe('Maximum compact results; defaults to 10. Output may stop earlier at its character bound.')
+      }).strict().optional().describe('Opt in to compact discovery of live HTTP(S) tabs. Addresses omit credentials, fragments and recognized secret query values. Only current-document titles confirmed by explicit native title events are included; unverified and URL fallback titles are empty. Title/address projections are bounded; counts cover projected fields only. Omit search to keep the existing full tab-state response.')
+    } },
+    tool(async ({ workspaceId, search }: { workspaceId?: string; search?: TabDiscoverySearch }) => {
+      return textResult(search === undefined
+        ? manager.getMcpGroupState(workspaceId!).tabs.map(mcpWorkspaceTab)
+        : compactTabDiscovery(manager.getMcpDiscoveryTabs(workspaceId!), search))
+    })
   )
   registerWorkspaceTool(
     'browser_new_tab',

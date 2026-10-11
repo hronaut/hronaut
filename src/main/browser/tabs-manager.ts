@@ -352,6 +352,7 @@ import {
 } from './page-scripts.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import { normalizeTabTitle } from './tab-metadata.js'
+import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isAgentWorkspaceNavigationUrl, isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import {
   evaluateWorkspaceNavigation,
@@ -574,6 +575,8 @@ interface BrowserConsoleMessageRecord extends ConsoleCapture {
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
   id: string
   title: string
+  /** Current-document title confirmed by an explicit native title event; never a restored/URL fallback. */
+  discoveryTitle: TabDiscoveryTitle
   url: string
   loading: boolean
   navigationGeneration: number
@@ -2130,6 +2133,12 @@ export class BrowserTabsManager {
     }
   }
 
+  getMcpDiscoveryTabs(groupId: string): Array<Pick<BrowserTabState, 'id' | 'title' | 'url'>> {
+    return this.getMcpGroupState(groupId).tabs.map(tab => ({
+      id: tab.id, url: tab.url, title: this.tabs.get(tab.id)?.discoveryTitle.value ?? ''
+    }))
+  }
+
   walletPageContext(webContentsId: number): BrowserWalletPageContext {
     const tabId = this.webContentsToTab.get(webContentsId)
     const tab = tabId ? this.tabs.get(tabId) : undefined
@@ -3158,6 +3167,7 @@ export class BrowserTabsManager {
       this.changed(false)
       try {
         if (navigationHistory?.entries.length) {
+          tab.discoveryTitle.restoring(navigationHistory.entries)
           await tab.webContents.navigationHistory.restore(navigationHistory)
         } else {
           await tab.webContents.loadURL(restoreUrl)
@@ -7887,6 +7897,7 @@ export class BrowserTabsManager {
     }
     const tab: BrowserTab = {
       id,
+      discoveryTitle: new TabDiscoveryTitle(),
       title: normalizeTabTitle(
         options.title || (url === HRONAUT_HOME_URL ? 'Hronaut Home' : url === 'about:blank' ? 'New tab' : url)
       ),
@@ -7952,6 +7963,7 @@ export class BrowserTabsManager {
     if ((options.active && options.selectVisible !== false) || (!this.activeTabId && !this.restoringLayout)) {
       this.selectTab(id, { focus: options.focus })
     }
+    if (options.navigationHistory) tab.discoveryTitle.restoring(options.navigationHistory.entries)
     const loading = options.navigationHistory
       ? view.webContents.navigationHistory.restore(options.navigationHistory)
       : view.webContents.loadURL(url, options.loadOptions)
@@ -8444,8 +8456,9 @@ export class BrowserTabsManager {
       this.recordVisit(tab)
       tab.pendingHistoryUrl = null
     }
-    webContents.on('page-title-updated', (_event, title) => {
+    webContents.on('page-title-updated', (_event, title, explicitSet) => {
       if (tab.sleeping) return
+      tab.discoveryTitle.observe(title, explicitSet === true)
       const nextTitle = normalizeTabTitle(title, tab.title)
       const titleChanged = nextTitle !== tab.title
       tab.title = nextTitle
@@ -8500,6 +8513,7 @@ export class BrowserTabsManager {
         tab.performanceDocumentRouted = true
         return
       }
+      tab.discoveryTitle.clear()
       tab.faviconAbortController?.abort()
       tab.faviconAbortController = undefined
       tab.faviconRequestId += 1
@@ -9083,6 +9097,7 @@ export class BrowserTabsManager {
       try {
         if (navigationHistory?.entries.length) {
           try {
+            tab.discoveryTitle.restoring(navigationHistory.entries)
             await tab.webContents.navigationHistory.restore(navigationHistory)
           } catch {
             await tab.webContents.loadURL(tab.url)
