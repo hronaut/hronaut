@@ -267,6 +267,10 @@ export function useNetworkController(options: NetworkControllerOptions) {
     if (harSaveState.value !== 'saving') harSaveState.value = 'idle'
     harExport.value = null
     if (clear) {
+      // Retire exports of the records being cleared before awaiting the clear.
+      // This cannot undo a clipboard write that has already been dispatched.
+      harCopySequence += 1
+      feedbackTimers.clear('har')
       contentSearchSequence += 1
       clearRequestSelection()
       resetReplayFeedback()

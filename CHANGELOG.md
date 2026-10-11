@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Retire pending Copy HAR results and feedback when clearing the Network list, so an older export cannot copy cleared records or restore obsolete success/error messages. Clipboard writes already dispatched are not undone.
+
 - Count unmatched, unblocked key-down input during agent operations so native-click authority checks can stop later presses. Expected keyboard events are admitted once. Identical event shapes remain indistinguishable, and concurrent mouse input retains its existing gap; use Pause agents for explicit takeover.
 
 - Recheck authority and cancellation between MCP native-click input phases. A pause, access change or navigation stops later presses; a successful press still receives its release. Earlier hover or click effects are not rolled back, so inspect the page before retrying.
