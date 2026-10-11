@@ -9,7 +9,7 @@ export const TAB_DISCOVERY_LIMITS = {
 export interface TabDiscoverySearch { query?: string; limit?: number }
 type DiscoveryTab = Pick<BrowserTabState, 'id' | 'title' | 'url'>
 
-/** Project before matching: omitted URL components cannot influence discovery. */
+/** Project before matching. The caller supplies only verified explicit document titles, never URL fallbacks. */
 export function compactTabDiscovery(tabs: readonly DiscoveryTab[], search: TabDiscoverySearch) {
   const query = search.query ?? ''
   const limit = search.limit ?? 10
@@ -52,7 +52,7 @@ export function compactTabDiscovery(tabs: readonly DiscoveryTab[], search: TabDi
     limits: TAB_DISCOVERY_LIMITS,
     caveats: [
       'Counts and matches cover only projected fields of live HTTP(S) tabs with parseable addresses within the source URL bound; other tabs are omitted.',
-      'Titles and URL paths may contain private information. This is output minimization, not DLP.',
+      'Only explicit current-document titles are searched; fallback and unverified titles are empty. Authored titles and URL paths may contain private information. This is output minimization, not DLP.',
       'This is point-in-time discovery, not authority for a later action. Recheck the target before acting.'
     ]
   }

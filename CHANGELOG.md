@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
-- Opt in to compact MCP tab discovery with `browser_tabs`'s `search` argument. Match bounded title/address projections by literal words within one authorized workspace, with explicit counts and truncation, without waking or selecting tabs. Credentials, fragments and recognized secret query values cannot influence matches; titles and paths may still contain private information. Existing calls retain full tab state.
+- Opt in to compact MCP tab discovery with `browser_tabs`'s `search` argument. Match bounded title/address projections by literal words within one authorized workspace, with explicit counts and truncation, without waking or selecting tabs. URL-derived fallback titles are omitted; credentials, fragments and recognized secret query values are removed from addresses before matching. Explicit page-authored titles and paths may still contain private information. Existing calls retain full tab state.
 
 ### Fixed
 

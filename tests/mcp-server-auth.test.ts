@@ -358,6 +358,7 @@ describe('MCP capability profile authentication', () => {
       createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
       isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
       beginWorkspaceContinuityAction: () => () => undefined,
+      getMcpDiscoveryTabs: () => [{ id: tabId, title: 'Private discovery canary', url: origin + '/' }],
       getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, title: 'Private discovery canary', url: origin + '/' }] })
     }
     const auditReceipts = { execute: async (_id: string, request: { toolName: string; operation(): Promise<unknown> }) => {

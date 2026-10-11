@@ -574,6 +574,8 @@ interface BrowserConsoleMessageRecord extends ConsoleCapture {
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
   id: string
   title: string
+  /** Current-document title confirmed by an explicit native title event; never a restored/URL fallback. */
+  discoveryTitle?: string
   url: string
   loading: boolean
   navigationGeneration: number
@@ -2128,6 +2130,12 @@ export class BrowserTabsManager {
       mcpTabGroups: [this.requireMcpTabGroup(groupId)],
       savedTabGroups: []
     }
+  }
+
+  getMcpDiscoveryTabs(groupId: string): Array<Pick<BrowserTabState, 'id' | 'title' | 'url'>> {
+    return this.getMcpGroupState(groupId).tabs.map(tab => ({
+      id: tab.id, url: tab.url, title: this.tabs.get(tab.id)?.discoveryTitle ?? ''
+    }))
   }
 
   walletPageContext(webContentsId: number): BrowserWalletPageContext {
@@ -8444,8 +8452,9 @@ export class BrowserTabsManager {
       this.recordVisit(tab)
       tab.pendingHistoryUrl = null
     }
-    webContents.on('page-title-updated', (_event, title) => {
+    webContents.on('page-title-updated', (_event, title, explicitSet) => {
       if (tab.sleeping) return
+      tab.discoveryTitle = explicitSet === true && title.trim() ? normalizeTabTitle(title) : undefined
       const nextTitle = normalizeTabTitle(title, tab.title)
       const titleChanged = nextTitle !== tab.title
       tab.title = nextTitle
@@ -8500,6 +8509,7 @@ export class BrowserTabsManager {
         tab.performanceDocumentRouted = true
         return
       }
+      tab.discoveryTitle = undefined
       tab.faviconAbortController?.abort()
       tab.faviconAbortController = undefined
       tab.faviconRequestId += 1

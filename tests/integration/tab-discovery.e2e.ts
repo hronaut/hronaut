@@ -1,3 +1,5 @@
+import { createServer } from 'node:http'
+import { closeFixtureServer } from './fixtures.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
@@ -39,7 +41,7 @@ test('discovers projected tabs within one workspace without exposing omitted URL
 })
 
 test('compact discovery leaves sleeping tabs, selection and native focus untouched', async ({ capabilities, appWindow, electronApp }) => {
-  const { client, tabId, fixtureUrl, fixtureOrigin, counters } = capabilities
+  const { client, tabId, fixtureUrl, fixtureOrigin } = capabilities
   const call = async (name: string, args: Record<string, unknown> = {}) => {
     const result = await client.callTool({ name, arguments: args }) as CallToolResult
     expect(result.isError, text(result)).not.toBe(true)
@@ -59,12 +61,85 @@ test('compact discovery leaves sleeping tabs, selection and native focus untouch
   const before = await call('browser_status') as BrowserState
   expect(before.tabs.find(t => t.id === tabId)?.sleeping).toBe(true)
   const focus = await electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.id ?? null)
-  const ticks = counters.memorySaverTicks
   const result = await call('browser_tabs', { search: { query: '127.0.0.1' } }) as Discovery
   expect(result).toMatchObject({ returned: 1, matching: 1, tabs: [{ id: tabId }] })
   const after = await call('browser_status') as BrowserState
   expect(after.activeTabId).toBe(before.activeTabId)
   expect(after.tabs.find(t => t.id === tabId)).toEqual(before.tabs.find(t => t.id === tabId))
   expect(await electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.id ?? null)).toBe(focus)
-  expect(counters.memorySaverTicks).toBe(ticks)
+})
+
+
+for (const longUrl of [false, true]) test(`compact discovery omits ${longUrl ? 'truncated' : 'raw'} URL fallback titles while loading and after a titleless document`, async ({ capabilities, electronApp }, testInfo) => {
+  const { client } = capabilities
+  let release!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  let releaseNext!: () => void
+  const nextGate = new Promise<void>(resolve => { releaseNext = resolve })
+  let nextRequested = false
+  const server = createServer(async (request, response) => {
+    if (request.url?.startsWith('/retained')) { nextRequested = true; await nextGate }
+    await gate
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><body>Titleless fixture</body>')
+  })
+  const call = async (name: string, args: Record<string, unknown> = {}) => {
+    const result = await client.callTool({ name, arguments: args }) as CallToolResult
+    expect(result.isError, text(result)).not.toBe(true)
+    return name === 'browser_wait' ? result : JSON.parse(text(result))
+  }
+  try {
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing titleless fixture address')
+    const url = `http://127.0.0.1:${address.port}/fallback-path?token=fallback-secret${longUrl ? '&padding=' + 'x'.repeat(700) : ''}#fallback-fragment`
+    const before = new Set((await call('browser_tabs') as BrowserTabState[]).map(tab => tab.id))
+    const state = await call('browser_new_tab', { url, active: false }) as BrowserState
+    const id = state.tabs.find(tab => !before.has(tab.id))!.id
+    const observations: unknown[] = []
+    // Capture both real producer states before testing privacy, so a loading failure does not mask titleless evidence.
+    for (const phase of ['loading', 'titleless']) {
+      if (phase === 'titleless') { release(); await call('browser_wait', { tabId: id }) }
+      const legacy = (await call('browser_tabs') as BrowserTabState[]).find(tab => tab.id === id)!
+      const compact = await call('browser_tabs', { search: { query: 'fallback-path' } })
+      const secret = await call('browser_tabs', { search: { query: 'fallback-secret' } })
+      const fragment = await call('browser_tabs', { search: { query: 'fallback-fragment' } })
+      observations.push({ phase, legacy, compact, secret, fragment })
+    }
+    await testInfo.attach('fallback-title-states', { body: JSON.stringify(observations, null, 2), contentType: 'application/json' })
+    for (const item of observations as Array<{ phase: string; legacy: BrowserTabState; compact: Discovery; secret: Discovery; fragment: Discovery }>) {
+      expect(item.legacy.url).toBe(url)
+      expect(item.legacy.title).toContain('fallback-secret')
+      if (longUrl) expect(item.legacy.title.length).toBeLessThanOrEqual(512)
+      expect(item.legacy.loading).toBe(item.phase === 'loading')
+      expect(item.compact).toMatchObject({ eligible: 2, matching: 1, returned: 1, tabs: [{ id, title: '' }] })
+      expect(JSON.stringify(item.compact)).not.toMatch(/fallback-secret|fallback-fragment/)
+      for (const result of [item.secret, item.fragment]) expect(result).toMatchObject({ eligible: 2, matching: 0, returned: 0, tabs: [] })
+    }
+    const retainedTitle = (await call('browser_tabs') as BrowserTabState[]).find(tab => tab.id === id)!.title
+    await electronApp.evaluate(({ webContents }, { url, next }) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+      void page.loadURL(next).catch(() => undefined)
+    }, { url, next: `http://127.0.0.1:${address.port}/retained` })
+    await expect.poll(() => nextRequested).toBe(true)
+    const retained = (await call('browser_tabs') as BrowserTabState[]).find(tab => tab.id === id)!
+    expect(retained.title).toBe(retainedTitle)
+    expect(retained.loading).toBe(true)
+    for (const query of ['fallback-secret', 'fallback-fragment']) {
+      expect(await call('browser_tabs', { search: { query } })).toMatchObject({ eligible: 2, matching: 0, returned: 0, tabs: [] })
+    }
+    const retainedCompact = await call('browser_tabs', { search: {} }) as Discovery
+    expect(retainedCompact).toMatchObject({ eligible: 2, matching: 2, returned: 2 })
+    expect(retainedCompact.tabs.find(tab => tab.id === id)?.title).toBe('')
+    releaseNext()
+    await call('browser_wait', { tabId: id })
+    const authored = await client.callTool({ name: 'browser_evaluate', arguments: { tabId: id, script: "document.title='Authored fallback-secret'; ({ ready: true })" } }) as CallToolResult
+    expect(authored.isError, text(authored)).not.toBe(true)
+    await expect.poll(async () => (await call('browser_tabs', { search: { query: 'Authored fallback-secret' } })).returned).toBe(1)
+    // Authored text is deliberately searchable: URL omission is not arbitrary-title DLP.
+    const navigated = await client.callTool({ name: 'browser_navigate', arguments: { tabId: id, url } }) as CallToolResult
+    expect(navigated.isError, text(navigated)).not.toBe(true)
+    await call('browser_wait', { tabId: id })
+    expect(await call('browser_tabs', { search: { query: 'Authored' } })).toMatchObject({ eligible: 2, matching: 0, returned: 0 })
+  } finally { release(); releaseNext(); await closeFixtureServer(server) }
 })

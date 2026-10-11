@@ -26,6 +26,7 @@ describe('compact MCP tab discovery', () => {
       requireMcpTabGroup: () => { if (!open) throw Error('Workspace closed'); return workspace },
       beginWorkspaceContinuityAction: () => () => {}, requireWorkspaceContinuityDispatch: () => {},
       getMcpGroupState: vi.fn(() => ({ activeTabId: tabId, tabs, closedTabs: [], mcpTabGroups: [workspace], savedTabGroups: [] })),
+      getMcpDiscoveryTabs: vi.fn(() => tabs),
       wakeTab: vi.fn(), requireTabInMcpGroup: vi.fn(), selectTabAndWait: vi.fn()
     }
     server = new McpHttpServer(manager as never, { host: '127.0.0.1', port: 0, version: 'test',
