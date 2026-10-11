@@ -1898,13 +1898,13 @@ function createBrowserMcpServer(
                 ...actionInput,
                 tabId: resolvedTabId,
                 ...((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_network_request') ? { validateInspection: requireCurrentTarget } : {}),
-                ...(name === 'browser_click' ? { validateClick: (validateContext: () => void) => {
+                ...(['browser_click', 'browser_hover', 'browser_drag', 'browser_press'].includes(name) ? { validateNativeInput: (validateContext: () => void) => {
                   try {
-                    if (extra?.signal?.aborted) throw new Error('Native click cancelled; earlier input effects are not rolled back')
+                    if (extra?.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
                     requireCurrentTarget()
                     requirePostWriteContext()
                     validateContext()
-                    if (authorityRejection()) throw new Error('Native click authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+                    if (authorityRejection()) throw new Error('Native input authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
                   } catch (error) {
                     // Preparation or an earlier click in a double-click may
                     // already have effects. Never classify this as safe replay.
@@ -3569,7 +3569,7 @@ function createBrowserMcpServer(
         reconciliation: reconciliationRequestSchema.optional().describe('Repeat a bounded pre-write lookup immediately before dispatch. Must describe the same target and desired state as postcondition; a missing, stale, ambiguous, or already-satisfied target prevents the click.')
       }
     },
-    tabTool('browser_click', async ({ validateClick, ...input }: {
+    tabTool('browser_click', async ({ validateNativeInput, ...input }: {
       tabId?: string
       ref?: string
       selector?: string
@@ -3577,7 +3577,7 @@ function createBrowserMcpServer(
       y?: number
       doubleClick?: boolean
       native?: boolean
-      validateClick?: (validateContext: () => void) => void
+      validateNativeInput?: (validateContext: () => void) => void
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest
@@ -3587,8 +3587,8 @@ function createBrowserMcpServer(
         sourceRevision: string
       }
     }) => {
-      if (!validateClick) throw new Error('Click authority is unavailable')
-      return textResult(await manager.click(browserClickPageInput(input), validateClick))
+      if (!validateNativeInput) throw new Error('Click authority is unavailable')
+      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput))
     })
   )
   registerWorkspaceTool(
@@ -3666,13 +3666,17 @@ function createBrowserMcpServer(
         y: z.number().finite().nonnegative().optional()
       }
     },
-    tabTool('browser_hover', async (input: {
+    tabTool('browser_hover', async ({ validateNativeInput, ...input }: {
+      validateNativeInput?: (validateContext: () => void) => void
       tabId?: string
       ref?: string
       selector?: string
       x?: number
       y?: number
-    }) => textResult(await manager.hover(input)))
+    }) => {
+      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
+      return textResult(await manager.hover(input, validateNativeInput))
+    })
   )
   registerWorkspaceTool(
     'browser_drag',
@@ -3690,7 +3694,8 @@ function createBrowserMcpServer(
         endY: z.number().finite().nonnegative().optional()
       }
     },
-    tabTool('browser_drag', async (input: {
+    tabTool('browser_drag', async ({ validateNativeInput, ...input }: {
+      validateNativeInput?: (validateContext: () => void) => void
       tabId?: string
       sourceRef?: string
       sourceSelector?: string
@@ -3700,7 +3705,10 @@ function createBrowserMcpServer(
       startY?: number
       endX?: number
       endY?: number
-    }) => textResult(await manager.drag(input)))
+    }) => {
+      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
+      return textResult(await manager.drag(input, validateNativeInput))
+    })
   )
   registerWorkspaceTool(
     'browser_scroll',
@@ -3728,8 +3736,9 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional()
       }
     },
-    tabTool('browser_press', async ({ key, tabId }: { key: string; tabId?: string }) => {
-      await manager.press(key, tabId)
+    tabTool('browser_press', async ({ key, tabId, validateNativeInput }: { key: string; tabId?: string; validateNativeInput?: (validateContext: () => void) => void }) => {
+      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
+      await manager.press(key, tabId, validateNativeInput)
       return textResult(`Pressed ${key}`)
     })
   )

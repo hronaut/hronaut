@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Recheck native hover, drag and key input authority after asynchronous preparation and before each dispatch. Stop later input when pause, workspace access, cancellation or navigation changes; release an already-pressed button or key once without replaying the action.
+
 - Recheck file-upload authority and captured tab/document context immediately before assigning files. Pause, access revocation, cancellation or context changes during asynchronous preparation now prevent the commit and retain conservative no-retry outcome reporting.
 
 ## [2.35.0] - 2026-10-11

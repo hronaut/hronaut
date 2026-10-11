@@ -97,7 +97,8 @@ function keyDescription(input: BrowserKeyPress): {
 
 export async function dispatchNativeKeyPress(
   debuggerApi: KeyboardDebugger,
-  input: BrowserKeyPress
+  input: BrowserKeyPress,
+  releaseDebugger: KeyboardDebugger = debuggerApi
 ): Promise<void> {
   const modifiers = input.modifiers.reduce((value, modifier) => value | modifierBits[modifier], 0)
   const key = keyDescription(input)
@@ -109,7 +110,7 @@ export async function dispatchNativeKeyPress(
     windowsVirtualKeyCode: key.virtualKeyCode,
     ...(key.text === undefined ? {} : { text: key.text, unmodifiedText: key.unmodifiedText })
   })
-  await debuggerApi.sendCommand('Input.dispatchKeyEvent', {
+  await releaseDebugger.sendCommand('Input.dispatchKeyEvent', {
     type: 'keyUp',
     modifiers,
     key: key.key,
