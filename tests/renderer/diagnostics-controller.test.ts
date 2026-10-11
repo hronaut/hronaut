@@ -191,7 +191,15 @@ function prepareTextCopy(kind: typeof textCopyKinds[number], copyTextOverride?: 
     issues: { copy: h.controller.copyInspectorIssues, copied: h.controller.inspectorIssuesCopied },
     quality: { copy: h.controller.copyQualityAudit, copied: h.controller.qualityAuditCopied }
   }[kind]
-  return { ...h, ...action }
+  const open = {
+    debug: h.controller.debugReportPanelOpen,
+    repro: h.controller.reproPanelOpen,
+    playwright: h.controller.reproPanelOpen,
+    dom: h.controller.domChangesPanelOpen,
+    issues: h.controller.inspectorIssuesOpen,
+    quality: h.controller.qualityAuditPanelOpen
+  }[kind]
+  return { ...h, ...action, open }
 }
 
 afterEach(() => {
@@ -852,6 +860,96 @@ describe('diagnostic text-copy failure ownership', () => {
       await copying
       expect(h.showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current diagnostic clipboard refusal')
       expect(h.copied.value).toBe(false)
+    } finally { h.controller.dispose() }
+  })
+})
+
+
+describe('diagnostic panel close copy ownership', () => {
+  it.each(textCopyKinds.flatMap(kind => [false, true].flatMap(reopen =>
+    [false, true].map(fail => ({ kind, reopen, fail }))
+  )))('retires $kind pending copy on close (reopen=$reopen, fail=$fail)', async ({ kind, reopen, fail }) => {
+    const pending = deferred<void>()
+    const showToast = vi.fn()
+    const nativeCopy = vi.fn(async () => {}).mockReturnValueOnce(pending.promise)
+    const shell = useShellFeedbackController({ browser: { copyText: nativeCopy }, translate: key => key, showToast })
+    const h = prepareTextCopy(kind, shell.copyText)
+    try {
+      h.open.value = true
+      const report = h.controller.reproRecording.value
+      const copying = h.copy()
+      expect(nativeCopy).toHaveBeenCalledOnce()
+      h.open.value = false
+      if (reopen) h.open.value = true
+      // Settle in the same turn: closing must invalidate synchronously.
+      if (fail) pending.reject(new Error('Closed diagnostic clipboard refusal'))
+      else pending.resolve()
+      await copying
+      expect(showToast).not.toHaveBeenCalled()
+      expect(h.copied.value).toBe(false)
+      expect(h.controller.reproRecording.value).toBe(report)
+      expect(h.browser.manageRepro).not.toHaveBeenCalled()
+      if (!reopen) h.open.value = true
+      await h.copy()
+      expect(h.copied.value).toBe(true)
+      nativeCopy.mockRejectedValueOnce(new Error('Current diagnostic clipboard refusal'))
+      await h.copy()
+      expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current diagnostic clipboard refusal')
+    } finally { h.controller.dispose() }
+  })
+
+  it.each(textCopyKinds)('clears %s success on close without its timer clearing a new copy', async kind => {
+    vi.useFakeTimers()
+    const h = prepareTextCopy(kind)
+    try {
+      h.open.value = true
+      await h.copy()
+      expect(h.copied.value).toBe(true)
+      await vi.advanceTimersByTimeAsync(1_000)
+      h.open.value = false
+      expect(h.copied.value).toBe(false)
+      h.open.value = true
+      await h.copy()
+      await vi.advanceTimersByTimeAsync(600)
+      expect(h.copied.value).toBe(true)
+      await vi.advanceTimersByTimeAsync(900)
+      expect(h.copied.value).toBe(false)
+    } finally { h.controller.dispose() }
+  })
+
+  it.each(textCopyKinds)('keeps a new %s copy pending after the closed copy completes', async kind => {
+    const older = deferred<boolean>(), newer = deferred<boolean>()
+    const h = prepareTextCopy(kind)
+    h.copyText.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise)
+    try {
+      h.open.value = true
+      const oldCopy = h.copy()
+      h.open.value = false
+      h.open.value = true
+      const newCopy = h.copy()
+      older.resolve(true)
+      await oldCopy
+      expect(h.copied.value).toBe(false)
+      newer.resolve(true)
+      await newCopy
+      expect(h.copied.value).toBe(true)
+    } finally { h.controller.dispose() }
+  })
+
+  it('closing Repro retires both exports while leaving another panel copy current', async () => {
+    const pending = [deferred<boolean>(), deferred<boolean>(), deferred<boolean>()]
+    const h = prepareTextCopy('repro')
+    h.copyText.mockReturnValueOnce(pending[0]!.promise).mockReturnValueOnce(pending[1]!.promise).mockReturnValueOnce(pending[2]!.promise)
+    try {
+      h.open.value = true
+      h.controller.debugReportPanelOpen.value = true
+      const copies = [h.copy(), h.controller.copyReproPlaywright(), h.controller.copyDebugReport()]
+      h.open.value = false
+      pending.forEach(value => value.resolve(true))
+      await Promise.all(copies)
+      expect(h.copied.value).toBe(false)
+      expect(h.controller.reproPlaywrightCopied.value).toBe(false)
+      expect(h.controller.debugReportCopied.value).toBe(true)
     } finally { h.controller.dispose() }
   })
 })

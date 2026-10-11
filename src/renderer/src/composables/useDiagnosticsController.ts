@@ -165,6 +165,25 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   const feedbackTimers = new Map<CopyFeedback, number>()
   const copySequences = new Map<CopyFeedback, number>()
 
+  const textCopyPanels: Array<{ open: Ref<boolean>; copies: Array<{ key: CopyFeedback; copied: Ref<boolean> }> }> = [
+    { open: debugReportPanelOpen, copies: [{ key: 'debug', copied: debugReportCopied }] },
+    { open: qualityAuditPanelOpen, copies: [{ key: 'quality', copied: qualityAuditCopied }] },
+    { open: inspectorIssuesOpen, copies: [{ key: 'issues', copied: inspectorIssuesCopied }] },
+    { open: reproPanelOpen, copies: [{ key: 'repro', copied: reproCopied }, { key: 'repro-playwright', copied: reproPlaywrightCopied }] },
+    { open: domChangesPanelOpen, copies: [{ key: 'dom', copied: domChangesCopied }] }
+  ]
+  const stopTextCopyPanelWatchers = textCopyPanels.map(({ open, copies }) => watch(open, isOpen => {
+    if (isOpen) return
+    for (const { key, copied } of copies) {
+      // A dispatched clipboard write can finish, but its closed panel no longer owns feedback.
+      copySequences.set(key, (copySequences.get(key) ?? 0) + 1)
+      const timer = feedbackTimers.get(key)
+      if (timer !== undefined) window.clearTimeout(timer)
+      feedbackTimers.delete(key)
+      copied.value = false
+    }
+  }, { flush: 'sync' }))
+
   function begin(domain: Domain): { tab: BrowserTabState; generation: number; sequence: number } | null {
     const tab = options.activeTab.value
     if (!tab || isHronautHomeUrl(tab.url)) return null
@@ -847,6 +866,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     stopMemoryWatcher()
     stopDomTabWatcher()
     stopDomOpenWatcher()
+    for (const stop of stopTextCopyPanelWatchers) stop()
     if (domRefreshTimer !== undefined) window.clearInterval(domRefreshTimer)
     resetCopyFeedback()
   }
