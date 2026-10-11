@@ -327,7 +327,26 @@ describe('Network detail copy failure ownership', () => {
 })
 
 describe('HAR copy filter ownership', () => {
-  it.each(['query', 'resource', 'failures', 'newer', 'reset', 'dispose', 'tab-change'])(
+  it.each(['success', 'failure'].flatMap(clear => ['success', 'failure'].map(outcome => ({ clear, outcome }))))('retires a pending HAR export on $clear Clear before a late $outcome', async ({ clear, outcome }) => {
+    const { controller, browser, copyText } = createController()
+    const har = await browser.createNetworkHar()
+    const pending = deferred<typeof har>()
+    browser.createNetworkHar.mockReturnValueOnce(pending.promise)
+    try {
+      const copying = controller.copyHar()
+      if (clear === 'failure') browser.listNetworkRequests.mockRejectedValueOnce(new Error('Current Clear failure'))
+      await controller.refresh(true)
+      const currentMessage = controller.monitorError.value
+      if (outcome === 'success') pending.resolve(har)
+      else pending.reject(new Error('Obsolete HAR export failure'))
+      await copying
+      expect(copyText).not.toHaveBeenCalled()
+      expect(controller.harCopied.value).toBe(false)
+      expect(controller.monitorError.value).toBe(currentMessage)
+    } finally { controller.dispose() }
+  })
+
+  it.each(['query', 'resource', 'failures', 'newer', 'reset', 'dispose', 'tab-change', 'clear'])(
     'suppresses obsolete HAR failure toasts through the production feedback helper after %s', async action => {
       const pending = deferred<void>()
       const nativeCopy = vi.fn(async (_text: string) => {}).mockReturnValueOnce(pending.promise)
@@ -341,6 +360,7 @@ describe('HAR copy filter ownership', () => {
         else if (action === 'resource') controller.resourceFilter.value = 'fetch/xhr'
         else if (action === 'failures') controller.failuresOnly.value = true
         else if (action === 'newer') await controller.copyHar()
+        else if (action === 'clear') await controller.refresh(true)
         else if (action === 'tab-change') activeTab.value = tab('tab-2')
         else if (action === 'reset') controller.reset()
         else controller.dispose()
@@ -364,6 +384,45 @@ describe('HAR copy filter ownership', () => {
       await controller.copyHar()
       expect(showToast).toHaveBeenCalledExactlyOnceWith('error', 'runtime.capture.copyFailed', 'Current native clipboard refusal')
       expect(controller.harCopied.value).toBe(false)
+    } finally { controller.dispose() }
+  })
+
+  it.each(['success', 'false', 'rejection'])('retires clipboard %s feedback immediately when Clear starts', async outcome => {
+    const { controller, browser, copyText } = createController()
+    const pending = deferred<boolean>()
+    const cleared = deferred<BrowserNetworkRequest[]>()
+    copyText.mockReturnValueOnce(pending.promise)
+    browser.listNetworkRequests.mockReturnValueOnce(cleared.promise)
+    try {
+      const copying = controller.copyHar()
+      await vi.waitFor(() => expect(copyText).toHaveBeenCalledOnce())
+      const clearing = controller.refresh(true)
+      controller.monitorError.value = 'Current Clear message'
+      if (outcome === 'rejection') pending.reject(new Error('Obsolete clipboard failure'))
+      else pending.resolve(outcome === 'success')
+      await copying
+      expect(controller.harCopied.value).toBe(false)
+      expect(controller.monitorError.value).toBe('Current Clear message')
+      cleared.resolve([])
+      await clearing
+    } finally { controller.dispose() }
+  })
+
+  it.each(['success', 'failure'])('keeps a new copy after Clear when the old export reports %s', async outcome => {
+    const { controller, browser, copyText } = createController()
+    const har = await browser.createNetworkHar()
+    const pending = deferred<typeof har>()
+    browser.createNetworkHar.mockReturnValueOnce(pending.promise)
+    try {
+      const older = controller.copyHar()
+      await controller.refresh(true)
+      await controller.copyHar()
+      if (outcome === 'success') pending.resolve(har)
+      else pending.reject(new Error('Obsolete pre-Clear export'))
+      await older
+      expect(copyText).toHaveBeenCalledOnce()
+      expect(controller.harCopied.value).toBe(true)
+      expect(controller.monitorError.value).toBe('')
     } finally { controller.dispose() }
   })
 
