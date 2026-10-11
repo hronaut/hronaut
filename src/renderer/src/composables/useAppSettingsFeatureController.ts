@@ -272,9 +272,20 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     ),
     onResetError: options.onSettingError
   })
+  // The renderer starts with no active tab. Its first populated native state
+  // must not dismiss Settings that the user already opened during hydration.
+  // Remember that first target even when Settings is closed, so later switches
+  // (including through an empty state) retain their normal dismissal behavior.
+  let hasActiveTabState = options.browserState.value.activeTabId !== null
   const stopSettingsTabTracking = watch(
     () => options.browserState.value.activeTabId,
-    () => settingsDialogController.close()
+    (activeTabId) => {
+      if (!hasActiveTabState) {
+        hasActiveTabState = activeTabId !== null
+        return
+      }
+      settingsDialogController.close()
+    }
   )
   const releaseHistoryController = useReleaseHistoryController({
     api: options.apis.updates,

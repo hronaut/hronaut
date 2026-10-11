@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Settings open when the first browser state arrives after an early gear click. Later tab switches and explicit Home/New Tab actions still close Settings.
 - Recheck native hover, drag and key input authority after asynchronous preparation and before each dispatch. Stop later input when pause, workspace access, cancellation or navigation changes; release an already-pressed button or key once without replaying the action.
 - Attempt one matching native button/key release when the down event succeeds but restoring the input lock fails. Keep the outcome uncertain and prevent automatic replay, including when that cleanup release also fails.
 

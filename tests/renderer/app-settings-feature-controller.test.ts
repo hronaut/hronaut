@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import {
   useAppSettingsFeatureController,
@@ -292,5 +292,41 @@ describe('app settings feature controller', () => {
     expect(harness.options.closeHelpDialog).toHaveBeenCalledOnce()
     expect(harness.options.closeTransientPanels).toHaveBeenCalled()
     expect(harness.controller.releaseHistoryController.open.value).toBe(true)
+  })
+})
+
+
+describe('Settings active-tab hydration', () => {
+  it('preserves early Settings through first hydration, then closes on later tab changes', async () => {
+    const { controller, options } = createHarness()
+    try {
+      controller.settingsDialogController.openSection('appearance')
+      options.browserState.value = { ...emptyBrowserState(), activeTabId: 'initial-tab' }
+      await nextTick()
+      expect(controller.settingsDialogController.open.value).toBe(true)
+      options.browserState.value = { ...options.browserState.value, activeTabId: 'other-tab' }
+      await nextTick()
+      expect(controller.settingsDialogController.open.value).toBe(false)
+      controller.settingsDialogController.openSection('appearance')
+      options.browserState.value = { ...options.browserState.value, activeTabId: null }
+      await nextTick()
+      expect(controller.settingsDialogController.open.value).toBe(false)
+      controller.settingsDialogController.openSection('appearance')
+      options.browserState.value = { ...options.browserState.value, activeTabId: 'after-empty' }
+      await nextTick()
+      expect(controller.settingsDialogController.open.value).toBe(false)
+    } finally { controller.dispose() }
+  })
+
+  it('tracks hydration even when Settings was not open', async () => {
+    const { controller, options } = createHarness()
+    try {
+      options.browserState.value = { ...emptyBrowserState(), activeTabId: 'initial-tab' }
+      await nextTick()
+      controller.settingsDialogController.openSection('appearance')
+      options.browserState.value = { ...options.browserState.value, activeTabId: 'other-tab' }
+      await nextTick()
+      expect(controller.settingsDialogController.open.value).toBe(false)
+    } finally { controller.dispose() }
   })
 })
