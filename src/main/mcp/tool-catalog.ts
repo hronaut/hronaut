@@ -119,6 +119,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_fill_form: destructiveTool('Fill a form'),
   browser_hover: destructiveTool('Hover over the page'),
   browser_drag: destructiveTool('Drag on the page'),
+  browser_wheel: destructiveTool('Send one wheel gesture to an unlocked page'),
   browser_scroll: destructiveTool('Scroll the page'),
   browser_press: destructiveTool('Press a keyboard key'),
   browser_file_upload: destructiveTool('Upload a file'),
@@ -266,6 +267,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
   { name: 'browser_hover', category: 'Interaction', description: 'Hover an element or viewport coordinates to reveal menus, tooltips, canvas details, or hover states.' },
   { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element, or drag between viewport coordinates for canvas and other visual-only surfaces.' },
+  { name: 'browser_wheel', category: 'Interaction', description: 'Send exactly one native wheel event at explicit viewport CSS x/y to the active visible, explicitly unlocked, child-frame-free page outside split view. Both deltaX and deltaY are required, each within -1000..1000 CSS pixels and at least one nonzero; x/y are nonnegative and at most 16384. Requires default zoom, no emulation overrides and display scale 1. Rejects extra fields, modifiers, refs and selectors. Never unlocks, moves the pointer, focuses, retries or falls back. Returns dispatch acknowledgement only, not proof of scrolling or human input. Use browser_scroll for ordinary CSSOM scrolling.' },
   { name: 'browser_scroll', category: 'Interaction', description: 'Scroll the page or a specific scrollable element.' },
   { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key or modifier combination to the active page.' },
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
@@ -358,6 +360,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
+  'browser_wheel',
   'browser_human_waiting',
   'browser_preflight',
   'browser_continuity',

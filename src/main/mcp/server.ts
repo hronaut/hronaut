@@ -1,3 +1,4 @@
+import { nativeWheelFields, NativeWheelOutcomeUnknownError, type NativeWheelInput } from '../browser/native-wheel.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import { compactTabDiscovery, TAB_DISCOVERY_LIMITS, type TabDiscoverySearch } from './tab-discovery.js'
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
@@ -421,6 +422,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_hover: 'interact',
   browser_drag: 'interact',
   browser_scroll: 'interact',
+  browser_wheel: 'interact',
   browser_press: 'interact',
   browser_file_upload: 'external-request',
   browser_emulate: 'browser-state',
@@ -648,7 +650,17 @@ const nativeInputCleanupResult = (reviewFinalizationFailed = false): CallToolRes
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
 }
 
+const nativeWheelUnknownResult = (reviewFinalizationFailed = false): CallToolResult => {
+  const outcome = {
+    status: 'OUTCOME_UNKNOWN', reason: 'WHEEL_COMMAND_UNCERTAIN', retrySafe: false, effects: 'possible',
+    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+    nextAction: 'Wheel dispatch was attempted; acknowledgement or final authority could not be confirmed. Inspect fresh page state before continuing; do not automatically replay.'
+  }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
 const errorResult = (error: unknown): CallToolResult => {
+  if (error instanceof NativeWheelOutcomeUnknownError) return nativeWheelUnknownResult()
   if (error instanceof NativeInputCleanupError) return nativeInputCleanupResult()
   if (error instanceof WorkspaceWriteLeaseError) {
     const outcome = {
@@ -956,7 +968,7 @@ function createBrowserMcpServer(
     } catch (error) {
       // Keep trusted native-dispatch provenance until workspace settlement has
       // recorded its uncertain outcome and attempted review finalization.
-      if (error instanceof NativeInputCleanupError) throw error
+      if (error instanceof NativeInputCleanupError || error instanceof NativeWheelOutcomeUnknownError) throw error
       return errorResult(error)
     }
   }
@@ -1068,7 +1080,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1188,6 +1200,16 @@ function createBrowserMcpServer(
           publication.assertCurrent()
           return result // No await after the final cancellation/context/authority check.
         }
+        if (name === 'browser_wheel' && frameRequest.wheelAttempted) {
+          if (result.isError) {
+            if (result.structuredContent?.status === 'OUTCOME_UNKNOWN' && result.structuredContent.retrySafe === false
+              && result.structuredContent.effects === 'possible' && !frameRequest.wheelReviewFinalizationFailed) return result
+            return nativeWheelUnknownResult(frameRequest.wheelReviewFinalizationFailed)
+          }
+          if (!frameRequest.wheelPublication) throw new Error('Wheel publication guard is unavailable')
+          frameRequest.wheelPublication()
+          return result // No await after final wheel authority/cancellation check.
+        }
         if (isPageObservation && !result.isError) {
           try {
             if (!frameRequest.pageObservationPublication) throw new Error('Page observation publication guard is unavailable')
@@ -1209,6 +1231,7 @@ function createBrowserMcpServer(
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
         recordReadinessProbe('failed')
+        if (frameRequest.wheelAttempted) return nativeWheelUnknownResult(frameRequest.wheelReviewFinalizationFailed)
         return errorResult(error)
       } finally {
         frameRequest.elementInspection?.discard()
@@ -1645,18 +1668,22 @@ function createBrowserMcpServer(
       ...(config.inputSchema ?? {})
     }
     if (!toolsWithoutWorkspaceTabTarget.has(name)) singleTabControlTools.add(name)
-    workspaceToolInputSchemas.set(name, z.object(inputSchema))
+    const schema = name === 'browser_wheel'
+      ? z.object(inputSchema).strict().refine(value => value.deltaX !== 0 || value.deltaY !== 0, 'At least one wheel delta must be nonzero')
+      : z.object(inputSchema)
+    workspaceToolInputSchemas.set(name, schema)
     registerTool(
       name,
       {
         ...config,
-        inputSchema
+        inputSchema: name === 'browser_wheel' ? schema : inputSchema
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
         const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
         const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true)
         const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state'
+        const preservePresentation = passiveObservation || name === 'browser_wheel'
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -1713,7 +1740,7 @@ function createBrowserMcpServer(
             && manager.getMcpGroupState(workspaceId).tabs.length === 0)
         const resolvedTabId = skipsTabTarget
           ? undefined
-          : passiveObservation ? manager.requireTabInMcpGroup(workspaceId, requestedTabId, true) : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+          : preservePresentation ? manager.requireTabInMcpGroup(workspaceId, requestedTabId, true) : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const definition = toolDefinition(name)
         const actionTarget = browserActionTarget(actionInput)
         const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
@@ -1848,9 +1875,15 @@ function createBrowserMcpServer(
               requireAgentWorkspace(workspaceId)
             })
           } catch (error) {
+            if (frameRequests.getStore()?.wheelAttempted) frameRequests.getStore()!.wheelReviewFinalizationFailed = true
             finishActivity(undefined, true, error)
             throw error
           }
+        }
+        if (name === 'browser_wheel') frameRequests.getStore()!.wheelPublication = () => {
+          if (extra?.signal?.aborted) throw new Error('Wheel request cancelled after dispatch')
+          requireCurrentTarget()
+          if (authorityRejection()) throw new Error('Wheel authority changed after dispatch')
         }
         // Set only by the main-process recorder, never by caller arguments or report data.
         let lifecycleOrigin: string | undefined
@@ -1914,7 +1947,7 @@ function createBrowserMcpServer(
               tabId: resolvedTabId,
               toolName: activityToolName,
               phase: 'started',
-              ...(passiveObservation ? { suppressFollow: true } : {}),
+              ...(preservePresentation ? { suppressFollow: true } : {}),
               occurredAt: Date.now()
             })
           }
@@ -1950,7 +1983,7 @@ function createBrowserMcpServer(
                 ...actionInput,
                 tabId: resolvedTabId,
                 ...((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_network_request') ? { validateInspection: requireCurrentTarget } : {}),
-                ...(['browser_click', 'browser_hover', 'browser_drag', 'browser_press'].includes(name) ? { validateNativeInput: (validateContext: () => void) => {
+                ...(['browser_click', 'browser_hover', 'browser_drag', 'browser_press', 'browser_wheel'].includes(name) ? { validateNativeInput: (validateContext: () => void) => {
                   try {
                     if (extra?.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
                     requireCurrentTarget()
@@ -1964,6 +1997,7 @@ function createBrowserMcpServer(
                     throw error
                   }
                 } } : {}),
+                ...(name === 'browser_wheel' ? { markWheelAttempted: () => { frameRequests.getStore()!.wheelAttempted = true } } : {}),
                 ...(name === 'browser_file_upload' ? { validateUpload: (validateContext: () => void) => {
                   try {
                     if (extra?.signal?.aborted) throw new Error('File upload cancelled; earlier effects are not rolled back')
@@ -2011,6 +2045,7 @@ function createBrowserMcpServer(
             try {
               if (invalidatedOutcome === 'outcome-unknown') throw new Error('Action authority changed during dispatch')
               await requireHumanDecision(false, reviewAttempt?.id)
+              if (name === 'browser_wheel') frameRequests.getStore()!.wheelPublication!()
               if (name === 'browser_element_inspect' || name === 'browser_media_state') requireCurrentTarget()
               validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
@@ -2035,16 +2070,17 @@ function createBrowserMcpServer(
             if (scoped.isError) await finishReviewedAttempt('unknown')
             return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
           } catch (error) {
-            if (!(error instanceof NativeInputCleanupError)) throw error
+            if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
+            const uncertainResult = error instanceof NativeWheelOutcomeUnknownError ? nativeWheelUnknownResult : nativeInputCleanupResult
             invalidatedOutcome = 'outcome-unknown'
             try {
               await finishReviewedAttempt('unknown')
             } catch {
               // Authorization/persistence failure must remain visible without
               // replacing the no-replay contract for acknowledged native input.
-              return nativeInputCleanupResult(true)
+              return uncertainResult(true)
             }
-            return nativeInputCleanupResult()
+            return uncertainResult()
           } finally {
             finishContinuityAction()
           }
@@ -2063,7 +2099,8 @@ function createBrowserMcpServer(
             threw,
             isError: result?.isError === true,
             status,
-            invalidatedOutcome,
+            invalidatedOutcome: frameRequests.getStore()?.wheelAttempted && (threw || result?.isError === true)
+              ? 'outcome-unknown' : invalidatedOutcome,
             verificationStatus: verificationResult?.status
           })
           onTabActivity?.({
@@ -2071,7 +2108,7 @@ function createBrowserMcpServer(
             tabId: resolvedTabId,
             toolName: activityToolName,
             phase: activityResult.outcome === 'succeeded' ? 'finished' : 'failed',
-            ...(passiveObservation ? { suppressFollow: true } : {}),
+            ...(preservePresentation ? { suppressFollow: true } : {}),
             occurredAt: Date.now(),
             result: activityResult
           })
@@ -3772,6 +3809,21 @@ function createBrowserMcpServer(
       if (!validateNativeInput) throw new Error('Native input authority is unavailable')
       return textResult(await manager.drag(input, validateNativeInput))
     })
+  )
+  registerWorkspaceTool(
+    'browser_wheel',
+    {
+      description: toolDescription('browser_wheel'),
+      inputSchema: { tabId: tabIdSchema, ...nativeWheelFields }
+    },
+    tabTool('browser_wheel', async ({ validateNativeInput, markWheelAttempted, tabId, x, y, deltaX, deltaY }: NativeWheelInput & {
+      validateNativeInput?: (validateContext: () => void) => void
+      markWheelAttempted?: () => void
+    }) => {
+      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
+      if (!markWheelAttempted) throw new Error('Wheel dispatch provenance is unavailable')
+      return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, markWheelAttempted))
+    }, 'never')
   )
   registerWorkspaceTool(
     'browser_scroll',
