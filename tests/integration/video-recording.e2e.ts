@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { armFirstFrame, disposeFirstFrame, expectGreenFirstFrame, readFirstFrame } from './video-first-frame.js'
 import type { HronautApi, HronautMcpApi } from '../../src/shared/types.js'
 type VideoTestWindow = Window & { hronaut: HronautApi; hronautMcp: HronautMcpApi }
 import { copyFile, readFile } from 'node:fs/promises'
@@ -7,7 +9,7 @@ import type { BrowserVideoState } from '../../src/shared/video.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 // Exercises the real capture, sandboxed WebCodecs encoder, WebM muxer and browser decoder.
-test('records, annotates, trims and decodes a WebM tutorial through MCP and the UI', async ({ capabilities, appWindow, electronApp }) => {
+test('records, annotates, trims and decodes a WebM tutorial through MCP and the UI', async ({ capabilities, appWindow, electronApp }, testInfo) => {
   const { client, tabId, openPageTool } = capabilities
   const video = async (action: string, extra: Record<string, unknown> = {}): Promise<BrowserVideoState> => {
     const result = await client.callTool({ name: 'browser_video', arguments: { tabId, action, ...extra } }) as CallToolResult
@@ -73,19 +75,15 @@ test('records, annotates, trims and decodes a WebM tutorial through MCP and the 
   await openPageTool('Video recorder')
   const panel = appWindow.getByRole('region', { name: 'Video recorder' })
   await expect(panel.getByRole('button', { name: 'Preview video' })).toBeVisible()
-  await panel.getByRole('button', { name: 'Preview video' }).click()
+  await armFirstFrame(appWindow, { sha256: createHash('sha256').update(bytes).digest('hex'), width: stopped.width!, height: stopped.height! })
   const preview = panel.locator('video')
-  await expect(preview).toBeVisible()
-  await expect.poll(() => preview.evaluate((element: HTMLVideoElement) => element.readyState)).toBeGreaterThanOrEqual(2)
-  expect(await preview.evaluate((element: HTMLVideoElement) => element.videoWidth)).toBe(stopped.width)
-  // A green highlight border at a known normalized position proves overlays survived encoding.
-  const pixel = await preview.evaluate((element: HTMLVideoElement) => {
-    const canvas = document.createElement('canvas'); canvas.width = element.videoWidth; canvas.height = element.videoHeight
-    const context = canvas.getContext('2d')!; context.drawImage(element, 0, 0)
-    return [...context.getImageData(Math.round(canvas.width * 0.1), Math.round(canvas.height * 0.25), 1, 1).data]
-  })
-  expect(pixel[1]).toBeGreaterThan(pixel[0]! + 70)
-  expect(pixel[1]).toBeGreaterThan(pixel[2]! + 70)
+  try {
+    await panel.getByRole('button', { name: 'Preview video' }).click()
+    await expect(preview).toBeVisible()
+    const firstFrame = await readFirstFrame(appWindow)
+    await testInfo.attach('video-first-presented-frame', { body: JSON.stringify(firstFrame), contentType: 'application/json' })
+    expectGreenFirstFrame(firstFrame)
+  } finally { await disposeFirstFrame(appWindow) }
   await panel.getByRole('button', { name: 'Discard recording' }).click()
   await expect(panel.getByRole('button', { name: 'Start video recording' })).toBeVisible()
   await expect(preview).toHaveCount(0)
