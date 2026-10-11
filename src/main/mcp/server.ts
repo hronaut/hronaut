@@ -1900,6 +1900,18 @@ function createBrowserMcpServer(
                     throw error
                   }
                 } } : {}),
+                ...(name === 'browser_file_upload' ? { validateUpload: (validateContext: () => void) => {
+                  try {
+                    if (extra?.signal?.aborted) throw new Error('File upload cancelled; earlier effects are not rolled back')
+                    requireCurrentTarget()
+                    requirePostWriteContext()
+                    validateContext()
+                    if (authorityRejection()) throw new Error('File upload authority changed; inspect fresh state before continuing')
+                  } catch (error) {
+                    invalidatedOutcome = 'outcome-unknown'
+                    throw error
+                  }
+                } } : {}),
                 ...(name === 'browser_pdf_save' ? { validateExport: () => {
                   if (extra?.signal?.aborted) throw new Error('PDF export cancelled')
                   requireCurrentTarget()
@@ -1933,7 +1945,7 @@ function createBrowserMcpServer(
                 } } : {})
               } as unknown as T)
             try {
-              if (invalidatedOutcome === 'outcome-unknown') throw new Error('Native click authority changed during dispatch')
+              if (invalidatedOutcome === 'outcome-unknown') throw new Error('Action authority changed during dispatch')
               await requireHumanDecision(false, reviewAttempt?.id)
               if (name === 'browser_element_inspect' || name === 'browser_media_state') requireCurrentTarget()
               validateLifecycleResult()
@@ -3711,9 +3723,13 @@ function createBrowserMcpServer(
         paths: z.array(z.string()).min(1).max(20)
       }
     },
-    tabTool('browser_file_upload', async (input: { tabId?: string; ref?: string; selector?: string; paths: string[] }) =>
-      textResult(await manager.uploadFiles(input, input.paths))
-    )
+    tabTool('browser_file_upload', async ({ validateUpload, paths, ...target }: {
+      tabId?: string; ref?: string; selector?: string; paths: string[]
+      validateUpload?: (validateContext: () => void) => void
+    }) => {
+      if (!validateUpload) throw new Error('File upload authority is unavailable')
+      return textResult(await manager.uploadFiles(target, paths, validateUpload))
+    })
   )
   registerWorkspaceTool(
     'browser_wait',
