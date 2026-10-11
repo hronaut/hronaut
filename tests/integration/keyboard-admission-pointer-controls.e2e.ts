@@ -1,11 +1,11 @@
 import { createServer } from 'node:http'
-import { diagnosticArm, diagnosticEnabled, fixtureObserver, saveDiagnostic } from './oopif-diagnostic.js'
+import { collectPartial, diagnosticArm, diagnosticEnabled, fixtureObserver, saveDiagnostic } from './oopif-diagnostic.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 import { closeFixtureServer } from './fixtures.js'
 
-type Probe = { commands: unknown[]; events: unknown[]; restore(): void; timeline?: unknown[]; commandTimes?: unknown[]; frameSamples?: unknown[] }
+type Probe = { stats: Record<string, number>; commands: unknown[]; events: unknown[]; restore(): void; timeline?: unknown[]; commandTimes?: unknown[]; frameSamples?: unknown[] }
 type Scope = typeof globalThis & { __coordinateReview?: Probe }
 for (const scenario of ['desktop', 'mobile-no-meta', 'cross-origin-frame'] as const) {
   test(`keyboard admission preserves native click ${scenario}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
@@ -31,18 +31,18 @@ for (const scenario of ['desktop', 'mobile-no-meta', 'cross-origin-frame'] as co
       const before = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionGeneration, tabId)
       const context = await electronApp.evaluate(async ({ webContents }, { url, diagnostic }) => {
         const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
-        const probe: Probe = { commands: [], events: [], timeline: [], commandTimes: [], frameSamples: [], restore: () => {
+        const probe: Probe = { stats: { nativeDropped: 0, commandDropped: 0, frameDropped: 0, observerErrors: 0 }, commands: [], events: [], timeline: [], commandTimes: [], frameSamples: [], restore: () => {
           page.removeListener('before-mouse-event', listener)
           if (!page.isDestroyed()) page.debugger.sendCommand = send
         } }
         const listener = (event: Electron.Event, mouse: Electron.MouseInputEvent): void => {
-          try { if (diagnostic && probe.timeline!.length < 32) probe.timeline!.push({ kind: mouse.type, at: Date.now(), x: mouse.x, y: mouse.y, prevented: event.defaultPrevented }) } catch { /* Passive observer. */ }
+          try { if (diagnostic && probe.timeline!.length >= 32) probe.stats.nativeDropped = Math.min(1000000, probe.stats.nativeDropped! + 1); else if (diagnostic) probe.timeline!.push({ kind: mouse.type, at: Date.now(), x: mouse.x, y: mouse.y, prevented: event.defaultPrevented }) } catch { probe.stats.observerErrors = Math.min(1000000, probe.stats.observerErrors! + 1) }
           if (probe.events.length < 12) probe.events.push({ mouse, eventKeys: Object.keys(event), prevented: event.defaultPrevented })
         }
         page.on('before-mouse-event', listener)
         const send = page.debugger.sendCommand
         page.debugger.sendCommand = async (method, ...args) => {
-          try { if (diagnostic && method === 'Input.dispatchMouseEvent' && probe.commandTimes!.length < 12) { const input = args[0] as { type?: string; x?: number; y?: number } | undefined; probe.commandTimes!.push({ kind: input?.type, at: Date.now(), x: input?.x, y: input?.y }); probe.frameSamples!.push({ at: Date.now(), frames: [page.mainFrame, ...page.mainFrame.frames].slice(0, 4).map(frame => ({ role: frame.url === url ? 'root' : frame.url === url.replace('127.0.0.1', 'localhost') + 'child' ? 'child' : 'unknown', processId: frame.processId, routingId: frame.routingId })) }) } } catch { /* Preserve command behavior. */ }
+          try { if (diagnostic && method === 'Input.dispatchMouseEvent' && probe.commandTimes!.length >= 12) { probe.stats.commandDropped = Math.min(1000000, probe.stats.commandDropped! + 1); probe.stats.frameDropped = Math.min(1000000, probe.stats.frameDropped! + 1) } else if (diagnostic && method === 'Input.dispatchMouseEvent') { const input = args[0] as { type?: string; x?: number; y?: number } | undefined; probe.commandTimes!.push({ kind: input?.type, at: Date.now(), x: input?.x, y: input?.y }); probe.stats.frameDropped = Math.min(1000000, probe.stats.frameDropped! + Math.max(0, page.mainFrame.frames.length + 1 - 4)); probe.frameSamples!.push({ at: Date.now(), frames: [page.mainFrame, ...page.mainFrame.frames].slice(0, 4).map(frame => ({ role: frame.url === url ? 'root' : frame.url === url.replace('127.0.0.1', 'localhost') + 'child' ? 'child' : 'unknown', processId: frame.processId, routingId: frame.routingId })) }) } } catch { probe.stats.observerErrors = Math.min(1000000, probe.stats.observerErrors! + 1) }
           if (method === 'Input.dispatchMouseEvent' && probe.commands.length < 12) probe.commands.push(args[0])
           return send.call(page.debugger, method, ...args)
         }
@@ -87,19 +87,36 @@ for (const scenario of ['desktop', 'mobile-no-meta', 'cross-origin-frame'] as co
       if (diagnostic) {
         try {
           const port = (server.address() as { port: number } | null)?.port
-          let observationTimer: ReturnType<typeof setTimeout> | undefined
-          const details = await Promise.race([electronApp.evaluate(async ({ webContents }, port) => {
-            const url = `http://127.0.0.1:${port}/`
-            const page = webContents.getAllWebContents().find(page => page.getURL() === url)
-            if (!page) return { available: false }
-            // Post-assertion observation only: no repeated click and no pre-click sleep.
-            const root = await page.executeJavaScript(`new Promise(resolve=>{const snapshot=()=>({hits:window.hits,state:window.__oopif});if(window.hits>0){resolve(snapshot());return}let timer;const finish=()=>{clearTimeout(timer);removeEventListener('message',listener);resolve(snapshot())};const listener=e=>{if(e.data==='child-click')queueMicrotask(finish)};addEventListener('message',listener);timer=setTimeout(finish,500)})`)
-            const child = page.mainFrame.frames.find(frame => frame.url === `http://localhost:${port}/child`)
-            const childState = child ? await child.executeJavaScript('window.__oopif') as { clicks?: number; events?: unknown[] } : undefined
-            const probe = (globalThis as Scope).__coordinateReview
-            return { available: true, settledHits: root.hits, childHits: childState?.clicks, rootEvents: root.state?.events, childEvents: childState?.events, nativeEvents: probe?.timeline, commands: probe?.commandTimes, frameSamples: probe?.frameSamples, framesAfter: [page.mainFrame, ...page.mainFrame.frames].map(frame => ({ role: frame.url === url ? 'root' : frame.url === `http://localhost:${port}/child` ? 'child' : 'unknown', processId: frame.processId, routingId: frame.routingId })) }
-          }, port), new Promise<{ available: false }>(resolve => { observationTimer = setTimeout(() => resolve({ available: false }), 1500) })]).finally(() => clearTimeout(observationTimer))
-          Object.assign(evidence, details)
+          const partial = await collectPartial({
+            native: () => electronApp.evaluate(() => {
+              const probe = (globalThis as Scope).__coordinateReview
+              if (!probe) throw new Error('unavailable')
+              return { nativeEvents: probe.timeline, commands: probe.commandTimes, frameSamples: probe.frameSamples, ...probe.stats }
+            }),
+            frames: () => electronApp.evaluate(({ webContents }, port) => {
+              const url = `http://127.0.0.1:${port}/`
+              const page = webContents.getAllWebContents().find(page => page.getURL() === url)
+              if (!page) throw new Error('unavailable')
+              return { framesAfter: [page.mainFrame, ...page.mainFrame.frames].map(frame => ({ role: frame.url === url ? 'root' : frame.url === `http://localhost:${port}/child` ? 'child' : 'unknown', processId: frame.processId, routingId: frame.routingId })) }
+            }, port),
+            root: () => electronApp.evaluate(async ({ webContents }, port) => {
+              const page = webContents.getAllWebContents().find(page => page.getURL() === `http://127.0.0.1:${port}/`)
+              if (!page) throw new Error('unavailable')
+              // Post-assertion only. Independent settlement preserves other observations.
+              const root = await page.executeJavaScript(`new Promise(resolve=>{const snapshot=()=>({hits:window.hits,state:window.__oopif});if(window.hits>0){resolve(snapshot());return}let timer;const finish=()=>{clearTimeout(timer);removeEventListener('message',listener);resolve(snapshot())};const listener=e=>{if(e.data==='child-click')queueMicrotask(finish)};addEventListener('message',listener);timer=setTimeout(finish,500)})`)
+              if (!root.state) throw new Error('unavailable')
+              return { settledHits: root.hits, rootEvents: root.state.events, rootObserverAvailable: root.state.available, rootDropped: root.state.dropped, rootErrors: root.state.errors }
+            }, port),
+            child: () => electronApp.evaluate(async ({ webContents }, port) => {
+              const page = webContents.getAllWebContents().find(page => page.getURL() === `http://127.0.0.1:${port}/`)
+              const child = page?.mainFrame.frames.find(frame => frame.url === `http://localhost:${port}/child`)
+              if (!child) throw new Error('unavailable')
+              const state = await child.executeJavaScript('window.__oopif') as { clicks: number; events: unknown[]; dropped: number; errors: number; available: boolean } | undefined
+              if (!state) throw new Error('unavailable')
+              return { childHits: state.clicks, childEvents: state.events, childObserverAvailable: state.available, childDropped: state.dropped, childErrors: state.errors }
+            }, port)
+          })
+          Object.assign(evidence, partial.data, { availability: partial.availability, available: Object.values(partial.availability).every(status => status === 'fulfilled') })
         } catch { evidence.available = false }
         await saveDiagnostic(evidence, testInfo.retry)
       }

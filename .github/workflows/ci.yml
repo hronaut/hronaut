@@ -3,6 +3,11 @@
 name: OOPIF routing diagnostic
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Independently admitted full commit SHA
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
@@ -16,7 +21,19 @@ jobs:
       matrix:
         arm: [baseline, native-route-ready]
     steps:
+      - name: Reject a dispatch outside the admitted SHA
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        shell: bash
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$GITHUB_SHA" == "$EXPECTED_SHA" ]] || exit 1
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.expected_sha }}
+      - name: Verify checked-out commit
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - name: Original shard ordering with bounded observers
         env:
           HRONAUT_OOPIF_DIAGNOSTIC_ARM: ${{ matrix.arm }}

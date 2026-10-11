@@ -22,7 +22,11 @@ Readiness and command/frame/native timelines provide correlation, not causation.
 
 Dispatch the already-registered `ci.yml` once with ref
 `diagnostic/oopif-routing-readiness`. Verify the branch SHA still equals the
-reviewed SHA before dispatch and verify the resulting run's head SHA. Never
+reviewed SHA before dispatch and supply it as required input `expected_sha`.
+The executable first step validates 40 lowercase hex characters and equality to
+GITHUB_SHA before checkout. Checkout pins that SHA, and a second check verifies
+HEAD before Docker execution. A missing, malformed or mismatched SHA fails closed.
+Verify the resulting run's head SHA. Never
 rerun an unchanged failure to green. The draft replaces this branch's manual CI
 workflow only; it cannot package, publish, or run on main/tags. It must never merge.
 
@@ -66,7 +70,11 @@ do not observe native attachment events before probe installation.
 
 Only after the original assertion, an event-driven observer checks the parent's
 message delivery for up to 500ms. The complete collection await is capped at
-1500ms, reports unavailable on error/timeout, and cannot replace the assertion.
+1500ms and cannot replace the assertion. Native records, frame snapshots, root
+observation and child reads settle independently. Already returned records survive
+another reader's rejection or the global timeout; late completions cannot mutate
+the returned record. Fixed per-reader availability enums distinguish fulfilled,
+rejected, timeout and unavailable. Observer availability is separately recorded.
 There is no repeated click, pre-click sleep, screenshot, paint wait, or hit-test
 readiness substitution in baseline. All observer callbacks are no-throw and
 native hooks are restored by the existing finally cleanup.
@@ -89,8 +97,11 @@ to the two exact loopback synthetic fixture URLs.
 
 Each target attempt exports at most 64KiB, two attempts per arm. Root/child/native
 event arrays have at most 32 entries each; commands and command-frame snapshots
-have at most 12; each frame snapshot at most four frames. Arrays at capacity may
-have dropped subsequent events. The final exporter accepts only known report
+have at most 12; each frame snapshot at most four frames. Observers count dropped events and observer errors, saturating at 1,000,000.
+Counter saturation or any drop sets the truncation indicator; exporter truncation
+counts are separate from observer drops. Missing counters remain null. Root/child
+observer installation availability is explicit. The fixed numeric/enum schema
+never exports exception text. The final exporter accepts only known report
 filenames, each at most 64KiB. A separate bounded report decoder exports opaque
 hex test IDs, outcome enums and each original retry/status for up to 200 tests,
 at most 64KiB per arm. It excludes all titles, errors, attachments and bodies;

@@ -6,15 +6,37 @@ export const diagnosticEnabled = ['baseline', 'native-route-ready'].includes(pro
 // Runs only in the two synthetic HTTP fixtures. No text, attributes, URL or message payload is recorded.
 export function fixtureObserver(role: 'root' | 'child'): string {
   return `<script>(()=>{try{
-    const state=window.__oopif={events:[],clicks:0};
-    const record=(kind,event)=>{try{if(state.events.length<32)state.events.push({kind,role:'${role}',at:Date.now(),stamp:event?.timeStamp??0,target:event?.target?.tagName==='BUTTON'?'button':event?.target===document?'document':'other',x:event?.clientX??0,y:event?.clientY??0,screenX:event?.screenX??0,screenY:event?.screenY??0,trusted:event?.isTrusted===true});}catch{}};
-    for(const kind of ['pointermove','pointerdown','pointerup','mousemove','mousedown','mouseup','click'])addEventListener(kind,event=>{try{if(kind==='click')state.clicks++;record(kind,event)}catch{}},true);
+    const state=window.__oopif={events:[],clicks:0,dropped:0,errors:0,available:true};
+    const error=()=>{try{state.errors=Math.min(1000000,state.errors+1)}catch{}};
+    const record=(kind,event)=>{try{if(state.events.length>=32){state.dropped=Math.min(1000000,state.dropped+1);return}if(state.events.length<32)state.events.push({kind,role:'${role}',at:Date.now(),stamp:event?.timeStamp??0,target:event?.target?.tagName==='BUTTON'?'button':event?.target===document?'document':'other',x:event?.clientX??0,y:event?.clientY??0,screenX:event?.screenX??0,screenY:event?.screenY??0,trusted:event?.isTrusted===true});}catch{error()}};
+    for(const kind of ['pointermove','pointerdown','pointerup','mousemove','mousedown','mouseup','click'])addEventListener(kind,event=>{try{if(kind==='click')state.clicks++;record(kind,event)}catch{error()}},true);
     addEventListener('load',event=>record('load',event));
     document.addEventListener('readystatechange',event=>record(document.readyState,event));
-    addEventListener('message',event=>{try{if(event.data==='child-click')record('message-receive',event)}catch{}});
+    addEventListener('message',event=>{try{if(event.data==='child-click')record('message-receive',event)}catch{error()}});
     window.__oopifSend=()=>record('message-send');
     record('observer-installed');
-  }catch{}})()</script>`
+  }catch{try{if(window.__oopif){window.__oopif.errors=Math.min(1000000,window.__oopif.errors+1);window.__oopif.available=false}}catch{}}})()</script>`
+}
+
+export type PartStatus = 'fulfilled' | 'rejected' | 'timeout'
+export async function collectPartial(
+  readers: Record<string, () => Promise<Record<string, unknown>>>,
+  timeoutMs = 1500
+): Promise<{ data: Record<string, unknown>; availability: Record<string, PartStatus> }> {
+  const data: Record<string, unknown> = {}
+  const availability: Record<string, PartStatus> = Object.fromEntries(Object.keys(readers).map(key => [key, 'timeout']))
+  let active = true
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const pending = Object.entries(readers).map(async ([key, read]) => {
+    try {
+      const result = await read()
+      if (active) { Object.assign(data, result); availability[key] = 'fulfilled' }
+    } catch { if (active) availability[key] = 'rejected' }
+  })
+  await Promise.race([Promise.all(pending), new Promise<void>(resolve => { timer = setTimeout(resolve, timeoutMs) })])
+  active = false
+  clearTimeout(timer)
+  return { data, availability }
 }
 
 const kinds = new Set(['pointermove', 'mousemove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'load', 'loading', 'interactive', 'complete', 'message-receive', 'message-send', 'observer-installed', 'mouseDown', 'mouseUp', 'mouseMove', 'mousePressed', 'mouseReleased', 'mouseMoved'])
@@ -34,7 +56,15 @@ export function safeDiagnostic(value: unknown): string {
     const frame = object(value)
     return { role: role(frame.role), processId: number(frame.processId), routingId: number(frame.routingId) }
   })
+  const count = (value: unknown): number | null => typeof value === 'number' && Number.isInteger(value) && value >= 0 ? Math.min(value, 1000000) : null
+  const counters = Object.fromEntries(['rootDropped', 'rootErrors', 'childDropped', 'childErrors', 'nativeDropped', 'commandDropped', 'frameDropped', 'observerErrors'].map(key => [key, count(input[key])]))
+  const availability = Object.fromEntries(['native', 'root', 'child', 'frames'].map(key => { const status = object(input.availability)[key]; return [key, status === 'fulfilled' || status === 'rejected' || status === 'timeout' ? status : 'unavailable'] }))
+  const exportDropped = Object.fromEntries(([['rootEvents', 32], ['childEvents', 32], ['nativeEvents', 32], ['commands', 12], ['frameSamples', 12], ['framesBefore', 4], ['framesAfter', 4]] as const).map(([key, limit]) => [key, Array.isArray(input[key!]) ? Math.min(1000000, Math.max(0, (input[key!] as unknown[]).length - Number(limit))) : 0]))
   const output = JSON.stringify({
+    availability, counters, exportDropped,
+    rootObserverAvailable: typeof input.rootObserverAvailable === 'boolean' ? input.rootObserverAvailable : null,
+    childObserverAvailable: typeof input.childObserverAvailable === 'boolean' ? input.childObserverAvailable : null,
+    truncated: Object.values(counters).some(value => value !== null && value >= 1000000) || ['rootDropped', 'childDropped', 'nativeDropped', 'commandDropped', 'frameDropped'].some(key => (counters[key] ?? 0) > 0) || Object.values(exportDropped).some(value => value > 0),
     version: 1, arm: input.arm === 'native-route-ready' ? 'native-route-ready' : 'baseline', retry: number(input.retry),
     assertion: input.assertion === 'passed' ? 'passed' : input.assertion === 'failed' ? 'failed' : 'not-reached',
     available: input.available === true, barrierObserved: input.barrierObserved === true,
