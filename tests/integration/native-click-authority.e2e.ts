@@ -1,3 +1,5 @@
+import type { ElectronApplication } from '@playwright/test'
+import type { McpToolActivity } from '../../src/main/mcp/activity-history.js'
 import { createServer } from 'node:http'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
@@ -6,6 +8,19 @@ import { closeFixtureServer } from './fixtures.js'
 
 type ClickGate = { ready: boolean; presses: number; releases: number; ignores: boolean[]; documentListeners: number; release(): void; restore(): void }
 type ClickGlobal = typeof globalThis & { __clickAuthorityGate?: ClickGate }
+
+async function clickActivities(app: ElectronApplication, tabId: string): Promise<McpToolActivity[]> {
+  return app.evaluate(async ({ webContents }, id) => {
+    const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Missing Home session for activity observation')
+    // Pause/resume reloads Home asynchronously. Read the same protocol snapshot
+    // through its owning session, independent of the replaced renderer context.
+    const response = await home.session.fetch('hronaut://home/api/status')
+    if (!response.ok) throw new Error(`Activity observation failed: ${response.status}`)
+    const state = await response.json() as { recentActivity: McpToolActivity[] }
+    return state.recentActivity.filter(activity => activity.toolName === 'browser_click' && activity.tabId === id)
+  }, tabId)
+}
 
 const cases = [
   ['move', 'unchanged', 'selector', false], ['move', 'unchanged', 'ref', true],
@@ -17,8 +32,9 @@ const cases = [
   ['press', 'pause', 'selector', true]
 ] as const
 for (const [phase, change, target, doubleClick] of cases) {
-  test(`native click ${phase} boundary: ${change}, ${target}, double ${doubleClick}`, async ({ capabilities, electronApp, appWindow }) => {
+  test(`native click ${phase} boundary: ${change}, ${target}, double ${doubleClick}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
     const { client, tabId } = capabilities
+    const previousActivityIds = new Set((await clickActivities(electronApp, tabId)).map(activity => activity.activityId))
     let fixtureUrl = capabilities.fixtureUrl
     let holdResponse = false
     let releaseResponse: (() => void) | undefined
@@ -130,15 +146,17 @@ for (const [phase, change, target, doubleClick] of cases) {
         }
         await electronApp.evaluate(() => (globalThis as ClickGlobal).__clickAuthorityGate!.release())
         const result = await pending
-        await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
-          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          return home.executeJavaScript("fetch('/api/status').then(r=>r.json()).then(s=>s.recentActivity.find(a=>a.toolName==='browser_click')?.result).catch(()=>null)")
-        })).toMatchObject({ dispatch: 'dispatched', effects: 'possible', outcome: change === 'unchanged' ? 'succeeded' : change === 'cancel' ? 'cancelled' : 'outcome-unknown' })
+        let completedActivities: McpToolActivity[] = []
+        await expect.poll(async () => {
+          completedActivities = (await clickActivities(electronApp, tabId)).filter(activity => !previousActivityIds.has(activity.activityId))
+          return completedActivities
+        }).toMatchObject([{ tabId, toolName: 'browser_click', result: { dispatch: 'dispatched', effects: 'possible', outcome: change === 'unchanged' ? 'succeeded' : change === 'cancel' ? 'cancelled' : 'outcome-unknown' } }])
         const observation = await electronApp.evaluate(async ({ webContents }, url) => ({
           presses: (globalThis as ClickGlobal).__clickAuthorityGate!.presses,
           releases: (globalThis as ClickGlobal).__clickAuthorityGate!.releases,
           clicks: await webContents.getAllWebContents().find(page => page.getURL().split('#')[0] === url)!.executeJavaScript('window.nativeClicks')
         }), fixtureUrl)
+        await testInfo.attach('native-click-authority-observation', { body: JSON.stringify({ activities: completedActivities, native: observation, result }), contentType: 'application/json' })
         const count = change === 'unchanged' ? (doubleClick ? 2 : 1) : phase === 'press' ? 1 : 0
         expect(observation).toEqual({ presses: count, releases: count, clicks: count })
         expect(result.isError === true, text(result)).toBe(change !== 'unchanged')
