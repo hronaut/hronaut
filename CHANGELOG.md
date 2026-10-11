@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Opt in to compact MCP tab discovery with `browser_tabs`'s `search` argument. Match bounded title/address projections by literal words within one authorized workspace, with explicit counts and truncation, without waking or selecting tabs. Credentials, fragments and recognized secret query values cannot influence matches; titles and paths may still contain private information. Existing calls retain full tab state.
+
 ### Fixed
 
 - Recheck file-upload authority and captured tab/document context immediately before assigning files. Pause, access revocation, cancellation or context changes during asynchronous preparation now prevent the commit and retain conservative no-retry outcome reporting.
