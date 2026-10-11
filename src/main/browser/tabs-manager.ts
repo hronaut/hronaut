@@ -1,3 +1,4 @@
+import { matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
 import type { BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
@@ -9480,12 +9481,15 @@ export class BrowserTabsManager {
     if (temporarilyPermitNativeInput) {
       await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
     }
+    let rawDispatched = false
     try {
       // Recheck after lifting the compositor barrier, immediately before input.
       validateInput?.()
       if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
       if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
-      return await webContents.debugger.sendCommand(method, commandParams)
+      const result = await webContents.debugger.sendCommand(method, commandParams)
+      rawDispatched = true
+      return result
     } finally {
       if (mouse && this.authorizedAgentMouseInput.get(webContents.id) === mouse) {
         this.authorizedAgentMouseInput.delete(webContents.id)
@@ -9497,7 +9501,19 @@ export class BrowserTabsManager {
         // Lift the compositor barrier for this single CDP event only. The
         // before-input guards remain active and admit only the matching event;
         // physical wheel/gesture input and mismatched event shapes stay blocked.
-        await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
+        try {
+          await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
+        } catch (error) {
+          if (!rawDispatched) throw error
+          const release = matchingNativeInputRelease(method, commandParams)
+          if (release) {
+            // The caller will see a rejection and cannot know that down succeeded.
+            // Send one matching release through the same native input guard. Up
+            // events cannot recurse into another release, even if re-lock fails.
+            await this.sendAuthorizedAgentInputCommand(webContents, method, release).catch(() => undefined)
+          }
+          throw new NativeInputCleanupError(error)
+        }
       }
     }
   }
@@ -9776,11 +9792,15 @@ export class BrowserTabsManager {
       })
     }
     this.agentInputWebContents.set(webContents.id, depth)
+    let nativeCleanupFailure: NativeInputCleanupError | undefined
     try {
       if (depth === 1 && !webContents.isDestroyed()) {
         await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
       }
       return await operation()
+    } catch (error) {
+      if (error instanceof NativeInputCleanupError) nativeCleanupFailure = error
+      throw error
     } finally {
       const remaining = Math.max(0, (this.agentInputWebContents.get(webContents.id) ?? 1) - 1)
       if (remaining > 0) {
@@ -9795,7 +9815,13 @@ export class BrowserTabsManager {
           const tabId = this.webContentsToTab.get(webContents.id)
           tab = tabId ? this.tabs.get(tabId) : undefined
           if (tab && this.isHumanInteractionLocked(tab)) {
-            await this.syncHumanInteractionInputGuard(tab)
+            try {
+              await this.syncHumanInteractionInputGuard(tab)
+            } catch (error) {
+              // Preserve acknowledged input uncertainty and finish focus cleanup
+              // even when the final best-effort compositor restoration also fails.
+              if (!nativeCleanupFailure) throw error
+            }
           }
         }
         try {

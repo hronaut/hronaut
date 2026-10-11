@@ -1,3 +1,4 @@
+import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import { compactTabDiscovery, TAB_DISCOVERY_LIMITS, type TabDiscoverySearch } from './tab-discovery.js'
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
 import type { PendingElementInspection } from '../browser/element-inspection-publication.js'
@@ -637,6 +638,14 @@ const isTimeoutError = (error: unknown): boolean => error instanceof Error
   && (error.name === 'TimeoutError' || /(?:timed out|timeout)/iu.test(error.message))
 
 const errorResult = (error: unknown): CallToolResult => {
+  if (error instanceof NativeInputCleanupError) {
+    const outcome = {
+      status: 'OUTCOME_UNKNOWN', reason: 'NATIVE_INPUT_CLEANUP_FAILED', retrySafe: false,
+      effects: 'possible',
+      nextAction: 'Native input was dispatched and cleanup may be incomplete. Inspect the visible page and input state before continuing; do not automatically replay the action. Effects are not rolled back.'
+    }
+    return { ...textResult(outcome), structuredContent: outcome, isError: true }
+  }
   if (error instanceof WorkspaceWriteLeaseError) {
     const outcome = {
       status: error.code === 'WORKSPACE_BUSY' ? 'BUSY' : 'LEASE_LOST',
@@ -1982,6 +1991,11 @@ function createBrowserMcpServer(
             const scoped = scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
             if (scoped.isError) await finishReviewedAttempt('unknown')
             return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
+          } catch (error) {
+            if (!(error instanceof NativeInputCleanupError)) throw error
+            invalidatedOutcome = 'outcome-unknown'
+            await finishReviewedAttempt('unknown')
+            return errorResult(error)
           } finally {
             finishContinuityAction()
           }
