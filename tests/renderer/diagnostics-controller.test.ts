@@ -939,7 +939,7 @@ describe('diagnostic panel close copy ownership', () => {
   it('closing Repro retires both exports while leaving another panel copy current', async () => {
     const pending = [deferred<boolean>(), deferred<boolean>(), deferred<boolean>()]
     const h = prepareTextCopy('repro')
-    h.copyText.mockReturnValueOnce(pending[0]!.promise).mockReturnValueOnce(pending[1]!.promise).mockReturnValueOnce(pending[2]!.promise)
+    h.copyText.mockReturnValueOnce(pending[0].promise).mockReturnValueOnce(pending[1].promise).mockReturnValueOnce(pending[2].promise)
     try {
       h.open.value = true
       h.controller.debugReportPanelOpen.value = true

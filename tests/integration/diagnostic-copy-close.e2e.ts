@@ -22,7 +22,7 @@ for (const { kind, fail } of cases) {
       }, tabId)
     }
     const recording = repro ? await getRecording() : undefined
-    const open = () => openPageTool(repro ? /Repro recorder:/ : 'Create debug report')
+    const open = () => openPageTool(repro ? /Repro recorder:/ : /^(Create debug report$|Debug report:)/)
     await open()
     const panel = appWindow.getByRole('dialog', { name: repro ? 'Repro recorder' : 'Debug report', exact: true })
     const label = kind === 'debug' ? 'Copy report' : kind === 'timeline' ? 'Copy timeline' : 'Copy Playwright'
