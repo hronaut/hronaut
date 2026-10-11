@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Count unmatched, unblocked key-down input during agent operations so native-click authority checks can stop later presses. Expected keyboard events are admitted once. Identical event shapes remain indistinguishable, and concurrent mouse input retains its existing gap; use Pause agents for explicit takeover.
+
 - Recheck authority and cancellation between MCP native-click input phases. A pause, access change or navigation stops later presses; a successful press still receives its release. Earlier hover or click effects are not rolled back, so inspect the page before retrying.
 
 - Clear Network content-search matches and errors when the query or Match case setting changes, and ignore replies from searches started before those edits. Submit Search to inspect the edited query.

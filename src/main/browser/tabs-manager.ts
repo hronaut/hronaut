@@ -8196,7 +8196,10 @@ export class BrowserTabsManager {
         repeat: input.isAutoRepeat,
         composing: input.isComposing
       }) : null
-      if (this.shouldBlockHumanKeyboardInput(tab, input)) {
+      // Consume one expected event even on unlocked tabs. An awaited agent
+      // operation does not establish the origin of every arriving key event.
+      const expectedAgentInput = this.consumeExpectedAgentKeyboardInput(webContents.id, input)
+      if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
         event.preventDefault()
         if (shortcut) {
           this.options.onUserInteraction?.()
@@ -8211,7 +8214,7 @@ export class BrowserTabsManager {
         return
       }
       this.reproRecorder.observeReproKeyboard(tab, input)
-      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !this.agentInputWebContents.has(webContents.id)) {
+      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
         tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
@@ -9341,11 +9344,6 @@ export class BrowserTabsManager {
     tab.webContents.focus()
   }
 
-  private shouldBlockHumanKeyboardInput(tab: BrowserTab, input: Electron.Input): boolean {
-    return this.isHumanInteractionLocked(tab)
-      && !this.isAuthorizedAgentKeyboardInput(tab.webContents.id, input)
-  }
-
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
     return this.isHumanInteractionLocked(tab)
       && !this.isAuthorizedAgentMouseInput(tab.webContents.id, mouse)
@@ -9488,7 +9486,7 @@ export class BrowserTabsManager {
     return matches
   }
 
-  private isAuthorizedAgentKeyboardInput(
+  private consumeExpectedAgentKeyboardInput(
     webContentsId: number,
     input: Electron.Input
   ): boolean {

@@ -240,6 +240,8 @@ Use **Lock input / Unlock input** beside the address bar to control the current 
 
 While the Hronaut-wide input lock is on, use the current tab's lock button to temporarily allow human page input in that one tab. Other tabs remain locked. Turning the Hronaut-wide lock off and on again clears every temporary unlock. This exception is not saved across restarts and is unavailable in read-only public observer workspaces.
 
+An unblocked key-down that does not match the single expected agent keyboard event advances the tab's human-interaction generation, including while an agent operation is awaiting native input. MCP native-click guards then stop later presses with `OUTCOME_UNKNOWN`; already dispatched effects are not undone. Locked unmatched keys remain blocked. Matching uses event type, key, code, modifiers and repeat state; identical-shaped physical and CDP keyboard events remain indistinguishable, so this is not a general takeover guarantee. Concurrent mouse input still has a known gap: an unlocked mouse-down during the surrounding agent-input operation can reach the page without advancing that generation, allowing a later agent press. Use **Pause agents** for explicit takeover.
+
 The page controls are separate buttons: **Lock input / Unlock input** controls human page input, **Pause agents / Resume agents** controls agent access, **Live / Frozen** controls page execution, and **Mute / Unmute** controls audio. Global input lock, agent pause, and mute remain in the tab strip.
 
 If an existing native/debugger operation stays busy for two seconds, the control reports that locks were not changed and becomes available to retry after that operation finishes. The rejected request is not queued to unlock later.
