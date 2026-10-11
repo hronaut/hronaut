@@ -74,6 +74,7 @@ it.each(['browser_screenshot', 'browser_snapshot'])('withholds %s when cancellat
     const result = await pending
     expect(outcomeWrites).toBe(1)
     expect(result.isError).toBe(true)
+    expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', dispatch: 'dispatched', effects: 'possible', retrySafe: false })
     expect(result.content.some(item => item.type === 'image')).toBe(false)
     expect(JSON.stringify(result)).not.toContain('Synthetic publication marker')
   } finally {

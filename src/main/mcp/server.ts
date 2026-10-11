@@ -685,6 +685,18 @@ const errorResult = (error: unknown): CallToolResult => {
   }
 }
 
+function pageObservationPublicationFailure(error: unknown): CallToolResult {
+  const outcome = {
+    status: 'OUTCOME_UNKNOWN',
+    reason: error instanceof WorkspaceWriteLeaseError ? error.code : 'OBSERVATION_NOT_PUBLISHED',
+    dispatch: 'dispatched', effects: 'possible', retrySafe: false,
+    observation: 'discarded', postcondition: 'unknown', reconciliationRequired: true,
+    ...(error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : {}),
+    nextAction: 'The observation completed but publication authority changed. Its content was discarded. Capturing may have woken, selected or scrolled the page; those effects are not rolled back. Inspect current state and authorization before continuing; do not automatically replay the request.'
+  }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
 export function closedTabWaitResult(error: unknown, targetWasRemoved = false): CallToolResult | undefined {
   if (!(error instanceof Error)) return undefined
   const closedDuringManagerWait = error.message.startsWith('The tab closed while waiting')
@@ -1068,6 +1080,7 @@ function createBrowserMcpServer(
       const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
         ? args[0] as Record<string, unknown> : {}
       const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
+      const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
       const frameRequest = frameRequests.getStore()!
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
         if (isFrameObservation || (name !== 'browser_status' && name !== 'browser_snapshot')) return
@@ -1113,6 +1126,10 @@ function createBrowserMcpServer(
         try {
           await authorizeCapability(name, isFrameObservation && frameRequest.tabId ? { ...input, tabId: frameRequest.tabId } : input, 'active-dispatch')
         } catch (error) {
+          if (isPageObservation && !result.isError) {
+            recordReadinessProbe('failed')
+            return pageObservationPublicationFailure(error)
+          }
           if (!(error instanceof McpCapabilityAuthorizationError)) throw error
           const readOnly = mcpCapabilityOperationClass(name, input) === 'read'
           const outcome = {
@@ -1171,9 +1188,14 @@ function createBrowserMcpServer(
           publication.assertCurrent()
           return result // No await after the final cancellation/context/authority check.
         }
-        if ((name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)) && !result.isError) {
-          if (!frameRequest.pageObservationPublication) throw new Error('Page observation publication guard is unavailable')
-          frameRequest.pageObservationPublication()
+        if (isPageObservation && !result.isError) {
+          try {
+            if (!frameRequest.pageObservationPublication) throw new Error('Page observation publication guard is unavailable')
+            frameRequest.pageObservationPublication()
+          } catch (error) {
+            recordReadinessProbe('failed')
+            return pageObservationPublicationFailure(error)
+          }
         }
         // No await after the final page observation authority/cancellation check.
         recordReadinessProbe(result.isError ? 'failed' : 'verified')

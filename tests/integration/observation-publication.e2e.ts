@@ -86,7 +86,7 @@ for (const change of changes) {
       await electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { release(): void } }).__auditHeld?.release())
       const result = await pending
       const observation = {
-        toolName, change, isError: result.isError === true,
+        toolName, change, isError: result.isError === true, metadata: result.structuredContent,
         imageCount: result.content.filter(item => item.type === 'image').length,
         markerPublished: JSON.stringify(result).includes('Synthetic public inspection target'),
         outcomeWrites: await electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { outcomeWrites: number } }).__auditHeld?.outcomeWrites)
@@ -99,6 +99,7 @@ for (const change of changes) {
         else expect(observation.markerPublished).toBe(true)
       } else {
         expect(result.isError).toBe(true)
+        expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', dispatch: 'dispatched', effects: 'possible', retrySafe: false })
         expect(observation.imageCount).toBe(0)
         expect(observation.markerPublished).toBe(false)
       }
