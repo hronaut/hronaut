@@ -52,7 +52,7 @@ export function compactTabDiscovery(tabs: readonly DiscoveryTab[], search: TabDi
     limits: TAB_DISCOVERY_LIMITS,
     caveats: [
       'Counts and matches cover only projected fields of live HTTP(S) tabs with parseable addresses within the source URL bound; other tabs are omitted.',
-      'Only explicit current-document titles are searched; fallback and unverified titles are empty. Authored titles and URL paths may contain private information. This is output minimization, not DLP.',
+      'Only explicit current-document titles are searched; fallback and unverified titles are empty, including titles matching restored history. Authored titles and URL paths may contain private information. This is output minimization, not DLP.',
       'This is point-in-time discovery, not authority for a later action. Recheck the target before acting.'
     ]
   }
