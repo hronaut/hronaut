@@ -1,4 +1,5 @@
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
+import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
 import { matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
 import type { BrowserMediaState } from '../../shared/types.js'
@@ -584,7 +585,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   navigationGeneration: number
   performanceDocumentRouted?: boolean
   humanInteractionGeneration: number
-  wheelEnvironmentGeneration: number
+  nativeInputEnvironmentGeneration: number
   browserSessionGeneration: number
   overviewPreviewSequence: number
   navigationPolicyDenialSequence: number
@@ -845,7 +846,9 @@ export interface TabsManagerOptions {
 }
 
 export class BrowserTabsManager {
-  private wheelLockMutations = 0
+  private nativeInputLockMutations = 0
+  private readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
+  private readonly unconfirmedNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
   private readonly pageFind = new PageFindController()
   private readonly metadata = new PageMetadataController<BrowserTab>({
     getTab: (tabId) => this.getTab(tabId),
@@ -3258,7 +3261,7 @@ export class BrowserTabsManager {
     requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserPageLifecycleResult> {
     const tab = this.getTab(tabId)
-    tab.wheelEnvironmentGeneration += 1
+    tab.nativeInputEnvironmentGeneration += 1
     if (isHronautHomeUrl(tab.url)) throw new Error('Only live page tabs can be frozen or resumed.')
     if (tab.sleeping || tab.wakePromise) throw new Error('Wake the sleeping tab before changing its page lifecycle.')
     if (tab.webContents.isDestroyed()) throw new Error('The tab renderer is unavailable.')
@@ -4585,7 +4588,7 @@ export class BrowserTabsManager {
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
     const tab = this.getTab(options.tabId)
     const webContents = tab.webContents
-    tab.wheelEnvironmentGeneration += 1
+    tab.nativeInputEnvironmentGeneration += 1
     const current = Math.round(webContents.getZoomFactor() * 100)
     let percent: number
     if (options.action === 'reset') percent = 100
@@ -4603,7 +4606,7 @@ export class BrowserTabsManager {
   }
 
   setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
-    for (const tab of this.tabs.values()) tab.wheelEnvironmentGeneration += 1
+    for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
     if (this.allAgentsPaused !== paused || this.agentPauseOverridesAllowed !== allowTabOverrides
       || this.globallyResumedAgentTabIds.size > 0) {
       for (const tab of this.tabs.values()) retireNetworkPriorityObservations(tab)
@@ -4616,7 +4619,7 @@ export class BrowserTabsManager {
 
   setTabAgentPaused(tabId: string, paused: boolean): BrowserState {
     const tab = this.getTab(tabId)
-    tab.wheelEnvironmentGeneration += 1
+    tab.nativeInputEnvironmentGeneration += 1
     if (isHronautHomeUrl(tab.url)) throw new Error('Agent control is only available for page tabs.')
     if (this.allAgentsPaused && !this.agentPauseOverridesAllowed) throw new Error('Agents are temporarily paused for a protected operation.')
     if (this.isTabAgentPaused(tab.id) !== paused) retireNetworkPriorityObservations(tab)
@@ -4700,10 +4703,10 @@ export class BrowserTabsManager {
 
   setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
     const tab = this.tabs.get(tabId)
-    if (tab) tab.wheelEnvironmentGeneration += 1
-    this.wheelLockMutations += 1
+    if (tab) tab.nativeInputEnvironmentGeneration += 1
+    this.nativeInputLockMutations += 1
     return this.enqueueInteractionLockMutation(() => this.applyTabHumanInteractionLocked(tabId, locked))
-      .finally(() => { this.wheelLockMutations -= 1 })
+      .finally(() => { this.nativeInputLockMutations -= 1 })
   }
 
   private async applyTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
@@ -4747,10 +4750,10 @@ export class BrowserTabsManager {
   }
 
   setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
-    for (const tab of this.tabs.values()) tab.wheelEnvironmentGeneration += 1
-    this.wheelLockMutations += 1
+    for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
+    this.nativeInputLockMutations += 1
     return this.enqueueInteractionLockMutation(() => this.applyAllHumanInteractionLocked(locked))
-      .finally(() => { this.wheelLockMutations -= 1 })
+      .finally(() => { this.nativeInputLockMutations -= 1 })
   }
 
   private async applyAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
@@ -5278,7 +5281,7 @@ export class BrowserTabsManager {
       await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
     }
     const session = createElementPickerSession<BrowserElementPickerScriptResult>()
-    tab.wheelEnvironmentGeneration += 1
+    tab.nativeInputEnvironmentGeneration += 1
     this.elementPickerSessions.set(webContents.id, session)
     try {
       if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
@@ -5522,7 +5525,7 @@ export class BrowserTabsManager {
       await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
     }
     const session = createNativeSelectionSession<BrowserScreenshotAreaResult>() as BrowserScreenshotAreaSession
-    tab.wheelEnvironmentGeneration += 1
+    tab.nativeInputEnvironmentGeneration += 1
     this.screenshotAreaSessions.set(webContents.id, session)
     try {
       if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
@@ -5880,7 +5883,7 @@ export class BrowserTabsManager {
     if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
       return cloneEmulationState(tab.emulation)
     }
-    tab.wheelEnvironmentGeneration += 1
+    tab.nativeInputEnvironmentGeneration += 1
     const webContents = tab.webContents
     return this.withDebugger(webContents, async () => {
       if (this.getTab(tab.id) !== tab || tab.webContents !== webContents) {
@@ -5889,7 +5892,7 @@ export class BrowserTabsManager {
       // Rebase on the last committed settings after acquiring the per-tab queue.
       const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
       if (!prepared) return cloneEmulationState(tab.emulation)
-      tab.wheelEnvironmentGeneration += 1
+      tab.nativeInputEnvironmentGeneration += 1
       const previous = cloneEmulationState(tab.emulation)
       const previousHeaders = { ...tab.emulationExtraHttpHeaders }
       const { state: next, headers: nextHeaders } = prepared
@@ -5911,7 +5914,7 @@ export class BrowserTabsManager {
     const options = nativeWheelInput.parse(input)
     const tab = this.getTab(options.tabId)
     const webContents = tab.webContents
-    const generation = tab.wheelEnvironmentGeneration
+    const generation = tab.nativeInputEnvironmentGeneration
     const selectionGeneration = this.tabSelectionGeneration
     const splitGeneration = this.splitViewGeneration
     const bounds = JSON.stringify(tab.view.getBounds())
@@ -5936,7 +5939,7 @@ export class BrowserTabsManager {
     screen.on('display-metrics-changed', changed)
     const validate = (): void => {
       authority.validate()
-      if (environmentChanged || generation !== tab.wheelEnvironmentGeneration
+      if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
         || selectionGeneration !== this.tabSelectionGeneration || splitGeneration !== this.splitViewGeneration
         || JSON.stringify(tab.view.getBounds()) !== bounds) {
         throw new Error('Wheel environment changed; inspect fresh state before a new call')
@@ -5947,7 +5950,7 @@ export class BrowserTabsManager {
         throw new Error('Wheel requires the active visible page outside split view; select it in the trusted UI first')
       }
       if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Wheel requires an already awake, active page')
-      if (this.wheelLockMutations > 0 || this.isHumanInteractionLocked(tab)) throw new Error('Wheel requires an explicitly unlocked page; unlock it in the trusted UI first')
+      if (this.nativeInputLockMutations > 0 || this.isHumanInteractionLocked(tab)) throw new Error('Wheel requires an explicitly unlocked page; unlock it in the trusted UI first')
       if (this.screenshotAreaSessions.has(webContents.id) || this.elementPickerSessions.has(webContents.id)
         || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
         throw new Error('Wheel is unavailable during native selection or Developer Tools')
@@ -6784,6 +6787,96 @@ export class BrowserTabsManager {
       return { files: [...paths] }
     } finally {
       webContents.removeListener('did-navigate', onCommitted)
+    }
+  }
+
+  async holdKey(input: NativeKeyHoldInput, validateInput: (validateContext: () => void) => void,
+    recordProgress: (progress: NativeKeyHoldProgress) => void, signal?: AbortSignal): Promise<unknown> {
+    const options = nativeKeyHoldInput.parse(input)
+    const tab = this.getTab(options.tabId)
+    const webContents = tab.webContents
+    if (this.activeNativeKeyHolds.has(webContents)) throw new Error('A key hold is already active for this page')
+    if (this.unconfirmedNativeKeyHolds.has(webContents)) throw new Error('Earlier key release is unconfirmed; close this tab before another hold. Navigation does not establish release.')
+    const generation = tab.nativeInputEnvironmentGeneration
+    const selectionGeneration = this.tabSelectionGeneration
+    const splitGeneration = this.splitViewGeneration
+    const authority = this.nativeInputAuthority(tab, validateInput)
+    const progress: NativeKeyHoldProgress = { downAttempted: false, downAcknowledged: false, releaseStarted: false, releaseAttempted: false, releaseAcknowledged: false }
+    const publish = (): void => { recordProgress({ ...progress }) }
+    const commands = nativeHeldKeyCommands(options.key)
+    let started = 0
+    let environmentChanged = false
+    const changed = (): void => { environmentChanged = true }
+    const validate = (): void => {
+      authority.validate()
+      if (signal?.aborted) throw new Error('Key hold cancelled')
+      if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
+        || selectionGeneration !== this.tabSelectionGeneration || splitGeneration !== this.splitViewGeneration
+        || this.nativeInputLockMutations > 0) throw new Error('Key hold environment changed; inspect fresh state')
+      if (this.activeTabId !== tab.id || this.splitView || this.browserContentOccluded
+        || !this.window.isVisible() || this.window.isMinimized() || !tab.view.getVisible()
+        || !this.window.contentView.children.includes(tab.view) || tab.sleeping || tab.pageLifecycleState !== 'active') {
+        throw new Error('Key hold requires the active visible, already awake page outside split view')
+      }
+      if (this.screenshotAreaSessions.has(webContents.id) || this.elementPickerSessions.has(webContents.id)
+        || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()
+        || webContents.mainFrame.framesInSubtree.length !== 1) throw new Error('Key hold does not support selections, Developer Tools or child frames')
+    }
+    const observer: NativeInputDispatchObserver = {
+      rawAttempted: params => {
+        if (params.type === 'keyUp') progress.releaseAttempted = true
+        else progress.downAttempted = true
+        publish()
+      },
+      rawAcknowledged: params => {
+        if (params.type === 'keyUp') progress.releaseAcknowledged = true
+        else { progress.downAcknowledged = true; started = performance.now() }
+        publish()
+      },
+      emergencyReleaseStarted: () => { progress.releaseStarted = true; publish() }
+    }
+    this.activeNativeKeyHolds.add(webContents)
+    tab.view.on('bounds-changed', changed)
+    webContents.on('frame-created', changed)
+    webContents.on('devtools-opened', changed)
+    webContents.debugger.on('detach', changed)
+    this.window.on('hide', changed)
+    this.window.on('minimize', changed)
+    try {
+      validate()
+      await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
+        try {
+          validate()
+          await this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchKeyEvent', commands.down, validate, observer)
+          await waitForNativeKeyHold(started + options.durationMs, validate, signal)
+        } finally {
+          if (progress.downAttempted && !progress.releaseStarted) {
+            // Reserve the cleanup path before preparation, including failures
+            // before a raw up command. Never retry an emergency release path.
+            progress.releaseStarted = true
+            publish()
+            await this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchKeyEvent', commands.up, undefined, observer)
+          }
+        }
+      }))
+      validate()
+      return { status: 'DISPATCH_ACKNOWLEDGED', key: options.key, durationMs: options.durationMs, release: 'ACKNOWLEDGED' }
+    } catch (error) {
+      if (progress.downAttempted) throw new NativeKeyHoldOutcomeUnknownError(error, { ...progress })
+      throw error
+    } finally {
+      if (progress.downAttempted && !progress.releaseAcknowledged && !webContents.isDestroyed()) {
+        this.unconfirmedNativeKeyHolds.add(webContents)
+        webContents.once('destroyed', () => { this.unconfirmedNativeKeyHolds.delete(webContents) })
+      }
+      this.activeNativeKeyHolds.delete(webContents)
+      authority.dispose()
+      tab.view.removeListener('bounds-changed', changed)
+      webContents.removeListener('frame-created', changed)
+      webContents.removeListener('devtools-opened', changed)
+      webContents.debugger.removeListener('detach', changed)
+      this.window.removeListener('hide', changed)
+      this.window.removeListener('minimize', changed)
     }
   }
 
@@ -7727,7 +7820,7 @@ export class BrowserTabsManager {
   setBrowserContentOccluded(occluded: boolean): void {
     if (this.destroyed || this.window.isDestroyed()) return
     if (occluded !== this.browserContentOccluded) {
-      for (const tab of this.tabs.values()) tab.wheelEnvironmentGeneration += 1
+      for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
     }
     const enteringTrustedChrome = occluded && !this.browserContentOccluded
     if (enteringTrustedChrome) {
@@ -8039,7 +8132,7 @@ export class BrowserTabsManager {
         ? this.workspaceObservationGeneration(options.mcpGroupId)
         : 0,
       humanInteractionGeneration: 0,
-      wheelEnvironmentGeneration: 0,
+      nativeInputEnvironmentGeneration: 0,
       browserSessionGeneration: 0,
       overviewPreviewSequence: 0,
       navigationPolicyDenialSequence: 0,
@@ -9598,7 +9691,8 @@ export class BrowserTabsManager {
     webContents: BrowserTab['view']['webContents'],
     method: string,
     commandParams: Record<string, unknown> = {},
-    validateInput?: () => void
+    validateInput?: () => void,
+    observer?: NativeInputDispatchObserver
   ): Promise<unknown> {
     validateInput?.()
     const mouse = method === 'Input.dispatchMouseEvent'
@@ -9619,8 +9713,10 @@ export class BrowserTabsManager {
       validateInput?.()
       if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
       if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
+      observer?.rawAttempted(commandParams)
       const result = await webContents.debugger.sendCommand(method, commandParams)
       rawDispatched = true
+      observer?.rawAcknowledged(commandParams)
       return result
     } finally {
       if (mouse && this.authorizedAgentMouseInput.get(webContents.id) === mouse) {
@@ -9642,7 +9738,8 @@ export class BrowserTabsManager {
             // The caller will see a rejection and cannot know that down succeeded.
             // Send one matching release through the same native input guard. Up
             // events cannot recurse into another release, even if re-lock fails.
-            await this.sendAuthorizedAgentInputCommand(webContents, method, release).catch(() => undefined)
+            observer?.emergencyReleaseStarted()
+            await this.sendAuthorizedAgentInputCommand(webContents, method, release, undefined, observer).catch(() => undefined)
           }
           throw new NativeInputCleanupError(error)
         }
@@ -9941,27 +10038,29 @@ export class BrowserTabsManager {
         this.agentInputWebContents.delete(webContents.id)
         const focusSnapshot = this.agentInputFocusSnapshots.get(webContents.id)
         this.agentInputFocusSnapshots.delete(webContents.id)
-        let tab: BrowserTab | undefined
-        if (!webContents.isDestroyed()) {
-          await webContents.executeJavaScript('delete window.__hronautAgentInputActive', true).catch(() => undefined)
-          const tabId = this.webContentsToTab.get(webContents.id)
-          tab = tabId ? this.tabs.get(tabId) : undefined
-          if (tab && this.isHumanInteractionLocked(tab)) {
-            try {
-              await this.syncHumanInteractionInputGuard(tab)
-            } catch (error) {
-              // Preserve acknowledged input uncertainty and finish focus cleanup
-              // even when the final best-effort compositor restoration also fails.
-              if (!nativeCleanupFailure) throw error
+        try {
+          if (!webContents.isDestroyed()) {
+            await webContents.executeJavaScript('delete window.__hronautAgentInputActive', true).catch(() => undefined)
+            const tabId = this.webContentsToTab.get(webContents.id)
+            const tab = tabId ? this.tabs.get(tabId) : undefined
+            if (tab && this.isHumanInteractionLocked(tab)) {
+              try {
+                await this.syncHumanInteractionInputGuard(tab)
+              } catch (error) {
+                // Preserve acknowledged input uncertainty, but otherwise keep
+                // restoration failures visible after focus cleanup runs.
+                if (!nativeCleanupFailure) throw error
+              }
             }
           }
-        }
-        try {
-          this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
         } finally {
-          const releaseFocusGuard = this.agentInputFocusGuardReleases.get(webContents.id)
-          this.agentInputFocusGuardReleases.delete(webContents.id)
-          releaseFocusGuard?.()
+          try {
+            this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
+          } finally {
+            const releaseFocusGuard = this.agentInputFocusGuardReleases.get(webContents.id)
+            this.agentInputFocusGuardReleases.delete(webContents.id)
+            releaseFocusGuard?.()
+          }
         }
       }
     }

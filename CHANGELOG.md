@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Hold one nonmodifier key briefly with `browser_hold_key` in QA and complete MCP tool sets. The active visible page receives one raw down and matching release, without text or auto-repeat; authority or lock requests interrupt the timed wait. Human input guards stay active. Unconfirmed release blocks further holds until the tab is closed. Ordinary `browser_press` is unchanged.
 - Send one bounded native wheel gesture with `browser_wheel` in the QA and complete MCP tool sets. Canvas wheel handlers and nested scrollers receive explicit viewport coordinates and signed CSS-pixel deltas. This first version requires the active visible, human-unlocked, already awake page outside split view and without child frames, default zoom, no emulation overrides and display scale 1. It never unlocks, focuses, moves the pointer or retries; uncertain dispatch requires fresh inspection. `browser_scroll` retains its CSSOM behavior.
 
 ### Fixed
