@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Closing Debug report, Quality audit, Issues, Repro recorder, or DOM changes now retires pending text-copy feedback and clears prior copy success. Late clipboard replies cannot restore success or show an obsolete error after close/reopen; saved reports and recorder state remain available.
+
 - Retire pending Network copies when closing the panel: unfinished HAR exports no longer start a clipboard write after close, and late clipboard replies cannot revive old success or error feedback. Retained requests, selection and filters remain available; already-dispatched clipboard writes and pending file saves are not undone.
 
 - Retire Console copy feedback when closing the panel, so a delayed clipboard result cannot restore an old “Copied” indicator or display an obsolete error after closing or reopening. Clipboard writes already dispatched are not undone; retained messages and filters are preserved.
