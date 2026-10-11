@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Filter Network requests and sanitized HAR exports by exact observed response source with `response-source:network`, `response-source:disk-cache`, `response-source:prefetch-cache`, `response-source:service-worker`, or `response-source:other-cache`. Negation and existing AND filters are supported without guessing unavailable sources or generating traffic.
+
 ### Fixed
 
 - Retire Console copy feedback when closing the panel, so a delayed clipboard result cannot restore an old “Copied” indicator or display an obsolete error after closing or reopening. Clipboard writes already dispatched are not undone; retained messages and filters are preserved.

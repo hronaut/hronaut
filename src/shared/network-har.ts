@@ -66,10 +66,15 @@ const NETWORK_FILTER_PROPERTIES = new Set([
   'is',
   'larger-than',
   'method',
+  'response-source',
   'resource-type',
   'scheme',
   'status-code',
   'url'
+])
+
+const NETWORK_FILTER_RESPONSE_SOURCES = new Set([
+  'network', 'disk-cache', 'prefetch-cache', 'service-worker', 'other-cache'
 ])
 
 function networkFilterTokens(query: string): string[] {
@@ -125,6 +130,10 @@ function wildcardMatch(value: string, pattern: string): boolean {
 function requestMatchesPropertyFilter(request: BrowserNetworkRequest, property: string, expected: string): boolean | undefined {
   if (!expected) return undefined
   if (property === 'method') return request.method.toLowerCase() === expected.toLowerCase()
+  if (property === 'response-source') {
+    const source = expected.toLowerCase()
+    return NETWORK_FILTER_RESPONSE_SOURCES.has(source) ? request.responseSource === source : undefined
+  }
   if (property === 'status-code') {
     if (/^[1-5]xx$/i.test(expected)) {
       const minimum = Number(expected[0]) * 100

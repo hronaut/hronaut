@@ -2124,7 +2124,7 @@ export const plPL = {
     "refresh": "Odśwież",
     "filterAria": "Filtruj żądania sieciowe",
     "filterPlaceholder": "Filtruj żądania · method:POST status-code:500",
-    "filterTitle": "Łącz dowolny tekst z filtrami domain:, is:running, larger-than:, method:, resource-type:, scheme:, status-code: lub url: Kody stanu mogą być dokładne (404) lub określać grupę (4xx); -status-code:5xx wyklucza błędy serwera.",
+    "filterTitle": "Łącz dowolny tekst z filtrami domain:, is:running, larger-than:, method:, response-source: (network, disk-cache, prefetch-cache, service-worker, other-cache), resource-type:, scheme:, status-code: lub url: Kody stanu mogą być dokładne (404) lub określać grupę (4xx); -status-code:5xx wyklucza błędy serwera.",
     "sort": "Sortuj",
     "sortAria": "Sortuj żądania sieciowe",
     "sortDirection": "Sortuj żądania sieciowe: {direction}",
