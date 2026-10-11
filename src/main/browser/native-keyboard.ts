@@ -45,7 +45,7 @@ const punctuationKeys: Readonly<Record<string, { code: string; virtualKeyCode: n
 
 const shiftedDigits = ')!@#$%^&*('
 
-function keyDescription(input: BrowserKeyPress): {
+export function nativeKeyDescription(input: BrowserKeyPress): {
   key: string
   code: string
   virtualKeyCode: number
@@ -101,7 +101,7 @@ export async function dispatchNativeKeyPress(
   releaseDebugger: KeyboardDebugger = debuggerApi
 ): Promise<void> {
   const modifiers = input.modifiers.reduce((value, modifier) => value | modifierBits[modifier], 0)
-  const key = keyDescription(input)
+  const key = nativeKeyDescription(input)
   await debuggerApi.sendCommand('Input.dispatchKeyEvent', {
     type: key.text === undefined ? 'rawKeyDown' : 'keyDown',
     modifiers,

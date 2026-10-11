@@ -1,4 +1,5 @@
 import { nativeWheelFields, NativeWheelOutcomeUnknownError, type NativeWheelInput } from '../browser/native-wheel.js'
+import { nativeKeyHoldFields, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import { compactTabDiscovery, TAB_DISCOVERY_LIMITS, type TabDiscoverySearch } from './tab-discovery.js'
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
@@ -424,6 +425,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_scroll: 'interact',
   browser_wheel: 'interact',
   browser_press: 'interact',
+  browser_hold_key: 'interact',
   browser_file_upload: 'external-request',
   browser_emulate: 'browser-state',
   browser_page_lifecycle: 'browser-state',
@@ -659,7 +661,28 @@ const nativeWheelUnknownResult = (reviewFinalizationFailed = false): CallToolRes
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
 }
 
+const nativeKeyHoldUnknownResult = (progress: NativeKeyHoldProgress, reviewFinalizationFailed = false, policy?: Record<string, unknown>): CallToolResult => {
+  const outcome = {
+    status: 'OUTCOME_UNKNOWN', reason: 'KEY_HOLD_UNCERTAIN', retrySafe: false, effects: 'possible',
+    down: progress.downAcknowledged ? 'ACKNOWLEDGED' : 'ATTEMPTED',
+    release: progress.releaseAcknowledged ? 'ACKNOWLEDGED' : 'UNCONFIRMED',
+    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+    ...(policy?.permission === 'denied' || policy?.policyDecision !== undefined ? { permission: 'denied', policyDecision: policy.policyDecision } : {}),
+    nextAction: 'A key down was attempted. Inspect fresh state; never automatically replay. If release is unconfirmed, close this tab before another hold; navigation does not establish release.'
+  }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
+const nativeKeyHoldNotDispatchedResult = (result: CallToolResult, policy?: Record<string, unknown>): CallToolResult => {
+  const detail = result.structuredContent ? undefined : result.content.find(item => item.type === 'text')?.text.slice(0, 500)
+  const outcome = { ...result.structuredContent, ...policy, status: 'NOT_DISPATCHED', reason: 'KEY_HOLD_NOT_DISPATCHED', effects: 'none', dispatch: 'not-dispatched', retrySafe: false,
+    postcondition: 'not-established', reconciliationRequired: false, ...(detail ? { detail } : {}),
+    nextAction: 'No key down was attempted. Inspect the rejection and obtain fresh authority before a new request.' }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
 const errorResult = (error: unknown): CallToolResult => {
+  if (error instanceof NativeKeyHoldOutcomeUnknownError) return nativeKeyHoldUnknownResult(error.progress)
   if (error instanceof NativeWheelOutcomeUnknownError) return nativeWheelUnknownResult()
   if (error instanceof NativeInputCleanupError) return nativeInputCleanupResult()
   if (error instanceof WorkspaceWriteLeaseError) {
@@ -1080,7 +1103,13 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const rememberKeyHoldPolicy = (error: unknown): void => {
+    const request = frameRequests.getStore()
+    if (request?.keyHoldProgress && error instanceof McpCapabilityAuthorizationError) {
+      request.keyHoldPolicy = { permission: 'denied', policyDecision: error.decision }
+    }
+  }
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1157,6 +1186,8 @@ function createBrowserMcpServer(
               ? 'The capability changed while this observation was running. Obtain a fresh credential before reading again.'
               : 'The capability changed after dispatch. Inspect current state before deciding what to do next; do not automatically repeat a possible side effect.'
           }
+          if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed, outcome)
+          if (frameRequest.keyHoldProgress) return nativeKeyHoldNotDispatchedResult({ ...textResult(outcome), structuredContent: outcome, isError: true })
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         if (isFrameObservation && frameRequest.pending && !result.isError) {
@@ -1200,6 +1231,13 @@ function createBrowserMcpServer(
           publication.assertCurrent()
           return result // No await after the final cancellation/context/authority check.
         }
+        if (name === 'browser_hold_key' && frameRequest.keyHoldProgress && !frameRequest.keyHoldProgress.downAttempted && result.isError) return nativeKeyHoldNotDispatchedResult(result, frameRequest.keyHoldPolicy)
+        if (name === 'browser_hold_key' && frameRequest.keyHoldProgress?.downAttempted) {
+          if (result.isError) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed, frameRequest.keyHoldPolicy ?? result.structuredContent)
+          if (!frameRequest.keyHoldPublication) throw new Error('Key hold publication guard is unavailable')
+          frameRequest.keyHoldPublication()
+          return result // No await after final authority and cancellation check.
+        }
         if (name === 'browser_wheel' && frameRequest.wheelAttempted) {
           if (result.isError) {
             if (result.structuredContent?.status === 'OUTCOME_UNKNOWN' && result.structuredContent.retrySafe === false
@@ -1231,6 +1269,9 @@ function createBrowserMcpServer(
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
         recordReadinessProbe('failed')
+        if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed,
+          error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : frameRequest.keyHoldPolicy ?? errorResult(error).structuredContent)
+        if (frameRequest.keyHoldProgress && !frameRequest.keyHoldProgress.downAttempted) return nativeKeyHoldNotDispatchedResult(errorResult(error), frameRequest.keyHoldPolicy)
         if (frameRequest.wheelAttempted) return nativeWheelUnknownResult(frameRequest.wheelReviewFinalizationFailed)
         return errorResult(error)
       } finally {
@@ -1670,20 +1711,20 @@ function createBrowserMcpServer(
     if (!toolsWithoutWorkspaceTabTarget.has(name)) singleTabControlTools.add(name)
     const schema = name === 'browser_wheel'
       ? z.object(inputSchema).strict().refine(value => value.deltaX !== 0 || value.deltaY !== 0, 'At least one wheel delta must be nonzero')
-      : z.object(inputSchema)
+      : name === 'browser_hold_key' ? z.object(inputSchema).strict() : z.object(inputSchema)
     workspaceToolInputSchemas.set(name, schema)
     registerTool(
       name,
       {
         ...config,
-        inputSchema: name === 'browser_wheel' ? schema : inputSchema
+        inputSchema: name === 'browser_wheel' || name === 'browser_hold_key' ? schema : inputSchema
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
         const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
         const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true)
         const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state'
-        const preservePresentation = passiveObservation || name === 'browser_wheel'
+        const preservePresentation = passiveObservation || name === 'browser_wheel' || name === 'browser_hold_key'
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -1876,6 +1917,7 @@ function createBrowserMcpServer(
             })
           } catch (error) {
             if (frameRequests.getStore()?.wheelAttempted) frameRequests.getStore()!.wheelReviewFinalizationFailed = true
+            if (frameRequests.getStore()?.keyHoldProgress?.downAttempted) frameRequests.getStore()!.keyHoldReviewFinalizationFailed = true
             finishActivity(undefined, true, error)
             throw error
           }
@@ -1884,6 +1926,11 @@ function createBrowserMcpServer(
           if (extra?.signal?.aborted) throw new Error('Wheel request cancelled after dispatch')
           requireCurrentTarget()
           if (authorityRejection()) throw new Error('Wheel authority changed after dispatch')
+        }
+        if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldPublication = () => {
+          if (extra?.signal?.aborted) throw new Error('Key hold cancelled after dispatch')
+          requireCurrentTarget()
+          if (authorityRejection()) throw new Error('Key hold authority changed after dispatch')
         }
         // Set only by the main-process recorder, never by caller arguments or report data.
         let lifecycleOrigin: string | undefined
@@ -1976,6 +2023,7 @@ function createBrowserMcpServer(
               )
               reviewAttempt = { id: attempted.id, revision: attempted.revision }
             }
+            if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldProgress = { downAttempted: false, downAcknowledged: false, releaseStarted: false, releaseAttempted: false, releaseAcknowledged: false }
             activityDispatched = true
             const result = toolsWithoutWorkspaceTabTarget.has(name)
               ? await handler(actionInput as unknown as T)
@@ -1983,7 +2031,7 @@ function createBrowserMcpServer(
                 ...actionInput,
                 tabId: resolvedTabId,
                 ...((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_network_request') ? { validateInspection: requireCurrentTarget } : {}),
-                ...(['browser_click', 'browser_hover', 'browser_drag', 'browser_press', 'browser_wheel'].includes(name) ? { validateNativeInput: (validateContext: () => void) => {
+                ...(['browser_click', 'browser_hover', 'browser_drag', 'browser_press', 'browser_wheel', 'browser_hold_key'].includes(name) ? { validateNativeInput: (validateContext: () => void) => {
                   try {
                     if (extra?.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
                     requireCurrentTarget()
@@ -1993,11 +2041,13 @@ function createBrowserMcpServer(
                   } catch (error) {
                     // Preparation or an earlier click in a double-click may
                     // already have effects. Never classify this as safe replay.
-                    invalidatedOutcome = 'outcome-unknown'
+                    rememberKeyHoldPolicy(error)
+                    invalidatedOutcome = name === 'browser_hold_key' && !frameRequests.getStore()?.keyHoldProgress?.downAttempted ? undefined : 'outcome-unknown'
                     throw error
                   }
                 } } : {}),
                 ...(name === 'browser_wheel' ? { markWheelAttempted: () => { frameRequests.getStore()!.wheelAttempted = true } } : {}),
+                ...(name === 'browser_hold_key' ? { holdSignal: extra?.signal, recordHoldProgress: (progress: NativeKeyHoldProgress) => { frameRequests.getStore()!.keyHoldProgress = { ...progress } } } : {}),
                 ...(name === 'browser_file_upload' ? { validateUpload: (validateContext: () => void) => {
                   try {
                     if (extra?.signal?.aborted) throw new Error('File upload cancelled; earlier effects are not rolled back')
@@ -2042,10 +2092,14 @@ function createBrowserMcpServer(
                   if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
                 } } : {})
               } as unknown as T)
+            if (name === 'browser_hold_key' && result.isError && result.structuredContent?.policyDecision !== undefined) {
+              frameRequests.getStore()!.keyHoldPolicy = { permission: 'denied', policyDecision: result.structuredContent.policyDecision }
+            }
             try {
               if (invalidatedOutcome === 'outcome-unknown') throw new Error('Action authority changed during dispatch')
               await requireHumanDecision(false, reviewAttempt?.id)
               if (name === 'browser_wheel') frameRequests.getStore()!.wheelPublication!()
+              if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldPublication!()
               if (name === 'browser_element_inspect' || name === 'browser_media_state') requireCurrentTarget()
               validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
@@ -2056,7 +2110,8 @@ function createBrowserMcpServer(
               // must still belong to the authorized workspace when they settle.
               if (resolvedTabId && name !== 'browser_close_tab'
                 && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
-            } catch {
+            } catch (error) {
+              rememberKeyHoldPolicy(error)
               invalidatedOutcome = readOnly ? 'stale-observation' : 'outcome-unknown'
               const outcome = {
                 status: readOnly ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
@@ -2071,7 +2126,9 @@ function createBrowserMcpServer(
             return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
           } catch (error) {
             if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
-            const uncertainResult = error instanceof NativeWheelOutcomeUnknownError ? nativeWheelUnknownResult : nativeInputCleanupResult
+            const uncertainResult = error instanceof NativeKeyHoldOutcomeUnknownError
+              ? (failed = false) => nativeKeyHoldUnknownResult(error.progress, failed)
+              : error instanceof NativeWheelOutcomeUnknownError ? nativeWheelUnknownResult : nativeInputCleanupResult
             invalidatedOutcome = 'outcome-unknown'
             try {
               await finishReviewedAttempt('unknown')
@@ -2093,13 +2150,13 @@ function createBrowserMcpServer(
             && typeof structured.status === 'string' ? structured.status : undefined
           const activityResult = classifyMcpActivityResult({
             readOnly,
-            dispatched: activityDispatched,
+            dispatched: name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
             cancelled: extra?.signal?.aborted === true,
             timedOut: isTimeoutError(error),
             threw,
             isError: result?.isError === true,
             status,
-            invalidatedOutcome: frameRequests.getStore()?.wheelAttempted && (threw || result?.isError === true)
+            invalidatedOutcome: (frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
               ? 'outcome-unknown' : invalidatedOutcome,
             verificationStatus: verificationResult?.status
           })
@@ -2126,6 +2183,7 @@ function createBrowserMcpServer(
             finishActivity(result, false)
             return result
           } catch (error) {
+            rememberKeyHoldPolicy(error)
             await finishReviewedAttempt('unknown')
             const invalidated = invalidatedWaitResult(error)
             if (invalidated) {
@@ -2238,6 +2296,7 @@ function createBrowserMcpServer(
           operation
           })
         } catch (error) {
+          rememberKeyHoldPolicy(error)
           await finishReviewedAttempt('unknown')
           const invalidated = invalidatedWaitResult(error)
           if (invalidated) {
@@ -3840,6 +3899,18 @@ function createBrowserMcpServer(
     tabTool('browser_scroll', async (input: { tabId?: string; ref?: string; selector?: string; deltaX?: number; deltaY?: number }) =>
       textResult(await manager.scroll(input))
     )
+  )
+  registerWorkspaceTool(
+    'browser_hold_key',
+    { description: toolDescription('browser_hold_key'), inputSchema: { tabId: tabIdSchema, ...nativeKeyHoldFields } },
+    tabTool('browser_hold_key', async ({ tabId, key, durationMs, validateNativeInput, recordHoldProgress, holdSignal }: NativeKeyHoldInput & {
+      validateNativeInput?: (validateContext: () => void) => void
+      recordHoldProgress?: (progress: NativeKeyHoldProgress) => void
+      holdSignal?: AbortSignal
+    }) => {
+      if (!validateNativeInput || !recordHoldProgress) throw new Error('Key hold authority or provenance is unavailable')
+      return textResult(await manager.holdKey({ tabId, key, durationMs }, validateNativeInput, recordHoldProgress, holdSignal))
+    }, 'never')
   )
   registerWorkspaceTool(
     'browser_press',
