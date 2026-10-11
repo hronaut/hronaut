@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Send one bounded native wheel gesture with `browser_wheel` in the QA and complete MCP tool sets. Canvas wheel handlers and nested scrollers receive explicit viewport coordinates and signed CSS-pixel deltas. This first version requires the active visible, human-unlocked, already awake page outside split view and without child frames, default zoom, no emulation overrides and display scale 1. It never unlocks, focuses, moves the pointer or retries; uncertain dispatch requires fresh inspection. `browser_scroll` retains its CSSOM behavior.
+
 ### Fixed
 
 - Withhold screenshots and page snapshots if workspace authority, agent control or cancellation changes while audit persistence is finishing.

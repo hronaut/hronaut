@@ -1,3 +1,4 @@
+import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
 import type { BrowserMediaState } from '../../shared/types.js'
@@ -583,6 +584,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   navigationGeneration: number
   performanceDocumentRouted?: boolean
   humanInteractionGeneration: number
+  wheelEnvironmentGeneration: number
   browserSessionGeneration: number
   overviewPreviewSequence: number
   navigationPolicyDenialSequence: number
@@ -843,6 +845,7 @@ export interface TabsManagerOptions {
 }
 
 export class BrowserTabsManager {
+  private wheelLockMutations = 0
   private readonly pageFind = new PageFindController()
   private readonly metadata = new PageMetadataController<BrowserTab>({
     getTab: (tabId) => this.getTab(tabId),
@@ -3255,6 +3258,7 @@ export class BrowserTabsManager {
     requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserPageLifecycleResult> {
     const tab = this.getTab(tabId)
+    tab.wheelEnvironmentGeneration += 1
     if (isHronautHomeUrl(tab.url)) throw new Error('Only live page tabs can be frozen or resumed.')
     if (tab.sleeping || tab.wakePromise) throw new Error('Wake the sleeping tab before changing its page lifecycle.')
     if (tab.webContents.isDestroyed()) throw new Error('The tab renderer is unavailable.')
@@ -4579,7 +4583,9 @@ export class BrowserTabsManager {
   }
 
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
-    const webContents = this.getTab(options.tabId).webContents
+    const tab = this.getTab(options.tabId)
+    const webContents = tab.webContents
+    tab.wheelEnvironmentGeneration += 1
     const current = Math.round(webContents.getZoomFactor() * 100)
     let percent: number
     if (options.action === 'reset') percent = 100
@@ -4597,6 +4603,7 @@ export class BrowserTabsManager {
   }
 
   setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
+    for (const tab of this.tabs.values()) tab.wheelEnvironmentGeneration += 1
     if (this.allAgentsPaused !== paused || this.agentPauseOverridesAllowed !== allowTabOverrides
       || this.globallyResumedAgentTabIds.size > 0) {
       for (const tab of this.tabs.values()) retireNetworkPriorityObservations(tab)
@@ -4609,6 +4616,7 @@ export class BrowserTabsManager {
 
   setTabAgentPaused(tabId: string, paused: boolean): BrowserState {
     const tab = this.getTab(tabId)
+    tab.wheelEnvironmentGeneration += 1
     if (isHronautHomeUrl(tab.url)) throw new Error('Agent control is only available for page tabs.')
     if (this.allAgentsPaused && !this.agentPauseOverridesAllowed) throw new Error('Agents are temporarily paused for a protected operation.')
     if (this.isTabAgentPaused(tab.id) !== paused) retireNetworkPriorityObservations(tab)
@@ -4691,7 +4699,11 @@ export class BrowserTabsManager {
   }
 
   setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
+    const tab = this.tabs.get(tabId)
+    if (tab) tab.wheelEnvironmentGeneration += 1
+    this.wheelLockMutations += 1
     return this.enqueueInteractionLockMutation(() => this.applyTabHumanInteractionLocked(tabId, locked))
+      .finally(() => { this.wheelLockMutations -= 1 })
   }
 
   private async applyTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
@@ -4735,7 +4747,10 @@ export class BrowserTabsManager {
   }
 
   setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
+    for (const tab of this.tabs.values()) tab.wheelEnvironmentGeneration += 1
+    this.wheelLockMutations += 1
     return this.enqueueInteractionLockMutation(() => this.applyAllHumanInteractionLocked(locked))
+      .finally(() => { this.wheelLockMutations -= 1 })
   }
 
   private async applyAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
@@ -5263,6 +5278,7 @@ export class BrowserTabsManager {
       await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
     }
     const session = createElementPickerSession<BrowserElementPickerScriptResult>()
+    tab.wheelEnvironmentGeneration += 1
     this.elementPickerSessions.set(webContents.id, session)
     try {
       if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
@@ -5506,6 +5522,7 @@ export class BrowserTabsManager {
       await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
     }
     const session = createNativeSelectionSession<BrowserScreenshotAreaResult>() as BrowserScreenshotAreaSession
+    tab.wheelEnvironmentGeneration += 1
     this.screenshotAreaSessions.set(webContents.id, session)
     try {
       if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
@@ -5863,6 +5880,7 @@ export class BrowserTabsManager {
     if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
       return cloneEmulationState(tab.emulation)
     }
+    tab.wheelEnvironmentGeneration += 1
     const webContents = tab.webContents
     return this.withDebugger(webContents, async () => {
       if (this.getTab(tab.id) !== tab || tab.webContents !== webContents) {
@@ -5871,6 +5889,7 @@ export class BrowserTabsManager {
       // Rebase on the last committed settings after acquiring the per-tab queue.
       const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
       if (!prepared) return cloneEmulationState(tab.emulation)
+      tab.wheelEnvironmentGeneration += 1
       const previous = cloneEmulationState(tab.emulation)
       const previousHeaders = { ...tab.emulationExtraHttpHeaders }
       const { state: next, headers: nextHeaders } = prepared
@@ -5886,6 +5905,103 @@ export class BrowserTabsManager {
       this.changed(false)
       return cloneEmulationState(next)
     })
+  }
+
+  async wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
+    const options = nativeWheelInput.parse(input)
+    const tab = this.getTab(options.tabId)
+    const webContents = tab.webContents
+    const generation = tab.wheelEnvironmentGeneration
+    const selectionGeneration = this.tabSelectionGeneration
+    const splitGeneration = this.splitViewGeneration
+    const bounds = JSON.stringify(tab.view.getBounds())
+    const authority = this.nativeInputAuthority(tab, validateInput)
+    let environmentChanged = false
+    let attempted = false
+    const changed = (): void => { environmentChanged = true }
+    const debuggerChanged = (_event: Electron.Event, method: string): void => {
+      if (['Page.frameAttached', 'Page.frameDetached', 'Page.frameResized'].includes(method)) changed()
+    }
+    // Observe transitions before entering the debugger queue, including changes
+    // which revert to the original value while another operation is pending.
+    tab.view.on('bounds-changed', changed)
+    webContents.on('zoom-changed', changed)
+    webContents.on('frame-created', changed)
+    webContents.on('devtools-opened', changed)
+    webContents.debugger.on('message', debuggerChanged)
+    webContents.debugger.on('detach', changed)
+    this.window.on('move', changed)
+    this.window.on('hide', changed)
+    this.window.on('minimize', changed)
+    screen.on('display-metrics-changed', changed)
+    const validate = (): void => {
+      authority.validate()
+      if (environmentChanged || generation !== tab.wheelEnvironmentGeneration
+        || selectionGeneration !== this.tabSelectionGeneration || splitGeneration !== this.splitViewGeneration
+        || JSON.stringify(tab.view.getBounds()) !== bounds) {
+        throw new Error('Wheel environment changed; inspect fresh state before a new call')
+      }
+      if (this.activeTabId !== tab.id || this.splitView || this.browserContentOccluded
+        || !this.window.isVisible() || this.window.isMinimized() || !tab.view.getVisible()
+        || !this.window.contentView.children.includes(tab.view)) {
+        throw new Error('Wheel requires the active visible page outside split view; select it in the trusted UI first')
+      }
+      if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Wheel requires an already awake, active page')
+      if (this.wheelLockMutations > 0 || this.isHumanInteractionLocked(tab)) throw new Error('Wheel requires an explicitly unlocked page; unlock it in the trusted UI first')
+      if (this.screenshotAreaSessions.has(webContents.id) || this.elementPickerSessions.has(webContents.id)
+        || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
+        throw new Error('Wheel is unavailable during native selection or Developer Tools')
+      }
+      if (webContents.getZoomFactor() !== 1 || hasEmulationOverrides(tab.emulation)
+        || screen.getDisplayMatching(this.window.getBounds()).scaleFactor !== 1) {
+        throw new Error('Wheel requires default zoom, no emulation overrides, and display scale 1')
+      }
+      // Native frame metadata, not a page-authored DOM query. Reject all child
+      // frames rather than guessing which renderer receives the input.
+      if (webContents.mainFrame.framesInSubtree.length !== 1) throw new Error('Wheel does not support pages containing child frames')
+    }
+    try {
+      validate()
+      return await this.withDebugger(webContents, async () => {
+        validate()
+        const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
+          cssVisualViewport?: { clientWidth: number; clientHeight: number; scale: number; offsetX: number; offsetY: number }
+        }
+        validate()
+        const viewport = metrics.cssVisualViewport
+        if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0
+          || !Number.isFinite(viewport.clientWidth) || !Number.isFinite(viewport.clientHeight)
+          || options.x >= viewport.clientWidth || options.y >= viewport.clientHeight) {
+          throw new Error('Wheel point must be inside a default visible CSS viewport')
+        }
+        // No await, focus transfer, synthetic pointer movement, or compositor
+        // unlock between the final admission check and the single command.
+        validate()
+        markAttempted()
+        attempted = true
+        await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+          type: 'mouseWheel', x: options.x, y: options.y,
+          deltaX: options.deltaX, deltaY: options.deltaY, buttons: 0, modifiers: 0
+        })
+        validate()
+        return { status: 'DISPATCH_ACKNOWLEDGED', x: options.x, y: options.y, deltaX: options.deltaX, deltaY: options.deltaY }
+      })
+    } catch (error) {
+      if (attempted) throw new NativeWheelOutcomeUnknownError(error)
+      throw error
+    } finally {
+      authority.dispose()
+      tab.view.removeListener('bounds-changed', changed)
+      webContents.removeListener('zoom-changed', changed)
+      webContents.removeListener('frame-created', changed)
+      webContents.removeListener('devtools-opened', changed)
+      webContents.debugger.removeListener('message', debuggerChanged)
+      webContents.debugger.removeListener('detach', changed)
+      this.window.removeListener('move', changed)
+      this.window.removeListener('hide', changed)
+      this.window.removeListener('minimize', changed)
+      screen.removeListener('display-metrics-changed', changed)
+    }
   }
 
   async scroll(options: {
@@ -7610,6 +7726,9 @@ export class BrowserTabsManager {
 
   setBrowserContentOccluded(occluded: boolean): void {
     if (this.destroyed || this.window.isDestroyed()) return
+    if (occluded !== this.browserContentOccluded) {
+      for (const tab of this.tabs.values()) tab.wheelEnvironmentGeneration += 1
+    }
     const enteringTrustedChrome = occluded && !this.browserContentOccluded
     if (enteringTrustedChrome) {
       for (const tab of this.tabs.values()) {
@@ -7920,6 +8039,7 @@ export class BrowserTabsManager {
         ? this.workspaceObservationGeneration(options.mcpGroupId)
         : 0,
       humanInteractionGeneration: 0,
+      wheelEnvironmentGeneration: 0,
       browserSessionGeneration: 0,
       overviewPreviewSequence: 0,
       navigationPolicyDenialSequence: 0,
