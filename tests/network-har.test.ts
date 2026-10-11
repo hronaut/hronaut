@@ -79,6 +79,38 @@ const details: BrowserNetworkRequestDetails = {
 }
 
 describe('sanitized network HAR', () => {
+  it.each(['network', 'disk-cache', 'prefetch-cache', 'service-worker', 'other-cache'] as const)(
+    'filters exact observed response source %s without matching URL or worker subsource text', source => {
+      const requests = [
+        { ...details, id: 'match', responseSource: source },
+        { ...details, id: 'unknown', responseSource: undefined, url: `https://example.test/response-source:${source}` },
+        { ...details, id: 'different', responseSource: source === 'network' ? 'service-worker' as const : 'network' as const, serviceWorkerResponseSource: 'network' as const }
+      ]
+      for (const operand of [source, source.toUpperCase(), `"${source}"`]) {
+        expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: `method:POST RESPONSE-SOURCE:${operand}` })).map(request => request.id)).toEqual(['match'])
+        expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: `-response-source:${operand}` })).map(request => request.id)).toEqual(['unknown', 'different'])
+      }
+      expect(requests[1]!.responseSource).toBeUndefined()
+    }
+  )
+
+  it.each(['', 'unknown', 'cache', 'memory-cache', 'service*', 'service-worker-extra', '"service worker"'])(
+    'keeps invalid response-source operand %s nonmatching even when excluded', operand => {
+      const requests = [details, { ...details, responseSource: undefined, url: `https://example.test/response-source:${operand}` }]
+      for (const prefix of ['', '-']) {
+        expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: `${prefix}response-source:${operand}` }))).toEqual([])
+      }
+    }
+  )
+
+  it('combines response-source filters and preserves existing literal source searches', () => {
+    const requests = [details, { ...details, id: 'network', responseSource: 'network' as const }]
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: 'response-source:service-worker -response-source:network status-code:2xx' }))).toEqual([details])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: 'response-source:service-worker response-source:network' }))).toEqual([])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions({ query: '"Service worker"' }))).toEqual([details])
+    expect(filterNetworkRequests(requests, normalizeNetworkHarOptions())).toEqual(requests)
+  })
+
   it.each([1, 2, 3, 4, 5])('matches only integer HTTP status codes in family %ixx', family => {
     const start = family * 100
     const requests = [start - 1, start, start + 42, start + 99, start + 100, start + 0.5]
