@@ -1881,6 +1881,20 @@ function createBrowserMcpServer(
                 ...actionInput,
                 tabId: resolvedTabId,
                 ...((name === 'browser_element_inspect' || name === 'browser_media_state') ? { validateInspection: requireCurrentTarget } : {}),
+                ...(name === 'browser_click' ? { validateClick: (validateContext: () => void) => {
+                  try {
+                    if (extra?.signal?.aborted) throw new Error('Native click cancelled; earlier input effects are not rolled back')
+                    requireCurrentTarget()
+                    requirePostWriteContext()
+                    validateContext()
+                    if (authorityRejection()) throw new Error('Native click authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+                  } catch (error) {
+                    // Preparation or an earlier click in a double-click may
+                    // already have effects. Never classify this as safe replay.
+                    invalidatedOutcome = 'outcome-unknown'
+                    throw error
+                  }
+                } } : {}),
                 ...(name === 'browser_pdf_save' ? { validateExport: () => {
                   if (extra?.signal?.aborted) throw new Error('PDF export cancelled')
                   requireCurrentTarget()
@@ -1914,6 +1928,7 @@ function createBrowserMcpServer(
                 } } : {})
               } as unknown as T)
             try {
+              if (invalidatedOutcome === 'outcome-unknown') throw new Error('Native click authority changed during dispatch')
               await requireHumanDecision(false, reviewAttempt?.id)
               if (name === 'browser_element_inspect' || name === 'browser_media_state') requireCurrentTarget()
               validateLifecycleResult()
@@ -3516,7 +3531,7 @@ function createBrowserMcpServer(
         reconciliation: reconciliationRequestSchema.optional().describe('Repeat a bounded pre-write lookup immediately before dispatch. Must describe the same target and desired state as postcondition; a missing, stale, ambiguous, or already-satisfied target prevents the click.')
       }
     },
-    tabTool('browser_click', async (input: {
+    tabTool('browser_click', async ({ validateClick, ...input }: {
       tabId?: string
       ref?: string
       selector?: string
@@ -3524,6 +3539,7 @@ function createBrowserMcpServer(
       y?: number
       doubleClick?: boolean
       native?: boolean
+      validateClick?: (validateContext: () => void) => void
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest
@@ -3532,7 +3548,10 @@ function createBrowserMcpServer(
         targetIdentity: string
         sourceRevision: string
       }
-    }) => textResult(await manager.click(browserClickPageInput(input))))
+    }) => {
+      if (!validateClick) throw new Error('Click authority is unavailable')
+      return textResult(await manager.click(browserClickPageInput(input), validateClick))
+    })
   )
   registerWorkspaceTool(
     'browser_dialog',

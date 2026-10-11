@@ -5559,10 +5559,28 @@ export class BrowserTabsManager {
     y?: number
     doubleClick?: boolean
     native?: boolean
-  } & BrowserDialogHandlingOptions): Promise<unknown> {
+  } & BrowserDialogHandlingOptions, validateClick?: (validateContext: () => void) => void): Promise<unknown> {
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
+    const clickContext = this.snapshotDeltaContext(tab)
+    let documentCommitted = false
+    const onDocumentCommitted = (): void => { documentCommitted = true }
+    const clickWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = clickWorkspace ? this.inspectionPermissions.get(clickWorkspace) ?? 0 : 0
+    const assertClickContext = (): void => {
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (documentCommitted || this.destroyed || currentWorkspace !== clickWorkspace
+        || (validateClick && (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration)
+        || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()
+        || snapshotDeltaInvalidationReason(clickContext, this.snapshotDeltaContext(tab))) {
+        throw new Error('Native click context changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+      }
+    }
+    const assertNativeClickCurrent = (): void => {
+      if (validateClick) validateClick(assertClickContext)
+      else assertClickContext()
+    }
     const dialogAction = target.dialogAction
     if (target.promptText !== undefined && dialogAction !== 'accept') {
       throw new TypeError('promptText requires dialogAction: accept')
@@ -5573,66 +5591,75 @@ export class BrowserTabsManager {
     if (target.native && dialogAction !== undefined) {
       throw new TypeError('native cannot be combined with dialogAction or promptText')
     }
-    if (coordinatePoint) {
-      await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
-      await this.showAgentPointer(webContents, coordinatePoint, 'click')
-      if (dialogAction !== undefined) {
-        await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
-          const contextId = await this.mainWorldContextId(webContents)
-          await this.evaluateWithAttachedDebugger(
+    // A reload may already be pending when the click begins. Its commit does
+    // not increment navigationGeneration again, but replaces the target document.
+    const nativeInput = dialogAction === undefined && (coordinatePoint !== undefined || target.native || target.doubleClick)
+    if (nativeInput) webContents.on('did-navigate', onDocumentCommitted)
+    try {
+      if (coordinatePoint) {
+        await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
+        await this.showAgentPointer(webContents, coordinatePoint, 'click')
+        if (dialogAction !== undefined) {
+          await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
+            const contextId = await this.mainWorldContextId(webContents)
+            await this.evaluateWithAttachedDebugger(
+              webContents,
+              dialogAwareCoordinateClickScript(coordinatePoint, dialogAction, target.promptText),
+              contextId
+            )
+          }))
+        } else {
+          await this.withAgentInput(webContents, () => this.withDebugger(
             webContents,
-            dialogAwareCoordinateClickScript(coordinatePoint, dialogAction, target.promptText),
-            contextId
-          )
-        }))
-      } else {
+            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertNativeClickCurrent)
+          ))
+        }
+        return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
+      }
+      if (target.doubleClick || target.native) {
+        let point = await webContents.executeJavaScript(targetPointScript(target), true) as {
+          x: number
+          y: number
+          tag: string
+        }
+        await this.showAgentPointer(webContents, point, 'click')
         await this.withAgentInput(webContents, () => this.withDebugger(
           webContents,
-          () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true)
+          async () => {
+            assertNativeClickCurrent()
+            // Re-read live state after pointer rendering and debugger setup, not
+            // the earlier snapshot or initial pointer position.
+            point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
+            this.assertClickTargetEnabled(point)
+            await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertNativeClickCurrent)
+          }
         ))
-      }
-      return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
-    }
-    if (target.doubleClick || target.native) {
-      let point = await webContents.executeJavaScript(targetPointScript(target), true) as {
-        x: number
-        y: number
-        tag: string
-      }
-      await this.showAgentPointer(webContents, point, 'click')
-      await this.withAgentInput(webContents, () => this.withDebugger(
-        webContents,
-        async () => {
-          // Re-read live state after pointer rendering and debugger setup, not
-          // the earlier snapshot or initial pointer position.
-          point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
-          this.assertClickTargetEnabled(point)
-          await this.dispatchNativeClick(webContents, point, target.doubleClick === true)
+        return {
+          ok: true,
+          tag: point.tag,
+          ...(target.doubleClick ? { doubleClick: true } : {}),
+          ...(target.native ? { native: true } : {})
         }
-      ))
-      return {
-        ok: true,
-        tag: point.tag,
-        ...(target.doubleClick ? { doubleClick: true } : {}),
-        ...(target.native ? { native: true } : {})
       }
-    }
-    const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
-      .catch(() => undefined) as { x: number; y: number } | undefined
-    if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click')
-    const result = await this.withAgentInput(webContents, () => {
-      if (dialogAction === undefined) return webContents.executeJavaScript(targetActionScript('click', target), true)
-      return this.withOptionalDialogHandling(webContents, target, async () => {
-        const contextId = await this.mainWorldContextId(webContents)
-        return this.evaluateWithAttachedDebugger(
-          webContents,
-          dialogAwareClickScript(target, dialogAction, target.promptText),
-          contextId
-        )
+      const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
+        .catch(() => undefined) as { x: number; y: number } | undefined
+      if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click')
+      const result = await this.withAgentInput(webContents, () => {
+        if (dialogAction === undefined) return webContents.executeJavaScript(targetActionScript('click', target), true)
+        return this.withOptionalDialogHandling(webContents, target, async () => {
+          const contextId = await this.mainWorldContextId(webContents)
+          return this.evaluateWithAttachedDebugger(
+            webContents,
+            dialogAwareClickScript(target, dialogAction, target.promptText),
+            contextId
+          )
+        })
       })
-    })
-    this.assertClickTargetEnabled(result)
-    return result
+      this.assertClickTargetEnabled(result)
+      return result
+    } finally {
+      if (nativeInput) webContents.removeListener('did-navigate', onDocumentCommitted)
+    }
   }
 
   private assertClickTargetEnabled(result: unknown): void {
@@ -5644,9 +5671,13 @@ export class BrowserTabsManager {
   private async dispatchNativeClick(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
-    doubleClick: boolean
+    doubleClick: boolean,
+    validateClick: () => void
   ): Promise<void> {
-    const inputDebugger = this.agentInputDebugger(webContents)
+    const inputDebugger = this.agentInputDebugger(webContents, validateClick)
+    // After a successful press, its matching release must still run if authority
+    // changes. Reject subsequent presses without leaving a held mouse button.
+    const releaseDebugger = this.agentInputDebugger(webContents)
     await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: point.x,
@@ -5661,7 +5692,7 @@ export class BrowserTabsManager {
         buttons: 1,
         clickCount
       })
-      await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
+      await releaseDebugger.sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x: point.x,
         y: point.y,
@@ -9321,13 +9352,15 @@ export class BrowserTabsManager {
   }
 
   private agentInputDebugger(
-    webContents: BrowserTab['view']['webContents']
+    webContents: BrowserTab['view']['webContents'],
+    validateInput?: () => void
   ): PointerDebugger & KeyboardDebugger {
     return {
       sendCommand: (method, commandParams) => this.sendAuthorizedAgentInputCommand(
         webContents,
         method,
-        commandParams
+        commandParams,
+        validateInput
       )
     }
   }
@@ -9335,8 +9368,10 @@ export class BrowserTabsManager {
   private async sendAuthorizedAgentInputCommand(
     webContents: BrowserTab['view']['webContents'],
     method: string,
-    commandParams: Record<string, unknown> = {}
+    commandParams: Record<string, unknown> = {},
+    validateInput?: () => void
   ): Promise<unknown> {
+    validateInput?.()
     const mouse = method === 'Input.dispatchMouseEvent'
       ? this.authorizedMouseInputFromCommand(commandParams)
       : null
@@ -9350,6 +9385,8 @@ export class BrowserTabsManager {
       await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
     }
     try {
+      // Recheck after lifting the compositor barrier, immediately before input.
+      validateInput?.()
       if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
       if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
       return await webContents.debugger.sendCommand(method, commandParams)
