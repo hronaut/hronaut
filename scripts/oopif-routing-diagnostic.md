@@ -72,7 +72,7 @@ do not observe native attachment events before probe installation.
 Only after the original assertion, an early phase independently collects native,
 frame, root and child snapshots with a 300ms overall bound. A final phase gives
 root postMessage delivery and child click delivery their own event-driven windows
-of up to 500ms. Child completion queues a microtask after the click dispatch, so
+of up to 500ms. Child completion schedules a zero-delay task after the click dispatch, so
 the original onclick/send and capture listeners can be recorded before snapshot.
 Final native/frame snapshots follow settlement of both DOM reads, or a bounded
 600ms barrier if a DOM read hangs. The final phase has a 1500ms overall bound.

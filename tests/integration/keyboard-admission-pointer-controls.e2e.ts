@@ -111,7 +111,7 @@ for (const scenario of ['desktop', 'mobile-no-meta', 'cross-origin-frame'] as co
               const page = webContents.getAllWebContents().find(page => page.getURL() === `http://127.0.0.1:${port}/`)
               const child = page?.mainFrame.frames.find(frame => frame.url === `http://localhost:${port}/child`)
               if (!child) throw new Error('unavailable')
-              const state = await child.executeJavaScript(`new Promise(resolve=>{const snapshot=()=>window.__oopif;if(!${observe}||window.__oopif?.clicks>0){resolve(snapshot());return}let timer;const finish=()=>{clearTimeout(timer);removeEventListener('click',listener,true);resolve(snapshot())};const listener=()=>queueMicrotask(finish);addEventListener('click',listener,true);timer=setTimeout(finish,500)})`) as { clicks: number; events: unknown[]; dropped: number; errors: number; available: boolean } | undefined
+              const state = await child.executeJavaScript(`new Promise(resolve=>{const snapshot=()=>window.__oopif;if(!${observe}||window.__oopif?.clicks>0){resolve(snapshot());return}let timer;const finish=()=>{clearTimeout(timer);removeEventListener('click',listener,true);resolve(snapshot())};const listener=()=>{clearTimeout(timer);timer=setTimeout(finish,0)};addEventListener('click',listener,true);timer=setTimeout(finish,500)})`) as { clicks: number; events: unknown[]; dropped: number; errors: number; available: boolean } | undefined
               if (!state) throw new Error('unavailable')
               return { childHits: state.clicks, childEvents: state.events, childObserverAvailable: state.available, childDropped: state.dropped, childErrors: state.errors }
             }, { port, observe })

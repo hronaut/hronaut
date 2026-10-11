@@ -135,6 +135,25 @@ describe('bounded final observation window', () => {
     expect(value).toMatchObject({ observationAgreement: 'unavailable', interpretation: 'inconclusive', availability: { child: 'rejected' }, early: { childHits: 0, counters: { childErrors: 1 } } })
     expect(JSON.stringify(value)).not.toContain('private error')
   })
+  it('finishes a late child click after onclick/send rather than between event listeners', async () => {
+    vi.useFakeTimers()
+    try {
+      const source = readFileSync('tests/integration/keyboard-admission-pointer-controls.e2e.ts', 'utf8')
+      const script = source.match(/child\.executeJavaScript\(`([^`]+)`\)/)![1]!.replace('${observe}', 'true')
+      let listener!: () => void
+      const state = { clicks: 0, events: [] as string[] }
+      const pending = runInNewContext(script, { window: { __oopif: state }, setTimeout, clearTimeout, queueMicrotask, addEventListener: (_name: string, callback: () => void) => { listener = callback }, removeEventListener: () => undefined }) as Promise<typeof state>
+      let finished = false
+      void pending.then(() => { finished = true })
+      state.clicks = 1
+      listener()
+      await Promise.resolve()
+      expect(finished).toBe(false)
+      state.events.push('message-send')
+      await vi.advanceTimersByTimeAsync(0)
+      expect((await pending).events).toEqual(['message-send'])
+    } finally { vi.useRealTimers() }
+  })
   it('labels discordant final counters inconclusive', async () => {
     const value = await collectWindowed({ root: async () => ({ settledHits: 1 }), child: async () => ({ childHits: 0 }), native: async () => ({}), frames: async () => ({}) })
     expect(value).toMatchObject({ observationAgreement: 'discordant', interpretation: 'inconclusive' })
