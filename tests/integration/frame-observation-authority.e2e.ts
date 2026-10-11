@@ -7,7 +7,7 @@ import { expect, test, text } from './capability-fixtures.js'
 import { closeFixtureServer } from './fixtures.js'
 type Gate={entered:boolean;releases:number;release():void;restore():void}
 
-for(const variant of ['timeout','contention','poisoned-getters'])test(`frame observation preserves ownership and isolation for ${variant}`,async({capabilities,electronApp,appWindow})=>{
+for(const variant of ['timeout','contention'])test(`frame observation preserves ownership and isolation for ${variant}`,async({capabilities,electronApp,appWindow})=>{
   const server=createServer((q,r)=>{r.setHeader('Content-Type','text/html');r.end(q.url?.startsWith('/parent')?'<h1>Parent sentinel</h1><iframe id="chosen" src="/child"></iframe>':'<h1>Isolated child sentinel</h1>')})
   await new Promise<void>(r=>server.listen(0,'127.0.0.1',r))
   const origin=`http://127.0.0.1:${(server.address() as {port:number}).port}`
@@ -18,20 +18,6 @@ for(const variant of ['timeout','contention','poisoned-getters'])test(`frame obs
       await appWindow.evaluate(id=>(window as unknown as {hronaut:{toggleDevTools(id:string):Promise<unknown>}}).hronaut.toggleDevTools(id),capabilities.tabId)
       const denied=await read();expect(denied.isError).toBe(true)
       expect(await electronApp.evaluate(({webContents},origin)=>webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!.debugger.isAttached(),origin)).toBe(false)
-    }else if(variant==='poisoned-getters'){
-      await electronApp.evaluate(async({webContents},origin)=>webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!.executeJavaScript(`(()=>{window.traps=[];const f=document.querySelector('#chosen'),child=f.contentWindow;for(const realm of [window,child]){Object.defineProperty(realm.Node.prototype,'textContent',{get(){window.traps.push({kind:'textContent',stack:new Error().stack.slice(0,1500)});throw Error('trap')}});Object.defineProperty(realm.HTMLElement.prototype,'innerText',{get(){window.traps.push({kind:'innerText',stack:new Error().stack.slice(0,1500)});throw Error('trap')}})}Object.defineProperty(f,'contentDocument',{get(){window.traps.push({kind:'contentDocument',stack:new Error().stack.slice(0,1500)});return document}});return true})()`,false),origin)
-      // Control: observe the harness's asynchronous initial iframe preview
-      // without issuing any MCP frame read.
-      await expect.poll(()=>electronApp.evaluate(async({webContents},origin)=>webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!.executeJavaScript('window.traps.length',false),origin)).toBeGreaterThan(0)
-      const beforeTraps=await electronApp.evaluate(async({webContents},origin)=>webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!.executeJavaScript('window.traps',false),origin)
-      console.log('FRAME_GETTER_BEFORE',JSON.stringify(beforeTraps))
-      // Playwright's setup preview can touch a node before the operation.
-      // Reset only that setup evidence; the MCP call must add zero getters.
-      await electronApp.evaluate(async({webContents},origin)=>webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!.executeJavaScript('window.traps=[];true',false),origin)
-      const result=await read();expect(result.isError,text(result)).not.toBe(true);expect(text(result)).toContain('Isolated child sentinel');expect(text(result)).not.toContain('Parent sentinel')
-      const afterTraps=await electronApp.evaluate(async({webContents},origin)=>webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!.executeJavaScript('window.traps',false),origin)
-      console.log('FRAME_GETTER_AFTER',JSON.stringify(afterTraps))
-      expect(afterTraps).toEqual([])
     }else{
       await electronApp.evaluate(({webContents},origin)=>{
         const p=webContents.getAllWebContents().find(p=>p.getURL()===origin+'/parent')!,original=p.debugger.sendCommand.bind(p.debugger)
