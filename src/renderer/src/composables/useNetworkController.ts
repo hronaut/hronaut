@@ -116,6 +116,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let monitorRequestSequence = 0
   let routeRequestSequence = 0
   let routeMutationSequence = 0
+  let routeRefreshPending = false
   let routeDraftGeneration = 0
   let requestDetailsSequence = 0
   let detailsCopySequence = 0
@@ -187,6 +188,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     monitorRequestSequence += 1
     routeRequestSequence += 1
     routeMutationSequence += 1
+    routeRefreshPending = false
     requestDetailsSequence += 1
     detailsCopySequence += 1
     harCopySequence += 1
@@ -294,23 +296,39 @@ export function useNetworkController(options: NetworkControllerOptions) {
     }
   }
 
-  async function refreshRoutes(silent = false): Promise<void> {
-    const tab = options.activeTab.value
-    if (!tab || isHronautHomeUrl(tab.url)) return
-    const expectedGeneration = generation
+  async function readRoutes(tabId: string, expectedGeneration: number, preserveMutationError = false): Promise<void> {
     const sequence = ++routeRequestSequence
-    if (!silent) routeState.value = 'loading'
-    routeError.value = ''
     try {
-      const nextRoutes = await options.browser.listNetworkRoutes(tab.id)
-      if (sequence !== routeRequestSequence || !isCurrent(tab.id, expectedGeneration)) return
+      const nextRoutes = await options.browser.listNetworkRoutes(tabId)
+      if (sequence !== routeRequestSequence || !isCurrent(tabId, expectedGeneration)) return
       routes.value = nextRoutes
-      routeState.value = 'ready'
+      if (!preserveMutationError) routeState.value = 'ready'
     } catch (cause) {
-      if (sequence !== routeRequestSequence || !isCurrent(tab.id, expectedGeneration)) return
+      if (sequence !== routeRequestSequence || !isCurrent(tabId, expectedGeneration) || preserveMutationError) return
       routeState.value = 'error'
       routeError.value = cause instanceof Error ? cause.message : String(cause)
     }
+  }
+
+  async function refreshRoutes(silent = false): Promise<void> {
+    const tab = options.activeTab.value
+    if (!tab || isHronautHomeUrl(tab.url)) return
+    // Main can expose a proposed list while Chromium is still applying it.
+    // Coalesce refreshes until settlement; a rule may change meanwhile.
+    if (routeState.value === 'saving') {
+      routeRefreshPending = true
+      return
+    }
+    if (!silent) routeState.value = 'loading'
+    routeError.value = ''
+    await readRoutes(tab.id, generation)
+  }
+
+  async function reconcilePendingRoutes(tabId: string, expectedGeneration: number, mutationSequence: number): Promise<void> {
+    if (!routeRefreshPending || mutationSequence !== routeMutationSequence || !isCurrent(tabId, expectedGeneration)) return
+    routeRefreshPending = false
+    // Reconcile the list even after failure, without hiding the mutation error.
+    await readRoutes(tabId, expectedGeneration, routeState.value === 'error')
   }
 
   async function refreshAll(): Promise<void> {
@@ -373,6 +391,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
       routeError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
   }
 
@@ -394,6 +414,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
       routeError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
   }
 
@@ -413,6 +435,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
       routeError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
   }
 
@@ -432,6 +456,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
       routeError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
   }
 

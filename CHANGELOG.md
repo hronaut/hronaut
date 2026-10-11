@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Network condition controls busy and retain their displayed list while a condition edit is pending. Overlapping refreshes coalesce into one read after settlement, so uncommitted conditions stay hidden and rules consumed or changed during state synchronization are reconciled without clearing a mutation error or newer draft.
+
 ## [2.34.0] - 2026-10-11
 
 ### Added

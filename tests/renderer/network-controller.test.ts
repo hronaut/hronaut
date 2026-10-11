@@ -1062,6 +1062,161 @@ describe('network controller', () => {
     expect(controller.routeState.value).toBe('ready')
   })
 
+  it.each(['add', 'remove', 'move', 'clear'] as const)('keeps %s in progress when a condition refresh is requested', async action => {
+    const { browser, controller, activeTab } = createController()
+    const pending = deferred<BrowserNetworkRouteSummary[]>()
+    const clearing = deferred<BrowserState>()
+    activeTab.value = tab('tab-1', 2)
+    controller.routes.value = [route('first'), route('second')]
+    controller.routePattern.value = 'https://example.test/api/new'
+    browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.removeNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.moveNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.clearNetworkRoutes.mockReturnValueOnce(clearing.promise)
+    browser.listNetworkRoutes.mockResolvedValue([route('uncommitted')])
+    try {
+      const changing = action === 'add' ? controller.addRouteFromDraft()
+        : action === 'remove' ? controller.removeRoute('first')
+          : action === 'move' ? controller.moveRoute('second', 'up') : controller.clearRoutes()
+      await controller.refreshRoutes(true)
+      expect(controller.routeState.value).toBe('saving')
+      expect(controller.routes.value).toEqual([route('first'), route('second')])
+      browser.listNetworkRoutes.mockResolvedValue(action === 'clear' ? [] : [route('committed')])
+      pending.resolve([route('committed')])
+      clearing.resolve(state(tab('tab-1')))
+      await changing
+      expect(controller.routeState.value).toBe('ready')
+      expect(controller.routes.value).toEqual(action === 'clear' ? [] : [route('committed')])
+      browser.listNetworkRoutes.mockResolvedValue([route('fresh')])
+      await controller.refreshRoutes()
+      expect(controller.routes.value).toEqual([route('fresh')])
+    } finally {
+      pending.resolve([])
+      clearing.resolve(state(tab('tab-1')))
+      controller.dispose()
+    }
+  })
+
+  it('does not retain an uncommitted condition after a refreshed add fails', async () => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.listNetworkRoutes.mockResolvedValue([route('uncommitted')])
+    controller.routePattern.value = 'https://example.test/api/new'
+    try {
+      const adding = controller.addRouteFromDraft()
+      await controller.refreshRoutes()
+      browser.listNetworkRoutes.mockResolvedValue([])
+      pending.reject(new Error('Condition application failed'))
+      await adding
+      expect(controller.routes.value).toEqual([])
+      expect(controller.routeState.value).toBe('error')
+      expect(controller.routeError.value).toBe('Condition application failed')
+      browser.listNetworkRoutes.mockResolvedValue([route('fresh')])
+      await controller.refreshRoutes()
+      expect(controller.routes.value).toEqual([route('fresh')])
+      expect(controller.routeError.value).toBe('')
+    } finally { controller.dispose() }
+  })
+
+  it.each(['add', 'remove'] as const)('reconciles coalesced refreshes after %s state synchronization', async action => {
+    const { browser, controller } = createController()
+    const sync = deferred<BrowserState>()
+    const read = deferred<BrowserNetworkRouteSummary[]>()
+    browser.getState.mockReturnValueOnce(sync.promise)
+    browser.addNetworkRoute.mockResolvedValue([route('consumed')])
+    browser.removeNetworkRoute.mockResolvedValue([route('consumed')])
+    browser.listNetworkRoutes.mockReturnValueOnce(read.promise)
+    controller.routePattern.value = 'https://example.test/submitted'
+    const changing = action === 'add' ? controller.addRouteFromDraft() : controller.removeRoute('removed')
+    await vi.waitFor(() => expect(browser.getState).toHaveBeenCalled())
+    controller.routePattern.value = 'https://example.test/newer-draft'
+    await Promise.all([controller.refreshRoutes(true), controller.refreshRoutes(), controller.refreshRoutes(true)])
+    expect(browser.listNetworkRoutes).not.toHaveBeenCalled()
+    expect(controller.routeState.value).toBe('saving')
+    sync.resolve(state(tab('tab-1')))
+    await vi.waitFor(() => expect(browser.listNetworkRoutes).toHaveBeenCalledTimes(1))
+    read.resolve([])
+    await changing
+    expect(browser.listNetworkRoutes).toHaveBeenCalledTimes(1)
+    expect(controller.routes.value).toEqual([])
+    expect(controller.routePattern.value).toBe('https://example.test/newer-draft')
+    expect(controller.routeState.value).toBe('ready')
+    controller.dispose()
+  })
+
+  it.each(['success', 'failure'] as const)('preserves a mutation error during deferred refresh %s', async outcome => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
+    if (outcome === 'success') browser.listNetworkRoutes.mockResolvedValue([route('independent')])
+    else browser.listNetworkRoutes.mockRejectedValue(new Error('Reconciliation failed'))
+    const adding = controller.addRouteFromDraft()
+    await controller.refreshRoutes(true)
+    pending.reject(new Error('Original mutation failed'))
+    await adding
+    expect(browser.listNetworkRoutes).toHaveBeenCalledTimes(1)
+    expect(controller.routes.value).toEqual(outcome === 'success' ? [route('independent')] : [])
+    expect(controller.routeState.value).toBe('error')
+    expect(controller.routeError.value).toBe('Original mutation failed')
+    controller.dispose()
+  })
+
+  it.each(['reset', 'dispose'] as const)('retires a deferred condition refresh on %s', async action => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
+    const adding = controller.addRouteFromDraft()
+    await controller.refreshRoutes(true)
+    controller[action]()
+    pending.resolve([route('obsolete')])
+    await adding
+    expect(browser.listNetworkRoutes).not.toHaveBeenCalled()
+    expect(controller.routes.value).toEqual([])
+    controller.dispose()
+  })
+
+  it.each(['reset', 'new-mutation', 'new-refresh', 'tab-change'] as const)('fences a pending catch-up read after %s', async action => {
+    const { browser, controller, activeTab } = createController()
+    const mutation = deferred<BrowserNetworkRouteSummary[]>()
+    const read = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(mutation.promise)
+    browser.listNetworkRoutes.mockReturnValueOnce(read.promise)
+    const adding = controller.addRouteFromDraft()
+    await controller.refreshRoutes(true)
+    mutation.resolve([route('captured')])
+    await vi.waitFor(() => expect(browser.listNetworkRoutes).toHaveBeenCalledTimes(1))
+    if (action === 'reset') controller.reset()
+    if (action === 'tab-change') { controller.reset(); activeTab.value = tab('tab-2') }
+    if (action === 'new-mutation') {
+      browser.addNetworkRoute.mockResolvedValue([route('newer')])
+      await controller.addRouteFromDraft()
+    }
+    if (action === 'new-refresh') {
+      browser.listNetworkRoutes.mockResolvedValue([route('newer')])
+      await controller.refreshRoutes()
+    }
+    read.resolve([route('obsolete')])
+    await adding
+    expect(controller.routes.value).toEqual(action.startsWith('new-') ? [route('newer')] : [])
+    controller.dispose()
+  })
+
+  it('reports a failed catch-up read after a successful mutation', async () => {
+    const { browser, controller } = createController()
+    const mutation = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(mutation.promise)
+    browser.listNetworkRoutes.mockRejectedValue(new Error('Catch-up read failed'))
+    const adding = controller.addRouteFromDraft()
+    await controller.refreshRoutes(true)
+    mutation.resolve([route('captured')])
+    await adding
+    expect(controller.routes.value).toEqual([route('captured')])
+    expect(controller.routeState.value).toBe('error')
+    expect(controller.routeError.value).toBe('Catch-up read failed')
+    controller.dispose()
+  })
+
   it.each([
     'https://example.test/path?q=visible&token=%5BREDACTED%5D',
     'https://%5BREDACTED%5D:%5BREDACTED%5D@example.test/',
