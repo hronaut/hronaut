@@ -56,6 +56,7 @@ describe('MCP workspace fork sources and direct access', () => {
       listWorkspaceForkSources: vi.fn(() => [source]),
       listMcpTabGroups: vi.fn(() => [workspace]),
       listSavedTabGroups: vi.fn(() => [workspace]),
+      captureWorkspaceObservationGuard: vi.fn(() => vi.fn()),
       isWorkspaceAgentAccessible: vi.fn((id: string) => id === ownId && accessible),
       mcpWorkspaceResumeKey: vi.fn(() => key),
       requireMcpTabGroup: vi.fn(() => workspace),

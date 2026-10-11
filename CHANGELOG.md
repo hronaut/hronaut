@@ -16,6 +16,7 @@ All notable changes to Hronaut are documented in this file.
 - Recheck native hover, drag and key input authority after asynchronous preparation and before each dispatch. Stop later input when pause, workspace access, cancellation or navigation changes; release an already-pressed button or key once without replaying the action.
 - Attempt one matching native button/key release when the down event succeeds but restoring the input lock fails. Keep the outcome uncertain and prevent automatic replay, including when that cleanup release also fails.
 
+- Withhold screenshots and page snapshots if workspace authority, agent control or cancellation changes while audit persistence is finishing.
 - Recheck file-upload authority and captured tab/document context immediately before assigning files. Pause, access revocation, cancellation or context changes during asynchronous preparation now prevent the commit and retain conservative no-retry outcome reporting.
 
 ### Known issues
