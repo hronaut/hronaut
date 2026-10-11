@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-10-11
+
 ### Added
 
 - Show Chromium’s initial and latest observed request priority in selected Network details, `browser_network_request`, and sanitized JSON copy. Missing observations stay unavailable; scheduling priority does not establish transfer order, server handling or an LCP cause.
@@ -12,11 +14,16 @@ All notable changes to Hronaut are documented in this file.
 
 - Retire pending Copy HAR results and feedback when clearing the Network list, so an older export cannot copy cleared records or restore obsolete success/error messages. Clipboard writes already dispatched are not undone.
 
-- Count unmatched, unblocked key-down input during agent operations so native-click authority checks can stop later presses. Expected keyboard events are admitted once. Identical event shapes remain indistinguishable, and concurrent mouse input retains its existing gap; use Pause agents for explicit takeover.
+- Count unmatched, unblocked key-down input during agent operations so native-click authority checks can stop later presses. Expected keyboard events are admitted once. Identical event shapes remain indistinguishable; event matching does not prove input origin. Concurrent mouse input retains its existing gap; use Pause agents for explicit takeover.
 
-- Recheck authority and cancellation between MCP native-click input phases. A pause, access change or navigation stops later presses; a successful press still receives its release. Earlier hover or click effects are not rolled back, so inspect the page before retrying.
+- Recheck MCP native-click authority before movements and presses across pause/access round-trips, cancellation, navigation/document commits, and compositor unlock. A successful press still receives its matching release. Earlier scroll, hover, or click effects are not rolled back; late invalidation reports `OUTCOME_UNKNOWN` with `retrySafe: false`, so inspect fresh state before retrying. This does not repair hit testing, establish semantic target identity after arbitrary DOM replacement, or guarantee delivery after a CDP transport failure.
 
 - Clear Network content-search matches and errors when the query or Match case setting changes, and ignore replies from searches started before those edits. Submit Search to inspect the edited query.
+
+### Known issues
+
+- An intermittent native screenshot UnknownVizError remains unexplained. Controlled and original-order diagnostics did not reproduce it; no capture fix is claimed.
+- Historical resize/evaluate stalls, destroyed-context and endpoint-startup failures remain unexplained; later passing checks do not establish their cause or a repair. Superseded-navigation ERR_ABORTED success-state behavior is also unresolved.
 
 ## [2.33.0] - 2026-10-10
 
