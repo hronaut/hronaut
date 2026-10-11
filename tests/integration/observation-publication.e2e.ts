@@ -86,7 +86,7 @@ for (const change of changes) {
       await electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { release(): void } }).__auditHeld?.release())
       const result = await pending
       const observation = {
-        toolName, change, isError: result.isError === true, metadata: result.structuredContent,
+        toolName, change, isError: result.isError === true, metadata: result.isError ? { status: result.structuredContent?.status, reason: result.structuredContent?.reason, dispatch: result.structuredContent?.dispatch, effects: result.structuredContent?.effects, retrySafe: result.structuredContent?.retrySafe } : undefined,
         imageCount: result.content.filter(item => item.type === 'image').length,
         markerPublished: JSON.stringify(result).includes('Synthetic public inspection target'),
         outcomeWrites: await electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { outcomeWrites: number } }).__auditHeld?.outcomeWrites)
