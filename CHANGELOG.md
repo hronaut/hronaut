@@ -4,13 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-10-11
+
 ### Added
 
 - Filter Network requests and sanitized HAR exports by exact observed response source with `response-source:network`, `response-source:disk-cache`, `response-source:prefetch-cache`, `response-source:service-worker`, or `response-source:other-cache`. Negation and existing AND filters are supported without guessing unavailable sources or generating traffic.
 
 ### Fixed
 
-- Closing Debug report, Quality audit, Issues, Repro recorder, or DOM changes now retires pending text-copy feedback and clears prior copy success. Late clipboard replies cannot restore success or show an obsolete error after close/reopen; saved reports and recorder state remain available.
+- Closing Debug report, Quality audit, Issues, Repro recorder, or DOM changes now retires pending text-copy feedback and clears prior copy success. Late clipboard replies cannot restore success or show an obsolete error after close/reopen; retained reports and recorder state remain available.
 
 - Retire pending Network copies when closing the panel: unfinished HAR exports no longer start a clipboard write after close, and late clipboard replies cannot revive old success or error feedback. Retained requests, selection and filters remain available; already-dispatched clipboard writes and pending file saves are not undone.
 
@@ -18,9 +20,12 @@ All notable changes to Hronaut are documented in this file.
 
 - Keep Network condition controls busy and retain their displayed list while a condition edit is pending. Overlapping refreshes coalesce into one read after settlement, so uncommitted conditions stay hidden and rules consumed or changed during state synchronization are reconciled without clearing a mutation error or newer draft.
 
-### Known issue
+### Known issues
 
 - A cross-origin-frame native-click test failed its immediate parent-page click-count assertion on the first attempt in main CI 38115599919. The instrumented baseline/barrier comparison did not reproduce that failure; its cause remains unresolved. Later passing candidates do not establish a repair.
+- An intermittent native screenshot UnknownVizError remains unexplained. Controlled and original-order diagnostics did not reproduce it; no capture fix is claimed.
+- Historical resize/evaluate stalls, destroyed-context and endpoint-startup failures remain unexplained; later passing checks do not establish their cause or a repair. Superseded-navigation ERR_ABORTED success-state behavior is also unresolved.
+- Native keyboard event-shape matching does not prove input origin; identical shapes remain ambiguous and the concurrent mouse-input gap remains. Use Pause agents for explicit takeover. This release does not change native-click admission or capture behavior.
 
 ## [2.34.0] - 2026-10-11
 
