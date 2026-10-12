@@ -27,7 +27,7 @@ export function useBookmarkCollectionsController(options: {
     if (editor.value?.startsWith('edit:') && !collections.value.some(collection => collection.id === editor.value!.slice(5))) cancelEdit()
   }
 
-  async function run(operation: () => Promise<BookmarkCollectionSnapshot>): Promise<boolean> {
+  async function run(operation: () => Promise<BookmarkCollectionSnapshot>, feedbackCurrent: () => boolean = () => true): Promise<boolean> {
     if (disposed || pending.value || options.blocked.value) return false
     const expected = generation
     pending.value = true
@@ -38,7 +38,7 @@ export function useBookmarkCollectionsController(options: {
       accept(next)
       return true
     } catch (cause) {
-      if (expected === generation) error.value = cause instanceof Error ? cause.message : String(cause)
+      if (expected === generation && feedbackCurrent()) error.value = cause instanceof Error ? cause.message : String(cause)
       return false
     } finally {
       if (expected === generation) pending.value = false
@@ -67,7 +67,7 @@ export function useBookmarkCollectionsController(options: {
     const expected = editGeneration
     const expectedSelection = selectionGeneration
     const name = draft.value
-    const saved = await run(() => id === null ? api.create(name) : api.rename(id, name))
+    const saved = await run(() => id === null ? api.create(name) : api.rename(id, name), () => expected === editGeneration)
     if (!saved || expected !== editGeneration) return false
     const collection = collections.value.find(candidate => id === null
       ? candidate.name === name.trim().replace(/\s+/g, ' ')
