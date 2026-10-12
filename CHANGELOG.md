@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.38.1] - 2026-10-12
+
 ### Fixed
 
 - Withhold IndexedDB and storage-usage observations if page, workspace access, control or cancellation changes before publication. Quota fallback stops after authority is revoked; interrupted reads report no mutation.
@@ -13,6 +15,15 @@ All notable changes to Hronaut are documented in this file.
 - Stop pending cookie edits when their document, workspace access, pause state or MCP control changes. Interrupted edits retain native-write counts and uncertain outcomes without replay; results are withheld if those checks fail during settlement. Concurrent cookie-session changes after initial admission remain outside these checks.
 - Match the Downloads save-mode confirmation to the current authoritative setting when another change arrives before an earlier response completes.
 - Keep a newer MCP port draft free of error feedback from an earlier failed Apply port request. Failures still appear when their submitted draft is unchanged; no listener change is retried automatically.
+
+### Known issues
+
+- Native wheel and key-hold bounds do not establish a transport deadline. A pending CDP command can retain the debugger queue indefinitely; cancellation does not release it, and lock preparation can time out. No bounded cleanup or transport recovery is promised. Inspect fresh state after uncertain or missing responses; never automatically replay a potentially effective action.
+- The earlier local key-hold fresh-call failure remains unclassified. Later controlled probes and green runs verify current guards, not that historical failure's cause or a repair.
+- A controlled initial-load semantic-click probe reproduced a document commit during preparation. Readiness waits preserve the setup for human-takeover and dialog tests, but the original CI human-click response and dispatch timeline were not captured. The local probe and later green runs do not establish every earlier failure's cause.
+- Historical native input observations during pending lock requests do not establish input origin. Tests now retain observations from compositor lock acknowledgement through terminal server activity; later passing runs do not prove the original cause or a product repair. Identical event shapes remain ambiguous, and the concurrent mouse-input gap remains; use Pause agents for explicit takeover.
+- Historical endpoint-startup and first-video-preview pixel failures remain unexplained. Restart ownership and first-presented-frame checks strengthen test evidence; controlled reproductions and later green runs do not establish the original event sequence or a product repair.
+- The historical cross-origin-frame immediate parent click-count miss, native screenshot UnknownVizError, resize/evaluate stalls, destroyed-context failures and superseded-navigation ERR_ABORTED success-state behavior remain unresolved. No native-click routing or capture repair is claimed.
 
 ## [2.38.0] - 2026-10-12
 
