@@ -15,6 +15,10 @@ export function multiSelectScript(target: { ref?: string; selector?: string }, v
   return `(() => {
     const target = ${JSON.stringify({ ref: target.ref, selector: target.selector })};
     const requested = ${JSON.stringify(values)};
+    // Use Chromium's native disabledness, including optgroups through wrappers.
+    // These intrinsics belong to the isolated world, not the page's prototypes.
+    const nativeMatches = Element.prototype.matches;
+    const isDisabled = element => nativeMatches.call(element, ':disabled');
     const reject = reason => ({ ok: false, status: 'REJECTED', effects: 'none', retrySafe: false, reason });
     const unknown = () => ({ ok: false, status: 'OUTCOME_UNKNOWN', effects: 'possible', retrySafe: false, reason: 'Selection or target changed during event handling; inspect fresh state without automatic replay' });
     const selector = target.ref ? '[data-hronaut-ref="' + CSS.escape(target.ref) + '"]' : target.selector;
@@ -23,7 +27,7 @@ export function multiSelectScript(target: { ref?: string; selector?: string }, v
     if (matches.length !== 1) return reject('Target must identify exactly one element');
     const element = matches[0];
     if (!(element instanceof HTMLSelectElement) || !element.multiple) return reject('Target must be a native select[multiple]');
-    if (element.matches(':disabled')) return reject('Target is natively disabled');
+    if (isDisabled(element)) return reject('Target is natively disabled');
     if (!element.getClientRects().length || getComputedStyle(element).visibility !== 'visible') return reject('Target is not visible');
     if (element.options.length > ${MULTI_SELECT_LIMITS.options}) return reject('Select exceeds the 1000-option validation limit');
     const options = Array.from(element.options);
@@ -38,17 +42,17 @@ export function multiSelectScript(target: { ref?: string; selector?: string }, v
       const found = options.filter((_option, index) => originalValues[index] === value);
       if (found.length !== 1) return reject('Requested value is missing or ambiguous');
       const option = found[0];
-      if (option.disabled || (option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled)) return reject('Requested option or option group is disabled');
+      if (isDisabled(option)) return reject('Requested option or option group is disabled');
       chosen.add(option);
     }
     // Clearing a previously selected disabled option is also a mutation of it.
-    if (options.some(option => option.selected !== chosen.has(option) && (option.disabled || (option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled)))) return reject('Selection would change a disabled option or group');
+    if (options.some(option => option.selected !== chosen.has(option) && isDisabled(option))) return reject('Selection would change a disabled option or group');
     const current = () => {
       if (!element.isConnected || document.querySelectorAll(selector).length !== 1 || document.querySelector(selector) !== element
-        || !element.multiple || element.matches(':disabled') || element.options.length !== options.length) return false;
+        || !element.multiple || isDisabled(element) || element.options.length !== options.length) return false;
       return options.every((option, index) => element.options[index] === option && option.selected === chosen.has(option)
         && option.value === originalValues[index]
-        && (!chosen.has(option) || (!option.disabled && !(option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled))));
+        && (!chosen.has(option) || !isDisabled(option)));
     };
     // This isolated-world turn has no await, focus, scroll, or page callbacks
     // between whole-set validation and all native selected-property writes.

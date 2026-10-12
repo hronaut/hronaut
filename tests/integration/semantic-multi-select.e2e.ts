@@ -129,3 +129,39 @@ for (const boundary of ['neither','both','nonselect','shadow','frame'] as const)
   expect(result.isError).toBe(true)
   expect(await page.evaluate('window.selectionEvents')).toEqual([])
 })
+
+for (const disabled of [true,false]) for (const clear of [false,true]) test(`semantic wrapped optgroup disabled=${disabled} clear=${clear}`,async({capabilities,electronApp})=>{
+  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  await page.evaluate(setup)
+  const before=await page.evaluate(({disabled,clear})=>{
+    const group=document.querySelector('optgroup')!,wrapper=document.createElement('div')
+    wrapper.append(...group.children);group.append(wrapper);group.disabled=disabled
+    const option=document.querySelector<HTMLOptionElement>('option[value=b]')!
+    if(clear){document.querySelector<HTMLOptionElement>('option[value=a]')!.selected=false;option.selected=true}
+    return {nativeDisabled:option.matches(':disabled'),ownDisabled:option.disabled,parent:option.parentElement!.localName,values:Array.from(document.querySelector<HTMLSelectElement>('#choices')!.selectedOptions,o=>o.value)}
+  },{disabled,clear})
+  expect(before).toMatchObject({nativeDisabled:disabled,ownDisabled:false,parent:'div',values:clear?['b']:['a']})
+  // Main-world attempts to spoof native disabledness cannot change isolated-world admission.
+  await page.evaluate("Element.prototype.matches=function(){return false};void 0")
+  const result=await capabilities.client.callTool({name:'browser_select',arguments:{tabId:capabilities.tabId,selector:'#choices',values:clear?[]:['b','c']}}) as CallToolResult
+  const state=await page.evaluate<Witness>(witness)
+  if(disabled){
+    expect(result.isError).toBe(true)
+    expect(JSON.parse(text(result))).toMatchObject({status:'REJECTED',effects:'none',retrySafe:false})
+    expect(state.values).toEqual(before.values);expect(state.events).toEqual([])
+  }else{
+    expect(result.isError,text(result)).not.toBe(true)
+    expect(state.values).toEqual(clear?[]:['b','c'])
+    expect(state.events.map(e=>e.type)).toEqual(['input','change'])
+  }
+})
+
+test('semantic wrapped optgroup disabled by input handler invalidates readback',async({capabilities,electronApp})=>{
+  const page=electronApp.context().pages().find(p=>p.url()===capabilities.fixtureUrl)!
+  await page.evaluate(setup)
+  await page.evaluate("const group=document.querySelector('optgroup'),wrapper=document.createElement('div');wrapper.append(...group.children);group.append(wrapper);document.querySelector('#choices').addEventListener('input',()=>{group.disabled=true});void 0")
+  const result=await capabilities.client.callTool({name:'browser_select',arguments:{tabId:capabilities.tabId,selector:'#choices',values:['b','c']}}) as CallToolResult
+  expect(result.isError).toBe(true)
+  expect(JSON.parse(text(result))).toMatchObject({status:'OUTCOME_UNKNOWN',effects:'possible',retrySafe:false})
+  expect((await page.evaluate<Witness>(witness)).events.map(e=>e.type)).toEqual(['input'])
+})
