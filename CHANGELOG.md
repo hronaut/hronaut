@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep successful Network condition additions and removals committed when a later browser-state refresh fails. Clear only the submitted add draft, preserve newer edits, and report the refresh failure separately so a saved condition is not mistaken for a failed change.
+
 ## [2.37.0] - 2026-10-12
 
 ### Added

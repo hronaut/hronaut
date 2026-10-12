@@ -2169,7 +2169,7 @@ export const deDE = {
       "size": "Größe",
       "status": "Status"
     },
-    "conditions": {
+    "conditions": { refreshAfterChangeFailed: "Die Bedingungsänderung wurde gespeichert, aber der Browserzustand konnte nicht aktualisiert werden.",
       "heading": "Anfragebedingungen",
       "description": "Anfragen blockieren, simulieren, drosseln und priorisieren",
       "active": "{count} aktiv",
