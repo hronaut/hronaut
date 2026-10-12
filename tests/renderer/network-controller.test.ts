@@ -247,16 +247,17 @@ function createController(copyTextOverride?: CopyTextWithFeedback) {
     getState: vi.fn(async () => state(tab('tab-1')))
   }
   const copyText = vi.fn(copyTextOverride ?? (async () => true))
+  const syncState = vi.fn(async (operation: Promise<BrowserState>) => { synced.push(await operation) })
   const controller = useNetworkController({
     activeTab,
     open,
     browser,
     translate: (key) => key,
     copyText,
-    syncState: async (operation) => { synced.push(await operation) },
+    syncState,
     keepsSeparatePanelOpen: () => false
   })
-  return { activeTab, open, synced, browser, controller, copyText }
+  return { activeTab, open, synced, browser, controller, copyText, syncState }
 }
 
 afterEach(() => {
@@ -1118,6 +1119,119 @@ describe('network controller', () => {
       expect(controller.routes.value).toEqual([route('fresh')])
       expect(controller.routeError.value).toBe('')
     } finally { controller.dispose() }
+  })
+
+  it.each(['add', 'remove'].flatMap(action => ['getState', 'syncState'].map(failure => ({ action, failure }))))(
+    'keeps a committed $action when $failure fails', async ({ action, failure }) => {
+      const { browser, controller, syncState } = createController()
+      controller.routes.value = [route('old')]
+      controller.routePattern.value = 'https://example.test/submitted'
+      controller.routeBody.value = 'submitted body'
+      browser.addNetworkRoute.mockResolvedValue([route('committed')])
+      browser.removeNetworkRoute.mockResolvedValue([])
+      if (failure === 'getState') browser.getState.mockRejectedValue(new Error('Refresh failed'))
+      else syncState.mockImplementationOnce(async operation => { await operation; throw new Error('Sync failed') })
+      try {
+        await (action === 'add' ? controller.addRouteFromDraft() : controller.removeRoute('old'))
+        expect(controller.routes.value).toEqual(action === 'add' ? [route('committed')] : [])
+        expect(controller.routePattern.value).toBe(action === 'add' ? '' : 'https://example.test/submitted')
+        expect(controller.routeBody.value).toBe(action === 'add' ? '' : 'submitted body')
+        expect(controller.routeState.value).toBe('error')
+        expect(controller.routeError.value).toBe('network.conditions.refreshAfterChangeFailed')
+        expect(action === 'add' ? browser.addNetworkRoute : browser.removeNetworkRoute).toHaveBeenCalledOnce()
+      } finally { controller.dispose() }
+    }
+  )
+
+  it('keeps a newer draft when the committed add cannot refresh state', async () => {
+    const { browser, controller } = createController()
+    const sync = deferred<BrowserState>()
+    browser.addNetworkRoute.mockResolvedValue([route('committed')])
+    browser.getState.mockReturnValueOnce(sync.promise)
+    controller.routePattern.value = 'https://example.test/submitted'
+    const adding = controller.addRouteFromDraft()
+    await vi.waitFor(() => expect(browser.getState).toHaveBeenCalledOnce())
+    controller.routePattern.value = 'https://example.test/newer'
+    controller.routeBody.value = 'newer body'
+    sync.reject(new Error('Refresh failed'))
+    await adding
+    expect(controller.routes.value).toEqual([route('committed')])
+    expect(controller.routePattern.value).toBe('https://example.test/newer')
+    expect(controller.routeBody.value).toBe('newer body')
+    expect(controller.routeError.value).toBe('network.conditions.refreshAfterChangeFailed')
+    controller.dispose()
+  })
+
+  it('preserves a draft edited before the add commits when its later refresh fails', async () => {
+    const { browser, controller } = createController()
+    const mutation = deferred<BrowserNetworkRouteSummary[]>()
+    browser.addNetworkRoute.mockReturnValueOnce(mutation.promise)
+    browser.getState.mockRejectedValueOnce(new Error('Refresh failed'))
+    controller.routePattern.value = 'https://example.test/submitted'
+    const adding = controller.addRouteFromDraft()
+    controller.routePattern.value = 'https://example.test/newer'
+    controller.routeBody.value = 'newer body'
+    mutation.resolve([route('committed')])
+    await adding
+    expect(controller.routes.value).toEqual([route('committed')])
+    expect(controller.routePattern.value).toBe('https://example.test/newer')
+    expect(controller.routeBody.value).toBe('newer body')
+    expect(controller.routeError.value).toBe('network.conditions.refreshAfterChangeFailed')
+    controller.dispose()
+  })
+
+  it.each(['add', 'remove'] as const)('preserves committed %s state when both state sync and a coalesced read fail', async action => {
+    const { browser, controller } = createController()
+    const sync = deferred<BrowserState>()
+    browser.addNetworkRoute.mockResolvedValue([route('committed')])
+    browser.removeNetworkRoute.mockResolvedValue([])
+    browser.getState.mockReturnValueOnce(sync.promise)
+    browser.listNetworkRoutes.mockRejectedValueOnce(new Error('Later route read failed'))
+    const changing = action === 'add' ? controller.addRouteFromDraft() : controller.removeRoute('old')
+    await vi.waitFor(() => expect(browser.getState).toHaveBeenCalledOnce())
+    await controller.refreshRoutes(true)
+    expect(browser.listNetworkRoutes).not.toHaveBeenCalled()
+    sync.reject(new Error('State refresh failed'))
+    await changing
+    expect(browser.listNetworkRoutes).toHaveBeenCalledOnce()
+    expect(controller.routes.value).toEqual(action === 'add' ? [route('committed')] : [])
+    expect(controller.routeState.value).toBe('error')
+    expect(controller.routeError.value).toBe('network.conditions.refreshAfterChangeFailed')
+    controller.dispose()
+  })
+
+  it.each(['add', 'remove'] as const)('retains the original %s failure and draft before commit', async action => {
+    const { browser, controller } = createController()
+    controller.routes.value = [route('old')]
+    controller.routePattern.value = 'https://example.test/submitted'
+    browser.addNetworkRoute.mockRejectedValueOnce(new Error('Mutation failed'))
+    browser.removeNetworkRoute.mockRejectedValueOnce(new Error('Mutation failed'))
+    await (action === 'add' ? controller.addRouteFromDraft() : controller.removeRoute('old'))
+    expect(controller.routes.value).toEqual([route('old')])
+    expect(controller.routePattern.value).toBe('https://example.test/submitted')
+    expect(controller.routeError.value).toBe('Mutation failed')
+    expect(browser.getState).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it.each(['reset', 'tab-change', 'new-mutation'] as const)('retires a failed post-commit refresh after %s', async action => {
+    const { browser, controller, activeTab } = createController()
+    const sync = deferred<BrowserState>()
+    browser.addNetworkRoute.mockResolvedValue([route('committed')])
+    browser.getState.mockReturnValueOnce(sync.promise)
+    const adding = controller.addRouteFromDraft()
+    await vi.waitFor(() => expect(browser.getState).toHaveBeenCalledOnce())
+    if (action === 'reset') controller.reset()
+    if (action === 'tab-change') { controller.reset(); activeTab.value = tab('tab-2') }
+    if (action === 'new-mutation') { browser.addNetworkRoute.mockResolvedValue([route('newer')]); await controller.addRouteFromDraft() }
+    controller.routePattern.value = 'https://example.test/newer'
+    controller.routeError.value = 'Newer message'
+    sync.reject(new Error('Obsolete refresh failure'))
+    await adding
+    expect(controller.routes.value).toEqual(action === 'new-mutation' ? [route('newer')] : [])
+    expect(controller.routePattern.value).toBe('https://example.test/newer')
+    expect(controller.routeError.value).toBe('Newer message')
+    controller.dispose()
   })
 
   it.each(['add', 'remove'] as const)('reconciles coalesced refreshes after %s state synchronization', async action => {

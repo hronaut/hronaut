@@ -2169,7 +2169,7 @@ export const ruRU = {
       "size": "Размер",
       "status": "Статус"
     },
-    "conditions": {
+    "conditions": { refreshAfterChangeFailed: "Изменение условия сохранено, но обновить состояние браузера не удалось.",
       "heading": "Условия запросов",
       "description": "Блокируйте, имитируйте, замедляйте и упорядочивайте запросы",
       "active": "Активно: {count}",

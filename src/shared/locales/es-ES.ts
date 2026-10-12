@@ -2169,7 +2169,7 @@ export const esES = {
       "size": "Tamaño",
       "status": "Estado"
     },
-    "conditions": {
+    "conditions": { refreshAfterChangeFailed: "El cambio de condición se guardó, pero no se pudo actualizar el estado del navegador.",
       "heading": "Condiciones de solicitud",
       "description": "Bloquea, simula, ralentiza y prioriza solicitudes",
       "active": "{count} activas",

@@ -369,6 +369,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     const expectedGeneration = generation
     const sequence = beginRouteMutation()
     const submittedDraftGeneration = routeDraftGeneration
+    let committed = false
     routeState.value = 'saving'
     routeError.value = ''
     try {
@@ -392,15 +393,18 @@ export function useNetworkController(options: NetworkControllerOptions) {
       }
       const nextRoutes = await options.browser.addNetworkRoute(tab.id, input)
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      await options.syncState(options.browser.getState())
-      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
+      committed = true
       routes.value = nextRoutes
       if (routeDraftGeneration === submittedDraftGeneration) resetRouteDraft()
+      await options.syncState(options.browser.getState())
+      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'ready'
     } catch (cause) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
+      routeError.value = committed
+        ? options.translate('network.conditions.refreshAfterChangeFailed')
+        : cause instanceof Error ? cause.message : String(cause)
     } finally {
       await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }
@@ -411,19 +415,23 @@ export function useNetworkController(options: NetworkControllerOptions) {
     if (!tab) return
     const expectedGeneration = generation
     const sequence = beginRouteMutation()
+    let committed = false
     routeState.value = 'saving'
     routeError.value = ''
     try {
       const nextRoutes = await options.browser.removeNetworkRoute(tab.id, routeId)
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
+      committed = true
+      routes.value = nextRoutes
       await options.syncState(options.browser.getState())
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
-      routes.value = nextRoutes
       routeState.value = 'ready'
     } catch (cause) {
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'error'
-      routeError.value = cause instanceof Error ? cause.message : String(cause)
+      routeError.value = committed
+        ? options.translate('network.conditions.refreshAfterChangeFailed')
+        : cause instanceof Error ? cause.message : String(cause)
     } finally {
       await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
     }

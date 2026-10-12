@@ -2169,7 +2169,7 @@ export const frFR = {
       "size": "Taille",
       "status": "Statut"
     },
-    "conditions": {
+    "conditions": { refreshAfterChangeFailed: "La modification de la condition a été enregistrée, mais l’état du navigateur n’a pas pu être actualisé.",
       "heading": "Conditions des requêtes",
       "description": "Bloquer, simuler, ralentir et hiérarchiser les requêtes",
       "active": "{count} active",

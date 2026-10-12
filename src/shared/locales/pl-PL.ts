@@ -2169,7 +2169,7 @@ export const plPL = {
       "size": "Rozmiar",
       "status": "Status"
     },
-    "conditions": {
+    "conditions": { refreshAfterChangeFailed: "Zmiana warunku została zapisana, ale nie udało się odświeżyć stanu przeglądarki.",
       "heading": "Warunki żądań",
       "description": "Blokuj, symuluj, ograniczaj i ustalaj priorytety żądań",
       "active": "Aktywne: {count}",
