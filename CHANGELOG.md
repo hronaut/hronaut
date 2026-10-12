@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep late bookmark-collection save errors from reappearing after the editor is cancelled. Cancel dismisses the editor; a successful in-flight save still updates the collection list and is not rolled back.
+
 - Withhold storage-comparison results when page or agent authority changes through audit settlement and final publication. Interrupted captures preserve completed baselines; failures report whether this operation already changed the in-memory comparison, without rollback or automatic replay.
 
 - Reject pending storage baseline and comparison captures when their document changes between reads or before saving. Completed same-origin baselines and comparisons remain available; storage reads are sequential, not atomic.
