@@ -99,7 +99,7 @@ test('does not restore a storage baseline captured before a newer clear', async 
 
     const obsolete = await pendingBaseline
     expect(obsolete.isError).toBe(true)
-    expect(text(obsolete)).toContain('changed while the page snapshot was pending')
+    expect(obsolete.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', effects: 'none', comparisonStateChanged: false, retrySafe: false })
     const current = await call('browser_storage_changes', {
       workspaceId: workspace.id,
       tabId,
