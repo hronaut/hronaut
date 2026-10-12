@@ -121,6 +121,7 @@ describe('public release verifier', () => {
     expect(parsePublicReleaseManifest(value, version).publishedAt).toBeNull()
     expect((await verifyPublicRelease({ version, publishedRelease, fetcher })).publishedAt).toBeNull()
     expect(fetcher).toHaveBeenCalledTimes(PUBLIC_RELEASE_ASSET_KEYS.length + 2)
+    if (!value.assets.hashes) throw new Error('Fixture must contain hashes')
     value.assets.hashes.url = 'https://example.com/hashes.txt'
     expect(() => parsePublicReleaseManifest(value, version)).toThrow('invalid hashes')
   })
