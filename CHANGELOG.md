@@ -4,17 +4,27 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-10-12
+
 ### Added
 
-- Hold one nonmodifier key briefly with `browser_hold_key` in QA and complete MCP tool sets. The active visible page receives one raw down and matching release, without text or auto-repeat; authority or lock requests interrupt the timed wait. Human input guards stay active. Unconfirmed release blocks further holds until the tab is closed. Ordinary `browser_press` is unchanged.
+- Request an integer 1–5000 ms hold of one nonmodifier key with `browser_hold_key` in QA and complete MCP tool sets. The active visible, already awake page outside split view, without child frames, receives one raw down and matching release, without text or auto-repeat; native selections and Developer Tools must be closed. Authority or lock requests interrupt the timed wait. Human input guards stay active. Unconfirmed release blocks further holds until the tab is closed. Ordinary `browser_press` is unchanged.
 - Send one bounded native wheel gesture with `browser_wheel` in the QA and complete MCP tool sets. Canvas wheel handlers and nested scrollers receive explicit viewport coordinates and signed CSS-pixel deltas. This first version requires the active visible, human-unlocked, already awake page outside split view and without child frames, default zoom, no emulation overrides and display scale 1. It never unlocks, focuses, moves the pointer or retries; uncertain dispatch requires fresh inspection. `browser_scroll` retains its CSSOM behavior.
 
 ### Fixed
 
 - Preserve the selected browser-import destination when workspace transfer loading finishes after a newer editor opens or the destination changes.
 - Reject semantic clicks when pause, navigation, or workspace authority changes during asynchronous click preparation, including dialog-handling clicks; uncertain actions are never replayed automatically.
-
 - Withhold screenshots and page snapshots if workspace authority, agent control or cancellation changes while audit persistence is finishing.
+
+### Known issues
+
+- Native wheel and key-hold bounds do not establish a transport deadline. A pending CDP command can retain the debugger queue indefinitely; cancellation does not release it, and lock preparation can time out. No bounded cleanup or transport recovery is promised. Inspect fresh state after uncertain or missing responses; never automatically replay a potentially effective action.
+- The earlier local key-hold fresh-call failure remains unclassified. Later controlled probes and green runs verify current guards, not that historical failure's cause or a repair.
+- A controlled initial-load semantic-click probe reproduced a document commit during preparation. Readiness waits preserve the setup for human-takeover and dialog tests, but the original CI human-click response and dispatch timeline were not captured. The local probe and later green runs do not establish every earlier failure's cause.
+- Historical native input observations during pending lock requests do not establish input origin. Tests now retain observations from compositor lock acknowledgement through terminal server activity; later passing runs do not prove the original cause or a product repair. Identical event shapes remain ambiguous, and the concurrent mouse-input gap remains; use Pause agents for explicit takeover.
+- Historical endpoint-startup and first-video-preview pixel failures remain unexplained. Restart ownership and first-presented-frame checks strengthen test evidence; controlled reproductions and later green runs do not establish the original event sequence or a product repair.
+- The historical cross-origin-frame immediate parent click-count miss, native screenshot UnknownVizError, resize/evaluate stalls, destroyed-context failures and superseded-navigation ERR_ABORTED success-state behavior remain unresolved. No native-click routing or capture repair is claimed.
 
 ## [2.36.0] - 2026-10-11
 
