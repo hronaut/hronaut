@@ -1,3 +1,4 @@
+import { StorageComparisonInputError, type StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
 import { storageInspectionGuard, type StorageInspectionHooks } from './storage-inspection-operation.js'
 import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from './web-storage-operation.js'
@@ -2765,62 +2766,81 @@ export class BrowserTabsManager {
   async storageChanges(
     action: BrowserStorageChangesAction = 'get',
     tabId?: string,
-    includeValues = false
+    includeValues = false,
+    hooks?: StorageComparisonHooks
   ): Promise<BrowserStorageChangesReport> {
     const tab = this.getTab(tabId)
     const pageUrl = new URL(tab.url)
-    if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
-      throw new Error('Storage changes are available only for HTTP and HTTPS tabs.')
-    }
     const origin = pageUrl.origin
-    if (tab.storageComparison && tab.storageComparison.baseline.origin !== origin) {
-      tab.storageComparisonGeneration += 1
-      tab.storageComparison = undefined
-    }
-
-    if (action === 'clear') {
-      tab.storageComparisonGeneration += 1
-      tab.storageComparison = undefined
-      return this.storageChangesReport(tab, origin, action, includeValues)
-    }
-    if (action === 'get') return this.storageChangesReport(tab, origin, action, includeValues)
-
-    const comparison = tab.storageComparison
-    if (action === 'compare' && !comparison) throw new Error('Set a storage baseline before comparing changes.')
     const contents = tab.webContents
     const storageSession = contents.session
     const url = tab.url
-    const navigationGeneration = tab.navigationGeneration
-    const operationGeneration = ++tab.storageComparisonGeneration
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    let comparison = tab.storageComparison
+    let operationGeneration = tab.storageComparisonGeneration
     let documentCommitted = false
+    let rejected = false
+    let retained = false
     const onDocumentCommit = (): void => { documentCommitted = true }
+    const dispose = (): void => { contents.removeListener('did-navigate', onDocumentCommit) }
     const requireCurrentOperation = (): void => {
-      const current = this.tabs.get(tab.id)
-      if (this.destroyed
-        || current !== tab
-        || current.webContents !== contents
-        || contents.isDestroyed()
-        || contents.session !== storageSession
-        || current.url !== url
-        || current.navigationGeneration !== navigationGeneration
-        || documentCommitted
-        || current.storageComparisonGeneration !== operationGeneration
-        || current.storageComparison !== comparison) {
-        throw new Error('Storage comparison changed while the page snapshot was pending. Run the requested action again.')
+      if (!rejected) {
+        try {
+          hooks?.validate()
+          const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+          if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents
+            || contents.isDestroyed() || contents.session !== storageSession || tab.url !== url
+            || currentWorkspace !== workspace
+            || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+            || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))
+            || documentCommitted || tab.storageComparisonGeneration !== operationGeneration
+            || tab.storageComparison !== comparison) throw new Error('Storage comparison context changed')
+          return
+        } catch { rejected = true }
       }
+      throw new Error('Storage comparison changed while the page snapshot was pending. Run the requested action again.')
+    }
+    const recordChange = (): void => {
+      comparison = tab.storageComparison
+      operationGeneration = tab.storageComparisonGeneration
+      hooks?.comparisonChanged()
     }
 
-    // A navigation already pending at entry can commit without another start event.
-    // Keep this listener through snapshot installation, including the await continuation.
+    // Retain the commit listener through MCP audit settlement and publication.
+    // Trusted UI callers dispose it after their own synchronous report creation.
     contents.on('did-navigate', onDocumentCommit)
     try {
-      const snapshot = await this.captureStorageSnapshot(contents, storageSession, url, origin, requireCurrentOperation)
+      hooks?.retainPublication({ validate: requireCurrentOperation, dispose })
+      retained = hooks !== undefined
       requireCurrentOperation()
-      if (action === 'baseline') tab.storageComparison = { baseline: snapshot }
-      else if (comparison) comparison.current = snapshot
+      hooks?.started()
+      if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') throw new StorageComparisonInputError('UNSUPPORTED_SCHEME')
+      if (comparison && comparison.baseline.origin !== origin) {
+        tab.storageComparisonGeneration += 1
+        tab.storageComparison = undefined
+        recordChange()
+      }
+      if (action === 'clear') {
+        tab.storageComparisonGeneration += 1
+        const changed = tab.storageComparison !== undefined
+        tab.storageComparison = undefined
+        operationGeneration = tab.storageComparisonGeneration
+        if (changed) recordChange()
+      } else if (action !== 'get') {
+        if (action === 'compare' && !comparison) throw new StorageComparisonInputError('BASELINE_REQUIRED')
+        operationGeneration = ++tab.storageComparisonGeneration
+        const snapshot = await this.captureStorageSnapshot(contents, storageSession, url, origin, requireCurrentOperation)
+        requireCurrentOperation()
+        if (action === 'baseline') tab.storageComparison = { baseline: snapshot }
+        else if (comparison) comparison.current = snapshot
+        recordChange()
+      }
+      requireCurrentOperation()
       return this.storageChangesReport(tab, origin, action, includeValues)
     } finally {
-      contents.removeListener('did-navigate', onDocumentCommit)
+      if (!retained) dispose()
     }
   }
 
