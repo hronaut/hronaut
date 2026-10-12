@@ -6705,6 +6705,26 @@ export class BrowserTabsManager {
     return this.networkRoutes(tab.id)
   }
 
+  async setNetworkRouteEnabled(tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    if (typeof enabled !== 'boolean' || !routeId) throw new TypeError('routeId and boolean enabled are required')
+    const tab = this.getTab(tabId)
+    const contents = tab.webContents
+    const debuggerEpoch = tab.networkDebuggerEpoch
+    const admission = (): void => {
+      validate()
+      if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before toggle')
+      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
+      if (!tab.networkRoutes.some(route => route.id === routeId)) throw new Error(`Network route not found: ${routeId}`)
+    }
+    admission()
+    await this.applyNetworkRoutes(tab, validate, false, () => {
+      // Read the current record only at admission: a paused request may already
+      // have reserved its budget. Never restore a caller's earlier snapshot.
+      tab.networkRoutes = tab.networkRoutes.map(route => route.id === routeId ? { ...route, enabled } : route)
+    }, markSubmitted, admission)
+    return this.networkRoutes(tab.id)
+  }
+
   async removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
     const tab = this.getTab(tabId)
     await this.applyNetworkRoutes(tab, validate, false, () => {
@@ -9634,6 +9654,7 @@ export class BrowserTabsManager {
   private networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRouteSummary {
     return {
       id: route.id,
+      enabled: route.enabled,
       urlPattern: route.urlPattern,
       ...(route.method ? { method: route.method } : {}),
       behavior: route.behavior,
@@ -9645,7 +9666,7 @@ export class BrowserTabsManager {
     }
   }
 
-  private async applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}): Promise<void> {
+  private async applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
     const contents = tab.webContents
     const scheduled = this.networkRouteRefreshTimers.get(contents.id)
     if (scheduled) clearTimeout(scheduled)
@@ -9678,7 +9699,7 @@ export class BrowserTabsManager {
       tab.networkConditionApplication = 'pending'
       try {
         this.changed(false)
-        const interception = projection.filter(route => route.behavior !== 'throttle')
+        const interception = projection.filter(route => route.enabled && route.behavior !== 'throttle')
         if (interception.length) await send('Fetch.enable', { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) })
         else await send('Fetch.disable')
         await this.applyNetworkEmulation(contents, network, projection, send)
@@ -9698,7 +9719,7 @@ export class BrowserTabsManager {
       }
       this.changed(false)
       validate()
-    })
+    }, admission)
   }
 
   private isHumanInteractionLocked(tab: BrowserTab): boolean {
@@ -10596,6 +10617,7 @@ export class BrowserTabsManager {
   ): Promise<void> {
     const command = send ?? ((method: string, params?: Record<string, unknown>) => webContents.debugger.sendCommand(method, params))
     const conditions = NETWORK_EMULATION[preset]
+    routes = routes.filter(route => route.enabled)
     const hasIndividualThrottle = routes.some((route) => route.behavior === 'throttle')
     const routeConditions: Array<{
       urlPattern: string
@@ -10639,24 +10661,33 @@ export class BrowserTabsManager {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
 
-  private async withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>): Promise<T> {
+  private async withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
+    validateAdmission?.()
     return this.debuggerQueue.run(webContents.id, async () => {
+      validateAdmission?.()
       await this.dialogMonitorAttachPromises.get(webContents.id)
+      validateAdmission?.()
       if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
         throw new Error('Close Developer Tools for this tab before using this MCP action')
       }
       const attachedHere = !webContents.debugger.isAttached()
       if (attachedHere) {
+        validateAdmission?.()
         webContents.debugger.attach('1.3')
+        validateAdmission?.()
         await webContents.debugger.sendCommand('Page.enable')
+        validateAdmission?.()
         await webContents.debugger.sendCommand('Runtime.enable')
+        validateAdmission?.()
         await webContents.debugger.sendCommand('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }).catch(() => undefined)
+        validateAdmission?.()
         await webContents.debugger.sendCommand('Log.enable').catch(() => undefined)
       }
+      validateAdmission?.()
       try {
         return await operation()
       } finally {
-        if (attachedHere && webContents.debugger.isAttached() && !this.destroyed) {
+        if (!validateAdmission && attachedHere && webContents.debugger.isAttached() && !this.destroyed) {
           await webContents.debugger.sendCommand('Page.enable').catch(() => undefined)
           await webContents.debugger.sendCommand('Runtime.enable').catch(() => undefined)
         }
@@ -10921,7 +10952,7 @@ export class BrowserTabsManager {
 
     const ownedRoutes = tab.networkRoutes
     const route = ownedRoutes.find((candidate) => (
-      (!candidate.method || candidate.method === method)
+      candidate.enabled && (!candidate.method || candidate.method === method)
       && networkRoutePatternMatches(candidate.urlPattern, url)
     ))
 

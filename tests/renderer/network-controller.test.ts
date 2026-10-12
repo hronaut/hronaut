@@ -133,6 +133,7 @@ describe('explicit selected request refresh', () => {
 
 function route(id: string): BrowserNetworkRouteSummary {
   return {
+    enabled: true,
     id,
     urlPattern: `https://example.test/api/${id}`,
     behavior: 'abort',
@@ -241,6 +242,7 @@ function createController(copyTextOverride?: CopyTextWithFeedback) {
     })),
     listNetworkRoutes: vi.fn(async (): Promise<BrowserNetworkRouteSummary[]> => []),
     addNetworkRoute: vi.fn(async (): Promise<BrowserNetworkRouteSummary[]> => []),
+    setNetworkRouteEnabled: vi.fn(async (): Promise<BrowserNetworkRouteSummary[]> => []),
     moveNetworkRoute: vi.fn(async (): Promise<BrowserNetworkRouteSummary[]> => []),
     removeNetworkRoute: vi.fn(async (): Promise<BrowserNetworkRouteSummary[]> => []),
     clearNetworkRoutes: vi.fn(async () => state(tab('tab-1'))),
@@ -1064,7 +1066,7 @@ describe('network controller', () => {
     expect(controller.routeState.value).toBe('ready')
   })
 
-  it.each(['add', 'remove', 'move', 'clear'] as const)('keeps %s in progress when a condition refresh is requested', async action => {
+  it.each(['add', 'remove', 'move', 'clear', 'set-enabled'] as const)('keeps %s in progress when a condition refresh is requested', async action => {
     const { browser, controller, activeTab } = createController()
     const pending = deferred<BrowserNetworkRouteSummary[]>()
     const clearing = deferred<BrowserState>()
@@ -1074,12 +1076,13 @@ describe('network controller', () => {
     browser.addNetworkRoute.mockReturnValueOnce(pending.promise)
     browser.removeNetworkRoute.mockReturnValueOnce(pending.promise)
     browser.moveNetworkRoute.mockReturnValueOnce(pending.promise)
+    browser.setNetworkRouteEnabled.mockReturnValueOnce(pending.promise)
     browser.clearNetworkRoutes.mockReturnValueOnce(clearing.promise)
     browser.listNetworkRoutes.mockResolvedValue([route('uncommitted')])
     try {
       const changing = action === 'add' ? controller.addRouteFromDraft()
         : action === 'remove' ? controller.removeRoute('first')
-          : action === 'move' ? controller.moveRoute('second', 'up') : controller.clearRoutes()
+          : action === 'move' ? controller.moveRoute('second', 'up') : action === 'set-enabled' ? controller.setRouteEnabled('first', false) : controller.clearRoutes()
       await controller.refreshRoutes(true)
       expect(controller.routeState.value).toBe('saving')
       expect(controller.routes.value).toEqual([route('first'), route('second')])
@@ -1715,4 +1718,38 @@ describe('Network copy panel-close ownership', () => {
     expect(controller.detailsCopied.value).toBe('url')
     expect(controller.harCopied.value).toBe(true)
   })
+})
+
+it.each(['getState', 'syncState'] as const)('retains toggle result and draft after %s refresh failure', async failure => {
+  const { browser, controller, syncState } = createController()
+  const disabled = { ...route('one'), enabled: false }
+  controller.routes.value = [route('one')]
+  controller.routeBody.value = 'new draft'
+  browser.setNetworkRouteEnabled.mockResolvedValue([disabled])
+  if (failure === 'getState') browser.getState.mockRejectedValue(new Error('Refresh failed'))
+  else syncState.mockImplementationOnce(async operation => { await operation; throw new Error('Sync failed') })
+  try {
+    await controller.setRouteEnabled('one', false)
+    expect(controller.routes.value).toEqual([disabled])
+    expect(controller.routeBody.value).toBe('new draft')
+    expect(controller.routeError.value).toBe('network.conditions.refreshAfterChangeFailed')
+    expect(browser.setNetworkRouteEnabled).toHaveBeenCalledExactlyOnceWith('tab-1', 'one', false)
+  } finally { controller.dispose() }
+})
+
+it('ignores stale reads and a toggle result after a tab switch', async () => {
+  const { browser, controller, activeTab } = createController()
+  const read = deferred<BrowserNetworkRouteSummary[]>(), write = deferred<BrowserNetworkRouteSummary[]>()
+  browser.listNetworkRoutes.mockReturnValueOnce(read.promise)
+  const reading = controller.refreshRoutes()
+  browser.setNetworkRouteEnabled.mockResolvedValueOnce([{ ...route('one'), enabled: false }])
+  await controller.setRouteEnabled('one', false)
+  read.resolve([route('one')]); await reading
+  expect(controller.routes.value[0]?.enabled).toBe(false)
+  browser.setNetworkRouteEnabled.mockReturnValueOnce(write.promise)
+  const toggling = controller.setRouteEnabled('one', true)
+  controller.reset(); activeTab.value = tab('tab-2')
+  write.resolve([route('one')]); await toggling
+  expect(controller.routes.value).toEqual([])
+  controller.dispose()
 })

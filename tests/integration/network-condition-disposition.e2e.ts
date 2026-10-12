@@ -4,7 +4,7 @@ import { expect, test } from './capability-fixtures.js'
 type Gate = { waiting: boolean; dispositions: string[]; paused: number; release(): void; restore(): void }
 type Scope = typeof globalThis & { __conditionDisposition?: Gate }
 
-for (const mode of ['failure-during-application', 'clear-after-submit', 'clear-after-lost-ack', 'clear-before-queued', 'add-before-lost-ack', 'remove-before-lost-ack', 'move-before-lost-ack'] as const) {
+for (const mode of ['failure-during-application', 'clear-after-submit', 'clear-after-lost-ack', 'clear-before-queued', 'add-before-lost-ack', 'remove-before-lost-ack', 'move-before-lost-ack', 'toggle-before-lost-ack', 'toggle-clear-after-lost-ack'] as const) {
   test(`request-condition disposition ownership ${mode}`, async ({ capabilities, electronApp, appWindow }) => {
     const { tabId, fixtureUrl, fixtureOrigin } = capabilities
     const routes = await appWindow.evaluate(async ({ tabId, fixtureOrigin }) =>
@@ -29,7 +29,7 @@ for (const mode of ['failure-during-application', 'clear-after-submit', 'clear-a
         if (!gate.waiting && method === target) {
           gate.waiting = true
           await barrier
-          if (mode === 'clear-after-lost-ack' || mode.endsWith('before-lost-ack')) throw new Error('Controlled lost disposition acknowledgement after clear')
+          if (mode === 'clear-after-lost-ack' || mode.endsWith('before-lost-ack') || mode === 'toggle-clear-after-lost-ack') throw new Error('Controlled lost disposition acknowledgement after clear')
         }
         return result
       }
@@ -69,6 +69,11 @@ for (const mode of ['failure-during-application', 'clear-after-submit', 'clear-a
           if (mode === 'add-before-lost-ack') await api.addNetworkRoute(tabId, { urlPattern: `${fixtureOrigin}/other*`, abort: 'Failed' })
           else if (mode === 'remove-before-lost-ack') await api.removeNetworkRoute(tabId, routeId)
           else if (mode === 'move-before-lost-ack') await api.moveNetworkRoute(tabId, routeId, 'down')
+          else if (mode.startsWith('toggle-')) {
+            const changed = await api.setNetworkRouteEnabled(tabId, routeId, false)
+            if (changed[0]?.remainingMatches !== 2) throw new Error('Toggle restored reserved budget')
+            if (mode === 'toggle-clear-after-lost-ack') await api.clearNetworkRoutes(tabId)
+          }
           else await api.clearNetworkRoutes(tabId)
         }, { tabId, routeId: routes[0]!.id, fixtureOrigin, mode })
         expect((await health())?.application).toBe('confirmed')

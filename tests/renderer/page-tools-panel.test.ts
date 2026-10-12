@@ -179,7 +179,7 @@ describe('PageToolsPanel', () => {
     const user = userEvent.setup()
 
     expect(screen.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
-    expect(screen.getByText('2 active')).toBeVisible()
+    expect(screen.getByText('2 retained')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Copy page snapshot for agent' }))
     await user.click(screen.getByRole('button', { name: 'Pick element context' }))
 

@@ -2169,7 +2169,7 @@ export const esES = {
       "size": "Tamaño",
       "status": "Estado"
     },
-    "conditions": { unconfirmed: "La aplicación de las condiciones de solicitud no está confirmada.", recover: "Borrar condiciones y recuperar", recoveryWarning: "Al borrar las condiciones, las futuras solicitudes coincidentes podrán llegar a su destino normal. No se pueden deshacer las solicitudes o respuestas ya enviadas.", refreshAfterChangeFailed: "El cambio de condición se guardó, pero no se pudo actualizar el estado del navegador.",
+    "conditions": { enabled: "Activada", disabled: "Desactivada", enabledAria: "Activar condición de solicitud {pattern}", enabledRetained: "{enabled} activadas · {retained} conservadas", retained: "{count} conservadas", disableWarning: "Desactivar una simulación o bloqueo permite que las futuras solicitudes coincidentes lleguen a la siguiente condición activa o a su destino normal. No deshace solicitudes ya enviadas.", unconfirmed: "La aplicación de las condiciones de solicitud no está confirmada.", recover: "Borrar condiciones y recuperar", recoveryWarning: "Al borrar las condiciones, las futuras solicitudes coincidentes podrán llegar a su destino normal. No se pueden deshacer las solicitudes o respuestas ya enviadas.", refreshAfterChangeFailed: "El cambio de condición se guardó, pero no se pudo actualizar el estado del navegador.",
       "heading": "Condiciones de solicitud",
       "description": "Bloquea, simula, ralentiza y prioriza solicitudes",
       "active": "{count} activas",

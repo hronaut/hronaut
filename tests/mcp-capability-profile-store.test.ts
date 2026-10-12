@@ -104,6 +104,14 @@ describe('MCP capability profile store', () => {
     }
   })
 
+  it('keeps set-enabled outside a list-only condition capability', async () => {
+    const value = await store()
+    const { credential } = await value.create({ name: 'Condition reader', allowedTools: ['browser_network_routes'], allowedActions: { browser_network_routes: ['list'] }, operationClasses: ['read', 'network'] })
+    const grant = value.authenticate(credential)!
+    expect(() => value.authorize(grant, { ...readRequest, toolName: 'browser_network_routes', action: 'list' })).not.toThrow()
+    expect(() => value.authorize(grant, { ...readRequest, toolName: 'browser_network_routes', action: 'set-enabled', operationClass: 'network' })).toThrow(McpCapabilityAuthorizationError)
+  })
+
   it('reports deterministic redacted precedence and the first denying rule', async () => {
     const value = await store()
     const { credential } = await value.create({

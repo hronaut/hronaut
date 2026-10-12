@@ -52,6 +52,7 @@ type NetworkBrowserApi = Pick<
   | 'listNetworkRoutes'
   | 'addNetworkRoute'
   | 'moveNetworkRoute'
+  | 'setNetworkRouteEnabled'
   | 'removeNetworkRoute'
   | 'clearNetworkRoutes'
   | 'getState'
@@ -396,6 +397,33 @@ export function useNetworkController(options: NetworkControllerOptions) {
       committed = true
       routes.value = nextRoutes
       if (routeDraftGeneration === submittedDraftGeneration) resetRouteDraft()
+      await options.syncState(options.browser.getState())
+      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
+      routeState.value = 'ready'
+    } catch (cause) {
+      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
+      routeState.value = 'error'
+      routeError.value = committed
+        ? options.translate('network.conditions.refreshAfterChangeFailed')
+        : cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      await reconcilePendingRoutes(tab.id, expectedGeneration, sequence)
+    }
+  }
+
+  async function setRouteEnabled(routeId: string, enabled: boolean): Promise<void> {
+    const tab = options.activeTab.value
+    if (!tab) return
+    const expectedGeneration = generation
+    const sequence = beginRouteMutation()
+    let committed = false
+    routeState.value = 'saving'
+    routeError.value = ''
+    try {
+      const nextRoutes = await options.browser.setNetworkRouteEnabled(tab.id, routeId, enabled)
+      if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
+      committed = true
+      routes.value = nextRoutes
       await options.syncState(options.browser.getState())
       if (sequence !== routeMutationSequence || !isCurrent(tab.id, expectedGeneration)) return
       routeState.value = 'ready'
@@ -891,6 +919,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     openRequestConditions,
     resetRouteDraft,
     addRouteFromDraft,
+    setRouteEnabled,
     removeRoute,
     moveRoute,
     clearRoutes,

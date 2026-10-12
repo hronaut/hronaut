@@ -146,6 +146,8 @@ const api: HronautApi = {
   listNetworkRoutes: (tabId: string) => ipcRenderer.invoke('browser:list-network-routes', tabId),
   addNetworkRoute: (tabId: string, input: BrowserNetworkRouteInput) =>
     ipcRenderer.invoke('browser:add-network-route', tabId, input),
+  setNetworkRouteEnabled: (tabId: string, routeId: string, enabled: boolean) =>
+    ipcRenderer.invoke('browser:set-network-route-enabled', tabId, routeId, enabled),
   moveNetworkRoute: (tabId: string, routeId: string, direction: BrowserNetworkRouteMoveDirection) =>
     ipcRenderer.invoke('browser:move-network-route', tabId, routeId, direction),
   removeNetworkRoute: (tabId: string, routeId: string) =>
