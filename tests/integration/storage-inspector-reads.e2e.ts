@@ -89,3 +89,56 @@ for (const mode of ['primary', 'unsupported', 'fallback', 'indexeddb'] as const)
     }
   })
 }
+
+test('storage usage retains the real Developer Tools fallback without a primary command', async ({ capabilities, electronApp }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  try {
+    await electronApp.evaluate(({ webContents }, fixtureUrl) => {
+      const page = webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!
+      const command = page.debugger.sendCommand, script = page.executeJavaScriptInIsolatedWorld
+      const gate: Gate = { held: false, primaryCalls: 0, fallbackCalls: 0, indexedDbCalls: 0, nativeCommands: [], release: () => {}, restore: () => {
+        page.debugger.sendCommand = command; page.executeJavaScriptInIsolatedWorld = script; page.closeDevTools()
+      } }
+      ;(globalThis as Scope).__quotaProbe = gate
+      page.debugger.sendCommand = async function (...args) {
+        if (args[0] === 'Storage.getUsageAndQuota') gate.primaryCalls++
+        return command.apply(this, args)
+      }
+      page.executeJavaScriptInIsolatedWorld = async function (...args) {
+        if (args[0] === 1009) gate.fallbackCalls++
+        return script.apply(this, args)
+      }
+      page.openDevTools({ mode: 'detach', activate: false })
+    }, fixtureUrl)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, fixtureUrl) => webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!.isDevToolsOpened(), fixtureUrl)).toBe(true)
+    const result = await client.callTool({ name: 'browser_storage_usage', arguments: { tabId } }) as CallToolResult
+    expect(result.isError, text(result)).not.toBe(true)
+    expect(JSON.parse(text(result))).toMatchObject({ source: 'storage-manager' })
+    expect(await electronApp.evaluate(() => ({ primary: (globalThis as Scope).__quotaProbe!.primaryCalls, fallback: (globalThis as Scope).__quotaProbe!.fallbackCalls }))).toEqual({ primary: 0, fallback: 1 })
+  } finally {
+    await electronApp.evaluate(() => { (globalThis as Scope).__quotaProbe?.restore(); delete (globalThis as Scope).__quotaProbe }).catch(() => undefined)
+  }
+})
+
+
+test('IndexedDB preserves fresh input feedback before submitting an isolated read', async ({ capabilities, electronApp }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  try {
+    await electronApp.evaluate(({ webContents }, fixtureUrl) => {
+      const page = webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!
+      const script = page.executeJavaScriptInIsolatedWorld
+      const gate: Gate = { held: false, primaryCalls: 0, fallbackCalls: 0, indexedDbCalls: 0, nativeCommands: [], release: () => {}, restore: () => { page.executeJavaScriptInIsolatedWorld = script } }
+      ;(globalThis as Scope).__quotaProbe = gate
+      page.executeJavaScriptInIsolatedWorld = async function (...args) {
+        if (args[0] === 1007) gate.indexedDbCalls++
+        return script.apply(this, args)
+      }
+    }, fixtureUrl)
+    const result = await client.callTool({ name: 'browser_indexeddb', arguments: { tabId, objectStore: 'synthetic-store' } }) as CallToolResult
+    expect(result.isError, text(result)).toBe(true)
+    expect(text(result)).toContain('database is required when objectStore is provided')
+    expect(await electronApp.evaluate(() => (globalThis as Scope).__quotaProbe!.indexedDbCalls)).toBe(0)
+  } finally {
+    await electronApp.evaluate(() => { (globalThis as Scope).__quotaProbe?.restore(); delete (globalThis as Scope).__quotaProbe }).catch(() => undefined)
+  }
+})

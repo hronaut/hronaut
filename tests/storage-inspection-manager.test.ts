@@ -21,13 +21,13 @@ for (const stage of ['queue', 'monitor', 'attach', 'Page.enable', 'Runtime.enabl
   }
   const tab = { id: 'tab', url: 'https://example.test/', mcpGroupId: 'workspace', webContents: contents }
   const workspace = {}
-  const manager = Object.assign(Object.create(BrowserTabsManager.prototype) as BrowserTabsManager, {
+  const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
     getTab: () => tab, snapshotDeltaContext: () => context,
     tabs: new Map([['tab', tab]]), mcpTabGroups: new Map([['workspace', workspace]]), inspectionPermissions: new WeakMap(),
     devToolsOpening: new Set(), destroyed: false,
     debuggerQueue: { run: async (_id: number, operation: () => Promise<unknown>) => { if (stage === 'queue') veto = true; return operation() } },
     dialogMonitorAttachPromises: new Map([[1, { then: (resolve: () => void) => { if (stage === 'monitor') veto = true; resolve() } }]])
-  })
+  }) as BrowserTabsManager
   let publication: (() => void) | undefined
   const started = vi.fn()
   const hooks: StorageInspectionHooks = { validate: () => { if (veto) { veto = false; throw new Error('private one-shot authority veto') } }, readStarted: started, retainPublication: guard => { publication = guard } }

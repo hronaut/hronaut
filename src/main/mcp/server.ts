@@ -1182,7 +1182,6 @@ function createBrowserMcpServer(
         return settled
       }
       const settleWebStorage = (result: CallToolResult): CallToolResult => {
-        result = settleStorageInspection(result)
         if (!frameRequest.webStorageProgress) return result
         let settled = result
         if (result.isError) {
@@ -1297,7 +1296,7 @@ function createBrowserMcpServer(
             ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed, outcome)
           if (frameRequest.keyHoldProgress) return nativeKeyHoldNotDispatchedResult({ ...textResult(outcome), structuredContent: outcome, isError: true })
-          return settleWebStorage(settleCookies(settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true })))
+          return settleStorageInspection(settleWebStorage(settleCookies(settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true }))))
         }
         if (isFrameObservation && frameRequest.pending && !result.isError) {
           await frameRequest.pending.finish()
@@ -1388,7 +1387,7 @@ function createBrowserMcpServer(
           frameRequest.webStoragePublication()
         }
         // No await after the final publication guard.
-        const settled = settleWebStorage(settleCookies(result))
+        const settled = settleStorageInspection(settleWebStorage(settleCookies(result)))
         recordReadinessProbe(settled.isError ? 'failed' : 'verified')
         return settled
       } catch (error) {

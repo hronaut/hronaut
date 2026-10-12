@@ -6,7 +6,7 @@ import { McpCapabilityAuthorizationError } from '../src/main/mcp/capability-prof
 import { storageInspectionGuard, type StorageInspectionHooks } from '../src/main/browser/storage-inspection-operation.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
-for (const tool of ['browser_indexeddb', 'browser_storage_usage'] as const) it.each(['input', 'missing-guard', 'hook-policy-review', 'late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'lost-read', 'success'] as const)(`withholds ${tool} data across %s settlement failure`, async failure => {
+for (const tool of ['browser_indexeddb', 'browser_storage_usage'] as const) it.each(['before-policy-review', 'native-error-late-navigation', 'input', 'missing-guard', 'hook-policy-review', 'late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'lost-read', 'success'] as const)(`withholds ${tool} data across %s settlement failure`, async failure => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
   const tabId = '01912345-6790-7abc-8def-0123456789ab'
   const reviewId = '01912345-6791-7abc-8def-0123456789ab'
@@ -25,7 +25,7 @@ for (const tool of ['browser_indexeddb', 'browser_storage_usage'] as const) it.e
     requireMcpTabGroup: vi.fn(() => workspace), requireTabInMcpGroup: vi.fn(() => tabId),
     tabBelongsToMcpGroup: vi.fn(() => true), wakeTab: vi.fn(async () => {}),
     [tool === 'browser_indexeddb' ? 'inspectIndexedDb' : 'inspectStorageUsage']: vi.fn(async (_options: unknown, hooks: StorageInspectionHooks) => {
-      if (failure === 'input') throw new TypeError('objectStore requires database')
+      if (failure === 'input') throw new TypeError('database is required when objectStore is provided')
       const originalNavigation = navigation
       const validate = storageInspectionGuard(() => {
         hooks.validate()
@@ -34,9 +34,14 @@ for (const tool of ['browser_indexeddb', 'browser_storage_usage'] as const) it.e
       if (failure !== 'missing-guard') hooks.retainPublication(validate)
       validate()
       if (failure === 'before-submit') throw new Error('private-inspector-canary')
+      if (failure === 'before-policy-review') {
+        beforeDenied = true
+        manager.isWorkspaceAgentAccessible.mockImplementationOnce(() => { throw new McpCapabilityAuthorizationError({ decision: 'denied', reasonCode: 'PROFILE_REVOKED', firstDenyingRule: 'profile-active' } as never) })
+        validate()
+      }
       hooks.readStarted()
       attempted = true
-      if (failure === 'lost-read') throw new Error('private-inspector-canary')
+      if (failure === 'lost-read' || failure === 'native-error-late-navigation') throw new Error('private-inspector-canary')
       if (failure === 'hook-policy-review') {
         beforeDenied = true
         manager.isWorkspaceAgentAccessible.mockImplementationOnce(() => { throw new McpCapabilityAuthorizationError({ decision: 'denied', reasonCode: 'PROFILE_REVOKED', firstDenyingRule: 'profile-active' } as never) })
@@ -53,14 +58,14 @@ for (const tool of ['browser_indexeddb', 'browser_storage_usage'] as const) it.e
   const waiting = {
     requireDispatch: vi.fn(async () => { if (beforeDenied || (attempted && failure === 'late-review')) throw new Error('Controlled late review authority failure') }),
     beginReviewedDispatch: vi.fn(async () => ({ id: reviewId, revision: reviewRevision })),
-    finishReviewedDispatch: vi.fn(async () => { if (failure !== 'input') throw new Error('Controlled review persistence failure') })
+    finishReviewedDispatch: vi.fn(async () => { if (failure !== 'input' && failure !== 'native-error-late-navigation') throw new Error('Controlled review persistence failure') })
   }
   const auditReceipts = {
     isRecording: vi.fn(() => true),
     execute: vi.fn(async (_workspace: string, action: { operation: () => Promise<CallToolResult> }) => {
       const result = await action.operation()
       if (failure === 'late-audit') throw new Error('Controlled audit failure after acknowledged storage execution')
-      if (failure === 'late-navigation') navigation++
+      if (failure === 'late-navigation' || failure === 'native-error-late-navigation') navigation++
       if (failure === 'late-policy') throw new McpCapabilityAuthorizationError({ decision: 'denied', reasonCode: 'PROFILE_REVOKED', firstDenyingRule: 'profile-active' } as never)
       if (failure === 'late-access') manager.isWorkspaceAgentAccessible.mockReturnValue(false)
       return result
@@ -80,13 +85,14 @@ for (const tool of ['browser_indexeddb', 'browser_storage_usage'] as const) it.e
     expect(manager[tool === 'browser_indexeddb' ? 'inspectIndexedDb' : 'inspectStorageUsage'], JSON.stringify(result)).toHaveBeenCalledOnce()
     if (failure === 'success') { expect(result.isError).not.toBe(true); expect(JSON.stringify(result)).toContain('private-inspector-canary'); return }
     expect(result.isError).toBe(true)
-    if (failure === 'input') { expect(JSON.stringify(result)).toContain('objectStore requires database'); return }
+    if (failure === 'native-error-late-navigation') expect(navigation).toBe(2)
+    if (failure === 'input') { expect(JSON.stringify(result)).toContain('database is required when objectStore is provided'); return }
     expect(result.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', retrySafe: false, effects: 'none' })
     expect(JSON.stringify(result)).not.toContain('private-inspector-canary')
     expect(JSON.stringify(result)).not.toContain('12345')
     const activity = server.getDashboardState().recentActivity.find(item => item.toolName === tool)
-    expect(activity?.result).toMatchObject({ effects: 'none', dispatch: failure === 'before-submit' ? 'not-dispatched' : 'dispatched' })
-    if (failure === 'late-policy' || failure === 'hook-policy-review') expect(result.structuredContent).toMatchObject({ permission: 'denied', policyDecision: { reasonCode: 'PROFILE_REVOKED' } })
+    expect(activity?.result).toMatchObject({ effects: 'none', dispatch: failure === 'before-submit' || failure === 'before-policy-review' ? 'not-dispatched' : 'dispatched' })
+    if (failure === 'late-policy' || failure === 'hook-policy-review' || failure === 'before-policy-review') expect(result.structuredContent).toMatchObject({ permission: 'denied', policyDecision: { reasonCode: 'PROFILE_REVOKED' } })
     if (failure === 'hook-policy-review') expect(result.structuredContent).toMatchObject({ reviewFinalization: 'failed' })
     if (failure === 'late-review' || failure === 'late-audit') expect(waiting.finishReviewedDispatch).toHaveBeenCalledOnce()
   } finally {
