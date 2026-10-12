@@ -1,4 +1,4 @@
-import { executeWebStorage, type WebStorageHooks } from './web-storage-operation.js'
+import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from './web-storage-operation.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -2375,16 +2375,25 @@ export class BrowserTabsManager {
     const action = options.action ?? 'list'
     const pageUrl = new URL(tab.url)
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('UNSUPPORTED_SCHEME')
       throw new Error('Site storage is available only for HTTP and HTTPS tabs.')
     }
     const key = options.key
     if ((action === 'get' || action === 'set' || action === 'delete')
       && (key === undefined || (options.kind === 'cookies' && !key.trim()))) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('KEY_REQUIRED')
       throw new TypeError(`key is required to ${action} ${options.kind}`)
     }
-    if (key && key.length > MAX_STORAGE_KEY_CHARS) throw new TypeError(`Storage keys are limited to ${MAX_STORAGE_KEY_CHARS} characters.`)
-    if (action === 'set' && options.value === undefined) throw new TypeError(`value is required to set ${options.kind}`)
+    if (key && key.length > MAX_STORAGE_KEY_CHARS) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('KEY_TOO_LARGE')
+      throw new TypeError(`Storage keys are limited to ${MAX_STORAGE_KEY_CHARS} characters.`)
+    }
+    if (action === 'set' && options.value === undefined) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('VALUE_REQUIRED')
+      throw new TypeError(`value is required to set ${options.kind}`)
+    }
     if (options.value !== undefined && Buffer.byteLength(options.value, 'utf8') > MAX_STORAGE_INPUT_VALUE_BYTES) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('VALUE_TOO_LARGE')
       throw new TypeError('Storage values are limited to 256 KiB.')
     }
 

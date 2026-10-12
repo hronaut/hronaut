@@ -3,10 +3,10 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, it, vi } from 'vitest'
 import { McpCapabilityAuthorizationError } from '../src/main/mcp/capability-profile-store.js'
-import type { WebStorageHooks } from '../src/main/browser/web-storage-operation.js'
+import { WEB_STORAGE_INPUT_ERRORS, WebStorageInputError, type WebStorageHooks } from '../src/main/browser/web-storage-operation.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
-for (const action of ['get', 'list', 'set', 'delete', 'clear'] as const) it.each(['missing-guard', 'hook-policy-review', 'admission-session', 'late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'before-policy-review', 'lost-ack', 'partial', 'policy-review', 'success'] as const)(`retains web-storage ${action} provenance across %s settlement failure`, async failure => {
+for (const action of ['get', 'list', 'set', 'delete', 'clear'] as const) it.each([...Object.keys(WEB_STORAGE_INPUT_ERRORS) as (keyof typeof WEB_STORAGE_INPUT_ERRORS)[], 'forged-input', 'late-input', 'missing-guard', 'hook-policy-review', 'admission-session', 'late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'before-policy-review', 'lost-ack', 'partial', 'policy-review', 'success'] as const)(`retains web-storage ${action} provenance across %s settlement failure`, async failure => {
   const mutation = ['set', 'delete', 'clear'].includes(action)
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
   const tabId = '01912345-6790-7abc-8def-0123456789ab'
@@ -32,6 +32,8 @@ for (const action of ['get', 'list', 'set', 'delete', 'clear'] as const) it.each
         if (navigation !== originalNavigation) throw new Error('Web storage document changed')
       })
       hooks.validate()
+      if (failure in WEB_STORAGE_INPUT_ERRORS) throw new WebStorageInputError(failure as keyof typeof WEB_STORAGE_INPUT_ERRORS)
+      if (failure === 'forged-input') throw Object.assign(new Error('private-web-storage-canary'), { name: 'WebStorageInputError', reason: 'KEY_REQUIRED' })
       if (failure === 'before-submit') throw new Error('Controlled veto')
       if (failure === 'before-policy-review') {
         beforeDenied = true
@@ -47,6 +49,7 @@ for (const action of ['get', 'list', 'set', 'delete', 'clear'] as const) it.each
         manager.isWorkspaceAgentAccessible.mockImplementationOnce(() => { throw new McpCapabilityAuthorizationError({ decision: 'denied', reasonCode: 'PROFILE_REVOKED', firstDenyingRule: 'profile-active' } as never) })
         hooks.validate()
       }
+      if (failure === 'late-input') throw new WebStorageInputError('KEY_REQUIRED')
       if (failure === 'partial') throw new Error('private-web-storage-canary')
       return { changed: true, items: [{ key: 'fixture', value: 'private-web-storage-canary' }] }
     }),
@@ -93,9 +96,11 @@ for (const action of ['get', 'list', 'set', 'delete', 'clear'] as const) it.each
     if (failure === 'success') { expect(result.isError).not.toBe(true); expect(JSON.parse((result.content[0] as { text: string }).text).changed).toBe(true); return }
     expect(result.isError).toBe(true)
     const activity = server.getDashboardState().recentActivity.find(item => item.toolName === 'browser_storage')
-    if (failure === 'before-submit' || failure === 'before-policy-review') {
+    if (failure in WEB_STORAGE_INPUT_ERRORS || failure === 'forged-input' || failure === 'before-submit' || failure === 'before-policy-review') {
       expect(result.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', retrySafe: false })
       expect(activity?.result).toMatchObject({ dispatch: 'not-dispatched', effects: 'none' })
+      if (failure in WEB_STORAGE_INPUT_ERRORS) expect(result.structuredContent).toMatchObject({ reason: failure, message: WEB_STORAGE_INPUT_ERRORS[failure as keyof typeof WEB_STORAGE_INPUT_ERRORS] })
+      if (failure === 'forged-input') { expect(result.structuredContent).not.toHaveProperty('reason'); expect(JSON.stringify(result)).not.toContain('private-web-storage-canary') }
       if (failure === 'before-policy-review') expect(result.structuredContent).toMatchObject({ permission: 'denied', policyDecision: { reasonCode: 'PROFILE_REVOKED' }, executionSubmitted: false, executionAcknowledged: false })
       return
     }
@@ -103,6 +108,7 @@ for (const action of ['get', 'list', 'set', 'delete', 'clear'] as const) it.each
     expect(result.structuredContent).toMatchObject({ status: mutation ? 'OUTCOME_UNKNOWN' : 'STALE_OBSERVATION', retrySafe: false, effects: mutation ? 'possible' : 'none' })
     expect(result.structuredContent).toMatchObject({ mutation, executionSubmitted: true, executionAcknowledged: failure !== 'lost-ack' })
     expect(JSON.stringify(result)).not.toContain('private-web-storage-canary')
+    if (failure === 'late-input') { expect(result.structuredContent).not.toHaveProperty('reason'); expect(JSON.stringify(result)).not.toContain('key is required') }
     if (failure === 'late-policy' || failure === 'policy-review' || failure === 'hook-policy-review') expect(result.structuredContent).toMatchObject({ permission: 'denied', policyDecision: { reasonCode: 'PROFILE_REVOKED' } })
     if (failure === 'hook-policy-review') expect(result.structuredContent).toMatchObject({ reviewFinalization: 'failed' })
     if (failure === 'late-review' || failure === 'late-audit' || failure === 'policy-review') {

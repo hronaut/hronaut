@@ -1,3 +1,17 @@
+export const WEB_STORAGE_INPUT_ERRORS = {
+  KEY_REQUIRED: 'key is required to get, set or delete storage.',
+  VALUE_REQUIRED: 'value is required to set storage.',
+  KEY_TOO_LARGE: 'Storage keys are limited to 512 characters.',
+  VALUE_TOO_LARGE: 'Storage values are limited to 256 KiB.',
+  UNSUPPORTED_SCHEME: 'Site storage is available only for HTTP and HTTPS tabs.'
+} as const
+
+export class WebStorageInputError extends TypeError {
+  constructor(readonly reason: keyof typeof WEB_STORAGE_INPUT_ERRORS) {
+    super(WEB_STORAGE_INPUT_ERRORS[reason])
+  }
+}
+
 export interface WebStorageProgress {
   mutation: boolean
   executionSubmitted: boolean
