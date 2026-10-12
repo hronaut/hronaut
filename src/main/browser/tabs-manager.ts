@@ -1,3 +1,4 @@
+import { executeWebStorage, type WebStorageHooks } from './web-storage-operation.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -2369,7 +2370,7 @@ export class BrowserTabsManager {
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
-  async manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks): Promise<BrowserStorageResult> {
+  async manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
     const tab = this.getTab(options.tabId)
     const action = options.action ?? 'list'
     const pageUrl = new URL(tab.url)
@@ -2391,8 +2392,23 @@ export class BrowserTabsManager {
       return this.manageCookies(tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks)
     }
 
+    const contents = tab.webContents
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    const assertCurrent = (): void => {
+      webStorageHooks?.validate()
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+        || currentWorkspace !== workspace
+        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
+        throw new Error('Storage context changed. Earlier changes are not rolled back; inspect fresh state before continuing.')
+      }
+    }
+    webStorageHooks?.retainPublication(assertCurrent)
     const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
-    const raw = await tab.webContents.executeJavaScript(`(() => {
+    const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(`(() => {
       if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
         return { pageChanged: true };
       }
@@ -2416,7 +2432,7 @@ export class BrowserTabsManager {
         items.sort((left, right) => left[0].localeCompare(right[0]));
       }
       return { changed, itemCount: storage.length, items };
-    })()`, true) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+    })()`, true), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
     if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
     const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
     return {

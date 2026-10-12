@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Withhold local and session storage results when document, workspace, control or cancellation state changes before publication. Reads discard stale data; submitted mutations report possible effects with execution provenance and no automatic replay.
+
 - Stop pending cookie edits when their document, workspace access, pause state or MCP control changes. Interrupted edits retain native-write counts and uncertain outcomes without replay; results are withheld if those checks fail during settlement. Concurrent cookie-session changes after initial admission remain outside these checks.
 - Match the Downloads save-mode confirmation to the current authoritative setting when another change arrives before an earlier response completes.
 - Keep a newer MCP port draft free of error feedback from an earlier failed Apply port request. Failures still appear when their submitted draft is unchanged; no listener change is retried automatically.
