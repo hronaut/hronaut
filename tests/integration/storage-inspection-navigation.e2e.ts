@@ -79,7 +79,7 @@ for (const stage of ['IndexedDB', 'quota', 'quota fallback'] as const) {
       const tool = stage === 'IndexedDB' ? 'browser_indexeddb' : 'browser_storage_usage'
       const stale = await call(tool, { workspaceId, tabId })
       expect(stale.isError, text(stale)).toBe(true)
-      expect(text(stale)).toContain(`The page changed during ${stage === 'IndexedDB' ? 'IndexedDB' : 'storage usage'} inspection`)
+      expect(stale.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', effects: 'none', retrySafe: false })
       const fresh = await call(tool, { workspaceId, tabId })
       expect(fresh.isError, text(fresh)).not.toBe(true)
       expect(JSON.parse(text(fresh))).toMatchObject({ url: `${origin}/after`, origin })
