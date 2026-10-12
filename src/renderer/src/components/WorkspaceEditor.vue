@@ -176,8 +176,9 @@ async function openTransfer(sourceWorkspaceId?: string): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
   importTarget.value = null
   templateView.value = false
-  await openTransferEditor(sourceWorkspaceId)
-  importDestination.value = sourceWorkspaceId ?? availableWorkspaces.value[0]?.id ?? ''
+  await openTransferEditor(sourceWorkspaceId, () => {
+    importDestination.value = sourceWorkspaceId ?? availableWorkspaces.value[0]?.id ?? ''
+  })
 }
 
 async function openLibrary(): Promise<void> {
