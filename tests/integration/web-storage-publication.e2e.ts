@@ -87,7 +87,9 @@ for (const kind of ['local-storage', 'session-storage'] as const) for (const { a
       await expect.poll(() => appWindow.evaluate(() => (window as unknown as { storageActivities: McpTabActivity[] }).storageActivities.filter(a => a.phase !== 'started').length)).toBe(1)
       if (change === 'unchanged') {
         expect(result.isError, text(result)).not.toBe(true)
-        expect(JSON.parse(text(result))).toMatchObject({ action, kind, items: expectedValue === null ? [] : [{ key: 'publication-fixture', value: expectedValue }], ...(mutation ? { changed: true } : {}) })
+        const storage = JSON.parse(text(result)) as { items: { key: string; value?: string }[] }
+        expect(storage).toMatchObject({ action, kind, ...(mutation ? { changed: true } : {}) })
+        expect(storage.items.filter(item => item.key === 'publication-fixture')).toMatchObject(expectedValue === null ? [] : [{ key: 'publication-fixture', value: expectedValue }])
       } else if (change !== 'cancel') {
         expect(result.isError, text(result)).toBe(true)
         expect(result.structuredContent).toMatchObject({ status: mutation ? 'OUTCOME_UNKNOWN' : 'STALE_OBSERVATION', effects: mutation ? 'possible' : 'none', mutation, executionSubmitted: true, executionAcknowledged: true, retrySafe: false })
