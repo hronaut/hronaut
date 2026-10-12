@@ -227,6 +227,51 @@ describe('MCP settings controller', () => {
     controller.dispose()
   })
 
+  it.each(['move', 'reset'].flatMap(action =>
+    ['unchanged', 'newer', 'returned'].map(draft => ({ action, draft }))
+  ))('owns failed $action feedback only while its draft is unchanged ($draft)', async ({ action, draft }) => {
+    const { controller, setPort, resetSettings, settings } = createController()
+    const pending = deferred<AppSettings>()
+    setPort.mockReturnValueOnce(pending.promise)
+    resetSettings.mockReturnValueOnce(pending.promise)
+    controller.editPort('49000')
+    const operation = action === 'move' ? controller.applyPort() : controller.reset()
+    const submitted = controller.portDraft.value
+    if (draft !== 'unchanged') controller.editPort('49001')
+    if (draft === 'returned') controller.editPort(submitted)
+
+    pending.reject(new Error('Earlier requested port is unavailable'))
+    await expect(operation).resolves.toBe(false)
+
+    expect(controller.portDraft.value).toBe(draft === 'newer' ? '49001' : submitted)
+    expect(controller.portState.value).toBe(draft === 'unchanged' ? 'error' : 'idle')
+    expect(controller.portMessage.value).toBe(draft === 'unchanged' ? 'Earlier requested port is unavailable' : '')
+    expect(controller.busy.value).toBe(false)
+    expect(settings.value.mcpPort).toBe(DEFAULT_RENDERER_SETTINGS.mcpPort)
+    expect(action === 'move' ? setPort : resetSettings).toHaveBeenCalledOnce()
+    controller.dispose()
+  })
+
+  it.each(['move', 'reset'] as const)('reconciles a newer draft matched by settings after failed %s', async action => {
+    const { controller, setPort, resetSettings, settings } = createController()
+    const pending = deferred<AppSettings>()
+    setPort.mockReturnValueOnce(pending.promise)
+    resetSettings.mockReturnValueOnce(pending.promise)
+    controller.editPort('49000')
+    const operation = action === 'move' ? controller.applyPort() : controller.reset()
+    controller.editPort('49001')
+    settings.value = { ...settings.value, mcpPort: 49001 }
+    await nextTick()
+    pending.reject(new Error('Earlier request failed'))
+    await expect(operation).resolves.toBe(false)
+    expect(controller.portState.value).toBe('idle')
+    expect(controller.canApplyPort.value).toBe(false)
+    settings.value = { ...settings.value, mcpPort: 49002 }
+    await nextTick()
+    expect(controller.portDraft.value).toBe('49002')
+    controller.dispose()
+  })
+
   it('preserves a newer draft when the listener move for an older draft completes', async () => {
     const saving = deferred<AppSettings>()
     const { controller, setPort, settings } = createController()

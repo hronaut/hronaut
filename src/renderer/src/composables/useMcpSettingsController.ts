@@ -87,6 +87,17 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     return false
   }
 
+  function settlePortFailure(error: unknown, startingDraftRevision: number): void {
+    if (draftRevision !== startingDraftRevision) {
+      dirtyPortDraft = portDraft.value !== String(options.settings.value.mcpPort)
+      portState.value = 'idle'
+      portMessage.value = ''
+      return
+    }
+    portState.value = 'error'
+    portMessage.value = options.formatPortError(error)
+  }
+
   async function movePort(port: number, operationGeneration: number, startingDraftRevision: number): Promise<boolean> {
     const startingSettings = options.settings.value
     portState.value = 'saving'
@@ -108,8 +119,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
       return true
     } catch (error) {
       if (operationGeneration !== generation) return false
-      portState.value = 'error'
-      portMessage.value = options.formatPortError(error)
+      settlePortFailure(error, startingDraftRevision)
       return false
     }
   }
@@ -218,8 +228,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
       return true
     } catch (error) {
       if (operationGeneration === generation) {
-        portState.value = 'error'
-        portMessage.value = options.formatPortError(error)
+        settlePortFailure(error, startingDraftRevision)
       }
       return false
     } finally {
