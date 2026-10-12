@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve keyboard focus on retained account-chooser controls when saved-account metadata updates. Removed accounts still return focus to search; updates never activate an account.
+
 ## [2.38.2] - 2026-10-12
 
 ### Fixed

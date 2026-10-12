@@ -36,6 +36,7 @@ const {
   dispose
 } = useCredentialPickerController({
   open,
+  panel,
   credentials: toRef(props, 'credentials'),
   origin: toRef(props, 'origin'),
   locale,

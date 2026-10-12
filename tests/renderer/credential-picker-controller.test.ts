@@ -18,14 +18,16 @@ function createController(initialCredentials = [credential('alice', 'Alice'), cr
   const credentials = ref(initialCredentials)
   const origin = ref<string | null>('https://example.test')
   const fillCredential = vi.fn(async () => undefined)
+  const panel = ref<HTMLElement | null>(null)
   const controller = useCredentialPickerController({
     open,
+    panel,
     credentials,
     origin,
     translate: (key) => key,
     fillCredential
   })
-  return { open, credentials, origin, fillCredential, controller }
+  return { open, credentials, origin, fillCredential, panel, controller }
 }
 
 describe('credential picker controller', () => {
@@ -119,6 +121,60 @@ describe('credential picker controller', () => {
     outside.remove()
     controller.dispose()
   })
+
+  it.each(['close', 'reopen', 'origin', 'dispose'] as const)('drops queued focus recovery after %s', async action => {
+    const { open, credentials, origin, controller } = createController()
+    const input = document.createElement('input')
+    document.body.append(input)
+    controller.input.value = input
+    await controller.openPanel()
+    const focus = vi.spyOn(input, 'focus')
+    credentials.value = [credential('bob', 'Bob')]
+    if (action === 'dispose') controller.dispose()
+    else if (action === 'origin') origin.value = 'https://other.test'
+    else {
+      controller.close()
+      if (action === 'reopen') open.value = true
+    }
+    await nextTick()
+    expect(focus).not.toHaveBeenCalled()
+    input.remove()
+    controller.dispose()
+  })
+
+  it('preserves a newer internal focus choice made while recovery is queued', async () => {
+    const { credentials, panel, controller } = createController()
+    const root = document.createElement('section')
+    const input = document.createElement('input')
+    const button = document.createElement('button')
+    root.append(input, button)
+    document.body.append(root)
+    panel.value = root
+    controller.input.value = input
+    await controller.openPanel()
+    credentials.value = [credential('bob', 'Bob')]
+    button.focus()
+    await nextTick()
+    expect(button).toHaveFocus()
+    root.remove()
+    controller.dispose()
+  })
+
+  it('keeps deliberate initial focus for only the newest opening', async () => {
+    const { controller } = createController()
+    const input = document.createElement('input')
+    document.body.append(input)
+    controller.input.value = input
+    const focus = vi.spyOn(input, 'focus')
+    const oldOpening = controller.openPanel()
+    controller.close()
+    const newOpening = controller.openPanel()
+    await Promise.all([oldOpening, newOpening])
+    expect(input).toHaveFocus()
+    expect(focus).toHaveBeenCalledTimes(1)
+    input.remove()
+    controller.dispose()
+  })
 })
 
 it.each(['BOB example', 'example   bob', 'smith bob', '  bob\tSMITH  '])('matches all account chooser search terms: %s', query => {
@@ -166,6 +222,7 @@ it('uses the supplied locale and translated unnamed label reactively', () => {
   const unnamed = ref('Unnamed account')
   const controller = useCredentialPickerController({
     open: ref(true), origin: ref('https://example.test'),
+    panel: ref(null),
     credentials: ref([credential('name', 'ISIK'), credential('unnamed', '')]),
     locale, translate: () => unnamed.value, fillCredential: vi.fn()
   })
