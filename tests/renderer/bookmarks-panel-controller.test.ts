@@ -60,6 +60,73 @@ function createController(initialBookmarks = [bookmark('alpha')]) {
 }
 
 describe('bookmarks panel controller', () => {
+  for (const destination of [false, true]) {
+    it.each(['cancel', 'external-removal', 'reopen', 'dispose'] as const)('withholds dismissed bookmark save errors after %s (destination: ' + destination + ')', async scenario => {
+      const h = createController()
+      try {
+        h.open.value = true
+        await h.controller.beginRename(h.bookmarks.value[0], destination)
+        let fail!: (error: Error) => void
+        const operation = destination ? h.updateBookmarkDestination : h.renameBookmark
+        operation.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
+        const pending = h.controller.commitRename('alpha')
+        if (scenario === 'external-removal') h.bookmarks.value = []
+        else if (scenario === 'dispose') h.controller.dispose()
+        else h.controller.cancelRename()
+        if (scenario === 'reopen') {
+          h.open.value = false
+          h.open.value = true
+          await h.controller.beginRename(h.bookmarks.value[0], destination)
+          h.controller.editingBookmarkTitle.value = 'Newer title'
+          h.controller.editingBookmarkUrl.value = 'https://example.test/newer'
+        }
+        fail(new Error('Old edit failure'))
+        await pending
+        expect(h.controller.error.value).toBe('')
+        expect(h.controller.pendingAction.value).toBeNull()
+        if (scenario === 'reopen') {
+          expect(h.controller.editingBookmarkId.value).toBe('alpha')
+          expect(h.controller.editingBookmarkTitle.value).toBe('Newer title')
+          expect(h.controller.editingBookmarkUrl.value).toBe('https://example.test/newer')
+        }
+      } finally { h.controller.dispose() }
+    })
+
+    it('accepts a successful dismissed bookmark save (destination: ' + destination + ')', async () => {
+      const h = createController()
+      try {
+        await h.controller.beginRename(h.bookmarks.value[0], destination)
+        let finish!: (entries: BrowserBookmark[]) => void
+        const operation = destination ? h.updateBookmarkDestination : h.renameBookmark
+        operation.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+        const pending = h.controller.commitRename('alpha')
+        h.controller.cancelRename()
+        const saved = [{ ...bookmark('alpha'), ...(destination ? { url: 'https://example.test/saved' } : { title: 'Saved title' }) }]
+        finish(saved)
+        await pending
+        expect(h.bookmarks.value).toEqual(saved)
+        expect(h.controller.editingBookmarkId.value).toBeNull()
+        expect(h.controller.pendingAction.value).toBeNull()
+        expect(h.controller.error.value).toBe('')
+      } finally { h.controller.dispose() }
+    })
+  }
+
+  it('retains non-editor removal failure feedback after cancelling an editor', async () => {
+    const h = createController()
+    try {
+      await h.controller.beginRename(h.bookmarks.value[0])
+      let fail!: (error: Error) => void
+      h.removeBookmark.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject }))
+      const pending = h.controller.remove('alpha')
+      h.controller.cancelRename()
+      fail(new Error('Removal failed'))
+      await pending
+      expect(h.controller.error.value).toBe('Removal failed')
+      expect(h.controller.pendingAction.value).toBeNull()
+    } finally { h.controller.dispose() }
+  })
+
   it.each([
     ['build alpha.example', ['alpha']],
     [' ALPHA.EXAMPLE\tBUILD ', ['alpha']],
