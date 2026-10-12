@@ -348,6 +348,32 @@ describe('MCP capability profile authentication', () => {
     return { created, profiles, showWindowInactive }
   }
 
+  it.each(['browser_status', 'browser_tabs'] as const)('omits retained condition details from restricted %s projections', async name => {
+    const tabId = '01912345-6790-7abc-8def-0123456789ab'
+    const workspace = { id: WORKSPACE_ID, name: 'Condition privacy', contextClass: 'standard' }
+    const tab = { id: tabId, title: 'Fixture', url: 'https://allowed.example/', mcpGroupId: WORKSPACE_ID,
+      networkConditionState: { application: 'unknown', retainedRules: [{ id: 'private-rule-id-canary', urlPattern: 'https://private-path-canary.test/token-canary', response: { headerNames: ['private-header-canary'] } }] } }
+    const manager = {
+      listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+      createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+      isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+      beginWorkspaceContinuityAction: () => () => undefined,
+      getMcpGroupState: () => ({ activeTabId: tabId, tabs: [tab], closedTabs: [tab], mcpTabGroups: [workspace], savedTabGroups: [] })
+    }
+    await connectProfile({ name: 'State reader', allowedTools: ['browser_workspaces', name], operationClasses: ['read', 'browser-state'] }, undefined, { manager })
+    expect((await client!.listTools()).tools.map(tool => tool.name)).not.toContain('browser_network_routes')
+    expect((await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Condition privacy' } })).isError).not.toBe(true)
+    const result = await client!.callTool({ name, arguments: { workspaceId: WORKSPACE_ID } })
+    expect(result.isError, JSON.stringify(result)).not.toBe(true)
+    const serialized = JSON.stringify(result)
+    for (const privateValue of ['private-rule-id-canary', 'private-path-canary', 'token-canary', 'private-header-canary', 'retainedRules']) expect(serialized).not.toContain(privateValue)
+    const content = (result.content as Array<{ type: string; text?: string }>).find(item => item.type === 'text')!
+    const value = JSON.parse(content.text!)
+    const tabs = name === 'browser_tabs' ? value : [...value.tabs, ...value.closedTabs]
+    for (const projected of tabs) expect(projected.networkConditionState).toEqual({ application: 'unknown', retainedRuleCount: 1 })
+    expect(manager.getMcpGroupState().tabs[0]!.networkConditionState.retainedRules).toHaveLength(1)
+  })
+
   it.each(['revoke', 'origin'] as const)('withholds compact tab discovery after capability %s during audit settlement', async change => {
     const tabId = '01912345-6790-7abc-8def-0123456789ab'
     const workspace = { id: WORKSPACE_ID, name: 'Discovery', contextClass: 'standard' }

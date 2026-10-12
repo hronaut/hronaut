@@ -775,13 +775,15 @@ function safeValue(value: unknown): unknown {
   }
 }
 
-function mcpWorkspaceTab<T extends { mcpGroupId?: string; mcpGroupName?: string }>(tab: T): Omit<T, 'mcpGroupId' | 'mcpGroupName'> & {
+function mcpWorkspaceTab<T extends { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState }>(tab: T): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState'> & {
+  networkConditionState?: { application: import('../../shared/types.js').BrowserNetworkConditionState['application']; retainedRuleCount: number }
   workspaceId?: string
   workspaceName?: string
 } {
-  const { mcpGroupId, mcpGroupName, ...rest } = tab
+  const { mcpGroupId, mcpGroupName, networkConditionState, ...rest } = tab
   return {
     ...rest,
+    ...(networkConditionState ? { networkConditionState: { application: networkConditionState.application, retainedRuleCount: networkConditionState.retainedRules.length } } : {}),
     ...(mcpGroupId ? { workspaceId: mcpGroupId } : {}),
     ...(mcpGroupName ? { workspaceName: mcpGroupName } : {})
   }
