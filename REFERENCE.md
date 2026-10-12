@@ -780,7 +780,6 @@ paths, and raw origins.
 - `browser_request_user_attention`
 - `browser_user_attention`
 - `browser_new_tab`, `browser_select_tab`, `browser_close_tab`, `browser_bookmarks`, `browser_visit_history`, `browser_site_data`, `browser_storage`, `browser_storage_changes`, `browser_storage_usage`, `browser_indexeddb`, `browser_pwa`, `browser_pwa_lifecycle`
-
 - `browser_navigate`, `browser_history`, `browser_wait`
 - `browser_snapshot`, `browser_public_outcome`, `browser_find`, `browser_element_inspect`, `browser_media_state`, `browser_generate_locator`, `browser_click`, `browser_dialog`, `browser_type`, `browser_fill_form`, `browser_press`
 - `browser_select`, `browser_hover`, `browser_drag`, `browser_scroll`, `browser_file_upload`

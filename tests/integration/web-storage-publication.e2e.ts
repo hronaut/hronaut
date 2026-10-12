@@ -96,7 +96,7 @@ for (const kind of ['local-storage', 'session-storage'] as const) for (const { a
         expect(text(result)).not.toContain('synthetic-storage-canary')
         expect(text(result)).not.toContain('publication-fixture')
       }
-      if (change !== 'unchanged') await expect.poll(() => appWindow.evaluate(() => (window as unknown as { storageActivities: McpTabActivity[] }).storageActivities.filter(a => a.phase === 'failed').at(-1)?.result)).toMatchObject({ dispatch: 'dispatched', effects: mutation ? 'possible' : 'none' })
+      if (change !== 'unchanged') await expect.poll(() => appWindow.evaluate(() => (window as unknown as { storageActivities: McpTabActivity[] }).storageActivities.filter(a => a.phase === 'failed').at(-1)?.result)).toMatchObject({ dispatch: 'dispatched', effects: mutation ? 'possible' : 'none', ...(change === 'cancel' ? { outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED' } : {}) })
       if (change !== 'close') expect(await electronApp.evaluate(async ({ webContents }, { fixtureUrl, kind }) => await webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!.executeJavaScript(`${kind === 'local-storage' ? 'localStorage' : 'sessionStorage'}.getItem('publication-fixture')`), { fixtureUrl, kind })).toBe(expectedValue)
     } finally {
       transport.send = send
