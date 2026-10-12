@@ -132,11 +132,11 @@ test('shows agent clicks and hovers without intercepting page input', async ({ a
 })
 
 
-type InitialDocumentGate = { preparing: boolean; commits: number; mouseEvents: string[]; contentsId: number; restore(): void }
+type InitialDocumentGate = { documentListeners: number; commits: number; mouseEvents: string[]; contentsId: number; restore(): void }
 type InitialDocumentGlobal = typeof globalThis & { __initialDocumentClick?: InitialDocumentGate }
 
 for (const readyBeforeClick of [false, true]) {
-  test(`initial document commit ${readyBeforeClick ? 'settles before' : 'invalidates'} native click preparation`, async ({ electronApp, mcpPort, mcpToken }) => {
+  test(`initial document commit ${readyBeforeClick ? 'settles before' : 'invalidates'} native click preparation`, async ({ electronApp, mcpPort, mcpToken }, info) => {
     let releaseResponse!: () => void
     const responseGate = new Promise<void>(resolve => { releaseResponse = resolve })
     let requested = false
@@ -177,7 +177,7 @@ for (const readyBeforeClick of [false, true]) {
         const send = page.debugger.sendCommand
         const committed = (): void => { gate.commits++ }
         const gate: InitialDocumentGate = {
-          preparing: false, commits: 0, mouseEvents: [], contentsId: page.id,
+          documentListeners: page.listenerCount('did-navigate') + 1, commits: 0, mouseEvents: [], contentsId: page.id,
           restore: () => {
             page.removeListener('did-navigate', committed)
             if (!page.isDestroyed()) { page.executeJavaScript = execute; page.debugger.sendCommand = send }
@@ -185,10 +185,6 @@ for (const readyBeforeClick of [false, true]) {
         }
         ;(globalThis as InitialDocumentGlobal).__initialDocumentClick = gate
         page.on('did-navigate', committed)
-        page.executeJavaScript = async (script, ...args) => {
-          if (script.includes('element.scrollIntoView')) gate.preparing = true
-          return execute.call(page, script, ...args)
-        }
         page.debugger.sendCommand = async (method, ...args) => {
           if (method === 'Input.dispatchMouseEvent' && gate.mouseEvents.length < 10) gate.mouseEvents.push(String(args[0]?.type))
           return send.call(page.debugger, method, ...args)
@@ -200,16 +196,24 @@ for (const readyBeforeClick of [false, true]) {
       }
       pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#action', native: true } }) as Promise<CallToolResult>
       if (!readyBeforeClick) {
-        await expect.poll(() => electronApp.evaluate(() => (globalThis as InitialDocumentGlobal).__initialDocumentClick!.preparing)).toBe(true)
+        // Native original retention now precedes scroll preparation. Observe
+        // the operation-owned authority listener before committing the held load.
+        await expect.poll(() => electronApp.evaluate(({ webContents }) => {
+          const gate = (globalThis as InitialDocumentGlobal).__initialDocumentClick!
+          return webContents.fromId(gate.contentsId)!.listenerCount('did-navigate') - gate.documentListeners
+        })).toBe(1)
+        await info.attach('initial-document-boundary', { body: JSON.stringify({ authorityListenerInstalled: true, responseHeld: true }), contentType: 'application/json' })
         releaseResponse()
       }
       const result = await pending
       const observed = await electronApp.evaluate(async ({ webContents }) => {
         const gate = (globalThis as InitialDocumentGlobal).__initialDocumentClick!
         const page = webContents.fromId(gate.contentsId)!
-        return { commits: gate.commits, mouseEvents: gate.mouseEvents, pageEvents: await page.executeJavaScript('window.pointerEvents') }
+        return { commits: gate.commits, mouseEvents: gate.mouseEvents, listenerDelta: page.listenerCount('did-navigate') - gate.documentListeners, pageEvents: await page.executeJavaScript('window.pointerEvents') }
       })
+      await info.attach('initial-document-outcome', { body: JSON.stringify({ result, observed }), contentType: 'application/json' })
       expect(observed.commits).toBe(1)
+      expect(observed.listenerDelta).toBe(0)
       if (readyBeforeClick) {
         expect(result.isError, text(result)).not.toBe(true)
         expect(observed.mouseEvents).toEqual(['mouseMoved', 'mousePressed', 'mouseReleased'])

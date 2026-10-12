@@ -217,3 +217,22 @@ test('semantic admission respects a generic input operation pending cleanup', as
   await pending.catch(()=>undefined)
  }
 })
+
+for(const doubleClick of [false,true]) test(`semantic admission permits an explicit fresh request after overlay removal double=${doubleClick}`, async({capabilities,electronApp},info)=>{
+ const {client,tabId,fixtureUrl}=capabilities
+ await electronApp.evaluate(async({webContents},{url,script})=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript(script),{url:fixtureUrl,script:setup('fixed')})
+ const blocked=await client.callTool({name:'browser_click',arguments:{tabId,selector:'#target',...(doubleClick?{doubleClick:true}:{native:true})}})
+ expect(blocked.isError).toBe(true)
+ expect(blocked.structuredContent).toMatchObject({reason:'TARGET_OCCLUDED',progress:{downAttempted:0,upAttempted:0,targetCleanup:'confirmed'}})
+ await electronApp.evaluate(async({webContents},url)=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript("document.getElementById('overlay').remove();true"),fixtureUrl)
+ expect((await client.callTool({name:'browser_snapshot',arguments:{tabId}})).isError).not.toBe(true)
+ const ref=await electronApp.evaluate(async({webContents},url)=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript("window.original.getAttribute('data-hronaut-ref')"),fixtureUrl)
+ expect(ref).toBeTruthy()
+ const fresh=await client.callTool({name:'browser_click',arguments:{tabId,ref,...(doubleClick?{doubleClick:true}:{native:true})}})
+ expect(fresh.isError).not.toBe(true)
+ const observed=await electronApp.evaluate(async({webContents},url)=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript('window.events'),fixtureUrl)
+ const clicks=observed.filter((event:{type:string})=>event.type==='click')
+ expect(clicks).toHaveLength(doubleClick?2:1)
+ expect(clicks.every((event:{trusted:boolean;original:boolean})=>event.trusted&&event.original)).toBe(true)
+ await info.attach('explicit-fresh-request',{body:JSON.stringify({blocked,fresh,observed}),contentType:'application/json'})
+})
