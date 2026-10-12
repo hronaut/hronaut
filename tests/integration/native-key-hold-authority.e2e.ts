@@ -77,13 +77,17 @@ for (const phase of ['before-down', 'held'] as const) for (const change of ['pau
       const observed = await holdObservation(electronApp)
       await testInfo.attach('key-hold-authority', { body: JSON.stringify({ phase, change, triggeredAt, result, terminal, observed }), contentType: 'application/json' })
       expect(result.isError, text(result)).toBe(true)
-      expect(observed.commands.map(c => c.type)).toEqual(phase === 'held' ? (change === 'close' ? ['rawKeyDown'] : ['rawKeyDown', 'keyUp']) : [])
+      // Close can invalidate the hold before destroying its WebContents. A
+      // matching up may be attempted during that interval; never replay it.
+      const closeReleaseAttempted = change === 'close' && observed.commands.length === 2
+      expect(observed.commands.map(c => c.type)).toEqual(phase === 'held' ? (change === 'close' && !closeReleaseAttempted ? ['rawKeyDown'] : ['rawKeyDown', 'keyUp']) : [])
       if (phase === 'before-down' && change !== 'cancel') expect(result.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none' })
       if (phase === 'held') {
         if (change === 'close') expect(observed.destroyed).toBe(true)
         else expect(observed.commands[1]!.at - triggeredAt).toBeLessThan(1500)
-        if (change !== 'cancel') expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false, release: change === 'close' ? 'UNCONFIRMED' : 'ACKNOWLEDGED' })
-        expect(observed.upAcknowledged).toBe(change !== 'close')
+        if (change !== 'cancel') expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false, release: observed.upAcknowledged ? 'ACKNOWLEDGED' : 'UNCONFIRMED' })
+        if (change !== 'close') expect(observed.upAcknowledged).toBe(true)
+        if (observed.upAcknowledged) expect(observed.commands[1]?.type).toBe('keyUp')
         if (change === 'navigation') expect(observed.effects).toBeNull()
         if (change !== 'close' && change !== 'navigation') await expect.poll(async () => (await holdObservation(electronApp)).effects?.held).toBe(false)
         if (change !== 'close' && change !== 'navigation') {
