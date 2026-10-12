@@ -2,11 +2,11 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi, McpTabActivity } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-type Gate = { ready: boolean; calls: number; release(): void; restore(): void; remaining(): Promise<number> }
+type Gate = { ready: boolean; calls: number; remainingAtHold?: number; release(): void; restore(): void; remaining(): Promise<number> }
 type Scope = typeof globalThis & { __cookieWriteGate?: Gate }
-type Change = 'none' | 'pause' | 'pause ABA' | 'navigation' | 'navigation ABA' | 'access ABA' | 'close' | 'cancel'
+type Change = 'none' | 'pause' | 'pause ABA' | 'navigation' | 'navigation ABA' | 'access ABA' | 'close' | 'cancel' | 'ownership release'
 const cases: { action: 'set' | 'delete' | 'clear'; phase: 'read' | 'write' | 'readback' | 'lost-ack'; change: Change }[] = [
-  ...(['none', 'pause', 'pause ABA', 'navigation', 'navigation ABA', 'access ABA', 'close', 'cancel'] as const).map(change => ({ action: 'set' as const, phase: 'read' as const, change })),
+  ...(['none', 'pause', 'pause ABA', 'navigation', 'navigation ABA', 'access ABA', 'close', 'cancel', 'ownership release'] as const).map(change => ({ action: 'set' as const, phase: 'read' as const, change })),
   ...(['delete', 'clear'] as const).flatMap(action => (['none', 'pause', 'navigation', 'cancel'] as const).map(change => ({ action, phase: 'write' as const, change }))),
   { action: 'set', phase: 'lost-ack', change: 'none' },
   { action: 'set', phase: 'readback', change: 'pause' }
@@ -49,7 +49,7 @@ for (const { action, phase, change } of cases) {
       store.remove = async (...args) => {
         gate.calls++
         await remove.apply(store, args)
-        if (phase === 'write' && gate.calls === 1) await hold()
+        if (phase === 'write' && gate.calls === 1) { gate.remainingAtHold = await gate.remaining(); await hold() }
       }
     }, { url, action, phase })
     await appWindow.evaluate(() => {
@@ -82,15 +82,26 @@ for (const { action, phase, change } of cases) {
         await api.updateTabGroup(workspace, { agentAccess: true })
       }, tabId)
       if (change === 'close') await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.closeTab(id), tabId)
+      if (change === 'ownership release') {
+        const workspaceId = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === id)!.mcpGroupId!, tabId)
+        const released = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'release-ownership', workspaceId } }) as CallToolResult
+        expect(released.isError).toBe(true)
+        expect(JSON.parse(text(released))).toMatchObject({ status: 'BUSY', reason: 'WORKSPACE_BUSY', dispatch: 'not-dispatched' })
+      }
       if (change === 'cancel') { abort.abort(); await expect.poll(() => cancelled).toBe(true) }
       await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.release())
       const result = await pending
       // Wait for server settlement even if the SDK already discarded cancellation.
       await expect.poll(() => appWindow.evaluate(() => (window as unknown as { cookieActivities: McpTabActivity[] }).cookieActivities.filter(a => a.phase !== 'started').length)).toBe(1)
-      const failed = change !== 'none' || phase === 'lost-ack'
+      const failed = (change !== 'none' && change !== 'ownership release') || phase === 'lost-ack'
       const calls = failed ? (phase === 'read' ? 0 : 1) : action === 'set' ? 1 : 2
       expect(await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.calls)).toBe(calls)
-      expect(await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.remaining())).toBe(action === 'set' ? calls : 2 - calls)
+      const remaining = await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.remaining())
+      if (action === 'delete' && failed) {
+        // Legacy remove(url, name) may remove both path variants in one call.
+        // This test fences the next native dispatch, not exact-cookie identity.
+        expect(remaining).toBe(await electronApp.evaluate(() => (globalThis as Scope).__cookieWriteGate!.remainingAtHold))
+      } else expect(remaining).toBe(action === 'set' ? calls : 2 - calls)
       if (change !== 'cancel') {
         expect(result.isError === true).toBe(failed)
         if (failed) {

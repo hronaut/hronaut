@@ -6,7 +6,7 @@ type PublicationGate = { held: boolean; release(): void; restore(): void }
 type PublicationGlobal = typeof globalThis & { __cookiePublicationGate?: PublicationGate }
 
 for (const change of ['pause ABA', 'navigation ABA', 'unchanged'] as const) {
-  test(`Cookie publication after durable audit append across ${change}`, async ({ capabilities, electronApp, appWindow }) => {
+  test(`Cookie publication during audit append after a native write across ${change}`, async ({ capabilities, electronApp, appWindow }) => {
     const { client, tabId, fixtureUrl } = capabilities
     let pending: Promise<CallToolResult> | undefined
     try {

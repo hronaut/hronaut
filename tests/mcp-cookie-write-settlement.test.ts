@@ -6,12 +6,13 @@ import { McpCapabilityAuthorizationError } from '../src/main/mcp/capability-prof
 import type { CookieWriteHooks } from '../src/main/browser/cookie-write-operation.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
-it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'lost-ack', 'partial', 'policy-review', 'success'] as const)('retains cookie write provenance across %s settlement failure', async failure => {
+it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'before-policy-review', 'lost-ack', 'partial', 'policy-review', 'success'] as const)('retains cookie write provenance across %s settlement failure', async failure => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
   const tabId = '01912345-6790-7abc-8def-0123456789ab'
   const reviewId = '01912345-6791-7abc-8def-0123456789ab'
   const reviewRevision = '01912345-6792-7abc-8def-0123456789ab'
   const workspace = { id: workspaceId, name: 'Cookie settlement', agentAccess: true, contextClass: 'standard' }
+  let beforeDenied = false
   let attempted = false
   let navigation = 1
   const manager = {
@@ -30,6 +31,11 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
       })
       hooks.validate()
       if (failure === 'before-submit') throw new Error('Controlled veto')
+      if (failure === 'before-policy-review') {
+        beforeDenied = true
+        manager.isWorkspaceAgentAccessible.mockImplementationOnce(() => { throw new McpCapabilityAuthorizationError({ decision: 'denied', reasonCode: 'PROFILE_REVOKED', firstDenyingRule: 'profile-active' } as never) })
+        hooks.validate()
+      }
       hooks.progress({ attemptedWrites: 1, acknowledgedWrites: 0 })
       attempted = true
       if (failure === 'lost-ack') throw new Error('private-cookie-canary')
@@ -44,7 +50,7 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
     }))
   }
   const waiting = {
-    requireDispatch: vi.fn(async () => { if (attempted && failure === 'late-review') throw new Error('Controlled late review authority failure') }),
+    requireDispatch: vi.fn(async () => { if (beforeDenied || (attempted && failure === 'late-review')) throw new Error('Controlled late review authority failure') }),
     beginReviewedDispatch: vi.fn(async () => ({ id: reviewId, revision: reviewRevision })),
     finishReviewedDispatch: vi.fn(async () => { throw new Error('Controlled review persistence failure') })
   }
@@ -74,9 +80,10 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
     if (failure === 'success') { expect(result.isError).not.toBe(true); expect(JSON.parse((result.content[0] as { text: string }).text).changed).toBe(true); return }
     expect(result.isError).toBe(true)
     const activity = server.getDashboardState().recentActivity.find(item => item.toolName === 'browser_storage')
-    if (failure === 'before-submit') {
+    if (failure === 'before-submit' || failure === 'before-policy-review') {
       expect(result.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', retrySafe: false })
       expect(activity?.result).toMatchObject({ dispatch: 'not-dispatched', effects: 'none' })
+      if (failure === 'before-policy-review') expect(result.structuredContent).toMatchObject({ permission: 'denied', policyDecision: { reasonCode: 'PROFILE_REVOKED' }, attemptedWrites: 0, acknowledgedWrites: 0 })
       return
     }
     expect(activity?.result).toMatchObject({ outcome: 'outcome-unknown', dispatch: 'dispatched', effects: 'possible' })
