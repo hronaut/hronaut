@@ -29,6 +29,7 @@ export interface NativeInputDispatchObserver {
   rawAttempted: (params: Record<string, unknown>) => void
   rawAcknowledged: (params: Record<string, unknown>) => void
   emergencyReleaseStarted: () => void
+  cleanupFailed?: () => void
 }
 
 export class NativeKeyHoldOutcomeUnknownError extends NativeInputCleanupError {

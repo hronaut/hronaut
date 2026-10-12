@@ -1,3 +1,4 @@
+import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
 import { storageInspectionGuard, type StorageInspectionHooks } from './storage-inspection-operation.js'
 import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from './web-storage-operation.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
@@ -5696,7 +5697,7 @@ export class BrowserTabsManager {
     y?: number
     doubleClick?: boolean
     native?: boolean
-  } & BrowserDialogHandlingOptions, validateClick?: (validateContext: () => void) => void): Promise<unknown> {
+  } & BrowserDialogHandlingOptions, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void): Promise<unknown> {
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
@@ -5737,28 +5738,45 @@ export class BrowserTabsManager {
         return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
       }
       if (target.doubleClick || target.native) {
-        let point = await webContents.executeJavaScript(targetPointScript(target), true) as {
-          x: number
-          y: number
-          tag: string
+        const progress = nativeClickProgress()
+        const publish = (): void => {
+          if (progress.targetCleanup === 'unconfirmed' || progress.inputCleanupFailed) this.unconfirmedSemanticClicks.add(webContents)
+          recordClickProgress?.({ ...progress })
         }
-        await this.showAgentPointer(webContents, point, 'click')
-        await this.withAgentInput(webContents, () => this.withDebugger(
-          webContents,
-          async () => {
-            assertClickCurrent()
-            // Re-read live state after pointer rendering and debugger setup, not
-            // the earlier snapshot or initial pointer position.
-            point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
-            this.assertClickTargetEnabled(point)
-            await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent)
-          }
-        ))
-        return {
-          ok: true,
-          tag: point.tag,
-          ...(target.doubleClick ? { doubleClick: true } : {}),
-          ...(target.native ? { native: true } : {})
+        const observer = nativeClickObserver(progress, publish)
+        publish()
+        try {
+          assertClickCurrent()
+          if (this.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
+          progress.preparationAttempted = true; publish()
+          const result = await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
+            if (this.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
+            const admission = await acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish)
+            let failure: unknown
+            try {
+              assertClickCurrent()
+              // Retain the original before any page-owned flag setter or scroll preparation.
+              await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
+              assertClickCurrent()
+              let point = await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
+              await this.showAgentPointer(webContents, point, 'click')
+              assertClickCurrent()
+              point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
+              try { this.assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
+              await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, admission.sample, observer)
+              return { ok: true, tag: point.tag, ...(target.doubleClick ? { doubleClick: true } : {}),
+                ...(target.native ? { native: true } : {}), admission: 'sampled', progress }
+            } catch (error) { failure = error; throw error }
+            finally {
+              if (progress.downAttempted > progress.upAcknowledged) this.unconfirmedSemanticClicks.add(webContents)
+              try { await admission.dispose() } catch (error) { if (!failure) throw error }
+            }
+          }, assertClickCurrent), { deferRendererFlag: true, onCleanupFailure: () => { progress.inputCleanupFailed = true; publish() } })
+          if (progress.inputCleanupFailed) throw new NativeClickAdmissionError('NATIVE_INPUT_CLEANUP_FAILED', { ...progress })
+          return result
+        } catch (error) {
+          throw new NativeClickAdmissionError(error instanceof NativeClickAdmissionError ? error.reason
+            : error instanceof NativeInputCleanupError ? 'NATIVE_INPUT_CLEANUP_FAILED' : 'CONTEXT_OR_INPUT_UNCERTAIN', { ...progress }, error)
         }
       }
       const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
@@ -5798,12 +5816,17 @@ export class BrowserTabsManager {
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
     doubleClick: boolean,
-    validateClick: () => void
+    validateClick: () => void,
+    sample?: (x: number, y: number) => Promise<void>,
+    observer?: NativeInputDispatchObserver
   ): Promise<void> {
-    const inputDebugger = this.agentInputDebugger(webContents, validateClick)
+    const inputDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
+      this.sendAuthorizedAgentInputCommand(webContents, method, params, validateClick, observer,
+        params.type === 'mousePressed' && sample ? () => sample(point.x, point.y) : undefined) }
     // After a successful press, its matching release must still run if authority
     // changes. Reject subsequent presses without leaving a held mouse button.
-    const releaseDebugger = this.agentInputDebugger(webContents)
+    const releaseDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
+      this.sendAuthorizedAgentInputCommand(webContents, method, params, undefined, observer) }
     await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: point.x,
@@ -9873,7 +9896,8 @@ export class BrowserTabsManager {
     method: string,
     commandParams: Record<string, unknown> = {},
     validateInput?: () => void,
-    observer?: NativeInputDispatchObserver
+    observer?: NativeInputDispatchObserver,
+    beforeRawDispatch?: () => Promise<void>
   ): Promise<unknown> {
     validateInput?.()
     const mouse = method === 'Input.dispatchMouseEvent'
@@ -9890,6 +9914,9 @@ export class BrowserTabsManager {
     }
     let rawDispatched = false
     try {
+      // Semantic-click sampling uses this already-acquired debugger after the
+      // barrier lift. Matching releases never receive an admission hook.
+      if (beforeRawDispatch) await beforeRawDispatch()
       // Recheck after lifting the compositor barrier, immediately before input.
       validateInput?.()
       if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
@@ -9913,6 +9940,7 @@ export class BrowserTabsManager {
         try {
           await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
         } catch (error) {
+          observer?.cleanupFailed?.()
           if (!rawDispatched) throw error
           const release = matchingNativeInputRelease(method, commandParams)
           if (release) {
@@ -10188,9 +10216,12 @@ export class BrowserTabsManager {
     })
   }
 
+  private readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
+
   private async withAgentInput<T>(
     webContents: BrowserTab['view']['webContents'],
-    operation: () => Promise<T>
+    operation: () => Promise<T>,
+    options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
   ): Promise<T> {
     const depth = (this.agentInputWebContents.get(webContents.id) ?? 0) + 1
     if (depth === 1) {
@@ -10204,7 +10235,7 @@ export class BrowserTabsManager {
     this.agentInputWebContents.set(webContents.id, depth)
     let nativeCleanupFailure: NativeInputCleanupError | undefined
     try {
-      if (depth === 1 && !webContents.isDestroyed()) {
+      if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
         await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
       }
       return await operation()
@@ -10212,37 +10243,43 @@ export class BrowserTabsManager {
       if (error instanceof NativeInputCleanupError) nativeCleanupFailure = error
       throw error
     } finally {
-      const remaining = Math.max(0, (this.agentInputWebContents.get(webContents.id) ?? 1) - 1)
-      if (remaining > 0) {
-        this.agentInputWebContents.set(webContents.id, remaining)
-      } else {
-        this.agentInputWebContents.delete(webContents.id)
-        const focusSnapshot = this.agentInputFocusSnapshots.get(webContents.id)
-        this.agentInputFocusSnapshots.delete(webContents.id)
-        try {
-          if (!webContents.isDestroyed()) {
-            await clearRendererAgentInputFlag(webContents)
-            const tabId = this.webContentsToTab.get(webContents.id)
-            const tab = tabId ? this.tabs.get(tabId) : undefined
-            if (!webContents.isDestroyed() && tab && this.isHumanInteractionLocked(tab)) {
-              try {
-                await this.syncHumanInteractionInputGuard(tab)
-              } catch (error) {
-                // Preserve acknowledged input uncertainty, but otherwise keep
-                // restoration failures visible after focus cleanup runs.
-                if (!nativeCleanupFailure) throw error
+      try {
+        const remaining = Math.max(0, (this.agentInputWebContents.get(webContents.id) ?? 1) - 1)
+        if (remaining > 0) {
+          this.agentInputWebContents.set(webContents.id, remaining)
+        } else {
+          this.agentInputWebContents.delete(webContents.id)
+          const focusSnapshot = this.agentInputFocusSnapshots.get(webContents.id)
+          this.agentInputFocusSnapshots.delete(webContents.id)
+          try {
+            if (!webContents.isDestroyed()) {
+              await clearRendererAgentInputFlag(webContents, options.onCleanupFailure)
+              const tabId = this.webContentsToTab.get(webContents.id)
+              const tab = tabId ? this.tabs.get(tabId) : undefined
+              if (!webContents.isDestroyed() && tab && this.isHumanInteractionLocked(tab)) {
+                try {
+                  await this.syncHumanInteractionInputGuard(tab)
+                } catch (error) {
+                  options.onCleanupFailure?.()
+                  // Preserve acknowledged input uncertainty, but otherwise keep
+                  // restoration failures visible after focus cleanup runs.
+                  if (!nativeCleanupFailure) throw error
+                }
               }
             }
-          }
-        } finally {
-          try {
-            this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
           } finally {
-            const releaseFocusGuard = this.agentInputFocusGuardReleases.get(webContents.id)
-            this.agentInputFocusGuardReleases.delete(webContents.id)
-            releaseFocusGuard?.()
+            try {
+              this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
+            } finally {
+              const releaseFocusGuard = this.agentInputFocusGuardReleases.get(webContents.id)
+              this.agentInputFocusGuardReleases.delete(webContents.id)
+              releaseFocusGuard?.()
+            }
           }
         }
+      } catch (error) {
+        options.onCleanupFailure?.()
+        throw error
       }
     }
   }
