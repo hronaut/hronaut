@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.38.2] - 2026-10-12
+
 ### Fixed
 
 - Keep late bookmark title/address save errors from appearing after Escape or a collection change dismisses that editor. Successful in-flight edits remain saved; dismissal does not cancel persistence or roll back changes.
@@ -15,6 +17,15 @@ All notable changes to Hronaut are documented in this file.
 - Reject pending storage baseline and comparison captures when their document changes between reads or before saving. Completed same-origin baselines and comparisons remain available; storage reads are sequential, not atomic.
 
 - Reject known covered or replaced semantic native-click targets before each press using the retained original element and isolated hit sampling. Partial clicks report attempted and acknowledged input separately, preserve cleanup uncertainty, and never replay automatically. Sampling is not atomic: later page changes can still redirect input. Only text/html documents are supported; embedded and shadow receivers are conservatively unsupported. Unconfirmed cleanup blocks further semantic native clicks on that tab.
+
+### Known issues
+
+- Native wheel and key-hold bounds do not establish a transport deadline. A pending CDP command can retain the debugger queue indefinitely; cancellation does not release it, and lock preparation can time out. No bounded cleanup or transport recovery is promised. Inspect fresh state after uncertain or missing responses; never automatically replay a potentially effective action.
+- The earlier local key-hold fresh-call failure remains unclassified. Later controlled probes and green runs verify current guards, not that historical failure's cause or a repair.
+- A controlled initial-load semantic-click probe reproduced a document commit during preparation. Readiness waits preserve the setup for human-takeover and dialog tests, but the original CI human-click response and dispatch timeline were not captured. The local probe and later green runs do not establish every earlier failure's cause.
+- Historical native input observations during pending lock requests do not establish input origin. Tests now retain observations from compositor lock acknowledgement through terminal server activity; later passing runs do not prove the original cause or a product repair. Identical event shapes remain ambiguous, and the concurrent mouse-input gap remains; use Pause agents for explicit takeover.
+- Historical endpoint-startup and first-video-preview pixel failures remain unexplained. Restart ownership and first-presented-frame checks strengthen test evidence; controlled reproductions and later green runs do not establish the original event sequence or a product repair.
+- The historical cross-origin-frame immediate parent click-count miss, native screenshot UnknownVizError, resize/evaluate stalls, destroyed-context failures and superseded-navigation ERR_ABORTED success-state behavior remain unresolved. No native-click routing or capture repair is claimed.
 
 ## [2.38.1] - 2026-10-12
 
