@@ -95,7 +95,8 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
 
   async function runAction(
     actionId: string,
-    operation: () => Promise<BrowserBookmark[] | void>
+    operation: () => Promise<BrowserBookmark[] | void>,
+    feedbackCurrent: () => boolean = () => true
   ): Promise<boolean> {
     if (pendingAction.value) return false
     const generation = ++actionGeneration
@@ -108,7 +109,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
       if (nextBookmarks) options.bookmarks.value = nextBookmarks
       return true
     } catch (cause) {
-      if (generation !== actionGeneration) return false
+      if (generation !== actionGeneration || !feedbackCurrent()) return false
       error.value = cause instanceof Error ? cause.message : String(cause)
       return false
     } finally {
@@ -169,7 +170,8 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
       editingDestination.value ? `destination:${bookmarkId}` : `rename:${bookmarkId}`,
       () => editingDestination.value
         ? options.updateBookmarkDestination(bookmarkId, editingBookmarkUrl.value)
-        : options.renameBookmark(bookmarkId, editingBookmarkTitle.value)
+        : options.renameBookmark(bookmarkId, editingBookmarkTitle.value),
+      () => generation === editGeneration
     )
     if (renamed && generation === editGeneration) cancelRename()
   }
