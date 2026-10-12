@@ -1,3 +1,33 @@
+interface RendererInputCleanupTarget {
+  isDestroyed(): boolean
+  once(event: 'destroyed', listener: () => void): unknown
+  removeListener(event: 'destroyed', listener: () => void): unknown
+  executeJavaScript(script: string, userGesture: boolean): Promise<unknown>
+}
+
+/** A destroyed document no longer owns a renderer input flag. Electron may
+ * leave its executeJavaScript promise pending when destruction races delivery.
+ * This applies only to best-effort flag removal, never native input commands. */
+export async function clearRendererAgentInputFlag(
+  page: RendererInputCleanupTarget
+): Promise<void> {
+  if (page.isDestroyed()) return
+  let onDestroyed!: () => void
+  const destroyed = new Promise<void>(resolve => { onDestroyed = resolve })
+  page.once('destroyed', onDestroyed)
+  try {
+    if (page.isDestroyed()) return
+    await Promise.race([
+      page.executeJavaScript('delete window.__hronautAgentInputActive', true).then(() => undefined, () => undefined),
+      destroyed
+    ])
+  } catch {
+    // Flag removal was already best-effort, including synchronous destruction.
+  } finally {
+    page.removeListener('destroyed', onDestroyed)
+  }
+}
+
 /** Raw input was acknowledged, but restoring the native input barrier failed. */
 export class NativeInputCleanupError extends Error {
   constructor(cause: unknown) {

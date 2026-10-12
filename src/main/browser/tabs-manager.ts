@@ -1,6 +1,6 @@
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
-import { matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
+import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
 import type { BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
@@ -10046,10 +10046,10 @@ export class BrowserTabsManager {
         this.agentInputFocusSnapshots.delete(webContents.id)
         try {
           if (!webContents.isDestroyed()) {
-            await webContents.executeJavaScript('delete window.__hronautAgentInputActive', true).catch(() => undefined)
+            await clearRendererAgentInputFlag(webContents)
             const tabId = this.webContentsToTab.get(webContents.id)
             const tab = tabId ? this.tabs.get(tabId) : undefined
-            if (tab && this.isHumanInteractionLocked(tab)) {
+            if (!webContents.isDestroyed() && tab && this.isHumanInteractionLocked(tab)) {
               try {
                 await this.syncHumanInteractionInputGuard(tab)
               } catch (error) {

@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Finish best-effort renderer input-flag cleanup when its original page is destroyed, so closing during cleanup cannot leave native input waiting on a vanished document. Preserve release acknowledgements, uncertain outcomes, and focus restoration without retrying input.
 - Keep successful Network condition additions and removals committed when a later browser-state refresh fails. Clear only the submitted add draft, preserve newer edits, and report the refresh failure separately so a saved condition is not mistaken for a failed change.
 
 ## [2.37.0] - 2026-10-12
