@@ -270,6 +270,9 @@ function normalizeProfileInput(input: McpCapabilityProfileInput, now: Date): Mcp
     }
     if (!Object.keys(argumentValueDigests).length) argumentValueDigests = undefined
   }
+  if (allowedToolSet.has('browser_evaluate_file') && !argumentValueDigests?.['browser_evaluate_file.source']?.length) {
+    throw new TypeError('File evaluation requires an exact source tuple constraint')
+  }
   let expiresAt: string | undefined
   if (input.expiresAt !== undefined) {
     const expiry = new Date(input.expiresAt)
@@ -664,6 +667,10 @@ export class McpCapabilityProfileStore {
     }
     pass('origin', originApplicable ? 'passed' : 'not-applicable')
 
+    if (request.toolName === 'browser_evaluate_file') {
+      const missingTuple = lineage.findIndex(candidate => !candidate.argumentValueDigests?.['browser_evaluate_file.source']?.length)
+      if (missingTuple >= 0) return deny('argument', 'ARGUMENT_REQUIRED', missingTuple)
+    }
     let argumentApplicable = false
     for (const [index, candidate] of lineage.entries()) {
       for (const [path, allowedDigests] of Object.entries(candidate.argumentValueDigests ?? {})) {

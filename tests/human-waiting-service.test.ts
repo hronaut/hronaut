@@ -344,3 +344,65 @@ describe('durable waiting owner', () => {
       .rejects.toThrow(/unavailable/i)
   })
 })
+
+describe('synchronous human dispatch certificates', () => {
+  it('rejects a newly queued decision before its persistence completes', async () => {
+    let release!: () => void
+    let blocked = false
+    const service = new HumanWaitingService({ load: async () => null, save: async () => {
+      if (blocked) await new Promise<void>(resolve => { release = resolve })
+    } })
+    const certificate = await service.certifyDispatch(input.workspaceId, authorize)
+    expect(certificate).not.toThrow()
+    blocked = true
+    const pending = service.create(input, authorize)
+    expect(certificate).toThrow(/certificate changed/)
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'))
+    release(); await pending
+    expect(certificate).toThrow(/certificate changed/)
+  })
+  it('invalidates on intervening reads and rejected operations, even with unchanged records', async () => {
+    const service = new HumanWaitingService({ load: async () => null, save: async () => undefined })
+    const certificate = await service.certifyDispatch(input.workspaceId, authorize)
+    await service.list(input.workspaceId, authorize)
+    expect(certificate).toThrow(/certificate changed/)
+    const fresh = await service.certifyDispatch(input.workspaceId, authorize)
+    await expect(service.create(input, () => { throw new Error('denied') })).rejects.toThrow('denied')
+    expect(fresh).toThrow(/certificate changed/)
+  })
+  it('never certifies a state whose persistence failed', async () => {
+    const service = new HumanWaitingService({ load: async () => null, save: async () => { throw new Error('disk') } })
+    const certificate = await service.certifyDispatch(input.workspaceId, authorize)
+    await expect(service.create(input, authorize)).rejects.toThrow(/saved/)
+    expect(certificate).toThrow(/certificate changed/)
+    await expect(service.certifyDispatch(input.workspaceId, authorize)).rejects.toThrow(/unavailable/)
+  })
+})
+
+it('certifies only the owned review attempt and rejects observed expiry', async () => {
+  let now = 0
+  const service = new HumanWaitingService({ load: async () => null, save: async () => undefined }, new HumanWaitingStore({ monotonicNow: () => now }))
+  const proposed = await service.create({ ...input, timeoutMs: 1000, decision: 'approve-action', review }, authorize)
+  const approved = await service.change(input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined)
+  const binding = { id: approved.id, revision: approved.revision, toolName: review.toolName, artifactHash: review.artifactHash, sessionBinding: review.sessionBinding }
+  const before = await service.certifyDispatch(input.workspaceId, authorize, binding)
+  const attempted = await service.beginReviewedDispatch(input.workspaceId, () => binding, authorize, async () => undefined)
+  expect(before).toThrow(/certificate changed/)
+  await expect(service.certifyDispatch(input.workspaceId, authorize, undefined, review.sessionBinding, 'other-attempt')).rejects.toThrow(/unresolved/)
+  const certificate = await service.certifyDispatch(input.workspaceId, authorize, undefined, review.sessionBinding, attempted.id)
+  expect(certificate).not.toThrow()
+  now = 1000
+  expect(certificate).toThrow(/certificate changed/)
+})
+
+it('does not bless requests queued before a certificate is delivered', async () => {
+  let release!: () => void
+  const loaded = new Promise<null>(resolve => { release = () => resolve(null) })
+  const service = new HumanWaitingService({ load: () => loaded, save: async () => undefined })
+  const pending = service.certifyDispatch(input.workspaceId, authorize)
+  const later = service.list(input.workspaceId, authorize)
+  release()
+  const certificate = await pending
+  await later
+  expect(certificate).toThrow(/certificate changed/)
+})

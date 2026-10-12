@@ -1,3 +1,5 @@
+import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
+import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { normalizeTabLabel } from '../../shared/tab-label.js'
 import { StorageComparisonInputError, type StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
@@ -858,6 +860,9 @@ export interface TabsManagerOptions {
   configureSession?: (browserSession: Session) => void
 }
 
+// Process-wide admission survives client and manager reconnects.
+let activeFileEvaluations = 0
+
 export class BrowserTabsManager {
   private nativeInputLockMutations = 0
   private readonly activeNativeKeyHolds = new WeakSet<BrowserTab['webContents']>()
@@ -1287,7 +1292,7 @@ export class BrowserTabsManager {
   })
   private readonly networkRouteRefreshTimers = new Map<number, NodeJS.Timeout>()
   private readonly dialogMonitorAttachPromises = new Map<number, Promise<void>>()
-  private readonly defaultExecutionContexts = new Map<number, Map<string, number>>()
+  private readonly defaultExecutionContexts = new Map<number, Map<string, { id: number; uniqueId?: string }>>()
   private readonly devToolsOpening = new Set<number>()
   private readonly rendererRecovery = new RendererRecovery()
   private readonly renderQueues = new Map<number, Promise<void>>()
@@ -7170,6 +7175,70 @@ export class BrowserTabsManager {
     } finally { authority.dispose() }
   }
 
+  async evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
+    const progress: FileEvaluationProgress = { submitted: false, acknowledged: false }
+    if (activeFileEvaluations >= 2) return fileEvaluationFailure(progress, 'BUSY')
+    activeFileEvaluations++
+    const controller = new AbortController()
+    const signal = hooks.signal ? AbortSignal.any([hooks.signal, controller.signal]) : controller.signal
+    const timer = setTimeout(() => controller.abort(), 30_000)
+    let tab: BrowserTab
+    try { tab = this.getTab(source.tabId) } catch { clearTimeout(timer); activeFileEvaluations--; return fileEvaluationFailure(progress) }
+    const contents = tab.webContents
+    const generation = tab.navigationGeneration
+    const mainFrame = contents.mainFrame
+    const frameId = tab.mainFrameId
+    const validate = (): void => {
+      hooks.validate()
+      if (signal.aborted || this.destroyed || contents.isDestroyed()
+        || this.tabs.get(source.tabId) !== tab || tab.navigationGeneration !== generation
+        || contents.mainFrame !== mainFrame || tab.mainFrameId !== frameId
+        || !this.tabBelongsToMcpGroup(source.workspaceId, source.tabId)
+        || new URL(contents.getURL()).origin !== source.expectedOrigin) throw new Error('File evaluation target unavailable')
+    }
+    const work = async (): Promise<Record<string, unknown>> => {
+      validate()
+      const script = await fileSourceAcquisitionPool.acquire(source.path, source.sha256, signal, 1000, validate)
+      validate()
+      return this.withBackgroundAgentFocusGuard(() => this.withDebugger(contents, async () => {
+        validate()
+        const tree = await contents.debugger.sendCommand('Page.getFrameTree') as { frameTree?: { frame?: { id?: string } } }
+        validate()
+        const currentFrame = tree.frameTree?.frame?.id
+        const context = currentFrame ? this.defaultExecutionContexts.get(contents.id)?.get(currentFrame) : undefined
+        if (!frameId || currentFrame !== frameId || !context?.uniqueId) throw new Error('Unique context unavailable')
+        validate()
+        // No await between the complete main-owned authority check and submission.
+        progress.submitted = true
+        hooks.submitted()
+        const response = await contents.debugger.sendCommand('Runtime.evaluate', {
+          expression: script, uniqueContextId: context.uniqueId, awaitPromise: true,
+          returnByValue: true, userGesture: true, silent: true, timeout: 10_000
+        }) as { result?: { value?: unknown; unserializableValue?: string; objectId?: string }; exceptionDetails?: { exception?: { objectId?: string } } }
+        progress.acknowledged = true
+        try {
+          validate()
+          if (response.exceptionDetails) return fileEvaluationFailure(progress, 'SCRIPT_FAILED')
+          return { status: 'RETURNED', submitted: true, acknowledged: true, retrySafe: false,
+            value: response.result && Object.hasOwn(response.result, 'value') ? response.result.value : response.result?.unserializableValue }
+        } finally { await this.releaseDebuggerEvaluationObjects(contents, response) }
+      }, validate))
+    }
+    let abort!: () => void
+    const cancelled = new Promise<Record<string, unknown>>(resolve => {
+      abort = () => resolve(fileEvaluationFailure(progress, 'CANCELLED_OR_DEADLINE'))
+      signal.addEventListener('abort', abort, { once: true })
+      if (signal.aborted) abort()
+    })
+    const running = work().catch(error => fileEvaluationFailure(progress,
+      error instanceof AcquisitionFailure ? error.code : 'UNAVAILABLE')).finally(() => { activeFileEvaluations-- })
+    // The debugger queue retains running native work after caller cancellation.
+    try { return await Promise.race([running, cancelled]) } finally {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', abort)
+    }
+  }
+
   async evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
     const webContents = this.getTab(tabId).webContents
     if (dialog.promptText !== undefined) throw new Error('Text prompts are supported by browser_click; Electron does not implement prompt() evaluation')
@@ -8881,13 +8950,13 @@ export class BrowserTabsManager {
         }
       } else if (method === 'Runtime.executionContextCreated') {
         const details = params as {
-          context?: { id?: number; auxData?: { frameId?: string; isDefault?: boolean } }
+          context?: { id?: number; uniqueId?: string; auxData?: { frameId?: string; isDefault?: boolean } }
         }
         const context = details.context
         const frameId = context?.auxData?.frameId
         if (context?.auxData?.isDefault && frameId && context.id !== undefined) {
-          const contexts = this.defaultExecutionContexts.get(webContents.id) ?? new Map<string, number>()
-          contexts.set(frameId, context.id)
+          const contexts = this.defaultExecutionContexts.get(webContents.id) ?? new Map<string, { id: number; uniqueId?: string }>()
+          contexts.set(frameId, { id: context.id, uniqueId: context.uniqueId })
           this.defaultExecutionContexts.set(webContents.id, contexts)
         }
       } else if (method === 'Runtime.executionContextDestroyed') {
@@ -8895,7 +8964,7 @@ export class BrowserTabsManager {
         if (contextId !== undefined) {
           const contexts = this.defaultExecutionContexts.get(webContents.id)
           for (const [frameId, id] of contexts ?? []) {
-            if (id === contextId) contexts?.delete(frameId)
+            if (id.id === contextId) contexts?.delete(frameId)
           }
         }
       } else if (method === 'Runtime.executionContextsCleared') {
@@ -11022,7 +11091,7 @@ export class BrowserTabsManager {
       frameTree?: { frame?: { id?: string } }
     }
     const frameId = frameTree.frameTree?.frame?.id
-    const contextId = frameId ? this.defaultExecutionContexts.get(webContents.id)?.get(frameId) : undefined
+    const contextId = frameId ? this.defaultExecutionContexts.get(webContents.id)?.get(frameId)?.id : undefined
     if (contextId === undefined) throw new Error('Could not locate the website JavaScript context for prompt handling')
     return contextId
   }

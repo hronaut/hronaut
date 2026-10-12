@@ -42,6 +42,8 @@ export class HumanWaitingService {
   private initialization: Promise<void> | undefined
   private unavailable = false
   private persistedRecords = '[]'
+  private requestEpoch = 0
+  private pendingRequests = 0
 
   constructor(
     private readonly persistence: Pick<HumanWaitingPersistence, 'load' | 'save'>,
@@ -65,11 +67,13 @@ export class HumanWaitingService {
   }
 
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
+    this.requestEpoch++
+    this.pendingRequests++
     const pending = this.queue.then(async () => {
       await this.initialize()
       if (this.unavailable) throw new Error('Human waiting history is unavailable')
       return operation()
-    })
+    }).finally(() => { this.pendingRequests-- })
     this.queue = pending.catch(() => undefined)
     return pending
   }
@@ -155,13 +159,35 @@ export class HumanWaitingService {
     return record
   }
 
-  requireDispatch(
+  async requireDispatch(
     workspaceId: string,
     authorize: Authorization,
     review?: HumanWaitingReviewBinding,
     activeSessionBinding?: string,
     settlingReviewAttemptId?: string
   ): Promise<void> {
+    await this.dispatchCheck(workspaceId, authorize, review, activeSessionBinding, settlingReviewAttemptId)
+  }
+
+  certifyDispatch(
+    workspaceId: string,
+    authorize: Authorization,
+    review?: HumanWaitingReviewBinding,
+    activeSessionBinding?: string,
+    settlingReviewAttemptId?: string
+  ): Promise<() => void> {
+    return this.dispatchCheck(workspaceId, authorize, review, activeSessionBinding, settlingReviewAttemptId, true)
+  }
+
+  private dispatchCheck(
+    workspaceId: string,
+    authorize: Authorization,
+    review?: HumanWaitingReviewBinding,
+    activeSessionBinding?: string,
+    settlingReviewAttemptId?: string,
+    certify = false
+  ): Promise<() => void> {
+    const epoch = this.requestEpoch + 1
     return this.serialize(async () => {
       authorize()
       // Dispatch checks also observe expiry. Persist that transition before
@@ -213,6 +239,18 @@ export class HumanWaitingService {
       authorize()
       // Terminal waiting status grants no permission. The caller still checks
       // continuity, current ownership, pause state, and action authorization.
+      if (!certify) return () => undefined
+      const certifiedRecords = JSON.stringify(this.store.snapshot().records)
+      if (certifiedRecords !== this.persistedRecords) throw new Error('Human waiting state requires persistence')
+      return () => {
+        if (this.unavailable || this.pendingRequests !== 0 || this.requestEpoch !== epoch
+          || settlingReviewAttemptId !== undefined && !this.store.reviewAttemptDispatchIsCurrent(settlingReviewAttemptId)
+          || certifiedRecords !== this.persistedRecords
+          || JSON.stringify(this.store.snapshot().records) !== certifiedRecords) {
+          throw new Error('Human waiting dispatch certificate changed')
+        }
+        authorize()
+      }
     })
   }
 

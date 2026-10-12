@@ -509,4 +509,23 @@ describe('MCP capability profile store', () => {
     current = new Date('2026-09-11T13:01:00.000Z')
     expect(value.authenticate(child.credential)).toBeNull()
   })
+  it('requires a separate whole file-source tuple and forbids Cartesian-product substitutions', async () => {
+    const value = await store()
+    const source = { path: '/tmp/source.js', sha256: 'a'.repeat(64), workspaceId, tabId: 'tab-1', expectedOrigin: 'https://allowed.example' }
+    const other = { ...source, path: '/tmp/other.js', sha256: 'b'.repeat(64), tabId: 'tab-2' }
+    const input: McpCapabilityProfileInput = { name: 'Exact file tuples', allowedTools: ['browser_evaluate_file'], operationClasses: ['interact'] }
+    await expect(value.create(input)).rejects.toThrow(/exact source tuple/)
+    await expect(value.create({ ...input, argumentValueDigests: { 'browser_evaluate_file.source.path': [mcpCapabilityArgumentValueDigest(source.path)] } })).rejects.toThrow(/exact source tuple/)
+    const parent = await value.create({ ...input, argumentValueDigests: { 'browser_evaluate_file.source': [source, other].map(mcpCapabilityArgumentValueDigest) } })
+    const grant = value.authenticate(parent.credential)!
+    const request: McpCapabilityRequest = { toolName: 'browser_evaluate_file', operationClass: 'interact', workspaceId, origins: [source.expectedOrigin], arguments: { source } }
+    expect(() => value.authorize(grant, request)).not.toThrow()
+    for (const tuple of [{ ...source, path: other.path }, { ...source, sha256: other.sha256 }, { ...source, tabId: other.tabId }, { ...source, extra: true }]) {
+      expect(() => value.authorize(grant, { ...request, arguments: { source: tuple } })).toThrow(McpCapabilityAuthorizationError)
+    }
+    const child = await value.derive(grant, { ...input, name: 'One tuple', argumentValueDigests: { 'browser_evaluate_file.source': [mcpCapabilityArgumentValueDigest(source)] } })
+    expect(() => value.authorize(value.authenticate(child.credential)!, request)).not.toThrow()
+    await expect(value.derive(grant, { ...input, argumentValueDigests: { 'browser_evaluate_file.source': [mcpCapabilityArgumentValueDigest({ ...source, path: other.path })] } })).rejects.toThrow()
+  })
+
 })
