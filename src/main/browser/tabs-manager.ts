@@ -2778,46 +2778,50 @@ export class BrowserTabsManager {
       tab.storageComparison = undefined
     }
 
-    const requireCurrentOperation = (operationGeneration: number): void => {
-      const current = this.tabs.get(tab.id)
-      let currentOrigin: string | undefined
-      try {
-        currentOrigin = current ? new URL(current.url).origin : undefined
-      } catch {
-        // A non-web navigation invalidates the pending storage snapshot.
-      }
-      if (current !== tab
-        || current.webContents.isDestroyed()
-        || currentOrigin !== origin
-        || current.storageComparisonGeneration !== operationGeneration) {
-        throw new Error('Storage comparison changed while the page snapshot was pending. Run the requested action again.')
-      }
-    }
-
     if (action === 'clear') {
       tab.storageComparisonGeneration += 1
       tab.storageComparison = undefined
       return this.storageChangesReport(tab, origin, action, includeValues)
     }
-    if (action === 'baseline') {
-      const operationGeneration = ++tab.storageComparisonGeneration
-      const baseline = await this.captureStorageSnapshot(tab, origin)
-      requireCurrentOperation(operationGeneration)
-      tab.storageComparison = { baseline }
-      return this.storageChangesReport(tab, origin, action, includeValues)
-    }
-    if (action === 'compare') {
-      const comparison = tab.storageComparison
-      if (!comparison) throw new Error('Set a storage baseline before comparing changes.')
-      const operationGeneration = ++tab.storageComparisonGeneration
-      const current = await this.captureStorageSnapshot(tab, origin)
-      requireCurrentOperation(operationGeneration)
-      if (tab.storageComparison !== comparison) {
+    if (action === 'get') return this.storageChangesReport(tab, origin, action, includeValues)
+
+    const comparison = tab.storageComparison
+    if (action === 'compare' && !comparison) throw new Error('Set a storage baseline before comparing changes.')
+    const contents = tab.webContents
+    const storageSession = contents.session
+    const url = tab.url
+    const navigationGeneration = tab.navigationGeneration
+    const operationGeneration = ++tab.storageComparisonGeneration
+    let documentCommitted = false
+    const onDocumentCommit = (): void => { documentCommitted = true }
+    const requireCurrentOperation = (): void => {
+      const current = this.tabs.get(tab.id)
+      if (this.destroyed
+        || current !== tab
+        || current.webContents !== contents
+        || contents.isDestroyed()
+        || contents.session !== storageSession
+        || current.url !== url
+        || current.navigationGeneration !== navigationGeneration
+        || documentCommitted
+        || current.storageComparisonGeneration !== operationGeneration
+        || current.storageComparison !== comparison) {
         throw new Error('Storage comparison changed while the page snapshot was pending. Run the requested action again.')
       }
-      comparison.current = current
     }
-    return this.storageChangesReport(tab, origin, action, includeValues)
+
+    // A navigation already pending at entry can commit without another start event.
+    // Keep this listener through snapshot installation, including the await continuation.
+    contents.on('did-navigate', onDocumentCommit)
+    try {
+      const snapshot = await this.captureStorageSnapshot(contents, storageSession, url, origin, requireCurrentOperation)
+      requireCurrentOperation()
+      if (action === 'baseline') tab.storageComparison = { baseline: snapshot }
+      else if (comparison) comparison.current = snapshot
+      return this.storageChangesReport(tab, origin, action, includeValues)
+    } finally {
+      contents.removeListener('did-navigate', onDocumentCommit)
+    }
   }
 
   private storageChangesReport(
@@ -2886,8 +2890,15 @@ export class BrowserTabsManager {
     }
   }
 
-  private async captureStorageSnapshot(tab: BrowserTab, origin: string): Promise<BrowserStorageSnapshot> {
-    const domStorage = await tab.webContents.executeJavaScript(`(() => {
+  private async captureStorageSnapshot(
+    contents: WebContents,
+    storageSession: Session,
+    url: string,
+    origin: string,
+    requireCurrentOperation: () => void
+  ): Promise<BrowserStorageSnapshot> {
+    requireCurrentOperation()
+    const domStorage = await contents.executeJavaScript(`(() => {
       const limit = ${MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND};
       const previewLimit = ${MAX_STORAGE_CHANGE_VALUE_BYTES};
       const fingerprint = (value) => {
@@ -2922,7 +2933,9 @@ export class BrowserTabsManager {
       local: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
       session: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
     }
-    const cookies = await tab.webContents.session.cookies.get({ url: tab.url })
+    requireCurrentOperation()
+    const cookies = await storageSession.cookies.get({ url })
+    requireCurrentOperation()
     const cookieEntries = cookies.map((cookie) => {
       const partitionKey = 'partitionKey' in cookie && cookie.partitionKey
         ? JSON.stringify(cookie.partitionKey)
