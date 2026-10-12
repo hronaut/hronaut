@@ -134,3 +134,22 @@ it('preserves the destination and removes staged bytes when authorization is rev
   expect(await readFile(path, 'utf8')).toBe('prior reviewed package')
   expect(await readdir(directory)).toEqual(['reviewed.html'])
 })
+
+
+it.skipIf(process.platform === 'win32')('reports replacement before a directory-flush failure without pretending the old file survived', async () => {
+  directory = await mkdtemp(join(tmpdir(), 'hronaut-atomic-commit-'))
+  const path = join(directory, 'state.json')
+  await writeFile(path, 'old label')
+  const probe = await open(path, 'r')
+  const prototype = Object.getPrototypeOf(probe) as FileHandle
+  await probe.close()
+  const originalSync = prototype.sync
+  vi.spyOn(prototype, 'sync').mockImplementation(async function (this: FileHandle) {
+    if ((await this.stat()).isDirectory()) throw new Error('synthetic directory failure')
+    return originalSync.call(this)
+  })
+  const committed = vi.fn()
+  await expect(writeTextFileAtomically(path, 'new label', 0o600, undefined, committed)).rejects.toThrow('synthetic directory failure')
+  expect(committed).toHaveBeenCalledOnce()
+  expect(await readFile(path, 'utf8')).toBe('new label')
+})

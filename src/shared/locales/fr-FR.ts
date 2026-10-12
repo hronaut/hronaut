@@ -2545,6 +2545,7 @@ export const frFR = {
       "navigation": "L’URL de la page a changé après la référence ; il s’agit d’une comparaison entre deux navigations."
     }
   },
+  tabLabel: {"edit": "Modifier le libellé", "editAria": "Modifier le libellé de {title}", "name": "Libellé de l’onglet", "help": "100 caractères maximum. Laisser vide pour le titre de la page. Les libellés ne vérifient ni compte ni site.", "save": "Enregistrer", "clear": "Effacer le libellé", "cancel": "Annuler", "invalid": "Utilisez au plus 100 caractères sans caractères de contrôle.", "failed": "Libellé non enregistré. Le précédent est conservé. Réessayez.", "uncertain": "Libellé modifié, mais sa sauvegarde durable reste incertaine. Réessayez avant de redémarrer."},
   "tabSearch": { resultType: "Type de résultat", allResults: "Tous les résultats",
     "fullPagePreview": "Aperçu de la page entière",
     "previewAria": "Aperçu de {title}",

@@ -2545,6 +2545,7 @@ export const deDE = {
       "navigation": "Die Seiten-URL hat sich nach dem Ausgangswert geändert; dies ist ein Vergleich über eine Navigation hinweg."
     }
   },
+  tabLabel: {"edit": "Label bearbeiten", "editAria": "Label für {title} bearbeiten", "name": "Tab-Label", "help": "Bis zu 100 Zeichen. Leer lassen für den Seitentitel. Labels bestätigen kein Konto und keine Website.", "save": "Speichern", "clear": "Label entfernen", "cancel": "Abbrechen", "invalid": "Höchstens 100 Zeichen ohne Steuerzeichen verwenden.", "failed": "Label nicht gespeichert. Das bisherige Label bleibt erhalten. Erneut versuchen.", "uncertain": "Label geändert, aber dauerhafte Speicherung nicht bestätigt. Vor einem Neustart erneut speichern."},
   "tabSearch": { resultType: "Ergebnistyp", allResults: "Alle Ergebnisse",
     "fullPagePreview": "Ganze Seite ansehen",
     "previewAria": "Vorschau von {title}",

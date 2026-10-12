@@ -103,6 +103,7 @@ const api: HronautApi = {
   openSplitView: (tabId: string) => ipcRenderer.invoke('browser:open-split-view', tabId),
   updateSplitView: (updates) => ipcRenderer.invoke('browser:update-split-view', updates),
   closeSplitView: () => ipcRenderer.invoke('browser:close-split-view'),
+  setTabLabel: (tabId: string, label: string) => ipcRenderer.invoke('browser:set-tab-label', tabId, label),
   setTabPinned: (tabId: string, pinned: boolean) => ipcRenderer.invoke('browser:set-tab-pinned', tabId, pinned),
   setTabSleeping: (tabId: string, sleeping: boolean) => ipcRenderer.invoke('browser:set-tab-sleeping', tabId, sleeping),
   setTabAgentPaused: (tabId: string, paused: boolean) => ipcRenderer.invoke('browser:set-tab-agent-paused', tabId, paused),

@@ -28,7 +28,8 @@ export async function writeTextFileAtomically(
   path: string,
   contents: string,
   mode = 0o600,
-  beforeCommit?: () => void
+  beforeCommit?: () => void,
+  onCommitted?: () => void
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   const temporaryPath = `${path}.${randomUUID()}.tmp`
@@ -41,6 +42,8 @@ export async function writeTextFileAtomically(
     })
     beforeCommit?.()
     await rename(temporaryPath, path)
+    // Replacement has happened even if the following directory flush fails.
+    onCommitted?.()
     await flushDirectory(dirname(path))
   } finally {
     await rm(temporaryPath, { force: true }).catch(() => undefined)

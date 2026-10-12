@@ -1,3 +1,4 @@
+import { normalizeTabLabel } from '../../shared/tab-label.js'
 import { StorageComparisonInputError, type StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
 import { storageInspectionGuard, type StorageInspectionHooks } from './storage-inspection-operation.js'
@@ -582,6 +583,9 @@ interface BrowserConsoleMessageRecord extends ConsoleCapture {
 }
 
 interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState {
+  label?: string
+  labelDurabilityUnconfirmed?: boolean
+  labelCommit?: symbol
   id: string
   title: string
   /** Current-document title confirmed by an explicit native title event; never a restored/URL fallback. */
@@ -1008,7 +1012,7 @@ export class BrowserTabsManager {
     if (markerSelector === undefined) this.continuityMarkers.delete(workspaceId)
     else this.continuityMarkers.set(workspaceId, markerSelector)
     try {
-      await this.store.save(this.persistedState())
+      await this.store.save(() => this.persistedState())
     } catch {
       this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
       throw new Error('Could not save the continuity checkpoint; inspect before retrying')
@@ -1023,7 +1027,7 @@ export class BrowserTabsManager {
     if (this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)) this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
     else this.workspaceContinuity.restoreStale(workspaceId)
     try {
-      await this.store.save(this.persistedState())
+      await this.store.save(() => this.persistedState())
       return true
     } catch {
       // Keep the in-memory guard and revoke direct agent access when its durable
@@ -1364,7 +1368,7 @@ export class BrowserTabsManager {
         origins: [...(group.origins ?? [])],
         navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
         navigationAudit: [...(group.navigationAudit ?? [])],
-        tabs: group.tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned === true }))
+        tabs: group.tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned === true, ...(tab.label ? { label: tab.label } : {}) }))
       })
     }
     if (persistedTabs.length) {
@@ -1377,6 +1381,7 @@ export class BrowserTabsManager {
         }
         await this.createTab({
           id: tab.id,
+          label: tab.label,
           title: isHronautHomeUrl(tab.url) ? undefined : tab.title,
           url: isHronautHomeUrl(tab.url) ? HRONAUT_HOME_URL : tab.url,
           pinned: tab.pinned === true && !isHronautHomeUrl(tab.url),
@@ -1415,7 +1420,7 @@ export class BrowserTabsManager {
     this.layout()
     this.restoringLayout = false
     this.initialized = true
-    await this.store.save(this.persistedState())
+    await this.store.save(() => this.persistedState())
     if (this.activeTabId) {
       const activeTab = this.tabs.get(this.activeTabId)
       if (activeTab) this.focusTabOrTrustedChrome(activeTab)
@@ -2212,7 +2217,11 @@ export class BrowserTabsManager {
     ))
   }
 
-  private async closeMcpTabGroupInternal(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
+  private closeMcpTabGroupInternal(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
+    return this.withTabLabelLifecycle(() => this.closeMcpTabGroupAfterLabelSave(groupId, preserveStorage))
+  }
+
+  private async closeMcpTabGroupAfterLabelSave(groupId: string, preserveStorage: boolean): Promise<BrowserTabGroupState[]> {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
     if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
@@ -2223,6 +2232,7 @@ export class BrowserTabsManager {
     const tabSnapshots = tabs.map((tab) => ({
       id: tab.id,
       title: tab.title,
+      label: tab.label,
       url: tab.url,
       pinned: tab.pinned,
       humanInteractionLocked: tab.humanInteractionLocked,
@@ -2307,11 +2317,11 @@ export class BrowserTabsManager {
   }
 
   async saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return this.workspaceRegistry.archive(groupId)
+    return this.withTabLabelLifecycle(() => this.workspaceRegistry.archive(groupId))
   }
 
   async restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
-    return this.workspaceRegistry.restore(savedGroupId)
+    return this.withTabLabelLifecycle(() => this.workspaceRegistry.restore(savedGroupId))
   }
 
   updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
@@ -3194,7 +3204,11 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
+  reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
+    return this.withTabLabelLifecycle(() => this.reopenClosedTabAfterLabelSave(closedTabId))
+  }
+
+  private async reopenClosedTabAfterLabelSave(closedTabId?: string): Promise<BrowserState> {
     const index = closedTabId === undefined
       ? this.closedTabs.length - 1
       : this.closedTabs.findIndex((tab) => tab.id === closedTabId)
@@ -3203,7 +3217,7 @@ export class BrowserTabsManager {
     const [closed] = this.closedTabs.splice(index, 1)
     if (!closed) return this.getState()
     try {
-      await this.createTab({ url: closed.url, pinned: closed.pinned, active: true, mcpGroupId: closed.mcpGroupId })
+      await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active: true, mcpGroupId: closed.mcpGroupId })
     } catch (error) {
       this.closedTabs.splice(index, 0, closed)
       throw error
@@ -3211,13 +3225,18 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async duplicateTab(tabId: string): Promise<BrowserState> {
+  duplicateTab(tabId: string): Promise<BrowserState> {
+    return this.withTabLabelLifecycle(() => this.duplicateTabAfterLabelSave(tabId))
+  }
+
+  private async duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
     const source = this.getTab(tabId)
     if (isHronautHomeUrl(source.url)) throw new Error('Hronaut Home cannot be duplicated')
     const navigationHistory = this.navigationHistorySnapshot(source)
     const duplicate = await this.createTab({
       url: source.url,
       title: source.title,
+      label: source.label,
       pinned: source.pinned,
       suppressInitialHistory: true,
       active: true,
@@ -3226,6 +3245,66 @@ export class BrowserTabsManager {
     })
     this.reorderTab(duplicate.id, source.id, 'after')
     return this.getState()
+  }
+
+  private readonly pendingTabLabels = new Set<Promise<unknown>>()
+  private tabLabelLifecycleHolds = 0
+  private tabLabelAdmissionClosed = false
+
+  stopTabLabelEdits(): void { this.tabLabelAdmissionClosed = true }
+
+  private async withTabLabelLifecycle<T>(run: () => Promise<T>): Promise<T> {
+    // Acquire before yielding, so no new edit can race a label-bearing copy.
+    this.tabLabelLifecycleHolds += 1
+    try {
+      if (this.pendingTabLabels.size) await Promise.allSettled([...this.pendingTabLabels])
+      return await run()
+    } finally {
+      this.tabLabelLifecycleHolds -= 1
+    }
+  }
+
+  async setTabLabel(tabId: string, value: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
+    const label = normalizeTabLabel(value)
+    if (!this.initialized || this.destroyed || this.tabLabelAdmissionClosed || this.tabLabelLifecycleHolds) throw new Error('Wait for the tab operation to finish before editing its label.')
+    if (this.pendingTabLabels.size >= 8) throw new Error('Wait for pending label edits to finish.')
+    const tab = this.getTab(tabId)
+    if (isHronautHomeUrl(tab.url)) throw new Error('Hronaut Home cannot be labeled.')
+    const validate = (): void => {
+      if (this.destroyed || this.tabs.get(tabId) !== tab) throw new Error('The tab is no longer available.')
+    }
+    let committed = false
+    const commit = Symbol()
+    const operation = this.store.save(() => {
+      validate()
+      const state = this.persistedState()
+      const target = state.tabs.find(candidate => candidate.id === tabId)!
+      if (label) target.label = label
+      else delete target.label
+      return state
+    }, {
+      beforeCommit: validate,
+      onCommitted: () => {
+        committed = true
+        tab.label = label
+        tab.labelCommit = commit
+        this.changed(false)
+      }
+    })
+    this.pendingTabLabels.add(operation)
+    try {
+      await operation
+      if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = false; this.changed(false) }
+      return { state: this.getState(), status: 'saved' }
+    } catch (error) {
+      if (!committed) throw error
+      // Rename committed; a failed directory flush cannot truthfully roll back
+      // the visible file. Keep that label, but never acknowledge durability.
+      if (tab.labelCommit === commit) { tab.labelDurabilityUnconfirmed = true; this.changed(false) }
+      return { state: this.getState(), status: 'durability-unconfirmed' }
+    } finally {
+      this.pendingTabLabels.delete(operation)
+    }
   }
 
   async setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState> {
@@ -4327,6 +4406,10 @@ export class BrowserTabsManager {
     ensureReplacement: boolean,
     respectBeforeUnload = false
   ): Promise<BrowserState> {
+    return this.withTabLabelLifecycle(() => this.closeTabAfterLabelSave(tabId, ensureReplacement, respectBeforeUnload))
+  }
+
+  private closeTabAfterLabelSave(tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean): Promise<BrowserState> {
     if (!respectBeforeUnload) {
       return this.performCloseTab(tabId, ensureReplacement, false, true)
     }
@@ -4519,6 +4602,7 @@ export class BrowserTabsManager {
     this.closedTabs.push({
       id: uuidV7(),
       title: tab.title || tab.url,
+      ...(tab.label ? { label: tab.label } : {}),
       url: tab.url,
       pinned: tab.pinned,
       closedAt: new Date().toISOString(),
@@ -8149,7 +8233,7 @@ export class BrowserTabsManager {
     // registered early. A quit request during that window must not replace a
     // valid on-disk session with this still-empty in-memory model.
     if (!this.initialized) return
-    await this.store.save(this.persistedState())
+    await this.store.save(() => this.persistedState())
   }
 
   async drainWorkspaceOperations(): Promise<void> {
@@ -8261,6 +8345,7 @@ export class BrowserTabsManager {
   private async createTab(options: {
     id?: string
     title?: string
+    label?: string
     url: string
     pinned?: boolean
     muted?: boolean
@@ -8312,6 +8397,7 @@ export class BrowserTabsManager {
       throw error
     }
     const tab: BrowserTab = {
+      label: isHronautHomeUrl(url) ? undefined : options.label,
       id,
       discoveryTitle: new TabDiscoveryTitle(),
       title: normalizeTabTitle(
@@ -9578,6 +9664,8 @@ export class BrowserTabsManager {
     return {
       id: tab.id,
       title: tab.title,
+      ...(tab.labelDurabilityUnconfirmed ? { labelDurabilityUnconfirmed: true } : {}),
+      ...(tab.label ? { label: tab.label } : {}),
       url: tab.url,
       loading: tab.loading,
       navigationGeneration: tab.navigationGeneration,
@@ -11273,7 +11361,7 @@ export class BrowserTabsManager {
     if (this.persistTimer) clearTimeout(this.persistTimer)
     this.persistTimer = setTimeout(() => {
       this.persistTimer = null
-      void this.store.save(this.persistedState()).catch((error) => console.error('[browser] Failed to persist tabs:', error))
+      void this.store.save(() => this.persistedState()).catch((error) => console.error('[browser] Failed to persist tabs:', error))
     }, 250)
   }
 
@@ -11442,6 +11530,7 @@ export class BrowserTabsManager {
   }
 
   private persistedState(): PersistedBrowserState {
+    if (this.destroyed) throw new Error('Browser is closing; session save canceled.')
     return {
       version: TAB_STATE_VERSION,
       continuityWorkspaceIds: this.workspaceContinuity.guardedWorkspaceIds(),
@@ -11472,6 +11561,7 @@ export class BrowserTabsManager {
       tabs: this.orderedTabs().map((tab) => ({
         id: tab.id,
         title: tab.title,
+        ...(tab.label ? { label: tab.label } : {}),
         url: tab.url,
         pinned: tab.pinned,
         muted: tab.tabMuted,

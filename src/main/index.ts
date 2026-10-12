@@ -2355,6 +2355,11 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return tabsManager!.closeSplitView()
   })
+  ipcMain.handle('browser:set-tab-label', (event, tabId: unknown, label: unknown) => {
+    assertMainShellSender(event)
+    if (typeof tabId !== 'string' || typeof label !== 'string') throw new TypeError('Invalid tab label')
+    return tabsManager!.setTabLabel(tabId, label)
+  })
   ipcMain.handle('browser:set-tab-pinned', (event, tabId: unknown, pinned: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof pinned !== 'boolean') throw new TypeError('Invalid pinned tab state')
@@ -3957,6 +3962,7 @@ async function configurePersistentSession(): Promise<void> {
 async function releaseRuntimeResources(): Promise<void> {
   if (runtimeShutdown) return runtimeShutdown
   const manager = tabsManager
+  manager?.stopTabLabelEdits()
   const server = mcpServer
   const wallets = walletService
   const broker = walletBroker
