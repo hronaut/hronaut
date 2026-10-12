@@ -1,3 +1,4 @@
+import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
 import { nativeWheelFields, NativeWheelOutcomeUnknownError, type NativeWheelInput } from '../browser/native-wheel.js'
 import { nativeKeyHoldFields, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
@@ -652,6 +653,24 @@ const nativeInputCleanupResult = (reviewFinalizationFailed = false): CallToolRes
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
 }
 
+const selectionNotSubmittedResult = (result: CallToolResult): CallToolResult => {
+  const outcome = { ...result.structuredContent, status: 'NOT_DISPATCHED', effects: 'none', retrySafe: false,
+    dispatch: 'not-dispatched', postcondition: 'not-established', reconciliationRequired: false,
+    nextAction: 'No selection was submitted. Inspect the rejection and obtain fresh authority before a new request.' }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
+const selectionUnknownResult = (reviewFinalizationFailed = false, policy?: Record<string, unknown>): CallToolResult => {
+  const outcome = {
+    status: 'OUTCOME_UNKNOWN', reason: 'SELECTION_UNCERTAIN', retrySafe: false, effects: 'possible',
+    ...(policy?.permission ? { permission: policy.permission } : {}),
+    ...(policy?.policyDecision ? { policyDecision: policy.policyDecision } : {}),
+    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+    nextAction: 'Semantic selection was submitted; final state or authority could not be confirmed. Inspect fresh state before continuing; do not automatically replay.'
+  }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
 const nativeWheelUnknownResult = (reviewFinalizationFailed = false): CallToolResult => {
   const outcome = {
     status: 'OUTCOME_UNKNOWN', reason: 'WHEEL_COMMAND_UNCERTAIN', retrySafe: false, effects: 'possible',
@@ -1103,9 +1122,12 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
-  const rememberKeyHoldPolicy = (error: unknown): void => {
+  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
+    if (request?.selectionSubmitted && error instanceof McpCapabilityAuthorizationError) {
+      request.selectionPolicy = { permission: 'denied', policyDecision: error.decision }
+    }
     if (request?.keyHoldProgress && error instanceof McpCapabilityAuthorizationError) {
       request.keyHoldPolicy = { permission: 'denied', policyDecision: error.decision }
     }
@@ -1123,6 +1145,11 @@ function createBrowserMcpServer(
       const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
       const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
       const frameRequest = frameRequests.getStore()!
+      const settleSelection = (result: CallToolResult): CallToolResult => {
+        const settled = name === 'browser_select' && input.values !== undefined && !frameRequest.selectionSubmitted ? selectionNotSubmittedResult(result) : result
+        frameRequest.selectionFinishActivity?.(settled)
+        return settled
+      }
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
         if (isFrameObservation || (name !== 'browser_status' && name !== 'browser_snapshot')) return
         client.readinessProbe = { toolName: name, outcome, completedAt: new Date().toISOString() }
@@ -1186,6 +1213,8 @@ function createBrowserMcpServer(
               ? 'The capability changed while this observation was running. Obtain a fresh credential before reading again.'
               : 'The capability changed after dispatch. Inspect current state before deciding what to do next; do not automatically repeat a possible side effect.'
           }
+          if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
+            ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed, outcome)
           if (frameRequest.keyHoldProgress) return nativeKeyHoldNotDispatchedResult({ ...textResult(outcome), structuredContent: outcome, isError: true })
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
@@ -1238,6 +1267,15 @@ function createBrowserMcpServer(
           frameRequest.keyHoldPublication()
           return result // No await after final authority and cancellation check.
         }
+        if (name === 'browser_select' && input.values !== undefined && !frameRequest.selectionSubmitted) return settleSelection(result)
+        if (name === 'browser_select' && input.values !== undefined && frameRequest.selectionSubmitted) {
+          if (!frameRequest.selectionAuthority || !frameRequest.selectionPublication) throw new Error('Selection publication guard is unavailable')
+          frameRequest.selectionAuthority.validate()
+          frameRequest.selectionPublication()
+          if (result.isError && (result.structuredContent?.status !== 'REJECTED' || result.structuredContent.effects !== 'none'
+            || frameRequest.selectionReviewFinalizationFailed)) return settleSelection(selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, frameRequest.selectionPolicy ?? result.structuredContent))
+          return settleSelection(result) // No await after all settlement and final authority checks.
+        }
         if (name === 'browser_wheel' && frameRequest.wheelAttempted) {
           if (result.isError) {
             if (result.structuredContent?.status === 'OUTCOME_UNKNOWN' && result.structuredContent.retrySafe === false
@@ -1272,9 +1310,13 @@ function createBrowserMcpServer(
         if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed,
           error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : frameRequest.keyHoldPolicy ?? errorResult(error).structuredContent)
         if (frameRequest.keyHoldProgress && !frameRequest.keyHoldProgress.downAttempted) return nativeKeyHoldNotDispatchedResult(errorResult(error), frameRequest.keyHoldPolicy)
+        if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
+          ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : frameRequest.selectionPolicy ?? errorResult(error).structuredContent)
+          : errorResult(error))
         if (frameRequest.wheelAttempted) return nativeWheelUnknownResult(frameRequest.wheelReviewFinalizationFailed)
         return errorResult(error)
       } finally {
+        frameRequest.selectionAuthority?.dispose()
         frameRequest.elementInspection?.discard()
         frameRequest.pending?.discard()
         frameRequest.videoInspection?.discard()
@@ -1664,8 +1706,12 @@ function createBrowserMcpServer(
     .update(randomUUID())
     .digest('hex')
   const publicOutcomeFingerprintKey = randomBytes(32)
-  const reviewedActionArguments = (input: Record<string, unknown>): Record<string, unknown> => {
+  const reviewedActionArguments = (input: Record<string, unknown>, toolName?: string): Record<string, unknown> => {
     const { reviewId: _reviewId, reviewRevision: _reviewRevision, ...arguments_ } = input
+    if (toolName === 'browser_select') {
+      if ((arguments_.value !== undefined) === (arguments_.values !== undefined)) throw new Error('Provide exactly one of value or values')
+      if (arguments_.values !== undefined) arguments_.values = normalizeSelectValues(arguments_.values)
+    }
     return arguments_
   }
   const reviewBinding = (name: string, input: Record<string, unknown>): HumanWaitingReviewBinding | undefined => {
@@ -1686,7 +1732,7 @@ function createBrowserMcpServer(
       id: input.reviewId,
       revision: input.reviewRevision,
       toolName: name,
-      artifactHash: humanWaitingArtifactHash(name, reviewedActionArguments(input)),
+      artifactHash: humanWaitingArtifactHash(name, reviewedActionArguments(input, name)),
       sessionBinding: humanReviewSessionBinding,
       ...(origin ? { origin } : {}),
       ...(tab ? {
@@ -1739,7 +1785,7 @@ function createBrowserMcpServer(
         }
         const hasReviewedBinding = typeof input.reviewId === 'string'
         if (hasReviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
-        const actionInput = reviewedActionArguments(input)
+        const actionInput = reviewedActionArguments(input, name)
         const readOnly = toolDefinition(name).annotations.readOnlyHint || (name === 'browser_video' && actionInput.action === 'inspect')
         const continuityInspection = continuityInspectionTools.has(name)
           || (name === 'browser_webmcp' && actionInput.action !== 'call')
@@ -1916,11 +1962,18 @@ function createBrowserMcpServer(
               requireAgentWorkspace(workspaceId)
             })
           } catch (error) {
+            if (frameRequests.getStore()?.selectionSubmitted) frameRequests.getStore()!.selectionReviewFinalizationFailed = true
             if (frameRequests.getStore()?.wheelAttempted) frameRequests.getStore()!.wheelReviewFinalizationFailed = true
             if (frameRequests.getStore()?.keyHoldProgress?.downAttempted) frameRequests.getStore()!.keyHoldReviewFinalizationFailed = true
             finishActivity(undefined, true, error)
             throw error
           }
+        }
+        if (name === 'browser_select' && actionInput.values !== undefined) frameRequests.getStore()!.selectionPublication = () => {
+          if (extra?.signal?.aborted) throw new Error('Selection cancelled after submission')
+          requireCurrentTarget()
+          requirePostWriteContext()
+          if (authorityRejection()) throw new Error('Selection authority changed after submission')
         }
         if (name === 'browser_wheel') frameRequests.getStore()!.wheelPublication = () => {
           if (extra?.signal?.aborted) throw new Error('Wheel request cancelled after dispatch')
@@ -2041,13 +2094,23 @@ function createBrowserMcpServer(
                   } catch (error) {
                     // Preparation or an earlier click in a double-click may
                     // already have effects. Never classify this as safe replay.
-                    rememberKeyHoldPolicy(error)
+                    rememberInputPolicy(error)
                     invalidatedOutcome = name === 'browser_hold_key' && !frameRequests.getStore()?.keyHoldProgress?.downAttempted ? undefined : 'outcome-unknown'
                     throw error
                   }
                 } } : {}),
                 ...(name === 'browser_wheel' ? { markWheelAttempted: () => { frameRequests.getStore()!.wheelAttempted = true } } : {}),
                 ...(name === 'browser_hold_key' ? { holdSignal: extra?.signal, recordHoldProgress: (progress: NativeKeyHoldProgress) => { frameRequests.getStore()!.keyHoldProgress = { ...progress } } } : {}),
+                ...(name === 'browser_select' && actionInput.values !== undefined ? {
+                  retainSelection: (authority: { validate: () => void; dispose: () => void }) => { frameRequests.getStore()!.selectionAuthority = authority },
+                  markSelectionSubmitted: () => { frameRequests.getStore()!.selectionSubmitted = true },
+                  validateSelect: (validateContext: () => void) => {
+                  if (extra?.signal?.aborted) throw new Error('Selection cancelled')
+                  requireCurrentTarget()
+                  requirePostWriteContext()
+                  validateContext()
+                  if (authorityRejection()) throw new Error('Selection authority changed')
+                } } : {}),
                 ...(name === 'browser_file_upload' ? { validateUpload: (validateContext: () => void) => {
                   try {
                     if (extra?.signal?.aborted) throw new Error('File upload cancelled; earlier effects are not rolled back')
@@ -2092,6 +2155,7 @@ function createBrowserMcpServer(
                   if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
                 } } : {})
               } as unknown as T)
+            if (name === 'browser_select' && result.structuredContent?.status === 'OUTCOME_UNKNOWN') invalidatedOutcome = 'outcome-unknown'
             if (name === 'browser_hold_key' && result.isError && result.structuredContent?.policyDecision !== undefined) {
               frameRequests.getStore()!.keyHoldPolicy = { permission: 'denied', policyDecision: result.structuredContent.policyDecision }
             }
@@ -2111,7 +2175,7 @@ function createBrowserMcpServer(
               if (resolvedTabId && name !== 'browser_close_tab'
                 && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
             } catch (error) {
-              rememberKeyHoldPolicy(error)
+              rememberInputPolicy(error)
               invalidatedOutcome = readOnly ? 'stale-observation' : 'outcome-unknown'
               const outcome = {
                 status: readOnly ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
@@ -2143,6 +2207,11 @@ function createBrowserMcpServer(
           }
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
+          const request = frameRequests.getStore()!
+          if (name === 'browser_select' && actionInput.values !== undefined && !request.selectionFinishing) {
+            request.selectionFinishActivity = settled => { request.selectionFinishing = true; finishActivity(settled, false) }
+            return
+          }
           if (!activityStarted || !activityId || !activityToolName || !resolvedTabId) return
           activityStarted = false
           const structured = result?.structuredContent
@@ -2150,14 +2219,14 @@ function createBrowserMcpServer(
             && typeof structured.status === 'string' ? structured.status : undefined
           const activityResult = classifyMcpActivityResult({
             readOnly,
-            dispatched: name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
+            dispatched: name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
             cancelled: extra?.signal?.aborted === true,
             timedOut: isTimeoutError(error),
             threw,
             isError: result?.isError === true,
             status,
-            invalidatedOutcome: (frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
-              ? 'outcome-unknown' : invalidatedOutcome,
+            invalidatedOutcome: ((frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none') || frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
+              ? 'outcome-unknown' : name === 'browser_select' && actionInput.values !== undefined && (!request.selectionSubmitted || result?.structuredContent?.effects === 'none') ? undefined : invalidatedOutcome,
             verificationStatus: verificationResult?.status
           })
           onTabActivity?.({
@@ -2183,7 +2252,7 @@ function createBrowserMcpServer(
             finishActivity(result, false)
             return result
           } catch (error) {
-            rememberKeyHoldPolicy(error)
+            rememberInputPolicy(error)
             await finishReviewedAttempt('unknown')
             const invalidated = invalidatedWaitResult(error)
             if (invalidated) {
@@ -2296,7 +2365,7 @@ function createBrowserMcpServer(
           operation
           })
         } catch (error) {
-          rememberKeyHoldPolicy(error)
+          rememberInputPolicy(error)
           await finishReviewedAttempt('unknown')
           const invalidated = invalidatedWaitResult(error)
           if (invalidated) {
@@ -2416,7 +2485,7 @@ function createBrowserMcpServer(
             representation: requested.representation,
             ...(requested.description ? { description: requested.description } : {}),
             ...(requested.expectedPostcondition ? { expectedPostcondition: requested.expectedPostcondition } : {}),
-            artifactHash: humanWaitingArtifactHash(requested.toolName, reviewedActionArguments(normalized)),
+            artifactHash: humanWaitingArtifactHash(requested.toolName, reviewedActionArguments(normalized, requested.toolName)),
             ...(origin ? { origin } : {}),
             ...(tab ? {
               tabId: tab.id,
@@ -3788,12 +3857,17 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional(),
         ref: z.string().optional(),
         selector: z.string().optional(),
-        value: z.string()
+        value: z.string().optional(),
+        values: z.array(z.string().max(1024)).max(50).optional()
+          .describe('Semantic select[multiple] replacement by exact values; empty clears. No keyboard or pointer gestures.')
       }
     },
-    tabTool('browser_select', async (input: { tabId?: string; ref?: string; selector?: string; value: string }) =>
-      textResult(await manager.select(input))
-    )
+    tabTool('browser_select', async ({ validateSelect, retainSelection, markSelectionSubmitted, ...input }: { tabId?: string; ref?: string; selector?: string; value?: string; values?: string[]; validateSelect?: (validateContext: () => void) => void; retainSelection?: (authority: { validate: () => void; dispose: () => void }) => void; markSelectionSubmitted?: () => void }) => {
+      const result = await manager.select(input, validateSelect, retainSelection, markSelectionSubmitted)
+      if (input.values === undefined) return textResult(result)
+      const outcome = result as Record<string, unknown>
+      return { ...textResult(outcome), structuredContent: outcome, ...(outcome.ok === false ? { isError: true } : {}) }
+    })
   )
   registerWorkspaceTool(
     'browser_fill_form',
