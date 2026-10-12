@@ -123,6 +123,8 @@ test(`preserves account chooser ${control} focus through live synthetic metadata
       await expect(picker).toHaveCount(0)
     } else {
       await appWindow.keyboard.press('Shift+Tab')
+      await expect(picker.getByRole('option', { name: /Alice Smith/ })).toBeFocused()
+      await appWindow.keyboard.press('Shift+Tab')
       await expect(search).toBeFocused()
       await appWindow.keyboard.press('Escape')
       await expect(picker).toHaveCount(0)
