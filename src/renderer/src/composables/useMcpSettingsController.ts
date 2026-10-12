@@ -108,8 +108,14 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
       return true
     } catch (error) {
       if (operationGeneration !== generation) return false
-      portState.value = 'error'
-      portMessage.value = options.formatPortError(error)
+      if (draftRevision === startingDraftRevision) {
+        portState.value = 'error'
+        portMessage.value = options.formatPortError(error)
+      } else {
+        dirtyPortDraft = portDraft.value !== String(options.settings.value.mcpPort)
+        portState.value = 'idle'
+        portMessage.value = ''
+      }
       return false
     }
   }
