@@ -10,7 +10,7 @@ function fixture(options: { reason?: string; node?: object; cleanupFails?: boole
     if (method === 'Runtime.evaluate') return options.acquisitionFails ? { exceptionDetails: { text: 'private value' } } : { result: { objectId: 'guard' } }
     if (method === 'Runtime.callFunctionOn') return String(params?.functionDeclaration).includes('this.receiver')
       ? { result: { objectId: 'receiver' } } : { result: { value: options.reason ?? 'ADMITTED' } }
-    if (method === 'DOM.describeNode') return { node: options.node ?? { nodeName: 'SPAN' } }
+    if (method === 'DOM.describeNode') return { node: options.node ?? { nodeName: 'SPAN', localName: 'span' } }
     if (method === 'Runtime.releaseObjectGroup' && options.cleanupFails) throw new Error('cleanup transport')
     return {}
   }) }
@@ -34,7 +34,7 @@ describe('operation-owned native click admission', () => {
     expect(f.calls.filter(([m]) => m === 'Runtime.releaseObjectGroup')).toHaveLength(1)
     expect(f.progress.targetCleanup).toBe('confirmed')
   })
-  for (const node of [{ nodeName: 'IFRAME' }, { nodeName: 'DIV', shadowRoots: [{ shadowRootType: 'closed' }] }, { nodeName: 'INPUT', shadowRoots: [{ shadowRootType: 'user-agent' }] }, { nodeName: 'OBJECT', contentDocument: {} }]) {
+  for (const node of [{ nodeName: 'IFRAME', localName: 'iframe' }, { nodeName: 'DIV', localName: 'div', shadowRoots: [{ shadowRootType: 'closed' }] }, { nodeName: 'INPUT', localName: 'input', shadowRoots: [{ shadowRootType: 'user-agent' }] }, { nodeName: 'OBJECT', localName: 'object', contentDocument: {} }]) {
     it(`rejects ambiguous native descriptor ${JSON.stringify(node)}`, async () => {
       const f = fixture({ node }); const guard = await acquireNativeClickAdmission(f.api, { ref: 'e1' }, () => {}, f.progress, () => {})
       await expect(guard.sample(1, 2)).rejects.toMatchObject({ reason: 'EMBEDDED_HIT_UNSUPPORTED' }); await guard.dispose()
@@ -46,6 +46,22 @@ describe('operation-owned native click admission', () => {
     await expect(acquireNativeClickAdmission(f.api, { selector: '#one' }, () => {}, f.progress, () => {})).rejects.toMatchObject({ reason: 'TARGET_UNAVAILABLE' })
     expect(f.progress.targetCleanup).toBe('confirmed')
   })
+  for (const node of [
+    { nodeName: 'iframe', localName: 'iframe' },
+    { nodeName: 'h:object', localName: 'object' },
+    { nodeName: 'h:embed' },
+    { nodeName: 'frame', localName: 'frame' }
+  ]) {
+    it(`rejects inactive embedded local names without a child document: ${node.nodeName}`, async () => {
+      const f = fixture({ node: { ...node, attributes: ['data-private', 'descriptor-canary'] } })
+      const guard = await acquireNativeClickAdmission(f.api, { selector: '#one' }, () => {}, f.progress, () => {})
+      const error = await guard.sample(1, 2).catch(error => error)
+      expect(error).toMatchObject({ reason: 'EMBEDDED_HIT_UNSUPPORTED' })
+      expect(JSON.stringify(error)).not.toContain('descriptor-canary')
+      await guard.dispose()
+      expect(f.progress.targetCleanup).toBe('confirmed')
+    })
+  }
   it('keeps cleanup uncertainty visible and never retries cleanup implicitly', async () => {
     const f = fixture({ cleanupFails: true }); const guard = await acquireNativeClickAdmission(f.api, { selector: '#one' }, () => {}, f.progress, () => {})
     await expect(guard.dispose()).rejects.toBeInstanceOf(NativeClickAdmissionError); await guard.dispose()

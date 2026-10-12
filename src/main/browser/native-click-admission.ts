@@ -48,8 +48,12 @@ export function nativeClickObserver(progress: NativeClickProgress, publish: () =
 export function nativeClickTargetScript(target: { ref?: string; selector?: string }): string {
   return `(() => {
     const request = ${JSON.stringify(target)};
+    const contentType = Object.getOwnPropertyDescriptor(Document.prototype, 'contentType').get;
+    if (contentType.call(document) !== 'text/html') throw Error('TARGET_UNAVAILABLE');
     const query = Document.prototype.querySelectorAll, item = NodeList.prototype.item;
     const connected = Object.getOwnPropertyDescriptor(Node.prototype, 'isConnected').get;
+    const parent = Object.getOwnPropertyDescriptor(Node.prototype, 'parentNode').get;
+    const localName = Object.getOwnPropertyDescriptor(Element.prototype, 'localName').get;
     const root = Node.prototype.getRootNode, contains = Node.prototype.contains;
     const hit = Document.prototype.elementFromPoint, matches = Element.prototype.matches;
     const selector = request.ref ? '[data-hronaut-ref="' + CSS.escape(request.ref) + '"]' : request.selector;
@@ -64,6 +68,12 @@ export function nativeClickTargetScript(target: { ref?: string; selector?: strin
         if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return 'POINT_OUTSIDE_VIEWPORT';
         const current = hit.call(doc, x, y);
         if (!current || root.call(current) !== doc || !contains.call(original, current)) return 'TARGET_OCCLUDED';
+        let ancestor = current, depth = 0;
+        while (ancestor !== doc) {
+          if (!ancestor || ++depth > 64) return 'TARGET_UNVERIFIABLE';
+          if (ancestor instanceof Element && ['iframe','frame','object','embed'].includes(localName.call(ancestor).toLowerCase())) return 'EMBEDDED_HIT_UNSUPPORTED';
+          ancestor = parent.call(ancestor);
+        }
         if (final && current !== this.receiver) return 'HIT_CHANGED';
         if (!final) this.receiver = current;
         return 'ADMITTED';
@@ -110,21 +120,21 @@ export async function acquireNativeClickAdmission(api: AttachedDebugger, target:
         const result = await call('function(x,y,final) { return this.sample(x,y,final); }', [x, y, final])
         if (result.result?.value !== 'ADMITTED') {
           const reason = result.result?.value
-          throw new NativeClickAdmissionError(typeof reason === 'string' && ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'TARGET_OCCLUDED', 'HIT_CHANGED'].includes(reason) ? nativeClickReason(reason) : 'TARGET_UNVERIFIABLE', { ...progress })
+          throw new NativeClickAdmissionError(typeof reason === 'string' && ['TARGET_CHANGED', 'TARGET_DISABLED', 'POINT_OUTSIDE_VIEWPORT', 'TARGET_OCCLUDED', 'HIT_CHANGED', 'EMBEDDED_HIT_UNSUPPORTED'].includes(reason) ? nativeClickReason(reason) : 'TARGET_UNVERIFIABLE', { ...progress })
         }
       }
       await inspect(false)
       const receiver = await call('function() { return this.receiver; }', [], false)
       if (!receiver.result?.objectId) throw new NativeClickAdmissionError('HIT_UNVERIFIABLE', { ...progress })
-      // Native metadata exposes CLOSED and user-agent roots as well. Do not
-      // inspect attributes/text or substitute integer DOM.getNodeForLocation.
+      // CDP can transport attributes/text even at depth zero. Consume only
+      // receiver kind/root/frame metadata; never publish the raw descriptor.
       const description = await api.sendCommand('DOM.describeNode', { objectId: receiver.result.objectId, depth: 0, pierce: false }) as {
-        node?: { nodeName?: string; shadowRoots?: unknown[]; contentDocument?: unknown; frameId?: string }
+        node?: { localName?: string; shadowRoots?: unknown[]; contentDocument?: unknown; frameId?: string }
       }
       validate()
       const node = description.node
-      if (!node || node.shadowRoots?.length || node.contentDocument || node.frameId
-        || ['IFRAME', 'FRAME', 'OBJECT', 'EMBED'].includes(node.nodeName ?? '')) {
+      if (!node?.localName || node.shadowRoots?.length || node.contentDocument || node.frameId
+        || ['iframe', 'frame', 'object', 'embed'].includes(node.localName.toLowerCase())) {
         throw new NativeClickAdmissionError('EMBEDDED_HIT_UNSUPPORTED', { ...progress })
       }
       // The descriptor and sample are not atomic. Recheck exact receiver and
