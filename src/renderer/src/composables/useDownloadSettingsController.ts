@@ -73,7 +73,7 @@ export function useDownloadSettingsController(options: DownloadSettingsControlle
       if (operation !== generation) return false
       if (options.settings.value === startingSettings) options.applySettings(next)
       state.value = 'saved'
-      message.value = options.translate(enabled
+      message.value = options.translate(options.settings.value.askWhereToSaveDownloads
         ? 'runtime.downloadSettings.ask'
         : 'runtime.downloadSettings.automatic')
       return true

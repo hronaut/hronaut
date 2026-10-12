@@ -41,6 +41,33 @@ function createController() {
 }
 
 describe('download settings controller', () => {
+  it.each([
+    { requested: true, newer: false },
+    { requested: false, newer: true },
+    { requested: true, newer: undefined },
+    { requested: false, newer: undefined }
+  ])('reports the authoritative download mode after saving $requested (newer: $newer)', async ({ requested, newer }) => {
+    const { api, applySettings, controller, settings } = createController()
+    settings.value = { ...settings.value, askWhereToSaveDownloads: !requested }
+    const result = deferred<AppSettings>()
+    const saved = { ...settings.value, askWhereToSaveDownloads: requested }
+    api.setAskWhereToSaveDownloads.mockImplementationOnce(() => result.promise)
+
+    const operation = controller.setAskWhereToSave(requested)
+    if (newer !== undefined) settings.value = { ...settings.value, askWhereToSaveDownloads: newer }
+    result.resolve(saved)
+
+    await expect(operation).resolves.toBe(true)
+    expect(settings.value.askWhereToSaveDownloads).toBe(newer ?? requested)
+    expect(controller.message.value).toBe((newer ?? requested)
+      ? 'runtime.downloadSettings.ask' : 'runtime.downloadSettings.automatic')
+    expect(controller.state.value).toBe('saved')
+    expect(controller.busy.value).toBe(false)
+    expect(applySettings).toHaveBeenCalledTimes(newer === undefined ? 1 : 0)
+    expect(api.setAskWhereToSaveDownloads).toHaveBeenCalledExactlyOnceWith(requested)
+    controller.dispose()
+  })
+
   it.each(['choose', 'save', 'reset'] as const)('preserves newer settings events during %s', async action => {
     const { api, applySettings, controller, settings } = createController()
     const result = deferred<AppSettings>()
