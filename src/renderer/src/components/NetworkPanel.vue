@@ -168,7 +168,7 @@ function setNetworkSortBy(event: Event): void {
 }
 
 watch(
-  () => [props.activeTab?.id, props.activeTab?.networkRouteCount] as const,
+  () => [props.activeTab?.id, props.activeTab?.networkRouteCount, props.activeTab?.networkConditionState?.application] as const,
   ([tabId]) => {
     if (tabId && open.value) void refreshNetworkRoutes(true)
   }
@@ -224,7 +224,8 @@ onBeforeUnmount(dispose)
           v-model:status="networkRouteStatus"
           v-model:headers="networkRouteHeaders"
           v-model:body="networkRouteBody"
-          :routes="networkRoutes"
+          :routes="activeTab?.networkConditionState?.application !== 'confirmed' ? (activeTab?.networkConditionState?.retainedRules ?? networkRoutes) : networkRoutes"
+          :application="activeTab?.networkConditionState?.application"
           :state="networkRouteState"
           :error="networkRouteError"
           :locale="locale"

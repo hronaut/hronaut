@@ -87,6 +87,7 @@ const {
   saveActivePdf,
   pageToolsLabels,
   activeNetworkRouteCount,
+  networkConditionsUnconfirmed,
   activeInspectorIssueCount,
   debugReportSignalCount
 } = props.pageToolsController
@@ -127,6 +128,7 @@ function setSiteStoragePanel(value: unknown): void {
     :environment-state="environmentState"
     :environment-override-count="activeEnvironmentOverrideCount"
     :network-route-count="activeNetworkRouteCount"
+    :network-conditions-unconfirmed="networkConditionsUnconfirmed"
     :inspector-issue-count="activeInspectorIssueCount"
     :debug-report-signal-count="debugReportSignalCount"
     :element-picker-state="elementPickerState"

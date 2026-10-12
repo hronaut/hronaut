@@ -621,6 +621,9 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   consoleMessages: BrowserConsoleMessageRecord[]
   pendingRuntimeConsoleMessages: ConsoleCapture[]
   networkRoutes: BrowserNetworkRouteRecord[]
+  networkConditionApplication: 'confirmed' | 'pending' | 'unknown'
+  networkConditionEpoch: number
+  networkDebuggerEpoch: number
   inspectorIssues: BrowserInspectorIssue[]
   inspectorIssuesTruncated: boolean
   networkDebuggerEnabled: boolean
@@ -5911,9 +5914,11 @@ export class BrowserTabsManager {
     if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
       return cloneEmulationState(tab.emulation)
     }
+    this.requireNetworkConditionsKnown(tab)
     tab.nativeInputEnvironmentGeneration += 1
     const webContents = tab.webContents
     return this.withDebugger(webContents, async () => {
+      this.requireNetworkConditionsKnown(tab)
       if (this.getTab(tab.id) !== tab || tab.webContents !== webContents) {
         throw new Error('The target tab changed before emulation could be applied')
       }
@@ -5928,7 +5933,7 @@ export class BrowserTabsManager {
         await this.applyEmulationState(tab, next, nextHeaders)
       } catch (error) {
         // Roll back before another queued operation can change native state.
-        await this.applyEmulationState(tab, previous, previousHeaders).catch(() => undefined)
+        if (tab.networkConditionApplication !== 'unknown') await this.applyEmulationState(tab, previous, previousHeaders).catch(() => undefined)
         throw error
       }
       tab.emulation = next
@@ -6657,77 +6662,78 @@ export class BrowserTabsManager {
     }
   }
 
+  networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
+    const tab = this.getTab(tabId)
+    return { application: tab.networkConditionApplication, retainedRules: tab.networkRoutes.map(route => this.networkRouteSummary(route)) }
+  }
+
   networkRoutes(tabId?: string): BrowserNetworkRouteSummary[] {
-    return this.getTab(tabId).networkRoutes.map((route) => this.networkRouteSummary(route))
+    const state = this.networkConditionState(tabId)
+    if (state.application !== 'confirmed') throw new Error('Native request-condition application is not confirmed. Explicitly clear conditions to recover; do not replay the failed operation.')
+    return state.retainedRules
   }
 
-  async addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput): Promise<BrowserNetworkRouteSummary[]> {
+  networkConditionPublication(tabId: string | undefined, expected: BrowserNetworkRouteSummary[]): () => void {
     const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
-    if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) throw new Error(`Network route limit reached (${MAX_NETWORK_ROUTES})`)
-    const route: BrowserNetworkRouteRecord = {
-      ...normalizeNetworkRouteInput(input),
-      id: randomUUID(),
-      createdAt: new Date().toISOString()
+    const routes = tab.networkRoutes
+    const epoch = tab.networkConditionEpoch
+    const serialized = JSON.stringify(expected)
+    const assert = (): void => {
+      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed() || tab.networkRoutes !== routes || tab.networkConditionEpoch !== epoch || tab.networkConditionApplication !== 'confirmed' || JSON.stringify(this.networkConditionState(tab.id).retainedRules) !== serialized) throw new Error('Request-condition observation changed before publication')
     }
+    assert()
+    return assert
+  }
 
-    tab.networkRoutes = [...tab.networkRoutes, route]
-    try {
-      await this.applyNetworkRoutes(tab)
-    } catch (error) {
-      tab.networkRoutes = tab.networkRoutes.filter((candidate) => candidate.id !== route.id)
-      throw error
-    }
-    this.changed(false)
+  private markNetworkConditionsUnknown(tab: BrowserTab): void {
+    tab.networkConditionEpoch++
+    tab.networkConditionApplication = 'unknown'
+  }
+
+  private requireNetworkConditionsKnown(tab: BrowserTab): void {
+    if (tab.networkConditionApplication === 'unknown') throw new Error('Native request-condition application is unknown. Explicitly clear conditions to recover.')
+  }
+
+  async addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    const tab = this.getTab(tabId)
+    const normalized = normalizeNetworkRouteInput(input)
+    await this.applyNetworkRoutes(tab, validate, false, () => {
+      if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
+      if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) throw new Error(`Network route limit reached (${MAX_NETWORK_ROUTES})`)
+      tab.networkRoutes = [...tab.networkRoutes, { ...normalized, id: randomUUID(), createdAt: new Date().toISOString() }]
+    }, markSubmitted)
     return this.networkRoutes(tab.id)
   }
 
-  async removeNetworkRoute(tabId: string | undefined, routeId: string): Promise<BrowserNetworkRouteSummary[]> {
+  async removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
     const tab = this.getTab(tabId)
-    const remainingRoutes = tab.networkRoutes.filter((route) => route.id !== routeId)
-    if (remainingRoutes.length === tab.networkRoutes.length) throw new Error(`Network route not found: ${routeId}`)
-    tab.networkRoutes = remainingRoutes
-    await this.applyNetworkRoutes(tab)
-    this.changed(false)
+    await this.applyNetworkRoutes(tab, validate, false, () => {
+      const remaining = tab.networkRoutes.filter(route => route.id !== routeId)
+      if (remaining.length === tab.networkRoutes.length) throw new Error(`Network route not found: ${routeId}`)
+      tab.networkRoutes = remaining
+    }, markSubmitted)
     return this.networkRoutes(tab.id)
   }
 
-  async moveNetworkRoute(
-    tabId: string | undefined,
-    routeId: string,
-    direction: BrowserNetworkRouteMoveDirection
-  ): Promise<BrowserNetworkRouteSummary[]> {
+  async moveNetworkRoute(tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
     const tab = this.getTab(tabId)
-    const currentIndex = tab.networkRoutes.findIndex((route) => route.id === routeId)
-    if (currentIndex < 0) throw new Error(`Network route not found: ${routeId}`)
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-    if (targetIndex < 0 || targetIndex >= tab.networkRoutes.length) return this.networkRoutes(tab.id)
-    const previousRoutes = tab.networkRoutes
-    const reorderedRoutes = [...previousRoutes]
-    const [route] = reorderedRoutes.splice(currentIndex, 1)
-    if (!route) throw new Error(`Network route disappeared while moving: ${routeId}`)
-    reorderedRoutes.splice(targetIndex, 0, route)
-    tab.networkRoutes = reorderedRoutes
-    try {
-      await this.applyNetworkRoutes(tab)
-    } catch (error) {
-      // A later edit or consumed rule owns a different list. Rolling back its
-      // indices could restore a retired mock or discard a newer condition.
-      if (tab.networkRoutes === reorderedRoutes && this.tabs.get(tab.id) === tab) {
-        tab.networkRoutes = previousRoutes
-      }
-      throw error
-    }
-    this.changed(false)
+    await this.applyNetworkRoutes(tab, validate, false, () => {
+      const index = tab.networkRoutes.findIndex(route => route.id === routeId)
+      if (index < 0) throw new Error(`Network route not found: ${routeId}`)
+      const target = direction === 'up' ? index - 1 : index + 1
+      if (target < 0 || target >= tab.networkRoutes.length) return
+      const reordered = [...tab.networkRoutes]
+      const [route] = reordered.splice(index, 1)
+      reordered.splice(target, 0, route!)
+      tab.networkRoutes = reordered
+    }, markSubmitted)
     return this.networkRoutes(tab.id)
   }
 
-  async clearNetworkRoutes(tabId?: string): Promise<BrowserNetworkRouteSummary[]> {
+  async clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
     const tab = this.getTab(tabId)
-    tab.networkRoutes = []
-    await this.applyNetworkRoutes(tab)
-    this.changed(false)
-    return []
+    await this.applyNetworkRoutes(tab, validate, true, () => { tab.networkRoutes = [] }, markSubmitted)
+    return this.networkRoutes(tab.id)
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -8184,6 +8190,9 @@ export class BrowserTabsManager {
       networkRequests: [],
       networkCaptureSequence: 0,
       networkRoutes: [],
+      networkConditionApplication: 'confirmed',
+      networkConditionEpoch: 0,
+      networkDebuggerEpoch: 0,
       inspectorIssues: [],
       inspectorIssuesTruncated: false,
       networkDebuggerEnabled: false,
@@ -8676,6 +8685,9 @@ export class BrowserTabsManager {
       }
     })
     webContents.debugger.on('detach', () => {
+      tab.networkConditionEpoch++
+      tab.networkDebuggerEpoch++
+      tab.networkConditionApplication = 'unknown'
       retireNetworkPriorityObservations(tab)
       tab.dialog = undefined
       tab.mainFrameId = undefined
@@ -9434,6 +9446,7 @@ export class BrowserTabsManager {
       devToolsOpen: !webContentsDestroyed && tab.webContents.isDevToolsOpened(),
       ...(hasEmulationOverrides(tab.emulation) ? { emulation: cloneEmulationState(tab.emulation) } : {}),
       ...(tab.networkRoutes.length ? { networkRouteCount: tab.networkRoutes.length } : {}),
+      networkConditionState: this.networkConditionState(tab.id),
       ...(tab.inspectorIssues.length ? { inspectorIssueCount: tab.inspectorIssues.length } : {}),
       ...(tab.reproRecording ? {
         reproRecording: {
@@ -9632,22 +9645,59 @@ export class BrowserTabsManager {
     }
   }
 
-  private async applyNetworkRoutes(tab: BrowserTab): Promise<void> {
-    const scheduled = this.networkRouteRefreshTimers.get(tab.webContents.id)
+  private async applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}): Promise<void> {
+    const contents = tab.webContents
+    const scheduled = this.networkRouteRefreshTimers.get(contents.id)
     if (scheduled) clearTimeout(scheduled)
-    this.networkRouteRefreshTimers.delete(tab.webContents.id)
-    await this.withDebugger(tab.webContents, async () => {
-      const interceptionRoutes = tab.networkRoutes.filter((route) => route.behavior !== 'throttle')
-      if (!interceptionRoutes.length) {
-        await tab.webContents.debugger.sendCommand('Fetch.disable').catch((error) => {
-          if (!this.isUnavailableCdpMethod(error)) throw error
-        })
-      } else {
-        await tab.webContents.debugger.sendCommand('Fetch.enable', {
-          patterns: [...new Set(interceptionRoutes.map((route) => route.urlPattern))].map((urlPattern) => ({ urlPattern }))
-        })
+    this.networkRouteRefreshTimers.delete(contents.id)
+    const debuggerEpoch = tab.networkDebuggerEpoch
+    await this.withDebugger(contents, async () => {
+      validate()
+      if (!recovery) this.requireNetworkConditionsKnown(tab)
+      if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
+      const previousRoutes = tab.networkRoutes
+      mutate?.()
+      let epoch = tab.networkConditionEpoch
+      const routes = tab.networkRoutes
+      // One immutable projection for Fetch and throttling, never reread between phases.
+      const projection = routes.map(route => ({ ...route }))
+      const network = tab.emulation.network
+      let submitted = false
+      const previous = tab.networkConditionApplication
+      const current = (): void => {
+        validate()
+        if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition application was superseded')
       }
-      await this.applyNetworkEmulation(tab.webContents, tab.emulation.network, tab.networkRoutes)
+      const send = async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
+        current()
+        if (!submitted && recovery) { tab.networkConditionEpoch++; epoch = tab.networkConditionEpoch }
+        submitted = true
+        markSubmitted()
+        return contents.debugger.sendCommand(method, params)
+      }
+      tab.networkConditionApplication = 'pending'
+      try {
+        this.changed(false)
+        const interception = projection.filter(route => route.behavior !== 'throttle')
+        if (interception.length) await send('Fetch.enable', { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) })
+        else await send('Fetch.disable')
+        await this.applyNetworkEmulation(contents, network, projection, send)
+        // Native acknowledgement is independent of subsequent UI/MCP publication.
+        if (contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition acknowledgement belongs to a retired configuration')
+        tab.networkConditionApplication = 'confirmed'
+      } catch (error) {
+        if (this.tabs.get(tab.id) === tab && tab.webContents === contents && tab.networkConditionEpoch === epoch) {
+          if (submitted || tab.networkRoutes !== routes) this.markNetworkConditionsUnknown(tab)
+          else {
+            tab.networkRoutes = previousRoutes
+            tab.networkConditionApplication = previous
+          }
+          this.changed(false)
+        }
+        throw error
+      }
+      this.changed(false)
+      validate()
     })
   }
 
@@ -10425,7 +10475,11 @@ export class BrowserTabsManager {
     state: BrowserEmulationState,
     extraHttpHeaders = tab.emulationExtraHttpHeaders
   ): Promise<void> {
+    this.requireNetworkConditionsKnown(tab)
     const webContents = tab.webContents
+    const routes = tab.networkRoutes
+    const epoch = tab.networkConditionEpoch
+    const projection = routes.map(route => ({ ...route }))
     await webContents.debugger.sendCommand('Network.enable')
     await webContents.debugger.sendCommand('Network.setCacheDisabled', {
       cacheDisabled: state.cacheDisabled
@@ -10433,7 +10487,22 @@ export class BrowserTabsManager {
     await webContents.debugger.sendCommand('Network.setBypassServiceWorker', {
       bypass: state.bypassServiceWorker
     })
-    await this.applyNetworkEmulation(webContents, state.network, tab.networkRoutes)
+    this.requireNetworkConditionsKnown(tab)
+    if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation context changed before application')
+    tab.networkConditionApplication = 'pending'
+    try {
+      await this.applyNetworkEmulation(webContents, state.network, projection, async (method, params) => {
+        this.requireNetworkConditionsKnown(tab)
+        if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation context changed')
+        return webContents.debugger.sendCommand(method, params)
+      })
+      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation acknowledgement was superseded')
+      tab.networkConditionApplication = 'confirmed'
+    } catch (error) {
+      this.markNetworkConditionsUnknown(tab)
+      this.changed(false)
+      throw error
+    }
     await webContents.debugger.sendCommand(
       'Emulation.setDataSaverOverride',
       state.dataSaver === 'auto' ? {} : { dataSaverEnabled: state.dataSaver === 'enabled' }
@@ -10522,8 +10591,10 @@ export class BrowserTabsManager {
   private async applyNetworkEmulation(
     webContents: BrowserTab['view']['webContents'],
     preset: BrowserEmulationState['network'],
-    routes: BrowserNetworkRouteRecord[] = []
+    routes: BrowserNetworkRouteRecord[] = [],
+    send?: (method: string, params?: Record<string, unknown>) => Promise<unknown>
   ): Promise<void> {
+    const command = send ?? ((method: string, params?: Record<string, unknown>) => webContents.debugger.sendCommand(method, params))
     const conditions = NETWORK_EMULATION[preset]
     const hasIndividualThrottle = routes.some((route) => route.behavior === 'throttle')
     const routeConditions: Array<{
@@ -10546,7 +10617,7 @@ export class BrowserTabsManager {
       }
     }
     try {
-      await webContents.debugger.sendCommand('Network.emulateNetworkConditionsByRule', {
+      await command('Network.emulateNetworkConditionsByRule', {
         offline: conditions.offline,
         emulateOfflineServiceWorker: conditions.offline,
         matchedNetworkConditions: [
@@ -10554,13 +10625,13 @@ export class BrowserTabsManager {
           ...(preset === 'none' ? [] : [{ urlPattern: '', ...conditions }])
         ]
       })
-      await webContents.debugger.sendCommand('Network.overrideNetworkState', conditions)
+      await command('Network.overrideNetworkState', conditions)
     } catch (error) {
-      if (!this.isUnavailableCdpMethod(error)) throw error
+      if (send || !this.isUnavailableCdpMethod(error)) throw error
       if (hasIndividualThrottle) {
         throw new Error('Individual request throttling is unavailable in this Chromium build')
       }
-      await webContents.debugger.sendCommand('Network.emulateNetworkConditions', conditions)
+      await command('Network.emulateNetworkConditions', conditions)
     }
   }
 
@@ -10724,7 +10795,8 @@ export class BrowserTabsManager {
         || this.devToolsOpening.has(webContents.id)
       ) return
       try {
-        if (!webContents.debugger.isAttached()) webContents.debugger.attach('1.3')
+        const attachedHere = !webContents.debugger.isAttached()
+        if (attachedHere) webContents.debugger.attach('1.3')
         await webContents.debugger.sendCommand('Page.enable')
         // Network Document responses also include iframes. Establish the native
         // main-frame identity before recording any connection-security metadata.
@@ -10741,14 +10813,13 @@ export class BrowserTabsManager {
           maxResourceBufferSize: MAX_NETWORK_RESOURCE_BUFFER_BYTES,
           maxPostDataSize: MAX_NETWORK_POST_DATA_BYTES
         })
-        if (tab.networkRoutes.length) await webContents.debugger.sendCommand('Fetch.enable', {
-          patterns: [...new Set(tab.networkRoutes.map((route) => route.urlPattern))].map((urlPattern) => ({ urlPattern }))
-        })
+        // Reattachment never restores request conditions. A detached epoch
+        // requires explicit recovery; dialog monitoring is independent.
         tab.networkDebuggerEnabled = true
         await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', {
           ignore: this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(webContents.id)
         })
-        if (hasEmulationOverrides(tab.emulation)) await this.applyEmulationState(tab, tab.emulation)
+        if (attachedHere && tab.networkConditionApplication === 'confirmed' && hasEmulationOverrides(tab.emulation)) await this.applyEmulationState(tab, tab.emulation)
       } catch (error) {
         tab.networkDebuggerEnabled = false
         if (!this.destroyed && !webContents.isDestroyed()) {
@@ -10768,6 +10839,7 @@ export class BrowserTabsManager {
   private async openDevTools(tab: BrowserTab): Promise<void> {
     const webContents = tab.webContents
     if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
+    this.requireNetworkConditionsKnown(tab)
     // Electron allows either a CDP debugger client or DevTools to own a page. Remove active
     // interceptions before handing ownership to DevTools so the UI never shows inactive mocks.
     if (tab.networkRoutes.length) await this.clearNetworkRoutes(tab.id)
@@ -10823,7 +10895,8 @@ export class BrowserTabsManager {
     if (notify) this.changed(false)
   }
 
-  private async handleNetworkRouteRequest(tab: BrowserTab, params: unknown): Promise<void> {
+  private async handleNetworkRouteRequest(tab: BrowserTab, params: unknown, requestEpoch: number): Promise<void> {
+    if (tab.networkConditionEpoch !== requestEpoch) return
     const details = params as {
       requestId?: string
       request?: { url?: string; method?: string }
@@ -10833,7 +10906,8 @@ export class BrowserTabsManager {
     const method = details.request?.method?.toUpperCase()
     if (!requestId || !url || !method || tab.webContents.isDestroyed()) return
 
-    const route = tab.networkRoutes.find((candidate) => (
+    const ownedRoutes = tab.networkRoutes
+    const route = ownedRoutes.find((candidate) => (
       (!candidate.method || candidate.method === method)
       && networkRoutePatternMatches(candidate.urlPattern, url)
     ))
@@ -10846,6 +10920,13 @@ export class BrowserTabsManager {
       if (route.behavior === 'throttle') {
         await tab.webContents.debugger.sendCommand('Fetch.continueRequest', { requestId })
         return
+      }
+      // Reserve the match once before disposition. Lost acknowledgements never
+      // restore a consumed budget or cause a second disposition for this request.
+      route.remainingMatches = (route.remainingMatches ?? 1) - 1
+      if (route.remainingMatches <= 0) {
+        tab.networkRoutes = tab.networkRoutes.filter(candidate => candidate !== route)
+        if (tab.networkConditionApplication === 'confirmed') tab.networkConditionApplication = 'pending'
       }
       if (route.behavior === 'abort') {
         await tab.webContents.debugger.sendCommand('Fetch.failRequest', {
@@ -10861,25 +10942,25 @@ export class BrowserTabsManager {
           body: Buffer.from(route.responseBody ?? '').toString('base64')
         })
       }
-      route.remainingMatches = (route.remainingMatches ?? 1) - 1
-      if (route.remainingMatches <= 0) {
-        tab.networkRoutes = tab.networkRoutes.filter((candidate) => candidate.id !== route.id)
-      }
       this.changed(false)
     } catch (error) {
       console.error('[browser] Could not apply network route:', error)
-      if (!tab.webContents.isDestroyed() && tab.webContents.debugger.isAttached()) {
-        await tab.webContents.debugger.sendCommand('Fetch.continueRequest', { requestId }).catch(() => undefined)
+      // A submitted disposition may already have taken effect. Never replay it
+      // as continue after losing its acknowledgement.
+      if (this.tabs.get(tab.id) === tab && tab.networkConditionEpoch === requestEpoch) {
+        this.markNetworkConditionsUnknown(tab)
+        this.changed(false)
       }
     }
   }
 
   private queueNetworkRouteRequest(tab: BrowserTab, params: unknown): void {
     const webContentsId = tab.webContents.id
+    const requestEpoch = tab.networkConditionEpoch
     const previous = this.networkRouteQueues.get(webContentsId) ?? Promise.resolve()
     const queued = previous
       .catch(() => undefined)
-      .then(() => this.handleNetworkRouteRequest(tab, params))
+      .then(() => this.handleNetworkRouteRequest(tab, params, requestEpoch))
       .catch((error: unknown) => console.error('[browser] Network route queue failed:', error))
     this.networkRouteQueues.set(webContentsId, queued)
     void queued.finally(() => {
@@ -10895,7 +10976,7 @@ export class BrowserTabsManager {
     if (previous) clearTimeout(previous)
     const timer = setTimeout(() => {
       this.networkRouteRefreshTimers.delete(webContentsId)
-      if (this.destroyed || tab.webContents.isDestroyed()) return
+      if (this.destroyed || tab.webContents.isDestroyed() || tab.networkConditionApplication === 'unknown') return
       if (this.networkRouteQueues.has(webContentsId)) {
         this.scheduleNetworkRouteRefresh(tab)
         return

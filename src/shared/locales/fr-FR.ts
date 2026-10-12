@@ -2169,7 +2169,7 @@ export const frFR = {
       "size": "Taille",
       "status": "Statut"
     },
-    "conditions": { refreshAfterChangeFailed: "La modification de la condition a été enregistrée, mais l’état du navigateur n’a pas pu être actualisé.",
+    "conditions": { unconfirmed: "L’application des conditions de requête n’est pas confirmée.", recover: "Effacer les conditions et rétablir", recoveryWarning: "L’effacement permet aux futures requêtes correspondantes d’atteindre leur destination normale. Les requêtes ou réponses déjà envoyées ne peuvent pas être annulées.", refreshAfterChangeFailed: "La modification de la condition a été enregistrée, mais l’état du navigateur n’a pas pu être actualisé.",
       "heading": "Conditions des requêtes",
       "description": "Bloquer, simuler, ralentir et hiérarchiser les requêtes",
       "active": "{count} active",

@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Distinguish retained Network conditions from confirmed native application. Interrupted or partially acknowledged changes stay visibly unconfirmed, including an empty list; explicit clear recovery preserves tab-wide emulation and warns that future requests may reach their normal destination. Do not retry uncertain native commands or paused-request dispositions automatically.
+
 - Finish best-effort renderer input-flag cleanup when its original page is destroyed, so closing during cleanup cannot leave native input waiting on a vanished document. Preserve release acknowledgements, uncertain outcomes, and focus restoration without retrying input.
 - Keep successful Network condition additions and removals committed when a later browser-state refresh fails. Clear only the submitted add draft, preserve newer edits, and report the refresh failure separately so a saved condition is not mistaken for a failed change.
 - Verify an exact website release publication time against GitHub's published release record. An explicitly unknown fallback time remains unknown while every release identity, asset, and download redirect is still checked; an upload timestamp cannot pass as publication time.

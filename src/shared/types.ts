@@ -228,6 +228,7 @@ export interface BrowserTabState {
   devToolsOpen: boolean
   emulation?: BrowserEmulationState
   networkRouteCount?: number
+  networkConditionState?: BrowserNetworkConditionState
   inspectorIssueCount?: number
   videoRecording?: BrowserVideoState['status']
   reproRecording?: {
@@ -1781,6 +1782,12 @@ export interface BrowserNetworkRouteSummary {
   }
   abort?: BrowserNetworkAbortReason
   throttle?: BrowserNetworkThrottlePreset
+}
+
+/** Desired rules are distinct from acknowledged native application. */
+export interface BrowserNetworkConditionState {
+  application: 'confirmed' | 'pending' | 'unknown'
+  retainedRules: BrowserNetworkRouteSummary[]
 }
 
 export interface BrowserNetworkHarOptions {

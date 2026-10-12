@@ -67,6 +67,7 @@ const props = defineProps<{
   environmentState: 'idle' | 'applying' | 'applied' | 'error'
   environmentOverrideCount: number
   networkRouteCount: number
+  networkConditionsUnconfirmed?: boolean
   inspectorIssueCount: number
   debugReportSignalCount: number
   elementPickerState: 'idle' | 'picking' | 'copied' | 'error'
@@ -134,7 +135,7 @@ const toolSearchEntries = computed(() => [
   { id: 'environment', group: 'inspect', text: [t('shell.pageTools.environment'), labels.value.environment].join(' ') },
   { id: 'console', group: 'inspect', text: [t('panels.console'), t('shell.pageTools.consoleDescription')].join(' ') },
   { id: 'network', group: 'inspect', text: [t('panels.network'), t('shell.pageTools.networkDescription')].join(' ') },
-  { id: 'request-conditions', group: 'inspect', text: [t('shell.pageTools.conditions'), props.networkRouteCount ? t('network.conditions.active', { count: localNumber(props.networkRouteCount) }, props.networkRouteCount) : t('shell.pageTools.conditionsDescription')].join(' ') },
+  { id: 'request-conditions', group: 'inspect', text: [t('shell.pageTools.conditions'), props.networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : props.networkRouteCount ? t('network.conditions.active', { count: localNumber(props.networkRouteCount) }, props.networkRouteCount) : t('shell.pageTools.conditionsDescription')].join(' ') },
   { id: 'issues', group: 'diagnose', text: [t('panels.issues'), labels.value.inspectorIssues].join(' ') },
   { id: 'security', group: 'diagnose', text: [t('panels.security'), labels.value.security].join(' ') },
   { id: 'debug-report', group: 'diagnose', text: [t('panels.debugReport'), labels.value.debugReport].join(' ') },
@@ -258,8 +259,8 @@ function closeAndRun(action: () => void | Promise<void>): void {
           </UiButton>
           <UiButton v-if="visibleIds.has('console')" appearance="application" type="button" :aria-label="t('shell.pageTools.openConsole')" @click="actions.toggleConsole"><IconTerminal aria-hidden="true" /><span><strong>{{ t('panels.console') }}</strong><small>{{ t('shell.pageTools.consoleDescription') }}</small></span></UiButton>
           <UiButton v-if="visibleIds.has('network')" appearance="application" type="button" :aria-label="t('shell.pageTools.openNetwork')" @click="actions.toggleNetwork"><IconNetworkCheck aria-hidden="true" /><span><strong>{{ t('panels.network') }}</strong><small>{{ t('shell.pageTools.networkDescription') }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('request-conditions')" appearance="application" :class="{ warning: networkRouteCount > 0 }" type="button" :aria-label="t('runtime.address.conditions', { status: networkRouteCount ? t('network.conditions.active', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('runtime.address.noneActive') })" @click="actions.openRequestConditions">
-            <IconRoute aria-hidden="true" /><span><strong>{{ t('shell.pageTools.conditions') }}</strong><small>{{ networkRouteCount ? t('network.conditions.active', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('shell.pageTools.conditionsDescription') }}</small></span>
+          <UiButton v-if="visibleIds.has('request-conditions')" appearance="application" :class="{ warning: networkConditionsUnconfirmed || networkRouteCount > 0 }" type="button" :aria-label="t('runtime.address.conditions', { status: networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : networkRouteCount ? t('network.conditions.active', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('runtime.address.noneActive') })" @click="actions.openRequestConditions">
+            <IconRoute aria-hidden="true" /><span><strong>{{ t('shell.pageTools.conditions') }}</strong><small>{{ networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : networkRouteCount ? t('network.conditions.active', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('shell.pageTools.conditionsDescription') }}</small></span>
           </UiButton>
         </div>
       </section>
