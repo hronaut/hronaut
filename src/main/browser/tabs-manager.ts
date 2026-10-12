@@ -2964,6 +2964,9 @@ export class BrowserTabsManager {
     const contents = tab.webContents
     const session = contents.session
     const cookieStore = session.cookies
+    // This guard covers document/workspace/control changes, not cookie-session
+    // changes after MCP admission. Electron cookie events do not identify their
+    // originating operation, so no own-write event exemption is inferred here.
     const context = this.snapshotDeltaContext(tab)
     const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
     const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0

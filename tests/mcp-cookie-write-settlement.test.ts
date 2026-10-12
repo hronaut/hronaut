@@ -6,7 +6,7 @@ import { McpCapabilityAuthorizationError } from '../src/main/mcp/capability-prof
 import type { CookieWriteHooks } from '../src/main/browser/cookie-write-operation.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
-it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'before-policy-review', 'lost-ack', 'partial', 'policy-review', 'success'] as const)('retains cookie write provenance across %s settlement failure', async failure => {
+it.each(['admission-session', 'late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'before-policy-review', 'lost-ack', 'partial', 'policy-review', 'success'] as const)('retains cookie write provenance across %s settlement failure', async failure => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
   const tabId = '01912345-6790-7abc-8def-0123456789ab'
   const reviewId = '01912345-6791-7abc-8def-0123456789ab'
@@ -15,6 +15,7 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
   let beforeDenied = false
   let attempted = false
   let navigation = 1
+  let sessionGeneration = 1
   const manager = {
     suspendWorkspaceContinuity: vi.fn(() => false), requireWorkspaceContinuityDispatch: vi.fn(),
     beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
@@ -22,7 +23,7 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
     listMcpTabGroups: vi.fn(() => [workspace]), listSavedTabGroups: vi.fn(() => []),
     isWorkspaceAgentAccessible: vi.fn(() => true), mcpWorkspaceResumeKey: vi.fn(() => `hrw1_${'R'.repeat(43)}`),
     requireMcpTabGroup: vi.fn(() => workspace), requireTabInMcpGroup: vi.fn(() => tabId),
-    tabBelongsToMcpGroup: vi.fn(() => true), wakeTab: vi.fn(),
+    tabBelongsToMcpGroup: vi.fn(() => true), wakeTab: vi.fn(async () => { if (failure === 'admission-session') sessionGeneration++ }),
     manageStorage: vi.fn(async (_options: unknown, hooks: CookieWriteHooks) => {
       const originalNavigation = navigation
       hooks.retainPublication(() => {
@@ -45,7 +46,7 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
     }),
     getMcpGroupState: vi.fn(() => ({
       activeTabId: tabId,
-      tabs: [{ id: tabId, url: 'https://example.test/', navigationGeneration: navigation, observationGeneration: 1, humanInteractionGeneration: 0 }],
+      tabs: [{ id: tabId, url: 'https://example.test/', navigationGeneration: navigation, observationGeneration: 1, humanInteractionGeneration: 0, browserSessionGeneration: sessionGeneration }],
       mcpTabGroups: [workspace]
     }))
   }
@@ -76,6 +77,12 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
     const call = async (name: string, args: Record<string, unknown>) => await client.callTool({ name, arguments: args }) as CallToolResult
     expect((await call('browser_workspaces', { action: 'create', name: 'Cookie settlement' })).isError).not.toBe(true)
     const result = await call('browser_storage', { workspaceId, tabId, reviewId, reviewRevision, kind: 'cookies', action: 'clear' })
+    if (failure === 'admission-session') {
+      expect(manager.manageStorage).not.toHaveBeenCalled()
+      expect(result.isError).toBe(true)
+      expect(result.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', attemptedWrites: 0, acknowledgedWrites: 0, retrySafe: false })
+      return
+    }
     expect(manager.manageStorage, JSON.stringify(result)).toHaveBeenCalledOnce()
     if (failure === 'success') { expect(result.isError).not.toBe(true); expect(JSON.parse((result.content[0] as { text: string }).text).changed).toBe(true); return }
     expect(result.isError).toBe(true)
