@@ -104,6 +104,14 @@ try {
   const tabId = tabs.tabs.find((tab) => tab.url === fixtureUrl)?.id
   assert(tabId, 'Created dialog test tab was not returned')
 
+  // Tab creation starts loading. Dialog behavior must be tested against an
+  // established document, not an initial commit during click preparation.
+  const ready = await client.callTool({
+    name: 'browser_wait',
+    arguments: { tabId, selector: '#alert' }
+  }) as CallToolResult
+  assert(!ready.isError, `Dialog fixture did not become ready: ${text(ready)}`)
+
   const alertClick = await client.callTool({
     name: 'browser_click',
     arguments: { tabId, selector: '#alert', dialogAction: 'accept' }
