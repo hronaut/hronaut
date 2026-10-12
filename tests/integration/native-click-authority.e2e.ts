@@ -117,7 +117,18 @@ for (const [phase, change, target, doubleClick] of cases) {
           tabId, doubleClick, ...(target === 'coordinates' ? { x: 150, y: 140 } : target === 'ref' ? { ref, native: true } : { selector: '#target', native: true })
         } }, undefined, { signal: abort.signal }) as Promise<CallToolResult>
         if (change === 'cancel') pending = pending.catch(() => ({ isError: true, content: [{ type: 'text', text: 'Client cancelled' }] }))
-        await expect.poll(() => electronApp.evaluate(() => (globalThis as ClickGlobal).__clickAuthorityGate?.ready)).toBe(true)
+        if (change === 'pending navigation') {
+          // Original retention now acquires the debugger before scroll preparation.
+          // Await the operation-owned navigation listener while the response is held;
+          // queue/setup work may itself wait for that navigation to finish.
+          await expect.poll(() => electronApp.evaluate(({ webContents }, url) => {
+            const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
+            return page.listenerCount('did-navigate') - (globalThis as ClickGlobal).__clickAuthorityGate!.documentListeners
+          }, fixtureUrl)).toBe(1)
+          await testInfo.attach('pending-navigation-boundary', { body: JSON.stringify({ authorityListenerInstalled: true, responseHeld: true }), contentType: 'application/json' })
+        } else {
+          await expect.poll(() => electronApp.evaluate(() => (globalThis as ClickGlobal).__clickAuthorityGate?.ready)).toBe(true)
+        }
         if (change === 'pause') await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabAgentPaused(id, true), tabId)
         if (change === 'pause ABA') await appWindow.evaluate(async id => {
           const api = (window as unknown as { hronaut: HronautApi }).hronaut

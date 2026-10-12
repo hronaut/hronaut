@@ -17,6 +17,16 @@ function fixture() {
 }
 
 describe('renderer agent-input flag cleanup', () => {
+  it.each(['false', 'reject', 'throw'] as const)('reports %s to an opted-in cleanup owner', async mode => {
+    const f = fixture(), onFailure = vi.fn()
+    if (mode === 'throw') f.page.executeJavaScript.mockImplementation(() => { throw new Error('Unavailable') })
+    const pending = clearRendererAgentInputFlag(f.page, onFailure)
+    if (mode === 'false') f.resolve(false)
+    if (mode === 'reject') f.reject(new Error('Unavailable'))
+    await pending
+    expect(onFailure).toHaveBeenCalledTimes(1)
+    expect(f.page.listenerCount('destroyed')).toBe(0)
+  })
   it('waits for live-document cleanup and removes the destruction listener', async () => {
     const f = fixture()
     let settled = false

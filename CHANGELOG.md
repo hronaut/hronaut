@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject known covered or replaced semantic native-click targets before each press using the retained original element and isolated hit sampling. Partial clicks report attempted and acknowledged input separately, preserve cleanup uncertainty, and never replay automatically. Sampling is not atomic: later page changes can still redirect input. Only text/html documents are supported; embedded and shadow receivers are conservatively unsupported. Unconfirmed cleanup blocks further semantic native clicks on that tab.
+
 ## [2.38.1] - 2026-10-12
 
 ### Fixed

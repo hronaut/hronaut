@@ -9,7 +9,8 @@ interface RendererInputCleanupTarget {
  * leave its executeJavaScript promise pending when destruction races delivery.
  * This applies only to best-effort flag removal, never native input commands. */
 export async function clearRendererAgentInputFlag(
-  page: RendererInputCleanupTarget
+  page: RendererInputCleanupTarget,
+  onFailure?: () => void
 ): Promise<void> {
   if (page.isDestroyed()) return
   let onDestroyed!: () => void
@@ -18,10 +19,11 @@ export async function clearRendererAgentInputFlag(
   try {
     if (page.isDestroyed()) return
     await Promise.race([
-      page.executeJavaScript('delete window.__hronautAgentInputActive', true).then(() => undefined, () => undefined),
+      page.executeJavaScript('delete window.__hronautAgentInputActive', true).then(value => { if (value === false) onFailure?.() }, () => { onFailure?.() }),
       destroyed
     ])
   } catch {
+    onFailure?.()
     // Flag removal was already best-effort, including synchronous destruction.
   } finally {
     page.removeListener('destroyed', onDestroyed)
