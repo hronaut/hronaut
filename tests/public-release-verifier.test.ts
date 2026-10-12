@@ -7,6 +7,13 @@ import {
 } from '../scripts/verify-public-release.js'
 
 const version = '9.8.7'
+const publishedRelease = {
+  tag_name: `v${version}`,
+  html_url: `https://github.com/hronaut/hronaut/releases/tag/v${version}`,
+  draft: false,
+  prerelease: false,
+  published_at: '2026-08-25T18:40:32Z'
+}
 
 function assetNames(): Record<(typeof PUBLIC_RELEASE_ASSET_KEYS)[number], string> {
   return {
@@ -30,7 +37,7 @@ function manifest(releaseVersion = version) {
     version: releaseVersion,
     tag: `v${releaseVersion}`,
     url: `https://github.com/hronaut/hronaut/releases/tag/v${releaseVersion}`,
-    publishedAt: '2026-08-25T18:40:32Z',
+    publishedAt: '2026-08-25T18:40:32Z' as string | null,
     summary: 'A complete public Hronaut release.',
     assets: Object.fromEntries(PUBLIC_RELEASE_ASSET_KEYS.map((key, index) => [key, {
       name: names[key].replace(version, releaseVersion),
@@ -58,7 +65,7 @@ describe('public release verifier', () => {
   it('verifies the current manifest and every public download redirect', async () => {
     const fetcher = releaseFetcher()
 
-    const release = await verifyPublicRelease({ version, fetcher })
+    const release = await verifyPublicRelease({ version, publishedRelease, fetcher })
 
     expect(release.tag).toBe(`v${version}`)
     expect(fetcher).toHaveBeenCalledTimes(PUBLIC_RELEASE_ASSET_KEYS.length + 2)
@@ -81,7 +88,7 @@ describe('public release verifier', () => {
       headers: { location: 'https://github.com/hronaut/hronaut/releases/tag/v9.8.6' }
     }))
 
-    await expect(verifyPublicRelease({ version, fetcher })).rejects.toThrow(
+    await expect(verifyPublicRelease({ version, publishedRelease, fetcher })).rejects.toThrow(
       '/releases/latest does not redirect to the published release'
     )
   })
@@ -97,6 +104,7 @@ describe('public release verifier', () => {
 
     const release = await waitForPublicRelease({
       version,
+      publishedRelease,
       fetcher,
       attempts: 2,
       retryDelayMs: 1,
@@ -105,5 +113,38 @@ describe('public release verifier', () => {
 
     expect(release.tag).toBe(`v${version}`)
     expect(sleep).toHaveBeenCalledOnce()
+  })
+
+  it('accepts an explicitly unknown publication time without skipping download verification', async () => {
+    const value = { ...manifest(), publishedAt: null }
+    const fetcher = releaseFetcher(value)
+    expect(parsePublicReleaseManifest(value, version).publishedAt).toBeNull()
+    expect((await verifyPublicRelease({ version, publishedRelease, fetcher })).publishedAt).toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(PUBLIC_RELEASE_ASSET_KEYS.length + 2)
+    value.assets.hashes.url = 'https://example.com/hashes.txt'
+    expect(() => parsePublicReleaseManifest(value, version)).toThrow('invalid hashes')
+  })
+
+  it.each([undefined, '', 'invalid date', 123])('rejects malformed publication metadata: %s', (publishedAt) => {
+    expect(() => parsePublicReleaseManifest({ ...manifest(), publishedAt }, version)).toThrow('incomplete metadata')
+  })
+
+  it('rejects a parseable asset-upload time that differs from GitHub publication', async () => {
+    const value = { ...manifest(), publishedAt: '2026-08-25T18:36:34Z' }
+    await expect(verifyPublicRelease({ version, publishedRelease, fetcher: releaseFetcher(value) })).rejects.toThrow('publication time differs')
+  })
+
+  it('compares publication instants rather than timestamp formatting', async () => {
+    const value = { ...manifest(), publishedAt: '2026-08-25T18:40:32.000Z' }
+    await expect(verifyPublicRelease({ version, publishedRelease, fetcher: releaseFetcher(value) })).resolves.toMatchObject(value)
+  })
+
+  it.each([
+    { tag_name: 'v9.8.6' }, { html_url: 'https://example.com/release' },
+    { draft: true }, { prerelease: true }, { published_at: null }, { published_at: 'invalid' }
+  ])('rejects an unverified GitHub publication source: %j', async (overrides) => {
+    const fetcher = releaseFetcher({ ...manifest(), publishedAt: null })
+    await expect(verifyPublicRelease({ version, publishedRelease: { ...publishedRelease, ...overrides }, fetcher })).rejects.toThrow('GitHub publication metadata')
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })
