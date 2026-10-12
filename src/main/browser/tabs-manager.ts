@@ -1,3 +1,4 @@
+import { storageInspectionGuard, type StorageInspectionHooks } from './storage-inspection-operation.js'
 import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from './web-storage-operation.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
@@ -2473,14 +2474,35 @@ export class BrowserTabsManager {
     }
   }
 
-  async inspectIndexedDb(options: BrowserIndexedDbOptions = {}): Promise<BrowserIndexedDbReport> {
+  private storageInspectionGuard(tab: BrowserTab, hooks?: StorageInspectionHooks): () => void {
+    const contents = tab.webContents
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    const assertCurrent = storageInspectionGuard(() => {
+      hooks?.validate()
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+        || currentWorkspace !== workspace
+        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
+        throw new Error('Storage inspection context changed')
+      }
+    })
+    hooks?.retainPublication(assertCurrent)
+    return assertCurrent
+  }
+
+  async inspectIndexedDb(options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
     const tab = this.getTab(options.tabId)
     const pageUrl = new URL(tab.url)
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
       throw new Error('IndexedDB inspection is available only for HTTP and HTTPS tabs.')
     }
-    const requireCurrentPage = this.inspectionPageGuard(tab, 'IndexedDB inspection')
     const normalized = normalizeBrowserIndexedDbOptions(options)
+    const requireCurrentPage = this.storageInspectionGuard(tab, hooks)
+    requireCurrentPage()
+    hooks?.readStarted()
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       INDEXED_DB_WORLD_ID,
       [{ code: indexedDbPageScript(normalized) }],
@@ -2505,24 +2527,26 @@ export class BrowserTabsManager {
     }
   }
 
-  async inspectStorageUsage(tabId?: string): Promise<BrowserStorageUsageReport> {
+  async inspectStorageUsage(tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
     const tab = this.getTab(tabId)
     const pageUrl = new URL(tab.url)
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
       throw new Error('Storage usage inspection is available only for HTTP and HTTPS tabs.')
     }
 
-    const requireCurrentPage = this.inspectionPageGuard(tab, 'storage usage inspection')
+    const requireCurrentPage = this.storageInspectionGuard(tab, hooks)
+    requireCurrentPage()
     try {
       const raw = await this.withDebugger(tab.webContents, () => {
         requireCurrentPage()
+        hooks?.readStarted()
         return tab.webContents.debugger.sendCommand('Storage.getUsageAndQuota', { origin: pageUrl.origin }) as Promise<{
           usage?: number
           quota?: number
           overrideActive?: boolean
           usageBreakdown?: Array<{ storageType?: string; usage?: number }>
         }>
-      })
+      }, requireCurrentPage)
       requireCurrentPage()
       return buildBrowserStorageUsageReport({
         tabId: tab.id,
@@ -2533,6 +2557,7 @@ export class BrowserTabsManager {
       })
     } catch (error) {
       requireCurrentPage()
+      hooks?.readStarted()
       const estimate = await tab.webContents.executeJavaScriptInIsolatedWorld(
         STORAGE_USAGE_WORLD_ID,
         [{ code: `(() => navigator.storage?.estimate?.().then((value) => ({
