@@ -2677,6 +2677,11 @@ function registerIpc(): void {
     if (typeof tabId !== 'string' || typeof routeId !== 'string') throw new TypeError('Invalid network route')
     return tabsManager!.removeNetworkRoute(tabId, routeId)
   })
+  ipcMain.handle('browser:set-network-route-enabled', (event, tabId: unknown, routeId: unknown, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof tabId !== 'string' || typeof routeId !== 'string' || typeof enabled !== 'boolean') throw new TypeError('Invalid network route enabled state')
+    return tabsManager!.setNetworkRouteEnabled(tabId, routeId, enabled)
+  })
   ipcMain.handle('browser:move-network-route', (event, tabId: unknown, routeId: unknown, direction: unknown) => {
     assertTrustedShellSender(event)
     if (

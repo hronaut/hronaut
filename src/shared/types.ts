@@ -1769,6 +1769,7 @@ export interface BrowserNetworkRouteInput {
 }
 
 export interface BrowserNetworkRouteSummary {
+  enabled: boolean
   id: string
   urlPattern: string
   method?: string
@@ -2606,6 +2607,7 @@ export interface HronautApi {
   resetTabEmulation(tabId: string): Promise<BrowserState>
   listNetworkRoutes(tabId: string): Promise<BrowserNetworkRouteSummary[]>
   addNetworkRoute(tabId: string, input: BrowserNetworkRouteInput): Promise<BrowserNetworkRouteSummary[]>
+  setNetworkRouteEnabled(tabId: string, routeId: string, enabled: boolean): Promise<BrowserNetworkRouteSummary[]>
   moveNetworkRoute(tabId: string, routeId: string, direction: BrowserNetworkRouteMoveDirection): Promise<BrowserNetworkRouteSummary[]>
   removeNetworkRoute(tabId: string, routeId: string): Promise<BrowserNetworkRouteSummary[]>
   clearNetworkRoutes(tabId: string): Promise<BrowserState>

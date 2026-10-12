@@ -329,3 +329,11 @@ describe('human waiting lifecycle', () => {
     expect(store.list(input.workspaceId).find(record => record.id === approved.id)).toMatchObject({ state: 'EXPIRED', review: { status: 'EXPIRED' } })
   })
 })
+
+
+it('binds a condition review to the exact route and explicit enabled value', () => {
+  const input = { action: 'set-enabled', tabId: 'tab', routeId: 'rule-a', enabled: false }
+  const hash = humanWaitingArtifactHash('browser_network_routes', input)
+  expect(hash).not.toBe(humanWaitingArtifactHash('browser_network_routes', { ...input, enabled: true }))
+  expect(hash).not.toBe(humanWaitingArtifactHash('browser_network_routes', { ...input, routeId: 'rule-b' }))
+})

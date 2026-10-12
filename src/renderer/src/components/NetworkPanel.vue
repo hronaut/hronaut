@@ -100,6 +100,7 @@ const {
   refreshAll: refreshNetwork,
   openRequestConditions,
   addRouteFromDraft: addNetworkRouteFromDraft,
+  setRouteEnabled: setNetworkRouteEnabled,
   removeRoute: removeNetworkRoute,
   moveRoute: moveNetworkRoute,
   clearRoutes: clearActiveNetworkRoutes,
@@ -231,6 +232,7 @@ onBeforeUnmount(dispose)
           :locale="locale"
           @move="moveNetworkRoute"
           @remove="removeNetworkRoute"
+          @set-enabled="setNetworkRouteEnabled"
           @add="addNetworkRouteFromDraft"
           @clear="clearActiveNetworkRoutes"
         />

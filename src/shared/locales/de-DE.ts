@@ -2169,7 +2169,7 @@ export const deDE = {
       "size": "Größe",
       "status": "Status"
     },
-    "conditions": { unconfirmed: "Die Anwendung der Anfragebedingungen ist unbestätigt.", recover: "Bedingungen löschen und wiederherstellen", recoveryWarning: "Nach dem Löschen erreichen zukünftige passende Anfragen ihr normales Ziel. Bereits gesendete Anfragen oder Antworten werden nicht rückgängig gemacht.", refreshAfterChangeFailed: "Die Bedingungsänderung wurde gespeichert, aber der Browserzustand konnte nicht aktualisiert werden.",
+    "conditions": { enabled: "Aktiviert", disabled: "Deaktiviert", enabledAria: "Anfragebedingung {pattern} aktivieren", enabledRetained: "{enabled} aktiviert · {retained} gespeichert", retained: "{count} gespeichert", disableWarning: "Das Deaktivieren einer Simulation oder Blockierung lässt zukünftige passende Anfragen zur nächsten aktivierten Bedingung oder ihrem normalen Ziel gelangen. Bereits gesendete Anfragen werden nicht rückgängig gemacht.", unconfirmed: "Die Anwendung der Anfragebedingungen ist unbestätigt.", recover: "Bedingungen löschen und wiederherstellen", recoveryWarning: "Nach dem Löschen erreichen zukünftige passende Anfragen ihr normales Ziel. Bereits gesendete Anfragen oder Antworten werden nicht rückgängig gemacht.", refreshAfterChangeFailed: "Die Bedingungsänderung wurde gespeichert, aber der Browserzustand konnte nicht aktualisiert werden.",
       "heading": "Anfragebedingungen",
       "description": "Anfragen blockieren, simulieren, drosseln und priorisieren",
       "active": "{count} aktiv",

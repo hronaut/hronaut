@@ -2169,7 +2169,7 @@ export const frFR = {
       "size": "Taille",
       "status": "Statut"
     },
-    "conditions": { unconfirmed: "L’application des conditions de requête n’est pas confirmée.", recover: "Effacer les conditions et rétablir", recoveryWarning: "L’effacement permet aux futures requêtes correspondantes d’atteindre leur destination normale. Les requêtes ou réponses déjà envoyées ne peuvent pas être annulées.", refreshAfterChangeFailed: "La modification de la condition a été enregistrée, mais l’état du navigateur n’a pas pu être actualisé.",
+    "conditions": { enabled: "Activée", disabled: "Désactivée", enabledAria: "Activer la condition de requête {pattern}", enabledRetained: "{enabled} activées · {retained} conservées", retained: "{count} conservées", disableWarning: "Désactiver une simulation ou un blocage permet aux futures requêtes correspondantes de passer à la condition active suivante ou à leur destination normale. Cela ne peut pas annuler les requêtes déjà envoyées.", unconfirmed: "L’application des conditions de requête n’est pas confirmée.", recover: "Effacer les conditions et rétablir", recoveryWarning: "L’effacement permet aux futures requêtes correspondantes d’atteindre leur destination normale. Les requêtes ou réponses déjà envoyées ne peuvent pas être annulées.", refreshAfterChangeFailed: "La modification de la condition a été enregistrée, mais l’état du navigateur n’a pas pu être actualisé.",
       "heading": "Conditions des requêtes",
       "description": "Bloquer, simuler, ralentir et hiérarchiser les requêtes",
       "active": "{count} active",

@@ -4839,9 +4839,10 @@ function createBrowserMcpServer(
     {
       description: toolDescription('browser_network_routes'),
       inputSchema: {
-        action: z.enum(['list', 'add', 'move', 'remove', 'clear']).optional(),
+        action: z.enum(['list', 'add', 'move', 'remove', 'clear', 'set-enabled']).optional(),
         tabId: tabIdSchema.optional(),
         routeId: z.string().optional(),
+        enabled: z.boolean().optional().describe('Explicit enabled state; required with routeId for set-enabled. Only confirmed conditions can be toggled.'),
         direction: z.enum(['up', 'down']).optional()
           .describe('Move a first-match-wins condition one position up or down. Requires action move and routeId.'),
         urlPattern: networkRouteInputSchema.shape.urlPattern.optional(),
@@ -4860,6 +4861,7 @@ function createBrowserMcpServer(
       tabId,
       routeId,
       direction,
+      enabled,
       urlPattern,
       method,
       times,
@@ -4869,9 +4871,10 @@ function createBrowserMcpServer(
     }: {
       validateConditions?: () => void
       markConditionsSubmitted?: () => void
-      action?: 'list' | 'add' | 'move' | 'remove' | 'clear'
+      action?: 'list' | 'add' | 'move' | 'remove' | 'clear' | 'set-enabled'
       tabId?: string
       routeId?: string
+      enabled?: boolean
       direction?: 'up' | 'down'
       urlPattern?: string
       method?: string
@@ -4890,6 +4893,10 @@ function createBrowserMcpServer(
       try {
         if (action === 'list') return publish(manager.networkRoutes(tabId))
         if (action === 'clear') return publish(await manager.clearNetworkRoutes(tabId, validateConditions, markConditionsSubmitted))
+        if (action === 'set-enabled') {
+          if (!routeId || typeof enabled !== 'boolean') throw new Error('routeId and boolean enabled are required for set-enabled')
+          return publish(await manager.setNetworkRouteEnabled(tabId, routeId, enabled, validateConditions, markConditionsSubmitted))
+        }
         if (action === 'move') {
           if (!routeId || !direction) throw new Error('routeId and direction are required when moving a network route')
           return publish(await manager.moveNetworkRoute(tabId, routeId, direction, validateConditions, markConditionsSubmitted))

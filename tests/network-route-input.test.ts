@@ -6,14 +6,14 @@ const urlPattern = 'https://example.test/*'
 
 it('normalizes response defaults, HTTP methods, one-shot failures, and persistent throttles', () => {
   expect(normalizeNetworkRouteInput({ urlPattern, method: ' get ', response: {} })).toEqual({
-    urlPattern, method: 'GET', behavior: 'fulfill', remainingMatches: 1,
+    enabled: true, urlPattern, method: 'GET', behavior: 'fulfill', remainingMatches: 1,
     response: { status: 200, headerNames: [], bodyBytes: 0 }, responseHeaders: {}, responseBody: ''
   })
   expect(normalizeNetworkRouteInput({ urlPattern, abort: 'Failed', times: 100 })).toEqual({
-    urlPattern, behavior: 'abort', remainingMatches: 100, abort: 'Failed'
+    enabled: true, urlPattern, behavior: 'abort', remainingMatches: 100, abort: 'Failed'
   })
   expect(normalizeNetworkRouteInput({ urlPattern, throttle: 'slow-3g' })).toEqual({
-    urlPattern, behavior: 'throttle', throttle: 'slow-3g'
+    enabled: true, urlPattern, behavior: 'throttle', throttle: 'slow-3g'
   })
 })
 

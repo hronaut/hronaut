@@ -26,6 +26,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  setEnabled: [routeId: string, enabled: boolean]
   move: [routeId: string, direction: 'up' | 'down']
   remove: [routeId: string]
   add: []
@@ -71,19 +72,20 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
         <span><strong id="request-conditions-title">{{ t('network.conditions.heading') }}</strong><small>{{ t('network.conditions.description') }}</small></span>
       </span>
       <span class="request-conditions-toggle-meta">
-        <span v-if="routes.length || unconfirmed()" class="request-conditions-count">{{ unconfirmed() ? t('network.conditions.unconfirmed') : t('network.conditions.active', { count: localNumber(routes.length) }, routes.length) }}</span>
+        <span v-if="routes.length || unconfirmed()" class="request-conditions-count">{{ unconfirmed() ? t('network.conditions.unconfirmed') : t('network.conditions.enabledRetained', { enabled: localNumber(routes.filter(route => route.enabled).length), retained: localNumber(routes.length) }) }}</span>
         <IconKeyboardArrowDown v-if="expanded" aria-hidden="true" />
         <IconKeyboardArrowRight v-else aria-hidden="true" />
       </span>
     </UiButton>
     <div v-if="expanded" id="request-conditions-content" class="request-conditions-content">
       <p v-if="unconfirmed()" role="status">{{ t('network.conditions.unconfirmed') }} {{ t('network.conditions.recoveryWarning') }}</p>
+      <p v-if="routes.length">{{ t('network.conditions.disableWarning') }}</p>
       <p v-if="error" class="network-monitor-error" role="alert">{{ error }}</p>
       <div v-if="state === 'loading' && !routes.length" class="request-conditions-empty" role="status">
         <IconProgress class="state-spinner" aria-hidden="true" />
         {{ t('network.conditions.reading') }}
       </div>
-      <div v-else-if="routes.length" class="request-condition-list" :aria-label="unconfirmed() ? t('network.conditions.heading') : t('network.conditions.listAria')">
+      <div v-else-if="routes.length" class="request-condition-list" :aria-label="t('network.conditions.heading')">
         <article v-for="(route, index) in routes" :key="route.id" class="request-condition-item">
           <span class="request-condition-order" :title="index === 0 ? t('network.conditions.firstWins') : t('network.conditions.priority', { number: localNumber(index + 1) })">{{ localNumber(index + 1) }}</span>
           <span class="request-condition-copy">
@@ -98,6 +100,10 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
             </small>
           </span>
           <span class="request-condition-controls">
+            <label>
+              <input type="checkbox" :checked="route.enabled" :aria-label="t('network.conditions.enabledAria', { pattern: route.urlPattern })" :disabled="unconfirmed() || state === 'saving'" @change="emit('setEnabled', route.id, ($event.target as HTMLInputElement).checked)" />
+              {{ route.enabled ? t('network.conditions.enabled') : t('network.conditions.disabled') }}
+            </label>
             <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveUpAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveUp')" :disabled="unconfirmed() || state === 'saving' || index === 0" @click="emit('move', route.id, 'up')"><IconKeyboardArrowUp aria-hidden="true" /></UiButton>
             <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveDownAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveDown')" :disabled="unconfirmed() || state === 'saving' || index === routes.length - 1" @click="emit('move', route.id, 'down')"><IconKeyboardArrowDown aria-hidden="true" /></UiButton>
             <UiButton appearance="application" type="button" :aria-label="t('network.conditions.removeAria', { pattern: route.urlPattern })" :title="t('network.conditions.remove')" :disabled="unconfirmed() || state === 'saving'" @click="emit('remove', route.id)"><IconDelete aria-hidden="true" /></UiButton>

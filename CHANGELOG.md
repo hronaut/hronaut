@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Enable or disable retained Network conditions without rebuilding private mocks, changing priority or resetting remaining matches. Toggles require confirmed native application; explicit clear remains the recovery path.
+
 - Semantically replace or clear a bounded exact option set in one native multiple-select control using `browser_select.values`. Validate the full set before mutation, preserve disabled-control rules, and report uncertain handler or authority changes without replay. No native gesture fidelity is claimed.
 
 ### Fixed

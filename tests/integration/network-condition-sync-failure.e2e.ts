@@ -4,11 +4,11 @@ import { expect, test } from './capability-fixtures.js'
 type SyncFailureGate = { waiting: boolean; release(): void; restore(): void }
 type SyncFailureScope = typeof globalThis & { __conditionSyncFailure?: SyncFailureGate }
 
-for (const action of ['add', 'add with newer draft', 'remove'] as const) {
+for (const action of ['add', 'add with newer draft', 'remove', 'set-enabled'] as const) {
   test(`Network condition ${action} remains committed after browser state refresh fails`, async ({ capabilities, electronApp, appWindow }) => {
     const { tabId, fixtureUrl, fixtureOrigin, openPageTool } = capabilities
     const pattern = `${fixtureOrigin}/route-target`
-    if (action === 'remove') {
+    if (action === 'remove' || action === 'set-enabled') {
       await appWindow.evaluate(({ tabId, pattern }) => (window as unknown as { hronaut: HronautApi }).hronaut.addNetworkRoute(tabId, {
         urlPattern: pattern, times: 2, response: { status: 409, body: 'committed condition' }
       }), { tabId, pattern })
@@ -24,7 +24,7 @@ for (const action of ['add', 'add with newer draft', 'remove'] as const) {
     await electronApp.evaluate(({ ipcMain }, action) => {
       type Handler = (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
       const handlers = (ipcMain as typeof ipcMain & { _invokeHandlers: Map<string, Handler> })._invokeHandlers
-      const mutationChannel = action === 'remove' ? 'browser:remove-network-route' : 'browser:add-network-route'
+      const mutationChannel = action === 'remove' ? 'browser:remove-network-route' : action === 'set-enabled' ? 'browser:set-network-route-enabled' : 'browser:add-network-route'
       const originals = [mutationChannel, 'browser:get-state'].map(channel => ({ channel, handler: handlers.get(channel)! }))
       let armed = false
       let release!: () => void
@@ -51,11 +51,15 @@ for (const action of ['add', 'add with newer draft', 'remove'] as const) {
     }, action)
     try {
       if (action === 'remove') await panel.getByRole('button', { name: `Remove request condition ${pattern}`, exact: true }).click()
+      else if (action === 'set-enabled') {
+        const toggle = panel.getByRole('checkbox', { name: `Enable request condition ${pattern}`, exact: true })
+        await toggle.focus(); await toggle.press('Space')
+      }
       else await form.getByRole('button', { name: 'Add condition', exact: true }).click()
       await expect.poll(() => electronApp.evaluate(() => (globalThis as SyncFailureScope).__conditionSyncFailure?.waiting)).toBe(true)
       const routes = await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.listNetworkRoutes(id), tabId)
       expect(routes).toHaveLength(action === 'remove' ? 0 : 1)
-      if (action === 'add with newer draft') {
+      if (action === 'add with newer draft' || action === 'set-enabled') {
         await form.getByLabel('URL pattern').fill(`${fixtureOrigin}/newer-draft`)
         await form.getByLabel(/Response body/).fill('newer body')
       }
@@ -64,12 +68,16 @@ for (const action of ['add', 'add with newer draft', 'remove'] as const) {
       await expect(panel.locator('.request-condition-item')).toHaveCount(action === 'remove' ? 0 : 1)
       await expect(form.getByLabel('URL pattern')).toHaveValue(action === 'add' ? '' : action === 'remove' ? pattern : `${fixtureOrigin}/newer-draft`)
       await expect(form.getByLabel(/Response body/)).toHaveValue(action === 'add' ? '' : action === 'remove' ? 'committed condition' : 'newer body')
+      if (action === 'set-enabled') {
+        await expect(panel.getByRole('checkbox', { name: `Enable request condition ${pattern}`, exact: true })).not.toBeChecked()
+        expect(routes[0]?.enabled).toBe(false)
+      }
       if (action !== 'remove') {
         const response = await electronApp.evaluate(async ({ webContents }, url) => {
           const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
           return page.executeJavaScript("fetch('/route-target').then(async response => ({status:response.status,body:await response.text()}))")
         }, fixtureUrl)
-        expect(response).toEqual({ status: 409, body: 'committed condition' })
+        expect(response).toEqual(action === 'set-enabled' ? { status: 200, body: '{"source":"real"}' } : { status: 409, body: 'committed condition' })
       }
     } finally {
       await electronApp.evaluate(() => { (globalThis as SyncFailureScope).__conditionSyncFailure?.restore(); delete (globalThis as SyncFailureScope).__conditionSyncFailure }).catch(() => undefined)

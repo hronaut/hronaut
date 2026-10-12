@@ -55,9 +55,9 @@ export function normalizeNetworkRouteInput(value: unknown): NormalizedNetworkRou
   if (input.throttle !== undefined) {
     if (input.method !== undefined) throw new Error('Individual request throttling matches URLs and cannot be restricted by HTTP method')
     if (input.times !== undefined) throw new Error('Throttle conditions stay active until removed and cannot use times')
-    return { urlPattern, behavior: 'throttle', throttle: input.throttle }
+    return { enabled: true, urlPattern, behavior: 'throttle', throttle: input.throttle }
   }
-  const base = { urlPattern, ...(method ? { method } : {}), remainingMatches: input.times ?? 1 }
+  const base = { enabled: true, urlPattern, ...(method ? { method } : {}), remainingMatches: input.times ?? 1 }
   if (input.abort !== undefined) return { ...base, behavior: 'abort', abort: input.abort }
   const response = input.response!
   const body = response.body ?? ''

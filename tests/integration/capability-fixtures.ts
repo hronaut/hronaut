@@ -50,7 +50,7 @@ interface CapabilityFixture {
   fixtureUrl: string
   fixtureOrigin: string
   redactedFixtureUrl: string
-  counters: { memorySaverTicks: number; cacheProbeRequests: number }
+  counters: { memorySaverTicks: number; cacheProbeRequests: number; routeRequests: number }
   openPageTool(name: string | RegExp): Promise<void>
 }
 
@@ -65,7 +65,7 @@ async function openPageTool(appWindow: Page, name: string | RegExp): Promise<voi
 // Assertions live in the cases; this fixture only establishes and tears down their prerequisites.
 export const test = base.extend<{ capabilities: CapabilityFixture }>({
   capabilities: async ({ appWindow, mcpPort, mcpToken }, use) => {
-    const counters = { memorySaverTicks: 0, cacheProbeRequests: 0 }
+    const counters = { memorySaverTicks: 0, cacheProbeRequests: 0, routeRequests: 0 }
     const server = createServer((request, response) => {
       if (request.url?.startsWith('/background-video')) {
         const blue = request.url.includes('blue')
@@ -208,7 +208,8 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
         response.end()
         return
       }
-      if (request.url === '/route-target') {
+      if (request.url === '/route-target' || request.url?.startsWith('/route-target?')) {
+        counters.routeRequests++
         response.writeHead(200, { 'content-type': 'application/json' })
         response.end('{"source":"real"}')
         return
