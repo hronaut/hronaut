@@ -11,10 +11,12 @@ const editing = ref(false)
 const draft = ref('')
 const pending = ref(false)
 const error = ref('')
+const root = ref<HTMLDivElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
 const trigger = ref<{ focus: () => void } | null>(null)
 let generation = 0
-onBeforeUnmount(() => { generation += 1 })
+let stopTrackingFocus: (() => void) | undefined
+onBeforeUnmount(() => { generation += 1; stopTrackingFocus?.() })
 
 async function edit(): Promise<void> {
   const token = ++generation
@@ -27,12 +29,15 @@ async function edit(): Promise<void> {
     input.value?.closest('form')?.scrollIntoView?.({ block: 'nearest' })
   }
 }
-async function cancel(): Promise<void> {
+async function close(restoreFocus: () => boolean): Promise<void> {
   const token = ++generation
   editing.value = false
   error.value = ''
   await nextTick()
-  if (token === generation) trigger.value?.focus()
+  if (token === generation && restoreFocus()) trigger.value?.focus()
+}
+async function cancel(): Promise<void> {
+  await close(() => true)
 }
 async function save(clear = false): Promise<void> {
   if (pending.value) return
@@ -42,6 +47,17 @@ async function save(clear = false): Promise<void> {
   }
   const token = generation
   const tabId = props.tab.id
+  // Disabling the saving control can move focus to body without a focusin.
+  // Remember the latest explicit owner so leaving for search and then body
+  // never lets an old completion reclaim focus.
+  let ownsFocus = root.value?.contains(document.activeElement) ?? false
+  const trackFocus = (event: FocusEvent): void => {
+    ownsFocus = event.target instanceof Node && (root.value?.contains(event.target) ?? false)
+  }
+  const retainsFocus = (): boolean => ownsFocus &&
+    (document.activeElement === document.body || (root.value?.contains(document.activeElement) ?? false))
+  document.addEventListener('focusin', trackFocus)
+  stopTrackingFocus = () => document.removeEventListener('focusin', trackFocus)
   pending.value = true
   error.value = ''
   try {
@@ -52,18 +68,22 @@ async function save(clear = false): Promise<void> {
     if (result.status === 'durability-unconfirmed') {
       error.value = t('tabLabel.uncertain')
     } else {
-      await cancel()
+      const restoreFocus = retainsFocus()
+      pending.value = false
+      await close(() => restoreFocus && retainsFocus())
     }
   } catch {
     if (token === generation && props.tab.id === tabId) error.value = t('tabLabel.failed')
   } finally {
+    stopTrackingFocus?.()
+    stopTrackingFocus = undefined
     pending.value = false
   }
 }
 </script>
 
 <template>
-  <div class="tab-label-editor" @keydown.stop>
+  <div ref="root" class="tab-label-editor" @keydown.stop>
     <p v-if="tab.labelDurabilityUnconfirmed && !editing" role="alert">{{ t('tabLabel.uncertain') }}</p>
     <UiButton v-if="!editing" ref="trigger" size="small" :disabled="pending" :aria-label="t('tabLabel.editAria', { title: tab.label || tab.title })" @click="edit">{{ t('tabLabel.edit') }}</UiButton>
     <form v-else :aria-label="t('tabLabel.edit')" @submit.prevent="save()" @keydown.esc.stop.prevent="cancel">

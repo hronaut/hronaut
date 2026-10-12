@@ -90,6 +90,33 @@ test('edits, searches and clears task labels without replacing document titles t
   expect((await api(appWindow).state()).tabs.find(tab => tab.id === first)?.label).toBeUndefined()
 })
 
+for (const owner of ['original editor', 'search', 'other editor'] as const) {
+  test(`delayed label save preserves focus owned by ${owner}`, async ({ appWindow, electronApp, profileDirectory }) => {
+    await newTab(appWindow)
+    await newTab(appWindow)
+    await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
+    const panel = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
+    const cards = panel.locator('.tab-overview-card')
+    const first = cards.first()
+    const second = cards.nth(1)
+    await first.getByRole('button', { name: 'Edit label for Shared application', exact: true }).click()
+    await first.getByRole('textbox', { name: 'Tab label', exact: true }).fill('Delayed focus role')
+    await installSaveFault(electronApp, 'hold', 'Delayed focus role', profileDirectory)
+    try {
+      await first.getByRole('button', { name: 'Save', exact: true }).click()
+      await faultEntered(electronApp)
+      if (owner === 'search') await panel.getByRole('searchbox').focus()
+      if (owner === 'other editor') await second.getByRole('button', { name: 'Edit label for Shared application', exact: true }).click()
+      await releaseFault(electronApp)
+      const trigger = first.getByRole('button', { name: 'Edit label for Delayed focus role', exact: true })
+      await expect(trigger).toBeEnabled()
+      if (owner === 'original editor') await expect(trigger).toBeFocused()
+      if (owner === 'search') await expect(panel.getByRole('searchbox')).toBeFocused()
+      if (owner === 'other editor') await expect(second.getByRole('textbox', { name: 'Tab label', exact: true })).toBeFocused()
+    } finally { await restoreFault(electronApp) }
+  })
+}
+
 test('keeps labels through duplicate, close/reopen, archive/restore and restart', async ({ profileDirectory, mcpPort }) => {
   let instance: Awaited<ReturnType<typeof launchHronaut>> | undefined
   try {
