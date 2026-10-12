@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Stop pending cookie edits when their page or MCP control changes. Interrupted cookie batches report whether native writes were attempted, retain uncertain outcomes without replay, and withhold results after authority changes during settlement.
 - Match the Downloads save-mode confirmation to the current authoritative setting when another change arrives before an earlier response completes.
 - Keep a newer MCP port draft free of error feedback from an earlier failed Apply port request. Failures still appear when their submitted draft is unchanged; no listener change is retried automatically.
 

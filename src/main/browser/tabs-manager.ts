@@ -17,6 +17,7 @@ import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
 import { utf8Prefix } from '../../shared/utf8.js'
 import { boundStorageItems } from './storage-items.js'
+import { createCookieWriteOperation, type CookieWriteHooks } from './cookie-write-operation.js'
 import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
 import { inspectVideoFrames } from './video-inspection.js'
 import { BrowserVideoRecorder, type PendingVideoInspection, type VideoSourceBinding } from './video-recorder.js'
@@ -2368,7 +2369,7 @@ export class BrowserTabsManager {
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
-  async manageStorage(options: BrowserStorageOptions): Promise<BrowserStorageResult> {
+  async manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks): Promise<BrowserStorageResult> {
     const tab = this.getTab(options.tabId)
     const action = options.action ?? 'list'
     const pageUrl = new URL(tab.url)
@@ -2387,7 +2388,7 @@ export class BrowserTabsManager {
     }
 
     if (options.kind === 'cookies') {
-      return this.manageCookies(tab, pageUrl, action, key, options.value, options.includeValues === true)
+      return this.manageCookies(tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks)
     }
 
     const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
@@ -2957,36 +2958,64 @@ export class BrowserTabsManager {
     action: BrowserStorageResult['action'],
     key: string | undefined,
     value: string | undefined,
-    includeValues: boolean
+    includeValues: boolean,
+    hooks?: CookieWriteHooks
   ): Promise<BrowserStorageResult> {
-    const cookieStore = tab.webContents.session.cookies
+    const contents = tab.webContents
+    const session = contents.session
+    const cookieStore = session.cookies
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    const assertCurrent = (): void => {
+      if (action === 'list' || action === 'get') return
+      hooks?.validate()
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+        || contents.session !== session || currentWorkspace !== workspace
+        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
+        throw new Error('Cookie storage context changed. Earlier writes are not rolled back; inspect fresh state before continuing.')
+      }
+    }
+    const operation = createCookieWriteOperation(assertCurrent, hooks?.progress)
+    hooks?.retainPublication(assertCurrent)
+    assertCurrent()
     const url = pageUrl.href
     const cookies = await cookieStore.get({ url })
+    assertCurrent()
     let changed: boolean | undefined
     if (action === 'set') {
       const protectedMatch = cookies.some((cookie) => cookie.name === key && cookie.httpOnly)
       if (protectedMatch) throw new Error('HttpOnly cookies are protected and cannot be replaced by the storage manager.')
-      await cookieStore.set({
+      await operation.write(() => cookieStore.set({
         url: pageUrl.origin,
         name: key!,
         value: value!,
         path: '/',
         secure: pageUrl.protocol === 'https:',
         sameSite: 'lax'
-      })
+      }))
       changed = true
     } else if (action === 'delete') {
       const matches = cookies.filter((cookie) => cookie.name === key)
       const editable = matches.filter((cookie) => !cookie.httpOnly)
       if (matches.length && !editable.length) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-      for (const cookie of editable) await cookieStore.remove(this.cookieRemovalUrl(cookie), cookie.name)
+      for (const cookie of editable) {
+        const removalUrl = this.cookieRemovalUrl(cookie)
+        await operation.write(() => cookieStore.remove(removalUrl, cookie.name))
+      }
       changed = editable.length > 0
     } else if (action === 'clear') {
       const editable = cookies.filter((cookie) => !cookie.httpOnly)
-      for (const cookie of editable) await cookieStore.remove(this.cookieRemovalUrl(cookie), cookie.name)
+      for (const cookie of editable) {
+        const removalUrl = this.cookieRemovalUrl(cookie)
+        await operation.write(() => cookieStore.remove(removalUrl, cookie.name))
+      }
       changed = editable.length > 0
     }
     const next = await cookieStore.get({ url })
+    assertCurrent()
     const selected = action === 'get' ? next.filter((cookie) => cookie.name === key) : next
     const rawItems: Array<[string, string, Omit<BrowserStorageItem, 'key' | 'value' | 'valueBytes'>]> = selected.map((cookie) => [
       cookie.name,
