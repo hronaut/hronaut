@@ -41,6 +41,7 @@ const invalid = [
   ['not multiple', "document.querySelector('#choices').multiple=false",['b']],
   ['hidden', "document.querySelector('#choices').style.display='none'",['b']],
   ['ambiguous target', "document.body.insertAdjacentHTML('beforeend',document.querySelector('#choices').outerHTML)",['b']],
+  ['unrequested value cap', "document.querySelector('#choices').add(new Option('oversized secret','x'.repeat(1025)))",['b']],
   ['option cap', "for(let i=0;i<1001;i++)document.querySelector('#choices').add(new Option('extra','extra'+i))",['b']]
 ] as const
 for(const [name,mutation,values] of invalid) test(`semantic option set rejects ${name} without partial selection`,async({capabilities,electronApp})=>{

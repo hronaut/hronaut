@@ -28,9 +28,14 @@ export function multiSelectScript(target: { ref?: string; selector?: string }, v
     if (element.options.length > ${MULTI_SELECT_LIMITS.options}) return reject('Select exceeds the 1000-option validation limit');
     const options = Array.from(element.options);
     const chosen = new Set();
-    const originalValues = options.map(option => option.value);
+    const originalValues = [];
+    for (const option of options) {
+      const value = option.value;
+      if (value.length > ${MULTI_SELECT_LIMITS.valueLength}) return reject('Option value exceeds the 1024-unit validation limit');
+      originalValues.push(value);
+    }
     for (const value of requested) {
-      const found = options.filter(option => option.value === value);
+      const found = options.filter((_option, index) => originalValues[index] === value);
       if (found.length !== 1) return reject('Requested value is missing or ambiguous');
       const option = found[0];
       if (option.disabled || (option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled)) return reject('Requested option or option group is disabled');
