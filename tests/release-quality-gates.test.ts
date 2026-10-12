@@ -350,7 +350,9 @@ describe('release quality gates', () => {
     expect(verification).toContain('- publish-release')
     expect(verification).toContain('ref: ${{ github.sha }}')
     expect(verification).toContain('VERSION: ${{ needs.prepare-release.outputs.version }}')
-    expect(verification).toContain('run: node scripts/verify-public-release.ts "$VERSION"')
+    expect(verification).toContain('gh api "repos/hronaut/hronaut/releases/tags/v$VERSION" > "$RUNNER_TEMP/github-release.json"')
+    expect(verification).toContain('node scripts/verify-public-release.ts "$VERSION" "$RUNNER_TEMP/github-release.json"')
+    expect(verification).toContain('GH_TOKEN: ${{ github.token }}')
   })
 
   it('freezes complete published history after release notes and before checksums and attestations', async () => {

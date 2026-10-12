@@ -1,4 +1,5 @@
 import { isMainModule } from './is-main-module.ts'
+import { readFile } from 'node:fs/promises'
 
 const DEFAULT_SITE_URL = 'https://hronaut.dev'
 const DEFAULT_ATTEMPTS = 24
@@ -30,13 +31,14 @@ export interface PublicReleaseManifest {
   version: string
   tag: string
   url: string
-  publishedAt: string
+  publishedAt: string | null
   summary: string
   assets: Record<PublicReleaseAssetKey, PublicReleaseAsset>
 }
 
 export interface PublicReleaseVerificationOptions {
   version: string
+  publishedRelease: unknown
   siteUrl?: string
   fetcher?: typeof fetch
 }
@@ -92,8 +94,10 @@ export function parsePublicReleaseManifest(value: unknown, expectedVersion: stri
     throw new Error(`hronaut.dev resolves ${String(manifest.tag ?? 'an unknown release')}, expected ${expectedTag}`)
   }
   if (
-    typeof manifest.publishedAt !== 'string'
-    || !Number.isFinite(Date.parse(manifest.publishedAt))
+    (manifest.publishedAt !== null && (
+      typeof manifest.publishedAt !== 'string'
+      || !Number.isFinite(Date.parse(manifest.publishedAt))
+    ))
     || typeof manifest.summary !== 'string'
     || !manifest.summary.trim()
     || manifest.summary.length > 200
@@ -154,6 +158,15 @@ export async function verifyPublicRelease(
   options: PublicReleaseVerificationOptions
 ): Promise<PublicReleaseManifest> {
   assertVersion(options.version)
+  const publishedRelease = assertRecord(options.publishedRelease, 'GitHub publication metadata')
+  if (
+    publishedRelease.tag_name !== `v${options.version}`
+    || publishedRelease.html_url !== publicReleaseUrl(options.version)
+    || publishedRelease.draft !== false
+    || publishedRelease.prerelease !== false
+    || typeof publishedRelease.published_at !== 'string'
+    || !Number.isFinite(Date.parse(publishedRelease.published_at))
+  ) throw new Error('GitHub publication metadata does not identify the expected published stable release')
   const fetcher = options.fetcher ?? fetch
   const siteUrl = new URL(options.siteUrl ?? DEFAULT_SITE_URL)
   if (siteUrl.protocol !== 'https:') throw new Error('Public release verification requires HTTPS')
@@ -164,6 +177,9 @@ export async function verifyPublicRelease(
   })
   if (!response.ok) throw new Error(`hronaut.dev release manifest failed with ${response.status}`)
   const manifest = parsePublicReleaseManifest(await response.json(), options.version)
+  if (manifest.publishedAt !== null && Date.parse(manifest.publishedAt) !== Date.parse(publishedRelease.published_at)) {
+    throw new Error('hronaut.dev publication time differs from GitHub publication metadata')
+  }
 
   await expectRedirect(fetcher, new URL('/releases/latest', siteUrl), manifest.url)
   await Promise.all(PUBLIC_RELEASE_ASSET_KEYS.map((key) => (
@@ -198,13 +214,18 @@ export async function waitForPublicRelease(
 
 if (isMainModule(import.meta.url)) {
   const version = process.argv[2]
-  if (!version) throw new Error('Usage: node scripts/verify-public-release.ts <version>')
+  const publishedReleasePath = process.argv[3]
+  if (!version || !publishedReleasePath) throw new Error('Usage: node scripts/verify-public-release.ts <version> <github-release.json>')
   const release = await waitForPublicRelease({
     version,
+    publishedRelease: JSON.parse(await readFile(publishedReleasePath, 'utf8')),
     onAttemptFailure: (attempt, error) => {
       const message = error instanceof Error ? error.message : String(error)
       console.warn(`Public release verification attempt ${attempt} failed: ${message}`)
     }
   })
   console.log(`Verified hronaut.dev release ${release.tag} and ${PUBLIC_RELEASE_ASSET_KEYS.length} downloads.`)
+  console.log(release.publishedAt === null
+    ? 'Website publication time is explicitly unknown; no exact timestamp was verified.'
+    : `Website publication time matches GitHub: ${release.publishedAt}`)
 }

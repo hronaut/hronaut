@@ -527,7 +527,10 @@ jobs:
       - name: Verify hronaut.dev resolves the published release
         env:
           VERSION: ${{ needs.prepare-release.outputs.version }}
-        run: node scripts/verify-public-release.ts "$VERSION"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/hronaut/hronaut/releases/tags/v$VERSION" > "$RUNNER_TEMP/github-release.json"
+          node scripts/verify-public-release.ts "$VERSION" "$RUNNER_TEMP/github-release.json"
 
   publish-mcp-registry:
     name: Publish verified MCPB to MCP Registry
