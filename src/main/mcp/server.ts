@@ -1,3 +1,4 @@
+import { cookieWriteFailure, type CookieWriteHooks, type CookieWriteProgress } from '../browser/cookie-write-operation.js'
 import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
 import { nativeWheelFields, NativeWheelOutcomeUnknownError, type NativeWheelInput } from '../browser/native-wheel.js'
 import { nativeKeyHoldFields, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
@@ -1124,9 +1125,10 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
+    if (request?.cookieProgress && error instanceof McpCapabilityAuthorizationError) request.cookiePolicy = { permission: 'denied', policyDecision: error.decision }
     if (request?.conditionAttempted && error instanceof McpCapabilityAuthorizationError) {
       request.conditionPolicy = { permission: 'denied', policyDecision: error.decision }
     }
@@ -1150,6 +1152,21 @@ function createBrowserMcpServer(
       const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
       const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
       const frameRequest = frameRequests.getStore()!
+      if (name === 'browser_storage' && input.kind === 'cookies' && ['set', 'delete', 'clear'].includes(String(input.action))) {
+        frameRequest.cookieProgress = { attemptedWrites: 0, acknowledgedWrites: 0 }
+      }
+      const settleCookies = (result: CallToolResult): CallToolResult => {
+        if (!frameRequest.cookieProgress) return result
+        let settled = result
+        if (result.isError) {
+          const outcome = { ...cookieWriteFailure(frameRequest.cookieProgress), ...frameRequest.cookiePolicy,
+            ...(frameRequest.cookieReviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+            ...(result.structuredContent?.permission === 'denied' ? { permission: 'denied', policyDecision: result.structuredContent.policyDecision } : {}) }
+          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
+        frameRequest.cookieFinishActivity?.(settled)
+        return settled
+      }
       const settleSelection = (result: CallToolResult): CallToolResult => {
         const settled = name === 'browser_select' && input.values !== undefined && !frameRequest.selectionSubmitted ? selectionNotSubmittedResult(result) : result
         frameRequest.selectionFinishActivity?.(settled)
@@ -1215,6 +1232,7 @@ function createBrowserMcpServer(
         try {
           await authorizeCapability(name, isFrameObservation && frameRequest.tabId ? { ...input, tabId: frameRequest.tabId } : input, 'active-dispatch')
         } catch (error) {
+          rememberInputPolicy(error)
           if (isPageObservation && !result.isError) {
             recordReadinessProbe('failed')
             return pageObservationPublicationFailure(error)
@@ -1238,7 +1256,7 @@ function createBrowserMcpServer(
             ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed, outcome)
           if (frameRequest.keyHoldProgress) return nativeKeyHoldNotDispatchedResult({ ...textResult(outcome), structuredContent: outcome, isError: true })
-          return settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true })
+          return settleCookies(settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true }))
         }
         if (isFrameObservation && frameRequest.pending && !result.isError) {
           await frameRequest.pending.finish()
@@ -1320,9 +1338,13 @@ function createBrowserMcpServer(
             return pageObservationPublicationFailure(error)
           }
         }
-        // No await after the final page observation authority/cancellation check.
+        if (frameRequest.cookieProgress && !result.isError) {
+          if (!frameRequest.cookiePublication) throw new Error('Cookie publication guard is unavailable')
+          frameRequest.cookiePublication()
+        }
+        // No await after the final publication guard.
         recordReadinessProbe(result.isError ? 'failed' : 'verified')
-        return result
+        return settleCookies(result)
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
           && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
@@ -1332,6 +1354,7 @@ function createBrowserMcpServer(
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
         recordReadinessProbe('failed')
+        if (frameRequest.cookieProgress) { rememberInputPolicy(error); return settleCookies(errorResult(error)) }
         if (name === 'browser_network_routes') { rememberInputPolicy(error); return settleConditions(errorResult(error)) }
         if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed,
           error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : frameRequest.keyHoldPolicy ?? errorResult(error).structuredContent)
@@ -1989,6 +2012,7 @@ function createBrowserMcpServer(
             })
           } catch (error) {
             if (frameRequests.getStore()?.selectionSubmitted) frameRequests.getStore()!.selectionReviewFinalizationFailed = true
+            if (frameRequests.getStore()?.cookieProgress?.attemptedWrites) frameRequests.getStore()!.cookieReviewFinalizationFailed = true
             if (frameRequests.getStore()?.conditionAttempted) frameRequests.getStore()!.conditionReviewFinalizationFailed = true
             if (frameRequests.getStore()?.wheelAttempted) frameRequests.getStore()!.wheelReviewFinalizationFailed = true
             if (frameRequests.getStore()?.keyHoldProgress?.downAttempted) frameRequests.getStore()!.keyHoldReviewFinalizationFailed = true
@@ -2126,6 +2150,16 @@ function createBrowserMcpServer(
                     throw error
                   }
                 } } : {}),
+                ...(frameRequests.getStore()!.cookieProgress ? { cookieWriteHooks: {
+                  validate: () => {
+                    try {
+                      if (extra?.signal?.aborted) throw new Error('Cookie operation cancelled')
+                      requireCurrentTarget()
+                    } catch (error) { rememberInputPolicy(error); throw error }
+                  },
+                  progress: (progress: CookieWriteProgress) => { frameRequests.getStore()!.cookieProgress = { ...progress } },
+                  retainPublication: (validate: () => void) => { frameRequests.getStore()!.cookiePublication = validate }
+                } satisfies CookieWriteHooks } : {}),
                 ...(name === 'browser_network_routes' ? {
                   validateConditions: () => {
                     const assert = (): void => {
@@ -2248,6 +2282,10 @@ function createBrowserMcpServer(
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
           const request = frameRequests.getStore()!
+          if (request.cookieProgress && !request.cookieFinishing) {
+            request.cookieFinishActivity = settled => { request.cookieFinishing = true; finishActivity(settled, false) }
+            return
+          }
           if (name === 'browser_network_routes' && !request.conditionFinishing) {
             request.conditionFinishActivity = settled => { request.conditionFinishing = true; finishActivity(settled, false) }
             return
@@ -2263,13 +2301,13 @@ function createBrowserMcpServer(
             && typeof structured.status === 'string' ? structured.status : undefined
           const activityResult = classifyMcpActivityResult({
             readOnly,
-            dispatched: name === 'browser_network_routes' ? request.conditionAttempted === true : name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
+            dispatched: request.cookieProgress ? request.cookieProgress.attemptedWrites > 0 : name === 'browser_network_routes' ? request.conditionAttempted === true : name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
             cancelled: extra?.signal?.aborted === true,
             timedOut: isTimeoutError(error),
             threw,
             isError: result?.isError === true,
             status,
-            invalidatedOutcome: ((name === 'browser_network_routes' && request.conditionAttempted) || (frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none') || frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
+            invalidatedOutcome: request.cookieProgress ? (request.cookieProgress.attemptedWrites > 0 && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : ((name === 'browser_network_routes' && request.conditionAttempted) || (frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none') || frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
               ? 'outcome-unknown' : name === 'browser_select' && actionInput.values !== undefined && (!request.selectionSubmitted || result?.structuredContent?.effects === 'none') ? undefined : invalidatedOutcome,
             verificationStatus: verificationResult?.status
           })
@@ -3332,14 +3370,15 @@ function createBrowserMcpServer(
         includeValues: z.boolean().default(false).describe('Include bounded values when listing. Explicit get always returns the bounded value. HttpOnly cookie values are never exposed.')
       }
     },
-    tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues }: {
+    tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues, cookieWriteHooks }: {
       tabId?: string
       kind: 'local-storage' | 'session-storage' | 'cookies'
       action: 'list' | 'get' | 'set' | 'delete' | 'clear'
       key?: string
       value?: string
       includeValues: boolean
-    }) => textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues })))
+      cookieWriteHooks?: CookieWriteHooks
+    }) => textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues }, cookieWriteHooks)))
   )
   registerWorkspaceTool(
     'browser_storage_changes',

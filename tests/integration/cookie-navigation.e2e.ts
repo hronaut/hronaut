@@ -27,8 +27,10 @@ async function connectClient(port: number, token: string): Promise<Client> {
   return client
 }
 
+type CookieNavigationScope = typeof globalThis & { __cookieRestore?: () => void; __cookieNativeWrites?: number }
+
 for (const action of ['list', 'set'] as const) {
-  test(`keeps cookie ${action} scoped to the original origin during navigation`, async ({ electronApp, mcpPort, mcpToken }) => {
+  test(action === 'list' ? 'keeps cookie reads scoped to the original origin during navigation' : 'rejects a pending cookie write after navigation without mutating either origin', async ({ electronApp, mcpPort, mcpToken }) => {
     const beforeServer = createServer((_request, response) => response.end('<!doctype html><title>Before</title>'))
     const afterServer = createServer((_request, response) => response.end('<!doctype html><title>After</title>'))
     await new Promise<void>(resolve => beforeServer.listen(0, '127.0.0.1', resolve))
@@ -51,13 +53,16 @@ for (const action of ['list', 'set'] as const) {
         const store = page.session.cookies
         await store.set({ url: beforeOrigin, name: 'marker', value: 'original-site', path: '/' })
         await store.set({ url: afterOrigin, name: 'marker', value: 'destination-site', path: '/' })
-        const original = store.get
-        const state = globalThis as typeof globalThis & { __cookieRestore?: () => void }
-        state.__cookieRestore = () => { store.get = original }
+        const original = store.get, set = store.set, remove = store.remove
+        const state = globalThis as CookieNavigationScope
+        state.__cookieNativeWrites = 0
+        state.__cookieRestore = () => { store.get = original; store.set = set; store.remove = remove }
+        store.set = async (...args) => { state.__cookieNativeWrites!++; return set.apply(store, args) }
+        store.remove = async (...args) => { state.__cookieNativeWrites!++; return remove.apply(store, args) }
         store.get = async function (...args) {
           const result = await original.apply(this, args)
           if (args[0].url === `${beforeOrigin}/before`) {
-            state.__cookieRestore?.()
+            store.get = original
             await page.loadURL(`${afterOrigin}/after`)
           }
           return result
@@ -67,15 +72,28 @@ for (const action of ['list', 'set'] as const) {
         workspaceId, tabId, kind: 'cookies', action, includeValues: true,
         ...(action === 'set' ? { key: 'written', value: 'original-write' } : {})
       })
-      expect(result.isError, text(result)).not.toBe(true)
-      const report = JSON.parse(text(result)) as { items: Array<{ key: string; value: string }> }
-      expect(report).toMatchObject({ url: `${beforeOrigin}/before`, origin: beforeOrigin })
-      expect(report.items).toContainEqual(expect.objectContaining({ key: 'marker', value: 'original-site' }))
-      expect(text(result)).not.toContain('destination-site')
+      const native = await electronApp.evaluate(async ({ webContents }, { beforeOrigin, afterOrigin }) => {
+        const page = webContents.getAllWebContents().find(page => page.getURL() === `${afterOrigin}/after`)!
+        const store = page.session.cookies
+        return {
+          writes: (globalThis as CookieNavigationScope).__cookieNativeWrites,
+          before: (await store.get({ url: beforeOrigin })).map(({ name, value }) => ({ name, value })),
+          after: (await store.get({ url: afterOrigin })).map(({ name, value }) => ({ name, value }))
+        }
+      }, { beforeOrigin, afterOrigin })
+      expect(native).toEqual({ writes: 0, before: [{ name: 'marker', value: 'original-site' }], after: [{ name: 'marker', value: 'destination-site' }] })
       if (action === 'set') {
-        expect(report).toMatchObject({ changed: true })
-        expect(report.items).toContainEqual(expect.objectContaining({ key: 'written', value: 'original-write' }))
+        expect(result.isError, text(result)).toBe(true)
+        expect(result.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', attemptedWrites: 0, acknowledgedWrites: 0, retrySafe: false })
+        expect(text(result)).not.toContain('original-site')
+        expect(text(result)).not.toContain('original-write')
+      } else {
+        expect(result.isError, text(result)).not.toBe(true)
+        const report = JSON.parse(text(result)) as { items: Array<{ key: string; value: string }> }
+        expect(report).toMatchObject({ url: `${beforeOrigin}/before`, origin: beforeOrigin })
+        expect(report.items).toContainEqual(expect.objectContaining({ key: 'marker', value: 'original-site' }))
       }
+      expect(text(result)).not.toContain('destination-site')
       const fresh = await call('browser_storage', { workspaceId, tabId, kind: 'cookies', action: 'list', includeValues: true })
       expect(fresh.isError, text(fresh)).not.toBe(true)
       expect(JSON.parse(text(fresh))).toMatchObject({ url: `${afterOrigin}/after`, origin: afterOrigin })
@@ -83,9 +101,10 @@ for (const action of ['list', 'set'] as const) {
       expect(text(fresh)).not.toContain('original-write')
     } finally {
       await electronApp.evaluate(() => {
-        const state = globalThis as typeof globalThis & { __cookieRestore?: () => void }
+        const state = globalThis as CookieNavigationScope
         state.__cookieRestore?.()
         delete state.__cookieRestore
+        delete state.__cookieNativeWrites
       })
       await client.close()
       await closeFixtureServer(beforeServer)
