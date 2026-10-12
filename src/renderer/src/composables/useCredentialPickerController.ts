@@ -6,6 +6,7 @@ type Translate = (key: string) => string
 
 export interface CredentialPickerControllerOptions {
   open: Ref<boolean>
+  panel: Readonly<Ref<HTMLElement | null>>
   credentials: Readonly<Ref<CredentialSummary[]>>
   origin: Readonly<Ref<string | null>>
   locale?: Readonly<Ref<string>>
@@ -17,6 +18,8 @@ export function useCredentialPickerController(options: CredentialPickerControlle
   const input = ref<HTMLInputElement | null>(null)
   const query = ref('')
   const selection = ref(0)
+  let presentation = 0
+  let disposed = false
   const activeCredentials = computed(() => options.origin.value
     ? options.credentials.value.filter((credential) => credential.origin === options.origin.value)
     : [])
@@ -43,23 +46,38 @@ export function useCredentialPickerController(options: CredentialPickerControlle
     document.getElementById(credentialOptionId(credential))?.scrollIntoView?.({ block: 'nearest' })
   }
 
-  function restoreFocusAndReveal(): void {
-    if (options.open.value) input.value?.focus({ preventScroll: true })
+  function isCurrent(expectedPresentation: number): boolean {
+    return !disposed && options.open.value && expectedPresentation === presentation
+  }
+
+  function restoreFocusAndReveal(expectedPresentation: number, previousFocus: Element | null): void {
+    if (!isCurrent(expectedPresentation)) return
+    const panel = options.panel.value
+    const active = document.activeElement
+    // Keep the operator's current control, including a choice made while Vue
+    // was updating. Moving a keyed account row can blur its retained button.
+    if (!panel?.contains(active)) {
+      const retained = active === document.body && previousFocus instanceof HTMLElement
+        && panel?.contains(previousFocus) ? previousFocus : input.value
+      retained?.focus({ preventScroll: true })
+    }
     revealSelectedCredential()
   }
 
   async function openPanel(): Promise<void> {
+    const currentPresentation = ++presentation
     query.value = ''
     selection.value = 0
     options.open.value = true
     await nextTick()
-    if (!options.open.value) return
+    if (!isCurrent(currentPresentation)) return
     input.value?.focus()
     input.value?.select()
     revealSelectedCredential()
   }
 
   function close(): void {
+    presentation += 1
     options.open.value = false
   }
 
@@ -75,8 +93,9 @@ export function useCredentialPickerController(options: CredentialPickerControlle
   async function moveSelection(offset: -1 | 1): Promise<void> {
     if (!credentials.value.length) return
     selection.value = (selection.value + offset + credentials.value.length) % credentials.value.length
+    const currentPresentation = presentation
     await nextTick()
-    revealSelectedCredential()
+    if (isCurrent(currentPresentation)) revealSelectedCredential()
   }
 
   function handleKeydown(event: KeyboardEvent): void {
@@ -115,17 +134,26 @@ export function useCredentialPickerController(options: CredentialPickerControlle
           ? preservedIndex
           : Math.min(selection.value, Math.max(0, nextIds.length - 1))
       }
-      void nextTick().then(restoreFocusAndReveal)
+      if (!options.open.value || disposed) return
+      const currentPresentation = presentation
+      const previousFocus = document.activeElement
+      void nextTick().then(() => restoreFocusAndReveal(currentPresentation, previousFocus))
     },
     { flush: 'sync' }
   )
+  const stopOpenTracking = watch(options.open, (open) => {
+    if (!open) presentation += 1
+  }, { flush: 'sync' })
   const stopOriginTracking = watch(options.origin, (nextOrigin, previousOrigin) => {
     if (nextOrigin !== previousOrigin) close()
   }, { flush: 'sync' })
 
   function dispose(): void {
+    disposed = true
+    presentation += 1
     stopCredentialTracking()
     stopOriginTracking()
+    stopOpenTracking()
   }
 
   return {
