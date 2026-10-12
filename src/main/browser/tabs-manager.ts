@@ -7182,21 +7182,21 @@ export class BrowserTabsManager {
     const controller = new AbortController()
     const signal = hooks.signal ? AbortSignal.any([hooks.signal, controller.signal]) : controller.signal
     const timer = setTimeout(() => controller.abort(), 30_000)
-    let tab: BrowserTab
-    try { tab = this.getTab(source.tabId) } catch { clearTimeout(timer); activeFileEvaluations--; return fileEvaluationFailure(progress) }
-    const contents = tab.webContents
-    const generation = tab.navigationGeneration
-    const mainFrame = contents.mainFrame
-    const frameId = tab.mainFrameId
-    const validate = (): void => {
-      hooks.validate()
-      if (signal.aborted || this.destroyed || contents.isDestroyed()
-        || this.tabs.get(source.tabId) !== tab || tab.navigationGeneration !== generation
-        || contents.mainFrame !== mainFrame || tab.mainFrameId !== frameId
-        || !this.tabBelongsToMcpGroup(source.workspaceId, source.tabId)
-        || new URL(contents.getURL()).origin !== source.expectedOrigin) throw new Error('File evaluation target unavailable')
-    }
     const work = async (): Promise<Record<string, unknown>> => {
+      const tab = this.getTab(source.tabId)
+      const contents = tab.webContents
+      const generation = tab.navigationGeneration
+      const mainFrame = contents.mainFrame
+      const frameId = tab.mainFrameId
+      const validate = (): void => {
+        hooks.validate()
+        if (signal.aborted || this.destroyed || contents.isDestroyed()
+          || this.tabs.get(source.tabId) !== tab || tab.navigationGeneration !== generation
+          || contents.mainFrame !== mainFrame || tab.mainFrameId !== frameId
+          || !this.tabBelongsToMcpGroup(source.workspaceId, source.tabId)
+          || new URL(contents.getURL()).origin !== source.expectedOrigin) throw new Error('File evaluation target unavailable')
+      }
+      hooks.retainPublication(validate)
       validate()
       const script = await fileSourceAcquisitionPool.acquire(source.path, source.sha256, signal, 1000, validate)
       validate()

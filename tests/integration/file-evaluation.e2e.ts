@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -6,11 +6,12 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautSettingsApi, HronautApi } from '../../src/shared/types.js'
+import type { HumanWaitingRecord } from '../../src/shared/human-waiting.js'
 import type { FileEvaluationSource } from '../../src/shared/file-evaluation.js'
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { test as base, expect, closeFixtureServer } from './fixtures.js'
 
-type Probe = { opens: number; submissions: Array<{ unique: boolean; expressionMatches: boolean }>; held: boolean; mode: 'none' | 'preparation' | 'result'; holdOpen: boolean; heldOpens: number; handles: Array<{ fd: number }>; release(): void; restore(): void }
+type Probe = { failReviewSave: boolean; reviewSaveFailures: number; opens: number; submissions: Array<{ unique: boolean; expressionMatches: boolean }>; held: boolean; mode: 'none' | 'preparation' | 'result' | 'audit'; holdOpen: boolean; heldOpens: number; handles: Array<{ fd: number }>; release(): void; restore(): void }
 type Scope = typeof globalThis & { fileProbe?: Probe }
 const code = 'globalThis.__fileRuns = (globalThis.__fileRuns || 0) + 1; ({runs:globalThis.__fileRuns, text:"🛰️\\nexact"})'
 const failingCode = 'throw new Error("synthetic-source-exception-secret")'
@@ -46,35 +47,53 @@ const test = base.extend<{ evaluation: { client: Client; full: Client; source: F
       await full.callTool({ name: 'browser_workspaces', arguments: { action: 'release-ownership', workspaceId: workspace.workspaceId } })
       client = await connect(grant.credential)
       await connectMcpWorkspace(client, 'File source resumed', false, workspace)
-      await electronApp.evaluate(({ webContents }, { url, code }) => {
+      await electronApp.evaluate(({ webContents }, { url, code, failingCode }) => {
         const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
         const { syncBuiltinESMExports } = process.getBuiltinModule('module') as typeof import('node:module')
-        const open = fs.open
+        const open = fs.open; const rename = fs.rename
         const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
         const send = page.debugger.sendCommand
-        const probe: Probe = { opens: 0, submissions: [], held: false, mode: 'none', holdOpen: false, heldOpens: 0, handles: [], release: () => undefined, restore: () => { fs.open = open; syncBuiltinESMExports(); if (!page.isDestroyed()) page.debugger.sendCommand = send } }
+        const probe: Probe = { failReviewSave: false, reviewSaveFailures: 0, opens: 0, submissions: [], held: false, mode: 'none', holdOpen: false, heldOpens: 0, handles: [], release: () => undefined, restore: () => { fs.open = open; fs.rename = rename; syncBuiltinESMExports(); if (!page.isDestroyed()) page.debugger.sendCommand = send } }
         ;(globalThis as Scope).fileProbe = probe
         let release!: () => void
         const heldOpen = new Promise<void>(resolve => { release = resolve })
         probe.release = release
+        let auditActionId = ''
         fs.open = async (...args: Parameters<typeof open>) => {
           if (typeof args[1] === 'number' && (args[1] & 0x200000) !== 0 || String(args[0]).startsWith('/proc/self/fd/')) probe.opens++
           const handle = await open(...args)
+          if (String(args[0]).includes('/audit-receipts/') && args[1] === 'a') {
+            const write = handle.writeFile.bind(handle)
+            handle.writeFile = async (data, options) => {
+              const event = JSON.parse(String(data)).event as { phase: string; toolName?: string; actionId?: string }
+              if (event.phase === 'decision' && event.toolName === 'browser_evaluate_file') auditActionId = event.actionId!
+              if (probe.mode === 'audit' && event.phase === 'outcome' && event.actionId === auditActionId && !probe.held) {
+                probe.held = true; await heldOpen
+              }
+              return write(data, options)
+            }
+          }
           if (probe.holdOpen && typeof args[1] === 'number' && (args[1] & 0x200000) !== 0) {
             probe.handles.push(handle); probe.heldOpens++; await heldOpen
           }
           return handle
         }
+        fs.rename = async (from, to) => {
+          if (probe.failReviewSave && probe.submissions.length && String(to).endsWith('/human-waiting.json')) {
+            probe.reviewSaveFailures++; throw new Error('synthetic-review-persistence-secret')
+          }
+          return rename(from, to)
+        }
         syncBuiltinESMExports()
         page.debugger.sendCommand = async (method, ...args) => {
-          if (method === 'Runtime.evaluate' && args[0]?.expression === code) probe.submissions.push({ unique: typeof args[0]?.uniqueContextId === 'string' && args[0]?.contextId === undefined, expressionMatches: true })
+          if (method === 'Runtime.evaluate' && (args[0]?.expression === code || args[0]?.expression === failingCode)) probe.submissions.push({ unique: typeof args[0]?.uniqueContextId === 'string' && args[0]?.contextId === undefined, expressionMatches: true })
           const response = await send.call(page.debugger, method, ...args)
           if (probe.mode === 'preparation' && method === 'Page.getFrameTree' || probe.mode === 'result' && method === 'Runtime.evaluate' && args[0]?.expression === code) {
             probe.held = true; await heldOpen
           }
           return response
         }
-      }, { url, code })
+      }, { url, code, failingCode })
       await use({ client, full, source, profileId: grant.profile.id, url, reconnect: async () => {
         await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'release-ownership', workspaceId: workspace.workspaceId } })
         await client!.close(); client = await connect(grant.credential)
@@ -202,8 +221,9 @@ test('sanitizes script exceptions and automatic audit output', async ({ evaluati
 })
 
 
-for (const phase of ['preparation', 'result'] as const) {
+for (const phase of ['preparation', 'result', 'audit'] as const) {
   test(`cancellation preserves actual submission evidence during ${phase}`, async ({ evaluation, electronApp }) => {
+    if (phase === 'audit') await evaluation.client.callTool({ name: 'browser_audit_receipts', arguments: { action: 'start' } })
     await electronApp.evaluate((_electron, phase) => { (globalThis as Scope).fileProbe!.mode = phase }, phase)
     const transport = evaluation.client.transport!
     const originalSend = transport.send.bind(transport)
@@ -223,7 +243,76 @@ for (const phase of ['preparation', 'result'] as const) {
       const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
       const status = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string; dispatch?: string; effects?: string } }> }
       return status.recentActivity.find(item => item.toolName === 'browser_evaluate_file' && item.tabId === tabId)?.result
-    }, evaluation.source.tabId)).toMatchObject({ outcome: 'cancelled', dispatch: phase === 'result' ? 'dispatched' : 'not-dispatched', effects: phase === 'result' ? 'possible' : 'none' })
-    expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.submissions.length)).toBe(phase === 'result' ? 1 : 0)
+    }, evaluation.source.tabId)).toMatchObject({ outcome: 'cancelled', dispatch: phase !== 'preparation' ? 'dispatched' : 'not-dispatched', effects: phase !== 'preparation' ? 'possible' : 'none' })
+    expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.submissions.length)).toBe(phase !== 'preparation' ? 1 : 0)
+  })
+}
+
+for (const change of ['unchanged', 'pause', 'navigation', 'revoke'] as const) {
+  test(`settles publication and activity after late audit: ${change}`, async ({ evaluation, electronApp, appWindow }) => {
+    const started = await evaluation.client.callTool({ name: 'browser_audit_receipts', arguments: { action: 'start' } }) as CallToolResult
+    expect(started.isError).not.toBe(true)
+    await electronApp.evaluate(() => { (globalThis as Scope).fileProbe!.mode = 'audit' })
+    const pending = evaluation.client.callTool({ name: 'browser_evaluate_file', arguments: { tabId: evaluation.source.tabId, source: evaluation.source } }) as Promise<CallToolResult>
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).fileProbe!.held)).toBe(true)
+    if (change === 'pause') await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabAgentPaused(id, true), evaluation.source.tabId)
+    if (change === 'navigation') await electronApp.evaluate(async ({ webContents }, url) => {
+      await webContents.getAllWebContents().find(page => page.getURL() === url)!.loadURL(`${url}?late=1`)
+    }, evaluation.url)
+    if (change === 'revoke') await appWindow.evaluate(id => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.revokeMcpCapabilityProfile(id), evaluation.profileId)
+    await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.release())
+    const result = await pending
+    expect(result.structuredContent).toMatchObject({ status: change === 'unchanged' ? 'RETURNED' : 'OUTCOME_UNKNOWN', submitted: true, acknowledged: true })
+    if (change !== 'unchanged') expect(result.structuredContent).not.toHaveProperty('value')
+    expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.submissions.length)).toBe(1)
+    const activity = await electronApp.evaluate(async ({ webContents }, tabId) => {
+      const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
+      const status = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string; dispatch?: string; effects?: string } }> }
+      return status.recentActivity.find(item => item.toolName === 'browser_evaluate_file' && item.tabId === tabId)?.result
+    }, evaluation.source.tabId)
+    expect(activity?.dispatch).toBe('dispatched')
+    expect(activity?.outcome).toBe(change === 'unchanged' ? 'succeeded' : 'outcome-unknown')
+  })
+}
+
+for (const failSave of [false, true]) {
+  test(`settles reviewed file execution with review persistence failure=${failSave}`, async ({ evaluation, electronApp, appWindow }) => {
+    const call = async (name: string, args: Record<string, unknown>) => await evaluation.client.callTool({ name, arguments: args }) as CallToolResult
+    const args = { workspaceId: evaluation.source.workspaceId }
+    expect((await call('browser_continuity', { ...args, action: 'checkpoint' })).isError).not.toBe(true)
+    expect((await call('browser_audit_receipts', { action: 'start' })).isError).not.toBe(true)
+    if (failSave) await writeFile(evaluation.source.path, failingCode)
+    const source = failSave ? { ...evaluation.source, sha256: createHash('sha256').update(failingCode).digest('hex') } : evaluation.source
+    const action = { ...args, tabId: source.tabId, source }
+    const proposed = await call('browser_human_waiting', { ...args, action: 'request', runId: randomUUID(), decision: 'approve-action', timeoutMs: 60_000,
+      review: { toolName: 'browser_evaluate_file', arguments: action, reversibility: 'unknown', representation: 'bounded-description', description: 'Run the synthetic exact source once' }
+    })
+    expect(proposed.isError, text(proposed)).not.toBe(true)
+    await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]!.webContents.send('browser:edit-tab-group', id), evaluation.source.workspaceId)
+    const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
+    await editor.locator('.workspace-activity-disclosure > summary').click()
+    const continuity = editor.getByRole('region', { name: 'Workspace continuity', exact: true })
+    await continuity.getByRole('button', { name: 'Read current state', exact: true }).click()
+    await continuity.getByRole('checkbox').check()
+    await continuity.getByRole('button', { name: 'Confirm reviewed state', exact: true }).click()
+    const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
+    await waiting.getByRole('checkbox', { name: 'I reviewed this exact action and the bound workspace state.' }).check()
+    await waiting.getByRole('checkbox', { name: 'I verified the signed-in account and visible target in the bound browser tab.' }).check()
+    await waiting.getByRole('button', { name: 'Approve exact action', exact: true }).click()
+    const listed = await call('browser_human_waiting', { ...args, action: 'list' })
+    expect(listed.isError, text(listed)).not.toBe(true)
+    const approved = (JSON.parse(text(listed)) as HumanWaitingRecord[])[0]!
+    expect(approved.review?.status).toBe('APPROVED')
+    await electronApp.evaluate((_electron, failSave) => { (globalThis as Scope).fileProbe!.failReviewSave = failSave }, failSave)
+    const result = await call('browser_evaluate_file', { ...action, reviewId: approved.id, reviewRevision: approved.revision })
+    expect(result.structuredContent).toMatchObject({ status: failSave ? 'OUTCOME_UNKNOWN' : 'RETURNED', submitted: true, acknowledged: true })
+    const probe = await electronApp.evaluate(() => { const p = (globalThis as Scope).fileProbe!; return { submissions: p.submissions.length, failures: p.reviewSaveFailures } })
+    expect(probe.submissions).toBe(1)
+    expect(probe.failures).toBe(failSave ? 1 : 0)
+    expect(text(result)).not.toContain('synthetic-review-persistence-secret')
+    if (!failSave) {
+      const finished = await call('browser_human_waiting', { ...args, action: 'list' })
+      expect((JSON.parse(text(finished)) as HumanWaitingRecord[])[0]).toMatchObject({ state: 'ATTEMPTED', review: { status: 'ATTEMPTED' } })
+    }
   })
 }

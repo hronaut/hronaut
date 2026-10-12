@@ -1145,7 +1145,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: () => void; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
     if (request?.storageComparison && error instanceof StorageComparisonInputError) request.storageComparison.inputError = error.reason
@@ -1188,11 +1188,14 @@ function createBrowserMcpServer(
       if (name === 'browser_storage_changes') frameRequest.storageComparison = { started: false, changed: false }
       if (name === 'browser_indexeddb' || name === 'browser_storage_usage') frameRequest.storageInspection = { started: false }
       const settleFileEvaluation = (result: CallToolResult): CallToolResult => {
-        if (!frameRequest.fileEvaluation || !result.isError) return result
+        if (!frameRequest.fileEvaluation) return result
+        if (!result.isError) { frameRequest.fileEvaluationFinishActivity?.(result); return result }
         const allowedReasons = new Set(['UNSUPPORTED_PLATFORM', 'INVALID_PATH', 'INVALID_REQUEST', 'CANCELLED', 'DEADLINE', 'BUSY', 'CLEANUP_UNKNOWN', 'INVALID_FILE_TYPE', 'FILE_CHANGED', 'TOO_LARGE', 'DIGEST_MISMATCH', 'INVALID_UTF8', 'IO_FAILURE', 'SCRIPT_FAILED', 'CANCELLED_OR_DEADLINE', 'TUPLE_TARGET_MISMATCH'])
         const reason = result.structuredContent?.reason
         const outcome = fileEvaluationFailure(frameRequest.fileEvaluation, typeof reason === 'string' && allowedReasons.has(reason) ? reason : 'UNAVAILABLE_OR_UNAUTHORIZED')
-        return { ...textResult(outcome), structuredContent: outcome, isError: true }
+        const settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
+        frameRequest.fileEvaluationFinishActivity?.(settled)
+        return settled
       }
       const settleClick = (result: CallToolResult): CallToolResult => {
         if (!frameRequest.clickProgress) return result
@@ -1465,6 +1468,11 @@ function createBrowserMcpServer(
         if (frameRequest.webStorageProgress && !result.isError) {
           if (!frameRequest.webStoragePublication) throw new Error('Storage publication guard is unavailable')
           frameRequest.webStoragePublication()
+        }
+        if (frameRequest.fileEvaluation && !result.isError) {
+          if (!frameRequest.fileEvaluationRefreshCertificate || !frameRequest.fileEvaluationPublication) throw new Error('File publication authority unavailable')
+          await frameRequest.fileEvaluationRefreshCertificate()
+          frameRequest.fileEvaluationPublication()
         }
         // No await after the final publication guard.
         const settled = settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(result))))
@@ -2270,9 +2278,13 @@ function createBrowserMcpServer(
             }
             if (name === 'browser_evaluate_file') {
               if (!humanWaiting) throw new Error('Human waiting authority unavailable')
-              frameRequests.getStore()!.fileEvaluationCertificate = await humanWaiting.certifyDispatch(
-                workspaceId, () => { requireAgentWorkspace(workspaceId) }, undefined, humanReviewSessionBinding, reviewAttempt?.id
-              )
+              const request = frameRequests.getStore()!
+              request.fileEvaluationRefreshCertificate = async () => {
+                request.fileEvaluationCertificate = await humanWaiting.certifyDispatch(
+                  workspaceId, () => { requireAgentWorkspace(workspaceId) }, undefined, humanReviewSessionBinding, reviewAttempt?.id
+                )
+              }
+              await request.fileEvaluationRefreshCertificate()
             }
             if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldProgress = { downAttempted: false, downAcknowledged: false, releaseStarted: false, releaseAttempted: false, releaseAcknowledged: false }
             activityDispatched = true
@@ -2471,6 +2483,10 @@ function createBrowserMcpServer(
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
           const request = frameRequests.getStore()!
+          if (request.fileEvaluation && !request.fileEvaluationFinishing) {
+            request.fileEvaluationFinishActivity = settled => { request.fileEvaluationFinishing = true; finishActivity(settled, false) }
+            return
+          }
           if (request.clickProgress && !request.clickFinishing) {
             request.clickFinishActivity = settled => { request.clickFinishing = true; finishActivity(settled, false) }
             return
@@ -5253,6 +5269,7 @@ function createBrowserMcpServer(
       input.validateFileEvaluation()
       const outcome = await manager.evaluateFile(input.source, {
         signal: input.fileEvaluationSignal, validate: input.validateFileEvaluation,
+        retainPublication: validate => { frameRequests.getStore()!.fileEvaluationPublication = validate },
         submitted: () => { progress.submitted = true }
       })
       progress.acknowledged = outcome.acknowledged === true
