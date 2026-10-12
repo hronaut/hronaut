@@ -2545,6 +2545,7 @@ export const esES = {
       "navigation": "La URL de la página cambió después de la referencia; esta es una comparación entre navegaciones."
     }
   },
+  tabLabel: {"edit": "Editar etiqueta", "editAria": "Editar etiqueta de {title}", "name": "Etiqueta de pestaña", "help": "Hasta 100 caracteres. Déjala vacía para el título de la página. Las etiquetas no verifican cuentas ni sitios.", "save": "Guardar", "clear": "Borrar etiqueta", "cancel": "Cancelar", "invalid": "Usa hasta 100 caracteres sin caracteres de control.", "failed": "No se guardó la etiqueta. La anterior no cambió. Inténtalo de nuevo.", "uncertain": "La etiqueta cambió, pero no se confirmó el guardado duradero. Vuelve a guardar antes de reiniciar."},
   "tabSearch": { resultType: "Tipo de resultado", allResults: "Todos los resultados",
     "fullPagePreview": "Vista de página completa",
     "previewAria": "Vista previa de {title}",

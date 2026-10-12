@@ -606,3 +606,10 @@
 
 .tab-search-kind-filter { @apply flex flex-none items-center [gap:8px] [margin:0_12px_6px] text-muted [font-size:12px]; }
 .tab-search-kind-filter select { @apply min-w-0 flex-1 [padding:7px_9px] [border:1px_solid_var(--border-soft)] [border-radius:7px] text-copy bg-surface; }
+
+.tab-label-editor { @apply [padding:8px] [border-top:1px_solid_var(--border-soft)]; }
+.tab-label-editor form { @apply grid [gap:6px]; }
+.tab-label-editor form > div { @apply flex flex-wrap [gap:6px]; }
+.tab-label-editor input { @apply [min-width:0] [width:100%]; }
+.tab-label-editor small { @apply text-muted [font-size:11px]; }
+.tab-label-editor [role="alert"] { @apply text-copy [font-size:12px]; }

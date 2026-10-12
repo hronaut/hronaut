@@ -2545,6 +2545,7 @@ export const plPL = {
       "navigation": "Adres URL strony zmienił się po ustawieniu stanu bazowego; jest to porównanie między nawigacjami."
     }
   },
+  tabLabel: {"edit": "Edytuj etykietę", "editAria": "Edytuj etykietę {title}", "name": "Etykieta karty", "help": "Do 100 znaków. Puste pole przywraca tytuł strony. Etykiety nie potwierdzają konta ani witryny.", "save": "Zapisz", "clear": "Usuń etykietę", "cancel": "Anuluj", "invalid": "Użyj do 100 znaków bez znaków sterujących.", "failed": "Nie zapisano etykiety. Poprzednia pozostała bez zmian. Spróbuj ponownie.", "uncertain": "Etykieta zmieniona, ale trwałość zapisu jest niepewna. Zapisz ponownie przed restartem."},
   "tabSearch": { resultType: "Typ wyników", allResults: "Wszystkie wyniki",
     "fullPagePreview": "Podgląd całej strony",
     "previewAria": "Podgląd {title}",

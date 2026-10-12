@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add independent task labels to website tabs from Search tabs. Labels are searchable, remain separate from page titles and addresses, survive navigation and session restoration, and carry through duplication and workspace archiving. Failed saves preserve the previous label; file replacement with an unconfirmed directory flush retains the new label with a durability warning.
+
 ### Fixed
 
 - Preserve keyboard focus on retained account-chooser controls when saved-account metadata updates. Removed accounts still return focus to search; updates never activate an account.

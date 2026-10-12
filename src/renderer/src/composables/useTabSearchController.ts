@@ -92,20 +92,20 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     if (resultKind.value !== 'all' && resultKind.value !== 'open') return []
     if (!searchTerms.value.length) return regularTabs.value
     return regularTabs.value.filter(tab => matchesQuery(
-      tab.title || options.translate('tabSearch.newTabTitle'), tab.url, tab.mcpGroupName ?? ''
+      tab.label ?? '', tab.title || options.translate('tabSearch.newTabTitle'), tab.url, tab.mcpGroupName ?? ''
     ))
   })
   const filteredClosedTabs = computed(() => {
     if (resultKind.value !== 'all' && resultKind.value !== 'closed') return []
     if (!searchTerms.value.length) return options.state.value.closedTabs
-    return options.state.value.closedTabs.filter(tab => matchesQuery(tab.title, tab.url))
+    return options.state.value.closedTabs.filter(tab => matchesQuery(tab.label ?? '', tab.title, tab.url))
   })
   const filteredSavedTabGroups = computed(() => {
     if (resultKind.value !== 'all' && resultKind.value !== 'saved') return []
     if (!searchTerms.value.length) return options.state.value.savedTabGroups
     return options.state.value.savedTabGroups.filter(group => (
       matchesQuery(group.name)
-      || group.tabs.some(tab => matchesQuery(group.name, tab.title, tab.url))
+      || group.tabs.some(tab => matchesQuery(group.name, tab.label ?? '', tab.title, tab.url))
     ))
   })
   const filteredWorkspaceGroups = computed<TabSearchWorkspaceGroup[]>(() => {
@@ -145,7 +145,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   function resultLabel(result: TabSearchResult): string {
     return result.kind === 'saved'
       ? result.tab.name
-      : result.tab.title || options.translate('tabSearch.newTabTitle')
+      : result.tab.label || result.tab.title || options.translate('tabSearch.newTabTitle')
   }
 
   function resultIndex(kind: TabSearchResult['kind'], id: string): number {

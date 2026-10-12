@@ -1,3 +1,4 @@
+import { restoreTabLabel } from '../../shared/tab-label.js'
 import { readFile, rm } from 'node:fs/promises'
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
@@ -23,6 +24,7 @@ import type {
 export const TAB_STATE_VERSION = 3 as const
 
 export interface PersistedTab {
+  label?: string
   id: string
   title: string
   url: string
@@ -66,7 +68,7 @@ export interface PersistedSavedTabGroup {
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
-  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned'>>
+  tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned' | 'label'>>
 }
 
 export interface PersistedBrowserState {
@@ -479,6 +481,7 @@ export class TabStateStore {
             if (normalizedTitle !== title) repairedPersistedState = true
             return {
               title: normalizedTitle,
+              ...(restoreTabLabel((tab as Record<string, unknown>).label) ? { label: restoreTabLabel((tab as Record<string, unknown>).label) } : {}),
               url,
               pinned: (tab as Record<string, unknown>).pinned === true
             }
@@ -528,6 +531,7 @@ export class TabStateStore {
         tabs.push({
           id: candidate.id,
           title: normalizedTitle,
+          ...(restoreTabLabel(candidate.label) ? { label: restoreTabLabel(candidate.label) } : {}),
           url: normalizedUrl,
           pinned: candidate.pinned === true,
           muted: candidate.muted === true,
@@ -593,10 +597,17 @@ export class TabStateStore {
     }
   }
 
-  save(state: PersistedBrowserState): Promise<void> {
-    const contents = `${JSON.stringify(sanitizePersistedStateUrls(state), null, 2)}\n`
+  save(state: PersistedBrowserState | (() => PersistedBrowserState), hooks?: {
+    beforeCommit?: () => void
+    onCommitted?: () => void
+  }): Promise<void> {
+    // Runtime callers defer snapshots until their queue turn. In particular, a
+    // save queued during a label transaction must see its committed result.
+    const encode = (value: PersistedBrowserState): string => `${JSON.stringify(sanitizePersistedStateUrls(value), null, 2)}\n`
+    const captured = typeof state === 'function' ? undefined : encode(state)
     const operation = this.saveQueue.then(async () => {
-      await writeTextFileAtomically(this.path, contents)
+      const contents = captured ?? encode((state as () => PersistedBrowserState)())
+      await writeTextFileAtomically(this.path, contents, 0o600, hooks?.beforeCommit, hooks?.onCommitted)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

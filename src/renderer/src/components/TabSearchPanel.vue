@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TabLabelEditor from './TabLabelEditor.vue'
 import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import UiSegmentedControl from '../ui/UiSegmentedControl.vue'
@@ -324,8 +325,9 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                         <span v-else-if="tab.url === 'about:blank'">✦</span>
                         <IconLanguage v-else />
                       </span>
-                      <strong>{{ tab.title || t('tabSearch.newTabTitle') }}</strong>
+                      <strong>{{ tab.label || tab.title || t('tabSearch.newTabTitle') }}</strong>
                     </span>
+                    <small v-if="tab.label">{{ tab.title }}</small>
                     <span>{{ tabDisplayUrl(tab) }}</span>
                     <small v-if="tabMeta(tab)">{{ tabMeta(tab) }}</small>
                   </span>
@@ -346,6 +348,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                   ><IconKeep aria-hidden="true" /></UiButton>
                   <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
                 </span>
+                <TabLabelEditor :tab="tab" />
               </article>
             </div>
           </section>
@@ -367,7 +370,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                 <span class="tab-search-copy">
                   <strong>{{ group.name }}</strong>
                   <span>{{ t('tabSearch.savedTabs', { count: formatNumber(group.tabs.length) }, group.tabs.length) }}</span>
-                  <small>{{ group.tabs.slice(0, 3).map((tab) => tab.title || tab.url).join(' · ') }}</small>
+                  <small>{{ group.tabs.slice(0, 3).map((tab) => tab.label || tab.title || tab.url).join(' · ') }}</small>
                 </span>
               </UiButton>
               <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" :title="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="restoreSavedGroup(group)"><IconRestore aria-hidden="true" /></UiButton>
@@ -389,7 +392,8 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
               <UiButton appearance="application" :id="resultId({ kind: 'closed', tab })" class="tab-search-open" type="button" :title="tab.url" :disabled="actionPending" @click="restoreClosedTab(tab)">
                 <span class="tab-search-site-icon closed" aria-hidden="true"><IconHistory /></span>
                 <span class="tab-search-copy">
-                  <strong>{{ tab.title || t('tabSearch.newTabTitle') }}</strong>
+                  <strong>{{ tab.label || tab.title || t('tabSearch.newTabTitle') }}</strong>
+                      <small v-if="tab.label">{{ tab.title }}</small>
                   <span>{{ tab.url === 'about:blank' ? t('tabSearch.blankPage') : tab.url }}</span>
                   <small>{{ closedTabMeta(tab) }}</small>
                 </span>

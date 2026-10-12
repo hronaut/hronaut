@@ -233,6 +233,60 @@ describe('TabStateStore', () => {
     expect(JSON.parse(await readFile(path, 'utf8')).tabs[1]).not.toHaveProperty('faviconDataUrl')
   })
 
+  it('restores valid optional labels and ignores malformed active/archive labels', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.label = '  Cafe\u0301  '
+    state.savedTabGroups![0]!.tabs[0]!.label = 'Customer checkout'
+    await store.save(state)
+    expect((await store.load())?.tabs[1]?.label).toBe('Café')
+    expect((await store.load())?.savedTabGroups?.[0]?.tabs[0]?.label).toBe('Customer checkout')
+    const corrupt = JSON.parse(await readFile(path, 'utf8'))
+    corrupt.tabs[1].label = { unexpected: true }
+    corrupt.savedTabGroups[0].tabs[0].label = 'x'.repeat(101)
+    await writeFile(path, JSON.stringify(corrupt))
+    const loaded = await store.load()
+    expect(loaded?.tabs[1]?.id).toBe(ACTIVE_TAB_ID)
+    expect(loaded?.tabs[1]?.label).toBeUndefined()
+    expect(loaded?.savedTabGroups?.[0]?.tabs[0]?.label).toBeUndefined()
+  })
+
+  it('takes runtime snapshots after a committed label and includes later workspace changes', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    const first = store.save(() => ({ ...state, tabs: state.tabs.map(tab => tab.id === ACTIVE_TAB_ID ? { ...tab, label: 'First role' } : tab) }), {
+      onCommitted: () => { state.tabs[1]!.label = 'First role' }
+    })
+    const background = store.save(() => state)
+    state.mcpTabGroups![0]!.name = 'Concurrent workspace rename'
+    const latest = store.save(() => ({ ...state, tabs: state.tabs.map(tab => tab.id === ACTIVE_TAB_ID ? { ...tab, label: 'Latest role' } : tab) }), {
+      onCommitted: () => { state.tabs[1]!.label = 'Latest role' }
+    })
+    const after = store.save(() => state)
+    await Promise.all([first, background, latest, after])
+    const disk = JSON.parse(await readFile(path, 'utf8'))
+    expect(disk.tabs[1].label).toBe('Latest role')
+    expect(disk.mcpTabGroups[0].name).toBe('Concurrent workspace rename')
+  })
+
+  it('does not leak a rejected staged label into an unrelated queued save', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.label = 'Saved role'
+    await store.save(state)
+    const committed = vi.fn()
+    const failed = store.save(() => ({ ...state, tabs: state.tabs.map(tab => ({ ...tab, label: 'Rejected role' })) }), {
+      beforeCommit: () => { throw new Error('synthetic stale target') }, onCommitted: committed
+    })
+    const rejection = expect(failed).rejects.toThrow('synthetic stale target')
+    const background = store.save(() => state)
+    await rejection
+    await background
+    expect(committed).not.toHaveBeenCalled()
+    expect((await store.load())?.tabs[1]?.label).toBe('Saved role')
+    expect(await readFile(path, 'utf8')).not.toContain('Rejected role')
+  })
+
   it('serializes concurrent saves and keeps the last queued browser state', async () => {
     const { path, store } = await createStore()
     const states = Array.from({ length: 20 }, (_value, index) => {

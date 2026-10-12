@@ -4,6 +4,13 @@ import { compactTabDiscovery, TAB_DISCOVERY_LIMITS } from '../src/main/mcp/tab-d
 const tab = (id = 'one', title = 'Alpha Billing', url = 'https://example.test/invoices') => ({ id, title, url })
 
 describe('compact tab projection', () => {
+  it('does not expose or match authored task labels or change discovery counts', () => {
+    const labeled = { ...tab(), label: 'Private customer task', labelDurabilityUnconfirmed: true }
+    expect(compactTabDiscovery([labeled], {})).toEqual(compactTabDiscovery([tab()], {}))
+    expect(compactTabDiscovery([labeled], { query: 'Private customer task' }).matching).toBe(0)
+    expect(JSON.stringify(compactTabDiscovery([labeled], {}))).not.toContain('Private customer task')
+  })
+
   it('matches literal case-insensitive terms within individual projected fields and tabs', () => {
     const tabs = [tab(), tab('two', 'Beta', 'https://reports.test/')]
     expect(compactTabDiscovery(tabs, { query: ' EXAMPLE\nALPHA ' }).tabs).toEqual([tab()])

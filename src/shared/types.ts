@@ -196,6 +196,10 @@ export interface BrowserEnvironmentSettings {
 }
 
 export interface BrowserTabState {
+  /** File replacement succeeded, but its durability could not be confirmed. */
+  labelDurabilityUnconfirmed?: boolean
+  /** User-authored task metadata; not a verified title or identity. */
+  label?: string
   id: string
   title: string
   url: string
@@ -359,6 +363,8 @@ export interface BrowserTabGroupUpdate {
 }
 
 export interface BrowserSavedTabGroupTab {
+  /** User-authored task metadata; not a verified title or identity. */
+  label?: string
   title: string
   url: string
   pinned: boolean
@@ -413,6 +419,8 @@ export interface BrowserWorkspaceStorageTransferResult {
 }
 
 export interface BrowserClosedTabState {
+  /** User-authored task metadata; not a verified title or identity. */
+  label?: string
   id: string
   title: string
   url: string
@@ -2574,6 +2582,7 @@ export interface HronautApi {
     swap?: boolean
   }): Promise<BrowserState>
   closeSplitView(): Promise<BrowserState>
+  setTabLabel(tabId: string, label: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }>
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState>
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState>
   setTabAgentPaused(tabId: string, paused: boolean): Promise<BrowserState>

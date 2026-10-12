@@ -102,6 +102,19 @@ function createController(initialState = browserState(), initiallyOpen = false) 
 }
 
 describe('tab search controller', () => {
+  it('matches independent labels across open, closed and archived tabs while preserving title search', () => {
+    const state = browserState([{ ...tab('alpha'), label: 'Customer task' }])
+    state.closedTabs = [{ id: 'closed', title: 'Closed page', url: 'https://closed.example', pinned: false, closedAt: new Date().toISOString(), label: 'Customer task' }]
+    state.savedTabGroups = [savedGroup('archive')]
+    state.savedTabGroups[0].tabs[0].label = 'Customer task'
+    const { controller } = createController(state)
+    controller.query.value = 'customer task'
+    expect(controller.results.value.map(result => result.kind)).toEqual(['open', 'saved', 'closed'])
+    controller.query.value = 'Tab alpha'
+    expect(controller.results.value.map(result => result.tab.id)).toEqual(['alpha'])
+    controller.dispose()
+  })
+
   it.each([
     { query: 'build alpha.example', ids: ['open:alpha', 'saved:archive', 'closed:closed'] },
     { query: '  ALPHA.EXAMPLE\tbuild  ', ids: ['open:alpha', 'saved:archive', 'closed:closed'] },

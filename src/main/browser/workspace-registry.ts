@@ -23,7 +23,7 @@ export interface ArchivedWorkspace extends BrowserSavedTabGroupState {
   origins: string[]
   navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
 }
-interface WorkspaceTab { id: string; mcpGroupId?: string; title: string; url: string; pinned: boolean }
+interface WorkspaceTab { label?: string; id: string; mcpGroupId?: string; title: string; url: string; pinned: boolean }
 interface WorkspaceRuntimePorts {
   maxTabs: number
   maxArchived: number
@@ -33,7 +33,7 @@ interface WorkspaceRuntimePorts {
   withActiveOperation<T>(id: string, action: string, run: () => Promise<T>): Promise<T>
   withArchivedOperation<T>(id: string, action: string, run: () => Promise<T>): Promise<T>
   closeActive(id: string, preserveStorage: boolean): Promise<unknown>
-  createTab(tab: { title: string; url: string; pinned: boolean; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
+  createTab(tab: { label?: string; title: string; url: string; pinned: boolean; mcpGroupId: string; allowBusyWorkspace: true; active: false }): Promise<unknown>
   selectTab(id: string): unknown
   remapDownloads(from: string, to: string): void
   changed(): void
@@ -67,7 +67,7 @@ export class WorkspaceRegistry {
       const internal = this.active.get(id)!
       const saved: ArchivedWorkspace = { ...this.publicFields(internal), savedAt: new Date().toISOString(),
         storageId: internal.storageId, origins: [...internal.origins], navigationAudit: [...internal.navigationAudit],
-        storageOriginCount: internal.origins.length, tabs: tabs.map(tab => ({ title: tab.title, url: tab.url, pinned: tab.pinned })) }
+        storageOriginCount: internal.origins.length, tabs: tabs.map(tab => ({ title: tab.title, url: tab.url, pinned: tab.pinned, ...(tab.label ? { label: tab.label } : {}) })) }
       await host.closeActive(id, true)
       this.archived.set(id, saved)
       host.remapDownloads(id, id); host.changed()
@@ -87,7 +87,7 @@ export class WorkspaceRegistry {
       this.archived.delete(id); this.active.set(id, restored)
       return host.withActiveOperation(id, 'restoring the archived workspace', async () => {
         try {
-          for (const tab of saved.tabs) await host.createTab({ title: tab.title, url: tab.url, pinned: tab.pinned, mcpGroupId: id, allowBusyWorkspace: true, active: false })
+          for (const tab of saved.tabs) await host.createTab({ label: tab.label, title: tab.title, url: tab.url, pinned: tab.pinned, mcpGroupId: id, allowBusyWorkspace: true, active: false })
           const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
           if (tabs.length) host.selectTab(tabs[tabs.length - 1]!.id)
           const result = host.requireActive(id)

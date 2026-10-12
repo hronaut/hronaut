@@ -433,7 +433,7 @@ watch(
 
 watch(
   [
-    () => props.state.tabs.map((tab) => `${tab.id}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
+    () => props.state.tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
     () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.description}`).join('|'),
     () => [...collapsedTabGroupIds.value].sort().join('|')
   ],
@@ -651,7 +651,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
           <IconLanguage v-else class="favicon-fallback" aria-hidden="true" />
           <IconRecord v-if="tab.videoRecording === 'recording'" style="color: #e5484d" :aria-label="t('video.status.recording')" />
           <IconRecord v-if="tab.pwaLifecycleActive" :aria-label="t('pwaLifecycle.active')" />
-          <span class="tab-title">{{ tab.title || t('tabSearch.newTabTitle') }}</span>
+          <span class="tab-title">{{ tab.label || tab.title || t('tabSearch.newTabTitle') }}</span>
           <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
           <IconPauseCircle v-else-if="tab.pageLifecycleState === 'frozen'" class="tab-freeze-mark" :aria-label="t('shell.tabs.frozen')" />
           <IconHelp v-else-if="tab.pageLifecycleState === 'unknown'" class="tab-freeze-mark unknown" :aria-label="t('shell.tabs.freezeUnknown')" />
