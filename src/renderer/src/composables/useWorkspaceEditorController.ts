@@ -222,7 +222,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     await loadOrigins()
   }
 
-  async function openTransfer(preferredSourceWorkspaceId?: string): Promise<void> {
+  async function openTransfer(preferredSourceWorkspaceId?: string, onPresent?: () => void): Promise<void> {
     const presentation = beginPresentation()
     options.open.value = false
     let next: BrowserState
@@ -237,6 +237,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       storageState.value = 'error'
       storageMessage.value = ''
       error.value = cause instanceof Error ? cause.message : String(cause)
+      onPresent?.()
       options.open.value = true
       return
     }
@@ -256,6 +257,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     targetWorkspaceId.value = next.savedTabGroups.find(group => group.id !== sourceWorkspaceId.value)?.id
       ?? availableWorkspaces.value.find(group => group.id !== sourceWorkspaceId.value)?.id ?? ''
     suppressOriginReload = false
+    onPresent?.()
     options.open.value = true
     await loadOrigins(next)
   }

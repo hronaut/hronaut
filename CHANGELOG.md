@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve the selected browser-import destination when workspace transfer loading finishes after a newer editor opens or the destination changes.
 - Reject semantic clicks when pause, navigation, or workspace authority changes during asynchronous click preparation, including dialog-handling clicks; uncertain actions are never replayed automatically.
 
 - Withhold screenshots and page snapshots if workspace authority, agent control or cancellation changes while audit persistence is finishing.
