@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 for (const inputKind of ['mouse', 'keyboard'] as const) {
-test(`discards an in-flight write result after direct human ${inputKind} input without requiring a pause`, async ({ electronApp, mcpPort, mcpToken }) => {
+test(`discards an in-flight write result after direct human ${inputKind} input without requiring a pause`, async ({ electronApp, mcpPort, mcpToken }, testInfo) => {
   let held: ServerResponse | undefined
   const fixture = createServer((request, response) => {
     if (request.url === '/hold') { held = response; return }
@@ -32,8 +32,14 @@ test(`discards an in-flight write result after direct human ${inputKind} input w
     const workspace = parse(await call('browser_workspaces', { action: 'create', name: 'Human input', storage: 'scratch' }))
     const args = { workspaceId: workspace.id }
     expect((await call('browser_new_tab', { ...args, url: origin })).isError).not.toBe(true)
+    // Creating a tab starts loading; establish the target document before
+    // exercising human takeover rather than crossing its initial commit.
+    const ready = await call('browser_wait', { ...args, selector: 'button' })
+    expect(ready.isError, JSON.stringify(ready)).not.toBe(true)
     // MCP-generated input must not be mistaken for a human takeover.
-    expect((await call('browser_click', { ...args, selector: 'button' })).isError).not.toBe(true)
+    const click = await call('browser_click', { ...args, selector: 'button' })
+    await testInfo.attach('ready-document-agent-click', { body: JSON.stringify({ ready, click }), contentType: 'application/json' })
+    expect(click.isError, JSON.stringify(click)).not.toBe(true)
     expect((await call('browser_evaluate', { ...args, script: 'delete document.body.dataset.human' })).isError).not.toBe(true)
     const pending = call('browser_evaluate', { ...args, script: "fetch('/hold').then(() => { document.body.dataset.effect = 'applied'; return 'stale-human-input-canary'; })" })
     void pending.catch(() => undefined)

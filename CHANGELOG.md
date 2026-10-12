@@ -11,6 +11,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject semantic clicks when pause, navigation, or workspace authority changes during asynchronous click preparation, including dialog-handling clicks; uncertain actions are never replayed automatically.
+
 - Withhold screenshots and page snapshots if workspace authority, agent control or cancellation changes while audit persistence is finishing.
 
 ## [2.36.0] - 2026-10-11

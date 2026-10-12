@@ -5626,9 +5626,8 @@ export class BrowserTabsManager {
     }
     // A reload may already be pending when the click begins. Its commit does
     // not increment navigationGeneration again, but replaces the target document.
-    const nativeInput = dialogAction === undefined && (coordinatePoint !== undefined || target.native || target.doubleClick)
-    const authority = nativeInput ? this.nativeInputAuthority(tab, validateClick) : undefined
-    const assertNativeClickCurrent = (): void => { authority?.validate() }
+    const authority = this.nativeInputAuthority(tab, validateClick)
+    const assertClickCurrent = (): void => { authority.validate() }
     try {
       if (coordinatePoint) {
         await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
@@ -5636,6 +5635,7 @@ export class BrowserTabsManager {
         if (dialogAction !== undefined) {
           await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
             const contextId = await this.mainWorldContextId(webContents)
+            assertClickCurrent()
             await this.evaluateWithAttachedDebugger(
               webContents,
               dialogAwareCoordinateClickScript(coordinatePoint, dialogAction, target.promptText),
@@ -5645,7 +5645,7 @@ export class BrowserTabsManager {
         } else {
           await this.withAgentInput(webContents, () => this.withDebugger(
             webContents,
-            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertNativeClickCurrent)
+            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent)
           ))
         }
         return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
@@ -5660,12 +5660,12 @@ export class BrowserTabsManager {
         await this.withAgentInput(webContents, () => this.withDebugger(
           webContents,
           async () => {
-            assertNativeClickCurrent()
+            assertClickCurrent()
             // Re-read live state after pointer rendering and debugger setup, not
             // the earlier snapshot or initial pointer position.
             point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
             this.assertClickTargetEnabled(point)
-            await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertNativeClickCurrent)
+            await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent)
           }
         ))
         return {
@@ -5679,9 +5679,15 @@ export class BrowserTabsManager {
         .catch(() => undefined) as { x: number; y: number } | undefined
       if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click')
       const result = await this.withAgentInput(webContents, () => {
-        if (dialogAction === undefined) return webContents.executeJavaScript(targetActionScript('click', target), true)
+        if (dialogAction === undefined) {
+          // Pointer rendering and input preparation await page work. Recheck
+          // authority immediately before the semantic action, just as for native input.
+          assertClickCurrent()
+          return webContents.executeJavaScript(targetActionScript('click', target), true)
+        }
         return this.withOptionalDialogHandling(webContents, target, async () => {
           const contextId = await this.mainWorldContextId(webContents)
+          assertClickCurrent()
           return this.evaluateWithAttachedDebugger(
             webContents,
             dialogAwareClickScript(target, dialogAction, target.promptText),
@@ -5692,7 +5698,7 @@ export class BrowserTabsManager {
       this.assertClickTargetEnabled(result)
       return result
     } finally {
-      authority?.dispose()
+      authority.dispose()
     }
   }
 
