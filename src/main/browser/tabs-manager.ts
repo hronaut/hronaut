@@ -10839,16 +10839,29 @@ export class BrowserTabsManager {
   private async openDevTools(tab: BrowserTab): Promise<void> {
     const webContents = tab.webContents
     if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
-    this.requireNetworkConditionsKnown(tab)
-    // Electron allows either a CDP debugger client or DevTools to own a page. Remove active
-    // interceptions before handing ownership to DevTools so the UI never shows inactive mocks.
-    if (tab.networkRoutes.length) await this.clearNetworkRoutes(tab.id)
+    const debuggerEpoch = tab.networkDebuggerEpoch
+    const validateOwnership = (): void => {
+      if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Developer Tools handoff target changed')
+      this.requireNetworkConditionsKnown(tab)
+    }
+    const requireConfirmed = (): void => {
+      validateOwnership()
+      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application is pending. Wait for it to settle before opening Developer Tools.')
+    }
+    requireConfirmed()
+    // DevTools cleanup is an ordinary mutation, never explicit recovery authority.
+    // Its queue admission must reject uncertainty created by an earlier operation.
+    if (tab.networkRoutes.length) await this.applyNetworkRoutes(tab, validateOwnership, false, () => { tab.networkRoutes = [] })
     this.devToolsOpening.add(webContents.id)
     try {
       await this.dialogMonitorAttachPromises.get(webContents.id)
       const pendingDebugger = this.debuggerQueue.pending(webContents.id)
       if (pendingDebugger) await pendingDebugger
-      if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
+      // The queue tail settles even after failure. Check current health and the
+      // original owner at the handoff itself, with no await before detachment.
+      requireConfirmed()
+      if (tab.networkRoutes.length) throw new Error('Request conditions changed before Developer Tools handoff')
+      if (webContents.isDevToolsOpened()) return
       if (webContents.debugger.isAttached()) webContents.debugger.detach()
       await new Promise<void>((resolve, reject) => {
         const cleanup = (): void => {
