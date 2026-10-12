@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Keep a newer MCP port draft free of error feedback from an earlier failed Apply port or Reset request. Failures still appear when their submitted draft is unchanged; no listener change is retried automatically.
+- Keep a newer MCP port draft free of error feedback from an earlier failed Apply port request. Failures still appear when their submitted draft is unchanged; no listener change is retried automatically.
 
 ## [2.38.0] - 2026-10-12
 

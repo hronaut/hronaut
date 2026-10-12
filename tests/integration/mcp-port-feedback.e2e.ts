@@ -5,7 +5,7 @@ type Gate = { calls: number; release(): void; restore(): void }
 type Scope = typeof globalThis & { __portFeedback?: Gate }
 
 for (const action of ['move', 'reset'] as const) {
-  for (const edited of [false, true]) {
+  for (const edited of action === 'move' ? [false, true] : [false]) {
     test(`MCP ${action} failure feedback belongs to its submitted draft (edited: ${edited})`, async ({ appWindow, electronApp }) => {
       const channel = action === 'move' ? 'settings:set-mcp-port' : 'settings:reset-mcp'
       const before = await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.get())
@@ -35,8 +35,12 @@ for (const action of ['move', 'reset'] as const) {
         await port.fill('49000')
         await appWindow.getByRole('button', { name: action === 'move' ? 'Apply port' : 'Reset to default', exact: true }).click()
         await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__portFeedback!.calls)).toBe(1)
+        await expect(appWindow.locator('.settings-layout')).toHaveJSProperty('inert', action === 'reset')
         const submitted = await port.inputValue()
-        if (edited) await port.fill('49001')
+        if (edited) {
+          await port.fill('49001')
+          await expect(port).toHaveValue('49001')
+        }
         await electronApp.evaluate(() => (globalThis as Scope).__portFeedback!.release())
         await expect(appWindow.getByRole('button', { name: 'Apply port', exact: true })).toBeVisible()
         const status = appWindow.locator('.mcp-port-status')

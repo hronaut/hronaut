@@ -227,15 +227,12 @@ describe('MCP settings controller', () => {
     controller.dispose()
   })
 
-  it.each(['move', 'reset'].flatMap(action =>
-    ['unchanged', 'newer', 'returned'].map(draft => ({ action, draft }))
-  ))('owns failed $action feedback only while its draft is unchanged ($draft)', async ({ action, draft }) => {
-    const { controller, setPort, resetSettings, settings } = createController()
+  it.each(['unchanged', 'newer', 'returned'])('owns failed move feedback only while its draft is unchanged (%s)', async draft => {
+    const { controller, setPort, settings } = createController()
     const pending = deferred<AppSettings>()
     setPort.mockReturnValueOnce(pending.promise)
-    resetSettings.mockReturnValueOnce(pending.promise)
     controller.editPort('49000')
-    const operation = action === 'move' ? controller.applyPort() : controller.reset()
+    const operation = controller.applyPort()
     const submitted = controller.portDraft.value
     if (draft !== 'unchanged') controller.editPort('49001')
     if (draft === 'returned') controller.editPort(submitted)
@@ -248,17 +245,16 @@ describe('MCP settings controller', () => {
     expect(controller.portMessage.value).toBe(draft === 'unchanged' ? 'Earlier requested port is unavailable' : '')
     expect(controller.busy.value).toBe(false)
     expect(settings.value.mcpPort).toBe(DEFAULT_RENDERER_SETTINGS.mcpPort)
-    expect(action === 'move' ? setPort : resetSettings).toHaveBeenCalledOnce()
+    expect(setPort).toHaveBeenCalledOnce()
     controller.dispose()
   })
 
-  it.each(['move', 'reset'] as const)('reconciles a newer draft matched by settings after failed %s', async action => {
-    const { controller, setPort, resetSettings, settings } = createController()
+  it('reconciles a newer draft matched by settings after a failed move', async () => {
+    const { controller, setPort, settings } = createController()
     const pending = deferred<AppSettings>()
     setPort.mockReturnValueOnce(pending.promise)
-    resetSettings.mockReturnValueOnce(pending.promise)
     controller.editPort('49000')
-    const operation = action === 'move' ? controller.applyPort() : controller.reset()
+    const operation = controller.applyPort()
     controller.editPort('49001')
     settings.value = { ...settings.value, mcpPort: 49001 }
     await nextTick()
