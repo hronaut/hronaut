@@ -94,6 +94,7 @@ export function usePageToolsPresentationController(options: PageToolsPresentatio
     }
     return options.translate('runtime.tool.environmentDescription')
   })
+  const networkConditionsUnconfirmed = computed(() => Boolean(options.activeTab.value?.networkConditionState && options.activeTab.value.networkConditionState.application !== 'confirmed'))
   const activeNetworkRouteCount = computed(() => options.activeTab.value?.networkRouteCount ?? 0)
   const accessibilityAuditLabel = computed(() => {
     if (diagnostics.accessibilityAuditState.value === 'running') return options.translate('runtime.tool.accessibilityRunning')
@@ -345,6 +346,7 @@ export function usePageToolsPresentationController(options: PageToolsPresentatio
   return {
     labels,
     activeNetworkRouteCount,
+    networkConditionsUnconfirmed,
     activeInspectorIssueCount,
     debugReportSignalCount,
     elementPickerLabel,

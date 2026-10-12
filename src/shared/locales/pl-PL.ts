@@ -2169,7 +2169,7 @@ export const plPL = {
       "size": "Rozmiar",
       "status": "Status"
     },
-    "conditions": { refreshAfterChangeFailed: "Zmiana warunku została zapisana, ale nie udało się odświeżyć stanu przeglądarki.",
+    "conditions": { unconfirmed: "Zastosowanie warunków żądań nie zostało potwierdzone.", recover: "Wyczyść warunki i przywróć", recoveryWarning: "Wyczyszczenie warunków pozwala przyszłym pasującym żądaniom dotrzeć do normalnego celu. Nie można cofnąć już wysłanych żądań ani odpowiedzi.", refreshAfterChangeFailed: "Zmiana warunku została zapisana, ale nie udało się odświeżyć stanu przeglądarki.",
       "heading": "Warunki żądań",
       "description": "Blokuj, symuluj, ograniczaj i ustalaj priorytety żądań",
       "active": "Aktywne: {count}",

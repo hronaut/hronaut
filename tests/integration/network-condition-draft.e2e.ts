@@ -45,10 +45,14 @@ for (const outcome of ['edited success', 'unchanged success', 'edited failure'] 
       await expect(pattern).toHaveValue(outcome === 'unchanged success' ? '' : `${fixtureOrigin}/next-condition`)
       await expect(body).toHaveValue(outcome === 'unchanged success' ? '' : 'next unsent mock body')
       await expect(form.getByLabel('HTTP status')).toHaveValue(outcome === 'unchanged success' ? '200' : '418')
-      const routes = await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.listNetworkRoutes(id), tabId)
-      expect(routes).toHaveLength(outcome === 'edited failure' ? 0 : 1)
+      const health = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === id)!.networkConditionState!, tabId)
+      expect(health.application).toBe(outcome === 'edited failure' ? 'unknown' : 'confirmed')
+      const routes = health.retainedRules
+      expect(routes).toHaveLength(1)
       if (outcome === 'edited failure') {
         await expect(panel.getByRole('alert')).toContainText('Controlled condition application failure')
+        await expect(form.getByRole('button', { name: 'Add condition', exact: true })).toBeDisabled()
+        await expect(panel.getByRole('button', { name: 'Clear conditions and recover' })).toBeEnabled()
       } else {
         expect(routes[0]).toMatchObject({ urlPattern: `${fixtureOrigin}/route-target`, response: { status: 409 } })
         const response = await electronApp.evaluate(async ({ webContents }, url) => {

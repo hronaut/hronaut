@@ -74,7 +74,7 @@ const {
   activeAddressKind,
 } = props.activeTabPresentation
 const { activeEmulation, resetPending, label: emulationLabel, describe: emulationDescription } = props.emulationController
-const { activeNetworkRouteCount } = props.pageToolsPresentation
+const { activeNetworkRouteCount, networkConditionsUnconfirmed } = props.pageToolsPresentation
 const { summary: siteDataSummary, state: siteDataState, message: siteDataMessage } = props.siteDataController
 const { permissionLabel, isPending: isSitePermissionPending } = props.sitePermissionsController
 
@@ -155,15 +155,15 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       <IconClose aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"
-      v-if="activeNetworkRouteCount"
+      v-if="activeNetworkRouteCount || networkConditionsUnconfirmed"
       class="network-routes-pill"
       type="button"
-      :title="t('shell.pageTools.openRoutes', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
-      :aria-label="t('shell.pageTools.openRoutes', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
+      :title="networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : t('shell.pageTools.openRoutes', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
+      :aria-label="networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : t('shell.pageTools.openRoutes', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
       @click="run(actions.openRequestConditions)"
     >
       <IconRoute aria-hidden="true" />
-      <span>{{ t('shell.pageTools.routeCount', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount) }}</span>
+      <span>{{ networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : t('shell.pageTools.routeCount', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount) }}</span>
       <IconKeyboardArrowRight aria-hidden="true" />
     </UiButton>
     <SiteControlsPanel

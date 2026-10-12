@@ -313,7 +313,7 @@ test('isolates emulation between tabs and preserves it across reload', async ({ 
 
 })
 
-test('hands emulation diagnostics to DevTools and restores them after closing it', async ({ capabilities, electronApp, appWindow }) => {
+test('hands emulation diagnostics to DevTools and requires explicit recovery after closing it', async ({ capabilities, electronApp, appWindow }) => {
   const { client, tabId, fixtureOrigin } = capabilities
   const seeded = await applyDiagnosticEmulation(client, tabId)
   expect(seeded.isError, text(seeded)).not.toBe(true)
@@ -328,8 +328,9 @@ test('hands emulation diagnostics to DevTools and restores them after closing it
     name: 'browser_network_routes',
     arguments: { action: 'list', tabId }
   }) as CallToolResult
-  expect(JSON.parse(text(routesAfterDevTools))).toEqual([])
-  await expect(appWindow.locator('.network-routes-pill')).toHaveCount(0)
+  expect(routesAfterDevTools.isError).toBe(true)
+  expect(routesAfterDevTools.structuredContent).toMatchObject({ application: 'unknown', retainedRules: [] })
+  await expect(appWindow.locator('.network-routes-pill')).toContainText('unconfirmed')
   await expect.poll(() => electronApp.evaluate(({ webContents }, requestedOrigin) => {
     return webContents.getAllWebContents().some((contents) => (
       contents.getURL().startsWith(requestedOrigin) && contents.isDevToolsOpened()
@@ -345,13 +346,19 @@ test('hands emulation diagnostics to DevTools and restores them after closing it
     arguments: { tabId, width: 400, height: 600 }
   }) as CallToolResult
   expect(debuggerActionWithDevTools.isError).toBe(true)
-  expect(text(debuggerActionWithDevTools)).toContain('Close Developer Tools')
+  expect(text(debuggerActionWithDevTools)).toContain('unknown')
   expect(await appWindow.evaluate(`window.hronaut.toggleDevTools(${JSON.stringify(tabId)})`)).toBe(false)
   await expect.poll(() => electronApp.evaluate(({ webContents }, requestedOrigin) => {
     return webContents.getAllWebContents().some((contents) => (
       contents.getURL().startsWith(requestedOrigin) && contents.isDevToolsOpened()
     ))
   }, fixtureOrigin)).toBe(false)
+
+  const recovered = await client.callTool({ name: 'browser_network_routes', arguments: { action: 'clear', tabId } }) as CallToolResult
+  expect(recovered.isError, text(recovered)).not.toBe(true)
+  expect(JSON.parse(text(recovered))).toEqual([])
+  const restored = await applyDiagnosticEmulation(client, tabId)
+  expect(restored.isError, text(restored)).not.toBe(true)
 
   await expect.poll(async () => {
     const result = await client.callTool({

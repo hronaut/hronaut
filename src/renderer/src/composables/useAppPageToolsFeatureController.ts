@@ -199,6 +199,7 @@ export function useAppPageToolsFeatureController(options: AppPageToolsFeatureCon
     toggleQualityAudit: diagnosticsController.toggleQualityAudit,
     pageToolsLabels: pageToolsPresentationController.labels,
     activeNetworkRouteCount: pageToolsPresentationController.activeNetworkRouteCount,
+    networkConditionsUnconfirmed: pageToolsPresentationController.networkConditionsUnconfirmed,
     activeInspectorIssueCount: pageToolsPresentationController.activeInspectorIssueCount,
     debugReportSignalCount: pageToolsPresentationController.debugReportSignalCount,
     elementPickerLabel: pageToolsPresentationController.elementPickerLabel,

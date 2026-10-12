@@ -460,7 +460,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   async function clearRoutes(): Promise<void> {
     const tab = options.activeTab.value
-    if (!tab?.networkRouteCount) return
+    if (!tab || (!tab.networkRouteCount && (!tab.networkConditionState || tab.networkConditionState.application === 'confirmed'))) return
     const expectedGeneration = generation
     const sequence = beginRouteMutation()
     routeState.value = 'saving'

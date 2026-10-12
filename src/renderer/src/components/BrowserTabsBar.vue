@@ -666,7 +666,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
             :aria-label="t('shell.tabs.sideVisible')"
           />
           <IconSpeed v-if="tab.emulation" class="tab-emulation-mark" :aria-label="t('runtime.emulation.reset', { description: describeEmulation(tab) })" />
-          <IconRoute v-if="tab.networkRouteCount" class="tab-network-route-mark" :aria-label="t('runtime.tabs.routes', { count: formatNumber(tab.networkRouteCount) }, tab.networkRouteCount)" />
+          <IconRoute v-if="tab.networkRouteCount || (tab.networkConditionState && tab.networkConditionState.application !== 'confirmed')" class="tab-network-route-mark" :aria-label="tab.networkConditionState && tab.networkConditionState.application !== 'confirmed' ? t('network.conditions.unconfirmed') : t('runtime.tabs.routes', { count: formatNumber(tab.networkRouteCount ?? 0) }, tab.networkRouteCount ?? 0)" />
           <IconLock v-if="tab.humanInteractionInputLocked ?? (state.allHumanInteractionLocked || tab.humanInteractionLocked)" class="tab-lock-mark" :aria-label="t('shell.tabs.inputLocked')" />
           <span
             v-if="tab.audible || tab.muted"

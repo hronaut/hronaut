@@ -775,13 +775,15 @@ function safeValue(value: unknown): unknown {
   }
 }
 
-function mcpWorkspaceTab<T extends { mcpGroupId?: string; mcpGroupName?: string }>(tab: T): Omit<T, 'mcpGroupId' | 'mcpGroupName'> & {
+function mcpWorkspaceTab<T extends { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState }>(tab: T): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState'> & {
+  networkConditionState?: { application: import('../../shared/types.js').BrowserNetworkConditionState['application']; retainedRuleCount: number }
   workspaceId?: string
   workspaceName?: string
 } {
-  const { mcpGroupId, mcpGroupName, ...rest } = tab
+  const { mcpGroupId, mcpGroupName, networkConditionState, ...rest } = tab
   return {
     ...rest,
+    ...(networkConditionState ? { networkConditionState: { application: networkConditionState.application, retainedRuleCount: networkConditionState.retainedRules.length } } : {}),
     ...(mcpGroupId ? { workspaceId: mcpGroupId } : {}),
     ...(mcpGroupName ? { workspaceName: mcpGroupName } : {})
   }
@@ -1122,9 +1124,12 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
+    if (request?.conditionAttempted && error instanceof McpCapabilityAuthorizationError) {
+      request.conditionPolicy = { permission: 'denied', policyDecision: error.decision }
+    }
     if (request?.selectionSubmitted && error instanceof McpCapabilityAuthorizationError) {
       request.selectionPolicy = { permission: 'denied', policyDecision: error.decision }
     }
@@ -1148,6 +1153,22 @@ function createBrowserMcpServer(
       const settleSelection = (result: CallToolResult): CallToolResult => {
         const settled = name === 'browser_select' && input.values !== undefined && !frameRequest.selectionSubmitted ? selectionNotSubmittedResult(result) : result
         frameRequest.selectionFinishActivity?.(settled)
+        return settled
+      }
+      const settleConditions = (result: CallToolResult): CallToolResult => {
+        if (name !== 'browser_network_routes') return result
+        let settled = result
+        if (result.isError && input.action !== 'list' && input.action !== undefined) {
+          const outcome = { ...result.structuredContent, ...frameRequest.conditionPolicy,
+            ...(frameRequest.conditionReviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+            status: frameRequest.conditionAttempted ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED',
+            effects: frameRequest.conditionAttempted ? 'possible' : 'none', retrySafe: false,
+            nextAction: result.structuredContent?.nextAction ?? (frameRequest.conditionAttempted
+              ? 'Inspect current application health before explicitly clearing conditions; do not automatically replay.'
+              : 'No condition command was submitted. Inspect current authority and application health before proceeding.') }
+          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
+        frameRequest.conditionFinishActivity?.(settled)
         return settled
       }
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
@@ -1217,7 +1238,7 @@ function createBrowserMcpServer(
             ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed, outcome)
           if (frameRequest.keyHoldProgress) return nativeKeyHoldNotDispatchedResult({ ...textResult(outcome), structuredContent: outcome, isError: true })
-          return { ...textResult(outcome), structuredContent: outcome, isError: true }
+          return settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true })
         }
         if (isFrameObservation && frameRequest.pending && !result.isError) {
           await frameRequest.pending.finish()
@@ -1253,6 +1274,10 @@ function createBrowserMcpServer(
           if (!frameRequest.networkPublication) throw new Error('Network detail publication guard is unavailable')
           frameRequest.networkPublication()
           return result // No await after validating the retained request and its authority.
+        }
+        if (name === 'browser_network_routes' && frameRequest.conditionPublication) {
+          frameRequest.conditionPublication()
+          return settleConditions(result) // Publication checks never rewrite main-owned native health.
         }
         if (name === 'browser_pdf_save' && !result.isError) {
           const publication = frameRequest.pdfExport
@@ -1307,6 +1332,7 @@ function createBrowserMcpServer(
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
         recordReadinessProbe('failed')
+        if (name === 'browser_network_routes') { rememberInputPolicy(error); return settleConditions(errorResult(error)) }
         if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed,
           error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : frameRequest.keyHoldPolicy ?? errorResult(error).structuredContent)
         if (frameRequest.keyHoldProgress && !frameRequest.keyHoldProgress.downAttempted) return nativeKeyHoldNotDispatchedResult(errorResult(error), frameRequest.keyHoldPolicy)
@@ -1963,6 +1989,7 @@ function createBrowserMcpServer(
             })
           } catch (error) {
             if (frameRequests.getStore()?.selectionSubmitted) frameRequests.getStore()!.selectionReviewFinalizationFailed = true
+            if (frameRequests.getStore()?.conditionAttempted) frameRequests.getStore()!.conditionReviewFinalizationFailed = true
             if (frameRequests.getStore()?.wheelAttempted) frameRequests.getStore()!.wheelReviewFinalizationFailed = true
             if (frameRequests.getStore()?.keyHoldProgress?.downAttempted) frameRequests.getStore()!.keyHoldReviewFinalizationFailed = true
             finishActivity(undefined, true, error)
@@ -2099,6 +2126,19 @@ function createBrowserMcpServer(
                     throw error
                   }
                 } } : {}),
+                ...(name === 'browser_network_routes' ? {
+                  validateConditions: () => {
+                    const assert = (): void => {
+                      if (extra?.signal?.aborted) throw new Error('Request-condition operation cancelled')
+                      requireCurrentTarget()
+                      requirePostWriteContext()
+                      if (authorityRejection()) throw new Error('Request-condition authority changed')
+                    }
+                    assert()
+                    frameRequests.getStore()!.conditionPublication = assert
+                  },
+                  markConditionsSubmitted: () => { frameRequests.getStore()!.conditionAttempted = true }
+                } : {}),
                 ...(name === 'browser_wheel' ? { markWheelAttempted: () => { frameRequests.getStore()!.wheelAttempted = true } } : {}),
                 ...(name === 'browser_hold_key' ? { holdSignal: extra?.signal, recordHoldProgress: (progress: NativeKeyHoldProgress) => { frameRequests.getStore()!.keyHoldProgress = { ...progress } } } : {}),
                 ...(name === 'browser_select' && actionInput.values !== undefined ? {
@@ -2208,6 +2248,10 @@ function createBrowserMcpServer(
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
           const request = frameRequests.getStore()!
+          if (name === 'browser_network_routes' && !request.conditionFinishing) {
+            request.conditionFinishActivity = settled => { request.conditionFinishing = true; finishActivity(settled, false) }
+            return
+          }
           if (name === 'browser_select' && actionInput.values !== undefined && !request.selectionFinishing) {
             request.selectionFinishActivity = settled => { request.selectionFinishing = true; finishActivity(settled, false) }
             return
@@ -2219,13 +2263,13 @@ function createBrowserMcpServer(
             && typeof structured.status === 'string' ? structured.status : undefined
           const activityResult = classifyMcpActivityResult({
             readOnly,
-            dispatched: name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
+            dispatched: name === 'browser_network_routes' ? request.conditionAttempted === true : name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
             cancelled: extra?.signal?.aborted === true,
             timedOut: isTimeoutError(error),
             threw,
             isError: result?.isError === true,
             status,
-            invalidatedOutcome: ((frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none') || frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
+            invalidatedOutcome: ((name === 'browser_network_routes' && request.conditionAttempted) || (frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none') || frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
               ? 'outcome-unknown' : name === 'browser_select' && actionInput.values !== undefined && (!request.selectionSubmitted || result?.structuredContent?.effects === 'none') ? undefined : invalidatedOutcome,
             verificationStatus: verificationResult?.status
           })
@@ -4810,6 +4854,8 @@ function createBrowserMcpServer(
       }
     },
     tabTool('browser_network_routes', async ({
+      validateConditions,
+      markConditionsSubmitted,
       action = 'list',
       tabId,
       routeId,
@@ -4821,6 +4867,8 @@ function createBrowserMcpServer(
       abort,
       throttle
     }: {
+      validateConditions?: () => void
+      markConditionsSubmitted?: () => void
       action?: 'list' | 'add' | 'move' | 'remove' | 'clear'
       tabId?: string
       routeId?: string
@@ -4832,18 +4880,34 @@ function createBrowserMcpServer(
       abort?: BrowserNetworkAbortReason
       throttle?: 'fast-4g' | 'slow-4g' | 'slow-3g'
     }) => {
-      if (action === 'list') return textResult(manager.networkRoutes(tabId))
-      if (action === 'clear') return textResult(await manager.clearNetworkRoutes(tabId))
-      if (action === 'move') {
-        if (!routeId || !direction) throw new Error('routeId and direction are required when moving a network route')
-        return textResult(await manager.moveNetworkRoute(tabId, routeId, direction))
+      if (!validateConditions) throw new Error('Request-condition authority is unavailable')
+      validateConditions()
+      const publish = (routes: import('../../shared/types.js').BrowserNetworkRouteSummary[]): CallToolResult => {
+        const assert = manager.networkConditionPublication(tabId, routes)
+        frameRequests.getStore()!.conditionPublication = () => { validateConditions(); assert() }
+        return textResult(routes)
       }
-      if (action === 'remove') {
-        if (!routeId) throw new Error('routeId is required when removing a network route')
-        return textResult(await manager.removeNetworkRoute(tabId, routeId))
+      try {
+        if (action === 'list') return publish(manager.networkRoutes(tabId))
+        if (action === 'clear') return publish(await manager.clearNetworkRoutes(tabId, validateConditions, markConditionsSubmitted))
+        if (action === 'move') {
+          if (!routeId || !direction) throw new Error('routeId and direction are required when moving a network route')
+          return publish(await manager.moveNetworkRoute(tabId, routeId, direction, validateConditions, markConditionsSubmitted))
+        }
+        if (action === 'remove') {
+          if (!routeId) throw new Error('routeId is required when removing a network route')
+          return publish(await manager.removeNetworkRoute(tabId, routeId, validateConditions, markConditionsSubmitted))
+        }
+        if (!urlPattern) throw new Error('urlPattern is required when adding a network route')
+        return publish(await manager.addNetworkRoute(tabId, { urlPattern, method, times, response, abort, throttle }, validateConditions, markConditionsSubmitted))
+      } catch (error) {
+        validateConditions()
+        const state = manager.networkConditionState(tabId)
+        if (state.application === 'confirmed') throw error
+        const outcome = { status: 'NETWORK_CONDITIONS_UNCONFIRMED', ...state, retrySafe: false,
+          nextAction: 'Explicitly clear conditions to recover. Future matching requests may reach their normal destination. Already-dispatched effects cannot be undone.' }
+        return { ...textResult(outcome), structuredContent: outcome, isError: true }
       }
-      if (!urlPattern) throw new Error('urlPattern is required when adding a network route')
-      return textResult(await manager.addNetworkRoute(tabId, { urlPattern, method, times, response, abort, throttle }))
     })
   )
   registerWorkspaceTool(

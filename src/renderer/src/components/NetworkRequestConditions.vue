@@ -18,6 +18,7 @@ import {
 } from '../../../shared/types'
 
 const props = defineProps<{
+  application?: 'confirmed' | 'pending' | 'unknown'
   routes: BrowserNetworkRouteSummary[]
   state: 'idle' | 'loading' | 'ready' | 'saving' | 'error'
   error: string
@@ -30,6 +31,8 @@ const emit = defineEmits<{
   add: []
   clear: []
 }>()
+
+const unconfirmed = (): boolean => Boolean(props.application && props.application !== 'confirmed')
 
 const expanded = defineModel<boolean>('expanded', { required: true })
 const mode = defineModel<'abort' | 'fulfill' | 'throttle'>('mode', { required: true })
@@ -68,18 +71,19 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
         <span><strong id="request-conditions-title">{{ t('network.conditions.heading') }}</strong><small>{{ t('network.conditions.description') }}</small></span>
       </span>
       <span class="request-conditions-toggle-meta">
-        <span v-if="routes.length" class="request-conditions-count">{{ t('network.conditions.active', { count: localNumber(routes.length) }, routes.length) }}</span>
+        <span v-if="routes.length || unconfirmed()" class="request-conditions-count">{{ unconfirmed() ? t('network.conditions.unconfirmed') : t('network.conditions.active', { count: localNumber(routes.length) }, routes.length) }}</span>
         <IconKeyboardArrowDown v-if="expanded" aria-hidden="true" />
         <IconKeyboardArrowRight v-else aria-hidden="true" />
       </span>
     </UiButton>
     <div v-if="expanded" id="request-conditions-content" class="request-conditions-content">
+      <p v-if="unconfirmed()" role="status">{{ t('network.conditions.unconfirmed') }} {{ t('network.conditions.recoveryWarning') }}</p>
       <p v-if="error" class="network-monitor-error" role="alert">{{ error }}</p>
       <div v-if="state === 'loading' && !routes.length" class="request-conditions-empty" role="status">
         <IconProgress class="state-spinner" aria-hidden="true" />
         {{ t('network.conditions.reading') }}
       </div>
-      <div v-else-if="routes.length" class="request-condition-list" :aria-label="t('network.conditions.listAria')">
+      <div v-else-if="routes.length" class="request-condition-list" :aria-label="unconfirmed() ? t('network.conditions.heading') : t('network.conditions.listAria')">
         <article v-for="(route, index) in routes" :key="route.id" class="request-condition-item">
           <span class="request-condition-order" :title="index === 0 ? t('network.conditions.firstWins') : t('network.conditions.priority', { number: localNumber(index + 1) })">{{ localNumber(index + 1) }}</span>
           <span class="request-condition-copy">
@@ -94,15 +98,15 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
             </small>
           </span>
           <span class="request-condition-controls">
-            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveUpAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveUp')" :disabled="state === 'saving' || index === 0" @click="emit('move', route.id, 'up')"><IconKeyboardArrowUp aria-hidden="true" /></UiButton>
-            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveDownAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveDown')" :disabled="state === 'saving' || index === routes.length - 1" @click="emit('move', route.id, 'down')"><IconKeyboardArrowDown aria-hidden="true" /></UiButton>
-            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.removeAria', { pattern: route.urlPattern })" :title="t('network.conditions.remove')" :disabled="state === 'saving'" @click="emit('remove', route.id)"><IconDelete aria-hidden="true" /></UiButton>
+            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveUpAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveUp')" :disabled="unconfirmed() || state === 'saving' || index === 0" @click="emit('move', route.id, 'up')"><IconKeyboardArrowUp aria-hidden="true" /></UiButton>
+            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveDownAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveDown')" :disabled="unconfirmed() || state === 'saving' || index === routes.length - 1" @click="emit('move', route.id, 'down')"><IconKeyboardArrowDown aria-hidden="true" /></UiButton>
+            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.removeAria', { pattern: route.urlPattern })" :title="t('network.conditions.remove')" :disabled="unconfirmed() || state === 'saving'" @click="emit('remove', route.id)"><IconDelete aria-hidden="true" /></UiButton>
           </span>
         </article>
       </div>
       <div v-else class="request-conditions-empty">
         <IconRoute aria-hidden="true" />
-        <span><strong>{{ t('network.conditions.empty') }}</strong><small>{{ t('network.conditions.emptyDescription') }}</small></span>
+        <span><strong>{{ unconfirmed() ? t('network.conditions.unconfirmed') : t('network.conditions.empty') }}</strong><small>{{ t('network.conditions.emptyDescription') }}</small></span>
       </div>
       <form class="request-condition-form" :aria-label="t('network.conditions.formAria')" @submit.prevent="emit('add')">
         <h3>{{ t('network.conditions.addHeading') }}</h3>
@@ -150,15 +154,15 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
         </template>
         <div class="request-condition-form-actions">
           <p><IconInfo aria-hidden="true" /> {{ t('network.conditions.safety') }}</p>
-          <UiButton appearance="application" variant="primary" type="submit" class="primary" :disabled="state === 'saving' || !pattern.trim()">
+          <UiButton appearance="application" variant="primary" type="submit" class="primary" :disabled="unconfirmed() || state === 'saving' || !pattern.trim()">
             <IconProgress v-if="state === 'saving'" class="state-spinner" aria-hidden="true" /><IconAdd v-else aria-hidden="true" />
             {{ state === 'saving' ? t('network.conditions.adding') : t('network.conditions.add') }}
           </UiButton>
         </div>
       </form>
-      <div v-if="routes.length" class="request-conditions-actions">
+      <div v-if="routes.length || unconfirmed()" class="request-conditions-actions">
         <span>{{ t('network.conditions.secretNote') }}</span>
-        <UiButton appearance="application" type="button" :disabled="state === 'saving'" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('network.conditions.removeAll') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="state === 'saving'" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ unconfirmed() ? t('network.conditions.recover') : t('network.conditions.removeAll') }}</UiButton>
       </div>
     </div>
   </section>

@@ -46,55 +46,42 @@ for (const action of ['clear', 'remove-moving', 'remove-neighbor', 'remove-unkno
     }, { tabId, routeId: moving!.id })
     try {
       await expect.poll(() => electronApp.evaluate(() => (globalThis as RouteGlobal).__routeReorderGate?.ready)).toBe(true)
-      if (action === 'remove-unknown' || action === 'remove-stale') {
-        const error = await appWindow.evaluate(async ({ tabId, routeId }) => {
-          try {
-            await (window as unknown as { hronaut: HronautApi }).hronaut.removeNetworkRoute(tabId, routeId)
-            return 'unexpected success'
-          } catch (error) { return String(error) }
-        }, { tabId, routeId: missingId })
-        expect(error).toContain(`Network route not found: ${missingId}`)
-      } else if (action !== 'unchanged') {
-        later = appWindow.evaluate(async ({ tabId, action, movingId, neighborId, origin }) => {
+      if (action !== 'unchanged') {
+        later = appWindow.evaluate(async ({ tabId, action, movingId, neighborId, missingId, origin }) => {
           const api = (window as unknown as { hronaut: HronautApi }).hronaut
-          if (action === 'clear') return api.clearNetworkRoutes(tabId)
-          if (action === 'remove-moving') return api.removeNetworkRoute(tabId, movingId)
-          if (action === 'remove-neighbor') return api.removeNetworkRoute(tabId, neighborId)
-          if (action === 'move') return api.moveNetworkRoute(tabId, movingId, 'down')
-          return api.addNetworkRoute(tabId, { urlPattern: `${origin}/another-route`, abort: 'Failed' })
-        }, { tabId, action, movingId: moving!.id, neighborId: neighbor!.id, origin: fixtureOrigin })
-        // Observe the later intent through the real trusted-shell API while its
-        // native application waits behind the deliberately held command.
-        const expected = action === 'clear' ? []
-          : action === 'remove-moving' ? [neighbor!.id]
-            : action === 'remove-neighbor' ? [moving!.id]
-              : action === 'move' ? [neighbor!.id, moving!.id] : [moving!.id, neighbor!.id]
-        await expect.poll(() => appWindow.evaluate(async ({ tabId, action }) => {
-          const current = await (window as unknown as { hronaut: HronautApi }).hronaut.listNetworkRoutes(tabId)
-          return (action === 'add' ? current.slice(0, 2) : current).map(route => route.id)
-        }, { tabId, action })).toEqual(expected)
-        if (action === 'add') await expect.poll(() => appWindow.evaluate(async tabId =>
-          (await (window as unknown as { hronaut: HronautApi }).hronaut.listNetworkRoutes(tabId)).length, tabId)).toBe(3)
+          try {
+            if (action === 'clear') return await api.clearNetworkRoutes(tabId)
+            if (action === 'remove-unknown' || action === 'remove-stale') return await api.removeNetworkRoute(tabId, missingId)
+            if (action === 'remove-moving') return await api.removeNetworkRoute(tabId, movingId)
+            if (action === 'remove-neighbor') return await api.removeNetworkRoute(tabId, neighborId)
+            if (action === 'move') return await api.moveNetworkRoute(tabId, movingId, 'down')
+            return await api.addNetworkRoute(tabId, { urlPattern: `${origin}/another-route`, abort: 'Failed' })
+          } catch (error) { return String(error) }
+        }, { tabId, action, movingId: moving!.id, neighborId: neighbor!.id, missingId, origin: fixtureOrigin })
       }
+      // Later edits wait for queue admission. The earlier proposed order is
+      // explicitly pending, never exposed as confirmed by the array endpoint.
+      const pendingState = await appWindow.evaluate(async tabId =>
+        (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === tabId)!.networkConditionState, tabId)
+      expect(pendingState?.application).toBe('pending')
+      expect(pendingState?.retainedRules.map(route => route.id)).toEqual([moving!.id, neighbor!.id])
       await electronApp.evaluate(() => (globalThis as RouteGlobal).__routeReorderGate!.release())
       expect(await pending).toContain('Controlled native route application failure')
-      await later
+      const laterResult = await later
+      if (later && action !== 'clear') expect(laterResult).toContain('unknown')
       const current = await appWindow.evaluate(async tabId =>
-        (window as unknown as { hronaut: HronautApi }).hronaut.listNetworkRoutes(tabId), tabId)
-      const expectedIds = action === 'clear' ? []
-        : action === 'remove-moving' ? [neighbor!.id]
-          : action === 'remove-neighbor' ? [moving!.id]
-            : action === 'add' ? [moving!.id, neighbor!.id, current[2]!.id] : [neighbor!.id, moving!.id]
-      expect(current.map(route => route.id)).toEqual(expectedIds)
-      expect(current.filter(route => route.behavior === 'fulfill').map(route => route.remainingMatches)).toEqual(
-        expectedIds.filter(id => id === moving!.id || id === neighbor!.id).map(() => 2)
-      )
+        (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === tabId)!.networkConditionState, tabId)
+      expect(current?.application).toBe(action === 'clear' ? 'confirmed' : 'unknown')
+      expect(current?.retainedRules.map(route => route.id)).toEqual(action === 'clear' ? [] : [moving!.id, neighbor!.id])
+      expect(current?.retainedRules.map(route => route.remainingMatches)).toEqual(action === 'clear' ? [] : [2, 2])
       await electronApp.evaluate(() => (globalThis as RouteGlobal).__routeReorderGate!.restore())
+      if (action !== 'clear') await appWindow.evaluate(async tabId =>
+        (window as unknown as { hronaut: HronautApi }).hronaut.clearNetworkRoutes(tabId), tabId)
       const status = await electronApp.evaluate(async ({ webContents }, url) => {
         const contents = webContents.getAllWebContents().find(page => page.getURL() === url)!
         return contents.executeJavaScript("fetch('/route-target').then(response => response.status)")
       }, fixtureUrl)
-      expect(status).toBe(action === 'clear' ? 200 : action === 'remove-neighbor' || action === 'add' ? 418 : 409)
+      expect(status).toBe(200)
     } finally {
       await electronApp.evaluate(() => {
         const gate = (globalThis as RouteGlobal).__routeReorderGate

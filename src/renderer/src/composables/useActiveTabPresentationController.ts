@@ -116,7 +116,9 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     const emulation = tab.emulation
       ? options.translate('runtimeDetails.tab.emulated', { description: options.describeEmulation(tab.emulation) })
       : ''
-    const networkRoutes = tab.networkRouteCount
+    const networkRoutes = tab.networkConditionState && tab.networkConditionState.application !== 'confirmed'
+      ? options.translate('network.conditions.unconfirmed')
+      : tab.networkRouteCount
       ? options.translate(
         'runtimeDetails.tab.routes',
         { count: options.formatNumber(tab.networkRouteCount) },
