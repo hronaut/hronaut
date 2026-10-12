@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -11,14 +11,24 @@ import type { FileEvaluationSource } from '../../src/shared/file-evaluation.js'
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { test as base, expect, closeFixtureServer } from './fixtures.js'
 
-type Probe = { failReviewSave: boolean; reviewSaveFailures: number; opens: number; submissions: Array<{ unique: boolean; expressionMatches: boolean }>; held: boolean; mode: 'none' | 'preparation' | 'result' | 'audit'; holdOpen: boolean; heldOpens: number; handles: Array<{ fd: number }>; release(): void; restore(): void }
+type Probe = { holdClose: boolean; heldCloses: number; failReviewSave: boolean; reviewSaveFailures: number; opens: number; submissions: Array<{ unique: boolean; expressionMatches: boolean }>; held: boolean; mode: 'none' | 'preparation' | 'result' | 'audit'; holdOpen: boolean; heldOpens: number; handles: Array<{ fd: number }>; release(): void; restore(): void }
 type Scope = typeof globalThis & { fileProbe?: Probe }
 const code = 'globalThis.__fileRuns = (globalThis.__fileRuns || 0) + 1; ({runs:globalThis.__fileRuns, text:"🛰️\\nexact"})'
 const failingCode = 'throw new Error("synthetic-source-exception-secret")'
 const text = (result: CallToolResult): string => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
-const test = base.extend<{ evaluation: { client: Client; full: Client; source: FileEvaluationSource; profileId: string; url: string; reconnect(): Promise<Client> } }>({
+const test = base.extend<{ evaluation: { client: Client; full: Client; source: FileEvaluationSource; profileId: string; url: string; reload: { hold(): void; requested(): boolean; release(): void }; connectAgain(): Promise<Client>; reconnect(): Promise<Client> } }>({
   evaluation: async ({ appWindow, mcpPort, mcpToken, profileDirectory, electronApp }, use) => {
-    const server = createServer((_req, res) => { res.setHeader('content-type', 'text/html'); res.end('<title>File source fixture</title><p>Synthetic source target</p>') })
+    let holdReload = false; let reloadRequested = false; let releaseReload = (): void => undefined; let documentVersion = 0
+    const server = createServer((req, res) => {
+      if (req.url === '/favicon.ico') { res.writeHead(404); res.end(); return }
+      const version = ++documentVersion
+      const reply = (): void => {
+        if (res.writableEnded) return
+        res.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+        res.end(`<title>File source fixture</title><p>Synthetic source target</p><script>window.__documentVersion=${version}</script>`)
+      }
+      if (holdReload) { releaseReload = reply; reloadRequested = true } else reply()
+    })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const address = server.address() as { port: number }
     const origin = `http://127.0.0.1:${address.port}`; const url = `${origin}/`
@@ -27,6 +37,7 @@ const test = base.extend<{ evaluation: { client: Client; full: Client; source: F
       await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }))
       return client
     }
+    const extraClients: Client[] = []
     let full: Client | undefined; let client: Client | undefined
     try {
       await expect.poll(async () => {
@@ -53,7 +64,7 @@ const test = base.extend<{ evaluation: { client: Client; full: Client; source: F
         const open = fs.open; const rename = fs.rename
         const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
         const send = page.debugger.sendCommand
-        const probe: Probe = { failReviewSave: false, reviewSaveFailures: 0, opens: 0, submissions: [], held: false, mode: 'none', holdOpen: false, heldOpens: 0, handles: [], release: () => undefined, restore: () => { fs.open = open; fs.rename = rename; syncBuiltinESMExports(); if (!page.isDestroyed()) page.debugger.sendCommand = send } }
+        const probe: Probe = { holdClose: false, heldCloses: 0, failReviewSave: false, reviewSaveFailures: 0, opens: 0, submissions: [], held: false, mode: 'none', holdOpen: false, heldOpens: 0, handles: [], release: () => undefined, restore: () => { fs.open = open; fs.rename = rename; syncBuiltinESMExports(); if (!page.isDestroyed()) page.debugger.sendCommand = send } }
         ;(globalThis as Scope).fileProbe = probe
         let release!: () => void
         const heldOpen = new Promise<void>(resolve => { release = resolve })
@@ -72,6 +83,10 @@ const test = base.extend<{ evaluation: { client: Client; full: Client; source: F
               }
               return write(data, options)
             }
+          }
+          if (probe.holdClose && String(args[0]).startsWith('/proc/self/fd/') && typeof args[1] === 'number' && (args[1] & 0x200000) === 0) {
+            const close = handle.close.bind(handle)
+            handle.close = async () => { probe.handles.push(handle); probe.heldCloses++; await heldOpen; return close() }
           }
           if (probe.holdOpen && typeof args[1] === 'number' && (args[1] & 0x200000) !== 0) {
             probe.handles.push(handle); probe.heldOpens++; await heldOpen
@@ -94,14 +109,20 @@ const test = base.extend<{ evaluation: { client: Client; full: Client; source: F
           return response
         }
       }, { url, code, failingCode })
-      await use({ client, full, source, profileId: grant.profile.id, url, reconnect: async () => {
+      await use({ client, full, source, profileId: grant.profile.id, url, reload: { hold: () => { holdReload = true }, requested: () => reloadRequested, release: () => releaseReload() }, connectAgain: async () => {
+        const next = await connect(grant.credential); extraClients.push(next)
+        await connectMcpWorkspace(next, 'File source replacement', false, workspace)
+        return next
+      }, reconnect: async () => {
         await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'release-ownership', workspaceId: workspace.workspaceId } })
         await client!.close(); client = await connect(grant.credential)
         await connectMcpWorkspace(client, 'Reconnected file source', false, workspace)
         return client
       } })
     } finally {
+      releaseReload()
       await electronApp.evaluate(() => { (globalThis as Scope).fileProbe?.release(); (globalThis as Scope).fileProbe?.restore() }).catch(() => undefined)
+      for (const extra of extraClients) await extra.close().catch(() => undefined)
       await client?.close().catch(() => undefined); await full?.close().catch(() => undefined)
       await closeFixtureServer(server)
     }
@@ -316,3 +337,105 @@ for (const failSave of [false, true]) {
     }
   })
 }
+
+test('rejects a reload started before admission that commits during source acquisition', async ({ evaluation, electronApp, appWindow }, info) => {
+  evaluation.reload.hold()
+  const originalListeners = await electronApp.evaluate(({ webContents }, url) => {
+    const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
+    const listeners = page.listenerCount('did-navigate')
+    ;(globalThis as typeof globalThis & { originalFileFrame?: unknown }).originalFileFrame = page.mainFrame
+    void page.loadURL(url).catch(() => undefined)
+    return listeners
+  }, evaluation.url)
+  await expect.poll(evaluation.reload.requested, { intervals: [10, 20, 50] }).toBe(true)
+  const before = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.navigationGeneration, evaluation.source.tabId)
+  await electronApp.evaluate(() => { (globalThis as Scope).fileProbe!.holdOpen = true })
+  const pending = evaluation.client.callTool({ name: 'browser_evaluate_file', arguments: { tabId: evaluation.source.tabId, source: evaluation.source } }) as Promise<CallToolResult>
+  await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).fileProbe!.heldOpens), { intervals: [10, 20, 50] }).toBe(1)
+  evaluation.reload.release()
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.__documentVersion'), evaluation.url), { intervals: [10, 20, 50] }).toBe(2)
+  const after = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.navigationGeneration, evaluation.source.tabId)
+  await electronApp.evaluate(() => { const probe = (globalThis as Scope).fileProbe!; probe.holdOpen = false; probe.release() })
+  const result = await pending
+  const observed = await electronApp.evaluate(async ({ webContents }, url) => {
+    const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
+    return { listeners: page.listenerCount('did-navigate'), sameFrame: page.mainFrame === (globalThis as typeof globalThis & { originalFileFrame?: unknown }).originalFileFrame,
+      submissions: (globalThis as Scope).fileProbe!.submissions.length, effects: await page.executeJavaScript('({version:window.__documentVersion,runs:window.__fileRuns||0})') }
+  }, evaluation.url)
+  await info.attach('already-started-reload', { body: JSON.stringify({ before, after, originalListeners, observed, result }), contentType: 'application/json' })
+  expect(after).toBe(before)
+  expect(observed.sameFrame).toBe(true)
+  expect(result.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', submitted: false })
+  expect(observed).toMatchObject({ listeners: originalListeners, submissions: 0, effects: { version: 2, runs: 0 } })
+})
+
+test('retains workspace mutation ownership after cancellation and transport termination until native settlement', async ({ evaluation, electronApp }) => {
+  await electronApp.evaluate(() => { (globalThis as Scope).fileProbe!.mode = 'result' })
+  const transport = evaluation.client.transport! as StreamableHTTPClientTransport
+  const originalSend = transport.send.bind(transport)
+  let requestId: string | number | undefined
+  transport.send = async (message, options) => {
+    if ('method' in message && message.method === 'tools/call' && 'id' in message && message.params?.name === 'browser_evaluate_file') requestId = message.id
+    return originalSend(message, options)
+  }
+  const abort = new AbortController()
+  const pending = evaluation.client.callTool({ name: 'browser_evaluate_file', arguments: { tabId: evaluation.source.tabId, source: evaluation.source } }, undefined, { signal: abort.signal }).catch(() => undefined)
+  await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).fileProbe!.held)).toBe(true)
+  await evaluation.client.notification({ method: 'notifications/cancelled', params: { requestId: requestId!, reason: 'Synthetic ownership cancellation' } })
+  abort.abort(); await pending
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }, tabId) => {
+    const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
+    const status = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result?: { outcome?: string } }> }
+    return status.recentActivity.find(item => item.toolName === 'browser_evaluate_file' && item.tabId === tabId)?.result?.outcome
+  }, evaluation.source.tabId)).toBe('cancelled')
+  await transport.terminateSession()
+  const replacement = await evaluation.connectAgain()
+  const ownership = await replacement.callTool({ name: 'browser_workspaces', arguments: { action: 'ownership-status', workspaceId: evaluation.source.workspaceId } }) as CallToolResult
+  expect(JSON.parse(text(ownership)).writeLease).toMatchObject({ status: 'busy', holder: 'other' })
+  const overlapping = await replacement.callTool({ name: 'browser_evaluate', arguments: { tabId: evaluation.source.tabId, script: 'globalThis.__overlapRuns = (globalThis.__overlapRuns || 0) + 1' } }) as CallToolResult
+  expect(overlapping.isError).toBe(true)
+  expect(await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('globalThis.__overlapRuns || 0'), evaluation.url)).toBe(0)
+  await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.release())
+  await expect.poll(async () => (await replacement.callTool({ name: 'browser_workspaces', arguments: { action: 'claim-ownership', workspaceId: evaluation.source.workspaceId } }) as CallToolResult).isError === true).toBe(false)
+  expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.submissions.length)).toBe(1)
+})
+
+test('matches inline evaluation for the same captured source', async ({ evaluation, electronApp }) => {
+  const request = { name: 'browser_evaluate_file', arguments: { tabId: evaluation.source.tabId, source: evaluation.source } }
+  const fromFile = await evaluation.client.callTool(request) as CallToolResult
+  await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('delete globalThis.__fileRuns'), evaluation.url)
+  const inline = await evaluation.client.callTool({ name: 'browser_evaluate', arguments: { tabId: evaluation.source.tabId, script: code } }) as CallToolResult
+  expect(inline.isError, text(inline)).not.toBe(true)
+  expect(fromFile.structuredContent?.value).toEqual(JSON.parse(text(inline)))
+})
+
+test('does not reopen or substitute a path replaced after capture', async ({ evaluation, electronApp }) => {
+  await electronApp.evaluate(() => { (globalThis as Scope).fileProbe!.mode = 'preparation' })
+  const pending = evaluation.client.callTool({ name: 'browser_evaluate_file', arguments: { tabId: evaluation.source.tabId, source: evaluation.source } }) as Promise<CallToolResult>
+  await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).fileProbe!.held)).toBe(true)
+  const opens = await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.opens)
+  await writeFile(`${evaluation.source.path}.replacement`, 'globalThis.__replacementRuns = 1; "replacement"')
+  await rename(`${evaluation.source.path}.replacement`, evaluation.source.path)
+  await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.release())
+  const result = await pending
+  expect(result.structuredContent).toMatchObject({ status: 'RETURNED', value: { runs: 1, text: '🛰️\nexact' } })
+  expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.opens)).toBe(opens)
+  expect(await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('globalThis.__replacementRuns || 0'), evaluation.url)).toBe(0)
+})
+
+test('retains acquisition capacity through held descriptor cleanup after deadlines', async ({ evaluation, electronApp }) => {
+  await electronApp.evaluate(() => { (globalThis as Scope).fileProbe!.holdClose = true })
+  const request = { name: 'browser_evaluate_file', arguments: { tabId: evaluation.source.tabId, source: evaluation.source } }
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const pending = evaluation.client.callTool(request) as Promise<CallToolResult>
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).fileProbe!.heldCloses)).toBe(attempt)
+    expect((await pending).structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', reason: 'DEADLINE', submitted: false })
+  }
+  const opens = await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.opens)
+  expect((await evaluation.client.callTool(request) as CallToolResult).structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', reason: 'BUSY' })
+  expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.opens)).toBe(opens)
+  expect(await electronApp.evaluate(() => (globalThis as Scope).fileProbe!.submissions.length)).toBe(0)
+  await electronApp.evaluate(() => { const p = (globalThis as Scope).fileProbe!; p.holdClose = false; p.release() })
+  await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).fileProbe!.handles.every(handle => handle.fd === -1))).toBe(true)
+  expect((await evaluation.client.callTool(request) as CallToolResult).structuredContent).toMatchObject({ status: 'RETURNED', value: { runs: 1 } })
+})

@@ -13,7 +13,8 @@ export type FileEvaluationSource = z.infer<typeof fileEvaluationSourceSchema>
 export interface FileEvaluationHooks {
   signal?: AbortSignal
   validate(): void
-  retainPublication(validate: () => void): void
+  retainPublication(authority: { validate(): void; dispose(): void }): void
+  retainCompletion(completion: Promise<void>): void
   submitted(): void
 }
 export interface FileEvaluationProgress { submitted: boolean; acknowledged: boolean }

@@ -7182,21 +7182,30 @@ export class BrowserTabsManager {
     const controller = new AbortController()
     const signal = hooks.signal ? AbortSignal.any([hooks.signal, controller.signal]) : controller.signal
     const timer = setTimeout(() => controller.abort(), 30_000)
+    let dispose = (): void => undefined
+    let retained = false
     const work = async (): Promise<Record<string, unknown>> => {
       const tab = this.getTab(source.tabId)
       const contents = tab.webContents
       const generation = tab.navigationGeneration
       const mainFrame = contents.mainFrame
       const frameId = tab.mainFrameId
+      let documentCommitted = false
+      const onCommitted = (): void => { documentCommitted = true }
+      dispose = () => { contents.removeListener('did-navigate', onCommitted) }
       const validate = (): void => {
         hooks.validate()
-        if (signal.aborted || this.destroyed || contents.isDestroyed()
+        if (documentCommitted || signal.aborted || this.destroyed || contents.isDestroyed()
           || this.tabs.get(source.tabId) !== tab || tab.navigationGeneration !== generation
           || contents.mainFrame !== mainFrame || tab.mainFrameId !== frameId
           || !this.tabBelongsToMcpGroup(source.workspaceId, source.tabId)
           || new URL(contents.getURL()).origin !== source.expectedOrigin) throw new Error('File evaluation target unavailable')
       }
-      hooks.retainPublication(validate)
+      // A WebFrameMain object and navigation-start generation can both survive
+      // a navigation which started before admission and commits during acquisition.
+      contents.on('did-navigate', onCommitted)
+      hooks.retainPublication({ validate, dispose })
+      retained = true
       validate()
       const script = await fileSourceAcquisitionPool.acquire(source.path, source.sha256, signal, 1000, validate)
       validate()
@@ -7231,7 +7240,8 @@ export class BrowserTabsManager {
       if (signal.aborted) abort()
     })
     const running = work().catch(error => fileEvaluationFailure(progress,
-      error instanceof AcquisitionFailure ? error.code : 'UNAVAILABLE')).finally(() => { activeFileEvaluations-- })
+      error instanceof AcquisitionFailure ? error.code : 'UNAVAILABLE')).finally(() => { activeFileEvaluations--; if (!retained) dispose() })
+    hooks.retainCompletion(running.then(() => undefined))
     // The debugger queue retains running native work after caller cancellation.
     try { return await Promise.race([running, cancelled]) } finally {
       clearTimeout(timer)
