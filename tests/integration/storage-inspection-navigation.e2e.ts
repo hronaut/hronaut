@@ -130,13 +130,13 @@ for (const kind of ['local-storage', 'session-storage'] as const) {
           }
         }, { origin, stage })
         const result = await call('browser_storage', { workspaceId, tabId, kind, action: 'set', key: 'navigation-marker', value: 'complete-value', includeValues: true })
-        if (stage === 'before execution') {
-          expect(result.isError, text(result)).toBe(true)
-          expect(text(result)).toContain('The page changed before the storage operation')
-        } else {
-          expect(result.isError, text(result)).not.toBe(true)
-          expect(JSON.parse(text(result))).toMatchObject({ url: `${origin}/before`, origin, changed: true, items: [{ key: 'navigation-marker', value: 'complete-value' }] })
-        }
+        // Both calls reached executeJavaScript, but navigation before evaluation
+        // prevents the actual write. A late publication veto must not erase this
+        // distinction: verify the real effect with a fresh read below.
+        expect(result.isError, text(result)).toBe(true)
+        expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible', executionSubmitted: true, executionAcknowledged: true, retrySafe: false })
+        expect(text(result)).not.toContain('complete-value')
+        expect(text(result)).not.toContain('navigation-marker')
         const fresh = await call('browser_storage', { workspaceId, tabId, kind, action: 'get', key: 'navigation-marker' })
         expect(fresh.isError, text(fresh)).not.toBe(true)
         expect(JSON.parse(text(fresh))).toMatchObject({

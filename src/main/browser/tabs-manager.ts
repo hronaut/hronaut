@@ -1,3 +1,4 @@
+import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from './web-storage-operation.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -2369,21 +2370,30 @@ export class BrowserTabsManager {
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
-  async manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks): Promise<BrowserStorageResult> {
+  async manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
     const tab = this.getTab(options.tabId)
     const action = options.action ?? 'list'
     const pageUrl = new URL(tab.url)
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('UNSUPPORTED_SCHEME')
       throw new Error('Site storage is available only for HTTP and HTTPS tabs.')
     }
     const key = options.key
     if ((action === 'get' || action === 'set' || action === 'delete')
       && (key === undefined || (options.kind === 'cookies' && !key.trim()))) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('KEY_REQUIRED')
       throw new TypeError(`key is required to ${action} ${options.kind}`)
     }
-    if (key && key.length > MAX_STORAGE_KEY_CHARS) throw new TypeError(`Storage keys are limited to ${MAX_STORAGE_KEY_CHARS} characters.`)
-    if (action === 'set' && options.value === undefined) throw new TypeError(`value is required to set ${options.kind}`)
+    if (key && key.length > MAX_STORAGE_KEY_CHARS) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('KEY_TOO_LARGE')
+      throw new TypeError(`Storage keys are limited to ${MAX_STORAGE_KEY_CHARS} characters.`)
+    }
+    if (action === 'set' && options.value === undefined) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('VALUE_REQUIRED')
+      throw new TypeError(`value is required to set ${options.kind}`)
+    }
     if (options.value !== undefined && Buffer.byteLength(options.value, 'utf8') > MAX_STORAGE_INPUT_VALUE_BYTES) {
+      if (options.kind !== 'cookies') throw new WebStorageInputError('VALUE_TOO_LARGE')
       throw new TypeError('Storage values are limited to 256 KiB.')
     }
 
@@ -2391,8 +2401,23 @@ export class BrowserTabsManager {
       return this.manageCookies(tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks)
     }
 
+    const contents = tab.webContents
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    const assertCurrent = (): void => {
+      webStorageHooks?.validate()
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+        || currentWorkspace !== workspace
+        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
+        throw new Error('Storage context changed. Earlier changes are not rolled back; inspect fresh state before continuing.')
+      }
+    }
+    webStorageHooks?.retainPublication(assertCurrent)
     const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
-    const raw = await tab.webContents.executeJavaScript(`(() => {
+    const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(`(() => {
       if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
         return { pageChanged: true };
       }
@@ -2416,7 +2441,7 @@ export class BrowserTabsManager {
         items.sort((left, right) => left[0].localeCompare(right[0]));
       }
       return { changed, itemCount: storage.length, items };
-    })()`, true) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+    })()`, true), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
     if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
     const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
     return {
