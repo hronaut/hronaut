@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Semantically replace or clear a bounded exact option set in one native multiple-select control using `browser_select.values`. Validate the full set before mutation, preserve disabled-control rules, and report uncertain handler or authority changes without replay. No native gesture fidelity is claimed.
+
 ### Fixed
 
 - Finish best-effort renderer input-flag cleanup when its original page is destroyed, so closing during cleanup cannot leave native input waiting on a vanished document. Preserve release acknowledgements, uncertain outcomes, and focus restoration without retrying input.

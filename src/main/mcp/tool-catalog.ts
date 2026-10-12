@@ -264,7 +264,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_click', category: 'Interaction', description: 'Single- or double-click an element by snapshot ref or CSS selector, or click viewport coordinates for canvas and other visual-only surfaces. Set native=true only when a custom control requires trusted pointer and mouse events. With an active audit run, an optional declarative postcondition performs bounded read-back without repeating the click.' },
   { name: 'browser_dialog', category: 'Interaction', description: 'Accept or dismiss an open JavaScript alert or confirmation.' },
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
-  { name: 'browser_select', category: 'Interaction', description: 'Select an option by value or visible label.' },
+  { name: 'browser_select', category: 'Interaction', description: 'Select one option by value or label, or semantically replace a native multiple-select option set with exact values. An empty values array clears selection; this does not emulate gestures.' },
   { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
   { name: 'browser_hover', category: 'Interaction', description: 'Hover an element or viewport coordinates to reveal menus, tooltips, canvas details, or hover states.' },
   { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element, or drag between viewport coordinates for canvas and other visual-only surfaces.' },

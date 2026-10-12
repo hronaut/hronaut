@@ -1,3 +1,4 @@
+import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
 import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
@@ -5771,13 +5772,34 @@ export class BrowserTabsManager {
     return result
   }
 
-  async select(target: { tabId?: string; ref?: string; selector?: string; value: string }): Promise<unknown> {
+  async select(target: { tabId?: string; ref?: string; selector?: string; value?: string; values?: string[] }, validateSelect?: (validateContext: () => void) => void, retainSelection?: (authority: { validate: () => void; dispose: () => void }) => void, markSelectionSubmitted?: () => void): Promise<unknown> {
     this.validateTarget(target)
+    if ((target.value !== undefined) === (target.values !== undefined)) throw new Error('Provide exactly one of value or values')
     const tab = this.getTab(target.tabId)
-    const result = await this.withAgentInput(tab.webContents, () =>
-      tab.webContents.executeJavaScript(targetActionScript('select', target, target.value), true))
-    this.assertNativeEditability(result)
-    return result
+    if (target.values === undefined) {
+      const result = await this.withAgentInput(tab.webContents, () =>
+        tab.webContents.executeJavaScript(targetActionScript('select', target, target.value), true))
+      this.assertNativeEditability(result)
+      return result
+    }
+    const values = normalizeSelectValues(target.values)
+    const authority = this.nativeInputAuthority(tab, validateSelect)
+    retainSelection?.(authority)
+    let submitted = false
+    try {
+      authority.validate()
+      return await this.withAgentInput(tab.webContents, async () => {
+        authority.validate()
+        submitted = true
+        markSelectionSubmitted?.()
+        const result = await tab.webContents.executeJavaScriptInIsolatedWorld(MULTI_SELECT_WORLD_ID, [{ code: multiSelectScript(target, values) }], true)
+        authority.validate()
+        return result
+      })
+    } catch {
+      return { ok: false, status: submitted ? 'OUTCOME_UNKNOWN' : 'REJECTED', effects: submitted ? 'possible' : 'none', retrySafe: false,
+        reason: submitted ? 'Selection dispatch or publication became uncertain; inspect fresh state without automatic replay' : 'Selection authority changed before dispatch' }
+    } finally { if (!retainSelection) authority.dispose() }
   }
 
   async fillForm(tabId: string | undefined, fields: BrowserFormField[]): Promise<unknown> {

@@ -490,6 +490,45 @@ describe('MCP capability profile authentication', () => {
     expect(JSON.stringify(result)).not.toContain('synthetic-retained-evidence')
   })
 
+  it.each([false, true])('classifies semantic selection after outer capability expiry with submitted=%s', async submitted => {
+    let now = new Date('2026-09-11T12:00:00.000Z')
+    const tabId = '01912345-6790-7abc-8def-0123456789ab'
+    const workspace = { id: WORKSPACE_ID, name: 'Selection', contextClass: 'standard' }
+    const dispose = vi.fn()
+    const manager = {
+      listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
+      createMcpTabGroup: async () => workspace, mcpWorkspaceResumeKey: () => `hrw1_${'a'.repeat(43)}`,
+      isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
+      requireWorkspaceContinuityDispatch: () => undefined, beginWorkspaceContinuityAction: () => () => undefined,
+      requireTabInMcpGroup: () => tabId, tabBelongsToMcpGroup: () => true,
+      getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId, url: 'https://allowed.example/' }] }),
+      wakeTab: vi.fn(),
+      select: vi.fn(async (_input: unknown, validate: (context: () => void) => void, retain: (authority: { validate: () => void; dispose: () => void }) => void, mark: () => void) => {
+        retain({ validate: () => validate(() => undefined), dispose })
+        validate(() => undefined)
+        if (!submitted) return { ok: false, status: 'REJECTED', effects: 'none', retrySafe: false }
+        mark()
+        return { ok: true, status: 'SELECTED', semantic: true, selectedCount: 1 }
+      })
+    }
+    const auditReceipts = { execute: async (_id: string, request: { toolName: string; operation(): Promise<unknown> }) => {
+      const result = await request.operation()
+      if (request.toolName === 'browser_select') now = new Date('2026-09-11T12:02:00.000Z')
+      return result
+    } }
+    await connectProfile({ name: 'Expiring selection', allowedTools: ['browser_workspaces', 'browser_select'],
+      operationClasses: ['read', 'browser-state', 'interact'], origins: ['https://allowed.example'], expiresAt: '2026-09-11T12:01:00.000Z'
+    }, () => now, { manager, auditReceipts })
+    expect((await client!.callTool({ name: 'browser_workspaces', arguments: { action: 'create', name: 'Selection' } })).isError).not.toBe(true)
+    const result = await client!.callTool({ name: 'browser_select', arguments: { workspaceId: WORKSPACE_ID, tabId, selector: '#choices', values: ['private-canary'] } })
+    expect(manager.select, JSON.stringify(result)).toHaveBeenCalledOnce()
+    expect(dispose).toHaveBeenCalledOnce()
+    expect(result.isError).toBe(true)
+    expect(result.structuredContent).toMatchObject({ status: submitted ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED', effects: submitted ? 'possible' : 'none', retrySafe: false, permission: 'denied', policyDecision: { reasonCode: 'PROFILE_EXPIRED' } })
+    expect(JSON.stringify(result)).not.toContain('private-canary')
+    expect(server!.getDashboardState().recentActivity.find(item => item.toolName === 'browser_select')?.result).toMatchObject({ dispatch: submitted ? 'dispatched' : 'not-dispatched', effects: submitted ? 'possible' : 'none' })
+  })
+
   it('filters the catalog and denies a tool call independently of annotations', async () => {
     await connectProfile({
       name: 'Status only', allowedTools: ['browser_status'], operationClasses: ['read']
