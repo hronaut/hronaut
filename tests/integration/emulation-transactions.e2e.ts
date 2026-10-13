@@ -2,7 +2,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 for (const failFirst of [false, true]) {
-  test(failFirst ? 'finishes failed emulation rollback before a newer viewport update' : 'preserves overlapping agent and human emulation changes', async ({ capabilities, electronApp, appWindow }) => {
+  test(failFirst ? 'blocks a queued viewport update after uncertain emulation until explicit recovery' : 'preserves acknowledged settings when a newer queued change supersedes publication', async ({ capabilities, electronApp, appWindow }) => {
     const { client, tabId, fixtureUrl } = capabilities
     let pending: Promise<CallToolResult> | undefined
     await electronApp.evaluate(({ webContents }, input) => {
@@ -42,13 +42,20 @@ for (const failFirst of [false, true]) {
         ;(globalThis as typeof globalThis & { __hronautEmulationGate?: { release: () => void } }).__hronautEmulationGate?.release()
       })
       const first = await pending
+      // The newer queued change has begun before the MCP publication boundary.
+      // The first configuration may be committed, but its response is no longer current.
+      expect(first.isError).toBe(true)
+      expect(first.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible', retrySafe: false })
       if (failFirst) {
-        expect(first.isError).toBe(true)
-        expect(text(first)).toContain('Injected emulation command failure')
-      } else {
-        expect(first.isError, text(first)).not.toBe(true)
-      }
-      expect(await appWindow.evaluate('window.__hronautPendingViewport')).toEqual({ ok: true })
+        expect(await appWindow.evaluate('window.__hronautPendingViewport')).toMatchObject({ ok: false })
+        const retained = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
+        expect(JSON.parse(text(retained))).toMatchObject({ application: 'unknown', retainedSettings: { colorScheme: 'auto' } })
+        const recovery = await client.callTool({ name: 'browser_emulate', arguments: { tabId, recover: true } }) as CallToolResult
+        expect(recovery.isError, text(recovery)).not.toBe(true)
+        await appWindow.evaluate(`window.hronaut.setTabViewport(${JSON.stringify(tabId)}, {
+          width: 390, height: 844, deviceScaleFactor: 3, mobile: true, touch: true, orientation: 'portrait'
+        })`)
+      } else expect(await appWindow.evaluate('window.__hronautPendingViewport')).toEqual({ ok: true })
       const report = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
       expect(report.isError, text(report)).not.toBe(true)
       expect(JSON.parse(text(report))).toMatchObject({ colorScheme: failFirst ? 'auto' : 'dark', viewport: { width: 390, height: 844 } })

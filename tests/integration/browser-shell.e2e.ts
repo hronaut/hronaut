@@ -1261,7 +1261,7 @@ test('refreshes a reopened Environment panel after its pending apply completes',
     resolve()
   })
   await expect(environment.getByLabel('Network', { exact: true })).toHaveValue('offline')
-  await expect(environment.locator('.environment-status')).toContainText('Environment applied')
+  await expect(environment.locator('output.environment-status')).toContainText('Environment applied')
   await appWindow.screenshot({ path: testInfo.outputPath('environment-reopened-after-pending-apply.png') })
 })
 

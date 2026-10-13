@@ -17,7 +17,7 @@ import {
 
 type EmulationBrowserApi = Pick<
   HronautApi,
-  'resetTabEmulation' | 'setTabEnvironment' | 'reloadIgnoringCache' | 'setTabViewport'
+  'recoverTabEmulation' | 'resetTabEmulation' | 'setTabEnvironment' | 'reloadIgnoringCache' | 'setTabViewport'
 >
 
 export interface ResponsivePanelSurface {
@@ -89,6 +89,7 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
   const environmentController = useEnvironmentPanelController({
     open: options.environmentPanelOpen,
     activeTab: options.activeTab,
+    recoverTabEmulation: (tabId) => options.browser.recoverTabEmulation(tabId),
     setTabEnvironment: (tabId, environment) => options.browser.setTabEnvironment(tabId, environment),
     reloadIgnoringCache: (tabId) => options.browser.reloadIgnoringCache(tabId),
     syncState: options.syncState,

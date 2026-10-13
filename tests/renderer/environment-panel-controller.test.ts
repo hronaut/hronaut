@@ -34,6 +34,7 @@ function deferred<T>() {
 function createController() {
   const open = ref(true)
   const activeTab = ref<BrowserTabState | undefined>(browserTab())
+  const recoverTabEmulation = vi.fn(async () => browserState())
   const setTabEnvironment = vi.fn(async () => browserState())
   const reloadIgnoringCache = vi.fn(async () => browserState())
   const syncState = vi.fn(async (operation: Promise<BrowserState>) => { await operation })
@@ -42,6 +43,7 @@ function createController() {
   const controller = useEnvironmentPanelController({
     open,
     activeTab,
+    recoverTabEmulation,
     setTabEnvironment,
     reloadIgnoringCache,
     syncState,
@@ -52,6 +54,7 @@ function createController() {
   return {
     open,
     activeTab,
+    recoverTabEmulation,
     setTabEnvironment,
     reloadIgnoringCache,
     syncState,
@@ -62,6 +65,47 @@ function createController() {
 }
 
 describe('environment panel controller', () => {
+  it('restores retained settings without applying or overwriting a newer draft', async () => {
+    const { controller, activeTab, recoverTabEmulation, setTabEnvironment, reloadIgnoringCache } = createController()
+    const retained = activeTab.value!.emulation!
+    activeTab.value = { ...activeTab.value!, emulation: undefined, emulationState: { application: 'unknown', retainedSettings: retained, recovery: 'restore-committed' } }
+    controller.loadDraft()
+    expect(controller.draft.value.network).toBe('slow-3g')
+    controller.draft.value.network = 'offline'
+    await controller.apply(true)
+    await controller.reset()
+    expect(setTabEnvironment).not.toHaveBeenCalled()
+    expect(reloadIgnoringCache).not.toHaveBeenCalled()
+    const pending = deferred<BrowserState>()
+    recoverTabEmulation.mockReturnValueOnce(pending.promise)
+    const recovery = controller.recover()
+    controller.draft.value.network = 'fast-4g'
+    controller.markDraftChanged()
+    pending.resolve(browserState())
+    await recovery
+    expect(recoverTabEmulation).toHaveBeenCalledExactlyOnceWith('tab-1')
+    expect(controller.draft.value.network).toBe('fast-4g')
+    expect(setTabEnvironment).not.toHaveBeenCalled()
+  })
+
+  it('does not clear independent Network uncertainty and ignores late recovery errors for another tab', async () => {
+    const { controller, activeTab, recoverTabEmulation } = createController()
+    const retained = activeTab.value!.emulation!
+    activeTab.value = { ...activeTab.value!, emulation: undefined, emulationState: { application: 'unknown', retainedSettings: retained, recovery: 'restore-committed' }, networkConditionState: { application: 'unknown', retainedRules: [] } }
+    await controller.recover()
+    expect(recoverTabEmulation).not.toHaveBeenCalled()
+    activeTab.value.networkConditionState = { application: 'confirmed', retainedRules: [] }
+    const pending = deferred<BrowserState>()
+    recoverTabEmulation.mockReturnValueOnce(pending.promise)
+    const recovery = controller.recover()
+    activeTab.value = { ...browserTab(), id: 'tab-2' }
+    pending.reject(new Error('Old recovery failed'))
+    await recovery
+    expect(controller.error.value).toBe('')
+    expect(controller.state.value).toBe('idle')
+    expect(controller.pendingAction.value).toBeNull()
+  })
+
   it('loads active environment values and validates geolocation bounds', () => {
     const { controller } = createController()
 

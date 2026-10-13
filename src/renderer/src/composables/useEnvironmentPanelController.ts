@@ -12,12 +12,13 @@ import {
 } from '../../../shared/browser-environment.js'
 
 export type EnvironmentPanelState = 'idle' | 'applying' | 'applied' | 'error'
-export type EnvironmentPanelAction = 'apply' | 'apply-reload' | 'reset'
+export type EnvironmentPanelAction = 'apply' | 'apply-reload' | 'reset' | 'recover'
 
 export interface EnvironmentPanelControllerOptions {
   open: Ref<boolean>
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
   setTabEnvironment: (tabId: string, environment: BrowserEnvironmentSettings) => Promise<BrowserState>
+  recoverTabEmulation: (tabId: string) => Promise<BrowserState>
   reloadIgnoringCache: (tabId: string) => Promise<BrowserState>
   syncState: (operation: Promise<BrowserState>) => Promise<void>
   beginMutation: () => number
@@ -38,6 +39,8 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   let operationGeneration = 0
   let disposed = false
 
+  const application = computed(() => options.activeTab.value?.emulationState?.application ?? 'confirmed')
+  const networkUnconfirmed = computed(() => options.activeTab.value?.networkConditionState?.application !== undefined && options.activeTab.value.networkConditionState.application !== 'confirmed')
   const settings = computed<BrowserEnvironmentSettings | null>(() => {
     const candidate: BrowserEnvironmentSettings = {
       ...draft.value,
@@ -63,7 +66,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
     resetFeedback()
   }
 
-  function loadDraft(emulation: BrowserEmulationState | undefined = options.activeTab.value?.emulation): void {
+  function loadDraft(emulation: BrowserEmulationState | undefined = (options.activeTab.value?.emulation ?? options.activeTab.value?.emulationState?.retainedSettings)): void {
     const environment = browserEnvironmentFromEmulation(emulation)
     draft.value = environment
     locationEnabled.value = environment.geolocation !== null
@@ -92,7 +95,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   }
 
   async function apply(reload = false, override?: BrowserEnvironmentSettings): Promise<void> {
-    if (disposed || pendingAction.value) return
+    if (disposed || pendingAction.value || application.value !== 'confirmed') return
     const tab = options.activeTab.value
     const environment = override ?? settings.value
     if (!tab || !environment) return
@@ -139,6 +142,36 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
     }
   }
 
+  async function recover(): Promise<void> {
+    const tab = options.activeTab.value
+    if (disposed || pendingAction.value || !tab || application.value !== 'unknown' || networkUnconfirmed.value) return
+    const mutation = options.beginMutation()
+    const operation = ++operationGeneration
+    pendingAction.value = 'recover'
+    state.value = 'applying'
+    error.value = ''
+    try {
+      await options.syncState(options.recoverTabEmulation(tab.id))
+      if (!options.isMutationCurrent(mutation, tab.id)) {
+        finishSupersededOperation(operation)
+        return
+      }
+      if (operation !== operationGeneration) return
+      // Recovery restores main-owned retained settings, never the edited draft.
+      state.value = 'idle'
+    } catch (cause) {
+      if (!options.isMutationCurrent(mutation, tab.id)) {
+        finishSupersededOperation(operation)
+        return
+      }
+      if (operation !== operationGeneration) return
+      state.value = 'error'
+      error.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      if (operation === operationGeneration) pendingAction.value = null
+    }
+  }
+
   async function reset(): Promise<void> {
     if (pendingAction.value) return
     const empty = browserEnvironmentFromEmulation()
@@ -177,6 +210,9 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
     pendingAction,
     settings,
     activeOverrideCount,
+    application,
+    networkUnconfirmed,
+    recover,
     resetFeedback,
     markDraftChanged,
     loadDraft,

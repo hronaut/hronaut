@@ -3,6 +3,18 @@ import type { BrowserEmulationOptions, BrowserEmulationState, BrowserViewportEmu
 import { resolveViewportPreset } from '../../shared/viewport-presets.js'
 import { DEFAULT_RENDERING_DEBUG, isValidBrowserLocale, isValidBrowserTimezone } from '../../shared/browser-environment.js'
 
+export const EMULATION_INPUT_ERRORS = {
+  VIEWPORT_CONFLICT: 'viewport and viewportPreset cannot be combined',
+  ORIENTATION_REQUIRES_PRESET: 'viewportOrientation requires viewportPreset',
+  RECOVERY_CONFLICT: 'recover cannot be combined with reset or emulation overrides',
+  RESET_CONFLICT: 'reset cannot be combined with emulation overrides'
+} as const
+
+/** Bounded option-combination errors; never include request or native error text. */
+export class EmulationInputError extends Error {
+  constructor(readonly reason: keyof typeof EMULATION_INPUT_ERRORS) { super(EMULATION_INPUT_ERRORS[reason]) }
+}
+
 export const DEFAULT_EMULATION: BrowserEmulationState = {
   network: 'none',
   cacheDisabled: false,
@@ -80,10 +92,10 @@ export function prepareBrowserEmulation(
   options: BrowserEmulationOptions
 ): { state: BrowserEmulationState; headers: Record<string, string> } | null {
   if (options.viewport !== undefined && options.viewportPreset !== undefined) {
-    throw new Error('viewport and viewportPreset cannot be combined')
+    throw new EmulationInputError('VIEWPORT_CONFLICT')
   }
   if (options.viewportOrientation !== undefined && options.viewportPreset === undefined) {
-    throw new Error('viewportOrientation requires viewportPreset')
+    throw new EmulationInputError('ORIENTATION_REQUIRES_PRESET')
   }
   const requestedViewport = options.viewportPreset !== undefined
     ? resolveViewportPreset(options.viewportPreset, options.viewportOrientation)
@@ -110,7 +122,11 @@ export function prepareBrowserEmulation(
     || options.geolocation !== undefined
     || options.extraHttpHeaders !== undefined
     || options.renderingDebug !== undefined
-  if (options.reset && overridesProvided) throw new Error('reset cannot be combined with emulation overrides')
+  if (options.recover) {
+    if (options.reset !== undefined || overridesProvided || options.viewportOrientation !== undefined) throw new EmulationInputError('RECOVERY_CONFLICT')
+    return { state: cloneEmulationState(current), headers: { ...currentHeaders } }
+  }
+  if (options.reset && overridesProvided) throw new EmulationInputError('RESET_CONFLICT')
   if (!options.reset && !overridesProvided) return null
   if (options.cpuThrottlingRate !== undefined && (
     !Number.isFinite(options.cpuThrottlingRate)

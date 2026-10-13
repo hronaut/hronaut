@@ -39,6 +39,9 @@ const {
   pendingAction,
   settings,
   activeOverrideCount,
+  application,
+  networkUnconfirmed,
+  recover,
   markDraftChanged,
   apply,
   reset,
@@ -72,6 +75,11 @@ onBeforeUnmount(dispose)
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('environment.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
+    <div v-if="application !== 'confirmed'" class="environment-status" role="status">
+      <IconWarning aria-hidden="true" />
+      <span><strong>{{ t('emulationApplication.' + application) }}</strong><small>{{ t(networkUnconfirmed ? 'emulationApplication.networkFirst' : 'emulationApplication.help') }}</small></span>
+      <UiButton appearance="application" type="button" :disabled="application !== 'unknown' || networkUnconfirmed || pendingAction !== null" @click="recover">{{ t('emulationApplication.restore') }}</UiButton>
+    </div>
     <form class="environment-content" @submit.prevent="apply(false)">
       <section aria-labelledby="environment-speed-title">
         <div class="environment-section-heading">
@@ -278,14 +286,14 @@ onBeforeUnmount(dispose)
         <IconError v-if="state === 'error' || !settings" aria-hidden="true" />
         <IconCheck v-else-if="state === 'applied'" aria-hidden="true" />
         <IconSpeed v-else aria-hidden="true" />
-        <span><strong>{{ pendingAction !== null ? t('environment.applyingConditions') : state === 'applied' ? t('environment.applied') : !settings ? t('environment.checkValues') : t(activeOverrideCount === 1 ? 'environment.activeCondition' : 'environment.activeConditions', { count: localNumber(activeOverrideCount) }) }}</strong><small>{{ error || t('environment.applyHelp') }}</small></span>
+        <span><strong>{{ application !== 'confirmed' ? t('emulationApplication.' + application) : pendingAction !== null ? t('environment.applyingConditions') : state === 'applied' ? t('environment.applied') : !settings ? t('environment.checkValues') : t(activeOverrideCount === 1 ? 'environment.activeCondition' : 'environment.activeConditions', { count: localNumber(activeOverrideCount) }) }}</strong><small>{{ error || t(application !== 'confirmed' ? 'emulationApplication.help' : 'environment.applyHelp') }}</small></span>
       </output>
       <p class="responsive-preview-caveat"><IconInfo aria-hidden="true" /> {{ t('environment.limitation') }}</p>
       <footer>
-        <UiButton appearance="application" type="button" :disabled="pendingAction !== null" @click="reset">{{ t('environment.reset') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="application !== 'confirmed' || pendingAction !== null" @click="reset">{{ t('environment.reset') }}</UiButton>
         <div>
-          <UiButton appearance="application" type="submit" :disabled="!settings || pendingAction !== null">{{ t('environment.apply') }}</UiButton>
-          <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="!settings || pendingAction !== null" @click="apply(true)">
+          <UiButton appearance="application" type="submit" :disabled="application !== 'confirmed' || !settings || pendingAction !== null">{{ t('environment.apply') }}</UiButton>
+          <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="application !== 'confirmed' || !settings || pendingAction !== null" @click="apply(true)">
             <IconProgress v-if="pendingAction !== null" class="state-spinner" aria-hidden="true" />
             <IconRefresh v-else aria-hidden="true" />
             {{ pendingAction !== null ? t('environment.applying') : t('environment.applyReload') }}

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Separate retained emulation settings from confirmed native application after interrupted changes. Show pending or unknown application instead of reporting retained settings as applied; explicit restoration preserves the last committed configuration without replaying the failed request. Network uncertainty requires its own recovery.
+
 ## [2.39.0] - 2026-10-13
 
 ### Added

@@ -2667,6 +2667,12 @@ function registerIpc(): void {
     await tabsManager!.emulate({ tabId, reset: true })
     return tabsManager!.getState()
   })
+  ipcMain.handle('browser:recover-tab-emulation', async (event, tabId: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    await tabsManager!.emulate({ tabId, recover: true })
+    return tabsManager!.getState()
+  })
   ipcMain.handle('browser:list-network-routes', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')

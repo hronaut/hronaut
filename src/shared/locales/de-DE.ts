@@ -13,6 +13,7 @@ export const deDE = {
   licenseNotice: {"expired": "Die Agentenautomatisierung ist gesperrt. Aktivieren oder erneuern Sie Ihre Lizenz. Gespeicherte Daten bleiben verfügbar.", "manage": "Lizenzeinstellungen", "purchase": "Kaufen oder verlängern ↗"},
   pwaLifecycle: pwaLifecycleMessages['de-DE'],
   softNavigation: softNavigationMessages['de-DE'],
+  emulationApplication: {"pending": "Emulation wird angewendet", "unknown": "Emulation unbestätigt", "help": "Öffnen Sie Umgebung, um gespeicherte Einstellungen zu prüfen und ausdrücklich wiederherzustellen. Die fehlgeschlagene Anfrage wird nicht wiederholt.", "restore": "Gespeicherte Einstellungen wiederherstellen", "networkFirst": "Stellen Sie zuerst die Netzwerkbedingungen unter Anfragebedingungen wieder her. Die Emulation bleibt bis zur separaten Wiederherstellung unbestätigt."},
   networkPriority: networkPriorityMessages['de-DE'],
   lcpAttribution: lcpAttributionMessages['de-DE'],
   browserImport: browserImportMessages['de-DE'],

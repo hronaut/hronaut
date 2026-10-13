@@ -13,6 +13,7 @@ export const ruRU = {
   licenseNotice: {"expired": "Автоматизация агентов заблокирована. Активируйте или продлите лицензию. Сохранённые данные остаются доступными.", "manage": "Настройки лицензии", "purchase": "Купить или продлить ↗"},
   pwaLifecycle: pwaLifecycleMessages['ru-RU'],
   softNavigation: softNavigationMessages['ru-RU'],
+  emulationApplication: {"pending": "Применение эмуляции", "unknown": "Эмуляция не подтверждена", "help": "Откройте Среду, проверьте сохранённые настройки и явно восстановите их. Неудачный запрос не будет повторён.", "restore": "Восстановить сохранённые настройки", "networkFirst": "Сначала восстановите сетевые условия в Условиях запросов. Эмуляция останется неподтверждённой до отдельного восстановления."},
   networkPriority: networkPriorityMessages['ru-RU'],
   lcpAttribution: lcpAttributionMessages['ru-RU'],
   browserImport: browserImportMessages['ru-RU'],

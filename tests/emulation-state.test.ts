@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from '../src/main/browser/emulation-state.js'
+import { DEFAULT_EMULATION, EmulationInputError, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from '../src/main/browser/emulation-state.js'
 import { resolveViewportPreset } from '../src/shared/viewport-presets.js'
 import type { BrowserEmulationOptions, BrowserEmulationState } from '../src/shared/types.js'
 
@@ -11,6 +11,21 @@ describe('emulation configuration', () => {
     expect(prepare({ cacheDisabled: false })).toEqual({ state: DEFAULT_EMULATION, headers: {} })
     expect(prepare({ reset: true })).toEqual({ state: DEFAULT_EMULATION, headers: {} })
     expect(() => prepare({ reset: true, cacheDisabled: false })).toThrow('reset cannot be combined')
+  })
+
+  it('recovery preserves every committed setting and private header without sharing mutable values', () => {
+    const current = { ...DEFAULT_EMULATION, viewport: resolveViewportPreset('phone'), locale: 'en-US', extraHttpHeaderNames: ['X-Test'] }
+    const headers = { 'X-Test': 'private' }
+    const recovered = prepareBrowserEmulation(current, headers, { recover: true })!
+    expect(recovered).toEqual({ state: current, headers })
+    recovered.state.viewport!.width = 777
+    recovered.headers['X-Test'] = 'changed'
+    expect(current.viewport.width).not.toBe(777)
+    expect(headers['X-Test']).toBe('private')
+    for (const overrides of [{ reset: true }, { reset: false }, { colorScheme: 'auto' as const }, { viewport: null }, { extraHttpHeaders: {} }, { network: 'none' as const }]) {
+      expect(() => prepare({ recover: true, ...overrides })).toThrow('recover cannot be combined')
+    }
+    expect(prepare({ recover: false })).toBeNull()
   })
 
   it('resets every override and private header value', () => {
@@ -47,6 +62,19 @@ describe('emulation configuration', () => {
     expect(prepare({ viewportPreset: 'phone', viewportOrientation: 'landscape' })!.state.viewport).toEqual(resolveViewportPreset('phone', 'landscape'))
     expect(() => prepare({ viewport: null, viewportPreset: 'phone' })).toThrow('cannot be combined')
     expect(() => prepare({ viewportOrientation: 'landscape' })).toThrow('requires viewportPreset')
+  })
+
+  it.each([
+    [{ viewport: null, viewportPreset: 'phone' }, 'VIEWPORT_CONFLICT'],
+    [{ viewportOrientation: 'landscape' }, 'ORIENTATION_REQUIRES_PRESET'],
+    [{ recover: true, extraHttpHeaders: { 'X-Private': 'never-public' } }, 'RECOVERY_CONFLICT'],
+    [{ reset: true, userAgent: 'never-public' }, 'RESET_CONFLICT']
+  ] as const)('provides bounded combination-error provenance for %j', (options, reason) => {
+    let caught: unknown
+    try { prepare(options) } catch (error) { caught = error }
+    expect(caught).toBeInstanceOf(EmulationInputError)
+    expect(caught).toMatchObject({ reason })
+    expect(String(caught)).not.toContain('never-public')
   })
 
   it.each([NaN, Infinity, 199, 3841, 200.5])('rejects invalid viewport width %s', (width) => {

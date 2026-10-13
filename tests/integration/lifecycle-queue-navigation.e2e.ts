@@ -1,8 +1,10 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 test('does not dispatch a queued freeze against a newer document', async ({ capabilities, electronApp, appWindow }) => {
   const { client, tabId, fixtureUrl } = capabilities
+  const committed = JSON.parse(text(await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult))
   let pending: Promise<CallToolResult> | undefined
   await electronApp.evaluate(({ webContents }, url) => {
     const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
@@ -46,12 +48,18 @@ test('does not dispatch a queued freeze against a newer document', async ({ capa
       state.release()
     })
     const emulation = await pending
-    expect(emulation.isError, text(emulation)).not.toBe(true)
+    expect(emulation.isError, text(emulation)).toBe(true)
+    expect(emulation.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible', retrySafe: false })
     const result = await appWindow.evaluate('window.__hronautPendingFreeze')
     expect(await electronApp.evaluate(() => (
       (globalThis as typeof globalThis & { __hronautLifecycleGate?: { frozenCommands: number } }).__hronautLifecycleGate?.frozenCommands
     ))).toBe(0)
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining('document changed') })
+    const tab = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!, tabId)
+    expect(tab.url).toBe(`${fixtureUrl}?new-document=1`)
+    expect(tab.emulation).toBeUndefined()
+    expect(tab.emulationState).toEqual({ application: 'unknown', retainedSettings: committed, recovery: 'restore-committed' })
+    expect(tab.networkConditionState?.application).toBe('confirmed')
   } finally {
     await electronApp.evaluate(async () => {
       const state = (globalThis as typeof globalThis & { __hronautLifecycleGate?: { release: () => void; restore: () => Promise<void> } }).__hronautLifecycleGate

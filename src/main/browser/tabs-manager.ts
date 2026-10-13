@@ -1,3 +1,4 @@
+import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-click.js'
 import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
 import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
@@ -645,6 +646,9 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   pageProblem?: BrowserPageProblem
   dialog?: BrowserJavaScriptDialog
   emulation: BrowserEmulationState
+  emulationApplication: 'confirmed' | 'pending' | 'unknown'
+  emulationRevision: number
+  emulationContextGeneration: number
   emulationExtraHttpHeaders: Record<string, string>
   mcpGroupId?: string
   snapshotBaselineGeneration: number
@@ -1519,6 +1523,7 @@ export class BrowserTabsManager {
   }
 
   private screenshotPixelRatio(tab: BrowserTab): number {
+    this.requireEmulationConfirmed(tab)
     const ratio = Math.max(1, screen.getDisplayMatching(this.window.getBounds()).scaleFactor, tab.emulation.viewport?.deviceScaleFactor ?? 1)
     if (!Number.isFinite(ratio) || ratio > 32) throw new Error('This page uses an unsupported screenshot scale.')
     return ratio
@@ -5988,7 +5993,7 @@ export class BrowserTabsManager {
           throw new Error('Right-click is unavailable during native selection or Developer Tools')
         }
         if (webContents.mainFrame.framesInSubtree.length !== 1) throw new Error('Right-click does not support pages containing child frames')
-        if (webContents.getZoomFactor() !== 1 || hasEmulationOverrides(tab.emulation)
+        if (webContents.getZoomFactor() !== 1 || tab.emulationApplication !== 'confirmed' || hasEmulationOverrides(tab.emulation)
           || screen.getDisplayMatching(this.window.getBounds()).scaleFactor !== 1) {
           throw new Error('Right-click requires default zoom, no emulation overrides, and display scale 1')
         }
@@ -6240,40 +6245,110 @@ export class BrowserTabsManager {
     return webContents.executeJavaScript(`({ width: innerWidth, height: innerHeight, devicePixelRatio })`, true)
   }
 
-  async emulate(options: BrowserEmulationOptions = {}): Promise<BrowserEmulationState> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before changing browser emulation')
-    // Validate before queuing, while preserving read-only access without a debugger.
-    if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
-      return cloneEmulationState(tab.emulation)
+  private emulationResult(tab: BrowserTab): BrowserEmulationResult {
+    return tab.emulationApplication === 'confirmed'
+      ? cloneEmulationState(tab.emulation)
+      : { application: tab.emulationApplication, retainedSettings: cloneEmulationState(tab.emulation), recovery: 'restore-committed' }
+  }
+
+  private emulationProjection(tab: BrowserTab): { emulation?: BrowserEmulationState; emulationState?: BrowserUnconfirmedEmulation } {
+    if (tab.emulationApplication !== 'confirmed') return { emulationState: this.emulationResult(tab) as BrowserUnconfirmedEmulation }
+    return hasEmulationOverrides(tab.emulation) ? { emulation: cloneEmulationState(tab.emulation) } : {}
+  }
+
+  private requireEmulationConfirmed(tab: BrowserTab): void {
+    if (tab.emulationApplication !== 'confirmed') throw new Error('Native emulation application is not confirmed. Inspect retained settings and explicitly restore them before a new change; do not replay the failed request.')
+  }
+
+  private emulationPublication(tabId: string | undefined, expected: BrowserEmulationResult): () => void {
+    const tab = this.getTab(tabId)
+    const revision = tab.emulationRevision
+    const contextGeneration = tab.emulationContextGeneration
+    const navigationGeneration = tab.navigationGeneration
+    const serialized = JSON.stringify(expected)
+    const assert = (): void => {
+      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed() || tab.emulationRevision !== revision || tab.emulationContextGeneration !== contextGeneration || tab.navigationGeneration !== navigationGeneration || JSON.stringify(this.emulationResult(tab)) !== serialized) throw new Error('Emulation state changed before publication')
     }
+    assert()
+    return assert
+  }
+
+  async emulate(options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
+    const tab = this.getTab(options.tabId)
+    validate()
+    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before changing browser emulation')
+    // Validation and reads never attach a debugger or repair native state.
+    if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
+      const result = this.emulationResult(tab)
+      retainPublication?.(this.emulationPublication(tab.id, result))
+      return result
+    }
+    if (!options.recover && tab.emulationApplication === 'unknown') this.requireEmulationConfirmed(tab)
     this.requireNetworkConditionsKnown(tab)
-    tab.nativeInputEnvironmentGeneration += 1
     const webContents = tab.webContents
+    const generation = tab.navigationGeneration
+    const observation = tab.observationGeneration
+    const contextGeneration = tab.emulationContextGeneration
+    const debuggerEpoch = tab.networkDebuggerEpoch
+    const context = (): void => {
+      if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents
+        || tab.navigationGeneration !== generation || tab.observationGeneration !== observation || tab.emulationContextGeneration !== contextGeneration || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Emulation target changed')
+    }
+    const admission = (): void => { validate(); context() }
     return this.withDebugger(webContents, async () => {
-      this.requireNetworkConditionsKnown(tab)
-      if (this.getTab(tab.id) !== tab || tab.webContents !== webContents) {
-        throw new Error('The target tab changed before emulation could be applied')
-      }
-      // Rebase on the last committed settings after acquiring the per-tab queue.
+      admission()
+      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Network application must be confirmed before changing or restoring emulation. Recover Network conditions separately.')
+      if (!options.recover) this.requireEmulationConfirmed(tab)
       const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
-      if (!prepared) return cloneEmulationState(tab.emulation)
-      tab.nativeInputEnvironmentGeneration += 1
-      const previous = cloneEmulationState(tab.emulation)
-      const previousHeaders = { ...tab.emulationExtraHttpHeaders }
+      if (!prepared) return this.emulationResult(tab)
       const { state: next, headers: nextHeaders } = prepared
+      const networkEpoch = tab.networkConditionEpoch
+      const routes = tab.networkRoutes
+      const networkContext = (): void => {
+        if (tab.networkConditionEpoch !== networkEpoch || tab.networkRoutes !== routes) throw new Error('Network application changed during emulation')
+      }
+      const previousApplication = tab.emulationApplication
+      const revision = ++tab.emulationRevision
+      const networkChanged = next.network !== tab.emulation.network
+      let submitted = false
+      tab.nativeInputEnvironmentGeneration += 1
+      tab.emulationApplication = 'pending'
       try {
-        await this.applyEmulationState(tab, next, nextHeaders)
+        this.changed(false)
+        await this.applyEmulationState(tab, next, nextHeaders, async (method, params) => {
+          admission()
+          networkContext()
+          submitted = true
+          markSubmitted()
+          const result = await webContents.debugger.sendCommand(method, params)
+          // Native settlement owns the queue even if authority was lost while awaiting it.
+          context()
+          return result
+        })
+        context()
+        networkContext()
       } catch (error) {
-        // Roll back before another queued operation can change native state.
-        if (tab.networkConditionApplication !== 'unknown') await this.applyEmulationState(tab, previous, previousHeaders).catch(() => undefined)
+        if (tab.emulationRevision === revision) {
+          tab.emulationApplication = submitted ? 'unknown' : previousApplication
+          tab.emulationRevision += 1
+          // Native Network may contain the proposed throttle. If it differs
+          // from the retained configuration, it needs its own recovery.
+          if (submitted && networkChanged) this.markNetworkConditionsUnknown(tab)
+          this.changed(false)
+        }
         throw error
       }
+      // Native acknowledgement commits independently of UI/MCP publication.
       tab.emulation = next
       tab.emulationExtraHttpHeaders = nextHeaders
+      tab.emulationApplication = 'confirmed'
+      tab.networkConditionApplication = 'confirmed'
       this.changed(false)
-      return cloneEmulationState(next)
-    })
+      validate()
+      const result = this.emulationResult(tab)
+      retainPublication?.(this.emulationPublication(tab.id, result))
+      return result
+    }, admission)
   }
 
   async wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
@@ -6321,7 +6396,7 @@ export class BrowserTabsManager {
         || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
         throw new Error('Wheel is unavailable during native selection or Developer Tools')
       }
-      if (webContents.getZoomFactor() !== 1 || hasEmulationOverrides(tab.emulation)
+      if (webContents.getZoomFactor() !== 1 || tab.emulationApplication !== 'confirmed' || hasEmulationOverrides(tab.emulation)
         || screen.getDisplayMatching(this.window.getBounds()).scaleFactor !== 1) {
         throw new Error('Wheel requires default zoom, no emulation overrides, and display scale 1')
       }
@@ -6644,7 +6719,7 @@ export class BrowserTabsManager {
       title: tab.title,
       url: tab.url,
       ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
-      ...(hasEmulationOverrides(tab.emulation) ? { emulation: cloneEmulationState(tab.emulation) } : {}),
+      ...this.emulationProjection(tab),
       networkRouteCount: tab.networkRoutes.length,
       consoleMessages: this.consoleMessages(tab.id),
       networkRequests: this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
@@ -7196,6 +7271,7 @@ export class BrowserTabsManager {
     const changed = (): void => { environmentChanged = true }
     const validate = (): void => {
       authority.validate()
+      this.requireEmulationConfirmed(tab)
       if (signal?.aborted) throw new Error('Key hold cancelled')
       if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
         || selectionGeneration !== this.tabSelectionGeneration || splitGeneration !== this.splitViewGeneration
@@ -7588,6 +7664,7 @@ export class BrowserTabsManager {
     }
     if (raw.pageScale !== 1 || raw.offsetX !== 0 || raw.offsetY !== 0) throw new Error('Region visual comparison does not support pinch zoom or an offset visual viewport; reset the page scale first')
     const bounds = tab.view.getBounds()
+    this.requireEmulationConfirmed(tab)
     const viewport = tab.emulation.viewport ?? bounds
     const zoomFactor = tab.webContents.getZoomFactor()
     return { viewportWidth: viewport.width / zoomFactor, viewportHeight: viewport.height / zoomFactor, devicePixelRatio: raw.devicePixelRatio,
@@ -8629,6 +8706,9 @@ export class BrowserTabsManager {
       suppressInitialHistory: options.suppressInitialHistory === true,
       pendingHistoryUrl: null,
       emulation: { ...DEFAULT_EMULATION },
+      emulationApplication: 'confirmed',
+      emulationRevision: 0,
+      emulationContextGeneration: 0,
       emulationExtraHttpHeaders: {},
       snapshotBaselineGeneration: 0,
       accessibilityBaselineGeneration: 0,
@@ -9116,6 +9196,10 @@ export class BrowserTabsManager {
     webContents.debugger.on('detach', () => {
       tab.networkConditionEpoch++
       tab.networkDebuggerEpoch++
+      tab.emulationRevision++
+      tab.emulationContextGeneration++
+      tab.emulationApplication = 'unknown'
+      tab.nativeInputEnvironmentGeneration++
       tab.networkConditionApplication = 'unknown'
       retireNetworkPriorityObservations(tab)
       tab.dialog = undefined
@@ -9242,6 +9326,8 @@ export class BrowserTabsManager {
       tab.pendingHistoryUrl = null
     })
     webContents.on('did-navigate', (_event, url) => {
+      // A navigation may already have started before emulation admission.
+      tab.emulationContextGeneration++
       if (tab.sleeping) return
       // Reset only when a new main-frame document commits, never on a failed load.
       tab.performanceDocumentRouted = false
@@ -9332,6 +9418,12 @@ export class BrowserTabsManager {
       if (message) this.appendConsoleMessage(tab, message, 'preload')
     })
     webContents.on('render-process-gone', (_event, details) => {
+      if (tab.networkConditionApplication === 'pending') this.markNetworkConditionsUnknown(tab)
+      tab.emulationContextGeneration++
+      tab.emulationRevision++
+      tab.emulationApplication = 'unknown'
+      tab.nativeInputEnvironmentGeneration++
+      this.changed(false)
       this.invalidateTabOverviewPreview(tab)
       this.tabOverviewPreviewCaptures.cancelPending(tab.id)
       this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -9875,7 +9967,7 @@ export class BrowserTabsManager {
       tabMuted: tab.tabMuted,
       muted: tab.muted,
       devToolsOpen: !webContentsDestroyed && tab.webContents.isDevToolsOpened(),
-      ...(hasEmulationOverrides(tab.emulation) ? { emulation: cloneEmulationState(tab.emulation) } : {}),
+      ...this.emulationProjection(tab),
       ...(tab.networkRoutes.length ? { networkRouteCount: tab.networkRoutes.length } : {}),
       networkConditionState: this.networkConditionState(tab.id),
       ...(tab.inspectorIssues.length ? { inspectorIssueCount: tab.inspectorIssues.length } : {}),
@@ -10874,6 +10966,7 @@ export class BrowserTabsManager {
   }
 
   private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {
+    this.requireEmulationConfirmed(tab)
     const bounds = tab.view.getBounds()
     const viewport = tab.emulation.viewport
     return {
@@ -10907,6 +11000,7 @@ export class BrowserTabsManager {
   }
 
   private performanceEnvironmentFingerprint(tab: BrowserTab): string {
+    this.requireEmulationConfirmed(tab)
     const bounds = tab.view.getBounds()
     return performanceEnvironmentFingerprint(
       tab.emulation,
@@ -10919,18 +11013,19 @@ export class BrowserTabsManager {
   private async applyEmulationState(
     tab: BrowserTab,
     state: BrowserEmulationState,
-    extraHttpHeaders = tab.emulationExtraHttpHeaders
+    extraHttpHeaders: Record<string, string>,
+    send: (method: string, params?: Record<string, unknown>) => Promise<unknown>
   ): Promise<void> {
     this.requireNetworkConditionsKnown(tab)
     const webContents = tab.webContents
     const routes = tab.networkRoutes
     const epoch = tab.networkConditionEpoch
     const projection = routes.map(route => ({ ...route }))
-    await webContents.debugger.sendCommand('Network.enable')
-    await webContents.debugger.sendCommand('Network.setCacheDisabled', {
+    await send('Network.enable')
+    await send('Network.setCacheDisabled', {
       cacheDisabled: state.cacheDisabled
     })
-    await webContents.debugger.sendCommand('Network.setBypassServiceWorker', {
+    await send('Network.setBypassServiceWorker', {
       bypass: state.bypassServiceWorker
     })
     this.requireNetworkConditionsKnown(tab)
@@ -10940,25 +11035,27 @@ export class BrowserTabsManager {
       await this.applyNetworkEmulation(webContents, state.network, projection, async (method, params) => {
         this.requireNetworkConditionsKnown(tab)
         if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation context changed')
-        return webContents.debugger.sendCommand(method, params)
+        return send(method, params)
       })
       if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation acknowledgement was superseded')
-      tab.networkConditionApplication = 'confirmed'
+      // A proposed throttle is not yet the retained throttle. Keep Network
+      // pending until the entire emulation configuration commits atomically.
+      tab.networkConditionApplication = state.network === tab.emulation.network ? 'confirmed' : 'pending'
     } catch (error) {
       this.markNetworkConditionsUnknown(tab)
       this.changed(false)
       throw error
     }
-    await webContents.debugger.sendCommand(
+    await send(
       'Emulation.setDataSaverOverride',
       state.dataSaver === 'auto' ? {} : { dataSaverEnabled: state.dataSaver === 'enabled' }
     )
-    await webContents.debugger.sendCommand('Network.setExtraHTTPHeaders', { headers: extraHttpHeaders })
-    await webContents.debugger.sendCommand('Emulation.setCPUThrottlingRate', {
+    await send('Network.setExtraHTTPHeaders', { headers: extraHttpHeaders })
+    await send('Emulation.setCPUThrottlingRate', {
       rate: state.cpuThrottlingRate
     })
-    await webContents.debugger.sendCommand('Animation.enable')
-    await webContents.debugger.sendCommand('Animation.setPlaybackRate', {
+    await send('Animation.enable')
+    await send('Animation.setPlaybackRate', {
       playbackRate: state.animationPlaybackRate ?? 1
     })
     const features: Array<{ name: string; value: string }> = []
@@ -10977,27 +11074,27 @@ export class BrowserTabsManager {
     if (state.reducedTransparency !== 'auto') {
       features.push({ name: 'prefers-reduced-transparency', value: state.reducedTransparency })
     }
-    await webContents.debugger.sendCommand('Emulation.setEmulatedMedia', {
+    await send('Emulation.setEmulatedMedia', {
       media: state.mediaType === 'auto' ? '' : state.mediaType,
       features
     })
-    await webContents.debugger.sendCommand('Emulation.setEmulatedVisionDeficiency', {
+    await send('Emulation.setEmulatedVisionDeficiency', {
       type: state.visionDeficiency
     })
-    await webContents.debugger.sendCommand('Emulation.setUserAgentOverride', {
+    await send('Emulation.setUserAgentOverride', {
       // Leave the UA override empty to preserve native Client Hints when only
       // acceptLanguage changes; an explicit UA keeps its existing semantics.
       userAgent: state.userAgent ?? '',
       ...(state.locale ? { acceptLanguage: state.locale } : {})
     })
-    await webContents.debugger.sendCommand('Emulation.setLocaleOverride', {
+    await send('Emulation.setLocaleOverride', {
       locale: state.locale ?? ''
     })
-    await webContents.debugger.sendCommand('Emulation.setTimezoneOverride', {
+    await send('Emulation.setTimezoneOverride', {
       timezoneId: state.timezoneId ?? ''
     })
     if (state.viewport) {
-      await webContents.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+      await send('Emulation.setDeviceMetricsOverride', {
         width: state.viewport.width,
         height: state.viewport.height,
         deviceScaleFactor: state.viewport.deviceScaleFactor,
@@ -11007,31 +11104,31 @@ export class BrowserTabsManager {
           angle: state.viewport.orientation === 'landscape' ? 90 : 0
         }
       })
-      await webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', {
+      await send('Emulation.setTouchEmulationEnabled', {
         enabled: state.viewport.touch,
         maxTouchPoints: state.viewport.touch ? 5 : 1
       })
     } else {
-      await webContents.debugger.sendCommand('Emulation.clearDeviceMetricsOverride')
-      await webContents.debugger.sendCommand('Emulation.setTouchEmulationEnabled', { enabled: false })
+      await send('Emulation.clearDeviceMetricsOverride')
+      await send('Emulation.setTouchEmulationEnabled', { enabled: false })
     }
     if (state.geolocation) {
-      await webContents.debugger.sendCommand('Emulation.setGeolocationOverride', state.geolocation)
+      await send('Emulation.setGeolocationOverride', { ...state.geolocation })
     } else {
-      await webContents.debugger.sendCommand('Emulation.clearGeolocationOverride')
+      await send('Emulation.clearGeolocationOverride')
     }
-    await webContents.debugger.sendCommand('Emulation.setScriptExecutionDisabled', {
+    await send('Emulation.setScriptExecutionDisabled', {
       value: state.javaScriptDisabled === true
     })
     const renderingDebug = { ...DEFAULT_RENDERING_DEBUG, ...state.renderingDebug }
-    await webContents.debugger.sendCommand('DOM.enable')
-    await webContents.debugger.sendCommand('Overlay.enable')
-    await webContents.debugger.sendCommand('Overlay.setShowPaintRects', { result: renderingDebug.paintFlashing })
-    await webContents.debugger.sendCommand('Overlay.setShowLayoutShiftRegions', { result: renderingDebug.layoutShiftRegions })
-    await webContents.debugger.sendCommand('Overlay.setShowDebugBorders', { show: renderingDebug.layerBorders })
-    await webContents.debugger.sendCommand('Overlay.setShowFPSCounter', { show: renderingDebug.fpsCounter })
-    await webContents.debugger.sendCommand('Overlay.setShowScrollBottleneckRects', { show: renderingDebug.scrollBottlenecks })
-    if (!Object.values(renderingDebug).some(Boolean)) await webContents.debugger.sendCommand('Overlay.disable')
+    await send('DOM.enable')
+    await send('Overlay.enable')
+    await send('Overlay.setShowPaintRects', { result: renderingDebug.paintFlashing })
+    await send('Overlay.setShowLayoutShiftRegions', { result: renderingDebug.layoutShiftRegions })
+    await send('Overlay.setShowDebugBorders', { show: renderingDebug.layerBorders })
+    await send('Overlay.setShowFPSCounter', { show: renderingDebug.fpsCounter })
+    await send('Overlay.setShowScrollBottleneckRects', { show: renderingDebug.scrollBottlenecks })
+    if (!Object.values(renderingDebug).some(Boolean)) await send('Overlay.disable')
   }
 
   private async applyNetworkEmulation(
@@ -11275,7 +11372,7 @@ export class BrowserTabsManager {
         await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', {
           ignore: this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(webContents.id)
         })
-        if (attachedHere && tab.networkConditionApplication === 'confirmed' && hasEmulationOverrides(tab.emulation)) await this.applyEmulationState(tab, tab.emulation)
+        // Emulation uncertainty also requires explicit recovery; never reapply it here.
       } catch (error) {
         tab.networkDebuggerEnabled = false
         if (!this.destroyed && !webContents.isDestroyed()) {

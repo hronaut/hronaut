@@ -1,4 +1,5 @@
 import { browserClickSchema } from './browser-click-input.js'
+import { EMULATION_INPUT_ERRORS, EmulationInputError } from '../browser/emulation-state.js'
 import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure, type StorageComparisonHooks } from '../browser/storage-comparison-operation.js'
 import { nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
@@ -1032,9 +1033,10 @@ function createBrowserMcpServer(
     try {
       return await handler(input, extra)
     } catch (error) {
+      if (error instanceof EmulationInputError) rememberInputPolicy(error)
       // Keep trusted native-dispatch provenance until workspace settlement has
       // recorded its uncertain outcome and attempted review finalization.
-      if (error instanceof NativeInputCleanupError || error instanceof NativeWheelOutcomeUnknownError || error instanceof WebStorageInputError || error instanceof StorageComparisonInputError) throw error
+      if (error instanceof NativeInputCleanupError || error instanceof NativeWheelOutcomeUnknownError || error instanceof WebStorageInputError || error instanceof StorageComparisonInputError || error instanceof EmulationInputError) throw error
       return errorResult(error)
     }
   }
@@ -1146,7 +1148,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
     if (request?.storageComparison && error instanceof StorageComparisonInputError) request.storageComparison.inputError = error.reason
@@ -1155,7 +1157,8 @@ function createBrowserMcpServer(
     if (request?.webStorageProgress && !request.webStorageProgress.executionSubmitted && error instanceof WebStorageInputError) request.webStorageInputError = error.reason
     if (request?.webStorageProgress && error instanceof McpCapabilityAuthorizationError) request.webStoragePolicy = { permission: 'denied', policyDecision: error.decision }
     if (request?.cookieProgress && error instanceof McpCapabilityAuthorizationError) request.cookiePolicy = { permission: 'denied', policyDecision: error.decision }
-    if (request?.conditionAttempted && error instanceof McpCapabilityAuthorizationError) {
+    if (request && !request.conditionAttempted && error instanceof EmulationInputError) request.emulationInputError = error.reason
+    if (request && error instanceof McpCapabilityAuthorizationError) {
       request.conditionPolicy = { permission: 'denied', policyDecision: error.decision }
     }
     if (request?.selectionSubmitted && error instanceof McpCapabilityAuthorizationError) {
@@ -1285,16 +1288,18 @@ function createBrowserMcpServer(
         return settled
       }
       const settleConditions = (result: CallToolResult): CallToolResult => {
-        if (name !== 'browser_network_routes') return result
+        if (name !== 'browser_network_routes' && name !== 'browser_emulate') return result
         let settled = result
-        if (result.isError && input.action !== 'list' && input.action !== undefined) {
+        if (result.isError && (name === 'browser_emulate' || (input.action !== 'list' && input.action !== undefined))) {
           const outcome = { ...result.structuredContent, ...frameRequest.conditionPolicy,
             ...(frameRequest.conditionReviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+            ...(name === 'browser_emulate' && !frameRequest.conditionAttempted && !frameRequest.conditionPolicy && !frameRequest.conditionReviewFinalizationFailed && result.structuredContent?.permission !== 'denied' && frameRequest.emulationInputError
+              ? { reason: frameRequest.emulationInputError, message: EMULATION_INPUT_ERRORS[frameRequest.emulationInputError] } : {}),
             status: frameRequest.conditionAttempted ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED',
             effects: frameRequest.conditionAttempted ? 'possible' : 'none', retrySafe: false,
             nextAction: result.structuredContent?.nextAction ?? (frameRequest.conditionAttempted
-              ? 'Inspect current application health before explicitly clearing conditions; do not automatically replay.'
-              : 'No condition command was submitted. Inspect current authority and application health before proceeding.') }
+              ? (name === 'browser_emulate' ? 'Read current emulation health. Restore retained settings explicitly only if application is unknown; do not replay the failed request. Network uncertainty requires separate recovery.' : 'Inspect current application health before explicitly clearing conditions; do not automatically replay.')
+              : 'No configuration command was submitted. Inspect current authority and application health before proceeding.') }
           settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         frameRequest.conditionFinishActivity?.(settled)
@@ -1418,6 +1423,13 @@ function createBrowserMcpServer(
           frameRequest.networkPublication()
           return result // No await after validating the retained request and its authority.
         }
+        if (name === 'browser_emulate') {
+          if (!result.isError) {
+            if (!frameRequest.conditionPublication) throw new Error('Emulation publication guard is unavailable')
+            frameRequest.conditionPublication()
+          }
+          return settleConditions(result)
+        }
         if (name === 'browser_network_routes' && frameRequest.conditionPublication) {
           frameRequest.conditionPublication()
           return settleConditions(result) // Publication checks never rewrite main-owned native health.
@@ -1495,7 +1507,7 @@ function createBrowserMcpServer(
         if (frameRequest.storageInspection) { rememberInputPolicy(error); return settleStorageInspection(errorResult(error)) }
         if (frameRequest.webStorageProgress) { rememberInputPolicy(error); return settleWebStorage(errorResult(error)) }
         if (frameRequest.cookieProgress) { rememberInputPolicy(error); return settleCookies(errorResult(error)) }
-        if (name === 'browser_network_routes') { rememberInputPolicy(error); return settleConditions(errorResult(error)) }
+        if (name === 'browser_network_routes' || name === 'browser_emulate') { rememberInputPolicy(error); return settleConditions(errorResult(error)) }
         if (frameRequest.clickProgress) { rememberInputPolicy(error); return settleClick(errorResult(error)) }
         if (frameRequest.keyHoldProgress?.downAttempted) return nativeKeyHoldUnknownResult(frameRequest.keyHoldProgress, frameRequest.keyHoldReviewFinalizationFailed,
           error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : frameRequest.keyHoldPolicy ?? errorResult(error).structuredContent)
@@ -2166,7 +2178,7 @@ function createBrowserMcpServer(
             if (frameRequests.getStore()?.selectionSubmitted) frameRequests.getStore()!.selectionReviewFinalizationFailed = true
             if (frameRequests.getStore()?.webStorageProgress?.executionSubmitted) frameRequests.getStore()!.webStorageReviewFinalizationFailed = true
             if (frameRequests.getStore()?.cookieProgress?.attemptedWrites) frameRequests.getStore()!.cookieReviewFinalizationFailed = true
-            if (frameRequests.getStore()?.conditionAttempted) frameRequests.getStore()!.conditionReviewFinalizationFailed = true
+            if (frameRequests.getStore()?.conditionAttempted || frameRequests.getStore()?.emulationInputError) frameRequests.getStore()!.conditionReviewFinalizationFailed = true
             if (frameRequests.getStore()?.wheelAttempted) frameRequests.getStore()!.wheelReviewFinalizationFailed = true
             if (frameRequests.getStore()?.clickProgress) frameRequests.getStore()!.clickReviewFinalizationFailed = true
             if (frameRequests.getStore()?.keyHoldProgress?.downAttempted) frameRequests.getStore()!.keyHoldReviewFinalizationFailed = true
@@ -2361,7 +2373,7 @@ function createBrowserMcpServer(
                   progress: (progress: CookieWriteProgress) => { frameRequests.getStore()!.cookieProgress = { ...progress } },
                   retainPublication: (validate: () => void) => { frameRequests.getStore()!.cookiePublication = validate }
                 } satisfies CookieWriteHooks } : {}),
-                ...(name === 'browser_network_routes' ? {
+                ...((name === 'browser_network_routes' || name === 'browser_emulate') ? {
                   validateConditions: () => {
                     const assert = (): void => {
                       if (extra?.signal?.aborted) throw new Error('Request-condition operation cancelled')
@@ -2370,7 +2382,7 @@ function createBrowserMcpServer(
                       if (authorityRejection()) throw new Error('Request-condition authority changed')
                     }
                     assert()
-                    frameRequests.getStore()!.conditionPublication = assert
+                    if (name !== 'browser_emulate') frameRequests.getStore()!.conditionPublication = assert
                   },
                   markConditionsSubmitted: () => { frameRequests.getStore()!.conditionAttempted = true }
                 } : {}),
@@ -2518,7 +2530,7 @@ function createBrowserMcpServer(
             request.cookieFinishActivity = settled => { request.cookieFinishing = true; finishActivity(settled, false) }
             return
           }
-          if (name === 'browser_network_routes' && !request.conditionFinishing) {
+          if ((name === 'browser_network_routes' || name === 'browser_emulate') && !request.conditionFinishing) {
             request.conditionFinishActivity = settled => { request.conditionFinishing = true; finishActivity(settled, false) }
             return
           }
@@ -2533,13 +2545,13 @@ function createBrowserMcpServer(
             && typeof structured.status === 'string' ? structured.status : undefined
           const activityResult = classifyMcpActivityResult({
             readOnly: request.storageComparison ? !request.storageComparison.changed : readOnly || request.webStorageProgress?.mutation === false,
-            dispatched: request.fileEvaluation ? request.fileEvaluation.submitted : request.storageComparison ? request.storageComparison.started : request.clickProgress ? nativeClickEffectsPossible(request.clickProgress) : request.storageInspection ? request.storageInspection.started : request.webStorageProgress ? request.webStorageProgress.executionSubmitted : request.cookieProgress ? request.cookieProgress.attemptedWrites > 0 : name === 'browser_network_routes' ? request.conditionAttempted === true : name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
+            dispatched: request.fileEvaluation ? request.fileEvaluation.submitted : request.storageComparison ? request.storageComparison.started : request.clickProgress ? nativeClickEffectsPossible(request.clickProgress) : request.storageInspection ? request.storageInspection.started : request.webStorageProgress ? request.webStorageProgress.executionSubmitted : request.cookieProgress ? request.cookieProgress.attemptedWrites > 0 : (name === 'browser_network_routes' || name === 'browser_emulate') ? request.conditionAttempted === true : name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : name === 'browser_hold_key' && frameRequests.getStore()?.keyHoldProgress ? frameRequests.getStore()!.keyHoldProgress!.downAttempted : activityDispatched,
             cancelled: extra?.signal?.aborted === true,
             timedOut: isTimeoutError(error),
             threw,
             isError: result?.isError === true,
             status,
-            invalidatedOutcome: request.fileEvaluation ? (request.fileEvaluation.submitted && (threw || result?.isError) ? 'outcome-unknown' : undefined) : request.storageComparison ? (request.storageComparison.changed && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.clickProgress ? (nativeClickEffectsPossible(request.clickProgress) && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.webStorageProgress ? (request.webStorageProgress.mutation && request.webStorageProgress.executionSubmitted && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.cookieProgress ? (request.cookieProgress.attemptedWrites > 0 && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : ((name === 'browser_network_routes' && request.conditionAttempted) || (frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none') || frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
+            invalidatedOutcome: request.fileEvaluation ? (request.fileEvaluation.submitted && (threw || result?.isError) ? 'outcome-unknown' : undefined) : request.storageComparison ? (request.storageComparison.changed && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.clickProgress ? (nativeClickEffectsPossible(request.clickProgress) && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.webStorageProgress ? (request.webStorageProgress.mutation && request.webStorageProgress.executionSubmitted && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.cookieProgress ? (request.cookieProgress.attemptedWrites > 0 && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : (((name === 'browser_network_routes' || name === 'browser_emulate') && request.conditionAttempted) || (frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none') || frameRequests.getStore()?.wheelAttempted || frameRequests.getStore()?.keyHoldProgress?.downAttempted) && (threw || result?.isError === true)
               ? 'outcome-unknown' : name === 'browser_select' && actionInput.values !== undefined && (!request.selectionSubmitted || result?.structuredContent?.effects === 'none') ? undefined : invalidatedOutcome,
             verificationStatus: verificationResult?.status
           })
@@ -4429,6 +4441,7 @@ function createBrowserMcpServer(
       inputSchema: {
         tabId: tabIdSchema.optional(),
         reset: z.boolean().optional(),
+        recover: z.boolean().optional().describe('Explicitly restore the last committed settings after uncertain native application. Cannot be combined with reset or overrides; does not replay the failed request.'),
         network: z.enum(['none', 'offline', 'slow-3g', 'slow-4g', 'fast-4g']).optional(),
         cacheDisabled: z.boolean().optional()
           .describe('Ignore the HTTP memory and disk cache for future requests in this tab without deleting cached data.'),
@@ -4483,7 +4496,13 @@ function createBrowserMcpServer(
         extraHttpHeaders: z.record(z.string(), z.string().max(8_192)).optional()
       }
     },
-    tabTool('browser_emulate', async (options: BrowserEmulationOptions) => textResult(await manager.emulate(options)))
+    tabTool('browser_emulate', async ({ validateConditions, markConditionsSubmitted, ...options }: BrowserEmulationOptions & { validateConditions?: () => void; markConditionsSubmitted?: () => void }) => {
+      if (!validateConditions) throw new Error('Emulation authority is unavailable')
+      const result = await manager.emulate(options, validateConditions, markConditionsSubmitted, assert => {
+        frameRequests.getStore()!.conditionPublication = () => { validateConditions(); assert() }
+      })
+      return textResult(result)
+    })
   )
   registerWorkspaceTool(
     'browser_page_lifecycle',

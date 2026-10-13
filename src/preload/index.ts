@@ -144,6 +144,7 @@ const api: HronautApi = {
   setTabEnvironment: (tabId: string, environment: BrowserEnvironmentSettings) =>
     ipcRenderer.invoke('browser:set-tab-environment', tabId, environment),
   resetTabEmulation: (tabId: string) => ipcRenderer.invoke('browser:reset-tab-emulation', tabId),
+  recoverTabEmulation: (tabId: string) => ipcRenderer.invoke('browser:recover-tab-emulation', tabId),
   listNetworkRoutes: (tabId: string) => ipcRenderer.invoke('browser:list-network-routes', tabId),
   addNetworkRoute: (tabId: string, input: BrowserNetworkRouteInput) =>
     ipcRenderer.invoke('browser:add-network-route', tabId, input),

@@ -140,6 +140,10 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       @input="handleInput"
       @keydown="handleKeydown"
     />
+    <span v-if="activeTab?.emulationState" class="emulation-pill" role="status" :title="t('emulationApplication.help')">
+      <IconSpeed aria-hidden="true" />
+      <span>{{ t('emulationApplication.' + activeTab.emulationState.application) }}</span>
+    </span>
     <UiButton appearance="application"
       v-if="activeEmulation"
       class="emulation-pill"
