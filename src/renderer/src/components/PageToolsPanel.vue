@@ -126,6 +126,7 @@ const {
 
 const searchInput = ref<HTMLInputElement | null>(null)
 const content = ref<HTMLElement | null>(null)
+const scrollBody = ref<HTMLElement | null>(null)
 const query = ref('')
 const videoOpen = ref(false)
 const toolSearchEntries = computed(() => [
@@ -191,7 +192,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
 }
 
 watch(open, () => { query.value = '' })
-watch(query, () => { if (content.value) content.value.scrollTop = 0 })
+watch(query, () => { if (scrollBody.value) scrollBody.value.scrollTop = 0 })
 
 function closeAndRun(action: () => void | Promise<void>): void {
   open.value = false
@@ -216,113 +217,115 @@ function closeAndRun(action: () => void | Promise<void>): void {
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('shell.pageTools.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
-    <div class="page-tools-search">
-      <div class="page-tools-search-field">
-        <IconSearch aria-hidden="true" />
-        <input
-          ref="searchInput"
-          v-model="query"
-          type="search"
-          :aria-label="t('shell.pageTools.search')"
-          :placeholder="t('shell.pageTools.searchPlaceholder')"
-          aria-controls="page-tools-content"
-          autocomplete="off"
-          spellcheck="false"
-          @keydown="handleSearchKeydown"
-        />
-        <UiButton v-if="query" appearance="application" type="button" :aria-label="t('shell.pageTools.clearSearch')" @click="clearSearch"><IconClose aria-hidden="true" /></UiButton>
+    <div ref="scrollBody" class="page-tools-body">
+      <div class="page-tools-search">
+        <div class="page-tools-search-field">
+          <IconSearch aria-hidden="true" />
+          <input
+            ref="searchInput"
+            v-model="query"
+            type="search"
+            :aria-label="t('shell.pageTools.search')"
+            :placeholder="t('shell.pageTools.searchPlaceholder')"
+            aria-controls="page-tools-content"
+            autocomplete="off"
+            spellcheck="false"
+            @keydown="handleSearchKeydown"
+          />
+          <UiButton v-if="query" appearance="application" type="button" :aria-label="t('shell.pageTools.clearSearch')" @click="clearSearch"><IconClose aria-hidden="true" /></UiButton>
+        </div>
+        <span role="status" aria-live="polite">{{ t('shell.pageTools.matchCount', { count: localNumber(visibleTools.length), total: localNumber(toolSearchEntries.length) }) }}</span>
       </div>
-      <span role="status" aria-live="polite">{{ t('shell.pageTools.matchCount', { count: localNumber(visibleTools.length), total: localNumber(toolSearchEntries.length) }) }}</span>
+      <div id="page-tools-content" ref="content" class="page-tools-content">
+        <UiEmptyState
+          v-if="!visibleTools.length"
+          :title="t('shell.pageTools.noMatches')"
+          :description="t('shell.pageTools.noMatchesDescription')"
+        >
+          <template #actions>
+            <UiButton type="button" @click="clearSearch">{{ t('shell.pageTools.clearSearch') }}</UiButton>
+          </template>
+        </UiEmptyState>
+        <section v-if="visibleGroups.has('inspect')" aria-labelledby="page-tools-inspect-title">
+          <h3 id="page-tools-inspect-title">{{ t('shell.pageTools.inspect') }}</h3>
+          <div class="page-tools-grid">
+            <UiButton v-if="visibleIds.has('site-storage')" appearance="application" type="button" :aria-label="activeWebUrl ? t('runtime.tabs.siteStorage', { host: hostname }) : t('runtime.tabs.siteStorageUnavailable')" :disabled="!activeWebUrl" @click="actions.toggleSiteStorage">
+              <IconDatabase aria-hidden="true" /><span><strong>{{ t('panels.siteStorage') }}</strong><small>{{ t('shell.pageTools.storageDescription') }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('responsive-preview')" appearance="application" :class="{ complete: Boolean(activeEmulation?.viewport) }" type="button" :aria-label="t('runtime.address.responsive', { status: labels.responsive })" @click="actions.toggleResponsivePreview">
+              <IconDevices aria-hidden="true" /><span><strong>{{ t('shell.pageTools.responsive') }}</strong><small>{{ labels.responsive }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('environment')" appearance="application" :class="{ complete: environmentOverrideCount > 0, error: environmentState === 'error', running: environmentState === 'applying' }" type="button" :aria-label="t('runtime.address.environment', { status: labels.environment })" :disabled="environmentState === 'applying'" @click="actions.toggleEnvironment">
+              <IconProgress v-if="environmentState === 'applying'" class="state-spinner" aria-hidden="true" /><IconSpeed v-else aria-hidden="true" />
+              <span><strong>{{ t('shell.pageTools.environment') }}</strong><small>{{ labels.environment }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('console')" appearance="application" type="button" :aria-label="t('shell.pageTools.openConsole')" @click="actions.toggleConsole"><IconTerminal aria-hidden="true" /><span><strong>{{ t('panels.console') }}</strong><small>{{ t('shell.pageTools.consoleDescription') }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('network')" appearance="application" type="button" :aria-label="t('shell.pageTools.openNetwork')" @click="actions.toggleNetwork"><IconNetworkCheck aria-hidden="true" /><span><strong>{{ t('panels.network') }}</strong><small>{{ t('shell.pageTools.networkDescription') }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('request-conditions')" appearance="application" :class="{ warning: networkConditionsUnconfirmed || networkRouteCount > 0 }" type="button" :aria-label="t('runtime.address.conditions', { status: networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : networkRouteCount ? t('network.conditions.retained', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('runtime.address.noneActive') })" @click="actions.openRequestConditions">
+              <IconRoute aria-hidden="true" /><span><strong>{{ t('shell.pageTools.conditions') }}</strong><small>{{ networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : networkRouteCount ? t('network.conditions.retained', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('shell.pageTools.conditionsDescription') }}</small></span>
+            </UiButton>
+          </div>
+        </section>
+        <section v-if="visibleGroups.has('diagnose')" aria-labelledby="page-tools-diagnose-title">
+          <h3 id="page-tools-diagnose-title">{{ t('shell.pageTools.diagnose') }}</h3>
+          <div class="page-tools-grid">
+            <UiButton v-if="visibleIds.has('issues')" appearance="application" :class="{ warning: inspectorIssueCount > 0 }" type="button" :aria-label="t('issues.toolAria', { status: labels.inspectorIssues })" @click="toggleInspectorIssues"><IconWarning aria-hidden="true" /><span><strong>{{ t('panels.issues') }}</strong><small>{{ labels.inspectorIssues }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('security')" appearance="application" :class="{ complete: securityReport?.state === 'secure', warning: securityReport?.state === 'insecure' || securityReport?.state === 'insecure-broken', error: securityReportState === 'error', running: securityReportState === 'loading' }" type="button" :aria-label="t('securityReport.toolAria', { status: labels.security })" :disabled="securityReportState === 'loading'" @click="toggleSecurityReport">
+              <IconProgress v-if="securityReportState === 'loading'" class="state-spinner" aria-hidden="true" /><IconShieldLock v-else aria-hidden="true" /><span><strong>{{ t('panels.security') }}</strong><small>{{ labels.security }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('debug-report')" appearance="application" :class="{ complete: debugReportState === 'complete' && !debugReportSignalCount, warning: debugReportState === 'complete' && Boolean(debugReportSignalCount), error: debugReportState === 'error', running: debugReportState === 'running' }" type="button" :aria-label="labels.debugReport" :disabled="debugReportState === 'running'" @click="toggleDebugReport">
+              <IconProgress v-if="debugReportState === 'running'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="debugReportState === 'complete' && !debugReportSignalCount" aria-hidden="true" /><IconError v-else-if="debugReportState === 'error'" aria-hidden="true" /><IconBugReport v-else aria-hidden="true" /><span><strong>{{ t('panels.debugReport') }}</strong><small>{{ labels.debugReport }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('repro-recorder')" appearance="application" :class="{ running: activeTab?.reproRecording?.active }" type="button" :aria-label="t('repro.toolAria', { status: labels.repro })" @click="toggleReproRecorder"><IconRecord aria-hidden="true" /><span><strong>{{ t('panels.reproRecorder') }}</strong><small>{{ labels.repro }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('dom-changes')" appearance="application" :class="{ running: activeTab?.domChangesRecording?.active }" type="button" :aria-label="t('domChanges.toolAria', { status: labels.domChanges })" @click="toggleDomChanges"><IconAccountTree aria-hidden="true" /><span><strong>{{ t('panels.domChanges') }}</strong><small>{{ labels.domChanges }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('visual-compare')" appearance="application" :class="{ complete: visualCompareReport?.status === 'compared' && visualCompareReport.identical, warning: visualCompareReport?.status === 'compared' && !visualCompareReport.identical, error: visualCompareState === 'error', running: visualCompareState === 'loading' }" type="button" :aria-label="t('visualCompare.toolAria', { status: labels.visualCompare })" :disabled="visualCompareState === 'loading'" @click="toggleVisualCompare">
+              <IconProgress v-if="visualCompareState === 'loading'" class="state-spinner" aria-hidden="true" /><IconDifference v-else aria-hidden="true" /><span><strong>{{ t('panels.visualCompare') }}</strong><small>{{ labels.visualCompare }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('pick-element')" appearance="application" :class="{ picking: elementPickerMode === 'context' && elementPickerState === 'picking', copied: elementPickerMode === 'context' && elementPickerState === 'copied', error: elementPickerMode === 'context' && elementPickerState === 'error' }" type="button" :aria-label="labels.contextPicker" :disabled="captureBusy" @click="closeAndRun(() => actions.toggleElementPicker('context'))">
+              <IconCheck v-if="elementPickerMode === 'context' && elementPickerState === 'copied'" aria-hidden="true" /><IconClose v-else-if="elementPickerMode === 'context' && elementPickerState === 'picking'" aria-hidden="true" /><IconAdsClick v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.pickElement') }}</strong><small>{{ t('shell.pageTools.pickDescription') }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('capture-element')" appearance="application" :class="{ picking: elementPickerMode === 'screenshot' && elementPickerState === 'picking', copied: elementPickerMode === 'screenshot' && elementPickerState === 'copied', error: elementPickerMode === 'screenshot' && elementPickerState === 'error' }" type="button" :aria-label="labels.elementScreenshot" :disabled="captureBusy" @click="closeAndRun(() => actions.toggleElementPicker('screenshot'))">
+              <IconCheck v-if="elementPickerMode === 'screenshot' && elementPickerState === 'copied'" aria-hidden="true" /><IconClose v-else-if="elementPickerMode === 'screenshot' && elementPickerState === 'picking'" aria-hidden="true" /><IconScreenshotRegion v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.elementScreenshot') }}</strong><small>{{ t('shell.pageTools.screenshotDescription') }}</small></span>
+            </UiButton>
+          </div>
+        </section>
+        <section v-if="visibleGroups.has('audit')" aria-labelledby="page-tools-audit-title">
+          <h3 id="page-tools-audit-title">{{ t('shell.pageTools.audit') }}</h3>
+          <div class="page-tools-grid">
+            <UiButton v-if="visibleIds.has('quality-audit')" appearance="application" :class="{ complete: qualityAuditState === 'complete' && qualityAuditReport?.status === 'pass', warning: qualityAuditState === 'complete' && qualityAuditReport?.status === 'warning', error: qualityAuditState === 'error' || qualityAuditReport?.status === 'error', running: qualityAuditState === 'running' }" type="button" :aria-label="t('runtime.address.quality', { status: labels.qualityAudit })" :disabled="qualityAuditState === 'running'" @click="toggleQualityAudit">
+              <IconProgress v-if="qualityAuditState === 'running'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="qualityAuditReport?.status === 'pass'" aria-hidden="true" /><IconError v-else-if="qualityAuditState === 'error' || qualityAuditReport?.status === 'error'" aria-hidden="true" /><IconFactCheck v-else aria-hidden="true" /><span><strong>{{ t('panels.qualityAudit') }}</strong><small>{{ labels.qualityAudit }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('accessibility')" appearance="application" :class="{ complete: accessibilityAuditState === 'complete' && accessibilityAudit?.violationCount === 0, warning: accessibilityAuditState === 'complete' && Boolean(accessibilityAudit?.violationCount), error: accessibilityAuditState === 'error', running: accessibilityAuditState === 'running' }" type="button" :aria-label="labels.accessibilityAudit" :disabled="accessibilityAuditState === 'running'" @click="toggleAccessibilityAudit">
+              <IconProgress v-if="accessibilityAuditState === 'running'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="accessibilityAuditState === 'complete' && accessibilityAudit?.violationCount === 0" aria-hidden="true" /><IconError v-else-if="accessibilityAuditState === 'error'" aria-hidden="true" /><IconAccessibility v-else aria-hidden="true" /><span><strong>{{ t('panels.accessibility') }}</strong><small>{{ labels.accessibilityAudit }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('performance')" appearance="application" :class="{ error: performanceState === 'error', running: performanceState === 'running' }" type="button" :aria-label="labels.performance" :disabled="performanceState === 'running'" @click="togglePerformanceReport"><IconProgress v-if="performanceState === 'running'" class="state-spinner" aria-hidden="true" /><IconError v-else-if="performanceState === 'error'" aria-hidden="true" /><IconMonitoring v-else aria-hidden="true" /><span><strong>{{ t('panels.performance') }}</strong><small>{{ labels.performance }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('design-overview')" appearance="application" :class="{ warning: Boolean(designOverviewReport?.summary.contrastIssueCount), error: designOverviewState === 'error', running: designOverviewState === 'loading' }" type="button" :aria-label="t('designOverview.toolAria', { status: labels.designOverview })" :disabled="designOverviewState === 'loading'" @click="toggleDesignOverview"><IconProgress v-if="designOverviewState === 'loading'" class="state-spinner" aria-hidden="true" /><IconPalette v-else aria-hidden="true" /><span><strong>{{ t('panels.designOverview') }}</strong><small>{{ labels.designOverview }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('page-metadata')" appearance="application" :class="{ warning: Boolean(pageMetadataReport?.issues.some((issue) => issue.severity !== 'info')), error: pageMetadataState === 'error', running: pageMetadataState === 'loading' }" type="button" :aria-label="t('pageMetadata.toolAria', { status: labels.pageMetadata })" :disabled="pageMetadataState === 'loading'" @click="togglePageMetadata"><IconProgress v-if="pageMetadataState === 'loading'" class="state-spinner" aria-hidden="true" /><IconLanguage v-else aria-hidden="true" /><span><strong>{{ t('panels.pageMetadata') }}</strong><small>{{ labels.pageMetadata }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('coverage')" appearance="application" :class="{ complete: coverageResult?.status === 'complete', error: coverageState === 'error', running: Boolean(activeTab?.codeCoverageRecording) || coverageState === 'loading' }" type="button" :aria-label="t('coverage.toolAria', { status: labels.coverage })" :disabled="coverageState === 'loading'" @click="toggleCodeCoverage"><IconProgress v-if="coverageState === 'loading'" class="state-spinner" aria-hidden="true" /><IconCode v-else aria-hidden="true" /><span><strong>{{ t('panels.coverage') }}</strong><small>{{ labels.coverage }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('cpu-profile')" appearance="application" :class="{ complete: cpuProfileResult?.status === 'complete', error: cpuProfileState === 'error', running: Boolean(activeTab?.cpuProfileRecording) || cpuProfileState === 'loading' }" type="button" :aria-label="t('cpuProfile.toolAria', { status: labels.cpuProfile })" :disabled="cpuProfileState === 'loading'" @click="toggleCpuProfile"><IconProgress v-if="cpuProfileState === 'loading'" class="state-spinner" aria-hidden="true" /><IconMonitoring v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.javascriptCpu') }}</strong><small>{{ labels.cpuProfile }}</small></span></UiButton>
+            <UiButton v-if="visibleIds.has('memory')" appearance="application" :class="{ error: memoryState === 'error', running: memoryState === 'running' }" type="button" :aria-label="t('memory.toolAria', { status: labels.memory })" :disabled="memoryState === 'running'" @click="toggleMemoryReport"><IconProgress v-if="memoryState === 'running'" class="state-spinner" aria-hidden="true" /><IconError v-else-if="memoryState === 'error'" aria-hidden="true" /><IconMemory v-else aria-hidden="true" /><span><strong>{{ t('panels.memory') }}</strong><small>{{ labels.memory }}</small></span></UiButton>
+          </div>
+        </section>
+        <section v-if="visibleGroups.has('exportAccount')" aria-labelledby="page-tools-export-title">
+          <h3 id="page-tools-export-title">{{ t('shell.pageTools.exportAccount') }}</h3>
+          <div v-if="visibleIds.has('video')" class="page-tools-grid video-tool">
+            <UiButton appearance="application" :aria-expanded="videoOpen" @click="videoOpen = !videoOpen"><IconRecord aria-hidden="true" /><span><strong>{{ t('video.title') }}</strong><small>{{ t('video.description') }}</small></span></UiButton>
+            <VideoRecorder v-if="videoOpen && activeTab" :tab-id="activeTab.id" />
+          </div>
+          <div class="page-tools-grid">
+            <UiButton v-if="visibleIds.has('copy-snapshot')" appearance="application" :class="{ copied: snapshotState === 'copied', error: snapshotState === 'error', running: snapshotState === 'copying' }" type="button" :aria-label="t('shell.pageTools.copySnapshotAria')" :disabled="snapshotState === 'copying'" @click="actions.copyPageSnapshot">
+              <IconProgress v-if="snapshotState === 'copying'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="snapshotState === 'copied'" aria-hidden="true" /><IconError v-else-if="snapshotState === 'error'" aria-hidden="true" /><IconAccountTree v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.copySnapshot') }}</strong><small>{{ t('shell.pageTools.copySnapshotDescription') }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('save-pdf')" appearance="application" type="button" :aria-label="labels.pdfExport" :disabled="pdfState === 'saving'" @click="closeAndRun(actions.savePdf)">
+              <IconProgress v-if="pdfState === 'saving'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="pdfState === 'saved'" aria-hidden="true" /><IconError v-else-if="pdfState === 'error'" aria-hidden="true" /><IconPdf v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.savePdf') }}</strong><small>{{ labels.pdfExport }}</small></span>
+            </UiButton>
+            <UiButton v-if="visibleIds.has('fill-password')" appearance="application" type="button" :aria-label="credentialCount ? t('shell.pageTools.fillPassword') : t('shell.pageTools.noPassword')" :disabled="!credentialStorageAvailable || !credentialCount" @click="closeAndRun(actions.fillSavedPassword)">
+              <IconPassword aria-hidden="true" /><span><strong>{{ t('shell.pageTools.savedPassword') }}</strong><small>{{ credentialCount ? t('shell.pageTools.accountsAvailable', { count: localNumber(credentialCount) }) : t('shell.pageTools.noAccount') }}</small></span>
+            </UiButton>
+          </div>
+        </section>
+      </div>
+      <footer><span>{{ hostname }}</span><span>{{ t('shell.pageTools.pageActions') }}</span></footer>
     </div>
-    <div id="page-tools-content" ref="content" class="page-tools-content">
-      <UiEmptyState
-        v-if="!visibleTools.length"
-        :title="t('shell.pageTools.noMatches')"
-        :description="t('shell.pageTools.noMatchesDescription')"
-      >
-        <template #actions>
-          <UiButton type="button" @click="clearSearch">{{ t('shell.pageTools.clearSearch') }}</UiButton>
-        </template>
-      </UiEmptyState>
-      <section v-if="visibleGroups.has('inspect')" aria-labelledby="page-tools-inspect-title">
-        <h3 id="page-tools-inspect-title">{{ t('shell.pageTools.inspect') }}</h3>
-        <div class="page-tools-grid">
-          <UiButton v-if="visibleIds.has('site-storage')" appearance="application" type="button" :aria-label="activeWebUrl ? t('runtime.tabs.siteStorage', { host: hostname }) : t('runtime.tabs.siteStorageUnavailable')" :disabled="!activeWebUrl" @click="actions.toggleSiteStorage">
-            <IconDatabase aria-hidden="true" /><span><strong>{{ t('panels.siteStorage') }}</strong><small>{{ t('shell.pageTools.storageDescription') }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('responsive-preview')" appearance="application" :class="{ complete: Boolean(activeEmulation?.viewport) }" type="button" :aria-label="t('runtime.address.responsive', { status: labels.responsive })" @click="actions.toggleResponsivePreview">
-            <IconDevices aria-hidden="true" /><span><strong>{{ t('shell.pageTools.responsive') }}</strong><small>{{ labels.responsive }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('environment')" appearance="application" :class="{ complete: environmentOverrideCount > 0, error: environmentState === 'error', running: environmentState === 'applying' }" type="button" :aria-label="t('runtime.address.environment', { status: labels.environment })" :disabled="environmentState === 'applying'" @click="actions.toggleEnvironment">
-            <IconProgress v-if="environmentState === 'applying'" class="state-spinner" aria-hidden="true" /><IconSpeed v-else aria-hidden="true" />
-            <span><strong>{{ t('shell.pageTools.environment') }}</strong><small>{{ labels.environment }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('console')" appearance="application" type="button" :aria-label="t('shell.pageTools.openConsole')" @click="actions.toggleConsole"><IconTerminal aria-hidden="true" /><span><strong>{{ t('panels.console') }}</strong><small>{{ t('shell.pageTools.consoleDescription') }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('network')" appearance="application" type="button" :aria-label="t('shell.pageTools.openNetwork')" @click="actions.toggleNetwork"><IconNetworkCheck aria-hidden="true" /><span><strong>{{ t('panels.network') }}</strong><small>{{ t('shell.pageTools.networkDescription') }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('request-conditions')" appearance="application" :class="{ warning: networkConditionsUnconfirmed || networkRouteCount > 0 }" type="button" :aria-label="t('runtime.address.conditions', { status: networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : networkRouteCount ? t('network.conditions.retained', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('runtime.address.noneActive') })" @click="actions.openRequestConditions">
-            <IconRoute aria-hidden="true" /><span><strong>{{ t('shell.pageTools.conditions') }}</strong><small>{{ networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : networkRouteCount ? t('network.conditions.retained', { count: localNumber(networkRouteCount) }, networkRouteCount) : t('shell.pageTools.conditionsDescription') }}</small></span>
-          </UiButton>
-        </div>
-      </section>
-      <section v-if="visibleGroups.has('diagnose')" aria-labelledby="page-tools-diagnose-title">
-        <h3 id="page-tools-diagnose-title">{{ t('shell.pageTools.diagnose') }}</h3>
-        <div class="page-tools-grid">
-          <UiButton v-if="visibleIds.has('issues')" appearance="application" :class="{ warning: inspectorIssueCount > 0 }" type="button" :aria-label="t('issues.toolAria', { status: labels.inspectorIssues })" @click="toggleInspectorIssues"><IconWarning aria-hidden="true" /><span><strong>{{ t('panels.issues') }}</strong><small>{{ labels.inspectorIssues }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('security')" appearance="application" :class="{ complete: securityReport?.state === 'secure', warning: securityReport?.state === 'insecure' || securityReport?.state === 'insecure-broken', error: securityReportState === 'error', running: securityReportState === 'loading' }" type="button" :aria-label="t('securityReport.toolAria', { status: labels.security })" :disabled="securityReportState === 'loading'" @click="toggleSecurityReport">
-            <IconProgress v-if="securityReportState === 'loading'" class="state-spinner" aria-hidden="true" /><IconShieldLock v-else aria-hidden="true" /><span><strong>{{ t('panels.security') }}</strong><small>{{ labels.security }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('debug-report')" appearance="application" :class="{ complete: debugReportState === 'complete' && !debugReportSignalCount, warning: debugReportState === 'complete' && Boolean(debugReportSignalCount), error: debugReportState === 'error', running: debugReportState === 'running' }" type="button" :aria-label="labels.debugReport" :disabled="debugReportState === 'running'" @click="toggleDebugReport">
-            <IconProgress v-if="debugReportState === 'running'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="debugReportState === 'complete' && !debugReportSignalCount" aria-hidden="true" /><IconError v-else-if="debugReportState === 'error'" aria-hidden="true" /><IconBugReport v-else aria-hidden="true" /><span><strong>{{ t('panels.debugReport') }}</strong><small>{{ labels.debugReport }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('repro-recorder')" appearance="application" :class="{ running: activeTab?.reproRecording?.active }" type="button" :aria-label="t('repro.toolAria', { status: labels.repro })" @click="toggleReproRecorder"><IconRecord aria-hidden="true" /><span><strong>{{ t('panels.reproRecorder') }}</strong><small>{{ labels.repro }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('dom-changes')" appearance="application" :class="{ running: activeTab?.domChangesRecording?.active }" type="button" :aria-label="t('domChanges.toolAria', { status: labels.domChanges })" @click="toggleDomChanges"><IconAccountTree aria-hidden="true" /><span><strong>{{ t('panels.domChanges') }}</strong><small>{{ labels.domChanges }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('visual-compare')" appearance="application" :class="{ complete: visualCompareReport?.status === 'compared' && visualCompareReport.identical, warning: visualCompareReport?.status === 'compared' && !visualCompareReport.identical, error: visualCompareState === 'error', running: visualCompareState === 'loading' }" type="button" :aria-label="t('visualCompare.toolAria', { status: labels.visualCompare })" :disabled="visualCompareState === 'loading'" @click="toggleVisualCompare">
-            <IconProgress v-if="visualCompareState === 'loading'" class="state-spinner" aria-hidden="true" /><IconDifference v-else aria-hidden="true" /><span><strong>{{ t('panels.visualCompare') }}</strong><small>{{ labels.visualCompare }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('pick-element')" appearance="application" :class="{ picking: elementPickerMode === 'context' && elementPickerState === 'picking', copied: elementPickerMode === 'context' && elementPickerState === 'copied', error: elementPickerMode === 'context' && elementPickerState === 'error' }" type="button" :aria-label="labels.contextPicker" :disabled="captureBusy" @click="closeAndRun(() => actions.toggleElementPicker('context'))">
-            <IconCheck v-if="elementPickerMode === 'context' && elementPickerState === 'copied'" aria-hidden="true" /><IconClose v-else-if="elementPickerMode === 'context' && elementPickerState === 'picking'" aria-hidden="true" /><IconAdsClick v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.pickElement') }}</strong><small>{{ t('shell.pageTools.pickDescription') }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('capture-element')" appearance="application" :class="{ picking: elementPickerMode === 'screenshot' && elementPickerState === 'picking', copied: elementPickerMode === 'screenshot' && elementPickerState === 'copied', error: elementPickerMode === 'screenshot' && elementPickerState === 'error' }" type="button" :aria-label="labels.elementScreenshot" :disabled="captureBusy" @click="closeAndRun(() => actions.toggleElementPicker('screenshot'))">
-            <IconCheck v-if="elementPickerMode === 'screenshot' && elementPickerState === 'copied'" aria-hidden="true" /><IconClose v-else-if="elementPickerMode === 'screenshot' && elementPickerState === 'picking'" aria-hidden="true" /><IconScreenshotRegion v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.elementScreenshot') }}</strong><small>{{ t('shell.pageTools.screenshotDescription') }}</small></span>
-          </UiButton>
-        </div>
-      </section>
-      <section v-if="visibleGroups.has('audit')" aria-labelledby="page-tools-audit-title">
-        <h3 id="page-tools-audit-title">{{ t('shell.pageTools.audit') }}</h3>
-        <div class="page-tools-grid">
-          <UiButton v-if="visibleIds.has('quality-audit')" appearance="application" :class="{ complete: qualityAuditState === 'complete' && qualityAuditReport?.status === 'pass', warning: qualityAuditState === 'complete' && qualityAuditReport?.status === 'warning', error: qualityAuditState === 'error' || qualityAuditReport?.status === 'error', running: qualityAuditState === 'running' }" type="button" :aria-label="t('runtime.address.quality', { status: labels.qualityAudit })" :disabled="qualityAuditState === 'running'" @click="toggleQualityAudit">
-            <IconProgress v-if="qualityAuditState === 'running'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="qualityAuditReport?.status === 'pass'" aria-hidden="true" /><IconError v-else-if="qualityAuditState === 'error' || qualityAuditReport?.status === 'error'" aria-hidden="true" /><IconFactCheck v-else aria-hidden="true" /><span><strong>{{ t('panels.qualityAudit') }}</strong><small>{{ labels.qualityAudit }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('accessibility')" appearance="application" :class="{ complete: accessibilityAuditState === 'complete' && accessibilityAudit?.violationCount === 0, warning: accessibilityAuditState === 'complete' && Boolean(accessibilityAudit?.violationCount), error: accessibilityAuditState === 'error', running: accessibilityAuditState === 'running' }" type="button" :aria-label="labels.accessibilityAudit" :disabled="accessibilityAuditState === 'running'" @click="toggleAccessibilityAudit">
-            <IconProgress v-if="accessibilityAuditState === 'running'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="accessibilityAuditState === 'complete' && accessibilityAudit?.violationCount === 0" aria-hidden="true" /><IconError v-else-if="accessibilityAuditState === 'error'" aria-hidden="true" /><IconAccessibility v-else aria-hidden="true" /><span><strong>{{ t('panels.accessibility') }}</strong><small>{{ labels.accessibilityAudit }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('performance')" appearance="application" :class="{ error: performanceState === 'error', running: performanceState === 'running' }" type="button" :aria-label="labels.performance" :disabled="performanceState === 'running'" @click="togglePerformanceReport"><IconProgress v-if="performanceState === 'running'" class="state-spinner" aria-hidden="true" /><IconError v-else-if="performanceState === 'error'" aria-hidden="true" /><IconMonitoring v-else aria-hidden="true" /><span><strong>{{ t('panels.performance') }}</strong><small>{{ labels.performance }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('design-overview')" appearance="application" :class="{ warning: Boolean(designOverviewReport?.summary.contrastIssueCount), error: designOverviewState === 'error', running: designOverviewState === 'loading' }" type="button" :aria-label="t('designOverview.toolAria', { status: labels.designOverview })" :disabled="designOverviewState === 'loading'" @click="toggleDesignOverview"><IconProgress v-if="designOverviewState === 'loading'" class="state-spinner" aria-hidden="true" /><IconPalette v-else aria-hidden="true" /><span><strong>{{ t('panels.designOverview') }}</strong><small>{{ labels.designOverview }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('page-metadata')" appearance="application" :class="{ warning: Boolean(pageMetadataReport?.issues.some((issue) => issue.severity !== 'info')), error: pageMetadataState === 'error', running: pageMetadataState === 'loading' }" type="button" :aria-label="t('pageMetadata.toolAria', { status: labels.pageMetadata })" :disabled="pageMetadataState === 'loading'" @click="togglePageMetadata"><IconProgress v-if="pageMetadataState === 'loading'" class="state-spinner" aria-hidden="true" /><IconLanguage v-else aria-hidden="true" /><span><strong>{{ t('panels.pageMetadata') }}</strong><small>{{ labels.pageMetadata }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('coverage')" appearance="application" :class="{ complete: coverageResult?.status === 'complete', error: coverageState === 'error', running: Boolean(activeTab?.codeCoverageRecording) || coverageState === 'loading' }" type="button" :aria-label="t('coverage.toolAria', { status: labels.coverage })" :disabled="coverageState === 'loading'" @click="toggleCodeCoverage"><IconProgress v-if="coverageState === 'loading'" class="state-spinner" aria-hidden="true" /><IconCode v-else aria-hidden="true" /><span><strong>{{ t('panels.coverage') }}</strong><small>{{ labels.coverage }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('cpu-profile')" appearance="application" :class="{ complete: cpuProfileResult?.status === 'complete', error: cpuProfileState === 'error', running: Boolean(activeTab?.cpuProfileRecording) || cpuProfileState === 'loading' }" type="button" :aria-label="t('cpuProfile.toolAria', { status: labels.cpuProfile })" :disabled="cpuProfileState === 'loading'" @click="toggleCpuProfile"><IconProgress v-if="cpuProfileState === 'loading'" class="state-spinner" aria-hidden="true" /><IconMonitoring v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.javascriptCpu') }}</strong><small>{{ labels.cpuProfile }}</small></span></UiButton>
-          <UiButton v-if="visibleIds.has('memory')" appearance="application" :class="{ error: memoryState === 'error', running: memoryState === 'running' }" type="button" :aria-label="t('memory.toolAria', { status: labels.memory })" :disabled="memoryState === 'running'" @click="toggleMemoryReport"><IconProgress v-if="memoryState === 'running'" class="state-spinner" aria-hidden="true" /><IconError v-else-if="memoryState === 'error'" aria-hidden="true" /><IconMemory v-else aria-hidden="true" /><span><strong>{{ t('panels.memory') }}</strong><small>{{ labels.memory }}</small></span></UiButton>
-        </div>
-      </section>
-      <section v-if="visibleGroups.has('exportAccount')" aria-labelledby="page-tools-export-title">
-        <h3 id="page-tools-export-title">{{ t('shell.pageTools.exportAccount') }}</h3>
-        <div v-if="visibleIds.has('video')" class="page-tools-grid video-tool">
-          <UiButton appearance="application" :aria-expanded="videoOpen" @click="videoOpen = !videoOpen"><IconRecord aria-hidden="true" /><span><strong>{{ t('video.title') }}</strong><small>{{ t('video.description') }}</small></span></UiButton>
-          <VideoRecorder v-if="videoOpen && activeTab" :tab-id="activeTab.id" />
-        </div>
-        <div class="page-tools-grid">
-          <UiButton v-if="visibleIds.has('copy-snapshot')" appearance="application" :class="{ copied: snapshotState === 'copied', error: snapshotState === 'error', running: snapshotState === 'copying' }" type="button" :aria-label="t('shell.pageTools.copySnapshotAria')" :disabled="snapshotState === 'copying'" @click="actions.copyPageSnapshot">
-            <IconProgress v-if="snapshotState === 'copying'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="snapshotState === 'copied'" aria-hidden="true" /><IconError v-else-if="snapshotState === 'error'" aria-hidden="true" /><IconAccountTree v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.copySnapshot') }}</strong><small>{{ t('shell.pageTools.copySnapshotDescription') }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('save-pdf')" appearance="application" type="button" :aria-label="labels.pdfExport" :disabled="pdfState === 'saving'" @click="closeAndRun(actions.savePdf)">
-            <IconProgress v-if="pdfState === 'saving'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="pdfState === 'saved'" aria-hidden="true" /><IconError v-else-if="pdfState === 'error'" aria-hidden="true" /><IconPdf v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.savePdf') }}</strong><small>{{ labels.pdfExport }}</small></span>
-          </UiButton>
-          <UiButton v-if="visibleIds.has('fill-password')" appearance="application" type="button" :aria-label="credentialCount ? t('shell.pageTools.fillPassword') : t('shell.pageTools.noPassword')" :disabled="!credentialStorageAvailable || !credentialCount" @click="closeAndRun(actions.fillSavedPassword)">
-            <IconPassword aria-hidden="true" /><span><strong>{{ t('shell.pageTools.savedPassword') }}</strong><small>{{ credentialCount ? t('shell.pageTools.accountsAvailable', { count: localNumber(credentialCount) }) : t('shell.pageTools.noAccount') }}</small></span>
-          </UiButton>
-        </div>
-      </section>
-    </div>
-    <footer><span>{{ hostname }}</span><span>{{ t('shell.pageTools.pageActions') }}</span></footer>
   </section>
 </template>
