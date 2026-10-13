@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ImageInspectionSlots, normalizeImageState } from '../src/main/browser/image-state.js'
+import { ImageInspectionSlots, normalizeImageState, imageStateScript, imageStateSettlementScript } from '../src/main/browser/image-state.js'
 const report = () => ({ observedAt: 123, complete: true, naturalWidth: 0, naturalHeight: 0, hasSelectedSource: false })
 describe('native image report', () => {
   it('retains native complete with no intrinsic dimensions without inventing readiness', () => {
@@ -47,4 +47,26 @@ it('isolates tab budgets and releases rejected operations only when settled', as
   expect(() => slots.acquire(owner)).toThrow('busy')
   reject(new Error('native destroyed')); await Promise.resolve()
   const replacement = slots.acquire(owner); replacement.close(); leases.slice(1).forEach(lease => lease.close())
+})
+
+
+describe('image state generated-script literals', () => {
+  const token = '</script>";globalThis.injected=true;//\u2028next\u2029line'
+  it('escapes selector and token parser boundaries in acquisition', () => {
+    const script = imageStateScript(token, token, 0)
+    expect(script).not.toContain('</script>')
+    expect(script).not.toMatch(/[\u2028\u2029]/u)
+    expect(() => new Function(script)).not.toThrow()
+  })
+  it.each([false, true])('round-trips a hostile token as data during settlement (cancel=%s)', cancel => {
+    let settled = 0, cleaned = 0
+    const scope = { __hronautImageState: new Map([[token, { settle: () => { settled++; return true }, cleanup: () => { cleaned++ } }]]) }
+    const script = imageStateSettlementScript(token, cancel)
+    expect(script).not.toContain('</script>')
+    expect(script).not.toMatch(/[\u2028\u2029]/u)
+    expect(new Function('globalThis', `return ${script}`)(scope)).toBe(!cancel)
+    expect(settled).toBe(cancel ? 0 : 1)
+    expect(cleaned).toBe(cancel ? 1 : 0)
+    expect(scope).not.toHaveProperty('injected')
+  })
 })

@@ -1,10 +1,11 @@
+import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import type { BrowserImageState } from '../../shared/types.js'
 
 export const IMAGE_STATE_WORLD_ID = 1022
 
 export function imageStateScript(selector: string, token: string, deadline: number): string {
   return `(() => {
-    const selector=${JSON.stringify(selector)},token=${JSON.stringify(token)},deadline=${deadline};
+    const selector=${javascriptLiteral(selector)},token=${javascriptLiteral(token)},deadline=${deadline};
     if(Date.now()>deadline)return {failure:'expired'};
     if(!(document instanceof HTMLDocument))return {failure:'unsupported-document'};
     const doc=document,handles=globalThis.__hronautImageState??=new Map();
@@ -41,7 +42,7 @@ export function imageStateScript(selector: string, token: string, deadline: numb
 }
 
 export function imageStateSettlementScript(token: string, cancel = false): string {
-  return `(() => {const handle=globalThis.__hronautImageState?.get(${JSON.stringify(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
+  return `(() => {const handle=globalThis.__hronautImageState?.get(${javascriptLiteral(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
 }
 
 export function normalizeImageState(raw: unknown): BrowserImageState {
