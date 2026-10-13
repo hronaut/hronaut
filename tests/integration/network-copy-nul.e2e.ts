@@ -68,13 +68,13 @@ for (const [label, body] of [
     await expect(rows).toHaveCount(1)
     await rows.first().click()
     await electronApp.evaluate(({ clipboard }) => clipboard.writeText('NUL copy clipboard sentinel'))
-    await panel.getByRole('button', { name: 'Copy sanitized cURL', exact: true }).click()
+    await panel.getByRole('button', { name: 'Copy sanitized cURL (POSIX shell)', exact: true }).click()
     if (label === 'NUL') {
       await expect(panel.getByRole('alert')).toHaveText(unsupported)
-      await expect(panel.getByRole('button', { name: 'Copied cURL', exact: true })).toHaveCount(0)
+      await expect(panel.getByRole('button', { name: 'Copied cURL (POSIX shell)', exact: true })).toHaveCount(0)
       expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe('NUL copy clipboard sentinel')
     } else {
-      await expect(panel.getByRole('button', { name: 'Copied cURL', exact: true })).toBeVisible()
+      await expect(panel.getByRole('button', { name: 'Copied cURL (POSIX shell)', exact: true })).toBeVisible()
       expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(curl)
     }
     await panel.getByRole('button', { name: 'Copy sanitized fetch', exact: true }).click()

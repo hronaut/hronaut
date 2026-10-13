@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Identify the POSIX-shell requirement in the Network panel’s cURL copy action and copied feedback in every supported language.
+
 - Reject sanitized cURL copies containing retained literal NUL characters instead of producing an unusable shell command. Show an explicit error without changing the clipboard; Copy fetch preserves the retained body, including NUL characters.
 
 - Separate retained emulation settings from confirmed native application after interrupted changes. Show pending or unknown application instead of reporting retained settings as applied; explicit restoration preserves the last committed configuration without replaying the failed request. Network uncertainty requires its own recovery.
