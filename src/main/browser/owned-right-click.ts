@@ -1,10 +1,10 @@
 import type { NativeInputDispatchObserver } from './native-key-hold.js'
 
-export function assertRightClickProbePlatform(platform: string): void {
-  if (platform !== 'linux') throw new Error('Native right-click feasibility is supported only on Linux.')
+export function assertRightClickPlatform(platform: string): void {
+  if (platform !== 'linux') throw new Error('Native right-click is supported only on Linux.')
 }
 
-/** Diagnostic only. A rejection is not proof that a raw press did not execute.
+/** A rejection is not proof that a raw press did not execute.
  * Reserve one release before any of its preparation awaits; the adapter's
  * emergency release consumes the same reservation. No timer abandons ownership. */
 export async function ownedRightClickPress(

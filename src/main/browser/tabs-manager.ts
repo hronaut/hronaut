@@ -1,4 +1,4 @@
-import { assertRightClickProbePlatform, ownedRightClickPress } from './owned-right-click.js'
+import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-click.js'
 import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
 import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { normalizeTabLabel } from '../../shared/tab-label.js'
@@ -5820,11 +5820,13 @@ export class BrowserTabsManager {
     y?: number
     doubleClick?: boolean
     native?: boolean
-  } & BrowserDialogHandlingOptions, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void): Promise<unknown> {
-    const rightClickProbe = (globalThis as typeof globalThis & { __rightClickProbe?: boolean }).__rightClickProbe === true
-    if (rightClickProbe) {
-      assertRightClickProbePlatform(process.platform)
-      if (!target.native || target.doubleClick || target.x !== undefined || target.y !== undefined) throw new Error('Right-click probe requires one native semantic click.')
+    button?: 'left' | 'right'
+  } & BrowserDialogHandlingOptions, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void): Promise<unknown> {
+    const rightClick = target.button === 'right'
+    if (rightClick) {
+      assertRightClickPlatform(process.platform)
+      if (!target.tabId || !target.native || target.doubleClick || target.x !== undefined || target.y !== undefined
+        || Boolean(target.ref) === Boolean(target.selector)) throw new Error('Right-click requires one native semantic click.')
     }
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
@@ -5842,8 +5844,11 @@ export class BrowserTabsManager {
     // A reload may already be pending when the click begins. Its commit does
     // not increment navigationGeneration again, but replaces the target document.
     const authority = this.nativeInputAuthority(tab, validateClick)
-    const assertClickCurrent = (): void => { authority.validate() }
+    let environment: { validate(): void; dispose(): void } | undefined
+    const assertClickCurrent = (): void => { authority.validate(); environment?.validate() }
+    let retained = false
     try {
+      if (rightClick) { environment = this.rightClickEnvironment(tab); assertClickCurrent() }
       if (coordinatePoint) {
         await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
         await this.showAgentPointer(webContents, coordinatePoint, 'click')
@@ -5860,7 +5865,7 @@ export class BrowserTabsManager {
         } else {
           await this.withAgentInput(webContents, () => this.withDebugger(
             webContents,
-            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClickProbe)
+            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClick)
           ))
         }
         return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
@@ -5891,13 +5896,20 @@ export class BrowserTabsManager {
               assertClickCurrent()
               point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
               try { this.assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
-              await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, admission.sample, observer, rightClickProbe)
+              if (environment && retainClickAuthority && !retained) {
+                retainClickAuthority({ validate: assertClickCurrent, dispose: () => { environment?.dispose(); authority.dispose() } })
+                retained = true
+              }
+              await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
+                await this.assertRightClickViewport(webContents, x, y, assertClickCurrent)
+                await admission.sample(x, y)
+              } : admission.sample, observer, rightClick)
               return { ok: true, tag: point.tag, ...(target.doubleClick ? { doubleClick: true } : {}),
-                ...(target.native ? { native: true } : {}), admission: 'sampled', progress }
+                ...(target.native ? { native: true } : {}), ...(rightClick ? { button: 'right' } : {}), admission: 'sampled', progress }
             } catch (error) { failure = error; throw error }
             finally {
               if (progress.downAttempted > progress.upAcknowledged
-                || (rightClickProbe && progress.downAttempted > progress.downAcknowledged)) this.unconfirmedSemanticClicks.add(webContents)
+                || (rightClick && progress.downAttempted > progress.downAcknowledged)) this.unconfirmedSemanticClicks.add(webContents)
               try { await admission.dispose() } catch (error) { if (!failure) throw error }
             }
           }, assertClickCurrent), { deferRendererFlag: true, onCleanupFailure: () => { progress.inputCleanupFailed = true; publish() } })
@@ -5931,7 +5943,81 @@ export class BrowserTabsManager {
       this.assertClickTargetEnabled(result)
       return result
     } finally {
-      authority.dispose()
+      if (!retained) { environment?.dispose(); authority.dispose() }
+    }
+  }
+
+  /** Preserve presentation and observe even temporary native-environment changes.
+   * This owns admission only; the matching release never repeats these checks. */
+  private rightClickEnvironment(tab: BrowserTab): { validate(): void; dispose(): void } {
+    const webContents = tab.webContents
+    const generation = tab.nativeInputEnvironmentGeneration
+    const selection = this.tabSelectionGeneration
+    const split = this.splitViewGeneration
+    const bounds = JSON.stringify(tab.view.getBounds())
+    let changed = false
+    const invalidate = (): void => { changed = true }
+    const debuggerChanged = (_event: Electron.Event, method: string): void => {
+      if (['Page.frameAttached', 'Page.frameDetached', 'Page.frameResized'].includes(method)) invalidate()
+    }
+    tab.view.on('bounds-changed', invalidate)
+    webContents.on('zoom-changed', invalidate)
+    webContents.on('frame-created', invalidate)
+    webContents.on('devtools-opened', invalidate)
+    webContents.debugger.on('message', debuggerChanged)
+    webContents.debugger.on('detach', invalidate)
+    this.window.on('move', invalidate)
+    this.window.on('hide', invalidate)
+    this.window.on('minimize', invalidate)
+    screen.on('display-metrics-changed', invalidate)
+    return {
+      validate: () => {
+        if (changed || generation !== tab.nativeInputEnvironmentGeneration
+          || selection !== this.tabSelectionGeneration || split !== this.splitViewGeneration
+          || JSON.stringify(tab.view.getBounds()) !== bounds || this.nativeInputLockMutations > 0) {
+          throw new Error('Right-click environment changed; inspect fresh state without replay')
+        }
+        if (this.activeTabId !== tab.id || this.splitView || this.browserContentOccluded
+          || !this.window.isVisible() || this.window.isMinimized() || !tab.view.getVisible()
+          || !this.window.contentView.children.includes(tab.view) || tab.sleeping || tab.pageLifecycleState !== 'active') {
+          throw new Error('Right-click requires the active visible, already awake page outside split view')
+        }
+        if (!this.isHumanInteractionLocked(tab)) throw new Error('Right-click requires a page locked in the trusted UI')
+        if (this.screenshotAreaSessions.has(webContents.id) || this.elementPickerSessions.has(webContents.id)
+          || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
+          throw new Error('Right-click is unavailable during native selection or Developer Tools')
+        }
+        if (webContents.mainFrame.framesInSubtree.length !== 1) throw new Error('Right-click does not support pages containing child frames')
+        if (webContents.getZoomFactor() !== 1 || hasEmulationOverrides(tab.emulation)
+          || screen.getDisplayMatching(this.window.getBounds()).scaleFactor !== 1) {
+          throw new Error('Right-click requires default zoom, no emulation overrides, and display scale 1')
+        }
+      },
+      dispose: () => {
+        tab.view.removeListener('bounds-changed', invalidate)
+        webContents.removeListener('zoom-changed', invalidate)
+        webContents.removeListener('frame-created', invalidate)
+        webContents.removeListener('devtools-opened', invalidate)
+        webContents.debugger.removeListener('message', debuggerChanged)
+        webContents.debugger.removeListener('detach', invalidate)
+        this.window.removeListener('move', invalidate)
+        this.window.removeListener('hide', invalidate)
+        this.window.removeListener('minimize', invalidate)
+        screen.removeListener('display-metrics-changed', invalidate)
+      }
+    }
+  }
+
+  private async assertRightClickViewport(webContents: BrowserTab['webContents'], x: number, y: number, validate: () => void): Promise<void> {
+    const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
+      cssVisualViewport?: { clientWidth: number; clientHeight: number; scale: number; offsetX: number; offsetY: number }
+    }
+    validate()
+    const viewport = metrics.cssVisualViewport
+    if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0
+      || !Number.isFinite(viewport.clientWidth) || !Number.isFinite(viewport.clientHeight)
+      || x < 0 || y < 0 || x >= viewport.clientWidth || y >= viewport.clientHeight) {
+      throw new Error('Right-click requires a point inside a default visible CSS viewport')
     }
   }
 
@@ -5948,9 +6034,8 @@ export class BrowserTabsManager {
     validateClick: () => void,
     sample?: (x: number, y: number) => Promise<void>,
     observer?: NativeInputDispatchObserver,
-    rightClickProbe = false
+    rightClick = false
   ): Promise<void> {
-    const probeButton = rightClickProbe ? 'right' : 'left'
     const inputDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
       this.sendAuthorizedAgentInputCommand(webContents, method, params, validateClick, observer,
         params.type === 'mousePressed' && sample ? () => sample(point.x, point.y) : undefined) }
@@ -5963,7 +6048,7 @@ export class BrowserTabsManager {
       x: point.x,
       y: point.y
     })
-    if (probeButton === 'right') {
+    if (rightClick) {
       await ownedRightClickPress(
         tracked => this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchMouseEvent', {
           type: 'mousePressed', x: point.x, y: point.y, button: 'right', buttons: 2, clickCount: 1

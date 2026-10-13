@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assertRightClickProbePlatform, ownedRightClickPress } from '../src/main/browser/owned-right-click.js'
+import { assertRightClickPlatform, ownedRightClickPress } from '../src/main/browser/owned-right-click.js'
 import { nativeClickObserver, nativeClickProgress } from '../src/main/browser/native-click-admission.js'
 import type { NativeInputDispatchObserver } from '../src/main/browser/native-key-hold.js'
 
@@ -10,11 +10,11 @@ const state = () => {
   return { progress, observer: nativeClickObserver(progress, () => {}) }
 }
 
-describe('diagnostic owned single right release', () => {
+describe('owned single right release', () => {
   it.each(['win32', 'darwin', 'freebsd'])('rejects unsupported platform %s explicitly', platform => {
-    expect(() => assertRightClickProbePlatform(platform)).toThrow('only on Linux')
+    expect(() => assertRightClickPlatform(platform)).toThrow('only on Linux')
   })
-  it('accepts only the natively probed Linux platform', () => expect(() => assertRightClickProbePlatform('linux')).not.toThrow())
+  it('accepts only the natively probed Linux platform', () => expect(() => assertRightClickPlatform('linux')).not.toThrow())
 
   it('does not release when press preparation rejects before raw submission', async () => {
     let releases = 0

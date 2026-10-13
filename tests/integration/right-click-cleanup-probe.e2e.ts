@@ -7,7 +7,7 @@ import { expect, test, text } from './capability-fixtures.js'
 
 const faults = ['lost-down', 'up-preparation', 'lost-up', 'down-relock', 'lost-down-and-relock', 'emergency-up-preparation', 'emergency-lost-up', 'emergency-up-relock', 'persistent-relock', 'hold-up', 'hold-up-relock', 'hold-lost-up', 'hold-failed-relock'] as const
 type Probe = { commands: string[]; releasePreparations: number; popups: number; held: boolean; release(): void; restore(): void }
-type Scope = typeof globalThis & { __rightClickProbe?: boolean; __cleanupProbe?: Probe }
+type Scope = typeof globalThis & { __cleanupProbe?: Probe }
 
 for (const fault of faults) {
   test(`owned right-click cleanup: ${fault}`, async ({ capabilities, electronApp, appWindow, mcpPort, mcpToken }, info) => {
@@ -21,7 +21,7 @@ for (const fault of faults) {
       const barrier = new Promise<void>(resolve => { release = resolve })
       const probe: Probe = { commands: [], releasePreparations: 0, popups: 0, held: false, release, restore: () => { page.debugger.sendCommand = send; Menu.prototype.popup = popup } }
       const scope = globalThis as Scope
-      scope.__rightClickProbe = true; scope.__cleanupProbe = probe
+      scope.__cleanupProbe = probe
       let downExecuted = false
       let upExecuted = false
       let downRelockRejected = false
@@ -67,7 +67,7 @@ for (const fault of faults) {
     }
     const abort = new AbortController()
     let replacement: Client | undefined
-    const pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true } }, undefined, { signal: abort.signal }).catch(() => undefined)
+    const pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true, button: 'right' } }, undefined, { signal: abort.signal }).catch(() => undefined)
     try {
       let ownership: unknown
       let terminalActivity: unknown
@@ -117,7 +117,7 @@ for (const fault of faults) {
       }
     } finally {
       transport.send = send
-      await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__cleanupProbe?.release(); scope.__cleanupProbe?.restore(); delete scope.__cleanupProbe; delete scope.__rightClickProbe }).catch(() => undefined)
+      await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__cleanupProbe?.release(); scope.__cleanupProbe?.restore(); delete scope.__cleanupProbe }).catch(() => undefined)
       await replacement?.close().catch(() => undefined)
     }
   })
@@ -133,7 +133,6 @@ for (const unsupported of ['win32', 'darwin']) {
       const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
       const send = page.debugger.sendCommand
       const scope = globalThis as Scope
-      scope.__rightClickProbe = true
       const probe: Probe = { commands: [], releasePreparations: 0, popups: 0, held: false, release: () => {}, restore: () => {
         Object.defineProperty(process, 'platform', platform); page.debugger.sendCommand = send
       } }
@@ -145,14 +144,14 @@ for (const unsupported of ['win32', 'darwin']) {
       Object.defineProperty(process, 'platform', { ...platform, value: unsupported })
     }, { url: fixtureUrl, unsupported })
     try {
-      const result = await client.callTool({ name: 'browser_click', arguments: { tabId, selector: 'button', native: true } }) as CallToolResult
+      const result = await client.callTool({ name: 'browser_click', arguments: { tabId, selector: 'button', native: true, button: 'right' } }) as CallToolResult
       expect(result.isError).toBe(true)
       expect(text(result)).toContain('only on Linux')
       const commands = await electronApp.evaluate(() => (globalThis as Scope).__cleanupProbe!.commands)
       expect(commands).toEqual([])
       console.log(JSON.stringify({ controlledPlatform: unsupported, commands, result }))
     } finally {
-      await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__cleanupProbe?.restore(); delete scope.__cleanupProbe; delete scope.__rightClickProbe })
+      await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__cleanupProbe?.restore(); delete scope.__cleanupProbe })
     }
   })
 }

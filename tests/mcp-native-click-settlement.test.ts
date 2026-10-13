@@ -6,12 +6,15 @@ import { McpCapabilityAuthorizationError } from '../src/main/mcp/capability-prof
 import { nativeClickProgress, NativeClickAdmissionError, type NativeClickProgress } from '../src/main/browser/native-click-admission.js'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
-it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'lost-ack', 'partial', 'success'] as const)('retains semantic native click provenance across %s settlement failure', async failure => {
+it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-policy', 'before-submit', 'lost-ack', 'partial', 'right-late-environment', 'right-missing-guard', 'right-success', 'success'] as const)('retains semantic native click provenance across %s settlement failure', async failure => {
   const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
   const tabId = '01912345-6790-7abc-8def-0123456789ab'
   const reviewId = '01912345-6791-7abc-8def-0123456789ab'
   const reviewRevision = '01912345-6792-7abc-8def-0123456789ab'
   const workspace = { id: workspaceId, name: 'Click settlement', agentAccess: true, contextClass: 'standard' }
+  const right = failure.startsWith('right-')
+  let environmentCurrent = true
+  const dispose = vi.fn()
   let attempted = false
   let navigation = 1
   const manager = {
@@ -22,7 +25,8 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
     isWorkspaceAgentAccessible: vi.fn(() => true), mcpWorkspaceResumeKey: vi.fn(() => `hrw1_${'R'.repeat(43)}`),
     requireMcpTabGroup: vi.fn(() => workspace), requireTabInMcpGroup: vi.fn(() => tabId),
     tabBelongsToMcpGroup: vi.fn(() => true), wakeTab: vi.fn(async () => {}),
-    click: vi.fn(async (_options: unknown, validate: (check: () => void) => void, publish: (progress: NativeClickProgress) => void) => {
+    click: vi.fn(async (_options: unknown, validate: (check: () => void) => void, publish: (progress: NativeClickProgress) => void, retain: (authority: { validate(): void; dispose(): void }) => void) => {
+      if (right && failure !== 'right-missing-guard') retain({ validate: () => { if (!environmentCurrent) throw new Error('Right environment changed') }, dispose })
       const progress = nativeClickProgress()
       publish({ ...progress })
       validate(() => {})
@@ -55,6 +59,7 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
       const result = await action.operation()
       if (failure === 'late-audit') throw new Error('Controlled audit failure after acknowledged condition')
       if (failure === 'late-navigation') navigation++
+      if (failure === 'right-late-environment') environmentCurrent = false
       if (failure === 'late-policy') throw new McpCapabilityAuthorizationError({ decision: 'denied', reasonCode: 'PROFILE_REVOKED', firstDenyingRule: 'profile-active' } as never)
       if (failure === 'late-access') manager.isWorkspaceAgentAccessible.mockReturnValue(false)
       return result
@@ -71,11 +76,16 @@ it.each(['late-review', 'late-audit', 'late-access', 'late-navigation', 'late-po
     await client.connect(new StreamableHTTPClientTransport(new URL(await server.start())))
     const call = async (name: string, args: Record<string, unknown>) => await client.callTool({ name, arguments: args }) as CallToolResult
     expect((await call('browser_workspaces', { action: 'create', name: 'Click settlement' })).isError).not.toBe(true)
-    const result = await call('browser_click', { workspaceId, tabId, reviewId, reviewRevision, selector: '#target', native: true })
+    const result = await call('browser_click', { workspaceId, tabId, reviewId, reviewRevision, selector: '#target', native: true, ...(right ? { button: 'right' } : {}) })
     expect(manager.click, JSON.stringify(result)).toHaveBeenCalledOnce()
     const terminal = activityEvents.mock.calls.map(([activity]) => activity).filter(activity => activity.toolName === 'browser_click' && activity.phase !== 'started')
     expect(terminal).toHaveLength(1)
-    if (failure === 'success') {
+    if (right) {
+      expect(manager.wakeTab).not.toHaveBeenCalled()
+      expect(manager.requireTabInMcpGroup).toHaveBeenCalledWith(workspaceId, tabId, true)
+      if (failure !== 'right-missing-guard') expect(dispose).toHaveBeenCalledOnce()
+    }
+    if (failure === 'success' || failure === 'right-success') {
       expect(result.isError).not.toBe(true)
       expect(terminal[0].result).toMatchObject({ outcome: 'succeeded', dispatch: 'dispatched', effects: 'possible' })
       return

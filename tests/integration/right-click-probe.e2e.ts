@@ -5,15 +5,14 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-for (const mode of ['unlocked-custom', 'locked-custom', 'locked-no-handler', 'unlocked-no-handler'] as const) {
-  test(`diagnostic trusted right click: ${mode}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
+for (const mode of ['locked-custom', 'locked-custom-ref', 'locked-no-handler'] as const) {
+  test(`trusted right click: ${mode}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
     const { client, tabId, fixtureUrl } = capabilities
     const locked = mode.startsWith('locked-')
-    const custom = mode.endsWith('-custom')
+    const custom = mode.includes('-custom')
     await electronApp.evaluate(async ({ webContents, Menu }, { url, custom }) => {
       const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
-      const scope = globalThis as typeof globalThis & { __rightClickProbe?: boolean; __rightClickEvidence?: unknown }
-      scope.__rightClickProbe = true
+      const scope = globalThis as typeof globalThis & { __rightClickEvidence?: unknown }
       const events: unknown[] = []
       let popups = 0
       const popup = Menu.prototype.popup
@@ -30,7 +29,13 @@ for (const mode of ['unlocked-custom', 'locked-custom', 'locked-no-handler', 'un
       return result
     }
     try {
-      const result = await call('browser_click', { selector: '#target', native: true })
+      let ref: string | undefined
+      if (mode === 'locked-custom-ref') {
+        await call('browser_snapshot', {})
+        ref = await electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript("document.querySelector('#target').getAttribute('data-hronaut-ref')"), fixtureUrl)
+        expect(ref).toBeTruthy()
+      }
+      const result = await call('browser_click', { ...(ref ? { ref } : { selector: '#target' }), native: true, button: 'right' })
       const opening = await electronApp.evaluate(async ({ webContents }, url) => {
         const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
         const evidence = (globalThis as typeof globalThis & { __rightClickEvidence: { events: unknown[]; popups: number } }).__rightClickEvidence
@@ -46,8 +51,10 @@ for (const mode of ['unlocked-custom', 'locked-custom', 'locked-no-handler', 'un
         { type: 'mousedown', trusted: true, button: 2, target: 'target' },
         { type: 'mouseup', trusted: true, button: 2, target: 'target' }
       ])
-      await electronApp.evaluate(() => { (globalThis as typeof globalThis & { __rightClickProbe?: boolean }).__rightClickProbe = false })
-      if (opening.dom.opened) await call('browser_click', { selector: '#item', native: true })
+      if (opening.dom.opened) {
+        expect(text(await call('browser_snapshot', {}))).toContain('Choose item')
+        await call('browser_click', { selector: '#item', native: true })
+      }
       await call('browser_click', { selector: '#ordinary', native: true })
       await call('browser_press', { key: 'x' })
       const after = await electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('({selected:window.rightEvidence.selected,value:document.querySelector("#ordinary").value,events:window.rightEvidence.events})'), fixtureUrl)
@@ -57,18 +64,18 @@ for (const mode of ['unlocked-custom', 'locked-custom', 'locked-no-handler', 'un
       await testInfo.attach('after-separate-input', { body: JSON.stringify(after), contentType: 'application/json' })
     } finally {
       await electronApp.evaluate(() => {
-        const scope = globalThis as typeof globalThis & { __rightClickProbe?: boolean; __rightClickEvidence?: { restore(): void } }
-        scope.__rightClickEvidence?.restore(); delete scope.__rightClickEvidence; delete scope.__rightClickProbe
+        const scope = globalThis as typeof globalThis & { __rightClickEvidence?: { restore(): void } }
+        scope.__rightClickEvidence?.restore(); delete scope.__rightClickEvidence
       }).catch(() => undefined)
     }
   })
 }
 
 type Gate = { held: boolean; commands: string[]; popups: number; release(): void; restore(): void }
-type Scope = typeof globalThis & { __rightClickProbe?: boolean; __rightGate?: Gate }
+type Scope = typeof globalThis & { __rightGate?: Gate }
 
 for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 'disconnect', 'unlock', 'pause', 'lost-ack'] as const) {
-  test(`diagnostic right-click authority: ${phase} ${change}`, async ({ capabilities, electronApp, appWindow, mcpPort, mcpToken }, info) => {
+  test(`right-click authority: ${phase} ${change}`, async ({ capabilities, electronApp, appWindow, mcpPort, mcpToken }, info) => {
     const { client, tabId, fixtureUrl } = capabilities
     await electronApp.evaluate(async ({ webContents, Menu }, { url, phase, change }) => {
       const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
@@ -79,7 +86,7 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
       const barrier = new Promise<void>(resolve => { release = resolve })
       const gate: Gate = { held: false, commands: [], popups: 0, release, restore: () => { page.debugger.sendCommand = send; Menu.prototype.popup = popup } }
       const scope = globalThis as Scope
-      scope.__rightClickProbe = true; scope.__rightGate = gate
+      scope.__rightGate = gate
       Menu.prototype.popup = function (...args) { gate.popups++; const result = popup.apply(this, args); setTimeout(() => this.closePopup(), 100); return result }
       page.debugger.sendCommand = async (method, ...args) => {
         const params = args[0] as Record<string, unknown> | undefined
@@ -99,7 +106,7 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
     }
     const abort = new AbortController()
     let replacement: Client | undefined
-    const pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true } }, undefined, { signal: abort.signal }).catch(() => undefined)
+    const pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true, button: 'right' } }, undefined, { signal: abort.signal }).catch(() => undefined)
     try {
       await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__rightGate!.held)).toBe(true)
       if (change === 'unlock') {
@@ -130,20 +137,20 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
       console.log(JSON.stringify({ probe: 'held', phase, change, held, ownership }))
       await electronApp.evaluate(() => (globalThis as Scope).__rightGate!.release())
       const result = await pending
-      await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__rightGate!.commands.filter(value => value.startsWith('mouseReleased')).length)).toBe(phase === 'press' || change === 'unlock' ? 1 : 0)
-      await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.authorityEvents.filter(event=>event.type==="mouseup").length'), fixtureUrl)).toBe(phase === 'press' || change === 'unlock' ? 1 : 0)
+      await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__rightGate!.commands.filter(value => value.startsWith('mouseReleased')).length)).toBe(phase === 'press' ? 1 : 0)
+      await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.authorityEvents.filter(event=>event.type==="mouseup").length'), fixtureUrl)).toBe(phase === 'press' ? 1 : 0)
       if (replacement) await expect.poll(async () => (await replacement!.callTool({ name: 'browser_workspaces', arguments: { action: 'claim-ownership', workspaceId: capabilities.workspace.workspaceId } }) as CallToolResult).isError === true).toBe(false)
       const settled = await electronApp.evaluate(async ({ webContents }, url) => ({ commands: (globalThis as Scope).__rightGate!.commands, popups: (globalThis as Scope).__rightGate!.popups, events: await webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.authorityEvents') }), fixtureUrl)
       console.log(JSON.stringify({ probe: 'settled', phase, change, settled, result }))
       await info.attach('authority', { body: JSON.stringify({ phase, change, held, ownership, settled, result }), contentType: 'application/json' })
-      expect(settled.commands.filter(value => value.startsWith('mousePressed'))).toHaveLength(phase === 'press' || change === 'unlock' ? 1 : 0)
+      expect(settled.commands.filter(value => value.startsWith('mousePressed'))).toHaveLength(phase === 'press' ? 1 : 0)
       // Cleanup is one best-effort matching release even after a lost press ACK.
       // Its acknowledgement does not convert the original outcome to success.
-      expect(settled.commands.filter(value => value.startsWith('mouseReleased'))).toEqual(phase === 'press' || change === 'unlock' ? ['mouseReleased:right'] : [])
+      expect(settled.commands.filter(value => value.startsWith('mouseReleased'))).toEqual(phase === 'press' ? ['mouseReleased:right'] : [])
       expect(settled.popups).toBe(0)
       if (phase === 'press' && change === 'lost-ack') {
         expect((result as CallToolResult).structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false, progress: { downAttempted: 1, downAcknowledged: 0, upAttempted: 1, upAcknowledged: 1 } })
-        const blocked = await client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true } }) as CallToolResult
+        const blocked = await client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true, button: 'right' } }) as CallToolResult
         expect(blocked.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', reason: 'CLICK_STATE_UNCONFIRMED' })
         expect(await electronApp.evaluate(() => (globalThis as Scope).__rightGate!.commands.filter(value => value.startsWith('mousePressed')).length)).toBe(1)
         console.log(JSON.stringify({ probe: 'lost-ack-quarantine', blocked }))
@@ -151,7 +158,7 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
     } finally {
       await replacement?.close().catch(() => undefined)
       transport.send = send
-      await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__rightGate?.release(); scope.__rightGate?.restore(); delete scope.__rightGate; delete scope.__rightClickProbe }).catch(() => undefined)
+      await electronApp.evaluate(() => { const scope = globalThis as Scope; scope.__rightGate?.release(); scope.__rightGate?.restore(); delete scope.__rightGate }).catch(() => undefined)
       if (change === 'pause') await appWindow.evaluate('window.hronautMcp.setPaused(false)').catch(() => undefined)
     }
   })
