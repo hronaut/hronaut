@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add Linux file-source JavaScript evaluation with a separate exact-tuple capability grant, bounded UTF-8 acquisition and document-bound dispatch. Cancellation retains pending native work and uncertain effects never permit automatic replay.
+
 - Add independent task labels to website tabs from Search tabs. Labels are searchable, remain separate from page titles and addresses, survive navigation and session restoration, and carry through duplication and workspace archiving. Failed saves preserve the previous label; file replacement with an unconfirmed directory flush retains the new label with a durability warning.
 
 ### Fixed

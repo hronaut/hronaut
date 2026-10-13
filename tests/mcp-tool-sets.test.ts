@@ -41,6 +41,17 @@ describe('MCP tool sets', () => {
     expect(JSON.stringify(profile)).not.toContain('private-tab')
   })
 
+  it('requires explicit whole-tuple opt-in beyond ordinary presets', () => {
+    for (const preset of ['complete', 'qa', 'essentials', 'read-only'] as const) {
+      expect(mcpCapabilityProfileInputFromPreset({ name: 'Ordinary', preset }).allowedTools).not.toContain('browser_evaluate_file')
+    }
+    const source = { path: '/tmp/source.js', sha256: 'a'.repeat(64), workspaceId: '01912345-6789-7abc-8def-0123456789ab', tabId: 'tab', expectedOrigin: 'https://example.com' }
+    const profile = mcpCapabilityProfileInputFromPreset({ name: 'File tuple', preset: 'complete', argumentConstraints: { 'browser_evaluate_file.source': [source] } })
+    expect(profile.allowedTools).toContain('browser_evaluate_file')
+    expect(profile.argumentValueDigests?.['browser_evaluate_file.source']).toEqual([mcpCapabilityArgumentValueDigest(source)])
+    expect(mcpCapabilityProfileInputFromPreset({ name: 'Incomplete tuple', preset: 'complete', argumentConstraints: { 'browser_evaluate_file.source.path': [source.path] } }).allowedTools).not.toContain('browser_evaluate_file')
+  })
+
   let server: McpHttpServer | undefined
   const clients: Client[] = []
 
@@ -114,7 +125,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(87)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(88)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({

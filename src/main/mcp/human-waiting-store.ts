@@ -256,6 +256,15 @@ export class HumanWaitingStore {
     this.lastMonotonic = now
   }
 
+  /** A file action may prepare after consuming review; consumption does not extend its dispatch deadline. */
+  reviewAttemptDispatchIsCurrent(id: string): boolean {
+    const entry = this.records.get(id)
+    const now = this.monotonicNow()
+    return !!entry && entry.record.state === 'ATTEMPTED' && entry.record.review?.status === 'ATTEMPTED'
+      && Number.isFinite(now) && now >= entry.createdMonotonic && now < entry.deadlineMonotonic
+      && (this.lastMonotonic === undefined || now >= this.lastMonotonic)
+  }
+
   private current(id: string, revision?: string): WaitingRecord {
     this.expire()
     const record = this.records.get(id)?.record
