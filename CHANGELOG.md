@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-10-13
+
 ### Added
 
 - Add explicit native right-click for page-authored menus on Linux, limited to an already active visible awake locked tab with default geometry. Menu selection remains a separate action; uncertain input owns one best-effort matching release and never replays automatically.
@@ -17,6 +19,19 @@ All notable changes to Hronaut are documented in this file.
 - Preserve explicitly empty retained HTTP headers in sanitized cURL copies instead of silently omitting them during replay. Secret and transport headers remain omitted.
 
 - Preserve keyboard focus on retained account-chooser controls when saved-account metadata updates. Removed accounts still return focus to search; updates never activate an account.
+
+### Known issues
+
+- Native right-click is supported only on Linux under the documented already-active, visible, awake, locked-tab and default-geometry restrictions. Opening a page menu and selecting an item are separate authorized actions. Unrestricted click capabilities grant both supported buttons; exact button constraints restrict them. Target sampling is not atomic routing or a handler-execution guarantee. One best-effort matching release can fail during preparation or acknowledgement, leaving physical button/compositor state uncertain; quarantine does not prove restoration. A release acknowledgement does not establish original press success. Cancellation or disconnect retains ownership until actual native settlement, possibly indefinitely. Never automatically replay. Alternate event ordering and unsupported-platform discrimination have controlled source tests, not native Windows/macOS support.
+- File-source evaluation requires Linux procfs and a separately authorized exact source tuple; ordinary inline-evaluation permissions do not grant it. Captured source is strict UTF-8, at most 65,536 bytes, and submitted once to the original document context without fallback. Linux-mounted paths can include network, FUSE and pseudo filesystems: local-disk provenance is not established. Acquisition and execution deadlines cannot cancel native filesystem/CDP work or undo submitted effects; pending operations can retain two process-wide acquisition slots, separately two pending-evaluation slots, and workspace ownership indefinitely. Unconfirmed handle closure quarantines capacity. Intervening human-waiting service requests can invalidate review certificates. A byte hash is not a safety/authorship guarantee, expected origin is not a network-egress boundary, and a returned script result does not prove an application postcondition. No automatic replay is authorized after rejection, interruption or uncertain effects. The full admission, cancellation and publication limits remain documented in REFERENCE.md.
+- Copy cURL continues to require POSIX-shell syntax. Sanitized copies intentionally omit sensitive and transport headers and do not promise original wire-byte fidelity or PowerShell compatibility.
+
+- Native wheel and key-hold bounds do not establish a transport deadline. A pending CDP command can retain the debugger queue indefinitely; cancellation does not release it, and lock preparation can time out. No bounded cleanup or transport recovery is promised. Inspect fresh state after uncertain or missing responses; never automatically replay a potentially effective action.
+- The earlier local key-hold fresh-call failure remains unclassified. Later controlled probes and green runs verify current guards, not that historical failure's cause or a repair.
+- A controlled initial-load semantic-click probe reproduced a document commit during preparation. Readiness waits preserve the setup for human-takeover and dialog tests, but the original CI human-click response and dispatch timeline were not captured. The local probe and later green runs do not establish every earlier failure's cause.
+- Historical native input observations during pending lock requests do not establish input origin. Tests now retain observations from compositor lock acknowledgement through terminal server activity; later passing runs do not prove the original cause or a product repair. Identical event shapes remain ambiguous, and the concurrent mouse-input gap remains; use Pause agents for explicit takeover.
+- Historical endpoint-startup and first-video-preview pixel failures remain unexplained. Restart ownership and first-presented-frame checks strengthen test evidence; controlled reproductions and later green runs do not establish the original event sequence or a product repair.
+- The historical cross-origin-frame immediate parent click-count miss, native screenshot UnknownVizError, resize/evaluate stalls, destroyed-context failures and superseded-navigation ERR_ABORTED success-state behavior remain unresolved. No native-click routing or capture repair is claimed.
 
 ## [2.38.2] - 2026-10-12
 
