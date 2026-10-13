@@ -1,3 +1,4 @@
+import { browserClickSchema } from './browser-click-input.js'
 import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure, type StorageComparisonHooks } from '../browser/storage-comparison-operation.js'
 import { nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
@@ -1145,7 +1146,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
     if (request?.storageComparison && error instanceof StorageComparisonInputError) request.storageComparison.inputError = error.reason
@@ -1203,6 +1204,8 @@ function createBrowserMcpServer(
         try {
           if (!result.isError) {
             if (!frameRequest.clickPublication) throw new Error('Click publication guard is unavailable')
+            if (input.button === 'right' && !frameRequest.clickAuthority) throw new Error('Right-click publication authority is unavailable')
+            frameRequest.clickAuthority?.validate()
             frameRequest.clickPublication()
           }
         } catch (error) { rememberInputPolicy(error); settled = errorResult(error) }
@@ -1505,6 +1508,7 @@ function createBrowserMcpServer(
       } finally {
         frameRequest.fileEvaluationPublication?.dispose()
         frameRequest.storageComparison?.publication?.dispose()
+        frameRequest.clickAuthority?.dispose()
         frameRequest.selectionAuthority?.dispose()
         frameRequest.elementInspection?.discard()
         frameRequest.pending?.discard()
@@ -1950,13 +1954,14 @@ function createBrowserMcpServer(
     if (!toolsWithoutWorkspaceTabTarget.has(name)) singleTabControlTools.add(name)
     const schema = name === 'browser_wheel'
       ? z.object(inputSchema).strict().refine(value => value.deltaX !== 0 || value.deltaY !== 0, 'At least one wheel delta must be nonzero')
-      : name === 'browser_hold_key' ? z.object(inputSchema).strict() : z.object(inputSchema)
+      : name === 'browser_hold_key' ? z.object(inputSchema).strict()
+        : name === 'browser_click' ? browserClickSchema(inputSchema) : z.object(inputSchema)
     workspaceToolInputSchemas.set(name, schema)
     registerTool(
       name,
       {
         ...config,
-        inputSchema: name === 'browser_wheel' || name === 'browser_hold_key' ? schema : inputSchema
+        inputSchema: ['browser_wheel', 'browser_hold_key', 'browser_click'].includes(name) ? schema : inputSchema
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
@@ -1964,6 +1969,7 @@ function createBrowserMcpServer(
         const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true)
         const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state'
         const preservePresentation = passiveObservation || name === 'browser_wheel' || name === 'browser_hold_key'
+          || (name === 'browser_click' && input.button === 'right')
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -2258,7 +2264,7 @@ function createBrowserMcpServer(
           }
           const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
           try {
-            if (!passiveObservation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
+            if (!passiveObservation && !(name === 'browser_click' && input.button === 'right') && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
             }
             // Audit admission and tab wake can outlive pause, access revocation,
@@ -2369,7 +2375,7 @@ function createBrowserMcpServer(
                   markConditionsSubmitted: () => { frameRequests.getStore()!.conditionAttempted = true }
                 } : {}),
                 ...(name === 'browser_wheel' ? { markWheelAttempted: () => { frameRequests.getStore()!.wheelAttempted = true } } : {}),
-                ...(name === 'browser_click' ? { recordClickProgress: (progress: NativeClickProgress) => { frameRequests.getStore()!.clickProgress = { ...progress } } } : {}),
+                ...(name === 'browser_click' ? { retainClickAuthority: (authority: { validate(): void; dispose(): void }) => { frameRequests.getStore()!.clickAuthority = authority }, recordClickProgress: (progress: NativeClickProgress) => { frameRequests.getStore()!.clickProgress = { ...progress } } } : {}),
                 ...(name === 'browser_hold_key' ? { holdSignal: extra?.signal, recordHoldProgress: (progress: NativeKeyHoldProgress) => { frameRequests.getStore()!.keyHoldProgress = { ...progress } } } : {}),
                 ...(name === 'browser_select' && actionInput.values !== undefined ? {
                   retainSelection: (authority: { validate: () => void; dispose: () => void }) => { frameRequests.getStore()!.selectionAuthority = authority },
@@ -4090,6 +4096,8 @@ function createBrowserMcpServer(
           .describe('Viewport-relative CSS x coordinate. Provide together with y and without ref or selector.'),
         y: z.number().finite().min(0).max(100_000).optional()
           .describe('Viewport-relative CSS y coordinate. Provide together with x and without ref or selector.'),
+        button: z.enum(['left', 'right']).optional()
+          .describe('Omit for the existing left click. Right requires native=true, an explicit tabId and one ref or selector, on an already active visible awake locked Linux page with default geometry. Opens a page menu only; selection is separate. No automatic replay.'),
         doubleClick: z.boolean().optional()
           .describe('Dispatch two native pointer clicks and a dblclick event instead of one native pointer click.'),
         native: z.boolean().optional()
@@ -4109,7 +4117,7 @@ function createBrowserMcpServer(
         reconciliation: reconciliationRequestSchema.optional().describe('Repeat a bounded pre-write lookup immediately before dispatch. Must describe the same target and desired state as postcondition; a missing, stale, ambiguous, or already-satisfied target prevents the click.')
       }
     },
-    tabTool('browser_click', async ({ validateNativeInput, recordClickProgress, ...input }: {
+    tabTool('browser_click', async ({ validateNativeInput, recordClickProgress, retainClickAuthority, ...input }: {
       tabId?: string
       ref?: string
       selector?: string
@@ -4117,6 +4125,8 @@ function createBrowserMcpServer(
       y?: number
       doubleClick?: boolean
       native?: boolean
+      button?: 'left' | 'right'
+      retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void
       recordClickProgress?: (progress: NativeClickProgress) => void
       validateNativeInput?: (validateContext: () => void) => void
       dialogAction?: 'accept' | 'dismiss'
@@ -4129,7 +4139,7 @@ function createBrowserMcpServer(
       }
     }) => {
       if (!validateNativeInput) throw new Error('Click authority is unavailable')
-      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress))
+      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress, retainClickAuthority))
     })
   )
   registerWorkspaceTool(

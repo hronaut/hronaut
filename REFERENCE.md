@@ -663,6 +663,12 @@ pre-write, dispatch, transport, and read-back states separate under
 `reconciliationOutcome`; only an authoritative match produces `verified`, while
 a possible dispatch without that match remains `reconciliation_required`.
 
+**Linux page-authored menus:** call `browser_click` with an explicit `tabId`, exactly one `ref` or `selector`, `native: true`, and `button: "right"`. Omitted button retains existing left-click behavior. The tab must already be active, visible, awake and locked through the trusted UI, outside split view, at default zoom/display scale 1 with no emulation overrides, child frames, native selection or Developer Tools. Hronaut does not wake, select, follow or unlock a page to admit right-click. Coordinates, double clicks, modifiers, dialog handling and unsupported platforms reject. Opening a menu and selecting its item are separate authorized calls; take a fresh snapshot between them. A page without a handler does not open Hronaut's native app menu under this lock.
+
+The explicit button participates in exact action-review identity and `browser_click.button` capability argument constraints. An omitted/left review cannot authorize a right click. An unrestricted click capability still grants both supported buttons; add an exact button constraint when restricting a client.
+
+Right-click retains the original sampled target and single matching release ownership. If a press may have executed, one best-effort release path runs even after authority loss; release preparation or acknowledgement failure never earns another attempt. Cleanup may itself produce menu/page effects, and an acknowledged release does not turn an uncertain press into success. Failed cleanup can leave button/compositor state uncertain; quarantine is containment, not proof of restoration. Pending native work retains workspace ownership through cancellation or transport loss until actual settlement, possibly indefinitely. Never automatically replay. Native event ordering is verified only on Linux; alternate ordering has controlled source tests, not Windows/macOS native support. Sampling is not an atomic routing or handler-execution guarantee.
+
 `browser_click` accepts an optional `postcondition` when an action-receipt run is
 active. It binds the click to the current workspace, tab, HTTP(S) origin, account
 marker, and expected visible state before dispatch. After the click transport
