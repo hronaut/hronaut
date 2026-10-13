@@ -107,7 +107,7 @@ describe('PageToolsPanel', () => {
     const search = screen.getByRole('searchbox', { name: 'Search page tools' })
 
     expect(screen.getByRole('status')).toHaveTextContent('26 of 26 tools')
-    const content = document.getElementById('page-tools-content')!
+    const content = document.querySelector<HTMLElement>('.page-tools-body')!
     content.scrollTop = 400
     await user.type(search, '  INDEXEDdb  ')
     expect(content.scrollTop).toBe(0)

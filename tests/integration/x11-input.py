@@ -11,6 +11,7 @@ def main() -> None:
     x = int(sys.argv[1])
     y = int(sys.argv[2])
     action = sys.argv[3]
+    wheel_action = action in ("--wheel", "--wheel-once")
     x11 = ctypes.cdll.LoadLibrary("libX11.so.6")
     xtst = ctypes.cdll.LoadLibrary("libXtst.so.6")
     x11.XOpenDisplay.restype = ctypes.c_void_p
@@ -79,7 +80,7 @@ def main() -> None:
             time.sleep(0.05)
             return
 
-        if action != "--wheel":
+        if not wheel_action:
             keysym = x11.XStringToKeysym(action.encode("ascii"))
             keycode = x11.XKeysymToKeycode(display, keysym)
             if not keycode:
@@ -96,13 +97,13 @@ def main() -> None:
         # can otherwise deliver the wheel at the pointer's previous target.
         x11.XSync(display, False)
         time.sleep(0.05)
-        if action != "--wheel":
+        if not wheel_action:
             xtst.XTestFakeButtonEvent(display, 1, True, 0)
             xtst.XTestFakeButtonEvent(display, 1, False, 0)
             x11.XSync(display, False)
             time.sleep(0.05)
 
-        for _ in range(3):
+        for _ in range(1 if action == "--wheel-once" else 3):
             xtst.XTestFakeButtonEvent(display, 5, True, 0)
             xtst.XTestFakeButtonEvent(display, 5, False, 0)
         # Do not close the X11 connection until the server has processed every
