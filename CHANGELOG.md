@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Accept optional task labels during MCP tab creation, with exact created-tab identity and explicit saved, unconfirmed-durability or failed-label outcomes. Cancellation retains pending persistence ownership; late authority loss never implies creation or disk rollback.
+
 - Add bounded, passive `browser_image_state` observations of one image’s native completion and density-corrected intrinsic dimensions without returning source URLs. Reports explicitly retain sampled-state and publication-gap limits.
 
 ### Fixed

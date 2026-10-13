@@ -1,3 +1,4 @@
+import { normalizeTabLabel, MAX_TAB_LABEL_INPUT_LENGTH } from '../../shared/tab-label.js'
 import { browserClickSchema } from './browser-click-input.js'
 import { EMULATION_INPUT_ERRORS, EmulationInputError } from '../browser/emulation-state.js'
 import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
@@ -1148,9 +1149,12 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; imageFinishActivity?: (result: CallToolResult) => void; imageFinishing?: boolean; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ labeledCreation?: { attempted: boolean; policy?: Record<string, unknown>; certificate?: () => void; refreshCertificate?: () => Promise<void>; reviewFinalizationFailed?: boolean; cancelled?: () => boolean; publication?: () => void; finish?: (result: CallToolResult) => void; knownNotSaved?: boolean }; fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; imageFinishActivity?: (result: CallToolResult) => void; imageFinishing?: boolean; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
+    if (request?.labeledCreation && error instanceof McpCapabilityAuthorizationError) {
+      request.labeledCreation.policy = { ...request.labeledCreation.policy, permission: 'denied', ...(error.decision ? { policyDecision: error.decision } : {}) }
+    }
     if (request?.storageComparison && error instanceof StorageComparisonInputError) request.storageComparison.inputError = error.reason
     if (request?.storageComparison && error instanceof McpCapabilityAuthorizationError) request.storageComparison.policy = { permission: 'denied', policyDecision: error.decision }
     if (request?.storageInspection && error instanceof McpCapabilityAuthorizationError) request.storageInspection.policy = { permission: 'denied', policyDecision: error.decision }
@@ -1182,6 +1186,7 @@ function createBrowserMcpServer(
       const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
       const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
       const frameRequest = frameRequests.getStore()!
+      if (name === 'browser_new_tab' && input.label !== undefined) frameRequest.labeledCreation = { attempted: false }
       if (name === 'browser_evaluate_file') frameRequest.fileEvaluation = { submitted: false, acknowledged: false }
       if (name === 'browser_storage' && input.kind === 'cookies' && ['set', 'delete', 'clear'].includes(String(input.action))) {
         frameRequest.cookieProgress = { attemptedWrites: 0, acknowledgedWrites: 0 }
@@ -1191,6 +1196,37 @@ function createBrowserMcpServer(
       }
       if (name === 'browser_storage_changes') frameRequest.storageComparison = { started: false, changed: false }
       if (name === 'browser_indexeddb' || name === 'browser_storage_usage') frameRequest.storageInspection = { started: false }
+      const settleLabeledCreation = (result: CallToolResult): CallToolResult => {
+        const creation = frameRequest.labeledCreation
+        if (!creation || (!creation.attempted && result.isError)) return result
+        let settled: CallToolResult
+        try {
+          if (!creation.publication) throw new Error('Creation publication guard unavailable')
+          creation.publication()
+          if (creation.reviewFinalizationFailed) throw new Error('Review finalization failed')
+          if (result.isError && !(creation.knownNotSaved && result.structuredContent?.status === 'LABEL_NOT_SAVED')) throw new Error('Creation settlement failed')
+          const state = mcpWorkspaceState(manager.getMcpGroupState(String(input.workspaceId)))
+          settled = { ...result, content: result.content.map(item => item.type === 'text' ? { ...item, text: JSON.stringify({ ...JSON.parse(item.text), ...state }, null, 2) } : item) }
+        } catch (error) {
+          rememberInputPolicy(error)
+          const policyDecision = (error instanceof McpCapabilityAuthorizationError ? error.decision : undefined)
+            ?? creation.policy?.policyDecision ?? result.structuredContent?.policyDecision
+          const outcome = {
+            status: creation.attempted ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED',
+            effects: creation.attempted ? 'possible' : 'none', retrySafe: false,
+            ...creation.policy,
+            ...(result.structuredContent?.permission === 'denied' ? { permission: 'denied' } : {}),
+            ...(policyDecision ? { permission: 'denied', policyDecision } : {}),
+            ...(creation.reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
+            nextAction: 'Obtain current authorized workspace state before continuing. Tab creation, navigation or label persistence may already have occurred; do not automatically repeat this request.'
+          }
+          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
+        const finish = creation.finish
+        creation.finish = undefined
+        finish?.(settled)
+        return settled
+      }
       const settleImageState = (result: CallToolResult): CallToolResult => {
         if (name === 'browser_image_state') {
           const finish = frameRequest.imageFinishActivity
@@ -1388,6 +1424,7 @@ function createBrowserMcpServer(
               ? 'The capability changed while this observation was running. Obtain a fresh credential before reading again.'
               : 'The capability changed after dispatch. Inspect current state before deciding what to do next; do not automatically repeat a possible side effect.'
           }
+          if (frameRequest.labeledCreation) return settleLabeledCreation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (name === 'browser_image_state') return settleImageState({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.fileEvaluation) return settleFileEvaluation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
@@ -1498,10 +1535,11 @@ function createBrowserMcpServer(
           await frameRequest.fileEvaluationRefreshCertificate()
           frameRequest.fileEvaluationPublication.validate()
         }
+        if (frameRequest.labeledCreation?.refreshCertificate) await frameRequest.labeledCreation.refreshCertificate()
         // No await after the final publication guard.
         const settled = settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(result))))
         recordReadinessProbe(settled.isError ? 'failed' : 'verified')
-        return settleImageState(settleFileEvaluation(settled))
+        return settleLabeledCreation(settleImageState(settleFileEvaluation(settled)))
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
           && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
@@ -1511,6 +1549,7 @@ function createBrowserMcpServer(
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
         recordReadinessProbe('failed')
+        if (frameRequest.labeledCreation) { rememberInputPolicy(error); return settleLabeledCreation(errorResult(error)) }
         if (name === 'browser_image_state') return settleImageState(errorResult(error))
         if (frameRequest.fileEvaluation) return settleFileEvaluation({ content: [], isError: true })
         if (frameRequest.storageComparison) { rememberInputPolicy(error); return settleStorageComparison(errorResult(error)) }
@@ -2120,6 +2159,18 @@ function createBrowserMcpServer(
             throw workspaceAuthorizationError()
           }
         }
+        if (frameRequests.getStore()!.labeledCreation) {
+          const requireCreationWorkspace = manager.captureWorkspaceObservationGuard(workspaceId)
+          frameRequests.getStore()!.labeledCreation!.cancelled = () => extra?.signal?.aborted === true
+          frameRequests.getStore()!.labeledCreation!.publication = () => {
+            if (extra?.signal?.aborted) throw new Error('Labeled creation cancelled')
+            requireCurrentTarget()
+            requireCreationWorkspace()
+            const certificate = frameRequests.getStore()!.labeledCreation!.certificate
+            if (!certificate) throw new Error('Labeled creation certificate unavailable')
+            certificate()
+          }
+        }
         if (isFrameObservation) { const request = frameRequests.getStore()!; request.assertCurrent = requireCurrentTarget; request.tabId = resolvedTabId }
         if (isPageObservation) {
           const requireObservationWorkspace = manager.captureWorkspaceObservationGuard(workspaceId)
@@ -2183,6 +2234,7 @@ function createBrowserMcpServer(
               requireAgentWorkspace(workspaceId)
             })
           } catch (error) {
+            if (frameRequests.getStore()?.labeledCreation) frameRequests.getStore()!.labeledCreation!.reviewFinalizationFailed = true
             if (frameRequests.getStore()?.storageComparison?.started) frameRequests.getStore()!.storageComparison!.reviewFinalizationFailed = true
             if (frameRequests.getStore()?.storageInspection?.started) frameRequests.getStore()!.storageInspection!.reviewFinalizationFailed = true
             if (frameRequests.getStore()?.selectionSubmitted) frameRequests.getStore()!.selectionReviewFinalizationFailed = true
@@ -2308,6 +2360,15 @@ function createBrowserMcpServer(
                 () => { requireCurrentTarget(); requirePostWriteContext() }
               )
               reviewAttempt = { id: attempted.id, revision: attempted.revision }
+            }
+            if (frameRequests.getStore()!.labeledCreation) {
+              const creation = frameRequests.getStore()!.labeledCreation!
+              creation.refreshCertificate = async () => {
+                creation.certificate = humanWaiting ? await humanWaiting.certifyDispatch(
+                  workspaceId, () => { requireAgentWorkspace(workspaceId) }, undefined, humanReviewSessionBinding, reviewAttempt?.id
+                ) : () => undefined
+              }
+              await creation.refreshCertificate()
             }
             if (name === 'browser_evaluate_file') {
               if (!humanWaiting) throw new Error('Human waiting authority unavailable')
@@ -3468,10 +3529,30 @@ function createBrowserMcpServer(
       description: toolDescription('browser_new_tab'),
       inputSchema: {
         url: z.string().optional(),
+        label: z.string().max(MAX_TAB_LABEL_INPUT_LENGTH).refine(value => { try { normalizeTabLabel(value); return true } catch { return false } }, 'Invalid tab label').optional().describe('Optional authored task label, at most 100 Unicode code points after trim/NFC. Not verified page identity. Creation reports label persistence separately.'),
         active: z.boolean().optional().describe('Select the new tab within the agent workspace; show it only while Follow agents is enabled.')
       }
     },
-    tool(async ({ workspaceId, url, active }: { workspaceId?: string; url?: string; active?: boolean }) => {
+    tool(async ({ workspaceId, url, active, label }: { workspaceId?: string; url?: string; active?: boolean; label?: string }) => {
+      if (label !== undefined) {
+        const creation = frameRequests.getStore()!.labeledCreation!
+        const validate = creation.publication!
+        validate()
+        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false }, label, () => creation.publication!(), tabId => {
+          const activityId = randomUUID()
+          onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() })
+          creation.publication = () => {
+            validate()
+            if (!manager.tabBelongsToMcpGroup(workspaceId!, tabId)) throw workspaceAuthorizationError()
+          }
+          creation.finish = result => onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: result.isError ? 'failed' : 'finished', occurredAt: Date.now(), result: classifyMcpActivityResult({ readOnly: false, dispatched: true, cancelled: creation.cancelled?.() === true, timedOut: false, threw: false, isError: result.isError === true, invalidatedOutcome: result.structuredContent?.status === 'OUTCOME_UNKNOWN' ? 'outcome-unknown' : undefined }) })
+        }, () => { creation.attempted = true })
+        creation.knownNotSaved = saved.labelPersistence === 'not-saved'
+        const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), ...saved,
+          status: creation.knownNotSaved ? 'LABEL_NOT_SAVED' : 'CREATED', retrySafe: false,
+          ...(creation.knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
+        return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(creation.knownNotSaved ? { isError: true } : {}) }
+      }
       const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
       const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false })
       const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
