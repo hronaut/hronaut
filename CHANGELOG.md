@@ -14,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve explicitly empty retained HTTP headers in sanitized cURL copies instead of silently omitting them during replay. Secret and transport headers remain omitted.
+
 - Preserve keyboard focus on retained account-chooser controls when saved-account metadata updates. Removed accounts still return focus to search; updates never activate an account.
 
 ## [2.38.2] - 2026-10-12

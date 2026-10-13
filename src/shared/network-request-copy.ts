@@ -129,7 +129,9 @@ function formatCurl(payload: CopyPayload): string {
   ]
   for (const header of payload.headers) {
     lines[lines.length - 1] += ' \\'
-    lines.push(`  --header ${shellQuote(`${header.name}: ${header.value}`)}`)
+    // A colon with no value tells curl to omit the header; a semicolon sends it empty.
+    const field = header.value === '' ? `${header.name};` : `${header.name}: ${header.value}`
+    lines.push(`  --header ${shellQuote(field)}`)
   }
   if (payload.body !== undefined) {
     lines[lines.length - 1] += ' \\'
