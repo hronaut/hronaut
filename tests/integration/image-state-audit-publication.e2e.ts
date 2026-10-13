@@ -8,8 +8,8 @@ import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtur
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 
 test.use({ trace: 'off', screenshot: 'off', video: 'off' })
-type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'replacement' | 'selector id ABA' | 'cancel' | 'pause ABA' | 'global pause ABA' | 'deadline' | 'workspace access ABA' | 'detach reinsert' | 'capability revoke' | 'audit failure'
-for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', 'cancel', 'workspace access ABA', 'ownership release', 'pause ABA', 'global pause ABA', 'detach reinsert', 'deadline', 'capability revoke', 'audit failure'] as InspectionChange[]) {
+type InspectionChange = 'navigation' | 'close' | 'pause' | 'global pause' | 'workspace access' | 'ownership release' | 'replacement' | 'selector id ABA' | 'cancel' | 'pause ABA' | 'global pause ABA' | 'deadline' | 'workspace access ABA' | 'detach reinsert' | 'capability revoke' | 'audit failure' | 'disconnect'
+for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', 'cancel', 'workspace access ABA', 'ownership release', 'pause ABA', 'global pause ABA', 'detach reinsert', 'deadline', 'capability revoke', 'audit failure', 'disconnect'] as InspectionChange[]) {
   test(`image state publication after audit persistence across ${change}`, async ({ appWindow, electronApp, mcpPort, mcpToken }, info) => {
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
@@ -27,13 +27,18 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
       const credential = change === 'capability revoke' ? await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.createMcpCapabilityProfile({ name: 'Image publication fixture', preset: 'complete' })) : undefined
       const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${credential?.credential ?? mcpToken}` } } })
       let inspectionRequestId: string | number | undefined
+      let cancellations = 0
+      const received: string[] = []
       const send = transport.send.bind(transport)
       transport.send = async (message, options) => {
+        if ('method' in message && message.method === 'notifications/cancelled') cancellations++
         if ('method' in message && message.method === 'tools/call' && 'id' in message
           && message.params?.name === 'browser_image_state') inspectionRequestId = message.id
         return send(message, options)
       }
       await client.connect(transport)
+      const onmessage = transport.onmessage!
+      transport.onmessage = message => { received.push(JSON.stringify(message)); onmessage(message) }
       const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
       const createdWorkspace = await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Inspection lifecycle' })
       expectFixtureSuccess(createdWorkspace, 'Fixture workspace creation must succeed')
@@ -84,9 +89,18 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         }
         syncBuiltinESMExports()
       }, { url, change })
-      pending = (client.callTool({ name: 'browser_image_state', arguments: { workspaceId: workspace.id, tabId, selector: '#target' } }, undefined, { signal: abort.signal }) as Promise<CallToolResult>).catch(error => { if (change !== 'cancel') throw error; return { isError: true, content: [{ type: 'text', text: 'Client cancelled' }] } })
+      let transportRejected = false
+      pending = (client.callTool({ name: 'browser_image_state', arguments: { workspaceId: workspace.id, tabId, selector: '#target' } }, undefined, { signal: abort.signal }) as Promise<CallToolResult>).catch(error => { if (change !== 'cancel' && change !== 'disconnect') throw error; transportRejected = true; return { isError: true, content: [{ type: 'text', text: 'Client transport closed' }] } })
       await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { held: boolean } }).__auditHeld?.held)).toBe(true)
-      if (change === 'capability revoke') {
+      if (change === 'disconnect') {
+        expect(transport.sessionId).toBeTruthy()
+        await transport.terminateSession()
+        await client.close()
+        await pending
+        expect(transportRejected).toBe(true)
+        expect(cancellations).toBe(0)
+        expect(received.join('\n')).not.toContain('observedAt')
+      } else if (change === 'capability revoke') {
         const revoked = await appWindow.evaluate(id => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.revokeMcpCapabilityProfile(id), credential!.profile.id)
         expect(revoked.id).toBe(credential!.profile.id)
         expect(revoked.revokedAt).toBeTruthy()
@@ -176,6 +190,11 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         expect(text(result)).not.toContain('Synthetic image audit persistence failure')
       }
       if (change === 'navigation') expect(text(result)).toContain('changed during image inspection')
+      if (change === 'disconnect') {
+        expect(terminal[0]!.result).toMatchObject({ outcome: 'cancelled', effects: 'none' })
+        expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { settlements: number } }).__auditHeld?.settlements)).toBe(0)
+        expect(received.join('\n')).not.toContain('observedAt')
+      }
       if (change === 'cancel') {
         expect(terminal[0]!.result.outcome).toBe('cancelled')
         expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __auditHeld?: { settlements: number } }).__auditHeld?.settlements)).toBe(0)

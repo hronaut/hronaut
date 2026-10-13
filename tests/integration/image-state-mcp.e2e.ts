@@ -1,3 +1,6 @@
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { ConsoleMessage } from '@playwright/test'
 import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -7,7 +10,13 @@ import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtur
 
 test.use({ trace: 'off', screenshot: 'off', video: 'off' })
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
-test('reports bounded hidden image state without page getters, source metadata, follow selection or waking', async ({ electronApp, appWindow, mcpPort, mcpToken }) => {
+test('reports bounded hidden image state without page getters, source metadata, follow selection or waking', async ({ electronApp, appWindow, mcpPort, mcpToken, profileDirectory }, info) => {
+  const logs: string[] = []
+  const logChunk = (chunk: Buffer) => { logs.push(chunk.toString('utf8')) }
+  const uiConsole = (message: ConsoleMessage) => { logs.push(message.text()) }
+  const process = electronApp.process()
+  process.stdout?.on('data', logChunk); process.stderr?.on('data', logChunk)
+  appWindow.on('console', uiConsole)
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html><img id="target" hidden src="data:image/png,PRIVATE_IMAGE_SOURCE_CANARY"><img id="other" role="button" tabindex="0" aria-label="Synthetic image"><div id="ordinary"></div><script>
@@ -56,6 +65,10 @@ test('reports bounded hidden image state without page getters, source metadata, 
         return result
       }
     }, url)
+    expectFixtureSuccess(await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'start' }), 'image audit start')
+    await electronApp.evaluate(() => { console.info('IMAGE_STDOUT_CAPTURE_CONTROL'); console.warn('IMAGE_STDERR_CAPTURE_CONTROL') })
+    await appWindow.evaluate(() => { console.info('IMAGE_UI_CAPTURE_CONTROL') })
+    await onPage("console.info('IMAGE_PAGE_CAPTURE_CONTROL');void 0")
     const inspect = (extra: Record<string, unknown> = {}) => call('browser_image_state', { workspaceId: workspace.id, tabId, selector: '#target', ...extra })
     const witness = '({getterCalls,methodCalls,domChanges,focuses,x:scrollX,y:scrollY,focused:document.activeElement===document.body})'
     const before = await onPage(witness)
@@ -103,11 +116,32 @@ test('reports bounded hidden image state without page getters, source metadata, 
     const after = JSON.parse(text(await call('browser_status', { workspaceId: workspace.id }))) as BrowserState
     expect(after.tabs.find(tab => tab.id === tabId)?.sleeping).toBe(true)
     expect(after.activeTabId).toBe(other.activeTabId)
+    // Trusted console history reads the same retained log without following/selecting or waking the tab.
+    const ordinaryConsole = await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.listConsoleMessages(id), tabId)
+    expect(JSON.stringify(ordinaryConsole)).toContain('IMAGE_PAGE_CAPTURE_CONTROL')
+    expect(JSON.stringify(ordinaryConsole)).not.toContain('PRIVATE_IMAGE_SOURCE_CANARY')
+    expectFixtureSuccess(await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'stop' }), 'image audit stop flushes persisted records')
+    const persisted: string[] = []
+    const readTree = async (directory: string): Promise<void> => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const path = join(directory, entry.name)
+        if (entry.isDirectory()) await readTree(path)
+        else if (entry.isFile()) persisted.push(await readFile(path, 'utf8'))
+      }
+    }
+    await readTree(join(profileDirectory, 'audit-receipts'))
+    expect(persisted.length).toBeGreaterThan(0)
+    expect(persisted.join('\n')).toContain('browser_image_state')
+    expect(persisted.join('\n')).not.toContain('PRIVATE_IMAGE_SOURCE_CANARY')
+    for (const marker of ['IMAGE_STDOUT_CAPTURE_CONTROL', 'IMAGE_STDERR_CAPTURE_CONTROL', 'IMAGE_UI_CAPTURE_CONTROL']) await expect.poll(() => logs.join('').includes(marker)).toBe(true)
+    expect(logs.join('')).not.toContain('PRIVATE_IMAGE_SOURCE_CANARY')
+    await info.attach('image-source-privacy-surfaces', { body: JSON.stringify({ persistedAuditFiles: persisted.length, capturedProcessAndUiLogChunks: logs.length, ordinaryConsoleChecked: true, canaryAbsent: true, scope: 'fixture lifetime; persisted audit files, process stdout/stderr and UI/page console only; not arbitrary OS or browser cache files' }), contentType: 'application/json' })
     expect(received.join('\n')).not.toContain('PRIVATE_IMAGE_SOURCE_CANARY')
     const rawWitness = await electronApp.evaluate(() => (globalThis as typeof globalThis & { imageRawWitness?: { clean: boolean; observations: number } }).imageRawWitness)
     expect(rawWitness?.clean).toBe(true)
     expect(rawWitness?.observations).toBeGreaterThan(3)
   } finally {
+    process.stdout?.off('data', logChunk); process.stderr?.off('data', logChunk); appWindow.off('console', uiConsole)
     await electronApp.evaluate(() => (globalThis as typeof globalThis & { restoreImageWitness?: () => void }).restoreImageWitness?.()).catch(() => undefined)
     await client.close().catch(() => undefined); await closeFixtureServer(server) }
 })
