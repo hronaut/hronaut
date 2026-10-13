@@ -25,7 +25,8 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
       if (credential) {
         await expect.poll(() => electronApp.evaluate(async ({ webContents }, profile) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          return home.executeJavaScript(`fetch('/api/status').then(r=>r.json()).then(s=>s.clients.some(c=>c.capabilityProfileId===${JSON.stringify(profile.id)}&&c.capabilityProfileRevision===${profile.revision}))`)
+          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ capabilityProfileId?: string; capabilityProfileRevision?: number }> }
+          return state.clients.some(client => client.capabilityProfileId === profile.id && client.capabilityProfileRevision === profile.revision)
         }, { id: credential.profile.id, revision: credential.profile.revision })).toBe(true)
       }
       const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
@@ -92,7 +93,8 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
       }
       await expect.poll(() => electronApp.evaluate(async ({ webContents }, id) => {
         const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-        return home.executeJavaScript(`fetch('/api/status').then(r=>r.json()).then(s=>s.recentActivity.filter(a=>a.toolName==='browser_new_tab'&&a.tabId===${JSON.stringify(id)}).map(a=>a.result.outcome))`)
+        const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; tabId: string; result: { outcome: string } }> }
+        return state.recentActivity.filter(activity => activity.toolName === 'browser_new_tab' && activity.tabId === id).map(activity => activity.result.outcome)
       }, id)).toEqual([change === 'newer label' ? 'succeeded' : change === 'cancel' || change === 'disconnect' ? 'cancelled' : 'outcome-unknown'])
       if (change !== 'newer label') expect(received.join('\n')).not.toContain(marker)
       await info.attach('creation-publication', { body: JSON.stringify({ change, result }), contentType: 'application/json' })

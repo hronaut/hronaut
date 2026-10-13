@@ -41,7 +41,8 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
       if (credential) {
         await expect.poll(() => electronApp.evaluate(async ({ webContents }, profile) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          return home.executeJavaScript(`fetch('/api/status').then(r=>r.json()).then(s=>s.clients.some(c=>c.capabilityProfileId===${JSON.stringify(profile.id)}&&c.capabilityProfileRevision===${profile.revision}))`)
+          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ capabilityProfileId?: string; capabilityProfileRevision?: number }> }
+          return state.clients.some(client => client.capabilityProfileId === profile.id && client.capabilityProfileRevision === profile.revision)
         }, { id: credential.profile.id, revision: credential.profile.revision })).toBe(true)
       }
       const onmessage = transport.onmessage!
@@ -187,9 +188,10 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         expect(result.isError).toBe(true)
         expect(text(result)).not.toContain('observedAt')
       }
-      // Trusted revocation also changes control authority, which rejects before the outer capability check.
+      // Authentication and exact profile identity were verified before dispatch;
+      // the final response must preserve the genuine capability denial.
       if (change === 'capability revoke') {
-        expect(text(result)).toBe('MCP control changed before tool dispatch. Inspect the page and obtain fresh state before continuing; earlier page wake or navigation is not rolled back.')
+        expect(result.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', effects: 'none', permission: 'denied', policyDecision: expect.objectContaining({ decision: 'denied' }) })
         expect(terminal[0]!.result.effects).toBe('none')
       }
       if (change === 'audit failure') {

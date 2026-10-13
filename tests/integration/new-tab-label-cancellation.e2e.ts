@@ -19,7 +19,10 @@ for (const stage of ['hold-write', 'hold-rename', 'hold-flush'] as const) {
       transport.onmessage = message => { received.push(JSON.stringify(message)); onmessage(message) }
       try {
         const prior = new Set((await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())).tabs.map(tab => tab.id))
-        creation = (client.callTool({ name: 'browser_new_tab', arguments: { url: fixtureUrl, label: marker } }, undefined, { signal: abort.signal }) as Promise<CallToolResult>).catch(() => ({ isError: true, content: [{ type: 'text', text: 'Client cancelled' }] }))
+        creation = (client.callTool({ name: 'browser_new_tab', arguments: { url: fixtureUrl, label: marker } }, undefined, { signal: abort.signal }) as Promise<CallToolResult>).catch(error => {
+          if (change !== 'cancel') throw error
+          return { isError: true, content: [{ type: 'text', text: 'Client cancelled' }] }
+        })
         await expect.poll(async () => (await labelFault(electronApp)).entered).toBe(true)
         const state = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
         const id = state.tabs.find(tab => !prior.has(tab.id))!.id
@@ -35,11 +38,13 @@ for (const stage of ['hold-write', 'hold-rename', 'hold-flush'] as const) {
         await releaseLabelFault(electronApp)
         const result = await creation
         expect(result.isError).toBe(true)
+        if (change !== 'cancel') expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible', retrySafe: false })
         expect(text(result)).not.toContain(marker)
         expect(text(result)).not.toContain('createdTabId')
         await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          return home.executeJavaScript("fetch('/api/status').then(r=>r.json()).then(s=>s.recentActivity.filter(a=>a.toolName==='browser_new_tab').map(a=>({outcome:a.outcome,result:a.result})))")
+          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { recentActivity: Array<{ toolName: string; outcome: string; result: unknown }> }
+          return state.recentActivity.filter(activity => activity.toolName === 'browser_new_tab').map(activity => ({ outcome: activity.outcome, result: activity.result }))
         })).toContainEqual(expect.objectContaining({ outcome: 'failed', result: expect.objectContaining({ outcome: change === 'cancel' ? 'cancelled' : 'outcome-unknown', effects: 'possible' }) }))
         const current = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
         const tab = current.tabs.find(tab => tab.id === id)!
