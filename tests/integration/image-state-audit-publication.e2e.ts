@@ -24,6 +24,7 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
     let pending: Promise<CallToolResult> | undefined
     try {
       await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+      if (change === 'capability revoke') await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setMcpAuthentication(true))
       const credential = change === 'capability revoke' ? await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.createMcpCapabilityProfile({ name: 'Image publication fixture', preset: 'complete' })) : undefined
       const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${credential?.credential ?? mcpToken}` } } })
       let inspectionRequestId: string | number | undefined
@@ -37,6 +38,12 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         return send(message, options)
       }
       await client.connect(transport)
+      if (credential) {
+        await expect.poll(() => electronApp.evaluate(async ({ webContents }, profile) => {
+          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
+          return home.executeJavaScript(`fetch('/api/status').then(r=>r.json()).then(s=>s.clients.some(c=>c.capabilityProfileId===${JSON.stringify(profile.id)}&&c.capabilityProfileRevision===${profile.revision}))`)
+        }, { id: credential.profile.id, revision: credential.profile.revision })).toBe(true)
+      }
       const onmessage = transport.onmessage!
       transport.onmessage = message => { received.push(JSON.stringify(message)); onmessage(message) }
       const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
