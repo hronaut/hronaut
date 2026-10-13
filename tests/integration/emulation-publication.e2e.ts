@@ -15,10 +15,9 @@ for (const change of ['unchanged', 'pause', 'same-url-reload'] as const) {
     const { client, tabId, fixtureUrl } = capabilities
     const started = await client.callTool({ name: 'browser_audit_receipts', arguments: { action: 'start' } }) as CallToolResult
     expect(started.isError, text(started)).not.toBe(true)
-    await electronApp.evaluate(async () => {
-      const { createRequire, syncBuiltinESMExports } = await import('node:module')
-      const require = createRequire(process.cwd() + '/package.json')
-      const fs = require('node:fs/promises') as typeof import('node:fs/promises')
+    await electronApp.evaluate(() => {
+      const { syncBuiltinESMExports } = process.getBuiltinModule('module') as typeof import('node:module')
+      const fs = process.getBuiltinModule('node:fs/promises') as typeof import('node:fs/promises')
       const open = fs.open
       let release!: () => void
       const barrier = new Promise<void>(resolve => { release = resolve })
@@ -59,24 +58,24 @@ for (const change of ['unchanged', 'pause', 'same-url-reload'] as const) {
   })
 }
 
-test('an already-started same-origin navigation commit invalidates a held emulation command', async ({ capabilities, electronApp, appWindow }) => {
+test('an already-started same-origin commit vetoes queued restoration before native dispatch', async ({ capabilities, electronApp, appWindow }) => {
   let heldResponse: ServerResponse | undefined
   let hold = false
-  const server = createServer((_request, response) => {
+  const server = createServer((request, response) => {
+    if (request.url !== '/document') { response.end(); return }
     if (hold) heldResponse = response
-    else response.end('<!doctype html><title>Original document</title>Original')
+    else { response.setHeader('Content-Type', 'text/html'); response.end('<!doctype html><link rel="icon" href="data:,"><title>Original document</title>Original') }
   })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Fixture address missing')
   const url = `http://127.0.0.1:${address.port}/document`
-  const { client, tabId, fixtureUrl } = capabilities
-  let pending: Promise<CallToolResult> | undefined
+  const { tabId, fixtureUrl } = capabilities
+  type Outcome = { isError: boolean; error?: string }
+  type Renderer = { hronaut: HronautApi; pendingRestore?: Promise<Outcome> }
+  let predecessor: Promise<Outcome> | undefined
   try {
     await electronApp.evaluate(async ({ webContents }, input) => { await webContents.getAllWebContents().find(p => p.getURL() === input.from)!.loadURL(input.to) }, { from: fixtureUrl, to: url })
-    hold = true
-    await electronApp.evaluate(({ webContents }, url) => { webContents.getAllWebContents().find(p => p.getURL() === url)!.reload() }, url)
-    await expect.poll(() => Boolean(heldResponse)).toBe(true)
     await electronApp.evaluate(({ webContents }, url) => {
       const page = webContents.getAllWebContents().find(p => p.getURL() === url)!
       const api = page.debugger, original = api.sendCommand
@@ -90,20 +89,38 @@ test('an already-started same-origin navigation commit invalidates a held emulat
         return result
       }
     }, url)
-    pending = client.callTool({ name: 'browser_emulate', arguments: { tabId, colorScheme: 'dark' } }) as Promise<CallToolResult>
+    // Establish an actual queue predecessor before navigation starts. This
+    // avoids assuming that background input-guard commands have already settled.
+    predecessor = appWindow.evaluate(async id => {
+      try { await (window as unknown as Renderer).hronaut.resetTabEmulation(id); return { isError: false } }
+      catch (error) { return { isError: true, error: String(error) } }
+    }, tabId)
     await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__emulationPublication!.held)).toBe(true)
-    heldResponse!.end('<!doctype html><title>Replacement document</title>Replacement')
+    hold = true
+    await electronApp.evaluate(({ webContents }, url) => { webContents.getAllWebContents().find(p => p.getURL() === url)!.reload() }, url)
+    await expect.poll(() => Boolean(heldResponse)).toBe(true)
+    // Restoration is admitted after did-start-navigation, but before commit.
+    // IPC getState is a barrier after its manager invocation has queued.
+    await appWindow.evaluate(async id => {
+      const scope = window as unknown as Renderer
+      scope.pendingRestore = scope.hronaut.recoverTabEmulation(id).then(() => ({ isError: false }), error => ({ isError: true, error: String(error) }))
+      await scope.hronaut.getState()
+    }, tabId)
+    heldResponse!.setHeader('Content-Type', 'text/html')
+    heldResponse!.end('<!doctype html><link rel="icon" href="data:,"><title>Replacement document</title>Replacement')
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(p => p.getURL() === url)!.getTitle(), url)).toBe('Replacement document')
     await electronApp.evaluate(() => (globalThis as Scope).__emulationPublication!.release())
-    const result = await pending
+    expect((await predecessor).isError).toBe(true)
+    const result = await appWindow.evaluate(() => (window as unknown as Renderer).pendingRestore!)
     expect(result.isError).toBe(true)
-    expect(result.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false })
-    const state = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === id), tabId)
+    expect(result.error).toContain('Emulation target changed')
+    const state = await appWindow.evaluate(async id => (await (window as unknown as Renderer).hronaut.getState()).tabs.find(t => t.id === id), tabId)
     expect(state?.emulationState).toMatchObject({ application: 'unknown', retainedSettings: { colorScheme: 'auto' } })
   } finally {
     heldResponse?.end()
     await electronApp.evaluate(() => { (globalThis as Scope).__emulationPublication?.restore(); delete (globalThis as Scope).__emulationPublication }).catch(() => undefined)
-    await pending?.catch(() => undefined)
+    await predecessor?.catch(() => undefined)
+    await appWindow.evaluate(async () => { await (window as unknown as Renderer).pendingRestore; delete (window as unknown as Renderer).pendingRestore }).catch(() => undefined)
     await closeFixtureServer(server)
   }
 })

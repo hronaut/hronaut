@@ -124,8 +124,10 @@ test('acknowledged emulation survives navigation but renderer recreation require
   expect(JSON.parse(text(recovered))).toMatchObject({ colorScheme: 'dark' })
 })
 
-for (const changedNetwork of [false, true]) {
-  test(`cancelled emulation retains its native queue and ${changedNetwork ? 'separate pending Network projection' : 'independent confirmed Network health'}`, async ({ capabilities, electronApp, appWindow }) => {
+for (const scenario of ['cancel-known-network', 'cancel-changed-network', 'crash-changed-network'] as const) {
+  const changedNetwork = scenario !== 'cancel-known-network'
+  const crash = scenario === 'crash-changed-network'
+  test(`pending emulation retains ownership and independent health: ${scenario}`, async ({ capabilities, electronApp, appWindow }) => {
     const { client, tabId, fixtureUrl } = capabilities
     type PendingGate = { held: boolean; count: number; release(): void; restore(): void }
     type PendingScope = typeof globalThis & { __pendingEmulation?: PendingGate }
@@ -155,6 +157,13 @@ for (const changedNetwork of [false, true]) {
       expect(state.emulation).toBeUndefined()
       expect(state.emulationState).toMatchObject({ application: 'pending', retainedSettings: { colorScheme: 'auto', network: 'none' } })
       expect(state.networkConditionState?.application).toBe(changedNetwork ? 'pending' : 'confirmed')
+      if (crash) {
+        await electronApp.evaluate(async ({ webContents }, url) => {
+          const page = webContents.getAllWebContents().find(p => p.getURL() === url)!
+          await new Promise<void>(resolve => { page.once('render-process-gone', () => resolve()); page.forcefullyCrashRenderer() })
+          await page.loadURL(url)
+        }, fixtureUrl)
+      }
       abort.abort()
       await expect.poll(() => delivered).toBe(true)
       await pending
@@ -165,8 +174,8 @@ for (const changedNetwork of [false, true]) {
       }, tabId)
       const count = await electronApp.evaluate(() => (globalThis as PendingScope).__pendingEmulation!.count)
       const barrier = await appWindow.evaluate(async () => { await (window as unknown as Renderer).hronaut.getState(); return (window as unknown as Renderer).recovery })
-      expect(barrier).toBe('pending')
-      expect(await electronApp.evaluate(() => (globalThis as PendingScope).__pendingEmulation!.count)).toBe(count)
+      expect(barrier).toBe(crash ? 'failed' : 'pending')
+      if (!crash) expect(await electronApp.evaluate(() => (globalThis as PendingScope).__pendingEmulation!.count)).toBe(count)
       await electronApp.evaluate(() => (globalThis as PendingScope).__pendingEmulation!.release())
       await expect.poll(() => appWindow.evaluate(() => (window as unknown as Renderer).recovery)).toBe(changedNetwork ? 'failed' : 'confirmed')
       const after = await appWindow.evaluate(async id => (await (window as unknown as Renderer).hronaut.getState()).tabs.find(t => t.id === id)!, tabId)

@@ -9418,6 +9418,7 @@ export class BrowserTabsManager {
       if (message) this.appendConsoleMessage(tab, message, 'preload')
     })
     webContents.on('render-process-gone', (_event, details) => {
+      if (tab.networkConditionApplication === 'pending') this.markNetworkConditionsUnknown(tab)
       tab.emulationContextGeneration++
       tab.emulationRevision++
       tab.emulationApplication = 'unknown'
