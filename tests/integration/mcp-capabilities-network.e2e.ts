@@ -2,9 +2,10 @@ import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { installNetworkWaitProbe, dispatchNetworkWaitProbe, readNetworkWaitProbe, restoreNetworkWaitProbe } from './network-wait-fixture.js'
 
-test('inspects network waits, streams, redirects and redacted diagnostic exports', async ({ capabilities, electronApp, appWindow, profileDirectory }) => {
-  const { client, tabId, address, fixtureOrigin, redactedFixtureUrl, openPageTool } = capabilities
+test('inspects network waits, streams, redirects and redacted diagnostic exports', async ({ capabilities, electronApp, appWindow, profileDirectory }, info) => {
+  const { client, tabId, address, fixtureUrl, fixtureOrigin, redactedFixtureUrl, openPageTool } = capabilities
   // The fixture page can load before debugger attachment. Wait for network
   // monitoring before seeding a request that must have detailed CDP timing.
   const monitoring = await client.callTool({ name: 'browser_network', arguments: { tabId } }) as CallToolResult
@@ -16,27 +17,33 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
     }).then(response => response.json())` }
   }) as CallToolResult
   expect(baselineFetch.isError, text(baselineFetch)).not.toBe(true)
-  const scheduledWaitProbe = await client.callTool({
-    name: 'browser_evaluate',
-    arguments: {
-      tabId,
-      script: "window.scheduleNetworkWaitProbe('future', 150)"
-    }
-  }) as CallToolResult
-  expect(text(scheduledWaitProbe)).toBe('scheduled')
-  const futureNetworkWaitResult = await client.callTool({
-    name: 'browser_network_wait',
-    arguments: {
-      tabId,
-      urlPattern: `*://127.0.0.1:${address.port}/wait-probe*`,
-      method: 'GET',
-      resourceType: 'fetch/xhr',
-      status: 202,
-      phase: 'complete',
-      from: 'future',
-      timeoutMs: 5_000
-    }
-  }) as CallToolResult
+  let pendingWait: Promise<CallToolResult> | undefined
+  let futureNetworkWaitResult: CallToolResult
+  try {
+    await installNetworkWaitProbe(electronApp, fixtureUrl, 'future')
+    pendingWait = client.callTool({
+      name: 'browser_network_wait',
+      arguments: {
+        tabId,
+        urlPattern: `*://127.0.0.1:${address.port}/wait-probe*`,
+        method: 'GET',
+        resourceType: 'fetch/xhr',
+        status: 202,
+        phase: 'complete',
+        from: 'future',
+        timeoutMs: 5_000
+      }
+    }) as Promise<CallToolResult>
+    await expect.poll(async () => (await readNetworkWaitProbe(electronApp)).registered).toBe(true)
+    await dispatchNetworkWaitProbe(electronApp, fixtureUrl, 'future')
+    futureNetworkWaitResult = await pendingWait
+    const registration = await readNetworkWaitProbe(electronApp)
+    await info.attach('network-wait-registration', { body: JSON.stringify(registration), contentType: 'application/json' })
+    expect(registration.events).toEqual(['wait-timer-created', 'registration-stack-complete', 'fetch-dispatched', 'request-captured'])
+  } finally {
+    await restoreNetworkWaitProbe(electronApp)
+    await pendingWait?.catch(() => undefined)
+  }
   expect(futureNetworkWaitResult.isError, text(futureNetworkWaitResult)).not.toBe(true)
   const futureNetworkWait = JSON.parse(text(futureNetworkWaitResult)) as {
     matchedFrom: string
