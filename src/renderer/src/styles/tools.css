@@ -243,15 +243,15 @@
 .accessibility-violation > button {
   @apply [margin-top:8px] [padding:5px_0] border-0 text-accent-copy bg-transparent [font:inherit] [font-size:12px] [font-weight:750] cursor-pointer;
 }
-.accessibility-panel > footer {
+:is(.accessibility-panel, .network-monitor-scroll) > footer {
   @apply flex [min-height:54px] flex-none items-center justify-between [gap:12px] [padding:9px_14px] [border-top:1px_solid_var(--border-soft)] text-muted bg-surface [font-size:12px];
 }
-.accessibility-panel > footer button {
+:is(.accessibility-panel, .network-monitor-scroll) > footer button {
   @apply flex items-center [gap:5px] [padding:7px_10px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-copy bg-surface-raised [font:inherit] [font-size:12px] [font-weight:750] cursor-pointer;
 }
-.accessibility-panel > footer > div { @apply flex flex-wrap justify-end [gap:7px]; }
-.accessibility-panel > footer button:hover { @apply bg-hover; }
-.accessibility-panel > footer svg { @apply [width:16px] [height:16px]; }
+:is(.accessibility-panel, .network-monitor-scroll) > footer > div { @apply flex flex-wrap justify-end [gap:7px]; }
+:is(.accessibility-panel, .network-monitor-scroll) > footer button:hover { @apply bg-hover; }
+:is(.accessibility-panel, .network-monitor-scroll) > footer svg { @apply [width:16px] [height:16px]; }
 
 .quality-audit-panel { @apply [width:min(760px,_calc(100vw_-_24px))]; }
 .quality-audit-summary {
@@ -765,6 +765,11 @@
 .console-panel > footer button.primary:hover:not(:disabled) { @apply [background:color-mix(in_srgb,_var(--accent)_84%,_black)]; }
 
 .network-monitor-panel { @apply [width:min(920px,_calc(100vw_-_24px))]; }
+/* Preserve the regular footer position, but scroll it with a usable body in short docks. */
+.network-monitor-scroll { @apply flex min-h-0 min-w-0 [flex:1_1_auto] flex-col overflow-auto [overscroll-behavior:contain]; }
+.network-monitor-scroll > .panel-scroll-body { @apply [flex:1_0_160px]; }
+/* Leave room for keyboard focus rings when nested scroll areas reveal controls. */
+.network-monitor-scroll :is(button, input, select) { @apply [scroll-margin-block:8px]; }
 .network-monitor-header-actions { @apply flex items-center [gap:4px]; }
 .network-monitor-header-actions > button:not(.panel-close) {
   @apply grid [width:32px] [height:32px] place-items-center border-0 [border-radius:8px] text-muted bg-transparent cursor-pointer;
@@ -1003,14 +1008,14 @@
 .network-monitor-empty > svg { @apply [width:31px] [height:31px] text-accent-copy; }
 .network-monitor-empty strong { @apply text-copy [font-size:13px]; }
 .network-monitor-empty span { @apply [max-width:310px] [font-size:12px] [line-height:1.45]; }
-.network-monitor-panel > footer { @apply flex-wrap; }
-.network-monitor-actions { @apply flex flex-wrap justify-end [gap:6px]; }
+.network-monitor-scroll > footer { @apply flex-wrap; }
+.network-monitor-actions { @apply flex min-w-0 flex-wrap justify-end [gap:6px]; }
 .preserve-logs-toggle { @apply inline-flex [min-height:30px] items-center [gap:7px] text-muted [font-size:12px] [font-weight:700] cursor-pointer whitespace-nowrap; }
 .preserve-logs-toggle input { @apply [width:16px] [height:16px] m-0 [accent-color:var(--accent)] cursor-pointer; }
 .network-monitor-tools .preserve-logs-toggle { @apply [min-height:38px] [padding:0_10px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-copy bg-surface; }
-.network-monitor-panel > footer button:disabled { @apply [opacity:.4] cursor-default; }
-.network-monitor-panel > footer button.primary { @apply border-accent text-button-copy bg-accent; }
-.network-monitor-panel > footer button.primary:hover:not(:disabled) { @apply [background:color-mix(in_srgb,_var(--accent)_84%,_black)]; }
+.network-monitor-scroll > footer button:disabled { @apply [opacity:.4] cursor-default; }
+.network-monitor-scroll > footer button.primary { @apply border-accent text-button-copy bg-accent; }
+.network-monitor-scroll > footer button.primary:hover:not(:disabled) { @apply [background:color-mix(in_srgb,_var(--accent)_84%,_black)]; }
 
 .debug-report-panel { @apply [width:min(700px,_calc(100vw_-_24px))]; }
 .debug-report-summary {

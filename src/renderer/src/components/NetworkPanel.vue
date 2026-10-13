@@ -213,6 +213,7 @@ onBeforeUnmount(dispose)
           <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('network.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
+      <div class="network-monitor-scroll">
       <div class="panel-scroll-body">
         <NetworkRequestConditions
           v-model:expanded="requestConditionsExpanded"
@@ -696,5 +697,6 @@ onBeforeUnmount(dispose)
           </UiButton>
         </div>
       </footer>
+      </div>
     </section>
 </template>
