@@ -41,6 +41,50 @@ function requestDetails(overrides: Partial<BrowserNetworkRequestDetails> = {}): 
 }
 
 describe('formatNetworkRequestCopy', () => {
+  it.each(['\u0000after', 'before\u0000after', 'before\u0000'])('rejects a retained literal NUL body for cURL while preserving exact fetch data (%j)', body => {
+    const details = requestDetails({ request: { headers: {}, body: { text: body, originalChars: body.length, truncated: false, redacted: false } } })
+    expect(() => formatNetworkRequestCopy(details, 'curl')).toThrow('Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.')
+    const calls: RequestInit[] = []
+    const fetch = formatNetworkRequestCopy(details, 'fetch')
+    expect(fetch).not.toContain('\u0000')
+    runInNewContext(fetch, { fetch: (_url: string, options: RequestInit) => { calls.push(options) } })
+    expect(calls).toEqual([{ method: 'POST', body }])
+  })
+
+  it('rejects NUL in retained cURL headers without exposing their value', () => {
+    const details = requestDetails({ request: { headers: { 'X-Allowed': 'private-before\u0000private-after' } } })
+    expect(() => formatNetworkRequestCopy(details, 'curl')).toThrow(new Error('Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.'))
+  })
+
+  it('filters omitted NUL headers before checking cURL representability', () => {
+    const details = requestDetails({ request: { headers: {
+      Authorization: 'secret\u0000value', 'Content-Length': '\u0000', 'Invalid\u0000Name': 'value',
+      'X-Oversized': '\u0000' + 'x'.repeat(2_000), 'X-Allowed': 'kept'
+    } } })
+    const curl = formatNetworkRequestCopy(details, 'curl')
+    expect(curl).toContain("--header 'X-Allowed: kept'")
+    expect(curl).toContain('4 sensitive, transport, invalid, or oversized headers were omitted')
+    expect(curl).not.toContain('\u0000')
+    expect(curl).not.toContain('secret\u0000value')
+  })
+
+  it.each([true, false])('keeps already omitted NUL bodies omitted (truncated=%s)', truncated => {
+    const body = truncated ? 'partial\u0000' : 'x'.repeat(20_000) + '\u0000'
+    const details = requestDetails({ request: { headers: {}, body: { text: body, originalChars: body.length, truncated, redacted: false } } })
+    const curl = formatNetworkRequestCopy(details, 'curl')
+    expect(curl).not.toContain('--data-raw')
+    expect(curl).not.toContain('\u0000')
+    expect(curl).toContain('request body was omitted')
+  })
+
+  it.each(['', 'before\\u0000after'])('preserves empty and textual escaped-NUL bodies (%j)', body => {
+    const details = requestDetails({ request: { headers: {}, body: { text: body, originalChars: body.length, truncated: false, redacted: false } } })
+    expect(formatNetworkRequestCopy(details, 'curl')).toContain(`--data-raw '${body}'`)
+    const calls: RequestInit[] = []
+    runInNewContext(formatNetworkRequestCopy(details, 'fetch'), { fetch: (_url: string, options: RequestInit) => { calls.push(options) } })
+    expect(calls).toEqual([{ method: 'POST', body }])
+  })
+
   it('uses curl empty-field syntax for each retained empty header without changing fetch output', () => {
     const details = requestDetails({ request: { headers: { 'X-Mixed': ['', 'kept'], "X-Owner's": '' } } })
     const curl = formatNetworkRequestCopy(details, 'curl')

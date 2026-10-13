@@ -109,6 +109,10 @@ function copyPayload(details: BrowserNetworkRequestDetails): CopyPayload {
 }
 
 function shellQuote(value: string): string {
+  // POSIX process arguments cannot contain NUL; quoting cannot preserve it.
+  if (value.includes('\u0000')) {
+    throw new Error('Copy cURL cannot represent literal NUL characters. Use Copy fetch instead.')
+  }
   return `'${value.replace(/'/g, `'"'"'`)}'`
 }
 
