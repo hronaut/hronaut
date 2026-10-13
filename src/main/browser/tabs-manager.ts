@@ -5942,6 +5942,7 @@ export class BrowserTabsManager {
     sample?: (x: number, y: number) => Promise<void>,
     observer?: NativeInputDispatchObserver
   ): Promise<void> {
+    const probeButton = (globalThis as typeof globalThis & { __rightClickProbe?: boolean }).__rightClickProbe ? 'right' : 'left'
     const inputDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
       this.sendAuthorizedAgentInputCommand(webContents, method, params, validateClick, observer,
         params.type === 'mousePressed' && sample ? () => sample(point.x, point.y) : undefined) }
@@ -5959,15 +5960,15 @@ export class BrowserTabsManager {
         type: 'mousePressed',
         x: point.x,
         y: point.y,
-        button: 'left',
-        buttons: 1,
+        button: probeButton,
+        buttons: probeButton === 'right' ? 2 : 1,
         clickCount
       })
       await releaseDebugger.sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x: point.x,
         y: point.y,
-        button: 'left',
+        button: probeButton,
         buttons: 0,
         clickCount
       })

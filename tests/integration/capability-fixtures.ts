@@ -7,7 +7,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { Page } from '@playwright/test'
 import { closeFixtureServer, expect, test as base } from './fixtures.js'
-import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
+import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
 
 export { expect } from './fixtures.js'
 
@@ -45,6 +45,7 @@ export function text(result: CallToolResult): string {
 
 interface CapabilityFixture {
   client: Client
+  workspace: { workspaceId: string; resumeKey: string }
   tabId: string
   address: { port: number }
   fixtureUrl: string
@@ -496,7 +497,7 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
         }
       }).toBe(true)
       await client.connect(transport)
-      await useMcpWorkspace(client, 'Capability tests')
+      const workspace = await connectMcpWorkspace(client, 'Capability tests')
       const opened = await client.callTool({
         name: 'browser_new_tab', arguments: { url: fixtureUrl, active: true }
       }) as CallToolResult
@@ -505,6 +506,7 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
       await client.callTool({ name: 'browser_wait', arguments: { tabId } })
       await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
       await use({
+        workspace,
         client, tabId, address, fixtureUrl, fixtureOrigin, redactedFixtureUrl, counters,
         openPageTool: (name) => openPageTool(appWindow, name)
       })
