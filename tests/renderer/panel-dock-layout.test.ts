@@ -112,6 +112,44 @@ afterEach(() => {
 })
 
 describe('usePanelDockLayout', () => {
+  it.each(['top', 'bottom'] as const)('keeps the %s dock usable in a short viewport without replacing its saved size', (dock) => {
+    window.localStorage.setItem('hronaut:panel-dock-size-vertical', '290')
+    const harness = mountHarness(dock)
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 338 })
+    try {
+      harness.controller.reportShellHeight()
+      expect(harness.controller.size.value).toBe(155)
+      expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: dock === 'top' ? 155 : 0, right: 0, bottom: dock === 'bottom' ? 155 : 0, left: 0 })
+      expect(window.localStorage.getItem('hronaut:panel-dock-size-vertical')).toBe('290')
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+      harness.controller.reportShellHeight()
+      expect(harness.controller.size.value).toBe(290)
+    } finally { harness.wrapper.unmount() }
+  })
+
+  it.each([
+    [0, 1], [1, 1], [233, 155], [359, 239], [360, 240],
+    [361, 240], [459, 240], [460, 240], [461, 241], [695, 475], [1000, 700]
+  ])('bounds the vertical dock at %s available CSS pixels', (available, maximum) => {
+    const harness = mountHarness('bottom')
+    try {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 105 + available })
+      expect(harness.controller.maximumSize()).toBe(maximum)
+    } finally { harness.wrapper.unmount() }
+  })
+
+  it('keeps short-window side docks and fractional vertical allocation bounded', () => {
+    const harness = mountHarness('right', 40)
+    try {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 416 })
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 608 })
+      expect(harness.controller.maximumSize('right', 183.5)).toBe(208)
+      expect(harness.controller.maximumSize('left', 183.5)).toBe(208)
+      expect(harness.controller.maximumSize('top', 183.5)).toBe(155)
+      expect(harness.controller.maximumSize('bottom', 183.5)).toBe(155)
+    } finally { harness.wrapper.unmount() }
+  })
+
   it('composes a vertical tab rail with docked panel insets', async () => {
     const right = mountHarness('right', 280)
     right.controller.reportShellHeight()
