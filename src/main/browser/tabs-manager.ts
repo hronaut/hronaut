@@ -1,3 +1,4 @@
+import { assertRightClickProbePlatform, ownedRightClickPress } from './owned-right-click.js'
 import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
 import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { normalizeTabLabel } from '../../shared/tab-label.js'
@@ -5820,6 +5821,11 @@ export class BrowserTabsManager {
     doubleClick?: boolean
     native?: boolean
   } & BrowserDialogHandlingOptions, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void): Promise<unknown> {
+    const rightClickProbe = (globalThis as typeof globalThis & { __rightClickProbe?: boolean }).__rightClickProbe === true
+    if (rightClickProbe) {
+      assertRightClickProbePlatform(process.platform)
+      if (!target.native || target.doubleClick || target.x !== undefined || target.y !== undefined) throw new Error('Right-click probe requires one native semantic click.')
+    }
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
@@ -5854,7 +5860,7 @@ export class BrowserTabsManager {
         } else {
           await this.withAgentInput(webContents, () => this.withDebugger(
             webContents,
-            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent)
+            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClickProbe)
           ))
         }
         return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
@@ -5885,12 +5891,13 @@ export class BrowserTabsManager {
               assertClickCurrent()
               point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
               try { this.assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
-              await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, admission.sample, observer)
+              await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, admission.sample, observer, rightClickProbe)
               return { ok: true, tag: point.tag, ...(target.doubleClick ? { doubleClick: true } : {}),
                 ...(target.native ? { native: true } : {}), admission: 'sampled', progress }
             } catch (error) { failure = error; throw error }
             finally {
-              if (progress.downAttempted > progress.upAcknowledged) this.unconfirmedSemanticClicks.add(webContents)
+              if (progress.downAttempted > progress.upAcknowledged
+                || (rightClickProbe && progress.downAttempted > progress.downAcknowledged)) this.unconfirmedSemanticClicks.add(webContents)
               try { await admission.dispose() } catch (error) { if (!failure) throw error }
             }
           }, assertClickCurrent), { deferRendererFlag: true, onCleanupFailure: () => { progress.inputCleanupFailed = true; publish() } })
@@ -5940,9 +5947,10 @@ export class BrowserTabsManager {
     doubleClick: boolean,
     validateClick: () => void,
     sample?: (x: number, y: number) => Promise<void>,
-    observer?: NativeInputDispatchObserver
+    observer?: NativeInputDispatchObserver,
+    rightClickProbe = false
   ): Promise<void> {
-    const probeButton = (globalThis as typeof globalThis & { __rightClickProbe?: boolean }).__rightClickProbe ? 'right' : 'left'
+    const probeButton = rightClickProbe ? 'right' : 'left'
     const inputDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
       this.sendAuthorizedAgentInputCommand(webContents, method, params, validateClick, observer,
         params.type === 'mousePressed' && sample ? () => sample(point.x, point.y) : undefined) }
@@ -5955,20 +5963,32 @@ export class BrowserTabsManager {
       x: point.x,
       y: point.y
     })
+    if (probeButton === 'right') {
+      await ownedRightClickPress(
+        tracked => this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: point.x, y: point.y, button: 'right', buttons: 2, clickCount: 1
+        }, validateClick, tracked, sample ? () => sample(point.x, point.y) : undefined),
+        tracked => this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: point.x, y: point.y, button: 'right', buttons: 0, clickCount: 1
+        }, undefined, tracked),
+        observer
+      )
+      return
+    }
     for (const clickCount of doubleClick ? [1, 2] : [1]) {
       await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
         type: 'mousePressed',
         x: point.x,
         y: point.y,
-        button: probeButton,
-        buttons: probeButton === 'right' ? 2 : 1,
+        button: 'left',
+        buttons: 1,
         clickCount
       })
       await releaseDebugger.sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x: point.x,
         y: point.y,
-        button: probeButton,
+        button: 'left',
         buttons: 0,
         clickCount
       })

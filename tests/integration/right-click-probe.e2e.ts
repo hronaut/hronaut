@@ -130,19 +130,19 @@ for (const phase of ['move', 'press'] as const) for (const change of ['cancel', 
       console.log(JSON.stringify({ probe: 'held', phase, change, held, ownership }))
       await electronApp.evaluate(() => (globalThis as Scope).__rightGate!.release())
       const result = await pending
-      await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__rightGate!.commands.filter(value => value.startsWith('mouseReleased')).length)).toBe((phase === 'press' && change !== 'lost-ack') || change === 'unlock' ? 1 : 0)
-      await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.authorityEvents.filter(event=>event.type==="mouseup").length'), fixtureUrl)).toBe((phase === 'press' && change !== 'lost-ack') || change === 'unlock' ? 1 : 0)
+      await expect.poll(() => electronApp.evaluate(() => (globalThis as Scope).__rightGate!.commands.filter(value => value.startsWith('mouseReleased')).length)).toBe(phase === 'press' || change === 'unlock' ? 1 : 0)
+      await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.authorityEvents.filter(event=>event.type==="mouseup").length'), fixtureUrl)).toBe(phase === 'press' || change === 'unlock' ? 1 : 0)
       if (replacement) await expect.poll(async () => (await replacement!.callTool({ name: 'browser_workspaces', arguments: { action: 'claim-ownership', workspaceId: capabilities.workspace.workspaceId } }) as CallToolResult).isError === true).toBe(false)
       const settled = await electronApp.evaluate(async ({ webContents }, url) => ({ commands: (globalThis as Scope).__rightGate!.commands, popups: (globalThis as Scope).__rightGate!.popups, events: await webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.authorityEvents') }), fixtureUrl)
       console.log(JSON.stringify({ probe: 'settled', phase, change, settled, result }))
       await info.attach('authority', { body: JSON.stringify({ phase, change, held, ownership, settled, result }), contentType: 'application/json' })
       expect(settled.commands.filter(value => value.startsWith('mousePressed'))).toHaveLength(phase === 'press' || change === 'unlock' ? 1 : 0)
-      // This is an observation of a blocking limitation, NOT an accepted product
-      // contract: a lost press acknowledgement currently submits no matching up.
-      expect(settled.commands.filter(value => value.startsWith('mouseReleased'))).toEqual((phase === 'press' && change !== 'lost-ack') || change === 'unlock' ? ['mouseReleased:right'] : [])
+      // Cleanup is one best-effort matching release even after a lost press ACK.
+      // Its acknowledgement does not convert the original outcome to success.
+      expect(settled.commands.filter(value => value.startsWith('mouseReleased'))).toEqual(phase === 'press' || change === 'unlock' ? ['mouseReleased:right'] : [])
       expect(settled.popups).toBe(0)
       if (phase === 'press' && change === 'lost-ack') {
-        expect((result as CallToolResult).structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false, progress: { downAttempted: 1, downAcknowledged: 0, upAttempted: 0 } })
+        expect((result as CallToolResult).structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false, progress: { downAttempted: 1, downAcknowledged: 0, upAttempted: 1, upAcknowledged: 1 } })
         const blocked = await client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true } }) as CallToolResult
         expect(blocked.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', reason: 'CLICK_STATE_UNCONFIRMED' })
         expect(await electronApp.evaluate(() => (globalThis as Scope).__rightGate!.commands.filter(value => value.startsWith('mousePressed')).length)).toBe(1)
