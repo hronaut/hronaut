@@ -1,5 +1,6 @@
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect } from './capability-fixtures.js'
+import { installReplacementProbe, readReplacementProbe, restoreReplacementProbe } from './semantic-replacement-fixture.js'
 
 type Probe = { commands: Array<Record<string, unknown>>; cleanup: number; finals: number; restores(): void }
 type Scope = typeof globalThis & { __admissionProbe?: Probe }
@@ -11,7 +12,6 @@ const setup = (mode: string) => `(() => {
  if('${mode}'==='plain')window.original.textContent='Target';
  if('${mode}'==='fixed'||'${mode}'==='pass-through'){overlay();if('${mode}'==='pass-through')document.getElementById('overlay').style.pointerEvents='none'}
  if('${mode}'==='hover')document.addEventListener('mousemove',overlay,{once:true});
- if('${mode}'==='replace')document.addEventListener('mousemove',()=>{const n=window.original.cloneNode(true);window.original.replaceWith(n)},{once:true});
  if('${mode}'==='flag-replace')Object.defineProperty(window,'__hronautAgentInputActive',{configurable:true,set(value){if(value&&window.original.isConnected)window.original.replaceWith(window.original.cloneNode(true))}});
  if('${mode}'==='user-agent')document.getElementById('child').innerHTML='<input style="width:100%;height:100%" value="private-input-canary">';
  if('${mode}'==='second-block')window.original.addEventListener('click',overlay,{once:true});
@@ -33,9 +33,26 @@ for (const target of ['selector','ref'] as const) for (const doubleClick of [fal
     expect(ref).toBeTruthy()
    }
    if(mode==='hostile')await electronApp.evaluate(async({webContents},url)=>webContents.getAllWebContents().find(p=>p.getURL()===url)!.executeJavaScript('window.installOverrides();true'),fixtureUrl)
+   try {
+   if(mode==='replace')await installReplacementProbe(electronApp,fixtureUrl,'after-move')
    const result=await client.callTool({name:'browser_click',arguments:{tabId,...(target==='selector'?{selector:'#target'}:{ref}),...(doubleClick?{doubleClick:true}:{native:true})}})
    const observed=await electronApp.evaluate(async({webContents},url)=>{const p=webContents.getAllWebContents().find(p=>p.getURL()===url)!;return p.executeJavaScript('({events:window.events,overrides:window.overrides})')},fixtureUrl)
-   await info.attach('admission-observation',{body:JSON.stringify({target,doubleClick,mode,result,observed}),contentType:'application/json'})
+   const replacement=mode==='replace'?await readReplacementProbe(electronApp):undefined
+   await info.attach('admission-observation',{body:JSON.stringify({target,doubleClick,mode,result,observed,replacement}),contentType:'application/json'})
+   if(replacement){
+    expect(replacement.replacements).toBe(1)
+    expect(replacement.timeline).toEqual([
+     {event:'installed',originalConnected:true},
+     {event:'acquire-start',originalConnected:true},
+     {event:'acquire-end',originalConnected:true},
+     {event:'dispatch',type:'mouseMoved'},
+     {event:'move-acknowledged'},
+     {event:'replace',originalConnected:false},
+     {event:'sample-start',final:false},
+     {event:'sample-end',final:false,value:'TARGET_CHANGED'}
+    ])
+    expect(result.structuredContent).toMatchObject({reason:'TARGET_CHANGED',progress:{moveAttempted:1,moveAcknowledged:1,downAttempted:0,upAttempted:0}})
+   }
    const blocked=['fixed','hover','replace','closed','open','frame','flag-replace','user-agent','second-block'].includes(mode)
    expect(result.isError===true).toBe(blocked)
    expect(JSON.stringify(result)).not.toMatch(/private-blocker-canary|private-shadow-canary|private-input-canary/)
@@ -44,6 +61,7 @@ for (const target of ['selector','ref'] as const) for (const doubleClick of [fal
    expect(clicks).toHaveLength(mode==='second-block'?1:blocked?0:doubleClick?2:1)
    expect(clicks.every((e:{trusted:boolean;original:boolean})=>e.trusted&&e.original)).toBe(true)
    expect(observed.overrides).toBe(0)
+   }finally{if(mode==='replace')await restoreReplacementProbe(electronApp)}
   })
  }
 }
