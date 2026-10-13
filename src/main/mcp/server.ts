@@ -1148,7 +1148,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<{ fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; imageFinishActivity?: (result: CallToolResult) => void; imageFinishing?: boolean; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
     if (request?.storageComparison && error instanceof StorageComparisonInputError) request.storageComparison.inputError = error.reason
@@ -1191,6 +1191,14 @@ function createBrowserMcpServer(
       }
       if (name === 'browser_storage_changes') frameRequest.storageComparison = { started: false, changed: false }
       if (name === 'browser_indexeddb' || name === 'browser_storage_usage') frameRequest.storageInspection = { started: false }
+      const settleImageState = (result: CallToolResult): CallToolResult => {
+        if (name === 'browser_image_state') {
+          const finish = frameRequest.imageFinishActivity
+          frameRequest.imageFinishActivity = undefined
+          finish?.(result)
+        }
+        return result
+      }
       const settleFileEvaluation = (result: CallToolResult): CallToolResult => {
         if (!frameRequest.fileEvaluation) return result
         if (!result.isError) { frameRequest.fileEvaluationFinishActivity?.(result); return result }
@@ -1380,6 +1388,7 @@ function createBrowserMcpServer(
               ? 'The capability changed while this observation was running. Obtain a fresh credential before reading again.'
               : 'The capability changed after dispatch. Inspect current state before deciding what to do next; do not automatically repeat a possible side effect.'
           }
+          if (name === 'browser_image_state') return settleImageState({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.fileEvaluation) return settleFileEvaluation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
             ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
@@ -1395,14 +1404,14 @@ function createBrowserMcpServer(
           frameRequest.pending.assertCurrent()
           return settled
         }
-        if ((name === 'browser_element_inspect' || name === 'browser_media_state') && !result.isError) {
+        if ((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state') && !result.isError) {
           // Validate the captured context after every audit/capability await.
           // Opt-in occupancy also settles its page-side identity/type guard.
           const inspection = frameRequest.elementInspection
           if (!inspection) throw new Error('Element inspection publication guard is unavailable')
           await inspection.finish()
           inspection.assertCurrent()
-          return result // No await between final authority check and publication.
+          return settleImageState(result) // No await between final authority check and publication.
         }
         if (name === 'browser_video' && input.action === 'inspect' && frameRequest.videoInspection && !result.isError) {
           // No await after this check: capability/human/audit settlement must precede pixel publication.
@@ -1492,7 +1501,7 @@ function createBrowserMcpServer(
         // No await after the final publication guard.
         const settled = settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(result))))
         recordReadinessProbe(settled.isError ? 'failed' : 'verified')
-        return settleFileEvaluation(settled)
+        return settleImageState(settleFileEvaluation(settled))
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
           && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
@@ -1502,6 +1511,7 @@ function createBrowserMcpServer(
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
         recordReadinessProbe('failed')
+        if (name === 'browser_image_state') return settleImageState(errorResult(error))
         if (frameRequest.fileEvaluation) return settleFileEvaluation({ content: [], isError: true })
         if (frameRequest.storageComparison) { rememberInputPolicy(error); return settleStorageComparison(errorResult(error)) }
         if (frameRequest.storageInspection) { rememberInputPolicy(error); return settleStorageInspection(errorResult(error)) }
@@ -1979,7 +1989,7 @@ function createBrowserMcpServer(
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
         const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
         const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true)
-        const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state'
+        const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state' || name === 'browser_image_state'
         const preservePresentation = passiveObservation || name === 'browser_wheel' || name === 'browser_hold_key'
           || (name === 'browser_click' && input.button === 'right')
         const controlRevision = actionTracker.controlRevision
@@ -2101,7 +2111,7 @@ function createBrowserMcpServer(
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
           requireActiveCapabilityDispatch(name, actionInput, isFrameObservation || isPageObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
           if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
-          if ((name === 'browser_element_inspect' || name === 'browser_media_state') && extra?.signal?.aborted) throw new Error('Element inspection cancelled')
+          if ((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state') && extra?.signal?.aborted) throw new Error('Element inspection cancelled')
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -2316,7 +2326,7 @@ function createBrowserMcpServer(
               : await handler({
                 ...actionInput,
                 tabId: resolvedTabId,
-                ...((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_network_request') ? { validateInspection: requireCurrentTarget } : {}),
+                ...((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state' || name === 'browser_network_request') ? { validateInspection: requireCurrentTarget } : {}),
                 ...(['browser_click', 'browser_hover', 'browser_drag', 'browser_press', 'browser_wheel', 'browser_hold_key'].includes(name) ? { validateNativeInput: (validateContext: () => void) => {
                   try {
                     if (extra?.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
@@ -2460,7 +2470,7 @@ function createBrowserMcpServer(
               await requireHumanDecision(false, reviewAttempt?.id)
               if (name === 'browser_wheel') frameRequests.getStore()!.wheelPublication!()
               if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldPublication!()
-              if (name === 'browser_element_inspect' || name === 'browser_media_state') requireCurrentTarget()
+              if (name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state') requireCurrentTarget()
               validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl(true)
@@ -2506,6 +2516,10 @@ function createBrowserMcpServer(
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
           const request = frameRequests.getStore()!
+          if (name === 'browser_image_state' && !request.imageFinishing) {
+            request.imageFinishActivity = settled => { request.imageFinishing = true; finishActivity(settled, false) }
+            return
+          }
           if (request.fileEvaluation && !request.fileEvaluationFinishing) {
             request.fileEvaluationFinishActivity = settled => { request.fileEvaluationFinishing = true; finishActivity(settled, false) }
             return
@@ -4054,6 +4068,19 @@ function createBrowserMcpServer(
     },
     tabTool('browser_media_state', async (options: { tabId?: string; ref?: never; selector: string; validateInspection?: () => void }) =>
       textResult(await manager.mediaState(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
+  )
+  registerWorkspaceTool(
+    'browser_image_state',
+    {
+      description: toolDescription('browser_image_state'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        ref: z.never().optional().describe('Snapshot refs are unsupported; use a unique selector. Ref input is rejected even when selector is also supplied.'),
+        selector: z.string().min(1).max(1_000).describe('Select one unique current top-level light-DOM HTML image. This is current selector resolution, not historical snapshot identity.')
+      }
+    },
+    tabTool('browser_image_state', async (options: { tabId?: string; ref?: never; selector: string; validateInspection?: () => void }) =>
+      textResult(await manager.imageState(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
   )
   registerWorkspaceTool(
     'browser_generate_locator',

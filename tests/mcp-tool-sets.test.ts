@@ -125,7 +125,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(88)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(89)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -152,6 +152,7 @@ describe('MCP tool sets', () => {
         'browser_public_outcome',
         'browser_find',
         'browser_element_inspect',
+        'browser_image_state',
         'browser_media_state',
         'browser_generate_locator',
         'browser_wait',
