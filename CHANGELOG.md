@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add bounded, passive `browser_image_state` observations of one image’s native completion and density-corrected intrinsic dimensions without returning source URLs. Reports explicitly retain sampled-state and publication-gap limits.
+
 ### Fixed
 
 - Reject sanitized cURL copies containing retained literal NUL characters instead of producing an unusable shell command. Show an explicit error without changing the clipboard; Copy fetch preserves the retained body, including NUL characters.

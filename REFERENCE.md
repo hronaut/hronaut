@@ -796,7 +796,7 @@ paths, and raw origins.
 - `browser_user_attention`
 - `browser_new_tab`, `browser_select_tab`, `browser_close_tab`, `browser_bookmarks`, `browser_visit_history`, `browser_site_data`, `browser_storage`, `browser_storage_changes`, `browser_storage_usage`, `browser_indexeddb`, `browser_pwa`, `browser_pwa_lifecycle`
 - `browser_navigate`, `browser_history`, `browser_wait`
-- `browser_snapshot`, `browser_public_outcome`, `browser_find`, `browser_element_inspect`, `browser_media_state`, `browser_generate_locator`, `browser_click`, `browser_dialog`, `browser_type`, `browser_fill_form`, `browser_press`
+- `browser_snapshot`, `browser_public_outcome`, `browser_find`, `browser_element_inspect`, `browser_media_state`, `browser_image_state`, `browser_generate_locator`, `browser_click`, `browser_dialog`, `browser_type`, `browser_fill_form`, `browser_press`
 - `browser_select`, `browser_hover`, `browser_drag`, `browser_scroll`, `browser_file_upload`
 - `browser_resize`, `browser_emulate`, `browser_zoom`, `browser_audio`, `browser_screenshot`, `browser_video`, `browser_pdf_save`, `browser_accessibility_audit`, `browser_performance`, `browser_design_overview`, `browser_page_metadata`, `browser_security`, `browser_code_coverage`, `browser_cpu_profile`, `browser_memory`, `browser_debug_report`, `browser_repro`, `browser_dom_changes`, `browser_visual_compare`, `browser_issues`, `browser_console`, `browser_diagnostic_logs`, `browser_network`, `browser_network_wait`, `browser_network_search`, `browser_network_request`, `browser_network_replay`, `browser_network_har`, `browser_network_routes`, `browser_downloads`, `browser_webmcp`, `browser_evaluate`, `browser_evaluate_file`
 
@@ -1342,6 +1342,18 @@ The package contains a static manifest and escaped JSON text, with capture/windo
 
 The offline file contains no executable captured content or remote resources and uses a restrictive Content Security Policy. A hash-authorized fixed stylesheet wraps long JSON lines and tokens to fit the preview or browser width; selection and copied artifact text retain their original characters and line breaks. The preview is additionally sandboxed. There is no automatic upload or external sharing, and original evidence is not edited. This UI-only review path adds no MCP export bypass. Screenshots and masking, ZIP packaging and additional evidence types remain follow-up work on #336.
 
+
+### Native image-element state
+
+`browser_image_state({ workspaceId, tabId, selector })` passively samples one unique, connected top-level light-DOM HTML `img`, including a hidden image or an `img` inside `picture`. Selectors address the current document; snapshot `ref` input is rejected, even with a selector. Frames, shadow descendants, CSS backgrounds, canvas, SVG `image`, XML documents and `picture`/`source` containers are unsupported. The tab must already be active in its page lifecycle; inspection does not select, wake, focus, scroll, reload, fetch a source, call `decode()` or change attributes.
+
+The report contains `observedAt` (Unix milliseconds), native `complete`, `naturalWidth`, `naturalHeight` and `hasSelectedSource` (native `currentSrc` is nonempty). **`complete: true` also includes broken and no-source images**; it is not a loaded/decoded/rendered verdict. Natural dimensions are density-corrected CSS pixels, not necessarily encoded-file pixels. Zero means intrinsic dimensions are unavailable. A selected source does not prove loading succeeded or identify the responsive variant.
+
+Only these validated scalars cross the renderer boundary. Source URLs, lists, paths, query strings, fragments, alt text, markup and bytes are not returned or logged by the observation. Native `currentSrc` is transiently read inside the isolated renderer and reduced to a boolean; this may materialize a large string before reduction. It is not a source-allocation bound.
+
+Limits are 1,000 selector characters, 5,000 top-level light-DOM elements (counted before native selector matching), 512 JSON characters per report, eight unsettled inspections per tab and a five-second publication deadline. Slots include native work and cleanup still pending after timeout. A deadline withholds late results; it does not interrupt renderer execution. The element-count bound limits match collection, not CSS selector CPU cost. Missing, ambiguous, invalid-selector, unsupported, document-limit and native-read failures are distinct and omit page-supplied error details.
+
+The original element and document are retained until a final trusted renderer identity check. Main-owned workspace, document-commit, control and cancellation checks continue through final MCP publication, after audit work. **DOM/image state can still change after the last renderer check and before delivery.** Detach/reinsert or source changes that return to the original state between samples may go undetected. This is sampled state, not continuous identity, atomic delivery-time DOM identity, compositor-pixel proof, decode completion or future readiness. Separate geometry and network observations do not form an atomic joint snapshot. Activity history reflects the final publication outcome; a generic audit receipt records operation settlement and is not proof of atomic delivery.
 
 ### Native media-element state
 

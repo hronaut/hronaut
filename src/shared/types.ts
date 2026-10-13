@@ -2998,3 +2998,12 @@ export interface BrowserMediaState {
   networkState: number
   errorCode: number | null
 }
+
+/** Sampled native image facts, not decoded pixels or publication-time DOM identity. */
+export interface BrowserImageState {
+  observedAt: number
+  complete: boolean
+  naturalWidth: number
+  naturalHeight: number
+  hasSelectedSource: boolean
+}

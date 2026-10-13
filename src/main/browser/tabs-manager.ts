@@ -1,3 +1,4 @@
+import { IMAGE_STATE_WORLD_ID, ImageInspectionSlots, imageStateScript, imageStateSettlementScript, normalizeImageState } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-click.js'
 import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
@@ -12,7 +13,7 @@ import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
 import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
-import type { BrowserMediaState } from '../../shared/types.js'
+import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
 import { formValiditySettlementScript } from './form-validity.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
@@ -1252,6 +1253,7 @@ export class BrowserTabsManager {
     return this.frameObservation.capture(tabId, selector, maxChars, authority)
   }
 
+  private readonly imageInspectionSlots = new ImageInspectionSlots()
   private readonly inspectionPermissions = new WeakMap<object, number>()
   private readonly reactInspectionController = new ReactInspectionController({
     resolve: tabId => {
@@ -5702,6 +5704,73 @@ export class BrowserTabsManager {
       const raw: unknown = await bounded(execute(mediaStateScript({ selector: options.selector }, token)))
       assertCurrent()
       const report = normalizeMediaState(raw)
+      if (deferInspection) { deferInspection(pending); deferred = true } else await pending.finish()
+      return report
+    } finally { if (!deferred) pending.discard() }
+  }
+
+  async imageState(options: { tabId?: string; ref?: never; selector: string }, validateInspection?: () => void, deferInspection?: (pending: PendingElementInspection) => void): Promise<BrowserImageState> {
+    if (Object.hasOwn(options, 'ref')) throw new TypeError('Image state does not support snapshot refs; provide a unique selector')
+    if (typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1_000) throw new TypeError('Image state requires a nonempty selector of at most 1000 characters')
+    const tab = this.getTab(options.tabId)
+    const contents = tab.webContents
+    let documentChanged = false
+    const onCommitted = (): void => { documentChanged = true }
+    const deadline = Date.now() + 5_000
+    const context = this.snapshotDeltaContext(tab)
+    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
+    const assertCurrent = (): void => {
+      validateInspection?.()
+      if (Date.now() > deadline) throw new Error('Image state inspection expired')
+      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
+      if (this.destroyed || documentChanged || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
+        || currentWorkspace !== workspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
+        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) throw new Error('The observation context changed during image inspection')
+      if (isHronautHomeUrl(tab.url) || tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active') throw new Error('Image state unavailable: requires an already active website tab')
+    }
+    assertCurrent()
+    const slot = this.imageInspectionSlots.acquire(contents)
+    contents.on('did-navigate', onCommitted)
+    const token = randomUUID()
+    const bounded = async <T>(operation: Promise<T>): Promise<T> => {
+      let timer: NodeJS.Timeout | undefined
+      try {
+        const result = await Promise.race([operation, new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error('Image state inspection expired')), Math.max(1, deadline - Date.now()))
+        })])
+        if (Date.now() > deadline) throw new Error('Image state inspection expired')
+        return result
+      } finally { if (timer) clearTimeout(timer) }
+    }
+    const execute = (code: string, cleanup = false) => slot.track(Promise.resolve().then(async () => {
+      if (!cleanup) assertCurrent()
+      try { return await contents.executeJavaScriptInIsolatedWorld(IMAGE_STATE_WORLD_ID, [{ code }], false) }
+      catch { throw new Error('Image state unavailable: native execution failed') }
+    }))
+    let discarded = false
+    let settled = false
+    let deferred = false
+    const pending: PendingElementInspection = {
+      assertCurrent,
+      finish: async () => {
+        assertCurrent()
+        const valid = await bounded(execute(imageStateSettlementScript(token)))
+        assertCurrent()
+        if (valid !== true) throw new Error('The image target changed before publication')
+        settled = true
+      },
+      discard: () => {
+        if (discarded) return
+        discarded = true
+        contents.removeListener('did-navigate', onCommitted)
+        slot.close(!settled && !contents.isDestroyed() ? execute(imageStateSettlementScript(token, true), true) : undefined)
+      }
+    }
+    try {
+      const raw: unknown = await bounded(execute(imageStateScript(options.selector, token, deadline)))
+      assertCurrent()
+      const report = normalizeImageState(raw)
       if (deferInspection) { deferInspection(pending); deferred = true } else await pending.finish()
       return report
     } finally { if (!deferred) pending.discard() }
