@@ -110,8 +110,20 @@ for (const invalidation of ['detach', 'remove', 'exhaust'] as const) {
       toggle = appWindow.evaluate(async ({ tabId, id }) => { try { await (window as unknown as { hronaut: HronautApi }).hronaut.setNetworkRouteEnabled(tabId, id, false); return 'unexpected success' } catch (e) { return String(e) } }, { tabId, id: routes[0]!.id })
       await appWindow.evaluate(async () => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
       if (invalidation === 'exhaust') expect(await electronApp.evaluate(async ({ webContents }, fixtureUrl) => webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!.executeJavaScript("fetch('/route-target').then(r=>r.status).catch(()=>0)"), fixtureUrl)).toBe(0)
-      if (invalidation === 'detach') await electronApp.evaluate(({ webContents }, fixtureUrl) => webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!.debugger.detach(), fixtureUrl)
+      if (invalidation === 'detach') await electronApp.evaluate(async ({ webContents }, fixtureUrl) => {
+        const api = webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!.debugger
+        let detached!: () => void
+        const settled = new Promise<void>(resolve => {
+          // The runtime's earlier detach listener schedules independent dialog
+          // monitoring. Observe that check turn while the queue blocker is held,
+          // before measuring attachments owned by the rejected queued toggle.
+          detached = () => { setImmediate(resolve) }
+          api.once('detach', detached)
+        })
+        try { api.detach(); await settled } finally { api.removeListener('detach', detached) }
+      }, fixtureUrl)
       const before = await electronApp.evaluate(() => ({ attaches: (globalThis as Scope).__toggleGuard!.attaches, setup: (globalThis as Scope).__toggleGuard!.commands.filter(c => /^(Page|Runtime|Log)\./.test(c)) }))
+      if (invalidation === 'detach') expect(before).toEqual({ attaches: 1, setup: [] })
       await electronApp.evaluate(() => (globalThis as Scope).__toggleGuard!.release())
       await blocker; await removed
       expect(await toggle).not.toBe('unexpected success')
