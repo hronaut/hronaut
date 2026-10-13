@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from '../src/main/browser/emulation-state.js'
+import { DEFAULT_EMULATION, EmulationInputError, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from '../src/main/browser/emulation-state.js'
 import { resolveViewportPreset } from '../src/shared/viewport-presets.js'
 import type { BrowserEmulationOptions, BrowserEmulationState } from '../src/shared/types.js'
 
@@ -62,6 +62,19 @@ describe('emulation configuration', () => {
     expect(prepare({ viewportPreset: 'phone', viewportOrientation: 'landscape' })!.state.viewport).toEqual(resolveViewportPreset('phone', 'landscape'))
     expect(() => prepare({ viewport: null, viewportPreset: 'phone' })).toThrow('cannot be combined')
     expect(() => prepare({ viewportOrientation: 'landscape' })).toThrow('requires viewportPreset')
+  })
+
+  it.each([
+    [{ viewport: null, viewportPreset: 'phone' }, 'VIEWPORT_CONFLICT'],
+    [{ viewportOrientation: 'landscape' }, 'ORIENTATION_REQUIRES_PRESET'],
+    [{ recover: true, extraHttpHeaders: { 'X-Private': 'never-public' } }, 'RECOVERY_CONFLICT'],
+    [{ reset: true, userAgent: 'never-public' }, 'RESET_CONFLICT']
+  ] as const)('provides bounded combination-error provenance for %j', (options, reason) => {
+    let caught: unknown
+    try { prepare(options) } catch (error) { caught = error }
+    expect(caught).toBeInstanceOf(EmulationInputError)
+    expect(caught).toMatchObject({ reason })
+    expect(String(caught)).not.toContain('never-public')
   })
 
   it.each([NaN, Infinity, 199, 3841, 200.5])('rejects invalid viewport width %s', (width) => {

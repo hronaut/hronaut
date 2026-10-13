@@ -1,5 +1,6 @@
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { HronautApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 async function applyDiagnosticEmulation(client: Client, tabId: string): Promise<CallToolResult> {
@@ -111,6 +112,9 @@ test('applies responsive presets and resets only the viewport', async ({ capabil
   }) as CallToolResult
   expect(ambiguousViewport.isError).toBe(true)
   expect(text(ambiguousViewport)).toContain('cannot be combined')
+  expect(ambiguousViewport.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', reason: 'VIEWPORT_CONFLICT' })
+  const afterInvalid = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
+  expect(JSON.parse(text(afterInvalid))).toEqual(JSON.parse(text(presetEmulation)))
 
 })
 
@@ -318,6 +322,8 @@ test('hands emulation diagnostics to DevTools and requires explicit recovery aft
   const seeded = await applyDiagnosticEmulation(client, tabId)
   expect(seeded.isError, text(seeded)).not.toBe(true)
   const routePattern = `${fixtureOrigin}/route-target`
+  const committed = JSON.parse(text(seeded))
+  const unconfirmed = { application: 'unknown', retainedSettings: committed, recovery: 'restore-committed' }
   await client.callTool({
     name: 'browser_network_routes',
     arguments: { action: 'add', tabId, urlPattern: routePattern, times: 3, abort: 'Failed' }
@@ -346,7 +352,9 @@ test('hands emulation diagnostics to DevTools and requires explicit recovery aft
     arguments: { tabId, width: 400, height: 600 }
   }) as CallToolResult
   expect(debuggerActionWithDevTools.isError).toBe(true)
-  expect(text(debuggerActionWithDevTools)).toContain('unknown')
+  expect(text(debuggerActionWithDevTools)).toContain('Native emulation application is not confirmed')
+  const retained = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
+  expect(JSON.parse(text(retained))).toEqual(unconfirmed)
   expect(await appWindow.evaluate(`window.hronaut.toggleDevTools(${JSON.stringify(tabId)})`)).toBe(false)
   await expect.poll(() => electronApp.evaluate(({ webContents }, requestedOrigin) => {
     return webContents.getAllWebContents().some((contents) => (
@@ -357,8 +365,20 @@ test('hands emulation diagnostics to DevTools and requires explicit recovery aft
   const recovered = await client.callTool({ name: 'browser_network_routes', arguments: { action: 'clear', tabId } }) as CallToolResult
   expect(recovered.isError, text(recovered)).not.toBe(true)
   expect(JSON.parse(text(recovered))).toEqual([])
-  const restored = await applyDiagnosticEmulation(client, tabId)
+  const afterNetworkClear = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!, tabId)
+  expect(afterNetworkClear.networkConditionState).toEqual({ application: 'confirmed', retainedRules: [] })
+  expect(afterNetworkClear.emulation).toBeUndefined()
+  expect(afterNetworkClear.emulationState).toEqual(unconfirmed)
+  const prematureEdit = await applyDiagnosticEmulation(client, tabId)
+  expect(prematureEdit.isError).toBe(true)
+  expect(prematureEdit.structuredContent).toMatchObject({ status: 'NOT_DISPATCHED', effects: 'none', retrySafe: false })
+  const stillRetained = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
+  expect(JSON.parse(text(stillRetained))).toEqual(unconfirmed)
+  const restored = await client.callTool({ name: 'browser_emulate', arguments: { tabId, recover: true } }) as CallToolResult
   expect(restored.isError, text(restored)).not.toBe(true)
+  expect(JSON.parse(text(restored))).toEqual(committed)
+  const ordinaryEdit = await applyDiagnosticEmulation(client, tabId)
+  expect(ordinaryEdit.isError, text(ordinaryEdit)).not.toBe(true)
 
   await expect.poll(async () => {
     const result = await client.callTool({
@@ -429,7 +449,7 @@ test('applies and resets environment conditions through the panel', async ({ cap
   await environmentPanel.getByLabel(/Custom user agent/).fill('Hronaut Human Environment/1.0')
   await environmentPanel.getByLabel(/Override geolocation/).uncheck()
   await environmentPanel.getByRole('button', { name: 'Apply & reload' }).click()
-  await expect(environmentPanel.locator('.environment-status')).toContainText('Environment applied')
+  await expect(environmentPanel.locator('output.environment-status')).toContainText('Environment applied')
   await expect.poll(async () => {
     const current = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
     return JSON.parse(text(current))
@@ -569,7 +589,7 @@ test('restores JavaScript and clears offline emulation, viewport and headers', a
     const current = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
     return JSON.parse(text(current)).javaScriptDisabled ?? false
   }).toBe(false)
-  await expect(disabledJavaScriptPanel.locator('.environment-status')).toContainText('Environment applied')
+  await expect(disabledJavaScriptPanel.locator('output.environment-status')).toContainText('Environment applied')
   await client.callTool({ name: 'browser_wait', arguments: { tabId } })
   const restoredJavaScriptSnapshot = await client.callTool({
     name: 'browser_snapshot',

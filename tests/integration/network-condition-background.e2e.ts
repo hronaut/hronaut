@@ -24,7 +24,7 @@ test('unknown conditions fence consumption refresh, reattachment, emulation and 
       return timeout(callback, delay, ...args)
     }) as typeof setTimeout
     api.sendCommand = async (method, ...args) => {
-      if (['Fetch.enable', 'Fetch.disable', 'Network.emulateNetworkConditionsByRule', 'Network.overrideNetworkState', 'Network.emulateNetworkConditions'].includes(method)) probe.commands.push(method)
+      if (/^(Emulation\.|Animation\.|Overlay\.|Network\.(set|emulate|override))/.test(method) || ['Fetch.enable', 'Fetch.disable'].includes(method)) probe.commands.push(method)
       const result = await original.call(api, method, ...args)
       if (probe.armed && method === 'Network.emulateNetworkConditionsByRule') throw new Error('Controlled native lost acknowledgement')
       if (method === 'Input.setIgnoreInputEvents') probe.monitored = true
@@ -53,12 +53,19 @@ test('unknown conditions fence consumption refresh, reattachment, emulation and 
       return results
     }, tabId)
     expect(refusals).toHaveLength(2)
-    for (const refusal of refusals) expect(refusal).toContain('unknown')
+    expect(refusals[0]).toContain('unknown')
+    expect(refusals[1]).toContain('Native emulation application is not confirmed')
     expect(await electronApp.evaluate(() => (globalThis as Scope).__conditionBackground!.commands)).toEqual(before)
-    const health = await appWindow.evaluate(async tabId => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === tabId)!.networkConditionState, tabId)
-    expect(health).toEqual({ application: 'unknown', retainedRules: [] })
+    const beforeClear = await appWindow.evaluate(async tabId => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === tabId)!, tabId)
+    expect(beforeClear.networkConditionState).toEqual({ application: 'unknown', retainedRules: [] })
+    expect(beforeClear.emulation).toBeUndefined()
+    expect(beforeClear.emulationState).toMatchObject({ application: 'unknown', recovery: 'restore-committed' })
     await electronApp.evaluate(() => { (globalThis as Scope).__conditionBackground!.armed = false })
     await appWindow.evaluate(async tabId => (window as unknown as { hronaut: HronautApi }).hronaut.clearNetworkRoutes(tabId), tabId)
+    const afterClear = await appWindow.evaluate(async tabId => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(t => t.id === tabId)!, tabId)
+    expect(afterClear.networkConditionState).toEqual({ application: 'confirmed', retainedRules: [] })
+    expect(afterClear.emulation).toBeUndefined()
+    expect(afterClear.emulationState).toEqual(beforeClear.emulationState)
     expect(await electronApp.evaluate(async ({ webContents }, fixtureUrl) => webContents.getAllWebContents().find(p => p.getURL() === fixtureUrl)!.executeJavaScript("fetch('/route-target').then(r=>r.status)"), fixtureUrl)).toBe(200)
   } finally {
     await electronApp.evaluate(() => { (globalThis as Scope).__conditionBackground?.restore(); delete (globalThis as Scope).__conditionBackground }).catch(() => undefined)
