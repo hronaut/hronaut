@@ -64,7 +64,12 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     if (isHorizontalDock(dock)) {
       return Math.max(1, Math.min(840, window.innerWidth - options.tabRailWidth.value - 360))
     }
-    return Math.max(1, Math.min(700, window.innerHeight - shellHeight - 220))
+    const availableHeight = Math.max(0, window.innerHeight - shellHeight)
+    // Keep the usual 220px website reserve when both surfaces fit. In a short
+    // viewport, recover up to the panel's 240px minimum while leaving at least
+    // one third of the available space for the native website view.
+    const compactMaximum = Math.min(240, Math.floor(availableHeight * 2 / 3))
+    return Math.max(1, Math.min(700, Math.max(availableHeight - 220, compactMaximum)))
   }
 
   function minimumSize(dock: PanelDock = options.dock.value, maximum = maximumSize(dock)): number {

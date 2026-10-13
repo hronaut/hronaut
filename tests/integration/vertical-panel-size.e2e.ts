@@ -1,0 +1,43 @@
+import { expect, test } from './fixtures.js'
+
+for (const dock of ['top', 'bottom'] as const) {
+  for (const scale of [1, 1.25]) {
+    test(`${dock} Page tools dock preserves resize preferences across short windows at ${scale} scale`, async ({ appWindow, electronApp }) => {
+      await appWindow.getByRole('button', { name: 'New tab' }).click()
+      await appWindow.getByRole('button', { name: 'Page tools' }).click()
+      const panel = appWindow.getByRole('dialog', { name: 'Page tools' })
+      const picker = panel.getByRole('combobox', { name: 'Dock page tools' })
+      await picker.selectOption(dock)
+      await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(760, 900))
+      await appWindow.evaluate(scale => (window as unknown as { hronautSettings: { setInterfaceScale(scale: number): Promise<unknown> } }).hronautSettings.setInterfaceScale(scale), scale)
+      await expect.poll(() => appWindow.evaluate(() => innerHeight)).toBe(900 / scale)
+      const handle = appWindow.getByRole('separator', { name: 'Resize docked panel' })
+      await handle.focus()
+      await handle.press('Home')
+      await expect(handle).toHaveAttribute('aria-valuenow', '240')
+      await handle.press(dock === 'top' ? 'ArrowDown' : 'ArrowUp')
+      await expect(handle).toHaveAttribute('aria-valuenow', '256')
+      const savedSize = () => appWindow.evaluate(() => localStorage.getItem('hronaut:panel-dock-size-vertical'))
+      await expect.poll(savedSize).toBe('256')
+      await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(760, 520))
+      await expect.poll(() => appWindow.evaluate(() => innerHeight)).toBe(520 / scale)
+      await expect.poll(async () => Number(await handle.getAttribute('aria-valuenow'))).toBeLessThan(256)
+      const size = Number(await handle.getAttribute('aria-valuenow'))
+      expect(size).toBeGreaterThanOrEqual(150)
+      await expect.poll(savedSize).toBe('256')
+      await picker.focus()
+      await expect(picker).toBeInViewport({ ratio: 1 })
+      const close = panel.getByRole('button', { name: 'Close page tools' })
+      await expect(close).toBeInViewport({ ratio: 1 })
+      await close.click()
+      await appWindow.getByRole('button', { name: 'Page tools' }).click()
+      await expect(handle).toHaveAttribute('aria-valuenow', String(size))
+      await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(760, 900))
+      await expect(handle).toHaveAttribute('aria-valuenow', '256')
+      await handle.focus()
+      await handle.press('End')
+      await expect(handle).toHaveAttribute('aria-valuenow', String(Math.round(Number(await handle.getAttribute('aria-valuemax')))))
+      await close.click()
+    })
+  }
+}

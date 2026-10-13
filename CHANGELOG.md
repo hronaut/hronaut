@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep top and bottom diagnostic docks from collapsing in short windows. Constrained layouts give the panel more space while reserving at least one third of the available height for the native website; normal-height layouts and saved dock sizes are preserved. Network copy, footer and header actions remain reachable at the minimum window size and 125% interface scale.
+
 ## [2.40.0] - 2026-10-13
 
 ### Added
