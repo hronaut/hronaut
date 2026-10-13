@@ -60,6 +60,7 @@ function createFeature() {
   const environmentPanelOpen = ref(false)
   const browser = {
     resetTabEmulation: vi.fn(async () => ({}) as BrowserState),
+    recoverTabEmulation: vi.fn(async () => ({}) as BrowserState),
     setTabEnvironment: vi.fn(async () => ({}) as BrowserState),
     reloadIgnoringCache: vi.fn(async () => ({}) as BrowserState),
     setTabViewport: vi.fn(async () => ({}) as BrowserState)

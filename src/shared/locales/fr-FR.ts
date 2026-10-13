@@ -13,6 +13,7 @@ export const frFR = {
   licenseNotice: {"expired": "L’automatisation par les agents est bloquée. Activez ou renouvelez votre licence. Les données enregistrées restent disponibles.", "manage": "Paramètres de licence", "purchase": "Acheter ou renouveler ↗"},
   pwaLifecycle: pwaLifecycleMessages['fr-FR'],
   softNavigation: softNavigationMessages['fr-FR'],
+  emulationApplication: {"pending": "Application de l’émulation", "unknown": "Émulation non confirmée", "help": "Ouvrez Environnement pour vérifier les réglages conservés et les restaurer explicitement. La requête échouée ne sera pas répétée.", "restore": "Restaurer les réglages conservés", "networkFirst": "Rétablissez d’abord les conditions réseau dans Conditions de requête. L’émulation restera non confirmée jusqu’à sa restauration séparée."},
   networkPriority: networkPriorityMessages['fr-FR'],
   lcpAttribution: lcpAttributionMessages['fr-FR'],
   browserImport: browserImportMessages['fr-FR'],

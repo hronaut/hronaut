@@ -11,6 +11,7 @@ export const enUS = {
   licenseNotice: {"expired": "Agent automation is locked. Activate or renew your license to continue. Saved data remains available.", "manage": "License settings", "purchase": "Buy or renew ↗"},
   pwaLifecycle: pwaLifecycleMessages['en-US'],
   softNavigation: softNavigationMessages['en-US'],
+  emulationApplication: {"pending": "Applying emulation", "unknown": "Emulation unconfirmed", "help": "Open Environment to inspect retained settings and explicitly restore them. The failed request will not be replayed.", "restore": "Restore retained settings", "networkFirst": "First recover Network conditions in Request conditions. Emulation remains unconfirmed until separately restored."},
   networkPriority: networkPriorityMessages['en-US'],
   lcpAttribution: lcpAttributionMessages['en-US'],
   browserImport: browserImportMessages['en-US'],

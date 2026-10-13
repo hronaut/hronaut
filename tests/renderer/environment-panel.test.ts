@@ -36,6 +36,7 @@ function renderPanel(overrides: {
   const controller = useEnvironmentPanelController({
     open,
     activeTab,
+    recoverTabEmulation: vi.fn(async () => ({}) as BrowserState),
     setTabEnvironment: overrides.setTabEnvironment ?? vi.fn(async () => browserState()),
     reloadIgnoringCache: vi.fn(async () => browserState()),
     syncState: async (operation) => { await operation },
@@ -54,10 +55,21 @@ function renderPanel(overrides: {
       openResponsivePreview: vi.fn()
     }
   })
-  return { view, controller }
+  return { view, controller, activeTab }
 }
 
 describe('EnvironmentPanel', () => {
+  it('shows retained-state uncertainty and requires explicit restoration before applying a draft', async () => {
+    const { activeTab } = renderPanel()
+    activeTab.value = { ...activeTab.value!, emulation: undefined, emulationState: { application: 'unknown', retainedSettings: activeTab.value!.emulation!, recovery: 'restore-committed' } }
+    await vi.waitFor(() => expect(screen.getAllByText('Emulation unconfirmed')[0]).toBeVisible())
+    expect(screen.getByRole('button', { name: /^Apply$/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Restore retained settings' })).toBeEnabled()
+    activeTab.value.networkConditionState = { application: 'unknown', retainedRules: [] }
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Restore retained settings' })).toBeDisabled())
+    expect(screen.getByText(/First recover Network conditions/)).toBeVisible()
+  })
+
   it('keeps a newer environment draft when an earlier apply finishes', async () => {
     const pending = deferred<BrowserState>()
     const setTabEnvironment = vi.fn(() => pending.promise)

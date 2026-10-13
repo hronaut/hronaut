@@ -13,6 +13,7 @@ export const plPL = {
   licenseNotice: {"expired": "Automatyzacja agentów jest zablokowana. Aktywuj lub odnów licencję. Zapisane dane pozostają dostępne.", "manage": "Ustawienia licencji", "purchase": "Kup lub odnów ↗"},
   pwaLifecycle: pwaLifecycleMessages['pl-PL'],
   softNavigation: softNavigationMessages['pl-PL'],
+  emulationApplication: {"pending": "Stosowanie emulacji", "unknown": "Emulacja niepotwierdzona", "help": "Otwórz Środowisko, aby sprawdzić i jawnie przywrócić zachowane ustawienia. Nieudane żądanie nie zostanie powtórzone.", "restore": "Przywróć zachowane ustawienia", "networkFirst": "Najpierw przywróć warunki sieciowe w Warunkach żądań. Emulacja pozostaje niepotwierdzona do czasu osobnego przywrócenia."},
   networkPriority: networkPriorityMessages['pl-PL'],
   lcpAttribution: lcpAttributionMessages['pl-PL'],
   browserImport: browserImportMessages['pl-PL'],

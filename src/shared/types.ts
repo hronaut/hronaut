@@ -145,7 +145,17 @@ export interface BrowserEmulationState {
   renderingDebug?: BrowserRenderingDebugOverlays
 }
 
+/** Retained settings are not a claim about the current native browser. */
+export interface BrowserUnconfirmedEmulation {
+  application: 'pending' | 'unknown'
+  retainedSettings: BrowserEmulationState
+  recovery: 'restore-committed'
+}
+
+export type BrowserEmulationResult = BrowserEmulationState | BrowserUnconfirmedEmulation
+
 export interface BrowserEmulationOptions {
+  recover?: boolean
   tabId?: string
   reset?: boolean
   network?: BrowserNetworkEmulation
@@ -231,6 +241,7 @@ export interface BrowserTabState {
   muted: boolean
   devToolsOpen: boolean
   emulation?: BrowserEmulationState
+  emulationState?: BrowserUnconfirmedEmulation
   networkRouteCount?: number
   networkConditionState?: BrowserNetworkConditionState
   inspectorIssueCount?: number
@@ -1932,6 +1943,7 @@ export interface BrowserDebugReport {
   url: string
   pageProblem?: BrowserPageProblem
   emulation?: BrowserEmulationState
+  emulationState?: BrowserUnconfirmedEmulation
   networkRouteCount: number
   summary: {
     consoleMessages: number
@@ -2614,6 +2626,7 @@ export interface HronautApi {
   setTabViewport(tabId: string, viewport: BrowserViewportEmulation | null): Promise<BrowserState>
   setTabEnvironment(tabId: string, environment: BrowserEnvironmentSettings): Promise<BrowserState>
   resetTabEmulation(tabId: string): Promise<BrowserState>
+  recoverTabEmulation(tabId: string): Promise<BrowserState>
   listNetworkRoutes(tabId: string): Promise<BrowserNetworkRouteSummary[]>
   addNetworkRoute(tabId: string, input: BrowserNetworkRouteInput): Promise<BrowserNetworkRouteSummary[]>
   setNetworkRouteEnabled(tabId: string, routeId: string, enabled: boolean): Promise<BrowserNetworkRouteSummary[]>

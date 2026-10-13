@@ -13,6 +13,7 @@ export const ukUA = {
   licenseNotice: {"expired": "Автоматизацію агентів заблоковано. Активуйте або поновіть ліцензію. Збережені дані залишаються доступними.", "manage": "Налаштування ліцензії", "purchase": "Придбати або поновити ↗"},
   pwaLifecycle: pwaLifecycleMessages['uk-UA'],
   softNavigation: softNavigationMessages['uk-UA'],
+  emulationApplication: {"pending": "Застосування емуляції", "unknown": "Емуляцію не підтверджено", "help": "Відкрийте Середовище, перевірте збережені налаштування та явно відновіть їх. Невдалий запит не повторюватиметься.", "restore": "Відновити збережені налаштування", "networkFirst": "Спочатку відновіть мережеві умови в Умовах запитів. Емуляція залишиться непідтвердженою до окремого відновлення."},
   networkPriority: networkPriorityMessages['uk-UA'],
   lcpAttribution: lcpAttributionMessages['uk-UA'],
   browserImport: browserImportMessages['uk-UA'],

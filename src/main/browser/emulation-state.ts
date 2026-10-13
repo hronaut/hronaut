@@ -110,6 +110,10 @@ export function prepareBrowserEmulation(
     || options.geolocation !== undefined
     || options.extraHttpHeaders !== undefined
     || options.renderingDebug !== undefined
+  if (options.recover) {
+    if (options.reset !== undefined || overridesProvided || options.viewportOrientation !== undefined) throw new Error('recover cannot be combined with reset or emulation overrides')
+    return { state: cloneEmulationState(current), headers: { ...currentHeaders } }
+  }
   if (options.reset && overridesProvided) throw new Error('reset cannot be combined with emulation overrides')
   if (!options.reset && !overridesProvided) return null
   if (options.cpuThrottlingRate !== undefined && (

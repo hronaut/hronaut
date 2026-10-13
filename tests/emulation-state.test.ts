@@ -13,6 +13,21 @@ describe('emulation configuration', () => {
     expect(() => prepare({ reset: true, cacheDisabled: false })).toThrow('reset cannot be combined')
   })
 
+  it('recovery preserves every committed setting and private header without sharing mutable values', () => {
+    const current = { ...DEFAULT_EMULATION, viewport: resolveViewportPreset('phone'), locale: 'en-US', extraHttpHeaderNames: ['X-Test'] }
+    const headers = { 'X-Test': 'private' }
+    const recovered = prepareBrowserEmulation(current, headers, { recover: true })!
+    expect(recovered).toEqual({ state: current, headers })
+    recovered.state.viewport!.width = 777
+    recovered.headers['X-Test'] = 'changed'
+    expect(current.viewport.width).not.toBe(777)
+    expect(headers['X-Test']).toBe('private')
+    for (const overrides of [{ reset: true }, { reset: false }, { colorScheme: 'auto' as const }, { viewport: null }, { extraHttpHeaders: {} }, { network: 'none' as const }]) {
+      expect(() => prepare({ recover: true, ...overrides })).toThrow('recover cannot be combined')
+    }
+    expect(prepare({ recover: false })).toBeNull()
+  })
+
   it('resets every override and private header value', () => {
     const current = { ...DEFAULT_EMULATION, viewport: resolveViewportPreset('phone'), locale: 'en-US', extraHttpHeaderNames: ['X-Test'] }
     expect(prepareBrowserEmulation(current, { 'X-Test': 'private' }, { reset: true })).toEqual({ state: DEFAULT_EMULATION, headers: {} })
