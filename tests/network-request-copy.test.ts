@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
 import { promisify } from 'node:util'
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import { canFormatNetworkRequestCopy, formatNetworkRequestCopy } from '../src/shared/network-request-copy.js'
 import type { BrowserNetworkRequestDetails } from '../src/shared/types.js'
@@ -40,6 +41,77 @@ function requestDetails(overrides: Partial<BrowserNetworkRequestDetails> = {}): 
 }
 
 describe('formatNetworkRequestCopy', () => {
+  it('uses curl empty-field syntax for each retained empty header without changing fetch output', () => {
+    const details = requestDetails({ request: { headers: { 'X-Mixed': ['', 'kept'], "X-Owner's": '' } } })
+    const curl = formatNetworkRequestCopy(details, 'curl')
+    expect(curl).toContain("--header 'X-Mixed;'")
+    expect(curl).toContain("--header 'X-Mixed: kept'")
+    expect(curl).toContain("--header 'X-Owner'\"'\"'s;'")
+    const fetch = formatNetworkRequestCopy(details, 'fetch')
+    const calls: RequestInit[] = []
+    runInNewContext(fetch, { fetch: (_url: string, options: RequestInit) => { calls.push(options) } })
+    expect(calls).toEqual([{ method: 'POST', headers: [['X-Mixed', ''], ['X-Mixed', 'kept'], ["X-Owner's", '']] }])
+  })
+
+  it('keeps empty sensitive, transport and invalid headers filtered before curl formatting', () => {
+    const curl = formatNetworkRequestCopy(requestDetails({ request: { headers: {
+      Authorization: '', Cookie: '', 'X-Api-Key': '', 'Content-Length': '', 'Bad\r\nName': '', 'X-Allowed': ''
+    } } }), 'curl')
+    expect(curl).toContain("--header 'X-Allowed;'")
+    expect(curl).toContain('5 sensitive, transport, invalid, or oversized headers were omitted')
+    for (const name of ['Authorization', 'Cookie', 'X-Api-Key', 'Content-Length', 'Bad']) expect(curl).not.toContain(`--header '${name}`)
+  })
+
+  it('preserves nonempty values and existing newline normalization and shell quoting', () => {
+    const curl = formatNetworkRequestCopy(requestDetails({ request: { headers: {
+      'X-Spaces': ' \t ', 'X-Punctuation': "'; $(fixture) `fixture`;", 'X-Lines': 'first\r\nsecond'
+    } } }), 'curl')
+    expect(curl).toContain("--header 'X-Spaces:  \t '")
+    expect(curl).toContain("--header 'X-Punctuation: '\"'\"'; $(fixture) `fixture`;'")
+    expect(curl).toContain("--header 'X-Lines: first second'")
+  })
+
+  it.skipIf(process.platform === 'win32').each(['GET', 'POST'])('replays empty and repeated headers literally with %s', async method => {
+    const received: Array<{ headers: string[]; body: string; method?: string }> = []
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = []
+      request.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      request.on('end', () => {
+        received.push({ headers: request.rawHeaders, body: Buffer.concat(chunks).toString('utf8'), method: request.method })
+        response.end('ok')
+      })
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Missing fixture server address')
+      const body = method === 'POST' ? "literal ' $() `text` ; café" : undefined
+      const command = formatNetworkRequestCopy(requestDetails({
+        url: `http://127.0.0.1:${address.port}/empty`, method,
+        request: { headers: { 'X-Empty': '', 'X-Mixed': ['', 'retained'], 'X-Control': 'kept', Authorization: 'private-canary', Cookie: '', 'Content-Type': '' },
+          ...(body === undefined ? {} : { body: { text: body, originalChars: body.length, truncated: false, redacted: false } }) }
+      }), 'curl')
+      const { stdout } = await promisify(execFile)('sh', ['-c', command], { timeout: 5_000 })
+      expect(stdout).toBe('ok')
+      expect(command).not.toContain('private-canary')
+      expect(received).toHaveLength(1)
+      const request = received[0]
+      if (!request) throw new Error('Missing replayed request')
+      expect(request.method).toBe(method)
+      expect(request.body).toBe(body ?? '')
+      const values = (name: string) => request.headers.flatMap((header, index, headers) => index % 2 === 0 && header.toLowerCase() === name ? [headers[index + 1]] : [])
+      expect(values('x-empty')).toEqual([''])
+      expect(values('x-mixed')).toEqual(['', 'retained'])
+      expect(values('x-control')).toEqual(['kept'])
+      expect(values('content-type')).toEqual([''])
+      expect(values('authorization')).toEqual([])
+      expect(values('cookie')).toEqual([])
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+    }
+  })
+
   it('creates a shell-safe sanitized cURL command with a complete text body', () => {
     const result = formatNetworkRequestCopy(requestDetails(), 'curl')
 
