@@ -7,7 +7,7 @@ import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer } from './fixtures.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-type Gate = { held: boolean; release(): void; restore(): void }
+type Gate = { configurationCommands?: string[]; held: boolean; release(): void; restore(): void }
 type Scope = typeof globalThis & { __emulationPublication?: Gate }
 
 for (const change of ['unchanged', 'pause', 'same-url-reload'] as const) {
@@ -58,7 +58,7 @@ for (const change of ['unchanged', 'pause', 'same-url-reload'] as const) {
   })
 }
 
-test('an already-started same-origin commit vetoes queued restoration before native dispatch', async ({ capabilities, electronApp, appWindow }) => {
+test('an already-started same-origin commit vetoes queued restoration before another configuration command', async ({ capabilities, electronApp, appWindow }) => {
   let heldResponse: ServerResponse | undefined
   let hold = false
   const server = createServer((request, response) => {
@@ -81,9 +81,10 @@ test('an already-started same-origin commit vetoes queued restoration before nat
       const api = page.debugger, original = api.sendCommand
       let release!: () => void
       const barrier = new Promise<void>(resolve => { release = resolve })
-      const gate: Gate = { held: false, release, restore: () => { release(); api.sendCommand = original } }
+      const gate: Gate = { configurationCommands: [], held: false, release, restore: () => { release(); api.sendCommand = original } }
       ;(globalThis as Scope).__emulationPublication = gate
       api.sendCommand = async (method, ...args) => {
+        if (/^(Emulation\.|Animation\.|Overlay\.|Network\.(set|emulate|override))/.test(method)) gate.configurationCommands!.push(method)
         const result = await original.call(api, method, ...args)
         if (!gate.held && method === 'Emulation.setEmulatedMedia') { gate.held = true; await barrier }
         return result
@@ -106,6 +107,8 @@ test('an already-started same-origin commit vetoes queued restoration before nat
       scope.pendingRestore = scope.hronaut.recoverTabEmulation(id).then(() => ({ isError: false }), error => ({ isError: true, error: String(error) }))
       await scope.hronaut.getState()
     }, tabId)
+    const beforeCommit = await electronApp.evaluate(() => (globalThis as Scope).__emulationPublication!.configurationCommands!)
+    expect(beforeCommit).toContain('Emulation.setEmulatedMedia')
     heldResponse!.setHeader('Content-Type', 'text/html')
     heldResponse!.end('<!doctype html><link rel="icon" href="data:,"><title>Replacement document</title>Replacement')
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().find(p => p.getURL() === url)!.getTitle(), url)).toBe('Replacement document')
@@ -114,6 +117,7 @@ test('an already-started same-origin commit vetoes queued restoration before nat
     const result = await appWindow.evaluate(() => (window as unknown as Renderer).pendingRestore!)
     expect(result.isError).toBe(true)
     expect(result.error).toContain('Emulation target changed')
+    expect(await electronApp.evaluate(() => (globalThis as Scope).__emulationPublication!.configurationCommands)).toEqual(beforeCommit)
     const state = await appWindow.evaluate(async id => (await (window as unknown as Renderer).hronaut.getState()).tabs.find(t => t.id === id), tabId)
     expect(state?.emulationState).toMatchObject({ application: 'unknown', retainedSettings: { colorScheme: 'auto' } })
   } finally {
