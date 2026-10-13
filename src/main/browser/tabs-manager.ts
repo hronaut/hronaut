@@ -3187,7 +3187,37 @@ export class BrowserTabsManager {
     return this.newTab(options, this.followAgentActivity)
   }
 
+  async newLabeledAgentTab(options: NewTabOptions, value: string, validateAuthority: () => void, onCreated: (id: string) => void, onCreationAttempt: () => void): Promise<{ createdTabId: string; labelPersistence: 'saved' | 'durability-unconfirmed' | 'not-saved' }> {
+    const label = normalizeTabLabel(value)
+    this.assertTabLabelAdmission()
+    if (!options.mcpGroupId || isHronautHomeUrl(normalizeAddress(options.url ?? 'about:blank', this.options.getSearchEngine?.()))) throw new Error('Labeled agent tabs require an agent workspace and a website address.')
+    validateAuthority()
+    let createdTabId: string | undefined
+    let committed = false
+    let saving: Promise<'saved' | 'durability-unconfirmed' | 'not-saved'> | undefined
+    try {
+      await this.createNewTab(options, this.followAgentActivity, tab => {
+        createdTabId = tab.id
+        // Admit before createTab yields, so later edits and lifecycle copies see
+        // this save on the same queue. The label is staged, not yet visible.
+        saving = this.saveTabLabel(tab.id, label ?? '', validateAuthority, () => { committed = true })
+          .then(result => result.status, () => committed ? 'durability-unconfirmed' as const : 'not-saved' as const)
+        onCreated(tab.id)
+      }, onCreationAttempt)
+    } finally {
+      // Even a synchronous creation observer failure cannot release ownership
+      // while the admitted write is still queued or running.
+      if (saving) await saving
+    }
+    if (!createdTabId || !saving) throw new Error('Labeled tab creation did not produce a website tab.')
+    return { createdTabId, labelPersistence: await saving }
+  }
+
   async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
+    return this.createNewTab(options, selectVisible)
+  }
+
+  private async createNewTab(options: NewTabOptions, selectVisible: boolean, onCreated?: (tab: BrowserTab) => void, onCreationAttempt?: () => void): Promise<BrowserState> {
     const url = normalizeAddress(options.url ?? 'about:blank', this.options.getSearchEngine?.())
     if (isHronautHomeUrl(url)) {
       if (options.mcpGroupId) throw new Error('Hronaut Home is a human application page and cannot be added to an agent workspace.')
@@ -3204,7 +3234,9 @@ export class BrowserTabsManager {
         active: options.active ?? true,
         selectVisible,
         mcpGroupId: groupId,
-        focus: options.focus
+        focus: options.focus,
+        onCreated,
+        onCreationAttempt
       })
     } catch (error) {
       if (createsWorkspace) {
@@ -3277,14 +3309,23 @@ export class BrowserTabsManager {
     }
   }
 
-  async setTabLabel(tabId: string, value: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
-    const label = normalizeTabLabel(value)
+  private assertTabLabelAdmission(): void {
     if (!this.initialized || this.destroyed || this.tabLabelAdmissionClosed || this.tabLabelLifecycleHolds) throw new Error('Wait for the tab operation to finish before editing its label.')
     if (this.pendingTabLabels.size >= 8) throw new Error('Wait for pending label edits to finish.')
+  }
+
+  async setTabLabel(tabId: string, value: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
+    return this.saveTabLabel(tabId, value)
+  }
+
+  private async saveTabLabel(tabId: string, value: string, validateAuthority?: () => void, onCommitted?: () => void): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }> {
+    const label = normalizeTabLabel(value)
+    this.assertTabLabelAdmission()
     const tab = this.getTab(tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Hronaut Home cannot be labeled.')
     const validate = (): void => {
       if (this.destroyed || this.tabs.get(tabId) !== tab) throw new Error('The tab is no longer available.')
+      validateAuthority?.()
     }
     let committed = false
     const commit = Symbol()
@@ -3299,6 +3340,7 @@ export class BrowserTabsManager {
       beforeCommit: validate,
       onCommitted: () => {
         committed = true
+        onCommitted?.()
         tab.label = label
         tab.labelCommit = commit
         this.changed(false)
@@ -8692,6 +8734,8 @@ export class BrowserTabsManager {
     selectVisible?: boolean
     mcpGroupId?: string
     allowBusyWorkspace?: boolean
+    onCreated?: (tab: BrowserTab) => void
+    onCreationAttempt?: () => void
   }): Promise<BrowserTab> {
     if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
     if (options.mcpGroupId && !this.mcpTabGroups.has(options.mcpGroupId)) throw new Error(`Unknown workspace: ${options.mcpGroupId}`)
@@ -8705,6 +8749,7 @@ export class BrowserTabsManager {
     const partition = isHronautHomeUrl(url)
       ? workspacePartition(this.options.partition, 'home')
       : workspacePartition(this.options.partition, workspace!.storageId)
+    options.onCreationAttempt?.()
     const view = new WebContentsView({
       webPreferences: {
         partition,
@@ -8822,6 +8867,7 @@ export class BrowserTabsManager {
       this.changed()
       console.error(`[browser] Failed to load ${url}:`, error)
     })
+    options.onCreated?.(tab)
     this.changed()
     return tab
   }

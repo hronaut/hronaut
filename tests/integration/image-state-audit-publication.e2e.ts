@@ -24,6 +24,7 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
     let pending: Promise<CallToolResult> | undefined
     try {
       await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+      if (change === 'capability revoke') await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setMcpAuthentication(true))
       const credential = change === 'capability revoke' ? await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.createMcpCapabilityProfile({ name: 'Image publication fixture', preset: 'complete' })) : undefined
       const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${credential?.credential ?? mcpToken}` } } })
       let inspectionRequestId: string | number | undefined
@@ -37,6 +38,13 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         return send(message, options)
       }
       await client.connect(transport)
+      if (credential) {
+        await expect.poll(() => electronApp.evaluate(async ({ webContents }, profile) => {
+          const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
+          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ capabilityProfileId?: string; capabilityProfileRevision?: number }> }
+          return state.clients.some(client => client.capabilityProfileId === profile.id && client.capabilityProfileRevision === profile.revision)
+        }, { id: credential.profile.id, revision: credential.profile.revision })).toBe(true)
+      }
       const onmessage = transport.onmessage!
       transport.onmessage = message => { received.push(JSON.stringify(message)); onmessage(message) }
       const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
@@ -180,9 +188,10 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
         expect(result.isError).toBe(true)
         expect(text(result)).not.toContain('observedAt')
       }
-      // Trusted revocation also changes control authority, which rejects before the outer capability check.
+      // Authentication and exact profile identity were verified before dispatch;
+      // the final response must preserve the genuine capability denial.
       if (change === 'capability revoke') {
-        expect(text(result)).toBe('MCP control changed before tool dispatch. Inspect the page and obtain fresh state before continuing; earlier page wake or navigation is not rolled back.')
+        expect(result.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', effects: 'none', permission: 'denied', policyDecision: expect.objectContaining({ decision: 'denied' }) })
         expect(terminal[0]!.result.effects).toBe('none')
       }
       if (change === 'audit failure') {
