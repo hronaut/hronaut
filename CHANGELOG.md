@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Network request details and HAR actions reachable in short left and right docks at enlarged interface scale. The footer scrolls with the details when there is not enough height, while the header controls stay available.
+
 - Identify the POSIX-shell requirement in the Network panel’s cURL copy action and copied feedback in every supported language.
 
 - Reject sanitized cURL copies containing retained literal NUL characters instead of producing an unusable shell command. Show an explicit error without changing the clipboard; Copy fetch preserves the retained body, including NUL characters.

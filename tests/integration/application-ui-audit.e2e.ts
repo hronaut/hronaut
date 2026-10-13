@@ -150,7 +150,12 @@ for (const theme of ['light', 'dark']) {
           await expectReadableContrast(surface)
           expect.soft(await surface.evaluate(element => element.scrollWidth - element.clientWidth), tool).toBeLessThanOrEqual(1)
           await expect.soft(surface.locator('.panel-close').first(), `${tool}: close control must remain reachable`).toBeInViewport({ ratio: 1, timeout: 1000 })
-          for (const action of await surface.locator(':scope > footer button').all()) {
+          const persistentFooter = surface.locator(':scope > footer, :scope > .network-monitor-scroll > footer')
+          if (tool === 'network' || tool === 'request-conditions') {
+            await expect(persistentFooter).toHaveCount(1)
+            await expect(persistentFooter.getByRole('button')).toHaveCount(3)
+          }
+          for (const action of await persistentFooter.getByRole('button').all()) {
             await expect.soft(action, `${tool}: persistent footer actions must stay visible`).toBeInViewport({ ratio: 1, timeout: 1000 })
           }
           await appWindow.screenshot({ path: testInfo.outputPath(`${tool}-${theme}-${width}.png`) })
