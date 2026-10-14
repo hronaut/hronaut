@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Stop startup with recovery guidance when saved workspace metadata is unreadable, invalid, or from an unsupported version, preserving the metadata and workspace storage instead of replacing them with a fresh workspace.
+
 - Preserve enforced, report-only, or unknown CSP disposition in browser issues, the Issues panel, and copied JSON without changing severity.
 
 - Remove residual files for explicitly deleted workspaces on a later startup, after checking storage ownership and recovery metadata. Active and archived workspaces are preserved; ambiguous or unsafe profiles defer cleanup. This is file removal, not secure erasure.

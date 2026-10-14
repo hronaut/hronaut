@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -6,6 +6,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../src/shared/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
 
 const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const WORKSPACE_RESUME_KEY_PATTERN = /^hrw1_[A-Za-z0-9_-]{43}$/
@@ -1256,7 +1257,7 @@ test('restores workspace identity and tabs after an application restart', async 
   }
 })
 
-test('drops legacy tab state and starts with a fresh UUIDv7 workspace format', async ({ profileDirectory, mcpPort }) => {
+test('preserves legacy tab state and storage for recovery instead of creating a fresh workspace', async ({ profileDirectory, mcpPort }) => {
   await writeFile(join(profileDirectory, 'tabs.json'), `${JSON.stringify({
     activeTabId: 'legacy-human-tab',
     splitView: {
@@ -1289,42 +1290,30 @@ test('drops legacy tab state and starts with a fresh UUIDv7 workspace format', a
     ]
   }, null, 2)}\n`, 'utf8')
 
-  const instance = await launchHronaut(profileDirectory, mcpPort)
-  try {
-    const fresh = await instance.window.evaluate(`window.hronaut.getState().then((state) => ({
-      workspaceNames: state.mcpTabGroups.map((workspace) => workspace.name),
-      activeTabId: state.activeTabId,
-      splitView: state.splitView,
-      tabs: state.tabs.map((tab) => ({ id: tab.id, title: tab.title, url: tab.url }))
-    }))`) as {
-      workspaceNames: string[]
-      activeTabId?: string
-      splitView?: { firstTabId: string; secondTabId: string }
-      tabs: Array<{ id: string; title: string; url: string }>
-    }
-    expect(fresh.workspaceNames).toEqual([])
-    expect(fresh.splitView).toBeUndefined()
-    expect(fresh.tabs).toEqual([expect.objectContaining({
-      id: expect.stringMatching(UUID_V7_PATTERN),
-      title: 'Hronaut Home',
-      url: 'hronaut://home/'
-    })])
-    expect(fresh.activeTabId).toBe(fresh.tabs[0]!.id)
-    await expect.poll(async () => {
-      const persisted = JSON.parse(await readFile(join(profileDirectory, 'tabs.json'), 'utf8')) as {
-        version?: number
-        tabs?: Array<{ id: string; title: string }>
-        mcpTabGroups?: Array<{ id: string; name: string }>
-      }
-      return persisted
-    }).toMatchObject({
-      version: 3,
-      tabs: [expect.objectContaining({ id: expect.stringMatching(UUID_V7_PATTERN), title: 'Hronaut Home' })],
-      mcpTabGroups: []
-    })
-  } finally {
-    await closeHronaut(instance.app)
+  const metadata = join(profileDirectory, 'tabs.json')
+  const original = await readFile(metadata, 'utf8')
+  const markers = ['hronaut', 'hronaut-workspace-8a513dbb-7f70-451e-8e27-f6c1d92168aa'].map(name => join(profileDirectory, 'Partitions', name, 'marker'))
+  for (const marker of markers) {
+    await mkdir(join(marker, '..'), { recursive: true })
+    await writeFile(marker, 'synthetic-legacy-storage')
   }
+  const app = await launchRejected(profileDirectory, mcpPort)
+  try {
+    await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.notice))).toBe(true)
+    const notice = await app.evaluate(() => (globalThis as Scope).metadataFixture.notice!)
+    expect(notice.buttons).toEqual(['Quit'])
+    expect(notice.message).toContain('Startup stopped')
+    expect(notice.detail).toContain('tabs.json')
+    expect(JSON.stringify(notice)).not.toContain('Legacy agent workspace')
+    expect(JSON.stringify(notice)).not.toContain('data:text/html')
+    expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0)
+    await expect(fetch(`http://127.0.0.1:${mcpPort}/mcp`)).rejects.toThrow()
+    expect(await readFile(metadata, 'utf8')).toBe(original)
+    for (const marker of markers) expect(await readFile(marker, 'utf8')).toBe('synthetic-legacy-storage')
+    await quitNotice(app)
+    expect(await readFile(metadata, 'utf8')).toBe(original)
+    for (const marker of markers) expect(await readFile(marker, 'utf8')).toBe('synthetic-legacy-storage')
+  } finally { await app.close().catch(() => undefined) }
 })
 
 test('closes an unregistered tab when its initial native layout fails and permits a retry', async ({ appWindow, electronApp }) => {
