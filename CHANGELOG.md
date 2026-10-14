@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep snapshot refs stable for surviving controls within a document, so inserting or removing an earlier control no longer makes every later control appear updated in snapshot deltas. Identity stays outside page JavaScript; replaced or cloned nodes receive new refs.
+
 - Stop startup with recovery guidance when saved workspace metadata is unreadable, invalid, or from an unsupported version, preserving the metadata and workspace storage instead of replacing them with a fresh workspace.
 
 - Preserve enforced, report-only, or unknown CSP disposition in browser issues, the Issues panel, and copied JSON without changing severity.

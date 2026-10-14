@@ -7,7 +7,7 @@ import { closeFixtureServer, expect, expectFixtureSuccess, test } from './fixtur
 
 const text = (result: CallToolResult) => result.content.filter(item => item.type === 'text').map(item => item.text).join('\n')
 test.use({ trace: 'off', screenshot: 'off', video: 'off' })
-for (const change of ['clone preserving ref', 'later snapshot reassigning ref']) {
+for (const change of ['clone preserving ref', 'later snapshot after earlier insertion']) {
   test(`rejects media ref reuse before call: ${change}`, async ({ electronApp, mcpPort, mcpToken }) => {
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
@@ -37,7 +37,10 @@ for (const change of ['clone preserving ref', 'later snapshot reassigning ref'])
         await onPage("const replacement=target.cloneNode();replacement.id='replacement';replacement.volume=.25;document.body.prepend(replacement);void 0")
         expectFixtureSuccess(await call('browser_snapshot', { workspaceId, tabId }), 'second snapshot')
       }
-      expect(await onPage(`(()=>{const current=document.querySelector('[data-hronaut-ref="'+${JSON.stringify(ref)}+'"]');return {reused:current!==originalTarget,volume:current.volume}})()`)).toEqual({ reused: true, volume: .25 })
+      // A clone copies the published attribute. A later snapshot keeps the
+      // surviving element's ref instead of reassigning it by position.
+      expect(await onPage(`(()=>{const current=document.querySelector('[data-hronaut-ref="'+${JSON.stringify(ref)}+'"]');return {reused:current!==originalTarget,volume:current.volume}})()`))
+        .toEqual(change === 'clone preserving ref' ? { reused: true, volume: .25 } : { reused: false, volume: 1 })
       const rejected = await call('browser_media_state', { workspaceId, tabId, ref })
       expect(rejected.isError, text(rejected)).toBe(true)
       expect(text(rejected)).not.toContain('observedAt')

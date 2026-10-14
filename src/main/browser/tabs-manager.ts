@@ -467,6 +467,7 @@ const OBSERVATION_QUALITY_WORLD_ID = 1015
 const CREDENTIAL_CAPTURE_WORLD_ID = 1016
 const VISUAL_COMPARE_WORLD_ID = 1017
 const SCREENSHOT_ANNOTATION_WORLD_ID = 1018
+const SNAPSHOT_WORLD_ID = 1023
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -5100,9 +5101,12 @@ export class BrowserTabsManager {
       throw new TypeError('Snapshot root must be a non-empty CSS selector of at most 512 characters')
     }
     const context = this.snapshotDeltaContext(tab)
-    const snapshot = await tab.webContents.executeJavaScript(
-      snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true, rootSelector),
-      true
+    // The isolated world retains control identity across captures of one
+    // document without exposing it to, or accepting it from, page JavaScript.
+    const snapshot = await tab.webContents.executeJavaScriptInIsolatedWorld(
+      SNAPSHOT_WORLD_ID,
+      [{ code: snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true, rootSelector) }],
+      false
     ) as BrowserSnapshot & { scopeError?: string }
     if (snapshot.scopeError) {
       const messages: Record<string, string> = {

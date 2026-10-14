@@ -121,12 +121,15 @@ test('captures and searches a component through MCP without unrelated content or
       await electronApp.evaluate(({ webContents }, url) => {
         const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)!
         const original = contents.executeJavaScript.bind(contents)
+        const originalIsolated = contents.executeJavaScriptInIsolatedWorld.bind(contents)
         let release!: () => void
         const gate = new Promise<void>(resolve => { release = resolve })
-        const state = { held: false, release, restore: () => { contents.executeJavaScript = original } }
+        const state = { held: false, release, restore: () => {
+          contents.executeJavaScript = original
+          contents.executeJavaScriptInIsolatedWorld = originalIsolated
+        } }
         ;(globalThis as typeof globalThis & { __scopedCapture?: typeof state }).__scopedCapture = state
-        contents.executeJavaScript = async (code: string, userGesture?: boolean) => {
-          const result = await original(code, userGesture)
+        const hold = async <T>(code: string, result: T): Promise<T> => {
           if (code.includes('const MAX_CHARS =')) {
             state.held = true
             await gate
@@ -134,6 +137,10 @@ test('captures and searches a component through MCP without unrelated content or
           }
           return result
         }
+        // Snapshots capture in an isolated world; find still uses the main world.
+        contents.executeJavaScript = async (code: string, userGesture?: boolean) => hold(code, await original(code, userGesture))
+        contents.executeJavaScriptInIsolatedWorld = async (worldId, scripts, userGesture) =>
+          hold(scripts.map(script => script.code).join('\n'), await originalIsolated(worldId, scripts, userGesture))
       }, url)
       const pending = call(tool, { ...args, rootSelector: '#target', ...(tool === 'browser_find' ? { query: 'Nested action' } : {}) })
       await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __scopedCapture?: { held: boolean } }).__scopedCapture?.held)).toBe(true)
