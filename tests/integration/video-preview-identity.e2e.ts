@@ -1,3 +1,4 @@
+import { waitForInitialVideoLayout } from './video-layout.js'
 import type { ElectronApplication, Page } from '@playwright/test'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserVideoState } from '../../src/shared/video.js'
@@ -57,6 +58,7 @@ for (const change of ['edit', 'new', 'clear', 'unchanged'] as const) {
       await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThanOrEqual(3)
       return video('stop')
     }
+    await waitForInitialVideoLayout(appWindow, electronApp, capabilities.fixtureUrl)
     await record()
     await openPageTool('Video recorder')
     await trackUrls(appWindow)
@@ -110,6 +112,7 @@ for (const change of ['edit', 'clear', 'close-reopen'] as const) {
       expect(result.isError, text(result)).not.toBe(true)
       return JSON.parse(text(result)) as BrowserVideoState
     }
+    await waitForInitialVideoLayout(appWindow, electronApp, capabilities.fixtureUrl)
     await video('start')
     await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThanOrEqual(3)
     const source = await video('stop')

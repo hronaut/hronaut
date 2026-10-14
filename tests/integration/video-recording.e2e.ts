@@ -1,3 +1,4 @@
+import { waitForInitialVideoLayout } from './video-layout.js'
 import { createHash } from 'node:crypto'
 import { armFirstFrame, disposeFirstFrame, expectGreenFirstFrame, readFirstFrame } from './video-first-frame.js'
 import type { HronautApi, HronautMcpApi } from '../../src/shared/types.js'
@@ -18,19 +19,7 @@ test('records, annotates, trims and decodes a WebM tutorial through MCP and the 
   }
   // Tab selection can resolve before the shell leaves its compact Home layout.
   // Recording must start after that resize: later size changes correctly pause it.
-  await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(capabilities.fixtureUrl)
-  await expect.poll(async () => {
-    const shellBottom = await appWindow.locator('.shell').evaluate(element => element.getBoundingClientRect().bottom)
-    return electronApp.evaluate(({ BrowserWindow, webContents }, { url, shellBottom }) => {
-      const window = BrowserWindow.getAllWindows()[0]!
-      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
-      const view = window.contentView.children.find(candidate => 'webContents' in candidate && candidate.webContents === page)
-      const bounds = view?.getBounds()
-      const content = window.getContentBounds()
-      return bounds?.y === Math.ceil(Math.ceil(shellBottom) * window.webContents.getZoomFactor())
-        && bounds.height === content.height - bounds.y && bounds.width === content.width
-    }, { url: capabilities.fixtureUrl, shellBottom })
-  }, 'Native recording viewport matches the rendered fixture shell').toBe(true)
+  await waitForInitialVideoLayout(appWindow, electronApp, capabilities.fixtureUrl)
   await video('start')
   await expect(appWindow.getByLabel('Recording video', { exact: true })).toBeVisible()
   await expect.poll(async () => (await video('get')).frameCount).toBeGreaterThanOrEqual(6)
