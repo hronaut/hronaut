@@ -589,6 +589,7 @@ function currentMcpControlState(): McpControlState {
 
 function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
   homePresentationRevision += 1
+  if (workspaceStartupFailure || tabsInitializationPromise) return
   void tabsManager?.reloadHome().catch((error) => {
     console.error(`[${scope}] Could not refresh Hronaut Home after a committed state change:`, error)
   })
@@ -2236,7 +2237,7 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return currentMcpControlState()
   })
-  ipcMain.handle('mcp:set-paused', (event, paused: unknown) => {
+  handleBrowserIpc('mcp:set-paused', (event, paused: unknown) => {
     assertTrustedShellSender(event)
     if (typeof paused !== 'boolean') throw new TypeError('MCP paused state must be a boolean')
     const state = setMcpPaused(paused)
@@ -3237,7 +3238,7 @@ function registerIpc(): void {
     const error = await shell.openPath(directory)
     if (error) throw new Error(error)
   })
-  ipcMain.handle('settings:set-memory-saver-enabled', async (event, enabled: unknown) => {
+  handleBrowserIpc('settings:set-memory-saver-enabled', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Memory Saver state must be a boolean')
     await updateSettings({ memorySaverEnabled: enabled })
@@ -3245,7 +3246,7 @@ function registerIpc(): void {
     publishSettings()
     return { ...settings }
   })
-  ipcMain.handle('settings:set-memory-saver-timeout', async (event, timeoutMinutes: unknown) => {
+  handleBrowserIpc('settings:set-memory-saver-timeout', async (event, timeoutMinutes: unknown) => {
     assertTrustedShellSender(event)
     if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
     await updateSettings({ memorySaverTimeoutMinutes: timeoutMinutes })
@@ -3253,7 +3254,7 @@ function registerIpc(): void {
     publishSettings()
     return { ...settings }
   })
-  ipcMain.handle('settings:reset-memory-saver', async (event) => {
+  handleBrowserIpc('settings:reset-memory-saver', async (event) => {
     assertTrustedShellSender(event)
     await updateSettings({
       memorySaverEnabled: true,
@@ -3338,7 +3339,7 @@ function registerIpc(): void {
       : '[mcp] Authentication disabled in Settings. Anyone who can reach the listener can control this profile.')
     return { ...settings }
   })
-  ipcMain.handle('settings:set-mcp-port', async (event, port: unknown) => {
+  handleBrowserIpc('settings:set-mcp-port', async (event, port: unknown) => {
     assertTrustedShellSender(event)
     return setMcpPort(port as number)
   })
@@ -3353,7 +3354,7 @@ function registerIpc(): void {
     refreshHomeAfterCommittedChange('mcp')
     return { ...settings }
   })
-  ipcMain.handle('settings:reset-mcp', async (event) => {
+  handleBrowserIpc('settings:reset-mcp', async (event) => {
     assertTrustedShellSender(event)
     return resetMcpSettings()
   })
@@ -3489,7 +3490,7 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return importCredentialsFromCsv()
   })
-  ipcMain.handle('credentials:fill', async (event, tabId: unknown, credentialId: unknown) => {
+  handleBrowserIpc('credentials:fill', async (event, tabId: unknown, credentialId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     if (typeof credentialId !== 'string') throw new TypeError('Invalid credential ID')
@@ -4203,6 +4204,7 @@ function createRuntimeMcpServer(
 }
 
 async function setMcpPort(port: number): Promise<AppSettings> {
+  assertWorkspaceInitialized()
   if (!isValidMcpPort(port)) throw new TypeError('MCP port must be an integer from 1024 through 65535')
   if (port === mcpPort && mcpRuntimeStatus === 'ready') {
     if (persistedSettings.mcpPort !== port) await updateSettings({ mcpPort: port })
@@ -4245,6 +4247,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
 }
 
 async function resetMcpSettings(): Promise<AppSettings> {
+  assertWorkspaceInitialized()
   if (mcpPort === DEFAULT_MCP_PORT && mcpRuntimeStatus === 'ready') {
     await updateSettings({
       mcpRemoteAccess: false,

@@ -186,14 +186,17 @@ test('blocks delegated browser operations while the final startup save is held',
     await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.held))).toBe(true)
     const page = await app.firstWindow()
     const results = await page.evaluate(async id => {
+      const settings = (window as unknown as { hronautSettings: { setMcpPort(port: number): Promise<unknown>; resetMcp(): Promise<unknown> }; }).hronautSettings
+      const credentials = (window as unknown as { hronautCredentials: { fill(tab: string, credential: string): Promise<unknown> } }).hronautCredentials
       const api = (window as unknown as { hronaut: HronautApi }).hronaut
       return Promise.all([
         api.browserImport.list(id), api.browserImport.preview(id, 'synthetic-profile'),
         api.browserImport.commit('synthetic-preview', []), api.browserImport.cancel(),
-        api.setDiagnosticLogPreservation('synthetic-tab', true), api.discardIncident()
+        api.setDiagnosticLogPreservation('synthetic-tab', true), api.discardIncident(),
+        settings.setMcpPort(39876), settings.resetMcp(), credentials.fill('synthetic-tab', 'synthetic-credential')
       ].map(p => p.then(() => 'fulfilled', () => 'rejected')))
     }, workspaceId)
-    expect(results).toEqual(Array(6).fill('rejected'))
+    expect(results).toEqual(Array(9).fill('rejected'))
     expect(await readFile(metadata, 'utf8')).toBe(original)
     await app.evaluate(() => (globalThis as Scope).metadataFixture.releaseRead!())
     await expect.poll(() => app.evaluate(() => Boolean((globalThis as Scope).metadataFixture.notice))).toBe(true)
