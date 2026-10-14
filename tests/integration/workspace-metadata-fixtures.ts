@@ -5,13 +5,20 @@ import { expect } from './fixtures.js'
 
 export const privateMarker = 'synthetic-private-metadata-marker'
 export type Scope = typeof globalThis & { metadataFixture: { notice?: { title: string; message: string; detail: string; buttons: string[] }; resolve?: () => void; held?: boolean; releaseRead?: () => void; renames?: number } }
-export async function launchRejected(profile: string, port: number, late = false, failDialog = false, holdRead = false, failSave?: 'before' | 'after' | 'held'): Promise<ElectronApplication> {
+export async function launchRejected(profile: string, port: number, late = false, failDialog = false, holdRead = false, failSave?: 'before' | 'after' | 'held', probeReads = false): Promise<ElectronApplication> {
   const hook = join(profile, 'metadata-hook.cjs')
   // This disposable hook observes the native dialog API, not the app's parser.
   // No production test switch, metadata parsing or error classification is mocked.
   await writeFile(hook, `const {dialog,BrowserWindow}=require('electron');
 const fs=require('node:fs/promises');const path=require('node:path');
 globalThis.metadataFixture={};
+${probeReads ? `const {ipcMain}=require('electron');const handle=ipcMain.handle.bind(ipcMain);globalThis.startupReadProbe=[];
+ipcMain.handle=(channel,listener)=>handle(channel,async(event,...args)=>{
+if(!['browser:get-state','split-divider:get','downloads:list','bookmarks:list','bookmark-collections:list','visit-history:list'].includes(channel))return listener(event,...args);
+const record={channel,status:'pending',sender:event.sender.id};globalThis.startupReadProbe.push(record);
+if(channel==='bookmarks:list')globalThis.replayStartupRead=async()=>{const replay={channel,status:'pending',replay:true};globalThis.startupReadProbe.push(replay);try{const value=await listener(event,...args);replay.status='fulfilled';return value}catch(error){replay.status='rejected';throw error}};
+try{const value=await listener(event,...args);record.status='fulfilled';return value}catch(error){record.status='rejected';record.message=String(error.message);throw error}
+});` : ''}
 process.on('uncaughtExceptionMonitor',e=>require('node:fs').appendFileSync(path.join(process.env.HRONAUT_USER_DATA_DIR,'fixture-errors.log'),String(e.stack)));
 
 dialog.showMessageBox=async (...args)=>{const o=args.at(-1);globalThis.metadataFixture.notice={title:o.title,message:o.message,detail:o.detail,buttons:o.buttons};

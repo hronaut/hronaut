@@ -17,6 +17,7 @@ function fixture() {
   const downloads = { removeFinishedDownload: vi.fn(() => []), listDownloads: vi.fn(() => []), manageDownloads: vi.fn(() => []), showDownloadInFolder: vi.fn() }
   const host = {
     assertTrustedSender: vi.fn(),
+    async runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T> { host.assertTrustedSender(event); return read() },
     bookmarks: vi.fn(() => bookmarks),
     history: vi.fn(() => history),
     downloads: vi.fn(() => downloads),

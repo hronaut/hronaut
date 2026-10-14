@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Wait for workspace initialization before answering startup collection and layout reads, avoiding spurious startup warnings while retaining fail-closed mutation and sender checks.
+
 - Stop startup with recovery guidance when saved workspace metadata is unreadable, invalid, or from an unsupported version, preserving the metadata and workspace storage instead of replacing them with a fresh workspace.
 
 - Preserve enforced, report-only, or unknown CSP disposition in browser issues, the Issues panel, and copied JSON without changing severity.
