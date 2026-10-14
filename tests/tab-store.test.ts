@@ -120,6 +120,16 @@ describe('TabStateStore', () => {
     expect((await store.load())?.tabs[0]).not.toHaveProperty('tabAgentPaused')
   })
 
+  it('persists explicit zoom isolation and ignores non-true values', async () => {
+    const { store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.zoomIsolated = true
+    ;(state.tabs[0] as unknown as Record<string, unknown>).zoomIsolated = 'yes'
+    await store.save(state)
+    expect((await store.load())?.tabs[1]).toMatchObject({ zoomIsolated: true })
+    expect((await store.load())?.tabs[0]).not.toHaveProperty('zoomIsolated')
+  })
+
   it('loads legacy workspaces without descriptions as empty context', async () => {
     const { path, store } = await createStore()
     const state = currentState()

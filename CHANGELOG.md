@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Create tabs whose page zoom is independent of other same-origin tabs with `browser_new_tab` `zoomIsolated: true`. Isolation is fixed at creation, kept across navigation, duplicate, reopen and restart, and shown in the zoom bar.
+
 - Report HTTP Basic authentication challenges in `browser_issues` as `authChallenges`, with origin and request kind only. Hronaut still cancels the challenge and never prompts for or supplies credentials.
 
 - Compare one rendered native text input or textarea with a caller-supplied `expectedValue` in `browser_element_inspect`. Only `match`, `mismatch` or `unavailable` is returned; neither value is echoed, and sensitive controls are excluded.

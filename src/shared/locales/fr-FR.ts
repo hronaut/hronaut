@@ -2642,6 +2642,7 @@ export const frFR = {
     "close": "Fermer la recherche dans la page"
   },
   "zoom": {
+    "isolated": "Cet onglet uniquement",
     "controls": "Contrôles du zoom de la page",
     "heading": "Zoom de la page",
     "outTitle": "Dézoomer (Ctrl/Cmd+-)",

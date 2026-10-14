@@ -6,7 +6,8 @@ export function performanceEnvironmentFingerprint(
   state: BrowserEmulationState,
   headers: Record<string, string>,
   viewport: { width: number; height: number },
-  zoomPercent: number
+  zoomPercent: number,
+  zoomIsolated = false
 ): string {
   const emulation = cloneEmulationState(state)
   if (emulation.extraHttpHeaderNames) emulation.extraHttpHeaderNames.sort()
@@ -14,7 +15,8 @@ export function performanceEnvironmentFingerprint(
     emulation,
     extraHttpHeaders: headers,
     viewport: { width: viewport.width, height: viewport.height },
-    zoomPercent
+    zoomPercent,
+    zoomIsolated
   }, (_key, value: unknown) => {
     // Settings insertion order does not change the browser environment.
     if (value && typeof value === 'object' && !Array.isArray(value)) {

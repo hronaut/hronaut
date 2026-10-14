@@ -2642,6 +2642,7 @@ export const deDE = {
     "close": "Seitensuche schließen"
   },
   "zoom": {
+    "isolated": "Nur dieser Tab",
     "controls": "Steuerung des Seitenzooms",
     "heading": "Seitenzoom",
     "outTitle": "Verkleinern (Ctrl/Cmd+-)",

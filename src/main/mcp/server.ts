@@ -3531,15 +3531,16 @@ function createBrowserMcpServer(
       inputSchema: {
         url: z.string().optional(),
         label: z.string().max(MAX_TAB_LABEL_INPUT_LENGTH).refine(value => { try { normalizeTabLabel(value); return true } catch { return false } }, 'Invalid tab label').optional().describe('Optional authored task label, at most 100 Unicode code points after trim/NFC. Not verified page identity. Creation reports label persistence separately.'),
-        active: z.boolean().optional().describe('Select the new tab within the agent workspace; show it only while Follow agents is enabled.')
+        active: z.boolean().optional().describe('Select the new tab within the agent workspace; show it only while Follow agents is enabled.'),
+        zoomIsolated: z.boolean().optional().describe('Give the new tab its own page zoom, starting at 100%, instead of sharing zoom with same-origin tabs. Set only at creation; it cannot be switched later.')
       }
     },
-    tool(async ({ workspaceId, url, active, label }: { workspaceId?: string; url?: string; active?: boolean; label?: string }) => {
+    tool(async ({ workspaceId, url, active, label, zoomIsolated }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean }) => {
       if (label !== undefined) {
         const creation = frameRequests.getStore()!.labeledCreation!
         const validate = creation.publication!
         validate()
-        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false }, label, () => creation.publication!(), tabId => {
+        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...(zoomIsolated ? { zoomIsolated: true } : {}) }, label, () => creation.publication!(), tabId => {
           const activityId = randomUUID()
           onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() })
           creation.publication = () => {
@@ -3555,7 +3556,7 @@ function createBrowserMcpServer(
         return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(creation.knownNotSaved ? { isError: true } : {}) }
       }
       const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
-      const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false })
+      const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...(zoomIsolated ? { zoomIsolated: true } : {}) })
       const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
       if (createdTab) {
         const activityId = randomUUID()

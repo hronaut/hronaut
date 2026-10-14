@@ -2642,6 +2642,7 @@ export const plPL = {
     "close": "Zamknij wyszukiwanie na stronie"
   },
   "zoom": {
+    "isolated": "Tylko ta karta",
     "controls": "Sterowanie powiększeniem strony",
     "heading": "Powiększenie strony",
     "outTitle": "Pomniejsz (Ctrl/Cmd+-)",
