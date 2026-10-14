@@ -2335,6 +2335,7 @@ export const frFR = {
     }
   },
   "issues": {
+    "cspDisposition": {"enforce": "CSP : appliquée", "report-only": "CSP : rapports uniquement", "unknown": "CSP : application inconnue"},
     "kicker": "Diagnostic Chromium",
     "heading": "Problèmes",
     "close": "Fermer les problèmes du navigateur",

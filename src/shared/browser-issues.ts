@@ -105,23 +105,33 @@ function extractSource(details: unknown): BrowserInspectorIssueSource | undefine
   return source
 }
 
+function cspDisposition(details: unknown): NonNullable<BrowserInspectorIssue['cspDisposition']> {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return 'unknown'
+  const csp = (details as Record<string, unknown>).contentSecurityPolicyIssueDetails
+  if (!csp || typeof csp !== 'object' || Array.isArray(csp)) return 'unknown'
+  const value = (csp as Record<string, unknown>).isReportOnly
+  return value === true ? 'report-only' : value === false ? 'enforce' : 'unknown'
+}
+
 export function normalizeInspectorIssue(value: unknown, firstSeenAt = new Date().toISOString()): BrowserInspectorIssue | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const raw = value as Record<string, unknown>
   if (typeof raw.code !== 'string' || !raw.code || raw.code.length > 128) return null
   const code = raw.code
   const details = raw.details
+  const disposition = code === 'ContentSecurityPolicyIssue' ? cspDisposition(details) : undefined
   const reasons = extractReasons(details)
   const affectedUrls = extractUrls(details)
   const source = extractSource(details)
   const metadata = ISSUE_METADATA[code] ?? { title: code.replace(/Issue$/, '').replace(/([a-z])([A-Z])/g, '$1 $2'), severity: 'info' as const }
-  const fingerprint = [code, ...reasons, ...affectedUrls, source ? `${source.url}:${source.lineNumber}:${source.columnNumber}` : ''].join('|')
+  const fingerprint = [code, ...reasons, ...affectedUrls, source ? `${source.url}:${source.lineNumber}:${source.columnNumber}` : '', ...(disposition ? [disposition] : [])].join('|')
   const issueId = typeof raw.issueId === 'string' && raw.issueId && raw.issueId.length <= 256 ? raw.issueId : fingerprint
   return {
     id: issueId,
     code,
     title: metadata.title,
     severity: metadata.severity,
+    ...(disposition ? { cspDisposition: disposition } : {}),
     reasons,
     affectedUrls,
     ...(source ? { source } : {}),

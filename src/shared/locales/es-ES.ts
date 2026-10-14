@@ -2335,6 +2335,7 @@ export const esES = {
     }
   },
   "issues": {
+    "cspDisposition": {"enforce": "CSP: aplicada", "report-only": "CSP: solo informes", "unknown": "CSP: aplicación desconocida"},
     "kicker": "Diagnóstico de Chromium",
     "heading": "Problemas",
     "close": "Cerrar problemas del navegador",

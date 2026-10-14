@@ -2335,6 +2335,7 @@ export const deDE = {
     }
   },
   "issues": {
+    "cspDisposition": {"enforce": "CSP: durchgesetzt", "report-only": "CSP: nur Berichte", "unknown": "CSP: Durchsetzung unbekannt"},
     "kicker": "Chromium-Diagnose",
     "heading": "Probleme",
     "close": "Browserprobleme schließen",

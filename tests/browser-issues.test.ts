@@ -69,3 +69,32 @@ describe('Chromium inspector issue normalization', () => {
     })
   })
 })
+
+describe('CSP disposition', () => {
+  const csp = (details: unknown, issueId?: string) => normalizeInspectorIssue({ code: 'ContentSecurityPolicyIssue', details, issueId })!
+  it.each([[true, 'report-only'], [false, 'enforce'], [undefined, 'unknown'], [null, 'unknown'], ['true', 'unknown'], [0, 'unknown'], [{}, 'unknown']])('uses only literal native booleans (%s)', (isReportOnly, expected) => {
+    expect(csp({ contentSecurityPolicyIssueDetails: { isReportOnly } })).toMatchObject({ cspDisposition: expected, severity: 'error' })
+  })
+  it.each([undefined, null, [], 'true', { isReportOnly: true }, { contentSecurityPolicyIssueDetails: [] }, { contentSecurityPolicyIssueDetails: null }, { other: { contentSecurityPolicyIssueDetails: { isReportOnly: true } } }])('keeps malformed or misplaced evidence unknown (%j)', (details) => {
+    expect(csp(details)).toHaveProperty('cspDisposition', 'unknown')
+  })
+  it('separates fallback identities by disposition and keeps native IDs authoritative', () => {
+    const details = (isReportOnly: unknown) => ({ contentSecurityPolicyIssueDetails: { isReportOnly, violatedDirective: 'script-src-elem' } })
+    const issues = [true, false, undefined].map((mode) => csp(details(mode)))
+    expect(new Set(issues.map((issue) => issue.id)).size).toBe(3)
+    expect(csp(details(true)).id).toBe(issues[0]!.id)
+    for (const mode of [true, false, undefined]) expect(csp(details(mode), 'native-id').id).toBe('native-id')
+    for (const invalidId of ['', 'x'.repeat(257)]) expect(csp(details(true), invalidId).id).toBe(issues[0]!.id)
+  })
+  it('leaves non-CSP shape and fallback identity unchanged despite misleading flags', () => {
+    const issue = normalizeInspectorIssue({ code: 'CorsIssue', details: { contentSecurityPolicyIssueDetails: { isReportOnly: true } } })!
+    expect(issue.id).toBe('CorsIssue|')
+    expect(issue).not.toHaveProperty('cspDisposition')
+  })
+  it('adds only bounded disposition while preserving redaction and payload omissions', () => {
+    const issue = csp({ contentSecurityPolicyIssueDetails: { isReportOnly: true, blockedURL: 'https://example.test/a?token=secret#fragment', violatedDirective: 'img-src', originalPolicy: 'private-policy', source: 'private-source' } })
+    expect(issue).toHaveProperty('cspDisposition', 'report-only')
+    expect(issue.affectedUrls).toEqual(['https://example.test/a?token=%5BREDACTED%5D'])
+    expect(JSON.stringify(issue)).not.toMatch(/secret|fragment|private-policy|private-source|originalPolicy|isReportOnly/)
+  })
+})

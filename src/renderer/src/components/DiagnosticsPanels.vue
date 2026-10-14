@@ -1274,6 +1274,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
               <span class="inspector-issue-icon" aria-hidden="true"><IconError v-if="issue.severity === 'error'" /><IconWarning v-else-if="issue.severity === 'warning'" /><IconInfo v-else /></span>
               <span><strong>{{ issue.title }}</strong><small>{{ issue.code }}</small></span>
             </header>
+            <small v-if="issue.cspDisposition">{{ t(`issues.cspDisposition.${issue.cspDisposition}`) }}</small>
             <ul v-if="issue.reasons.length" class="inspector-issue-reasons">
               <li v-for="reason in issue.reasons" :key="reason"><code>{{ reason }}</code></li>
             </ul>
