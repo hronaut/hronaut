@@ -308,6 +308,15 @@ export interface BrowserInspectorIssue {
   firstSeenAt: string
 }
 
+/** A passively observed HTTP Basic challenge; Hronaut never answers it. */
+export interface BrowserAuthChallengeObservation {
+  observedAt: string
+  scheme: 'basic'
+  /** Request origin only; no path, query, realm or headers. */
+  origin: string
+  request: 'main-frame-navigation' | 'subframe-navigation' | 'subresource'
+}
+
 export interface BrowserInspectorIssuesReport {
   tabId: string
   url: string
@@ -319,6 +328,8 @@ export interface BrowserInspectorIssuesReport {
   infoCount: number
   issues: BrowserInspectorIssue[]
   truncated: boolean
+  authChallenges: BrowserAuthChallengeObservation[]
+  authChallengesTruncated: boolean
   devToolsOpen: boolean
   clearedCount?: number
   caveats: string[]

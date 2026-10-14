@@ -320,6 +320,7 @@ import type {
   BrowserElementInspectionOptions,
   BrowserInspectorIssue,
   BrowserInspectorIssuesReport,
+  BrowserAuthChallengeObservation,
   BrowserClosedTabState,
   BrowserJavaScriptDialog,
   BrowserPageProblem,
@@ -470,6 +471,7 @@ const CREDENTIAL_CAPTURE_WORLD_ID = 1016
 const VISUAL_COMPARE_WORLD_ID = 1017
 const SCREENSHOT_ANNOTATION_WORLD_ID = 1018
 const SNAPSHOT_WORLD_ID = 1023
+const MAX_AUTH_CHALLENGES = 8
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -645,6 +647,10 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   networkDebuggerEpoch: number
   inspectorIssues: BrowserInspectorIssue[]
   inspectorIssuesTruncated: boolean
+  authChallenges: BrowserAuthChallengeObservation[]
+  authChallengesTruncated: boolean
+  /** Between a main-frame document navigation start and its commit or failure. */
+  authNavigationPending: boolean
   networkDebuggerEnabled: boolean
   lastHumanInteractionAt: number
   suppressInitialHistory: boolean
@@ -1073,6 +1079,8 @@ export class BrowserTabsManager {
       tab.pendingRuntimeConsoleMessages = []
       tab.inspectorIssues = []
       tab.inspectorIssuesTruncated = false
+      tab.authChallenges = []
+      tab.authChallengesTruncated = false
       tab.securitySnapshot = undefined
       this.networkWaitController.reject(tab.id, 'Workspace control changed while waiting for network activity.')
     }
@@ -7074,6 +7082,33 @@ export class BrowserTabsManager {
     return this.domRecorder.manage(this.getTab(tabId), action)
   }
 
+  private recordAuthChallenge(tab: BrowserTab, details: Electron.AuthenticationResponseDetails, authInfo: Electron.AuthInfo): void {
+    if (tab.sleeping || authInfo.isProxy || authInfo.scheme.toLowerCase() !== 'basic') return
+    let origin: string
+    try {
+      const url = new URL(details.url)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return
+      origin = url.origin
+    } catch { return }
+    // Electron reports isMainFrame at runtime without typing it. Only a main-frame
+    // navigation challenge can belong to a pending document; anything else in
+    // that window may come from the outgoing document and is not attributed.
+    const isMainFrame = (details as Electron.AuthenticationResponseDetails & { isMainFrame?: unknown }).isMainFrame
+    let request: BrowserAuthChallengeObservation['request']
+    if (details.isRequestForNavigation && isMainFrame === true) {
+      if (!tab.authNavigationPending) return
+      request = 'main-frame-navigation'
+    } else {
+      if (tab.authNavigationPending || isMainFrame !== false) return
+      request = details.isRequestForNavigation ? 'subframe-navigation' : 'subresource'
+    }
+    if (tab.authChallenges.length >= MAX_AUTH_CHALLENGES) {
+      tab.authChallengesTruncated = true
+      return
+    }
+    tab.authChallenges.push({ observedAt: new Date().toISOString(), scheme: 'basic', origin, request })
+  }
+
   async inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
     const tab = this.getTab(tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting browser issues')
@@ -7098,6 +7133,8 @@ export class BrowserTabsManager {
     if (clear) {
       tab.inspectorIssues = []
       tab.inspectorIssuesTruncated = false
+      tab.authChallenges = []
+      tab.authChallengesTruncated = false
       this.changed(false)
     }
     const issues = tab.inspectorIssues.map((issue) => ({
@@ -7117,11 +7154,14 @@ export class BrowserTabsManager {
       infoCount: issues.filter((issue) => issue.severity === 'info').length,
       issues,
       truncated: tab.inspectorIssuesTruncated,
+      authChallenges: tab.authChallenges.map((challenge) => ({ ...challenge })),
+      authChallengesTruncated: tab.authChallengesTruncated,
       devToolsOpen: tab.webContents.isDevToolsOpened(),
       ...(clearedCount !== undefined ? { clearedCount } : {}),
       caveats: [
         'Issues are browser-generated diagnostics for the current document, not a complete quality audit.',
         'URLs are bounded and redact credentials, fragments, and security-related query values; cookie values and raw issue payloads are never returned.',
+        'authChallenges lists HTTP Basic challenges that Hronaut observed and cancelled without supplying credentials. It reports origin and request kind only, not realm, path or login success; subresource challenges are not recorded while a top-level navigation is pending.',
         tab.webContents.isDevToolsOpened()
           ? 'Developer Tools currently owns diagnostics for this tab; close it and reload to collect new issues in Hronaut.'
           : 'Reload the page before reproducing a problem when you need issues emitted during startup.'
@@ -8942,6 +8982,9 @@ export class BrowserTabsManager {
       networkConditionEpoch: 0,
       networkDebuggerEpoch: 0,
       inspectorIssues: [],
+      authChallenges: [],
+      authChallengesTruncated: false,
+      authNavigationPending: false,
       inspectorIssuesTruncated: false,
       networkDebuggerEnabled: false,
       lastHumanInteractionAt: 0,
@@ -9541,6 +9584,9 @@ export class BrowserTabsManager {
       this.cancelNativeSelectionSessions(tab)
       tab.inspectorIssues = []
       tab.inspectorIssuesTruncated = false
+      tab.authChallenges = []
+      tab.authChallengesTruncated = false
+      tab.authNavigationPending = true
       tab.securitySnapshot = undefined
       tab.domChangesRecording = undefined
       this.changed(false)
@@ -9549,12 +9595,17 @@ export class BrowserTabsManager {
       if (tab.sleeping) return
       void this.loadFavicon(tab, favicons)
     })
+    // Observe only. Without preventDefault Electron cancels the challenge, so
+    // no credentials are requested, supplied or retried.
+    webContents.on('login', (_event, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo))
     webContents.on('audio-state-changed', (event) => {
       tab.audible = event.audible
       tab.muted = webContents.isAudioMuted()
       this.changed(false)
     })
     webContents.on('did-stop-loading', () => {
+      // An aborted provisional load still stops loading without a commit.
+      if (!webContents.isLoadingMainFrame()) tab.authNavigationPending = false
       if (tab.sleeping) return
       this.reconcileTabPresentation(tab)
       syncNavigation()
@@ -9569,6 +9620,7 @@ export class BrowserTabsManager {
       tab.pendingHistoryUrl = null
     })
     webContents.on('did-navigate', (_event, url) => {
+      tab.authNavigationPending = false
       // A navigation may already have started before emulation admission.
       tab.emulationContextGeneration++
       if (tab.sleeping) return
@@ -9608,6 +9660,7 @@ export class BrowserTabsManager {
       const previousUrl = tab.url
       syncNavigation()
       if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
+      tab.authNavigationPending = false
       const failedUrl = validatedURL || tab.url
       tab.loading = false
       if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined

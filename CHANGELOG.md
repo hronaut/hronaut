@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Report HTTP Basic authentication challenges in `browser_issues` as `authChallenges`, with origin and request kind only. Hronaut still cancels the challenge and never prompts for or supplies credentials.
+
 - Compare one rendered native text input or textarea with a caller-supplied `expectedValue` in `browser_element_inspect`. Only `match`, `mismatch` or `unavailable` is returned; neither value is echoed, and sensitive controls are excluded.
 
 - Delete one non-HttpOnly cookie by its exact listed domain and path with `browser_storage`, leaving same-name cookies on other paths untouched. Partitioned, ambiguous and HttpOnly identities are rejected before deletion; name-only deletion is unchanged.

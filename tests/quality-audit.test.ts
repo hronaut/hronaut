@@ -127,6 +127,8 @@ function sources(): BrowserQualityAuditSources {
       infoCount: 0,
       issues: [],
       truncated: false,
+      authChallenges: [],
+      authChallengesTruncated: false,
       devToolsOpen: false,
       caveats: []
     }
