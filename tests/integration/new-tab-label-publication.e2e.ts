@@ -15,6 +15,7 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
     const client = new Client({ name: 'label-publication', version: '1' })
     const abort = new AbortController()
     let creation: Promise<CallToolResult> | undefined
+    let restoreTransport: (() => void) | undefined
     const marker = 'PRIVATE_CREATION_LABEL_CANARY'
     try {
       if (change === 'capability revoke') await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setMcpAuthentication(true))
@@ -22,6 +23,23 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
       const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${credential?.credential ?? mcpToken}` } } })
       await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${credential?.credential ?? mcpToken}` } })).ok } catch { return false } }).toBe(true)
       await client.connect(transport)
+      const send = transport.send
+      let creationRequestId: string | number | undefined
+      const cancelledRequestIds: unknown[] = []
+      let cancellationDelivery: Promise<void> | undefined
+      transport.send = (message, options) => {
+        if ('id' in message && 'method' in message && message.method === 'tools/call' && message.params?.name === 'browser_new_tab') {
+          expect(creationRequestId).toBeUndefined()
+          creationRequestId = message.id
+        }
+        const delivery = send.call(transport, message, options)
+        if ('method' in message && message.method === 'notifications/cancelled') {
+          cancelledRequestIds.push(message.params?.requestId)
+          cancellationDelivery = delivery
+        }
+        return delivery
+      }
+      restoreTransport = () => { transport.send = send }
       if (credential) {
         await expect.poll(() => electronApp.evaluate(async ({ webContents }, profile) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
@@ -75,7 +93,16 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
       else if (change === 'workspace access ABA') await appWindow.evaluate(async id => { const api = (window as unknown as { hronaut: HronautApi }).hronaut; await api.updateTabGroup(id, { agentAccess: false }); await api.updateTabGroup(id, { agentAccess: true }) }, workspace.id)
       else if (change === 'capability revoke') await appWindow.evaluate(id => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.revokeMcpCapabilityProfile(id), credential!.profile.id)
       else if (change === 'human waiting') expectFixtureSuccess(await call('browser_human_waiting', { workspaceId: workspace.id, action: 'request', runId: randomUUID(), decision: 'review-page' }), 'new human barrier')
-      else if (change === 'cancel') { abort.abort(); await creation }
+      else if (change === 'cancel') {
+        abort.abort()
+        await creation
+        // Client rejection precedes asynchronous notification delivery. Keep the
+        // audit barrier held until this exact request's cancellation was sent.
+        expect(creationRequestId).toBeDefined()
+        expect(cancelledRequestIds).toEqual([creationRequestId])
+        expect(cancellationDelivery).toBeDefined()
+        await cancellationDelivery
+      }
       else if (change === 'disconnect') { await transport.terminateSession(); await client.close(); await creation }
       await electronApp.evaluate(() => (globalThis as Scope).__labelAuditGate?.release())
       const result = await creation
@@ -109,6 +136,7 @@ for (const change of ['newer label', 'workspace access ABA', 'capability revoke'
         expect(contents.join('\n')).not.toContain('New human intent')
       }
     } finally {
+      restoreTransport?.()
       await electronApp.evaluate(() => { (globalThis as Scope).__labelAuditGate?.restore(); delete (globalThis as Scope).__labelAuditGate }).catch(() => undefined)
       await Promise.allSettled([creation].filter(Boolean))
       await client.close().catch(() => undefined)
