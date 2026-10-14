@@ -18,6 +18,8 @@ import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
 import { sizingInputsSettlementScript } from './element-sizing-inputs.js'
 import { formValiditySettlementScript } from './form-validity.js'
+import { valueComparisonSettlementScript } from './value-comparison.js'
+import { MAX_COMPARED_TEXT_VALUE_LENGTH } from '../../shared/value-comparison.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
 import { FrameObservationController } from './frame-observation.js'
@@ -5681,9 +5683,17 @@ export class BrowserTabsManager {
     const sizing = options.includeSizingInputs === true
     if (sizing && (options.ref !== undefined || typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1000)) throw new Error('Sizing inputs require a unique selector; snapshot refs are unsupported')
     if (sizing && (validity || occupancy || options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Sizing inputs cannot combine with validity, occupancy, CSS provenance or fonts')
-    const guarded = occupancy || validity || sizing
-    const inspectionLabel = sizing ? 'Sizing inputs' : validity ? 'Form validity' : 'Password occupancy'
-    const settlementScript = sizing ? sizingInputsSettlementScript : validity ? formValiditySettlementScript : passwordOccupancySettlementScript
+    const expectedValue = options.expectedValue
+    if (expectedValue !== undefined && (typeof expectedValue !== 'string' || expectedValue.length > MAX_COMPARED_TEXT_VALUE_LENGTH)) {
+      throw new TypeError(`expectedValue must be a string of at most ${MAX_COMPARED_TEXT_VALUE_LENGTH} UTF-16 code units`)
+    }
+    const comparison = expectedValue !== undefined
+    if (comparison && (options.ref !== undefined || typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1000)) throw new Error('Value comparison requires a unique selector; snapshot refs are unsupported')
+    if (comparison && (validity || occupancy || sizing || options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Value comparison cannot combine with validity, occupancy, sizing inputs, CSS provenance or fonts')
+    const guarded = occupancy || validity || sizing || comparison
+    const inspectionLabel = sizing ? 'Sizing inputs' : validity ? 'Form validity' : comparison ? 'Value comparison' : 'Password occupancy'
+    const settlementScript = sizing ? sizingInputsSettlementScript : validity ? formValiditySettlementScript
+      : comparison ? valueComparisonSettlementScript : passwordOccupancySettlementScript
     if (occupancy && (options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Password occupancy cannot be combined with CSS provenance or rendered fonts')
     const inspectionToken = guarded ? randomUUID() : undefined
     const properties = normalizeCssProperties(options.cssProperties)
@@ -5740,7 +5750,8 @@ export class BrowserTabsManager {
       })
       return slot ? slot.track(operation) : operation
     }
-    const inspect = () => execute(elementInspectionScript(options, inspectionToken))
+    // The expected text is embedded only in the comparison reducer, not in the serialized target.
+    const inspect = () => execute(elementInspectionScript({ ...options, expectedValue: undefined } as typeof options, inspectionToken, expectedValue))
     let raw: unknown
     let cssProvenance: BrowserElementInspection['cssProvenance']
     let renderedFonts: BrowserElementInspection['renderedFonts']

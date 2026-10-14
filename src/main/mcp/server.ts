@@ -1,4 +1,5 @@
 import { normalizeTabLabel, MAX_TAB_LABEL_INPUT_LENGTH } from '../../shared/tab-label.js'
+import { MAX_COMPARED_TEXT_VALUE_LENGTH } from '../../shared/value-comparison.js'
 import { browserClickSchema } from './browser-click-input.js'
 import { EMULATION_INPUT_ERRORS, EmulationInputError } from '../browser/emulation-state.js'
 import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
@@ -2027,7 +2028,7 @@ function createBrowserMcpServer(
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
         const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
-        const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true || input.includeSizingInputs === true)
+        const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true || input.includeSizingInputs === true || input.expectedValue !== undefined)
         const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state' || name === 'browser_image_state'
         const preservePresentation = passiveObservation || name === 'browser_wheel' || name === 'browser_hold_key'
           || (name === 'browser_click' && input.button === 'right')
@@ -4129,7 +4130,9 @@ function createBrowserMcpServer(
         includeScroll: z.boolean().optional(),
         includePasswordOccupancy: z.boolean().optional(),
         includeSizingInputs: z.boolean().optional().describe('Selected-element computed sizing inputs only; no flex participation, applicability, parent context, cause, resolved base size or cascade winner claim. Requires one unique selector in an active tab.'),
-        includeValidity: z.boolean().optional()
+        includeValidity: z.boolean().optional(),
+        expectedValue: z.string().max(MAX_COMPARED_TEXT_VALUE_LENGTH).optional()
+          .describe('Compare one unique rendered native text input or textarea, selected by CSS, with this exact string. Returns only match, mismatch or unavailable; neither value is echoed.')
       }
     },
     tabTool('browser_element_inspect', async (options: {
@@ -4142,6 +4145,7 @@ function createBrowserMcpServer(
       includePasswordOccupancy?: boolean
       includeSizingInputs?: boolean
       includeValidity?: boolean
+      expectedValue?: string
       validateInspection?: () => void
     }) => textResult(await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
   )

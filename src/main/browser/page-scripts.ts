@@ -1,6 +1,7 @@
 import { passwordOccupancySource } from './password-occupancy.js'
 import { sizingInputsSource, sizingLookupSource } from './element-sizing-inputs.js'
 import { formValiditySource } from './form-validity.js'
+import { valueComparisonSource } from './value-comparison.js'
 import { elementScrollGeometrySource } from './element-scroll-geometry.js'
 import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
 import { snapshotTextHelpersSource } from './snapshot-text.js'
@@ -612,7 +613,7 @@ export function elementPickerInspectionAtPointScript(
   })()`
 }
 
-export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean; includeValidity?: boolean; includeSizingInputs?: boolean }, occupancyToken?: string): string {
+export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean; includeValidity?: boolean; includeSizingInputs?: boolean }, occupancyToken?: string, expectedValue?: string): string {
   return `(() => {
     ${elementInspectionHelpersSource()}
     const target = ${JSON.stringify(target)};
@@ -626,6 +627,7 @@ export function elementInspectionScript(target: { ref?: string; selector?: strin
       ...(target.includeSizingInputs === true ? { sizingInputs: ${target.includeSizingInputs === true ? sizingInputsSource(occupancyToken ?? '') : 'undefined'} } : {}),
       ...(target.includePasswordOccupancy === true ? { passwordOccupancy: ${passwordOccupancySource(occupancyToken ?? '')} } : {}),
       ...(target.includeValidity === true ? { formValidity: ${target.includeValidity === true ? formValiditySource(occupancyToken ?? '') : 'undefined'} } : {}),
+      ${expectedValue !== undefined ? `valueComparison: ${valueComparisonSource(occupancyToken ?? '', expectedValue)},` : ''}
       ...(target.includeScroll === true ? { scrollGeometry: ${elementScrollGeometrySource()} } : {}),
       ...(target.includeFonts === true ? { renderedFontsEligible: element instanceof HTMLElement
         && element.children.length === 0 && !element.shadowRoot
