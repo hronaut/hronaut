@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -7,6 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import type { PersistedBrowserState } from '../../src/main/browser/tab-store.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
 
 async function connect(profile: string, port: number): Promise<Client> {
   const token = (await readFile(join(profile, 'mcp-token'), 'utf8')).trim()
@@ -94,7 +95,8 @@ for (const homeState of ['closed', 'background', 'active'] as const) {
 }
 
 for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspace', 'other-workspace', 'invalid-global', 'empty'] as const) {
-  test(`keeps startup fallback behavior for ${selection} selection`, async ({ profileDirectory }) => {
+  const rejectedSelection = ['invalid-workspace', 'other-workspace', 'invalid-global'].includes(selection)
+  test(`${rejectedSelection ? 'preserves rejected metadata' : 'keeps startup fallback behavior'} for ${selection} selection`, async ({ profileDirectory, mcpPort }) => {
     let instance = await launchHronaut(profileDirectory)
     try {
       const ids = await instance.window.evaluate(async () => {
@@ -123,7 +125,27 @@ for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspa
         saved.mcpTabGroups = []
         saved.activeTabId = null
       }
-      await writeFile(path, JSON.stringify(saved))
+      const bytes = JSON.stringify(saved)
+      await writeFile(path, bytes)
+      if (rejectedSelection) {
+        const markers = saved.mcpTabGroups!.map(group => join(profileDirectory, 'Partitions', `hronaut-workspace-${group.storageId}`, 'selection-marker'))
+        for (const marker of markers) { await mkdir(join(marker, '..'), { recursive: true }); await writeFile(marker, 'synthetic-selection-storage') }
+        const rejected = await launchRejected(profileDirectory, mcpPort)
+        try {
+          await expect.poll(() => rejected.evaluate(() => Boolean((globalThis as Scope).metadataFixture.notice))).toBe(true)
+          const notice = await rejected.evaluate(() => (globalThis as Scope).metadataFixture.notice!)
+          expect(notice.buttons).toEqual(['Quit'])
+          expect(notice.message).toContain('Startup stopped')
+          expect(await rejected.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(0)
+          await expect(fetch(`http://127.0.0.1:${mcpPort}/mcp`)).rejects.toThrow()
+          expect(await readFile(path, 'utf8')).toBe(bytes)
+          for (const marker of markers) expect(await readFile(marker, 'utf8')).toBe('synthetic-selection-storage')
+          await quitNotice(rejected)
+          expect(await readFile(path, 'utf8')).toBe(bytes)
+          for (const marker of markers) expect(await readFile(marker, 'utf8')).toBe('synthetic-selection-storage')
+        } finally { await rejected.close().catch(() => undefined) }
+        return
+      }
       instance = await launchHronaut(profileDirectory)
       const restored = await instance.window.evaluate('window.hronaut.getState()') as BrowserState
       if (selection === 'missing-workspace' || selection === 'missing-global') {
@@ -131,8 +153,7 @@ for (const selection of ['missing-workspace', 'missing-global', 'invalid-workspa
         expect(restored.mcpTabGroups.find(group => group.id === ids.a)?.activeTabId).toBe(ids.a1)
         expect(restored.activeTabId).toBe(selection === 'missing-global' ? ids.a1 : ids.b1)
       } else {
-        // Invalid persisted identities still reject the saved layout; startup
-        // creates Home rather than selecting an unrelated tab or workspace.
+        // An accepted empty current snapshot still initializes Home.
         expect(restored.mcpTabGroups).toEqual([])
         expect(restored.tabs).toEqual([expect.objectContaining({ url: 'hronaut://home/', active: true })])
         expect(restored.activeTabId).toBe(restored.tabs[0]!.id)

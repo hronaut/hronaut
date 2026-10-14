@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { DEFAULT_MCP_PORT } from '../../src/shared/mcp-port.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
-test('starts with safe defaults when persisted profile stores contain JSON null', async ({
+test('starts with safe defaults when non-workspace profile stores contain JSON null', async ({
   mcpPort,
   profileDirectory
 }) => {
@@ -13,8 +13,7 @@ test('starts with safe defaults when persisted profile stores contain JSON null'
     writeFile(join(profileDirectory, 'bookmarks.json'), 'null\n', 'utf8'),
     writeFile(join(profileDirectory, 'history.json'), 'null\n', 'utf8'),
     writeFile(join(profileDirectory, 'site-permissions.json'), 'null\n', 'utf8'),
-    writeFile(join(profileDirectory, 'credentials.json'), 'null\n', 'utf8'),
-    writeFile(join(profileDirectory, 'tabs.json'), 'null\n', 'utf8')
+    writeFile(join(profileDirectory, 'credentials.json'), 'null\n', 'utf8')
   ])
 
   const { app, window } = await launchHronaut(profileDirectory, mcpPort)
