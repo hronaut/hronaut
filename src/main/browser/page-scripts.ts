@@ -7,6 +7,10 @@ import { snapshotTextHelpersSource } from './snapshot-text.js'
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../../shared/snapshot.js'
 
+// Bounds numbering for one long-lived document. Exhaustion restarts numbering
+// with fresh identities; the next delta then reports renumbered controls.
+export const SNAPSHOT_REF_LIMIT = 1_000_000
+
 export function snapshotScript(maxChars: number, includeMetadata = false, rootSelector?: string): string {
   return `(() => {
     const MAX_CHARS = ${maxChars};
@@ -54,7 +58,14 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
       try { if (!renderedVisible(root)) return { scopeError: 'hidden-root' }; }
       catch (error) { if (error === renderedVisibilityLimit) return { scopeError: 'visibility-limit' }; throw error; }
     }
-    let refIndex = 0;
+    // One comparison identity per observed element for this document. Surviving
+    // controls keep their ref across captures, so inserting or removing an
+    // earlier control does not renumber later ones. The weak map lives in the
+    // isolated snapshot world, outside page JavaScript; the DOM attribute is
+    // only the published handle and is never read back as identity.
+    const identity = globalThis.__hronautSnapshotIdentity
+      || (globalThis.__hronautSnapshotIdentity = { next: 0, refs: new WeakMap() });
+    if (identity.next > ${SNAPSHOT_REF_LIMIT} - 500) { identity.next = 0; identity.refs = new WeakMap(); }
     for (const element of document.querySelectorAll('[data-hronaut-ref]')) element.removeAttribute('data-hronaut-ref');
     const lines = [];
     const omitted = { headings: false, controls: false, bodyText: false, characters: false };
@@ -77,7 +88,8 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
     omitted.controls = visibleElements.length > 500;
     const elements = visibleElements.slice(0, 500);
     for (const element of elements) {
-      const ref = 'e' + (++refIndex);
+      let ref = identity.refs.get(element);
+      if (!ref) { ref = 'e' + (++identity.next); identity.refs.set(element, ref); }
       element.setAttribute('data-hronaut-ref', ref);
       const role = element.getAttribute('role') || element.tagName.toLowerCase();
       const label = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || snapshotSafeText(element);

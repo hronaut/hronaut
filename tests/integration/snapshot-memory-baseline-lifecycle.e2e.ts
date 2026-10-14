@@ -36,23 +36,24 @@ test('rejects stale snapshot and memory baselines after newer lifecycle changes'
     await electronApp.evaluate(({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find(candidate => candidate.getURL() === requestedUrl)
       if (!page) throw new Error('Baseline lifecycle page was not found')
-      const original = page.executeJavaScript.bind(page)
+      // Snapshots capture in their isolated world.
+      const original = page.executeJavaScriptInIsolatedWorld.bind(page)
       let intercept = true
       let release!: () => void
       const gate = new Promise<void>((resolve) => { release = resolve })
       const state = {
         held: false,
         release,
-        restore: () => { page.executeJavaScript = original }
+        restore: () => { page.executeJavaScriptInIsolatedWorld = original }
       }
       ;(globalThis as typeof globalThis & { __hronautBaselineCapture?: typeof state }).__hronautBaselineCapture = state
-      page.executeJavaScript = async (code: string, userGesture?: boolean) => {
-        const value = await original(code, userGesture)
-        if (!intercept || !code.includes('const MAX_CHARS =')) return value
+      page.executeJavaScriptInIsolatedWorld = async (worldId, scripts, userGesture) => {
+        const value = await original(worldId, scripts, userGesture)
+        if (!intercept || !scripts.some(script => script.code.includes('const MAX_CHARS ='))) return value
         intercept = false
         state.held = true
         await gate
-        page.executeJavaScript = original
+        page.executeJavaScriptInIsolatedWorld = original
         return value
       }
     }, targetUrl)
