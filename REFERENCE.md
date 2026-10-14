@@ -82,7 +82,7 @@ The website inventory combines history, open tabs, bookmarks, saved accounts, an
 
 For the current page, open **Site controls** at the left of the address. It shows cookies from that tab's isolated workspace, exact-origin history, and saved permission decisions. **Site storage** opens the inspector for that workspace. Use its website-data controls to clear cookies, local storage, IndexedDB, service workers, caches, or other site storage within that workspace.
 
-Obsolete base-profile browser data, workspaces without isolated storage, and tab snapshots older than version 3 are deleted at startup. Supported isolated workspaces retain their identities and storage. No legacy profile migration or Default-workspace aliases are available.
+Obsolete base-profile browser data, workspaces without isolated storage, and tab snapshots older than version 3 are deleted at startup. Supported isolated workspaces retain their identities and storage. Explicit workspace deletion clears website data immediately and records pending file cleanup in the workspace-state snapshot. On a later startup, before workspace sessions open, Hronaut removes only those recorded partition directories whose ownership and paths can be verified. Active, archived, ambiguously referenced, recovery-blocked, and unsafe linked profiles are preserved. Existing unreferenced directories are not swept. Removal does not guarantee secure erasure from disks, backups, or filesystem snapshots. No legacy profile migration or Default-workspace aliases are available.
 
 ## Portable workspace templates
 

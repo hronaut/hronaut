@@ -73,6 +73,8 @@ export interface PersistedSavedTabGroup {
 
 export interface PersistedBrowserState {
   version: typeof TAB_STATE_VERSION
+  deletedWorkspaceStorageIds?: string[]
+  workspaceStorageCleanupBlocked?: boolean
   activeTabId: string | null
   splitView?: BrowserSplitViewState
   allTabsMuted?: boolean
@@ -296,7 +298,7 @@ export class TabStateStore {
 
   constructor(private readonly path: string) {}
 
-  async load(): Promise<PersistedBrowserState | null> {
+  async load(options: { blockStorageCleanup?: boolean } = {}): Promise<PersistedBrowserState | null> {
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
       if (!isRecord(parsed)) return null
@@ -579,6 +581,8 @@ export class TabStateStore {
 
       const restored: PersistedBrowserState = {
         version: TAB_STATE_VERSION,
+        ...(Array.isArray(data.deletedWorkspaceStorageIds) ? { deletedWorkspaceStorageIds: data.deletedWorkspaceStorageIds.filter((id): id is string => typeof id === 'string' && WORKSPACE_STORAGE_ID_PATTERN.test(id)).map(id => id.toLowerCase()) } : {}),
+        ...(data.workspaceStorageCleanupBlocked === true || options.blockStorageCleanup === true ? { workspaceStorageCleanupBlocked: true } : {}),
         activeTabId,
         ...(splitView ? { splitView } : {}),
         allTabsMuted: data.allTabsMuted === true,
@@ -595,6 +599,12 @@ export class TabStateStore {
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
       return null
     }
+  }
+
+  withStableSnapshot<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.saveQueue.then(operation)
+    this.saveQueue = result.then(() => undefined, () => undefined)
+    return result
   }
 
   save(state: PersistedBrowserState | (() => PersistedBrowserState), hooks?: {

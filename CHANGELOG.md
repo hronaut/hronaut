@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Remove residual files for explicitly deleted workspaces on a later startup, after checking storage ownership and recovery metadata. Active and archived workspaces are preserved; ambiguous or unsafe profiles defer cleanup. This is file removal, not secure erasure.
+
 - Keep Page tools search, results, and footer scrollable in short docks while close and dock controls remain available.
 
 - Keep top and bottom diagnostic docks from collapsing in short windows. Constrained layouts give the panel more space while reserving at least one third of the available height for the native website; normal-height layouts and saved dock sizes are preserved. Network copy, footer and header actions remain reachable at the minimum window size and 125% interface scale.

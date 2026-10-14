@@ -3662,6 +3662,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   )
   tabsManager = new BrowserTabsManager(mainWindow, {
     partition: PARTITION,
+    sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),
     mcpUrl,
     profilePath: app.getPath('userData'),
