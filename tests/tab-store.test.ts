@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   TAB_STATE_VERSION,
   TabStateStore,
+  WorkspaceMetadataError,
   type PersistedBrowserState
 } from '../src/main/browser/tab-store.js'
 import { MAX_TAB_TITLE_CHARS } from '../src/main/browser/tab-metadata.js'
@@ -150,7 +151,7 @@ describe('TabStateStore', () => {
     state.mcpTabGroups![1]!.navigationPolicy = { mode: 'unrestricted', rules: [] }
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify(state), 'utf8')
-    expect(await store.load()).toBeNull()
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
   it('repairs malformed descriptions without discarding workspace state', async () => {
@@ -449,7 +450,7 @@ describe('TabStateStore', () => {
 
     state.mcpTabGroups![1]!.navigationPolicy = { mode: 'restricted', rules: ['file:///tmp/private'] }
     await writeFile(path, JSON.stringify(state), 'utf8')
-    expect(await store.load()).toBeNull()
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
   it('persists only bounded origin-level denied-navigation audit entries', async () => {
@@ -470,7 +471,7 @@ describe('TabStateStore', () => {
     expect(() => store.save(state)).toThrow('audit origin')
   })
 
-  it('drops unversioned legacy tab state instead of migrating or restoring it', async () => {
+  it('preserves rejected unversioned legacy state without migrating it', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({
@@ -478,7 +479,7 @@ describe('TabStateStore', () => {
       tabs: [{ id: 'legacy-tab', title: 'Legacy', url: 'https://legacy.example' }]
     }), 'utf8')
 
-    expect(await store.load()).toBeNull()
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
   it('restores a valid bounded split-view layout', async () => {
@@ -508,7 +509,7 @@ describe('TabStateStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify(state), 'utf8')
 
-    expect(await store.load()).toBeNull()
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
   it('persists repaired active and archived page titles without dropping current state', async () => {
@@ -563,7 +564,7 @@ describe('TabStateStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify(state), 'utf8')
 
-    expect(await store.load()).toBeNull()
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 
   it('sanitizes origin lists inside an otherwise valid current profile', async () => {
@@ -612,14 +613,14 @@ describe('TabStateStore', () => {
     })
   })
 
-  it('returns null for missing and malformed files', async () => {
+  it('returns null only for missing files and rejects malformed metadata', async () => {
     const { path, store } = await createStore()
     expect(await store.load()).toBeNull()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, '{not json', 'utf8')
-    expect(await store.load()).toBeNull()
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
     await writeFile(path, 'null\n', 'utf8')
-    expect(await store.load()).toBeNull()
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
   })
 })
 
@@ -638,12 +639,12 @@ describe('workspace direct agent access persistence', () => {
 })
 
 describe('discarded obsolete workspace data', () => {
-  it.each([undefined, 0, 1, 2])('deletes unsupported tab snapshots (version=%s)', async version => {
+  it.each([undefined, 0, 1, 2])('preserves unsupported tab snapshots (version=%s)', async version => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ ...currentState(), version }))
-    expect(await store.load()).toBeNull()
-    await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(store.load()).rejects.toBeInstanceOf(WorkspaceMetadataError)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(JSON.parse(JSON.stringify({ ...currentState(), version })))
   })
 
   it.each([false, true])('drops base-profile workspaces and tabs while preserving isolated storage (archived=%s)', async archived => {

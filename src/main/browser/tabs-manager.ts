@@ -834,6 +834,7 @@ export interface TabsManagerOptions {
   partition: string
   sessionDataPath?: string
   storePath: string
+  requireExistingMetadata?: boolean
   mcpUrl: string
   profilePath: string
   downloadDirectory: string
@@ -1361,10 +1362,14 @@ export class BrowserTabsManager {
 
   async initialize(): Promise<void> {
     this.restoringLayout = true
-    const cleanup = this.options.sessionDataPath
+    // Full, nonmutating validation precedes both deletion and normalization.
+    const accepted = await this.store.load({ persistRepairs: false, requireExisting: this.options.requireExistingMetadata })
+    const cleanup = accepted && this.options.sessionDataPath
       ? await cleanExplicitlyDeletedWorkspaceStorage(this.options.storePath, this.options.sessionDataPath, this.options.partition)
       : { metadataBlocked: false }
-    const saved = await this.store.load({ blockStorageCleanup: cleanup.metadataBlocked })
+    // Cleanup can retire deletion intent. Reread rather than resurrecting a
+    // stale prepared snapshot; disappearance is no longer a fresh profile.
+    const saved = await this.store.load({ blockStorageCleanup: cleanup.metadataBlocked, requireExisting: accepted !== null || this.options.requireExistingMetadata })
     for (const id of saved?.deletedWorkspaceStorageIds ?? []) this.deletedWorkspaceStorageIds.add(id)
     this.workspaceStorageCleanupBlocked = saved?.workspaceStorageCleanupBlocked === true
       || (cleanup.metadataBlocked && saved !== null)
@@ -1443,8 +1448,8 @@ export class BrowserTabsManager {
     }
     this.layout()
     this.restoringLayout = false
+    await this.store.initializeState(() => this.persistedState())
     this.initialized = true
-    await this.store.save(() => this.persistedState())
     if (this.activeTabId) {
       const activeTab = this.tabs.get(this.activeTabId)
       if (activeTab) this.focusTabOrTrustedChrome(activeTab)

@@ -1,5 +1,5 @@
 import { restoreTabLabel } from '../../shared/tab-label.js'
-import { readFile, rm } from 'node:fs/promises'
+import { readFile, lstat } from 'node:fs/promises'
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   isBrowserSplitOrientation,
@@ -293,22 +293,41 @@ function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrow
   }
 }
 
+export class WorkspaceMetadataError extends Error {
+  constructor(readonly reason: 'invalid-json' | 'unsupported-version' | 'invalid-schema' | 'unreadable' | 'missing-after-validation' | 'write-failed') {
+    super(`Saved workspace metadata is unavailable (${reason}). Startup stopped to preserve recovery options.`)
+    this.name = 'WorkspaceMetadataError'
+  }
+}
+
 export class TabStateStore {
   private saveQueue: Promise<void> = Promise.resolve()
+  private failure: WorkspaceMetadataError | undefined
 
   constructor(private readonly path: string) {}
 
-  async load(options: { blockStorageCleanup?: boolean } = {}): Promise<PersistedBrowserState | null> {
+  async load(options: { blockStorageCleanup?: boolean; persistRepairs?: boolean; requireExisting?: boolean } = {}): Promise<PersistedBrowserState | null> {
+    this.assertWritable()
+    let contents: string
+    let existed = false
     try {
-      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
-      if (!isRecord(parsed)) return null
-      const data = parsed
-      if (data.version !== TAB_STATE_VERSION) {
-        if (data.version === undefined || data.version === 0 || data.version === 1 || data.version === 2) {
-          await rm(this.path, { force: true })
-        }
-        return null
+      // lstat distinguishes a missing snapshot from a dangling link or a directory.
+      const entry = await lstat(this.path)
+      existed = true
+      if (!entry.isFile() || entry.isSymbolicLink()) throw new WorkspaceMetadataError('unreadable')
+      contents = await readFile(this.path, 'utf8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        if (!existed && !options.requireExisting) return null
+        throw this.reject('missing-after-validation')
       }
+      throw this.reject('unreadable')
+    }
+    try {
+      const parsed = JSON.parse(contents) as unknown
+      if (!isRecord(parsed)) throw this.reject('invalid-schema')
+      const data = parsed
+      if (data.version !== TAB_STATE_VERSION) throw this.reject('unsupported-version')
       if (
         !Array.isArray(data.tabs)
         || !Array.isArray(data.mcpTabGroups)
@@ -316,7 +335,7 @@ export class TabStateStore {
         || data.tabs.length > MAX_TABS
         || data.mcpTabGroups.length > MAX_ACTIVE_WORKSPACES
         || data.savedTabGroups.length > MAX_SAVED_WORKSPACES
-      ) return null
+      ) throw this.reject('invalid-schema')
 
       const usedWorkspaceIds = new Set<string>()
       const activeWorkspaceIds = new Set<string>()
@@ -326,7 +345,7 @@ export class TabStateStore {
       const discardedWorkspaceIds = new Set<string>()
       const mcpTabGroups: PersistedTabGroup[] = []
       for (const candidate of data.mcpTabGroups) {
-        if (!isRecord(candidate)) return null
+        if (!isRecord(candidate)) throw this.reject('invalid-schema')
         if (candidate.storageId === undefined && typeof candidate.id === 'string') {
           discardedWorkspaceIds.add(candidate.id)
           repairedPersistedState = true
@@ -339,7 +358,7 @@ export class TabStateStore {
           navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
           navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
         } catch {
-          return null
+          throw this.reject('invalid-schema')
         }
         if (
           typeof candidate.id !== 'string'
@@ -360,7 +379,7 @@ export class TabStateStore {
           || storageId === undefined
           || usedStorageIds.has(storageId)
           || (candidate.contextClass === 'public-observer' && !isPublicObserverPolicy(navigationPolicy))
-        ) return null
+        ) throw this.reject('invalid-schema')
         usedWorkspaceIds.add(candidate.id)
         activeWorkspaceIds.add(candidate.id)
         usedStorageIds.add(storageId)
@@ -403,7 +422,7 @@ export class TabStateStore {
 
       const savedTabGroups: PersistedSavedTabGroup[] = []
       for (const candidate of data.savedTabGroups) {
-        if (!isRecord(candidate) || !Array.isArray(candidate.tabs)) return null
+        if (!isRecord(candidate) || !Array.isArray(candidate.tabs)) throw this.reject('invalid-schema')
         if (candidate.storageId === undefined && typeof candidate.id === 'string') {
           discardedWorkspaceIds.add(candidate.id)
           repairedPersistedState = true
@@ -416,7 +435,7 @@ export class TabStateStore {
           navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
           navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
         } catch {
-          return null
+          throw this.reject('invalid-schema')
         }
         if (
           typeof candidate.id !== 'string'
@@ -441,7 +460,7 @@ export class TabStateStore {
             || typeof tab.title !== 'string'
             || normalizePersistedTabUrl(tab.url) === null
           ))
-        ) return null
+        ) throw this.reject('invalid-schema')
         usedWorkspaceIds.add(candidate.id)
         usedStorageIds.add(storageId)
         const savedAt = repairedWorkspaceTimestamp(candidate.savedAt, currentTime)
@@ -514,7 +533,7 @@ export class TabStateStore {
           || (candidate.mcpGroupId !== undefined
             && (typeof candidate.mcpGroupId !== 'string' || !activeWorkspaceIds.has(candidate.mcpGroupId)))
           || (candidate.mcpGroupId === undefined && url !== HRONAUT_HOME_URL)
-        ) return null
+        ) throw this.reject('invalid-schema')
         const owningPolicy = typeof candidate.mcpGroupId === 'string'
           ? mcpTabGroups.find((group) => group.id === candidate.mcpGroupId)?.navigationPolicy
           : undefined
@@ -544,9 +563,9 @@ export class TabStateStore {
         })
       }
       const activeTabId = typeof data.activeTabId === 'string' && !discardedTabIds.has(data.activeTabId) ? data.activeTabId : null
-      if (activeTabId !== null && !usedTabIds.has(activeTabId)) return null
+      if (activeTabId !== null && !usedTabIds.has(activeTabId)) throw this.reject('invalid-schema')
       for (const group of mcpTabGroups) {
-        if (group.activeTabId && !tabs.some((tab) => tab.id === group.activeTabId && tab.mcpGroupId === group.id)) return null
+        if (group.activeTabId && !tabs.some((tab) => tab.id === group.activeTabId && tab.mcpGroupId === group.id)) throw this.reject('invalid-schema')
       }
 
       if (isRecord(data.splitView) && (
@@ -568,7 +587,7 @@ export class TabStateStore {
             ratio: normalizeSplitViewRatio(data.splitView.ratio)
           }
         : undefined
-      if (data.splitView !== undefined && !splitView) return null
+      if (data.splitView !== undefined && !splitView) throw this.reject('invalid-schema')
 
       const workspaceIds = new Set([...mcpTabGroups, ...savedTabGroups].map(group => group.id))
       const continuityWorkspaceIds = data.continuityWorkspaceIds === undefined ? undefined
@@ -592,13 +611,27 @@ export class TabStateStore {
         ...(continuityWorkspaceIds ? { continuityWorkspaceIds } : {}),
         tabs
       }
-      if (repairedPersistedState) await this.save(restored)
+      if (repairedPersistedState && options.persistRepairs !== false) {
+        try { await this.save(restored) } catch { throw this.reject('write-failed') }
+      }
       return restored
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
-      return null
+      if (error instanceof WorkspaceMetadataError) throw error
+      throw this.reject(error instanceof SyntaxError ? 'invalid-json' : 'unreadable')
     }
+  }
+
+  private reject(reason: WorkspaceMetadataError['reason']): WorkspaceMetadataError {
+    this.failure ??= new WorkspaceMetadataError(reason)
+    return this.failure
+  }
+
+  private assertWritable(): void {
+    if (this.failure) throw this.failure
+  }
+
+  async initializeState(state: () => PersistedBrowserState): Promise<void> {
+    try { await this.save(state) } catch { throw this.reject('write-failed') }
   }
 
   withStableSnapshot<T>(operation: () => Promise<T>): Promise<T> {
@@ -613,11 +646,17 @@ export class TabStateStore {
   }): Promise<void> {
     // Runtime callers defer snapshots until their queue turn. In particular, a
     // save queued during a label transaction must see its committed result.
+    if (this.failure) return Promise.reject(this.failure)
     const encode = (value: PersistedBrowserState): string => `${JSON.stringify(sanitizePersistedStateUrls(value), null, 2)}\n`
     const captured = typeof state === 'function' ? undefined : encode(state)
     const operation = this.saveQueue.then(async () => {
+      this.assertWritable()
       const contents = captured ?? encode((state as () => PersistedBrowserState)())
-      await writeTextFileAtomically(this.path, contents, 0o600, hooks?.beforeCommit, hooks?.onCommitted)
+      await writeTextFileAtomically(this.path, contents, 0o600, () => {
+        this.assertWritable()
+        hooks?.beforeCommit?.()
+        this.assertWritable()
+      }, hooks?.onCommitted)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

@@ -46,6 +46,7 @@ import { sanitizeConsoleMessages } from '../shared/debug-report.js'
 import trayIconPath from '../../build/icons/24x24.png?asset'
 import trayAttentionIconPath from '../../build/icons/tray-attention.png?asset'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
+import { WorkspaceMetadataError } from './browser/tab-store.js'
 import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
 import { WalletBroker, type WalletBrokerContext } from './wallet/broker.js'
 import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
@@ -240,6 +241,8 @@ let panelWindowRedocking = false
 let panelWindowOpening: Promise<void> | null = null
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
+let workspaceStartupFailure: WorkspaceMetadataError | undefined
+let requireExistingWorkspaceMetadata = false
 let mcpServer: McpHttpServer | null = null
 let mcpCapabilityProfiles: McpCapabilityProfileStore | null = null
 let auditReceipts: AuditReceiptService | null = null
@@ -354,6 +357,7 @@ function reportBrowserActionFailure(action: string, error: unknown): void {
 }
 
 function runNativeBrowserAction(action: string, callback: () => unknown): void {
+  if (workspaceStartupFailure || tabsInitializationPromise) return
   try {
     void Promise.resolve(callback()).catch((error) => reportBrowserActionFailure(action, error))
   } catch (error) {
@@ -500,6 +504,7 @@ if (!gotLock) app.quit()
 const quitRequestedAtStartup = process.argv.includes('--quit')
 
 function showWindow(): void {
+  if (workspaceStartupFailure) return
   if (!mainWindow) return
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
@@ -1875,6 +1880,7 @@ function trustedUrlMatches(actual: string | undefined, expected: string): boolea
 }
 
 function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
+  if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
   const fromMain = Boolean(mainWindow && event.sender === mainWindow.webContents && trustedUrlMatches(actual, trustedShellUrl()))
   const fromPanel = Boolean(panelWindow
@@ -1885,6 +1891,7 @@ function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.
 }
 
 function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
+  if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
   if (!mainWindow || event.sender !== mainWindow.webContents || !trustedUrlMatches(actual, trustedShellUrl())) {
     throw new Error('Rejected IPC from a non-primary renderer')
@@ -1892,6 +1899,7 @@ function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.Ipc
 }
 
 function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
+  if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
   if (!panelWindow || !panelWindowUrl || event.sender !== panelWindow.webContents || !trustedUrlMatches(actual, panelWindowUrl)) {
     throw new Error('Rejected IPC from a non-panel renderer')
@@ -1899,6 +1907,7 @@ function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.Ip
 }
 
 function assertHomePageSender(event: Electron.IpcMainInvokeEvent): void {
+  if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
   try {
     const url = new URL(actual ?? '')
@@ -1910,6 +1919,7 @@ function assertHomePageSender(event: Electron.IpcMainInvokeEvent): void {
 }
 
 function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
+  if (workspaceStartupFailure) throw workspaceStartupFailure
   if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
   return walletBrokerContextFromIpc(event, tabsManager)
 }
@@ -2075,8 +2085,36 @@ async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
   }
 }
 
+// Readiness is separate from sender trust. Never admit browser mutations into
+// the partially initialized model, including while metadata IO is pending.
+function assertWorkspaceInitialized(): void {
+  if (workspaceStartupFailure) throw workspaceStartupFailure
+  if (tabsInitializationPromise) throw new Error('Saved workspaces are still initializing. Try again after startup completes.')
+}
+
+function assertInitializedMainShellSender(event: Electron.IpcMainInvokeEvent): void {
+  assertMainShellSender(event)
+  assertWorkspaceInitialized()
+}
+
+function assertInitializedTrustedShellSender(event: Electron.IpcMainInvokeEvent): void {
+  assertTrustedShellSender(event)
+  assertWorkspaceInitialized()
+}
+
+function handleBrowserIpc(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (workspaceStartupFailure) throw workspaceStartupFailure
+    if (tabsInitializationPromise && !['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview'].includes(channel)) {
+      throw new Error('Saved workspaces are still initializing. Try again after startup completes.')
+    }
+    return listener(event, ...args)
+  })
+}
+
 function registerIpc(): void {
   ipcMain.on('address-overlay:show', (event, value: unknown) => {
+    if (workspaceStartupFailure) return
     assertMainShellSender(event)
     const request = validatedAddressOverlayRequest(value)
     // When the native renderer exits unexpectedly, ignore any already-queued
@@ -2115,12 +2153,14 @@ function registerIpc(): void {
     }).catch((error) => console.error('[address-overlay] Failed to show suggestions:', error))
   })
   ipcMain.on('address-overlay:hide', (event) => {
+    if (workspaceStartupFailure) return
     assertMainShellSender(event)
     addressSuggestionOverlayDismissalPending = false
     addressSuggestionOverlayGeneration += 1
     hideAddressSuggestionOverlay()
   })
   ipcMain.on('address-overlay:measured', (event, value: unknown) => {
+    if (workspaceStartupFailure) return
     assertAddressOverlaySender(event)
     if (
       !addressSuggestionOverlayVisible
@@ -2148,6 +2188,7 @@ function registerIpc(): void {
     mainWindow.contentView.addChildView(addressSuggestionSurface.view)
   })
   ipcMain.on('address-overlay:select', (event, value: unknown) => {
+    if (workspaceStartupFailure) return
     assertAddressOverlaySender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new TypeError('Invalid address suggestion selection')
@@ -2228,43 +2269,46 @@ function registerIpc(): void {
       })
     }
   })
-  ipcMain.handle('browser:get-state', async (event) => {
+  handleBrowserIpc('browser:get-state', async (event) => {
     assertTrustedShellSender(event)
     await tabsInitializationPromise
+    if (workspaceStartupFailure) throw workspaceStartupFailure
     return tabsManager!.getState()
   })
   ipcMain.handle('attention:get', (event) => {
     assertMainShellSender(event)
     return userAttention ? { ...userAttention } : null
   })
-  ipcMain.handle('browser:get-tab-overview-previews', async (event, value: unknown) => {
+  handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     const tabIds = validateTabOverviewPreviewIds(value)
     await tabsInitializationPromise
+    if (workspaceStartupFailure) throw workspaceStartupFailure
     return tabsManager!.getTabOverviewPreviews(tabIds)
   })
-  ipcMain.handle('browser:get-tab-overview-page-preview', async (event, value: unknown) => {
+  handleBrowserIpc('browser:get-tab-overview-page-preview', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     const [tabId] = validateTabOverviewPreviewIds([value])
     await tabsInitializationPromise
+    if (workspaceStartupFailure) throw workspaceStartupFailure
     return tabsManager!.getTabOverviewPagePreview(tabId!)
   })
-  ipcMain.handle('browser:copy-text', async (event, value: unknown) => {
+  handleBrowserIpc('browser:copy-text', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     await copyTextToClipboard(value)
   })
-  ipcMain.handle('hronaut-home:workspaces', (event) => {
+  handleBrowserIpc('hronaut-home:workspaces', (event) => {
     assertHomePageSender(event)
     return homeWorkspaceState(tabsManager!)
   })
-  ipcMain.handle('hronaut-home:workspace-action', async (event, input: unknown) => {
+  handleBrowserIpc('hronaut-home:workspace-action', async (event, input: unknown) => {
     assertHomePageSender(event)
     return runHomeWorkspaceAction(tabsManager!, input, (request) => {
       mainWindow?.webContents.send('browser:home-workspace-editor', request)
     })
   })
-  ipcMain.handle('hronaut-home:copy-text', async (event, value: unknown) => {
+  handleBrowserIpc('hronaut-home:copy-text', async (event, value: unknown) => {
     assertHomePageSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     try {
@@ -2274,7 +2318,7 @@ function registerIpc(): void {
       throw error
     }
   })
-  ipcMain.handle('hronaut-home:open-vscode-install', async (event) => {
+  handleBrowserIpc('hronaut-home:open-vscode-install', async (event) => {
     assertHomePageSender(event)
     await openVsCodeMcpInstall({
       endpoint: mcpUrl,
@@ -2282,36 +2326,36 @@ function registerIpc(): void {
       openExternal: (url) => shell.openExternal(url)
     })
   })
-  ipcMain.handle(
+  handleBrowserIpc(
     'hronaut-home:open-setup-help',
     setupHelpHandler(assertHomePageSender, (url) => shell.openExternal(url))
   )
-  ipcMain.handle(
+  handleBrowserIpc(
     'hronaut-home:open-setup-feedback',
     setupFeedbackHandler(assertHomePageSender, (url) => shell.openExternal(url))
   )
-  ipcMain.handle(
+  handleBrowserIpc(
     'hronaut-home:open-agent-guide',
     agentGuideHandler(assertHomePageSender, (url) => shell.openExternal(url))
   )
-  ipcMain.handle('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
-  ipcMain.handle('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })
-  ipcMain.handle('browser:reopen-closed-tab', (event, closedTabId: unknown) => {
+  handleBrowserIpc('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
+  handleBrowserIpc('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })
+  handleBrowserIpc('browser:reopen-closed-tab', (event, closedTabId: unknown) => {
     assertTrustedShellSender(event)
     if (closedTabId !== undefined && typeof closedTabId !== 'string') throw new TypeError('Invalid closed tab ID')
     return tabsManager!.reopenClosedTab(closedTabId)
   })
-  ipcMain.handle('browser:select-tab', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.selectTabAndWait(tabId) })
-  ipcMain.handle('browser:close-tab', (event, tabId) => {
+  handleBrowserIpc('browser:select-tab', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.selectTabAndWait(tabId) })
+  handleBrowserIpc('browser:close-tab', (event, tabId) => {
     assertTrustedShellSender(event)
     return tabsManager!.closeTab(tabId, true)
   })
-  ipcMain.handle('browser:open-split-view', (event, tabId: unknown) => {
+  handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid split-view tab ID')
     return tabsManager!.openSplitViewAndWait(tabId)
   })
-  ipcMain.handle('browser:update-split-view', (event, updates: unknown) => {
+  handleBrowserIpc('browser:update-split-view', (event, updates: unknown) => {
     assertTrustedShellSender(event)
     if (!updates || typeof updates !== 'object' || Array.isArray(updates)) throw new TypeError('Invalid split-view update')
     const candidate = updates as Record<string, unknown>
@@ -2328,64 +2372,64 @@ function registerIpc(): void {
       ...(candidate.swap === true ? { swap: true } : {})
     })
   })
-  ipcMain.handle('split-divider:get', (event) => { assertMainShellSender(event); return tabsManager!.getSplitDivider() })
-  ipcMain.handle('split-divider:begin', (event, revision: unknown) => {
+  handleBrowserIpc('split-divider:get', (event) => { assertMainShellSender(event); return tabsManager!.getSplitDivider() })
+  handleBrowserIpc('split-divider:begin', (event, revision: unknown) => {
     assertMainShellSender(event)
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) throw new TypeError('Invalid split revision')
     return tabsManager!.beginSplitDivider(revision)
   })
-  ipcMain.handle('split-divider:update', (event, token: unknown, ratio: unknown) => {
+  handleBrowserIpc('split-divider:update', (event, token: unknown, ratio: unknown) => {
     assertMainShellSender(event)
     if (typeof token !== 'string' || token.length > 64 || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split gesture update')
     return tabsManager!.updateSplitDivider(token, ratio)
   })
-  ipcMain.handle('split-divider:finish', (event, token: unknown, commit: unknown, ratio: unknown) => {
+  handleBrowserIpc('split-divider:finish', (event, token: unknown, commit: unknown, ratio: unknown) => {
     assertMainShellSender(event)
     if (typeof token !== 'string' || token.length > 64 || typeof commit !== 'boolean'
       || (ratio !== undefined && (typeof ratio !== 'number' || !Number.isFinite(ratio)))) throw new TypeError('Invalid split gesture completion')
     return tabsManager!.finishSplitDivider(token, commit, ratio as number | undefined)
   })
-  ipcMain.handle('split-divider:set-ratio', (event, revision: unknown, ratio: unknown) => {
+  handleBrowserIpc('split-divider:set-ratio', (event, revision: unknown, ratio: unknown) => {
     assertMainShellSender(event)
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0
       || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split divider ratio')
     return tabsManager!.setSplitDividerRatio(revision, ratio)
   })
-  ipcMain.handle('browser:close-split-view', (event) => {
+  handleBrowserIpc('browser:close-split-view', (event) => {
     assertTrustedShellSender(event)
     return tabsManager!.closeSplitView()
   })
-  ipcMain.handle('browser:set-tab-label', (event, tabId: unknown, label: unknown) => {
+  handleBrowserIpc('browser:set-tab-label', (event, tabId: unknown, label: unknown) => {
     assertMainShellSender(event)
     if (typeof tabId !== 'string' || typeof label !== 'string') throw new TypeError('Invalid tab label')
     return tabsManager!.setTabLabel(tabId, label)
   })
-  ipcMain.handle('browser:set-tab-pinned', (event, tabId: unknown, pinned: unknown) => {
+  handleBrowserIpc('browser:set-tab-pinned', (event, tabId: unknown, pinned: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof pinned !== 'boolean') throw new TypeError('Invalid pinned tab state')
     return tabsManager!.setTabPinned(tabId, pinned)
   })
-  ipcMain.handle('browser:set-tab-sleeping', (event, tabId: unknown, sleeping: unknown) => {
+  handleBrowserIpc('browser:set-tab-sleeping', (event, tabId: unknown, sleeping: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof sleeping !== 'boolean') throw new TypeError('Invalid tab sleeping state')
     return tabsManager!.setTabSleeping(tabId, sleeping)
   })
-  ipcMain.handle('browser:set-tab-agent-paused', (event, tabId: unknown, paused: unknown) => {
+  handleBrowserIpc('browser:set-tab-agent-paused', (event, tabId: unknown, paused: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof paused !== 'boolean') throw new TypeError('Invalid tab agent pause state')
     if (!mcpServer) throw new Error('Agent service is unavailable')
     return mcpServer.setTabAgentPaused(tabId, paused)
   })
-  ipcMain.handle('browser:set-tab-page-lifecycle', (event, tabId: unknown, state: unknown) => {
+  handleBrowserIpc('browser:set-tab-page-lifecycle', (event, tabId: unknown, state: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || (state !== 'active' && state !== 'frozen')) throw new TypeError('Invalid tab page lifecycle state')
     return tabsManager!.setTabPageLifecycle(tabId, state)
   })
-  ipcMain.handle('browser:sleep-inactive-tabs', (event) => {
+  handleBrowserIpc('browser:sleep-inactive-tabs', (event) => {
     assertTrustedShellSender(event)
     return tabsManager!.sleepInactiveTabs()
   })
-  ipcMain.handle('browser:reorder-tab', (event, tabId: unknown, targetTabId: unknown, placement: unknown) => {
+  handleBrowserIpc('browser:reorder-tab', (event, tabId: unknown, targetTabId: unknown, placement: unknown) => {
     assertTrustedShellSender(event)
     if (
       typeof tabId !== 'string'
@@ -2394,13 +2438,13 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid tab reorder request')
     return tabsManager!.reorderTab(tabId, targetTabId, placement)
   })
-  ipcMain.handle('browser:rename-tab-group', (event, groupId: unknown, name: unknown) => {
+  handleBrowserIpc('browser:rename-tab-group', (event, groupId: unknown, name: unknown) => {
     assertTrustedShellSender(event)
     if (typeof groupId !== 'string' || typeof name !== 'string') throw new TypeError('Invalid workspace rename request')
     tabsManager!.renameMcpTabGroup(groupId, name)
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:update-tab-group', (event, groupId: unknown, updates: unknown) => {
+  handleBrowserIpc('browser:update-tab-group', (event, groupId: unknown, updates: unknown) => {
     assertTrustedShellSender(event)
     if (typeof groupId !== 'string' || !updates || typeof updates !== 'object' || Array.isArray(updates)) {
       throw new TypeError('Invalid workspace update request')
@@ -2422,18 +2466,18 @@ function registerIpc(): void {
     } satisfies BrowserTabGroupUpdate)
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:review-workspace-continuity', (event, workspaceId: unknown) => {
+  handleBrowserIpc('browser:review-workspace-continuity', (event, workspaceId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     return tabsManager!.inspectWorkspaceContinuity(workspaceId)
   })
-  ipcMain.handle('browser:list-human-waiting', (event, workspaceId: unknown) => {
+  handleBrowserIpc('browser:list-human-waiting', (event, workspaceId: unknown) => {
     const authorize = (): void => { assertTrustedShellSender(event) }
     authorize()
     if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !humanWaiting) throw new Error('Waiting workspace unavailable')
     return humanWaiting.list(workspaceId, authorize)
   })
-  ipcMain.handle('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown) => {
+  handleBrowserIpc('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown) => {
     const authorize = (): void => { assertTrustedShellSender(event) }
     authorize()
     if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
@@ -2466,30 +2510,30 @@ function registerIpc(): void {
     if (attentionId && userAttention?.id === attentionId) clearUserAttention()
     return record
   })
-  ipcMain.handle('browser:checkpoint-workspace-continuity', async (event, workspaceId: unknown, markerSelector: unknown) => {
+  handleBrowserIpc('browser:checkpoint-workspace-continuity', async (event, workspaceId: unknown, markerSelector: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string' || (markerSelector !== undefined && typeof markerSelector !== 'string')) throw new TypeError('Invalid continuity checkpoint')
     await tabsManager!.armWorkspaceContinuity(workspaceId, markerSelector)
     return tabsManager!.inspectWorkspaceContinuity(workspaceId)
   })
-  ipcMain.handle('browser:reconcile-workspace-continuity', async (event, workspaceId: unknown, reviewId: unknown, acknowledge: unknown) => {
+  handleBrowserIpc('browser:reconcile-workspace-continuity', async (event, workspaceId: unknown, reviewId: unknown, acknowledge: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string' || typeof reviewId !== 'string' || typeof acknowledge !== 'boolean') throw new TypeError('Invalid continuity review')
     await tabsManager!.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledge)
     return tabsManager!.inspectWorkspaceContinuity(workspaceId)
   })
-  ipcMain.handle('browser:update-workspace-navigation-policy', (event, groupId: unknown, policy: unknown) => {
+  handleBrowserIpc('browser:update-workspace-navigation-policy', (event, groupId: unknown, policy: unknown) => {
     assertTrustedShellSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     const normalized = normalizeWorkspaceNavigationPolicy(policy)
     return tabsManager!.updateWorkspaceNavigationPolicy(groupId, normalized)
   })
-  ipcMain.handle('browser:list-workspace-navigation-audit', (event, groupId: unknown) => {
+  handleBrowserIpc('browser:list-workspace-navigation-audit', (event, groupId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     return tabsManager!.listWorkspaceNavigationAudit(groupId)
   })
-  ipcMain.handle('browser:open-workspace-template-file', async (event) => {
+  handleBrowserIpc('browser:open-workspace-template-file', async (event) => {
     assertTrustedShellSender(event)
     if (!mainWindow || mainWindow.isDestroyed()) throw new Error(text('native.errors.actionFailed'))
     const selection = await dialog.showOpenDialog(mainWindow, {
@@ -2504,7 +2548,7 @@ function registerIpc(): void {
       throw new Error(text('workspaceTemplates.readFailed'))
     }
   })
-  ipcMain.handle('browser:save-workspace-template-file', async (event, value: unknown) => {
+  handleBrowserIpc('browser:save-workspace-template-file', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
     parseWorkspaceTemplate(value)
@@ -2523,13 +2567,13 @@ function registerIpc(): void {
       throw new Error(text('workspaceTemplates.writeFailed'))
     }
   })
-  ipcMain.handle('browser:import-workspace-template', async (event, value: unknown) => {
+  handleBrowserIpc('browser:import-workspace-template', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
     const result = await tabsManager!.importWorkspaceTemplate(value)
     return { ...result, state: tabsManager!.getState() }
   })
-  ipcMain.handle('browser:create-workspace', async (event, value: unknown) => {
+  handleBrowserIpc('browser:create-workspace', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace creation request')
     const candidate = value as Record<string, unknown>
@@ -2561,7 +2605,7 @@ function registerIpc(): void {
     } satisfies BrowserWorkspaceCreateOptions)
   })
   const cancelBrowserImport = registerBrowserImportIpc({
-    assertSender: assertMainShellSender,
+    assertSender: assertInitializedMainShellSender,
     destination: id => tabsManager!.browserImportDestination(id),
     consent: async (profile, destination) => {
       const { response } = await showMessageBox({
@@ -2581,12 +2625,12 @@ function registerIpc(): void {
   })
   mainWindow?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
   mainWindow?.webContents.once('destroyed', cancelBrowserImport)
-  ipcMain.handle('browser:list-workspace-storage-origins', (event, workspaceId: unknown) => {
+  handleBrowserIpc('browser:list-workspace-storage-origins', (event, workspaceId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     return tabsManager!.listWorkspaceStorageOrigins(workspaceId)
   })
-  ipcMain.handle('browser:transfer-workspace-storage', (event, value: unknown) => {
+  handleBrowserIpc('browser:transfer-workspace-storage', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace storage transfer')
     const candidate = value as Record<string, unknown>
@@ -2600,45 +2644,45 @@ function registerIpc(): void {
       ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
     } satisfies BrowserWorkspaceStorageTransferOptions)
   })
-  ipcMain.handle('browser:close-workspace', async (event, workspaceId: unknown) => {
+  handleBrowserIpc('browser:close-workspace', async (event, workspaceId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     return tabsManager!.closeWorkspace(workspaceId)
   })
-  ipcMain.handle('browser:save-and-close-tab-group', async (event, groupId: unknown) => {
+  handleBrowserIpc('browser:save-and-close-tab-group', async (event, groupId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     await tabsManager!.saveAndCloseTabGroup(groupId)
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:restore-saved-tab-group', async (event, savedGroupId: unknown) => {
+  handleBrowserIpc('browser:restore-saved-tab-group', async (event, savedGroupId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
     await tabsManager!.restoreSavedTabGroup(savedGroupId)
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:delete-saved-tab-group', async (event, savedGroupId: unknown) => {
+  handleBrowserIpc('browser:delete-saved-tab-group', async (event, savedGroupId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
     await tabsManager!.deleteSavedTabGroup(savedGroupId)
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:show-workspace-context-menu', (event, workspaceId: unknown) => {
+  handleBrowserIpc('browser:show-workspace-context-menu', (event, workspaceId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     tabsManager!.showWorkspaceContextMenu(workspaceId)
   })
-  ipcMain.handle('browser:show-tab-context-menu', (event, tabId: unknown) => {
+  handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     tabsManager!.showTabContextMenu(tabId)
   })
-  ipcMain.handle('browser:toggle-devtools', (event, tabId: unknown) => {
+  handleBrowserIpc('browser:toggle-devtools', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return tabsManager!.toggleDevTools(tabId)
   })
-  ipcMain.handle('browser:set-tab-viewport', async (event, tabId: unknown, viewport: unknown) => {
+  handleBrowserIpc('browser:set-tab-viewport', async (event, tabId: unknown, viewport: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     if (viewport !== null && !isBrowserViewportEmulation(viewport)) throw new TypeError('Invalid viewport emulation')
@@ -2653,7 +2697,7 @@ function registerIpc(): void {
     await tabsManager!.emulate({ tabId, viewport: normalizedViewport })
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:set-tab-environment', async (event, tabId: unknown, environment: unknown) => {
+  handleBrowserIpc('browser:set-tab-environment', async (event, tabId: unknown, environment: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || !isBrowserEnvironmentSettings(environment)) {
       throw new TypeError('Invalid browser environment')
@@ -2661,39 +2705,39 @@ function registerIpc(): void {
     await tabsManager!.emulate({ tabId, ...(environment as BrowserEnvironmentSettings) })
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:reset-tab-emulation', async (event, tabId: unknown) => {
+  handleBrowserIpc('browser:reset-tab-emulation', async (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     await tabsManager!.emulate({ tabId, reset: true })
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:recover-tab-emulation', async (event, tabId: unknown) => {
+  handleBrowserIpc('browser:recover-tab-emulation', async (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     await tabsManager!.emulate({ tabId, recover: true })
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:list-network-routes', (event, tabId: unknown) => {
+  handleBrowserIpc('browser:list-network-routes', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return tabsManager!.networkRoutes(tabId)
   })
-  ipcMain.handle('browser:add-network-route', async (event, tabId: unknown, value: unknown) => {
+  handleBrowserIpc('browser:add-network-route', async (event, tabId: unknown, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     return tabsManager!.addNetworkRoute(tabId, parseNetworkRouteInput(value))
   })
-  ipcMain.handle('browser:remove-network-route', async (event, tabId: unknown, routeId: unknown) => {
+  handleBrowserIpc('browser:remove-network-route', async (event, tabId: unknown, routeId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof routeId !== 'string') throw new TypeError('Invalid network route')
     return tabsManager!.removeNetworkRoute(tabId, routeId)
   })
-  ipcMain.handle('browser:set-network-route-enabled', (event, tabId: unknown, routeId: unknown, enabled: unknown) => {
+  handleBrowserIpc('browser:set-network-route-enabled', (event, tabId: unknown, routeId: unknown, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof routeId !== 'string' || typeof enabled !== 'boolean') throw new TypeError('Invalid network route enabled state')
     return tabsManager!.setNetworkRouteEnabled(tabId, routeId, enabled)
   })
-  ipcMain.handle('browser:move-network-route', (event, tabId: unknown, routeId: unknown, direction: unknown) => {
+  handleBrowserIpc('browser:move-network-route', (event, tabId: unknown, routeId: unknown, direction: unknown) => {
     assertTrustedShellSender(event)
     if (
       typeof tabId !== 'string'
@@ -2702,13 +2746,13 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid network route move')
     return tabsManager!.moveNetworkRoute(tabId, routeId, direction)
   })
-  ipcMain.handle('browser:clear-network-routes', async (event, tabId: unknown) => {
+  handleBrowserIpc('browser:clear-network-routes', async (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     await tabsManager!.clearNetworkRoutes(tabId)
     return tabsManager!.getState()
   })
-  ipcMain.handle('browser:manage-storage', (event, value: unknown) => {
+  handleBrowserIpc('browser:manage-storage', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'object' || value === null) throw new TypeError('Invalid site storage request')
     const { tabId, kind, action, key, value: storageValue, includeValues } = value as Record<string, unknown>
@@ -2722,12 +2766,12 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid site storage request')
     return tabsManager!.manageStorage({ tabId, kind, action, key, value: storageValue, includeValues })
   })
-  ipcMain.handle('browser:storage-usage', (event, tabId: unknown) => {
+  handleBrowserIpc('browser:storage-usage', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid storage usage request')
     return tabsManager!.inspectStorageUsage(tabId as string | undefined)
   })
-  ipcMain.handle('browser:storage-changes', (event, value: unknown) => {
+  handleBrowserIpc('browser:storage-changes', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid storage changes request')
     const { tabId, action, includeValues } = value as Record<string, unknown>
@@ -2738,7 +2782,7 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid storage changes request')
     return tabsManager!.storageChanges(action, tabId as string | undefined, includeValues === true)
   })
-  ipcMain.handle('browser:indexeddb', (event, value: unknown) => {
+  handleBrowserIpc('browser:indexeddb', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid IndexedDB request')
     const { tabId, database, objectStore, offset, limit, includeValues } = value as Record<string, unknown>
@@ -2759,7 +2803,7 @@ function registerIpc(): void {
       includeValues: includeValues === true
     })
   })
-  ipcMain.handle('browser:pwa-lifecycle', (event, value: unknown) => {
+  handleBrowserIpc('browser:pwa-lifecycle', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid lifecycle request')
     const { tabId, captureId, action } = value as Record<string, unknown>
@@ -2768,7 +2812,7 @@ function registerIpc(): void {
     return tabsManager!.pwaLifecycle({ tabId: tabId as string | undefined, captureId: captureId as string | undefined,
       action: action as 'start' | 'get' | 'stop' | 'clear' })
   })
-  ipcMain.handle('browser:pwa', (event, value: unknown) => {
+  handleBrowserIpc('browser:pwa', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid offline app request')
     const { tabId, cacheName, query, offset, limit, includeHeaders } = value as Record<string, unknown>
@@ -2789,13 +2833,13 @@ function registerIpc(): void {
       includeHeaders: includeHeaders === true
     })
   })
-  ipcMain.handle('browser:navigate', (event, options) => { assertTrustedShellSender(event); return tabsManager!.navigate(options.url, options.tabId) })
-  ipcMain.handle('browser:back', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.back(tabId) })
-  ipcMain.handle('browser:forward', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.forward(tabId) })
-  ipcMain.handle('browser:reload', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.reload(tabId) })
-  ipcMain.handle('browser:reload-ignoring-cache', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.reloadIgnoringCache(tabId) })
-  ipcMain.handle('browser:stop', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.stop(tabId) })
-  ipcMain.handle('browser:find-in-page', (event, options: unknown) => {
+  handleBrowserIpc('browser:navigate', (event, options) => { assertTrustedShellSender(event); return tabsManager!.navigate(options.url, options.tabId) })
+  handleBrowserIpc('browser:back', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.back(tabId) })
+  handleBrowserIpc('browser:forward', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.forward(tabId) })
+  handleBrowserIpc('browser:reload', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.reload(tabId) })
+  handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.reloadIgnoringCache(tabId) })
+  handleBrowserIpc('browser:stop', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.stop(tabId) })
+  handleBrowserIpc('browser:find-in-page', (event, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid find options')
     const { query, tabId, forward, findNext, caseSensitive } = options as Record<string, unknown>
@@ -2808,12 +2852,12 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid find options')
     return tabsManager!.findInPage(query, { tabId, forward, findNext, caseSensitive })
   })
-  ipcMain.handle('browser:stop-find-in-page', (event, tabId: unknown) => {
+  handleBrowserIpc('browser:stop-find-in-page', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid find tab')
     tabsManager!.stopFindInPage(tabId)
   })
-  ipcMain.handle('browser:set-zoom', (event, options: unknown) => {
+  handleBrowserIpc('browser:set-zoom', (event, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid page zoom options')
     const { tabId, action, percent } = options as Record<string, unknown>
@@ -2824,17 +2868,17 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid page zoom options')
     return tabsManager!.setZoom({ tabId, action, percent })
   })
-  ipcMain.handle('browser:set-tab-muted', (event, tabId: unknown, muted: unknown) => {
+  handleBrowserIpc('browser:set-tab-muted', (event, tabId: unknown, muted: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof muted !== 'boolean') throw new TypeError('Invalid tab audio state')
     return tabsManager!.setTabMuted(tabId, muted)
   })
-  ipcMain.handle('browser:set-all-tabs-muted', (event, muted: unknown) => {
+  handleBrowserIpc('browser:set-all-tabs-muted', (event, muted: unknown) => {
     assertTrustedShellSender(event)
     if (typeof muted !== 'boolean') throw new TypeError('Invalid global tab audio state')
     return tabsManager!.setAllTabsMuted(muted)
   })
-  ipcMain.handle('browser:save-pdf', (event, options: unknown) => {
+  handleBrowserIpc('browser:save-pdf', (event, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid PDF options')
     const { tabId, filename, landscape, pageSize } = options as Record<string, unknown>
@@ -2847,18 +2891,18 @@ function registerIpc(): void {
     return tabsManager!.savePdf({ tabId, filename, landscape, pageSize })
   })
   registerCollectionIpc(ipcMain, {
-    assertTrustedSender: assertTrustedShellSender,
+    assertTrustedSender: assertInitializedTrustedShellSender,
     bookmarks: () => bookmarkStore!,
     history: () => historyStore!,
     downloads: () => tabsManager!,
     publishBookmarks,
     publishVisitHistory
   })
-  ipcMain.handle('browsing-data:summary', (event) => {
+  handleBrowserIpc('browsing-data:summary', (event) => {
     assertTrustedShellSender(event)
     return currentBrowsingDataSummary()
   })
-  ipcMain.handle('browsing-data:site-summary', (event, url: unknown, tabId: unknown) => {
+  handleBrowserIpc('browsing-data:site-summary', (event, url: unknown, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof url !== 'string') throw new TypeError('Invalid website')
     if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
@@ -2868,11 +2912,11 @@ function registerIpc(): void {
     const browserSession = tabsManager?.workspaceSession(tab.mcpGroupId)
     return currentBrowsingDataSiteSummary(url, browserSession)
   })
-  ipcMain.handle('browsing-data:websites', (event) => {
+  handleBrowserIpc('browsing-data:websites', (event) => {
     assertTrustedShellSender(event)
     return currentBrowsingDataWebsites()
   })
-  ipcMain.handle('browsing-data:clear', (event, value: unknown) => {
+  handleBrowserIpc('browsing-data:clear', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object') throw new TypeError('Invalid browsing-data options')
     const { history, origin } = value as Record<string, unknown>
@@ -2880,17 +2924,17 @@ function registerIpc(): void {
       || Object.keys(value).some(key => key !== 'history' && key !== 'origin')) throw new TypeError('Invalid history clearing options')
     return clearBrowsingData({ history, ...(origin ? { origin } : {}) })
   })
-  ipcMain.handle('browser:set-tab-human-interaction-locked', (event, tabId: unknown, locked: unknown) => {
+  handleBrowserIpc('browser:set-tab-human-interaction-locked', (event, tabId: unknown, locked: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof locked !== 'boolean') throw new TypeError('Invalid tab interaction lock')
     return tabsManager!.setTabHumanInteractionLocked(tabId, locked)
   })
-  ipcMain.handle('browser:set-all-human-interaction-locked', (event, locked: unknown) => {
+  handleBrowserIpc('browser:set-all-human-interaction-locked', (event, locked: unknown) => {
     assertTrustedShellSender(event)
     if (typeof locked !== 'boolean') throw new TypeError('Invalid global interaction lock')
     return tabsManager!.setAllHumanInteractionLocked(locked)
   })
-  ipcMain.handle('browser:copy-snapshot', async (event, tabId: unknown) => {
+  handleBrowserIpc('browser:copy-snapshot', async (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid snapshot tab ID')
     const maxChars = 30_000
@@ -2898,21 +2942,21 @@ function registerIpc(): void {
     await copyTextToClipboard(snapshot.text)
     return { copied: true, characters: snapshot.returnedChars, truncated: snapshot.truncated }
   })
-  ipcMain.handle('browser:pick-element', async (event, tabId) => {
+  handleBrowserIpc('browser:pick-element', async (event, tabId) => {
     assertTrustedShellSender(event)
     const result = await tabsManager!.pickElement(tabId)
     if (result.canceled || !result.content) return { canceled: true, copied: false }
     await copyTextToClipboard(result.content)
     return { canceled: false, copied: true }
   })
-  ipcMain.handle('browser:capture-element', async (event, tabId) => {
+  handleBrowserIpc('browser:capture-element', async (event, tabId) => {
     assertTrustedShellSender(event)
     const screenshot = await tabsManager!.captureElementScreenshot(tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await copyPngToClipboard(screenshot.data)
     return { canceled: false, copied: true, width: size.width, height: size.height }
   })
-  ipcMain.handle('browser:capture-page', async (event, value: unknown) => {
+  handleBrowserIpc('browser:capture-page', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid page capture options')
     const { tabId, fullPage } = value as Record<string, unknown>
@@ -2930,7 +2974,7 @@ function registerIpc(): void {
     const size = await copyPngToClipboard(screenshot.data)
     return { copied: true, width: size.width, height: size.height }
   })
-  ipcMain.handle('browser:element-inspection', (event, value: unknown) => {
+  handleBrowserIpc('browser:element-inspection', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid element inspection options')
     const { tabId, ref, selector } = value as Record<string, unknown>
@@ -2943,12 +2987,12 @@ function registerIpc(): void {
     }
     return tabsManager!.elementInspection(value as BrowserElementInspectionOptions)
   })
-  ipcMain.handle('browser:cancel-element-picker', (event, tabId) => {
+  handleBrowserIpc('browser:cancel-element-picker', (event, tabId) => {
     assertTrustedShellSender(event)
     return tabsManager!.cancelElementPicker(tabId)
   })
   registerIncidentPackageIpc(ipcMain, {
-    assertTrustedSender: assertTrustedShellSender,
+    assertTrustedSender: assertInitializedTrustedShellSender,
     tabs: () => tabsManager!,
     version: app.getVersion(),
     pickDestination: async () => {
@@ -2962,7 +3006,7 @@ function registerIpc(): void {
     }
   })
   registerDiagnosticsIpc(ipcMain, {
-    assertTrustedSender: assertTrustedShellSender,
+    assertTrustedSender: assertInitializedTrustedShellSender,
     tabs: () => tabsManager!,
     pngDataUrl: (data) => nativeImage.createFromBuffer(data).toDataURL(),
     copyPng: copyPngToClipboard,
@@ -2972,7 +3016,7 @@ function registerIpc(): void {
       return selection.canceled ? undefined : selection.filePaths[0]
     }
   })
-  ipcMain.handle('browser:console', (event, value: unknown) => {
+  handleBrowserIpc('browser:console', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid console options')
     const { tabId, clear } = value as Record<string, unknown>
@@ -2981,7 +3025,7 @@ function registerIpc(): void {
     }
     return sanitizeConsoleMessages(tabsManager!.consoleMessages(tabId as string | undefined, clear === true))
   })
-  ipcMain.handle('browser:network', (event, value: unknown) => {
+  handleBrowserIpc('browser:network', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network options')
     const { tabId, clear } = value as Record<string, unknown>
@@ -2990,7 +3034,7 @@ function registerIpc(): void {
     }
     return tabsManager!.networkRequests(tabId as string | undefined, clear === true)
   })
-  ipcMain.handle('browser:network-request', (event, value: unknown) => {
+  handleBrowserIpc('browser:network-request', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network request options')
     const { tabId, requestId, maxChars } = value as Record<string, unknown>
@@ -3004,7 +3048,7 @@ function registerIpc(): void {
     }
     return tabsManager!.networkRequestDetails(tabId, requestId, maxChars as number | undefined)
   })
-  ipcMain.handle('browser:network-replay', (event, value: unknown) => {
+  handleBrowserIpc('browser:network-replay', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network replay options')
     const { tabId, requestId, confirmSideEffects } = value as Record<string, unknown>
@@ -3018,7 +3062,7 @@ function registerIpc(): void {
     }
     return tabsManager!.replayNetworkRequest(tabId, requestId, confirmSideEffects === true)
   })
-  ipcMain.handle('browser:network-search', (event, value: unknown) => {
+  handleBrowserIpc('browser:network-search', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network search options')
     const { tabId, query, caseSensitive, maxResults, maxRequests, maxBodyChars } = value as Record<string, unknown>
@@ -3034,7 +3078,7 @@ function registerIpc(): void {
     }
     return tabsManager!.networkSearch(value as BrowserNetworkSearchOptions)
   })
-  ipcMain.handle('browser:network-har', (event, value: unknown) => {
+  handleBrowserIpc('browser:network-har', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network HAR options')
     const { tabId, query, resourceType, errorsOnly, includeBodies, maxRequests, maxBodyChars } = value as Record<string, unknown>
@@ -3051,7 +3095,7 @@ function registerIpc(): void {
     }
     return tabsManager!.networkHar(value as BrowserNetworkHarOptions)
   })
-  ipcMain.handle('browser:save-network-har', (event, value: unknown) => {
+  handleBrowserIpc('browser:save-network-har', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid network HAR save options')
     const { tabId, query, resourceType, errorsOnly, includeBodies, maxRequests, maxBodyChars, filename } = value as Record<string, unknown>
@@ -3069,19 +3113,19 @@ function registerIpc(): void {
     }
     return tabsManager!.saveNetworkHar(value as BrowserNetworkHarSaveOptions)
   })
-  ipcMain.handle('browser:capture-area', async (event, tabId) => {
+  handleBrowserIpc('browser:capture-area', async (event, tabId) => {
     assertTrustedShellSender(event)
     const screenshot = await tabsManager!.captureScreenshotArea(tabId)
     if (screenshot.canceled || !screenshot.data) return { canceled: true, copied: false }
     const size = await copyPngToClipboard(screenshot.data)
     return { canceled: false, copied: true, width: size.width, height: size.height }
   })
-  ipcMain.handle('browser:cancel-area-capture', (event, tabId) => {
+  handleBrowserIpc('browser:cancel-area-capture', (event, tabId) => {
     assertTrustedShellSender(event)
     return tabsManager!.cancelScreenshotArea(tabId)
   })
-  ipcMain.handle('browser:show', (event) => { assertTrustedShellSender(event); showWindow() })
-  ipcMain.handle('browser:quit', (event) => {
+  handleBrowserIpc('browser:show', (event) => { assertTrustedShellSender(event); showWindow() })
+  handleBrowserIpc('browser:quit', (event) => {
     assertTrustedShellSender(event)
     quitting = true
     app.quit()
@@ -3514,10 +3558,12 @@ function registerIpc(): void {
     return BrowserWindow.fromWebContents(event.sender)?.isFocused() ?? false
   })
   ipcMain.on('browser:toolbar-height', (event, height: number) => {
+    if (workspaceStartupFailure) return
     assertMainShellSender(event)
     tabsManager?.setToolbarHeight(scaleShellMetric(height, event.sender.getZoomFactor()))
   })
   ipcMain.on('browser:content-insets', (event, value: unknown) => {
+    if (workspaceStartupFailure) return
     assertMainShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid browser content insets')
     const { top, right, bottom, left } = value as Record<string, unknown>
@@ -3532,11 +3578,13 @@ function registerIpc(): void {
     })
   })
   ipcMain.on('browser:content-occluded', (event, occluded: unknown) => {
+    if (workspaceStartupFailure) return
     assertMainShellSender(event)
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
     tabsManager?.setBrowserContentOccluded(occluded)
   })
   ipcMain.on('browser:follow-agent-activity-suspended', (event, suspended: unknown) => {
+    if (workspaceStartupFailure) return
     assertMainShellSender(event)
     if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')
     tabsManager?.setFollowAgentActivitySuspended(suspended)
@@ -3664,6 +3712,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),
+    requireExistingMetadata: requireExistingWorkspaceMetadata,
     mcpUrl,
     profilePath: app.getPath('userData'),
     downloadDirectory: effectiveDownloadDirectory(),
@@ -3831,6 +3880,9 @@ async function createWindow(startMinimized = false): Promise<void> {
       await mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
     await tabsManager.initialize()
+  } catch (error) {
+    if (error instanceof WorkspaceMetadataError) workspaceStartupFailure = error
+    throw error
   } finally {
     releaseTabsInitialization()
     if (tabsInitializationPromise === currentTabsInitialization) tabsInitializationPromise = null
@@ -4320,15 +4372,26 @@ app.whenReady().then(async () => {
   await loadAuthoritativeSettings()
   if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
-  await discardObsoleteBrowserData(app.getPath('userData'))
-  await configurePersistentSession()
-  registerHomeProtocol()
-  const startMinimized = shouldStartMinimized(settings, {
-    platform: process.platform,
-    argv: process.argv,
-    wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin()
-  })
-  await createWindow(startMinimized)
+  const startMinimized = shouldStartMinimized(settings, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })
+  try {
+    requireExistingWorkspaceMetadata = await discardObsoleteBrowserData(app.getPath('userData'))
+    await configurePersistentSession()
+    registerHomeProtocol()
+    await createWindow(startMinimized)
+  } catch (error) {
+    if (!(error instanceof WorkspaceMetadataError)) throw error
+    workspaceStartupFailure = error
+    // Do not publish raw metadata, paths or filesystem/parser errors.
+    console.error(`[startup] Workspace metadata rejected: ${error.reason}`)
+    try {
+      await showMessageBox({ type: 'error', title: text('native.dialog.workspaceRecoveryTitle'),
+        message: text('native.dialog.workspaceRecoveryMessage'),
+        detail: text('native.dialog.workspaceRecoveryDetail'),
+        buttons: [text('native.menu.quit')], defaultId: 0, cancelId: 0, noLink: true })
+    } catch { console.error('[startup] Could not display workspace recovery notice.') }
+    finally { app.quit() }
+    return
+  }
   if (!settings.mcpAuthentication) {
     console.warn('[mcp] Authentication is disabled. Anyone who can reach the listener can control this browser profile.')
   }
