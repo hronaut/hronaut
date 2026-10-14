@@ -3,7 +3,8 @@ export const WEB_STORAGE_INPUT_ERRORS = {
   VALUE_REQUIRED: 'value is required to set storage.',
   KEY_TOO_LARGE: 'Storage keys are limited to 512 characters.',
   VALUE_TOO_LARGE: 'Storage values are limited to 256 KiB.',
-  UNSUPPORTED_SCHEME: 'Site storage is available only for HTTP and HTTPS tabs.'
+  UNSUPPORTED_SCHEME: 'Site storage is available only for HTTP and HTTPS tabs.',
+  COOKIE_SELECTOR_UNSUPPORTED: 'cookieDomain and cookiePath apply only to cookie deletion.'
 } as const
 
 export class WebStorageInputError extends TypeError {

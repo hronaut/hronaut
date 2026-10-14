@@ -2456,8 +2456,20 @@ export class BrowserTabsManager {
       throw new TypeError('Storage values are limited to 256 KiB.')
     }
 
+    const exactCookie = options.cookieDomain !== undefined || options.cookiePath !== undefined
+    if (exactCookie) {
+      if (options.kind !== 'cookies' || action !== 'delete') {
+        if (options.kind !== 'cookies') throw new WebStorageInputError('COOKIE_SELECTOR_UNSUPPORTED')
+        throw new TypeError('cookieDomain and cookiePath are supported only when deleting one cookie')
+      }
+      if (!options.cookieDomain || !options.cookiePath?.startsWith('/')) {
+        throw new TypeError('Exact cookie deletion requires both cookieDomain and a cookiePath starting with /')
+      }
+    }
+
     if (options.kind === 'cookies') {
-      return this.manageCookies(tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks)
+      return this.manageCookies(tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks,
+        exactCookie ? { domain: options.cookieDomain!, path: options.cookiePath! } : undefined)
     }
 
     const contents = tab.webContents
@@ -3099,7 +3111,8 @@ export class BrowserTabsManager {
     key: string | undefined,
     value: string | undefined,
     includeValues: boolean,
-    hooks?: CookieWriteHooks
+    hooks?: CookieWriteHooks,
+    exact?: { domain: string; path: string }
   ): Promise<BrowserStorageResult> {
     const contents = tab.webContents
     const session = contents.session
@@ -3139,6 +3152,14 @@ export class BrowserTabsManager {
         secure: pageUrl.protocol === 'https:',
         sameSite: 'lax'
       }))
+      changed = true
+    } else if (action === 'delete' && exact) {
+      await this.deleteExactCookie(contents, cookies, { name: key!, ...exact }, operation, assertCurrent)
+      const remaining = await cookieStore.get({ url })
+      assertCurrent()
+      if (remaining.some((cookie) => cookie.name === key && cookie.domain === exact.domain && cookie.path === exact.path)) {
+        throw new Error('The selected cookie is still present. Inspect current storage before deciding what to do next; do not automatically repeat the operation.')
+      }
       changed = true
     } else if (action === 'delete') {
       const matches = cookies.filter((cookie) => cookie.name === key)
@@ -3185,6 +3206,41 @@ export class BrowserTabsManager {
       truncated: bounded.truncated || undefined,
       note: 'HttpOnly cookie values are protected. Non-HttpOnly cookies and local storage are shared by origin only inside this workspace.'
     }
+  }
+
+  // Electron's cookies.remove(url, name) deletes every same-name cookie sent to
+  // that URL, including parent-path variants. CDP Network.deleteCookies matches
+  // name, domain and path exactly and, without a partition key, only
+  // unpartitioned cookies. Electron listings omit partition keys, so the
+  // complete store is checked for one unpartitioned identity before dispatch.
+  private async deleteExactCookie(
+    contents: BrowserTab['view']['webContents'],
+    applicable: Electron.Cookie[],
+    target: { name: string; domain: string; path: string },
+    operation: { write(write: () => Promise<void>): Promise<void> },
+    assertCurrent: () => void
+  ): Promise<void> {
+    const sameIdentity = (cookie: { name: string; domain?: string; path?: string }): boolean =>
+      cookie.name === target.name && cookie.domain === target.domain && cookie.path === target.path
+    const listed = applicable.filter(sameIdentity)
+    if (!listed.length) throw new Error('No cookie for this page matches that exact name, domain and path. List cookies again and use the reported domain and path.')
+    if (listed.some((cookie) => cookie.httpOnly)) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
+    if (listed.length > 1) throw new Error('More than one cookie has that name, domain and path, for example in another partition. It was not deleted.')
+    await this.withDebugger(contents, async () => {
+      assertCurrent()
+      const store = await contents.debugger.sendCommand('Network.getAllCookies') as {
+        cookies?: Array<{ name: string; domain: string; path: string; httpOnly?: boolean; partitionKey?: unknown }>
+      }
+      assertCurrent()
+      const stored = (store.cookies ?? []).filter(sameIdentity)
+      const [only] = stored
+      if (stored.length !== 1 || !only) throw new Error('The selected cookie identity is ambiguous or no longer present. It was not deleted.')
+      if (only.partitionKey !== undefined) throw new Error('Partitioned cookies are not supported by exact deletion. It was not deleted.')
+      if (only.httpOnly) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
+      await operation.write(async () => {
+        await contents.debugger.sendCommand('Network.deleteCookies', { name: target.name, domain: target.domain, path: target.path })
+      })
+    }, assertCurrent)
   }
 
   private cookieRemovalUrl(cookie: { domain?: string; path?: string; secure?: boolean }): string {
