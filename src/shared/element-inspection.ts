@@ -1,3 +1,4 @@
+import { normalizeSizingInputs } from './element-sizing-inputs.js'
 import { normalizeScrollGeometry } from './element-scroll-geometry.js'
 import { normalizeFormValidity } from './form-validity.js'
 import { redactDiagnosticText } from './debug-report.js'
@@ -123,6 +124,7 @@ export function normalizeElementInspection(input: NormalizeElementInspectionInpu
 
   return {
     ...(raw.scrollGeometry !== undefined ? { scrollGeometry: normalizeScrollGeometry(raw.scrollGeometry) } : {}),
+    ...(raw.sizingInputs !== undefined ? { sizingInputs: normalizeSizingInputs(raw.sizingInputs) } : {}),
     ...(raw.formValidity !== undefined ? { formValidity: normalizeFormValidity(raw.formValidity) } : {}),
     tabId: input.tabId,
     title: text(input.title, 200),
@@ -215,6 +217,7 @@ export function formatElementInspectionForAgent(report: BrowserElementInspection
     `Selector: ${report.selector}`,
     `Element: ${element}`,
     report.passwordOccupancy ? `Password occupancy: ${report.passwordOccupancy} (not authentication evidence)` : '',
+    report.sizingInputs ? `Computed sizing inputs: ${JSON.stringify(report.sizingInputs)} (selected element only; not flex participation, applicability, parent context, cause, resolved base size or cascade winner)` : '',
     report.formValidity ? `Native form validity: ${JSON.stringify(report.formValidity)} (not submission acceptance)` : '',
     report.text ? `Text: ${JSON.stringify(report.text)}` : '',
     `Bounds: x=${Math.round(report.box.x)}, y=${Math.round(report.box.y)}, width=${Math.round(report.box.width)}, height=${Math.round(report.box.height)}`,

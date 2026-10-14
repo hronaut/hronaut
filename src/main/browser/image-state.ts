@@ -69,10 +69,11 @@ export function normalizeImageState(raw: unknown): BrowserImageState {
 
 /** Main-owned admission includes native work still pending after caller timeout. */
 export class ImageInspectionSlots {
+  constructor(private readonly label = 'Image state') {}
   private readonly counts = new WeakMap<object, number>()
   acquire(owner: object): { track<T>(operation: Promise<T>): Promise<T>; close(cleanup?: Promise<unknown>): void } {
     const count = this.counts.get(owner) ?? 0
-    if (count >= 8) throw new Error('Image state unavailable: inspection busy')
+    if (count >= 8) throw new Error(`${this.label} unavailable: inspection busy`)
     this.counts.set(owner, count + 1)
     let pending = 0, closed = false, released = false
     const release = () => {

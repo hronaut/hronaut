@@ -1228,7 +1228,7 @@ function createBrowserMcpServer(
         return settled
       }
       const settleImageState = (result: CallToolResult): CallToolResult => {
-        if (name === 'browser_image_state') {
+        if (name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) {
           const finish = frameRequest.imageFinishActivity
           frameRequest.imageFinishActivity = undefined
           finish?.(result)
@@ -1425,7 +1425,7 @@ function createBrowserMcpServer(
               : 'The capability changed after dispatch. Inspect current state before deciding what to do next; do not automatically repeat a possible side effect.'
           }
           if (frameRequest.labeledCreation) return settleLabeledCreation({ ...textResult(outcome), structuredContent: outcome, isError: true })
-          if (name === 'browser_image_state') return settleImageState({ ...textResult(outcome), structuredContent: outcome, isError: true })
+          if (name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) return settleImageState({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.fileEvaluation) return settleFileEvaluation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
             ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
@@ -1550,7 +1550,7 @@ function createBrowserMcpServer(
         }
         recordReadinessProbe('failed')
         if (frameRequest.labeledCreation) { rememberInputPolicy(error); return settleLabeledCreation(errorResult(error)) }
-        if (name === 'browser_image_state') return settleImageState(errorResult(error))
+        if (name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) return settleImageState(errorResult(error))
         if (frameRequest.fileEvaluation) return settleFileEvaluation({ content: [], isError: true })
         if (frameRequest.storageComparison) { rememberInputPolicy(error); return settleStorageComparison(errorResult(error)) }
         if (frameRequest.storageInspection) { rememberInputPolicy(error); return settleStorageInspection(errorResult(error)) }
@@ -2027,7 +2027,7 @@ function createBrowserMcpServer(
       tool(async (input: Record<string, unknown>, extra) => {
         const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
         const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
-        const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true)
+        const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true || input.includeSizingInputs === true)
         const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state' || name === 'browser_image_state'
         const preservePresentation = passiveObservation || name === 'browser_wheel' || name === 'browser_hold_key'
           || (name === 'browser_click' && input.button === 'right')
@@ -2577,7 +2577,7 @@ function createBrowserMcpServer(
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
           const request = frameRequests.getStore()!
-          if (name === 'browser_image_state' && !request.imageFinishing) {
+          if ((name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) && !request.imageFinishing) {
             request.imageFinishActivity = settled => { request.imageFinishing = true; finishActivity(settled, false) }
             return
           }
@@ -4122,6 +4122,7 @@ function createBrowserMcpServer(
         includeFonts: z.boolean().optional(),
         includeScroll: z.boolean().optional(),
         includePasswordOccupancy: z.boolean().optional(),
+        includeSizingInputs: z.boolean().optional().describe('Selected-element computed sizing inputs only; no flex participation, applicability, parent context, cause, resolved base size or cascade winner claim. Requires one unique selector in an active tab.'),
         includeValidity: z.boolean().optional()
       }
     },
@@ -4133,6 +4134,7 @@ function createBrowserMcpServer(
       includeFonts?: boolean
       includeScroll?: boolean
       includePasswordOccupancy?: boolean
+      includeSizingInputs?: boolean
       includeValidity?: boolean
       validateInspection?: () => void
     }) => textResult(await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))

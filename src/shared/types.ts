@@ -707,6 +707,7 @@ export interface BrowserSnapshotCopyResult {
 }
 
 export interface BrowserElementInspectionOptions {
+  includeSizingInputs?: boolean
   includeValidity?: boolean
   includePasswordOccupancy?: boolean
   tabId?: string
@@ -776,6 +777,7 @@ export type BrowserFormValidity = {
 } | { status: 'unavailable'; reason: 'unsupported-target' | 'native-unavailable' }
 
 export interface BrowserElementInspection {
+  sizingInputs?: import('./element-sizing-inputs.js').BrowserSizingInputs
   formValidity?: BrowserFormValidity
   passwordOccupancy?: 'empty' | 'nonempty' | 'unknown'
   scrollGeometry?: BrowserScrollGeometry
