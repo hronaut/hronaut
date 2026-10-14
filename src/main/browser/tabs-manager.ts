@@ -16,6 +16,7 @@ import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCle
 import { MEDIA_STATE_WORLD_ID, mediaStateScript, mediaStateSettlementScript, normalizeMediaState } from './media-state.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import { passwordOccupancySettlementScript } from './password-occupancy.js'
+import { sizingInputsSettlementScript } from './element-sizing-inputs.js'
 import { formValiditySettlementScript } from './form-validity.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
@@ -1257,6 +1258,7 @@ export class BrowserTabsManager {
     return this.frameObservation.capture(tabId, selector, maxChars, authority)
   }
 
+  private readonly sizingInspectionSlots = new ImageInspectionSlots('Sizing inputs')
   private readonly imageInspectionSlots = new ImageInspectionSlots()
   private readonly inspectionPermissions = new WeakMap<object, number>()
   private readonly reactInspectionController = new ReactInspectionController({
@@ -5610,9 +5612,13 @@ export class BrowserTabsManager {
     const validity = options.includeValidity === true
     if (validity && (options.ref !== undefined || !options.selector)) throw new Error('Form validity requires a unique selector; snapshot refs are unsupported')
     if (validity && (occupancy || options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Form validity cannot be combined with password occupancy, CSS provenance or rendered fonts')
-    const guarded = occupancy || validity
-    const inspectionLabel = validity ? 'Form validity' : 'Password occupancy'
-    const settlementScript = validity ? formValiditySettlementScript : passwordOccupancySettlementScript
+    if (options.includeSizingInputs !== undefined && typeof options.includeSizingInputs !== 'boolean') throw new TypeError('includeSizingInputs must be a boolean')
+    const sizing = options.includeSizingInputs === true
+    if (sizing && (options.ref !== undefined || typeof options.selector !== 'string' || !options.selector.trim() || options.selector.length > 1000)) throw new Error('Sizing inputs require a unique selector; snapshot refs are unsupported')
+    if (sizing && (validity || occupancy || options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Sizing inputs cannot combine with validity, occupancy, CSS provenance or fonts')
+    const guarded = occupancy || validity || sizing
+    const inspectionLabel = sizing ? 'Sizing inputs' : validity ? 'Form validity' : 'Password occupancy'
+    const settlementScript = sizing ? sizingInputsSettlementScript : validity ? formValiditySettlementScript : passwordOccupancySettlementScript
     if (occupancy && (options.cssProperties !== undefined || options.includeFonts === true)) throw new Error('Password occupancy cannot be combined with CSS provenance or rendered fonts')
     const inspectionToken = guarded ? randomUUID() : undefined
     const properties = normalizeCssProperties(options.cssProperties)
@@ -5623,11 +5629,16 @@ export class BrowserTabsManager {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting an element')
     if (guarded && (tab.sleeping || tab.wakePromise || tab.pageLifecycleState !== 'active')) throw new Error(`${inspectionLabel} requires an already active tab`)
     this.validateTarget(options)
+    const contents = tab.webContents
+    let documentChanged = false
+    const onCommitted = (): void => { documentChanged = true }
+    const deadline = Date.now() + 5_000
     const context = this.snapshotDeltaContext(tab)
     const inspectionWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
     const inspectionPermissionGeneration = inspectionWorkspace ? this.inspectionPermissions.get(inspectionWorkspace) ?? 0 : 0
     const assertCurrent = (): void => {
       validateInspection?.()
+      if (sizing && (this.destroyed || documentChanged || tab.webContents !== contents || Date.now() > deadline)) throw new Error('Sizing inspection context changed or expired')
       const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
       if (currentWorkspace !== inspectionWorkspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== inspectionPermissionGeneration) {
         throw new Error('Workspace permissions changed during element inspection')
@@ -5642,45 +5653,61 @@ export class BrowserTabsManager {
         throw new Error(`The observation context changed during element inspection (${invalidation}). Inspect the element again.`)
       }
     }
-    const deadline = Date.now() + 5_000
     const boundedInspection = async <T>(operation: Promise<T>): Promise<T> => {
       if (!guarded) return operation
       let timer: NodeJS.Timeout | undefined
       try {
-        return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
+        const result = await Promise.race([operation, new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => reject(new Error(`${inspectionLabel} inspection expired`)), Math.max(1, deadline - Date.now()))
         })])
+        if (sizing) assertCurrent()
+        return result
       } finally { if (timer) clearTimeout(timer) }
     }
-    const inspect = () => tab.webContents.executeJavaScriptInIsolatedWorld(
-      ELEMENT_INSPECTION_WORLD_ID,
-      [{ code: elementInspectionScript(options, inspectionToken) }],
-      false
-    )
+    assertCurrent()
+    const slot = sizing ? this.sizingInspectionSlots.acquire(contents) : undefined
+    try { if (sizing) contents.on('did-navigate', onCommitted) } catch (error) { contents.removeListener('did-navigate', onCommitted); slot?.close(); throw error }
+    const execute = (code: string, cleanup = false): Promise<unknown> => {
+      if (!sizing) return tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code }], false)
+      const operation = Promise.resolve().then(() => {
+        if (sizing && !cleanup) assertCurrent()
+        return (sizing ? contents : tab.webContents).executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code }], false)
+      })
+      return slot ? slot.track(operation) : operation
+    }
+    const inspect = () => execute(elementInspectionScript(options, inspectionToken))
     let raw: unknown
     let cssProvenance: BrowserElementInspection['cssProvenance']
     let renderedFonts: BrowserElementInspection['renderedFonts']
     let inspectionSettled = false
     let inspectionDeferred = false
+    let discarded = false
     const pendingInspection: PendingElementInspection = {
       assertCurrent,
       finish: async () => {
         if (!inspectionToken) return
         assertCurrent()
-        const settled = await boundedInspection(tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: settlementScript(inspectionToken) }], false))
+        const settled = await boundedInspection(execute(settlementScript(inspectionToken)))
         inspectionSettled = true
         assertCurrent()
         if (settled !== true) throw new Error(`${inspectionLabel} target changed or expired during inspection`)
       },
       discard: () => {
+        if (discarded) return
+        discarded = true
+        if (sizing) contents.removeListener('did-navigate', onCommitted)
+        if (slot) {
+          slot.close(inspectionToken && !inspectionSettled && !contents.isDestroyed() ? execute(settlementScript(inspectionToken, true), true).catch(() => undefined) : undefined)
+          return
+        }
         if (inspectionToken && !inspectionSettled && !tab.webContents.isDestroyed()) {
           inspectionSettled = true
           void tab.webContents.executeJavaScriptInIsolatedWorld(ELEMENT_INSPECTION_WORLD_ID, [{ code: settlementScript(inspectionToken, true) }], false).catch(() => undefined)
         }
       }
     }
-    assertCurrent()
     try {
+      assertCurrent()
       if (properties || includeFonts) {
         const conflict = (): boolean => this.devToolsOpening.has(tab.webContents.id)
           || tab.webContents.isDevToolsOpened()

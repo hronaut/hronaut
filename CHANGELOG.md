@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add opt-in selected-element computed sizing inputs to element inspection, without inferring flex participation or collecting parent context.
+
 ### Fixed
 
 - Preserve enforced, report-only, or unknown CSP disposition in browser issues, the Issues panel, and copied JSON without changing severity.

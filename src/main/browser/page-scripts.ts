@@ -1,4 +1,5 @@
 import { passwordOccupancySource } from './password-occupancy.js'
+import { sizingInputsSource, sizingLookupSource } from './element-sizing-inputs.js'
 import { formValiditySource } from './form-validity.js'
 import { elementScrollGeometrySource } from './element-scroll-geometry.js'
 import { renderedVisibilityHelpersSource } from './rendered-visibility.js'
@@ -599,16 +600,18 @@ export function elementPickerInspectionAtPointScript(
   })()`
 }
 
-export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean; includeValidity?: boolean }, occupancyToken?: string): string {
+export function elementInspectionScript(target: { ref?: string; selector?: string; includeFonts?: boolean; includeScroll?: boolean; includePasswordOccupancy?: boolean; includeValidity?: boolean; includeSizingInputs?: boolean }, occupancyToken?: string): string {
   return `(() => {
     ${elementInspectionHelpersSource()}
     const target = ${JSON.stringify(target)};
-    const element = target.ref
+    ${target.includeSizingInputs === true ? sizingLookupSource() : ''}
+    const element = target.includeSizingInputs === true ? sizingLookup()[0] : target.ref
       ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
       : target.selector ? document.querySelector(target.selector) : null;
     if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
     return {
       ...hronautInspectElement(element),
+      ...(target.includeSizingInputs === true ? { sizingInputs: ${target.includeSizingInputs === true ? sizingInputsSource(occupancyToken ?? '') : 'undefined'} } : {}),
       ...(target.includePasswordOccupancy === true ? { passwordOccupancy: ${passwordOccupancySource(occupancyToken ?? '')} } : {}),
       ...(target.includeValidity === true ? { formValidity: ${target.includeValidity === true ? formValiditySource(occupancyToken ?? '') : 'undefined'} } : {}),
       ...(target.includeScroll === true ? { scrollGeometry: ${elementScrollGeometrySource()} } : {}),
