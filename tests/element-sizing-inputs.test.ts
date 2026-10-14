@@ -1,3 +1,5 @@
+import { runInNewContext } from 'node:vm'
+import { sizingInputsSettlementScript } from '../src/main/browser/element-sizing-inputs.js'
 import { BROWSER_TOOL_CATALOG } from '../src/main/mcp/tool-catalog.js'
 import { describe, it, expect } from 'vitest'
 import { normalizeSizingInputs, sizingInputValue, SIZING_INPUT_PROPERTIES } from '../src/shared/element-sizing-inputs.js'
@@ -36,4 +38,17 @@ it('shows the partial selected-element scope in the tool catalog used by Home UI
   const description = BROWSER_TOOL_CATALOG.find(tool => tool.name === 'browser_element_inspect')!.description
   expect(description).toContain('includeSizingInputs')
   expect(description).toContain('no parent collection or flex participation, applicability, cause, resolved base size or cascade winner claim')
+})
+
+it.each(["');globalThis.executed=true;//", '</script>\u2028\u2029', '"\\\n', '550e8400-e29b-41d4-a716-446655440000\n'])('encodes settlement tokens as data, never executable source: %s', token => {
+  let settled = 0, cleaned = 0
+  const scope = { executed: false, __hronautSizingInputs: new Map() }
+  expect(runInNewContext(sizingInputsSettlementScript(token), scope)).toBe(false)
+  expect(scope.executed).toBe(false)
+  expect(runInNewContext(sizingInputsSettlementScript(token, true), scope)).toBe(false)
+  expect(scope.executed).toBe(false)
+  scope.__hronautSizingInputs.set(token, { settle: () => { settled++; return true }, cleanup: () => { cleaned++ } })
+  expect(runInNewContext(sizingInputsSettlementScript(token), scope)).toBe(true)
+  expect(runInNewContext(sizingInputsSettlementScript(token, true), scope)).toBe(false)
+  expect({ settled, cleaned, executed: scope.executed }).toEqual({ settled: 1, cleaned: 1, executed: false })
 })

@@ -1,9 +1,5 @@
+import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import { SIZING_INPUT_PROPERTIES, sizingInputValue } from '../../shared/element-sizing-inputs.js'
-
-function literal(token: string): string {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(token)) throw new TypeError('Invalid sizing inspection token')
-  return JSON.stringify(token)
-}
 
 // Count only; do not collect other nodes' attributes, text or styles.
 export function sizingLookupSource(): string {
@@ -20,7 +16,7 @@ export function sizingLookupSource(): string {
 
 export function sizingInputsSource(token: string): string {
   return `(() => {
-    const token=${literal(token)}, handles=globalThis.__hronautSizingInputs??=new Map();
+    const token=${javascriptLiteral(token)}, handles=globalThis.__hronautSizingInputs??=new Map();
     if(handles.size>=8)throw Error('Sizing inputs inspection is busy');
     const unique=()=>{const matches=sizingLookup();return matches.length===1&&matches[0]===element&&element.isConnected&&element.getRootNode()===document};
     if(!unique())throw Error('Sizing inputs require one unique light-DOM target');
@@ -35,5 +31,5 @@ export function sizingInputsSource(token: string): string {
 }
 
 export function sizingInputsSettlementScript(token: string, cancel = false): string {
-  return `(() => {const handle=globalThis.__hronautSizingInputs?.get(${literal(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
+  return `(() => {const handle=globalThis.__hronautSizingInputs?.get(${javascriptLiteral(token)});${cancel ? 'handle?.cleanup();return false' : 'return handle?handle.settle():false'}})()`
 }
