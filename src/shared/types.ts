@@ -235,6 +235,8 @@ export interface BrowserTabState {
   humanInteractionInputLocked?: boolean
   preserveDiagnosticLogs: boolean
   zoomPercent: number
+  /** Page zoom is independent of other same-origin tabs. Set only at creation. */
+  zoomIsolated?: boolean
   faviconDataUrl?: string
   audible: boolean
   tabMuted?: boolean
@@ -450,6 +452,7 @@ export interface BrowserClosedTabState {
   pinned: boolean
   closedAt: string
   mcpGroupId?: string
+  zoomIsolated?: boolean
 }
 
 export const MAX_BROWSER_TABS = 50
@@ -699,6 +702,8 @@ export interface NewTabOptions {
   mcpGroupId?: string
   /** Select the new tab without claiming keyboard or native window focus. */
   focus?: boolean
+  /** Give this tab its own page zoom instead of sharing the origin's zoom level. */
+  zoomIsolated?: boolean
 }
 
 export interface NavigateOptions {
@@ -1021,6 +1026,7 @@ export interface BrowserPerformanceEnvironment {
     touch: boolean
   }
   zoomPercent: number
+  zoomIsolated?: boolean
   userAgentOverridden: boolean
   localeOverridden: boolean
   timezoneOverridden: boolean

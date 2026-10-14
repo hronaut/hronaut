@@ -31,6 +31,7 @@ export interface PersistedTab {
   pinned?: boolean
   muted?: boolean
   tabAgentPaused?: boolean
+  zoomIsolated?: true
   humanInteractionLocked?: boolean
   faviconDataUrl?: string
   mcpGroupId?: string
@@ -558,6 +559,7 @@ export class TabStateStore {
           muted: candidate.muted === true,
           humanInteractionLocked: candidate.humanInteractionLocked === true,
           ...(candidate.tabAgentPaused === true ? { tabAgentPaused: true } : {}),
+          ...(candidate.zoomIsolated === true ? { zoomIsolated: true as const } : {}),
           ...(faviconDataUrl ? { faviconDataUrl } : {}),
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})
         })

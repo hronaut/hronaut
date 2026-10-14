@@ -625,6 +625,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   wakePromise?: Promise<void>
   humanInteractionLocked: boolean
   tabAgentPaused: boolean
+  zoomIsolated: boolean
   preserveDiagnosticLogs: boolean
   faviconDataUrl?: string
   faviconRequestId: number
@@ -1428,6 +1429,7 @@ export class BrowserTabsManager {
           muted: tab.muted === true,
           humanInteractionLocked: tab.humanInteractionLocked === true,
           tabAgentPaused: tab.tabAgentPaused === true,
+          zoomIsolated: tab.zoomIsolated === true,
           faviconDataUrl: tab.faviconDataUrl,
           mcpGroupId: isHronautHomeUrl(tab.url)
             ? undefined
@@ -2278,6 +2280,7 @@ export class BrowserTabsManager {
       pinned: tab.pinned,
       humanInteractionLocked: tab.humanInteractionLocked,
       tabAgentPaused: tab.tabAgentPaused,
+      zoomIsolated: tab.zoomIsolated,
       navigationGeneration: tab.navigationGeneration,
       navigationHistory: this.navigationHistorySnapshot(tab)
     }))
@@ -3334,6 +3337,7 @@ export class BrowserTabsManager {
         selectVisible,
         mcpGroupId: groupId,
         focus: options.focus,
+        zoomIsolated: options.zoomIsolated === true,
         onCreated,
         onCreationAttempt
       })
@@ -3361,7 +3365,7 @@ export class BrowserTabsManager {
     const [closed] = this.closedTabs.splice(index, 1)
     if (!closed) return this.getState()
     try {
-      await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active: true, mcpGroupId: closed.mcpGroupId })
+      await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active: true, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true })
     } catch (error) {
       this.closedTabs.splice(index, 0, closed)
       throw error
@@ -3385,7 +3389,8 @@ export class BrowserTabsManager {
       suppressInitialHistory: true,
       active: true,
       navigationHistory,
-      mcpGroupId: source.mcpGroupId
+      mcpGroupId: source.mcpGroupId,
+      zoomIsolated: source.zoomIsolated
     })
     this.reorderTab(duplicate.id, source.id, 'after')
     return this.getState()
@@ -4760,7 +4765,8 @@ export class BrowserTabsManager {
       url: tab.url,
       pinned: tab.pinned,
       closedAt: new Date().toISOString(),
-      ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
+      ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {}),
+      ...(tab.zoomIsolated ? { zoomIsolated: true } : {})
     })
     if (this.closedTabs.length > MAX_CLOSED_TABS) this.closedTabs.shift()
   }
@@ -8892,6 +8898,7 @@ export class BrowserTabsManager {
     muted?: boolean
     humanInteractionLocked?: boolean
     tabAgentPaused?: boolean
+    zoomIsolated?: boolean
     faviconDataUrl?: string
     focus?: boolean
     navigationGeneration?: number
@@ -8926,7 +8933,10 @@ export class BrowserTabsManager {
         nodeIntegration: false,
         sandbox: true,
         webSecurity: true,
-        allowRunningInsecureContent: false
+        allowRunningInsecureContent: false,
+        // Construction-time only: switching a live view back to shared mode can
+        // write its level into the origin zoom map.
+        ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {})
       }
     })
     try {
@@ -8963,6 +8973,7 @@ export class BrowserTabsManager {
       pageLifecycleState: 'active',
       lastActiveAt: Date.now(),
       tabAgentPaused: options.tabAgentPaused === true,
+      zoomIsolated: options.zoomIsolated === true && !isHronautHomeUrl(url),
       humanInteractionLocked: options.humanInteractionLocked === true || workspace?.contextClass === 'public-observer',
       preserveDiagnosticLogs: true,
       ...(options.faviconDataUrl ? { faviconDataUrl: options.faviconDataUrl } : {}),
@@ -10258,6 +10269,7 @@ export class BrowserTabsManager {
       preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
       videoRecording: this.videoRecorder.state(tab.id).status,
       zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
+      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
       ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
       audible: tab.audible,
       tabMuted: tab.tabMuted,
@@ -11288,6 +11300,7 @@ export class BrowserTabsManager {
             touch: false
           },
       zoomPercent: Math.round(tab.webContents.getZoomFactor() * 100),
+      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
       userAgentOverridden: tab.emulation.userAgent !== undefined,
       localeOverridden: tab.emulation.locale !== undefined,
       timezoneOverridden: tab.emulation.timezoneId !== undefined,
@@ -11302,7 +11315,8 @@ export class BrowserTabsManager {
       tab.emulation,
       tab.emulationExtraHttpHeaders,
       bounds,
-      Math.round(tab.webContents.getZoomFactor() * 100)
+      Math.round(tab.webContents.getZoomFactor() * 100),
+      tab.zoomIsolated
     )
   }
 
@@ -12147,6 +12161,7 @@ export class BrowserTabsManager {
         muted: tab.tabMuted,
         humanInteractionLocked: tab.humanInteractionLocked,
         tabAgentPaused: tab.tabAgentPaused,
+        ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}),
         ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
         ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
       }))

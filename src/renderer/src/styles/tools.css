@@ -154,6 +154,7 @@
   @apply relative [z-index:2] flex [height:50px] items-center justify-end [gap:7px] [padding:6px_13px_9px] [border-top:1px_solid_var(--border-soft)] [background:var(--toolbar)];
 }
 .zoom-bar > span { @apply [margin-right:5px] text-muted [font-size:13px] [font-weight:700]; }
+.zoom-bar > .zoom-isolated { @apply [font-weight:400]; }
 .zoom-bar button {
   @apply grid [min-width:32px] [height:32px] [padding:0_7px] place-items-center border-0 [border-radius:8px] text-copy bg-transparent cursor-pointer [font-size:13px];
 }

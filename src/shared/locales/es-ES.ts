@@ -2642,6 +2642,7 @@ export const esES = {
     "close": "Cerrar la búsqueda en la página"
   },
   "zoom": {
+    "isolated": "Solo esta pestaña",
     "controls": "Controles de zoom de la página",
     "heading": "Zoom de la página",
     "outTitle": "Alejar (Ctrl/Cmd+-)",
