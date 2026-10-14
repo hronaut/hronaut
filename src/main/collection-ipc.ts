@@ -5,6 +5,7 @@ import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 
 interface CollectionIpcHost {
+  runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T>
   assertTrustedSender(event: IpcMainInvokeEvent): void
   bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'remove' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection'>
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
@@ -15,10 +16,7 @@ interface CollectionIpcHost {
 
 /** Dependencies stay lazy because handlers are registered before the window loads. */
 export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: CollectionIpcHost): void {
-  ipcMain.handle('downloads:list', (event) => {
-    host.assertTrustedSender(event)
-    return host.downloads().listDownloads()
-  })
+  ipcMain.handle('downloads:list', (event) => host.runRead(event, () => host.downloads().listDownloads()))
   for (const action of ['cancel', 'pause', 'resume'] as const) {
     ipcMain.handle(`downloads:${action}`, (event, downloadId: unknown) => {
       host.assertTrustedSender(event)
@@ -40,10 +38,7 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
     host.downloads().showDownloadInFolder(downloadId)
   })
-  ipcMain.handle('bookmarks:list', (event) => {
-    host.assertTrustedSender(event)
-    return host.bookmarks().list()
-  })
+  ipcMain.handle('bookmarks:list', (event) => host.runRead(event, () => host.bookmarks().list()))
   ipcMain.handle('bookmarks:add', async (event, url: unknown, title: unknown) => {
     host.assertTrustedSender(event)
     if (typeof url !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark')
@@ -74,10 +69,7 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     await host.bookmarks().remove(id)
     return host.publishBookmarks()
   })
-  ipcMain.handle('bookmark-collections:list', (event) => {
-    host.assertTrustedSender(event)
-    return host.bookmarks().collectionSnapshot()
-  })
+  ipcMain.handle('bookmark-collections:list', (event) => host.runRead(event, () => host.bookmarks().collectionSnapshot()))
   for (const action of ['create', 'rename', 'remove', 'assign'] as const) {
     ipcMain.handle(`bookmark-collections:${action}`, async (event, first: unknown, second: unknown) => {
       host.assertTrustedSender(event)
@@ -95,10 +87,7 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
       return store.collectionSnapshot()
     })
   }
-  ipcMain.handle('visit-history:list', (event) => {
-    host.assertTrustedSender(event)
-    return host.history().list()
-  })
+  ipcMain.handle('visit-history:list', (event) => host.runRead(event, () => host.history().list()))
   ipcMain.handle('visit-history:remove', async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid history entry ID')

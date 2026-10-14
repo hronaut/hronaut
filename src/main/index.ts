@@ -1,3 +1,4 @@
+import { WorkspaceStartupReads } from './workspace-startup-reads.js'
 import { UserAttentionLifecycle } from './user-attention-lifecycle.js'
 import { registerIncidentPackageIpc } from './incident-package-ipc.js'
 import { registerBrowserImportIpc } from './browser-import/ipc.js'
@@ -241,6 +242,8 @@ let panelWindowRedocking = false
 let panelWindowOpening: Promise<void> | null = null
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
+let initializedTabsManager: BrowserTabsManager | null = null
+const workspaceStartupReads = new WorkspaceStartupReads()
 let workspaceStartupFailure: WorkspaceMetadataError | undefined
 let requireExistingWorkspaceMetadata = false
 let mcpServer: McpHttpServer | null = null
@@ -2091,6 +2094,7 @@ async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
 function assertWorkspaceInitialized(): void {
   if (workspaceStartupFailure) throw workspaceStartupFailure
   if (tabsInitializationPromise) throw new Error('Saved workspaces are still initializing. Try again after startup completes.')
+  if (!tabsManager || initializedTabsManager !== tabsManager) throw new Error('Saved workspaces are unavailable.')
 }
 
 function assertInitializedMainShellSender(event: Electron.IpcMainInvokeEvent): void {
@@ -2103,12 +2107,18 @@ function assertInitializedTrustedShellSender(event: Electron.IpcMainInvokeEvent)
   assertWorkspaceInitialized()
 }
 
+function runWorkspaceRead<T>(event: Electron.IpcMainInvokeEvent, assertSender: (event: Electron.IpcMainInvokeEvent) => void, read: () => T): Promise<T> {
+  const manager = tabsManager
+  return workspaceStartupReads.run(event, tabsInitializationPromise, () => assertSender(event), () => {
+    assertWorkspaceInitialized()
+    if (tabsManager !== manager) throw new Error('Workspace read is no longer available.')
+  }, read)
+}
+
 function handleBrowserIpc(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
   ipcMain.handle(channel, (event, ...args) => {
     if (workspaceStartupFailure) throw workspaceStartupFailure
-    if (tabsInitializationPromise && !['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview'].includes(channel)) {
-      throw new Error('Saved workspaces are still initializing. Try again after startup completes.')
-    }
+    if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', 'split-divider:get'].includes(channel)) assertWorkspaceInitialized()
     return listener(event, ...args)
   })
 }
@@ -2271,10 +2281,7 @@ function registerIpc(): void {
     }
   })
   handleBrowserIpc('browser:get-state', async (event) => {
-    assertTrustedShellSender(event)
-    await tabsInitializationPromise
-    if (workspaceStartupFailure) throw workspaceStartupFailure
-    return tabsManager!.getState()
+    return runWorkspaceRead(event, assertTrustedShellSender, () => tabsManager!.getState())
   })
   ipcMain.handle('attention:get', (event) => {
     assertMainShellSender(event)
@@ -2283,16 +2290,12 @@ function registerIpc(): void {
   handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     const tabIds = validateTabOverviewPreviewIds(value)
-    await tabsInitializationPromise
-    if (workspaceStartupFailure) throw workspaceStartupFailure
-    return tabsManager!.getTabOverviewPreviews(tabIds)
+    return runWorkspaceRead(event, assertTrustedShellSender, () => tabsManager!.getTabOverviewPreviews(tabIds))
   })
   handleBrowserIpc('browser:get-tab-overview-page-preview', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     const [tabId] = validateTabOverviewPreviewIds([value])
-    await tabsInitializationPromise
-    if (workspaceStartupFailure) throw workspaceStartupFailure
-    return tabsManager!.getTabOverviewPagePreview(tabId!)
+    return runWorkspaceRead(event, assertTrustedShellSender, () => tabsManager!.getTabOverviewPagePreview(tabId!))
   })
   handleBrowserIpc('browser:copy-text', async (event, value: unknown) => {
     assertTrustedShellSender(event)
@@ -2373,7 +2376,7 @@ function registerIpc(): void {
       ...(candidate.swap === true ? { swap: true } : {})
     })
   })
-  handleBrowserIpc('split-divider:get', (event) => { assertMainShellSender(event); return tabsManager!.getSplitDivider() })
+  handleBrowserIpc('split-divider:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getSplitDivider()))
   handleBrowserIpc('split-divider:begin', (event, revision: unknown) => {
     assertMainShellSender(event)
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) throw new TypeError('Invalid split revision')
@@ -2892,6 +2895,7 @@ function registerIpc(): void {
     return tabsManager!.savePdf({ tabId, filename, landscape, pageSize })
   })
   registerCollectionIpc(ipcMain, {
+    runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),
     assertTrustedSender: assertInitializedTrustedShellSender,
     bookmarks: () => bookmarkStore!,
     history: () => historyStore!,
@@ -3873,6 +3877,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   const currentTabsInitialization = new Promise<void>((resolve) => {
     releaseTabsInitialization = resolve
   })
+  initializedTabsManager = null
   tabsInitializationPromise = currentTabsInitialization
   try {
     if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
@@ -3881,6 +3886,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       await mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
     await tabsManager.initialize()
+    initializedTabsManager = tabsManager
   } catch (error) {
     if (error instanceof WorkspaceMetadataError) workspaceStartupFailure = error
     throw error
