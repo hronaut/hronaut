@@ -106,6 +106,12 @@ test('keeps the human tab visible when an unfollowed agent opens and selects tab
     expect(selected.isError, text(selected)).not.toBe(true)
     expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(humanTabId)
 
+    // browser_new_tab can return before its initial document commits, and a
+    // commit during click preparation correctly rejects the click.
+    const ready = await client.callTool({
+      name: 'browser_wait', arguments: { workspaceId, tabId: agentTabId, selector: '#open', state: 'visible' }
+    }) as CallToolResult
+    expect(ready.isError, text(ready)).not.toBe(true)
     const clicked = await client.callTool({
       name: 'browser_click', arguments: { workspaceId, tabId: agentTabId, selector: '#open' }
     }) as CallToolResult
