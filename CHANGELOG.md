@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Compare one rendered native text input or textarea with a caller-supplied `expectedValue` in `browser_element_inspect`. Only `match`, `mismatch` or `unavailable` is returned; neither value is echoed, and sensitive controls are excluded.
+
 - Delete one non-HttpOnly cookie by its exact listed domain and path with `browser_storage`, leaving same-name cookies on other paths untouched. Partitioned, ambiguous and HttpOnly identities are rejected before deletion; name-only deletion is unchanged.
 
 - Add opt-in selected-element computed sizing inputs to element inspection, without inferring flex participation or collecting parent context.

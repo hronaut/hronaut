@@ -707,6 +707,8 @@ export interface BrowserSnapshotCopyResult {
 }
 
 export interface BrowserElementInspectionOptions {
+  /** Compared in the page and never returned; requires one unique selector. */
+  expectedValue?: string
   includeSizingInputs?: boolean
   includeValidity?: boolean
   includePasswordOccupancy?: boolean
@@ -777,6 +779,7 @@ export type BrowserFormValidity = {
 } | { status: 'unavailable'; reason: 'unsupported-target' | 'native-unavailable' }
 
 export interface BrowserElementInspection {
+  valueComparison?: import('./value-comparison.js').BrowserValueComparison
   sizingInputs?: import('./element-sizing-inputs.js').BrowserSizingInputs
   formValidity?: BrowserFormValidity
   passwordOccupancy?: 'empty' | 'nonempty' | 'unknown'

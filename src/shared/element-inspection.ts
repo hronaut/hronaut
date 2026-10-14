@@ -1,6 +1,7 @@
 import { normalizeSizingInputs } from './element-sizing-inputs.js'
 import { normalizeScrollGeometry } from './element-scroll-geometry.js'
 import { normalizeFormValidity } from './form-validity.js'
+import { normalizeValueComparison } from './value-comparison.js'
 import { redactDiagnosticText } from './debug-report.js'
 import { redactNetworkUrl } from './network-details.js'
 import type {
@@ -126,6 +127,7 @@ export function normalizeElementInspection(input: NormalizeElementInspectionInpu
     ...(raw.scrollGeometry !== undefined ? { scrollGeometry: normalizeScrollGeometry(raw.scrollGeometry) } : {}),
     ...(raw.sizingInputs !== undefined ? { sizingInputs: normalizeSizingInputs(raw.sizingInputs) } : {}),
     ...(raw.formValidity !== undefined ? { formValidity: normalizeFormValidity(raw.formValidity) } : {}),
+    ...(raw.valueComparison !== undefined ? { valueComparison: normalizeValueComparison(raw.valueComparison) } : {}),
     tabId: input.tabId,
     title: text(input.title, 200),
     url: redactNetworkUrl(input.url),
@@ -219,6 +221,7 @@ export function formatElementInspectionForAgent(report: BrowserElementInspection
     report.passwordOccupancy ? `Password occupancy: ${report.passwordOccupancy} (not authentication evidence)` : '',
     report.sizingInputs ? `Computed sizing inputs: ${JSON.stringify(report.sizingInputs)} (selected element only; not flex participation, applicability, parent context, cause, resolved base size or cascade winner)` : '',
     report.formValidity ? `Native form validity: ${JSON.stringify(report.formValidity)} (not submission acceptance)` : '',
+    report.valueComparison ? `Expected value comparison: ${JSON.stringify(report.valueComparison)} (point-in-time; not saved or accepted)` : '',
     report.text ? `Text: ${JSON.stringify(report.text)}` : '',
     `Bounds: x=${Math.round(report.box.x)}, y=${Math.round(report.box.y)}, width=${Math.round(report.box.width)}, height=${Math.round(report.box.height)}`,
     `Box model: content=${report.box.contentWidth}×${report.box.contentHeight}px; padding=${edgeSummary(report.box.padding)}; border=${edgeSummary(report.box.border)}; margin=${edgeSummary(report.box.margin)}; box-sizing=${report.box.boxSizing}`,
