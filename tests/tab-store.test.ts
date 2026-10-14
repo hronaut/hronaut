@@ -694,3 +694,52 @@ describe('continuity checkpoint persistence', () => {
     expect(restored?.continuityWorkspaceIds?.sort()).toEqual([...(restored?.mcpTabGroups ?? []), ...(restored?.savedTabGroups ?? [])].map(group => group.id).sort())
   })
 })
+
+
+it('persists cleanup blocking in the repair snapshot before initialization can crash', async () => {
+  const { path, store } = await createStore()
+  await mkdir(join(path, '..'), { recursive: true })
+  await writeFile(path, JSON.stringify({ version: 3, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [], defaultHumanGroupId: 'legacy-repair-trigger', deletedWorkspaceStorageIds: [ACTIVE_STORAGE_ID] }))
+  await store.load({ blockStorageCleanup: true })
+  const repaired = JSON.parse(await readFile(path, 'utf8'))
+  expect(repaired.workspaceStorageCleanupBlocked).toBe(true)
+  expect(repaired.deletedWorkspaceStorageIds).toEqual([ACTIVE_STORAGE_ID])
+  const restarted = await new TabStateStore(path).load()
+  expect(restarted?.workspaceStorageCleanupBlocked).toBe(true)
+  expect(restarted?.deletedWorkspaceStorageIds).toEqual([ACTIVE_STORAGE_ID])
+})
+
+it('serializes ownership inspection with metadata operations and later saves', async () => {
+  const { path, store } = await createStore()
+  await mkdir(join(path, '..'), { recursive: true })
+  const state: PersistedBrowserState = { version: 3, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] }
+  await store.save(state)
+  let release!: () => void
+  let entered!: () => void
+  const gate = new Promise<void>(resolve => { release = resolve })
+  const started = new Promise<void>(resolve => { entered = resolve })
+  const writer = store.withStableSnapshot(async () => {
+    await writeFile(`${path}.fixture.tmp`, 'held')
+    entered(); await gate
+    await rm(`${path}.fixture.tmp`)
+  })
+  await started
+  let inspected = false
+  const inspection = store.withStableSnapshot(async () => {
+    await expect(readFile(`${path}.fixture.tmp`)).rejects.toMatchObject({ code: 'ENOENT' })
+    inspected = true
+  })
+  const laterSave = store.save(() => { expect(inspected).toBe(true); return state })
+  expect(inspected).toBe(false)
+  release(); await Promise.all([writer, inspection, laterSave])
+})
+
+it.each(['before', 'after'] as const)('reports %s-rename failure while preserving the actual deletion-intent commit boundary', async phase => {
+  const { path, store } = await createStore()
+  const state: PersistedBrowserState = { version: 3, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] }
+  await store.save(state)
+  const fail = () => { throw new Error('synthetic commit failure') }
+  await expect(store.save({ ...state, deletedWorkspaceStorageIds: [ACTIVE_STORAGE_ID] }, phase === 'before' ? { beforeCommit: fail } : { onCommitted: fail })).rejects.toThrow('synthetic commit failure')
+  const recovered = await new TabStateStore(path).load()
+  expect(recovered?.deletedWorkspaceStorageIds ?? []).toEqual(phase === 'before' ? [] : [ACTIVE_STORAGE_ID])
+})

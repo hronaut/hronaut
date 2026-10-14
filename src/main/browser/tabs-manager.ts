@@ -1,3 +1,4 @@
+import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDeletedWorkspaceStorage } from './workspace-storage-deletion.js'
 import { IMAGE_STATE_WORLD_ID, ImageInspectionSlots, imageStateScript, imageStateSettlementScript, normalizeImageState } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-click.js'
@@ -830,6 +831,7 @@ interface AuthorizedAgentKeyboardInput {
 
 export interface TabsManagerOptions {
   partition: string
+  sessionDataPath?: string
   storePath: string
   mcpUrl: string
   profilePath: string
@@ -1139,6 +1141,8 @@ export class BrowserTabsManager {
     changed: () => this.changed()
   })
   private readonly mcpTabGroups = this.workspaceRegistry.active
+  private readonly deletedWorkspaceStorageIds = new Set<string>()
+  private workspaceStorageCleanupBlocked = false
   private readonly savedTabGroups = this.workspaceRegistry.archived
   private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   private readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
@@ -1355,7 +1359,13 @@ export class BrowserTabsManager {
 
   async initialize(): Promise<void> {
     this.restoringLayout = true
-    const saved = await this.store.load()
+    const cleanup = this.options.sessionDataPath
+      ? await cleanExplicitlyDeletedWorkspaceStorage(this.options.storePath, this.options.sessionDataPath, this.options.partition)
+      : { metadataBlocked: false }
+    const saved = await this.store.load({ blockStorageCleanup: cleanup.metadataBlocked })
+    for (const id of saved?.deletedWorkspaceStorageIds ?? []) this.deletedWorkspaceStorageIds.add(id)
+    this.workspaceStorageCleanupBlocked = saved?.workspaceStorageCleanupBlocked === true
+      || (cleanup.metadataBlocked && saved !== null)
     for (const workspaceId of saved?.continuityWorkspaceIds ?? []) this.workspaceContinuity.restoreStale(workspaceId)
     this.allTabsMuted = saved?.allTabsMuted === true
     this.allHumanInteractionLocked = saved?.allHumanInteractionLocked === true
@@ -2289,6 +2299,7 @@ export class BrowserTabsManager {
     try {
       await this.closeTabs(tabSnapshots.map((tab) => tab.id), false)
       if (!preserveStorage) {
+        await this.assertStorageDeletionOwnership(groupId, group.storageId)
         await destroyWorkspaceStorage(
           workspacePartition(this.options.partition, group.storageId),
           this.options.configureSession
@@ -2310,6 +2321,7 @@ export class BrowserTabsManager {
     }
     removeClosedWorkspaceTabs()
     this.mcpTabGroups.delete(groupId)
+    if (!preserveStorage) this.deletedWorkspaceStorageIds.add(canonicalStorageId(group.storageId)!)
     if (preserveStorage) this.suspendWorkspaceContinuity(groupId)
     else this.retireWorkspaceContinuity(groupId)
     this.options.onWorkspaceClosed?.(groupId)
@@ -2326,6 +2338,7 @@ export class BrowserTabsManager {
       }
     }
     this.changed()
+    if (!preserveStorage) await this.store.save(() => this.persistedState())
     return this.listMcpTabGroups()
   }
 
@@ -2353,16 +2366,28 @@ export class BrowserTabsManager {
       if (!saved) throw new Error(`Unknown saved workspace: ${savedGroupId}.`)
       if (saved.deletionProtected) throw new Error(`Workspace "${saved.name}" is protected from deletion. Turn off deletion protection in Home first.`)
       {
+        await this.assertStorageDeletionOwnership(savedGroupId, saved.storageId)
         await destroyWorkspaceStorage(
           workspacePartition(this.options.partition, saved.storageId),
           this.options.configureSession
         )
       }
       this.savedTabGroups.delete(savedGroupId)
+      this.deletedWorkspaceStorageIds.add(canonicalStorageId(saved.storageId)!)
       this.retireWorkspaceContinuity(savedGroupId)
       this.changed()
+      await this.store.save(() => this.persistedState())
       return this.listSavedTabGroups()
     })
+  }
+
+  private async assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void> {
+    const canonical = canonicalStorageId(storageId)
+    if (this.workspaceStorageCleanupBlocked || !canonical || [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
+      .some(group => group.id !== workspaceId && canonicalStorageId(group.storageId) === canonical)) {
+      throw new Error('Workspace storage has ambiguous ownership; deletion was stopped.')
+    }
+    await this.store.withStableSnapshot(() => assertExclusiveWorkspaceStorage(this.options.storePath, workspaceId, storageId))
   }
 
   getActiveTab(): BrowserTab {
@@ -11930,6 +11955,8 @@ export class BrowserTabsManager {
     if (this.destroyed) throw new Error('Browser is closing; session save canceled.')
     return {
       version: TAB_STATE_VERSION,
+      ...(this.deletedWorkspaceStorageIds.size ? { deletedWorkspaceStorageIds: [...this.deletedWorkspaceStorageIds] } : {}),
+      ...(this.workspaceStorageCleanupBlocked ? { workspaceStorageCleanupBlocked: true } : {}),
       continuityWorkspaceIds: this.workspaceContinuity.guardedWorkspaceIds(),
       activeTabId: this.activeTabId,
       ...(this.splitView ? { splitView: { ...this.splitView, ratio: this.splitDivider.persistedRatio(this.splitView.ratio) } } : {}),
