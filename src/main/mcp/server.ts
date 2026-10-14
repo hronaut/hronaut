@@ -3706,19 +3706,25 @@ function createBrowserMcpServer(
         action: z.enum(['list', 'get', 'set', 'delete', 'clear']).default('list'),
         key: z.string().max(512).optional().describe('Required for get, set, and delete.'),
         value: z.string().max(256 * 1024).optional().describe('Required for set. Limited to 256 KiB.'),
-        includeValues: z.boolean().default(false).describe('Include bounded values when listing. Explicit get always returns the bounded value. HttpOnly cookie values are never exposed.')
+        includeValues: z.boolean().default(false).describe('Include bounded values when listing. Explicit get always returns the bounded value. HttpOnly cookie values are never exposed.'),
+        cookieDomain: z.string().min(1).max(255).optional()
+          .describe('Cookie delete only: exact domain from a cookie listing, including any leading dot. Requires cookiePath and deletes only that one cookie.'),
+        cookiePath: z.string().min(1).max(1024).startsWith('/').optional()
+          .describe('Cookie delete only: exact path from a cookie listing. Requires cookieDomain; no prefix or wildcard matching.')
       }
     },
-    tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues, cookieWriteHooks, webStorageHooks }: {
+    tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath, cookieWriteHooks, webStorageHooks }: {
       tabId?: string
       kind: 'local-storage' | 'session-storage' | 'cookies'
       action: 'list' | 'get' | 'set' | 'delete' | 'clear'
       key?: string
       value?: string
       includeValues: boolean
+      cookieDomain?: string
+      cookiePath?: string
       cookieWriteHooks?: CookieWriteHooks
       webStorageHooks?: WebStorageHooks
-    }) => textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues }, cookieWriteHooks, webStorageHooks)))
+    }) => textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }, cookieWriteHooks, webStorageHooks)))
   )
   registerWorkspaceTool(
     'browser_storage_changes',

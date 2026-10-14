@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Delete one non-HttpOnly cookie by its exact listed domain and path with `browser_storage`, leaving same-name cookies on other paths untouched. Partitioned, ambiguous and HttpOnly identities are rejected before deletion; name-only deletion is unchanged.
+
 - Add opt-in selected-element computed sizing inputs to element inspection, without inferring flex participation or collecting parent context.
 
 ### Fixed
