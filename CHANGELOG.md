@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve enforced, report-only, or unknown CSP disposition in browser issues, the Issues panel, and copied JSON without changing severity.
+
 - Remove residual files for explicitly deleted workspaces on a later startup, after checking storage ownership and recovery metadata. Active and archived workspaces are preserved; ambiguous or unsafe profiles defer cleanup. This is file removal, not secure erasure.
 
 - Keep Page tools search, results, and footer scrollable in short docks while close and dock controls remain available.

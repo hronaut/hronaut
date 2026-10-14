@@ -2335,6 +2335,7 @@ export const plPL = {
     }
   },
   "issues": {
+    "cspDisposition": {"enforce": "CSP: egzekwowana", "report-only": "CSP: tylko raportowanie", "unknown": "CSP: egzekwowanie nieznane"},
     "kicker": "Diagnostyka Chromium",
     "heading": "Problemy",
     "close": "Zamknij problemy przeglądarki",

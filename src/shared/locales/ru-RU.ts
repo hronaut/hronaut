@@ -2335,6 +2335,7 @@ export const ruRU = {
     }
   },
   "issues": {
+    "cspDisposition": {"enforce": "CSP: применяется", "report-only": "CSP: только отчёты", "unknown": "CSP: применение неизвестно"},
     "kicker": "Диагностика Chromium",
     "heading": "Проблемы",
     "close": "Закрыть проблемы браузера",

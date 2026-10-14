@@ -301,6 +301,7 @@ export interface BrowserInspectorIssue {
   code: string
   title: string
   severity: BrowserInspectorIssueSeverity
+  cspDisposition?: 'enforce' | 'report-only' | 'unknown'
   reasons: string[]
   affectedUrls: string[]
   source?: BrowserInspectorIssueSource
