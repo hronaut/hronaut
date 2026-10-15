@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- The EVM wallet provider answers `wallet_addEthereumChain` (switching to a network already configured on a workspace wallet; websites still cannot add networks or RPC URLs), the EIP-2255 `wallet_getPermissions`, `wallet_requestPermissions` and `wallet_revokePermissions` methods for `eth_accounts`, and the legacy `enable()`, `isConnected()` and `off()` helpers, so more dApps connect without a fallback path.
+
 - dApp pages can read chain state through Hronaut's EVM wallet provider: block number, balances, `eth_call`, gas estimates, receipts, blocks and logs are forwarded to the active wallet network's RPC, so wagmi, viem and ethers reads work without a separate RPC. Reads need no account permission and never sign; revert codes and data reach the page, the RPC URL does not.
 
 - `wallet_page_requests` lets an agent that is testing a dApp see which wallet requests the page made (connect, sign message or typed data, sign or send transaction), with status and transaction hash, for the same tab and page only. It is read-only, and approval stays with a person in Hronaut.

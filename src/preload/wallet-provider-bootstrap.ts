@@ -112,11 +112,15 @@ export function installHronautWalletProviders(): void {
   }
 
   const evmEvents = createEmitter('evm')
+  const evmRequest = providerRequest('evm')
   const ethereum = Object.freeze({
     isHronaut: true,
-    request: providerRequest('evm'),
+    request: evmRequest,
     on: evmEvents.on,
-    removeListener: evmEvents.removeListener
+    removeListener: evmEvents.removeListener,
+    off: evmEvents.off,
+    isConnected: () => true,
+    enable: () => evmRequest({ method: 'eth_requestAccounts' })
   })
   target.hronautEthereum = ethereum
   if (!target.ethereum) target.ethereum = ethereum

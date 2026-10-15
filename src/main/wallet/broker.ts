@@ -734,16 +734,26 @@ export class WalletBroker {
   }
 
   private async evmRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    if (method === 'wallet_switchEthereumChain') {
+    if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') {
       const chainId = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
+      if (method === 'wallet_addEthereumChain') return this.addEvmChain(context, wallets, chainId)
       return this.switchEvmChain(context, wallets, chainId)
     }
     if (!wallets.length) {
       if (method === 'eth_accounts') return []
+      if (method === 'wallet_getPermissions') return []
       throw new Error('No wallet is attached to this workspace for the requested chain')
     }
     const activeWallets = this.activeEvmWallets(context, wallets)
     if (method === 'eth_accounts') return this.permittedAccounts(context, activeWallets)
+    if (method === 'wallet_getPermissions') return this.evmPermissions(context, this.permittedAccounts(context, activeWallets))
+    if (method === 'wallet_revokePermissions') {
+      this.assertEthAccountsPermissionRequest(params)
+      for (const wallet of wallets.filter((entry) => this.hasAddressPermission(context, entry))) {
+        await this.disconnectWallet(context, wallet)
+      }
+      return null
+    }
     const wallet = this.selectWallet(activeWallets)
     if (method === 'eth_chainId') return `0x${BigInt(wallet.network.id).toString(16)}`
     if ((EVM_READ_RPC_METHODS as readonly string[]).includes(method)) {
@@ -754,6 +764,12 @@ export class WalletBroker {
     if (method === 'eth_requestAccounts') {
       const permitted = this.permittedAccounts(context, activeWallets)
       return permitted.length ? permitted : this.connect(context, wallet)
+    }
+    if (method === 'wallet_requestPermissions') {
+      this.assertEthAccountsPermissionRequest(params)
+      const permitted = this.permittedAccounts(context, activeWallets)
+      const accounts = permitted.length ? permitted : await this.connect(context, wallet) as string[]
+      return this.evmPermissions(context, accounts)
     }
     if (method === 'eth_sendTransaction' || method === 'eth_signTransaction') {
       const payload = paramsArray(params)[0]
@@ -1530,6 +1546,34 @@ export class WalletBroker {
       }
     }
     return active
+  }
+
+  private addEvmChain(context: WalletBrokerContext, wallets: WalletDescriptor[], requestedChainId: unknown): null {
+    try {
+      return this.switchEvmChain(context, wallets, requestedChainId)
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Requested EVM chain is not configured for this workspace wallet') {
+        throw new Error('Requested EVM chain was rejected: websites cannot add networks, configure the network on a workspace wallet in Hronaut')
+      }
+      throw error
+    }
+  }
+
+  private assertEthAccountsPermissionRequest(params: unknown): void {
+    const request = paramsArray(params)[0]
+    const keys = request && typeof request === 'object' && !Array.isArray(request) ? Object.keys(request) : []
+    if (keys.length !== 1 || keys[0] !== 'eth_accounts') {
+      throw new Error('Unsupported EVM wallet permission: only eth_accounts can be requested or revoked')
+    }
+  }
+
+  private evmPermissions(context: WalletBrokerContext, accounts: string[]): unknown[] {
+    if (!accounts.length) return []
+    return [{
+      invoker: context.topLevelOrigin,
+      parentCapability: 'eth_accounts',
+      caveats: [{ type: 'restrictReturnedAccounts', value: accounts }]
+    }]
   }
 
   private switchEvmChain(
