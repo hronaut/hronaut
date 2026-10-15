@@ -555,6 +555,28 @@ describe('WalletBroker', () => {
     expect(broker.agentPageRequests(agent)).not.toHaveProperty('failedCalls')
   })
 
+  it('keeps failed page calls to their own workspace and leaves out a call that ends after the page navigated', async () => {
+    const { service } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    await connect(broker)
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_signTypedData' } as never)).rejects.toThrow('Unsupported')
+    expect(broker.agentPageRequests({ ...agent, workspaceId: 'workspace-2' })).not.toHaveProperty('failedCalls')
+
+    // A transaction still waiting for the person when the page navigates away is cancelled; that late failure is not the new page's.
+    const send = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', value: '0x1' }]
+    }))
+    await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation !== 'connect-account')
+    await broker.cancelForNavigation('tab-1', 2)
+    await expect(send).resolves.toMatchObject({ status: 'rejected' })
+    const navigated = { ...agent, navigationGeneration: 2 }
+    expect((broker.agentPageRequests(navigated).failedCalls as Array<{ method: string }>).map(({ method }) => method)).toEqual(['eth_signTypedData'])
+
+    await broker.cancelForWorkspace('workspace-1')
+    expect(broker.agentPageRequests(navigated)).not.toHaveProperty('failedCalls')
+  })
+
   it('accepts a dApp token suggestion without a prompt and shows it to an agent on that site only', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() }, now: () => new Date('2026-10-15T20:00:00.000Z') })

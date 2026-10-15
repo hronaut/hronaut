@@ -652,8 +652,11 @@ export class WalletBroker {
     const hiddenAccounts = [...wallets.values()]
       .filter((wallet) => !this.hasAddressPermission(context, wallet))
       .map((wallet) => wallet.publicAddress)
-    const failedCalls = this.pageCallFailures.forPage(context)
-      .map((failure) => ({ ...failure, error: withoutWalletAddresses(failure.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS) }))
+    const failedCalls = this.pageCallFailures.forPage(context).map((failure) => ({
+      ...failure,
+      method: withoutWalletAddresses(failure.method, hiddenAccounts, HIDDEN_WALLET_ADDRESS),
+      error: withoutWalletAddresses(failure.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS)
+    }))
     return {
       origin: context.topLevelOrigin,
       requests,
@@ -767,7 +770,7 @@ export class WalletBroker {
     if (context.requester.type !== 'website' || !this.isRequestContextActive(context)) return
     const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
     if (family !== 'evm' && family !== 'solana' && family !== 'tron') return
-    const name = typeof method === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(method) ? method : 'invalid'
+    const name = typeof method === 'string' && /^[A-Za-z0-9_]{1,128}$/.test(method) ? method : 'invalid'
     if (family === 'evm' && ([...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS] as readonly string[]).includes(name)) return
     this.pageCallFailures.add(context, { family, method: name, error: error.message, failedAt: this.now().toISOString() })
   }
