@@ -77,10 +77,12 @@ function addressWord(value: string): string {
   return fromHexAddress(value.slice(24))
 }
 
+// TronWeb encodes these fields through Number(), so larger strings would sign a rounded amount.
 function integerAmount(value: unknown): bigint | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+  const amount = typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
     ? BigInt(value)
     : typeof value === 'string' && /^\d+$/.test(value) ? BigInt(value) : undefined
+  return amount !== undefined && amount <= BigInt(Number.MAX_SAFE_INTEGER) ? amount : undefined
 }
 
 function contractOperation(contract: z.infer<typeof TronContractSchema>) {

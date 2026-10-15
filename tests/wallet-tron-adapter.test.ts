@@ -49,7 +49,7 @@ function transfer(amount = 1_500_000): Record<string, unknown> {
 function trc20(selector: 'a9059cbb' | '095ea7b3', amount: bigint, options: {
   addressWordPrefix?: string
   suffix?: string
-  callValue?: number
+  callValue?: number | string
   callTokenValue?: number
 } = {}): Record<string, unknown> {
   const destinationWord = TronWeb.address.toHex(destination).slice(2).padStart(64, '0')
@@ -138,6 +138,9 @@ describe('TronWalletAdapter', () => {
     await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n, { callTokenValue: 7 }))).resolves.toMatchObject({
       decoded: { understood: false, method: 'contract-call:a9059cbb' }
     })
+    // TronWeb would sign this amount rounded to ...996.
+    await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n, { callValue: '9007199254740995' })))
+      .rejects.toThrow('Tron contract call value is invalid')
   })
 
   it('simulates a TRC-20 call with the TRX it sends', async () => {
@@ -149,6 +152,10 @@ describe('TronWalletAdapter', () => {
       await expect(adapter.simulate(wallet(), normalized)).resolves.toMatchObject({ attempted: true, success: true })
       const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body)) as Record<string, unknown>
       expect(body.call_value).toBe(2_500_000)
+      const tokenCall = await adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n, { callTokenValue: 7 }))
+      await adapter.simulate(wallet(), tokenCall)
+      const tokenBody = JSON.parse(String((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body)) as Record<string, unknown>
+      expect(tokenBody).toMatchObject({ call_token_value: 7, token_id: 1000001 })
     } finally {
       vi.unstubAllGlobals()
     }
