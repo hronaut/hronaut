@@ -4,6 +4,7 @@ import UiButton from "../ui/UiButton.vue"
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
+import IconAcUnit from '~icons/material-symbols/ac-unit-rounded'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHandyman from '~icons/material-symbols/handyman-rounded'
@@ -89,7 +90,6 @@ function reportSplitError(cause: unknown, fallback: string): void {
       <IconProgress v-if="interactionPending" class="state-spinner" aria-hidden="true" />
       <IconLock v-else-if="tabHumanInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
-      <span>{{ t(tabHumanInteractionLocked ? 'runtime.locks.unlockInput' : 'runtime.locks.lockInput') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button tab-agent-control-button"
@@ -105,7 +105,6 @@ function reportSplitError(cause: unknown, fallback: string): void {
       <IconProgress v-if="agentPending" class="state-spinner" aria-hidden="true" />
       <IconPlayCircle v-else-if="activeTab?.agentPaused" aria-hidden="true" />
       <IconPauseCircle v-else aria-hidden="true" />
-      <span>{{ t(activeTab?.agentPaused ? 'runtime.mcp.resumeAgents' : 'runtime.mcp.pauseAgents') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button page-lifecycle-button"
@@ -119,10 +118,8 @@ function reportSplitError(cause: unknown, fallback: string): void {
       @click="activeTab && emit('togglePageLifecycle', activeTab)"
     >
       <IconProgress v-if="lifecyclePending" class="state-spinner" aria-hidden="true" />
-      <IconPlayCircle v-else-if="activeTab?.pageLifecycleState === 'frozen'" aria-hidden="true" />
       <IconHelp v-else-if="activeTab?.pageLifecycleState === 'unknown'" aria-hidden="true" />
-      <IconPauseCircle v-else aria-hidden="true" />
-      <span>{{ t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.frozen' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknownShort' : 'runtime.pageLifecycle.active') }}</span>
+      <IconAcUnit v-else aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button tab-mute-button"
@@ -138,7 +135,6 @@ function reportSplitError(cause: unknown, fallback: string): void {
       <IconProgress v-if="audioPending" class="state-spinner" aria-hidden="true" />
       <IconVolumeOff v-else-if="activeTab?.muted" aria-hidden="true" />
       <IconVolumeUp v-else aria-hidden="true" />
-      <span class="tab-mute-label">{{ t(activeTab?.muted ? 'shell.audioControl.unmute' : 'shell.audioControl.mute') }}</span>
     </UiButton>
   </div>
   <SplitViewControl
