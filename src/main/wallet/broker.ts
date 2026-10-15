@@ -30,7 +30,9 @@ import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
 import {
+  agentCallBundleId,
   callBundleError,
+  callBundleState,
   callBundleStatus,
   callReceipt,
   EVM_CALL_BUNDLE_VERSION,
@@ -133,6 +135,8 @@ export interface WalletBrokerOptions {
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const MAX_AGENT_PAGE_REQUESTS = 50
+/** wallet_sendCalls batches `wallet_page_requests` lists for a site, newest kept. */
+const MAX_AGENT_CALL_BATCHES = 20
 /** Failed wallet calls remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
 const MAX_PAGE_CALL_FAILURES_PER_TAB = 20
 /** Tabs whose failed wallet calls are remembered at once; closing a tab forgets them sooner. */
@@ -682,13 +686,41 @@ export class WalletBroker {
       method: withoutWalletAddresses(failure.method, hiddenAccounts, HIDDEN_WALLET_ADDRESS),
       error: withoutWalletAddresses(failure.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS)
     }))
+    const callBatches = this.agentCallBatches(context, hiddenAccounts)
     return {
       origin: context.topLevelOrigin,
       requests,
       ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {}),
       ...(suggestedAssets.length ? { suggestedAssets } : {}),
-      ...(failedCalls.length ? { failedCalls } : {})
+      ...(failedCalls.length ? { failedCalls } : {}),
+      ...(callBatches.length ? { callBatches } : {})
     }
+  }
+
+  /**
+   * The site's wallet_sendCalls batches in this workspace, newest 20, so an
+   * agent can see that a batch stopped and at which call. Each sent call
+   * shows its transaction hash and its request's status.
+   */
+  private agentCallBatches(context: WalletBrokerContext, hiddenAccounts: string[]): Array<Record<string, unknown>> {
+    const statuses = new Map(this.service.approvals.list().flatMap((record) => (
+      record.transactionHash
+      && record.request.workspaceId === context.workspaceId
+      && record.request.topLevelOrigin === context.topLevelOrigin
+        ? [[record.transactionHash.toLowerCase(), record.status] as const]
+        : []
+    )))
+    return this.evmCallBundles.forSite(context).slice(-MAX_AGENT_CALL_BATCHES).map(({ id, bundle }) => ({
+      id: withoutWalletAddresses(agentCallBundleId(id), hiddenAccounts, HIDDEN_WALLET_ADDRESS),
+      networkId: bundle.wallet.network.id,
+      calls: bundle.calls,
+      state: callBundleState(bundle),
+      transactions: bundle.hashes.map((hash) => ({
+        transactionHash: hash,
+        status: statuses.get(hash.toLowerCase()) ?? 'unknown',
+        ...(this.replacedTransactionHashes.has(hash.toLowerCase()) ? { replaced: true } : {})
+      }))
+    }))
   }
 
   async cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {

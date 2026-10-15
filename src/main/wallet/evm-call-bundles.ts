@@ -124,6 +124,14 @@ export class EvmCallBundleStore {
     return typeof id === 'string' ? this.bundles.get(bundleKey(owner, id)) : undefined
   }
 
+  /** The batches remembered for this site, oldest first, with the IDs they were sent under. */
+  forSite(owner: EvmCallBundleOwner): Array<{ id: string; bundle: EvmCallBundle }> {
+    const site = siteKey(owner)
+    return [...this.bundles].flatMap(([key, bundle]) => (
+      siteKey(bundle.owner) === site ? [{ id: (JSON.parse(key) as string[])[2]!, bundle }] : []
+    ))
+  }
+
   delete(owner: EvmCallBundleOwner, id: string): void {
     this.bundles.delete(bundleKey(owner, id))
   }
@@ -133,6 +141,21 @@ export class EvmCallBundleStore {
       if (predicate(bundle.owner)) this.bundles.delete(key)
     }
   }
+}
+
+/**
+ * A batch ID as an agent sees it. The page chooses IDs freely, so only a
+ * plain ID of up to 128 letters, digits, dots, colons, hyphens or underscores
+ * is shown, such as the 0x IDs dApps and Hronaut generate.
+ */
+export function agentCallBundleId(id: string): string {
+  return /^[A-Za-z0-9_.:-]{1,128}$/.test(id) ? id : 'not shown'
+}
+
+/** Whether Hronaut is still sending a batch's calls, stopped before the last one, or sent them all. */
+export function callBundleState(bundle: EvmCallBundle): 'sending' | 'stopped' | 'sent' {
+  if (!bundle.finished) return 'sending'
+  return bundle.hashes.length < bundle.calls ? 'stopped' : 'sent'
 }
 
 function siteKey(owner: EvmCallBundleOwner): string {
