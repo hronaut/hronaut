@@ -742,3 +742,72 @@ test('applies, replaces and clears safe-area insets in one tab only', async ({ c
   expect(await readInsets(tabId)).toEqual(baseline)
   expect(await readInsets(siblingTabId)).toEqual(baseline)
 })
+
+test('emulates OS text scale for opted-in pages in one tab only', async ({ capabilities }) => {
+  const { client, tabId, fixtureOrigin } = capabilities
+  const readScale = async (targetTabId: string) => JSON.parse(text(await client.callTool({
+    name: 'browser_evaluate',
+    arguments: {
+      tabId: targetTabId,
+      script: `(() => {
+        if (!document.querySelector('meta[name="text-scale"]')) {
+          const meta = document.createElement('meta');
+          meta.name = 'text-scale';
+          meta.content = 'scale';
+          document.head.append(meta);
+        }
+        let probe = document.getElementById('text-scale-probe');
+        if (!probe) {
+          probe = document.createElement('div');
+          probe.id = 'text-scale-probe';
+          probe.style.cssText = 'font-size: 1rem; width: calc(100px * env(preferred-text-scale, 7))';
+          document.body.append(probe);
+        }
+        const style = getComputedStyle(probe);
+        return { rootFontSize: getComputedStyle(document.documentElement).fontSize, fontSize: style.fontSize, width: style.width };
+      })()`
+    }
+  }) as CallToolResult)) as Record<string, string>
+  const siblingResult = await client.callTool({
+    name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/`, active: false }
+  }) as CallToolResult
+  expect(siblingResult.isError, text(siblingResult)).not.toBe(true)
+  const siblingTabId = JSON.parse(text(siblingResult)).tabs.find((tab: { id: string; url: string }) => tab.url === `${fixtureOrigin}/` && tab.id !== tabId)?.id as string
+  expect(siblingTabId).toBeTruthy()
+  await client.callTool({ name: 'browser_wait', arguments: { tabId: siblingTabId } })
+  const baseline = await readScale(tabId)
+  expect(baseline.width).toBe('100px')
+  expect(await readScale(siblingTabId)).toEqual(baseline)
+
+  const doubled = await client.callTool({ name: 'browser_emulate', arguments: { tabId, osTextScale: 2 } }) as CallToolResult
+  expect(doubled.isError, text(doubled)).not.toBe(true)
+  expect(JSON.parse(text(doubled)).osTextScale).toBe(2)
+  const doubledScale = await readScale(tabId)
+  expect(doubledScale.width).toBe('200px')
+  expect(parseFloat(doubledScale.fontSize!)).toBe(parseFloat(baseline.fontSize!) * 2)
+  expect(await readScale(siblingTabId)).toEqual(baseline)
+
+  await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: `${fixtureOrigin}/` } })
+  await client.callTool({ name: 'browser_wait', arguments: { tabId } })
+  expect((await readScale(tabId)).width).toBe('200px')
+
+  for (const osTextScale of [0.5, 2.5, 'large']) {
+    const rejected = await client.callTool({ name: 'browser_emulate', arguments: { tabId, osTextScale } }) as CallToolResult
+    expect(rejected.isError, String(osTextScale)).toBe(true)
+  }
+  expect(JSON.parse(text(await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult)).osTextScale).toBe(2)
+
+  await client.callTool({ name: 'browser_emulate', arguments: { tabId, osTextScale: 0.85 } })
+  expect((await readScale(tabId)).width).toBe('85px')
+
+  const cleared = await client.callTool({ name: 'browser_emulate', arguments: { tabId, osTextScale: null } }) as CallToolResult
+  expect(cleared.isError, text(cleared)).not.toBe(true)
+  expect(JSON.parse(text(cleared)).osTextScale).toBeUndefined()
+  expect(await readScale(tabId)).toEqual(baseline)
+
+  await client.callTool({ name: 'browser_emulate', arguments: { tabId, osTextScale: 1.5 } })
+  expect((await readScale(tabId)).width).toBe('150px')
+  await client.callTool({ name: 'browser_emulate', arguments: { tabId, reset: true } })
+  expect(await readScale(tabId)).toEqual(baseline)
+  expect(await readScale(siblingTabId)).toEqual(baseline)
+})

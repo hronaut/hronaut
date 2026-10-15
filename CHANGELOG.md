@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- `browser_emulate` can emulate the operating-system text-size preference (`osTextScale`, 85–200%) in one tab, for pages that opt in with the `text-scale` meta tag or `env(preferred-text-scale)`. It survives navigation, shows in the tab's emulation summary, and is cleared with `null` or `reset: true` (#715).
+
 - `browser_emulate` can override a tab's safe-area insets (`env(safe-area-inset-*)` and the max variants) for notch and home-indicator layout QA. The override stays in that tab, survives navigation, and is cleared with `null` or `reset: true` (#745).
 
 ### Changed

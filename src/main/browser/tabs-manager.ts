@@ -11430,6 +11430,8 @@ export class BrowserTabsManager {
     // An empty override resolves every safe-area variable to 0px, matching a
     // tab that never had one; there is no separate clear command.
     await send('Emulation.setSafeAreaInsetsOverride', { insets: state.safeAreaInsets ?? {} })
+    // Omitting scale removes the override and restores the browser's preference.
+    await send('Emulation.setEmulatedOSTextScale', state.osTextScale === undefined ? {} : { scale: state.osTextScale })
     await send('Emulation.setScriptExecutionDisabled', {
       value: state.javaScriptDisabled === true
     })

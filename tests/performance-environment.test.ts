@@ -32,6 +32,8 @@ describe('performance environment fingerprint', () => {
   it('detects actual state, private header, viewport and zoom changes', () => {
     const baseline = fingerprint(DEFAULT_EMULATION)
     expect(fingerprint({ ...DEFAULT_EMULATION, locale: 'fr-CA' })).not.toBe(baseline)
+    expect(fingerprint({ ...DEFAULT_EMULATION, osTextScale: 2 })).not.toBe(baseline)
+    expect(fingerprint({ ...DEFAULT_EMULATION, safeAreaInsets: { top: 47 } })).not.toBe(baseline)
     expect(fingerprint(DEFAULT_EMULATION, { 'X-Test': 'a' })).not.toBe(fingerprint(DEFAULT_EMULATION, { 'X-Test': 'b' }))
     expect(performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, { width: 801, height: 600 }, 100)).not.toBe(baseline)
     expect(performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, { width: 800, height: 600 }, 110)).not.toBe(baseline)

@@ -1194,6 +1194,7 @@ export const frFR = {
       "touch": " tactile",
       "geolocation": "géolocalisation personnalisée",
       "safeArea": "marges de zone sûre personnalisées",
+      "textScale": "taille du texte du système {percent}",
       "locale": "paramètres régionaux {locale}",
       "timezone": "fuseau horaire {timezone}",
       "cpu": "CPU {rate}× plus lent",

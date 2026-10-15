@@ -17,6 +17,8 @@ export class EmulationInputError extends Error {
 
 export const SAFE_AREA_INSET_FIELDS = ['top', 'topMax', 'left', 'leftMax', 'bottom', 'bottomMax', 'right', 'rightMax'] as const
 export const MAX_SAFE_AREA_INSET = 1_000
+export const MIN_OS_TEXT_SCALE = 0.85
+export const MAX_OS_TEXT_SCALE = 2
 
 function validateSafeAreaInsets(insets: BrowserSafeAreaInsets): void {
   if (!insets || typeof insets !== 'object' || Array.isArray(insets)) throw new Error('safeAreaInsets must be an object or null')
@@ -70,6 +72,7 @@ export function hasEmulationOverrides(state: BrowserEmulationState): boolean {
     || state.viewport !== undefined
     || state.geolocation !== undefined
     || state.safeAreaInsets !== undefined
+    || state.osTextScale !== undefined
     || Boolean(state.extraHttpHeaderNames?.length)
     || Boolean(state.renderingDebug && Object.values(state.renderingDebug).some(Boolean))
 }
@@ -141,6 +144,7 @@ export function prepareBrowserEmulation(
     || options.viewportPreset !== undefined
     || options.geolocation !== undefined
     || options.safeAreaInsets !== undefined
+    || options.osTextScale !== undefined
     || options.extraHttpHeaders !== undefined
     || options.renderingDebug !== undefined
   if (options.recover) {
@@ -183,6 +187,12 @@ export function prepareBrowserEmulation(
     }
   }
   if (options.safeAreaInsets !== undefined && options.safeAreaInsets !== null) validateSafeAreaInsets(options.safeAreaInsets)
+  if (options.osTextScale !== undefined && options.osTextScale !== null
+    && (typeof options.osTextScale !== 'number' || !Number.isFinite(options.osTextScale)
+      || options.osTextScale < MIN_OS_TEXT_SCALE || options.osTextScale > MAX_OS_TEXT_SCALE)) {
+    // Chromium accepts any value here, so the documented range is enforced before dispatch.
+    throw new Error(`osTextScale must be between ${MIN_OS_TEXT_SCALE} and ${MAX_OS_TEXT_SCALE}`)
+  }
   if (options.extraHttpHeaders !== undefined) {
     const entries = Object.entries(options.extraHttpHeaders)
     if (entries.length > 50) throw new Error('extraHttpHeaders cannot contain more than 50 headers')
@@ -248,6 +258,9 @@ export function prepareBrowserEmulation(
           : {}),
         ...(options.safeAreaInsets !== undefined
           ? { safeAreaInsets: options.safeAreaInsets === null ? undefined : copySafeAreaInsets(options.safeAreaInsets) }
+          : {}),
+        ...(options.osTextScale !== undefined
+          ? { osTextScale: options.osTextScale === null ? undefined : options.osTextScale }
           : {}),
         ...(options.extraHttpHeaders !== undefined
           ? { extraHttpHeaderNames: Object.keys(nextHeaders).sort((left, right) => left.localeCompare(right)) }

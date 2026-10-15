@@ -1,7 +1,7 @@
 import { normalizeTabLabel, MAX_TAB_LABEL_INPUT_LENGTH } from '../../shared/tab-label.js'
 import { MAX_COMPARED_TEXT_VALUE_LENGTH } from '../../shared/value-comparison.js'
 import { browserClickSchema } from './browser-click-input.js'
-import { EMULATION_INPUT_ERRORS, EmulationInputError, MAX_SAFE_AREA_INSET, SAFE_AREA_INSET_FIELDS } from '../browser/emulation-state.js'
+import { EMULATION_INPUT_ERRORS, EmulationInputError, MAX_OS_TEXT_SCALE, MAX_SAFE_AREA_INSET, MIN_OS_TEXT_SCALE, SAFE_AREA_INSET_FIELDS } from '../browser/emulation-state.js'
 import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure, type StorageComparisonHooks } from '../browser/storage-comparison-operation.js'
 import { nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
@@ -4607,6 +4607,8 @@ function createBrowserMcpServer(
         safeAreaInsets: z.object(Object.fromEntries(SAFE_AREA_INSET_FIELDS.map(name => [name, z.number().int().min(0).max(MAX_SAFE_AREA_INSET).optional()])))
           .strict().nullable().optional()
           .describe('Override env(safe-area-inset-*) and env(safe-area-max-inset-*) in integer CSS pixels: top, left, bottom, right and their *Max fields. Replaces the whole override; omitted fields resolve to 0px, so CSS fallbacks do not apply. Null restores the browser values. Not a device frame or notch overlay.'),
+        osTextScale: z.number().min(MIN_OS_TEXT_SCALE).max(MAX_OS_TEXT_SCALE).nullable().optional()
+          .describe('Emulate the operating-system text-size preference from 0.85 to 2 (1 is 100%). Only pages that opt in with <meta name="text-scale" content="scale"> or use env(preferred-text-scale) respond; others are unchanged. Null restores the browser preference. This is not page zoom.'),
         renderingDebug: z.object({
           paintFlashing: z.boolean().optional()
             .describe('Flash repainted regions. This can produce rapid flashing and should be used with photosensitivity caution.'),

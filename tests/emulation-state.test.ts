@@ -189,6 +189,21 @@ describe('emulation configuration', () => {
     expect(() => prepare({ safeAreaInsets: insets as BrowserEmulationOptions['safeAreaInsets'] })).toThrow(message)
   })
 
+  it('sets, replaces and clears the OS text scale within 0.85 to 2', () => {
+    const current = prepare({ osTextScale: 2 })!.state
+    expect(current.osTextScale).toBe(2)
+    expect(hasEmulationOverrides(current)).toBe(true)
+    expect(prepareBrowserEmulation(current, {}, { colorScheme: 'dark' })!.state.osTextScale).toBe(2)
+    expect(prepareBrowserEmulation(current, {}, { osTextScale: 0.85 })!.state.osTextScale).toBe(0.85)
+    const cleared = prepareBrowserEmulation(current, {}, { osTextScale: null })!.state
+    expect(cleared.osTextScale).toBeUndefined()
+    expect(hasEmulationOverrides(cleared)).toBe(false)
+    expect(prepareBrowserEmulation(current, {}, { reset: true })!.state.osTextScale).toBeUndefined()
+    for (const osTextScale of [0.84, 2.01, Number.NaN, Number.POSITIVE_INFINITY, 0, -1]) {
+      expect(() => prepare({ osTextScale })).toThrow('osTextScale must be between 0.85 and 2')
+    }
+  })
+
   it('enforces the header limit in bytes including names', () => {
     const exact = 'x'.repeat(65536 - 'X-Test'.length)
     expect(prepare({ extraHttpHeaders: { 'X-Test': exact } })!.headers['X-Test']).toBe(exact)
