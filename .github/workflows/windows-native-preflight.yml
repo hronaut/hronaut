@@ -1,6 +1,12 @@
 name: Windows native preflight
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-native-preflight.yml'
+      - 'scripts/windows-*preflight.ts'
+      - 'scripts/windows-native-ui.ps1'
+      - 'scripts/windows-desktop-capability.ps1'
 permissions:
   contents: read
 concurrency:
@@ -21,6 +27,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - name: Establish native desktop capability
+        run: powershell.exe -NoProfile -NonInteractive -STA -File scripts/windows-desktop-capability.ps1 -OutputPath test-results/windows-native/desktop-capability.json
       - name: Install locked dependencies and audit
         run: |
           npm ci
