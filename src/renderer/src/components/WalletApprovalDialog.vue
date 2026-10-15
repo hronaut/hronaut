@@ -63,6 +63,22 @@ const destinationLabelKeys: Readonly<Record<string, string>> = {
   'nft.setApprovalForAll': 'operator'
 }
 const destinationLabel = computed(() => t(`wallets.approval.${destinationLabelKeys[request.value?.details?.method ?? ''] ?? 'destination'}`))
+// The contract's own words, shown apart from Hronaut's text so they cannot pass for it.
+const revertMessage = computed(() => {
+  const revert = request.value?.details?.simulationRevert
+  return revert?.kind === 'message' ? revert : undefined
+})
+const revertReason = computed(() => {
+  const revert = request.value?.details?.simulationRevert
+  if (!revert || revert.kind === 'message') return undefined
+  if (revert.kind === 'panic') return revert.meaning
+    ? t('wallets.approval.revertPanicMeaning', { code: revert.code, meaning: revert.meaning })
+    : t('wallets.approval.revertPanic', { code: revert.code })
+  if (revert.kind === 'custom-error') return revert.name
+    ? t('wallets.approval.revertNamedCustomError', { name: revert.name, selector: revert.selector })
+    : t('wallets.approval.revertCustomError', { selector: revert.selector })
+  return t('wallets.approval.revertNoReason')
+})
 
 // Transfers move an amount once; permits grant an allowance. Several are numbered.
 function tokenAmountLabel(index: number): string {
@@ -106,6 +122,13 @@ function rawDetails(): string {
         <div v-if="request.details?.tokenAmount"><dt>{{ t('wallets.approval.tokenAmount') }}</dt><dd>{{ request.details.tokenAmount }}</dd></div>
         <div v-if="request.details?.estimatedFee"><dt>{{ t('wallets.approval.estimatedFee') }}</dt><dd>{{ request.details.estimatedFee }}</dd></div>
         <div><dt>{{ t('wallets.approval.simulation') }}</dt><dd>{{ request.details?.simulationSuccess ? t('wallets.approval.successful') : request.details?.simulationAttempted ? t('wallets.approval.failed') : t('wallets.approval.unavailable') }}</dd></div>
+        <div v-if="revertMessage || revertReason">
+          <dt>{{ t('wallets.approval.revertReason') }}</dt>
+          <dd data-testid="wallet-approval-revert-reason">
+            <template v-if="revertMessage"><code>{{ revertMessage.message }}</code><template v-if="revertMessage.truncated">{{ ` ${t('wallets.approval.revertMessageTruncated')}` }}</template></template>
+            <template v-else>{{ revertReason }}</template>
+          </dd>
+        </div>
         <div><dt>{{ t('wallets.approval.expires') }}</dt><dd>{{ new Date(request.expiresAt).toLocaleString() }}</dd></div>
       </dl>
       <div v-if="!request.details?.understood" class="wallet-approval-warning" role="alert">
@@ -140,7 +163,7 @@ function rawDetails(): string {
         <summary>{{ t('wallets.approval.raw') }}</summary>
         <pre>{{ rawDetails() }}</pre>
       </details>
-      <p class="wallet-approval-hash">{{ t('wallets.approval.hash') }} <code>{{ request.approvalHash ?? t('wallets.approval.hashPending') }}</code></p>
+      <p class="wallet-approval-hash">{{ t('wallets.approval.hash') }} <code data-testid="wallet-approval-hash">{{ request.approvalHash ?? t('wallets.approval.hashPending') }}</code></p>
       <output v-if="controller.errorMessage.value" class="site-controls-error" role="alert">{{ controller.errorMessage.value }}</output>
       <footer>
         <UiButton type="button" :disabled="controller.busy.value" @click="controller.reject(request.id)">{{ t('wallets.approval.reject') }}</UiButton>

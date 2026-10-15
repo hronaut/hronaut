@@ -623,6 +623,106 @@ describe('WalletBroker', () => {
     await expect(transfer).resolves.toMatchObject({ status: 'rejected' })
   })
 
+  it('shows the person and an agent why a transaction simulation reverted, without RPC details', async () => {
+    const { directory, service, wallet } = await setup()
+    const chain = adapter()
+    // The contract names the calling account in its revert message.
+    chain.simulate = vi.fn(async () => ({
+      attempted: true,
+      success: false,
+      error: 'RPC https://rpc-user:rpc-password@rpc.example.invalid/v1?apiKey=rpc-query-secret: execution reverted',
+      revert: { kind: 'message' as const, message: `ERC20: ${wallet.publicAddress.toLowerCase()} has insufficient allowance` }
+    }))
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const agent = context({ requester: { type: 'agent', id: 'agent-revert', name: 'Revert agent' } })
+    const swap = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', data: '0x23b872dd' }]
+    }))
+    const pending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation !== 'connect-account')
+    const reason = `ERC20: ${wallet.publicAddress.toLowerCase()} has insufficient allowance`
+    expect(pending.details).toMatchObject({ simulationAttempted: true, simulationSuccess: false, simulationRevert: { kind: 'message', message: reason } })
+
+    const hidden = (broker.agentPageRequests(agent).requests as Array<{ id: string; details: Record<string, unknown> }>)
+      .find((request) => request.id === pending.id)!
+    expect(hidden.details.simulationRevert).toEqual({
+      kind: 'message', message: 'ERC20: this wallet (address hidden until account permission) has insufficient allowance'
+    })
+    expect(JSON.stringify(hidden).toLowerCase()).not.toContain(wallet.publicAddress.slice(2).toLowerCase())
+
+    // A long message cut off partway through the address hides the part that is left.
+    const padding = 'x'.repeat(170)
+    chain.simulate = vi.fn(async () => ({
+      attempted: true, success: false, error: 'execution reverted',
+      revert: { kind: 'message' as const, message: `${padding} for ${wallet.publicAddress.slice(0, 20)}`, truncated: true as const }
+    }))
+    const cutSwap = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', data: '0x23b872dd' }]
+    }))
+    const cutPending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.id !== pending.id && request.operation !== 'connect-account')
+    const cut = (broker.agentPageRequests(agent).requests as Array<{ id: string; details: Record<string, unknown> }>)
+      .find((request) => request.id === cutPending.id)!
+    expect(cut.details.simulationRevert).toEqual({
+      kind: 'message', message: `${padding} for this wallet (address hidden until account permission)`, truncated: true
+    })
+    await broker.reject(cutPending.id)
+    await expect(cutSwap).resolves.toMatchObject({ status: 'rejected' })
+
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    const shown = (broker.agentPageRequests(agent).requests as Array<{ id: string; details: Record<string, unknown> }>)
+      .find((request) => request.id === pending.id)!
+    expect(shown.details.simulationRevert).toEqual({ kind: 'message', message: reason })
+
+    // An agent's own prepared transaction gets the reason too, and a Solidity panic is explained.
+    chain.simulate = vi.fn(async () => ({ attempted: true, success: false, error: 'execution reverted', revert: { kind: 'panic' as const, code: '0x11' } }))
+    expect(await broker.prepareAgentTransaction(agent, wallet.id, { to: wallet.publicAddress })).toMatchObject({
+      status: 'prepared',
+      simulation: { attempted: true, success: false, error: 'Wallet transaction simulation failed', revert: { kind: 'panic', code: '0x11', meaning: 'arithmetic overflow or underflow' } }
+    })
+
+    const persisted = await readFile(join(directory, 'requests.json'), 'utf8')
+    expect(persisted).toContain('revert:')
+    expect(persisted).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret/)
+    expect(JSON.stringify(broker.listPending())).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret/)
+    await broker.reject(pending.id)
+    await expect(swap).resolves.toMatchObject({ status: 'rejected' })
+  })
+
+  it('simulates the very transaction it prepared, which can carry why its gas estimate reverted', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    // The EVM adapter remembers a gas-estimate revert per prepared transaction; a copy would lose it.
+    const prepared: WalletNormalizedTransaction[] = []
+    const normalize = chain.normalizeTransaction.bind(chain)
+    chain.normalizeTransaction = async (...args) => {
+      const transaction = await normalize(...args)
+      prepared.push(transaction)
+      return transaction
+    }
+    const simulate = vi.fn(async (_wallet: WalletDescriptor, _transaction: WalletNormalizedTransaction) => ({
+      attempted: true, success: false, error: 'EVM gas estimation reverted', revert: { kind: 'no-reason' as const }
+    }))
+    chain.simulate = simulate
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const agent = context({ requester: { type: 'agent', id: 'agent-identity', name: 'Identity agent' } })
+
+    const send = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', data: '0x12345678' }]
+    }))
+    const pending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation !== 'connect-account')
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    await broker.prepareAgentTransaction(agent, wallet.id, { to: '0x00000000000000000000000000000000000000aa' })
+
+    expect(prepared).toHaveLength(2)
+    expect(simulate.mock.calls.map(([, transaction]) => transaction)).toEqual(prepared)
+    simulate.mock.calls.forEach(([, transaction], index) => expect(transaction).toBe(prepared[index]))
+    await broker.reject(pending.id)
+    await expect(send).resolves.toMatchObject({ status: 'rejected' })
+  })
+
   it('does not ask the person again when an agent repeats its account request while the first is being approved', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })

@@ -1,12 +1,14 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { encodeAbiParameters, keccak256, maxUint256, parseTransaction, type Hex } from 'viem'
+import { encodeAbiParameters, encodeErrorResult, keccak256, maxUint256, parseAbi, parseTransaction, type Hex } from 'viem'
 import { expect, test, text } from './capability-fixtures.js'
+
+const REVERTING_ROUTER = '0x2000000000000000000000000000000000000002'
 
 interface PageRequestList {
   origin: string
-  requests: Array<{ id: string; operation: string; status: string; transactionHash?: string }>
+  requests: Array<{ id: string; operation: string; status: string; transactionHash?: string; details?: Record<string, unknown> }>
   suggestedAssets?: Array<Record<string, unknown>>
 }
 
@@ -30,6 +32,13 @@ function startLocalChain(): Promise<LocalChain> {
     extraData: '0x', logsBloom: `0x${'0'.repeat(512)}`, size: '0x200', stateRoot: `0x${'c'.repeat(64)}`,
     receiptsRoot: `0x${'d'.repeat(64)}`, transactionsRoot: `0x${'e'.repeat(64)}`, sha3Uncles: `0x${'f'.repeat(64)}`, mixHash: `0x${'0'.repeat(64)}`
   })
+  // A swap router that reverts every call and gas estimate, as one does when the price moved.
+  const revertAtRouter = (call: { to?: string }) => {
+    if (call.to?.toLowerCase() !== REVERTING_ROUTER) return
+    throw Object.assign(new Error('execution reverted: Too little received'), {
+      code: 3, data: encodeErrorResult({ abi: parseAbi(['error Error(string)']), errorName: 'Error', args: ['Too little received'] })
+    })
+  }
   const answer = (method: string, params: unknown[]): unknown => {
     switch (method) {
       case 'eth_chainId': return '0x7a69'
@@ -39,11 +48,14 @@ function startLocalChain(): Promise<LocalChain> {
       case 'eth_getBlockByNumber': return block(16)
       case 'eth_maxPriorityFeePerGas': return '0x3b9aca00'
       case 'eth_gasPrice': return '0x77359400'
-      case 'eth_estimateGas': return '0x5208'
+      case 'eth_estimateGas':
+        revertAtRouter(params[0] as { to?: string })
+        return '0x5208'
       case 'eth_call': {
         // A 6-decimal "USDC" ERC-20 at TOKEN_ADDRESS holding 2.5 tokens for every account, which every
         // account has approved without limit for every spender.
         const call = params[0] as { to?: string; data?: string }
+        revertAtRouter(call)
         if (call.to?.toLowerCase() !== TOKEN_ADDRESS.toLowerCase()) return '0x'
         if (call.data?.startsWith('0x70a08231')) return encodeAbiParameters([{ type: 'uint256' }], [2_500_000n])
         if (call.data?.startsWith('0xdd62ed3e')) return encodeAbiParameters([{ type: 'uint256' }], [maxUint256])
@@ -80,7 +92,8 @@ function startLocalChain(): Promise<LocalChain> {
       try {
         reply = { result: answer(call.method, call.params ?? []) }
       } catch (error) {
-        reply = { error: { code: (error as { code: number }).code, message: (error as Error).message } }
+        const { code, data } = error as { code: number; data?: unknown }
+        reply = { error: { code, message: (error as Error).message, ...(data === undefined ? {} : { data }) } }
       }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ jsonrpc: '2.0', id: call.id, ...reply }))
@@ -234,6 +247,23 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
       { ...suggested, decimals: 18, refused: 'decimals-mismatch' },
       { ...suggested, decimals: 6, image: 'https://tokens.example/usdc.png' }
     ])
+
+    // A swap the router would revert: the person and the agent both see the contract's reason before anything is signed.
+    const revertedSwap = electronApp.evaluate(({ webContents }, { pageUrl, request }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
+      return page?.executeJavaScript(`window.ethereum.request({ method: 'eth_sendTransaction', params: [${request}] })
+        .then((hash) => ({ hash }), (error) => ({ code: error.code }))`)
+    }, { pageUrl: fixtureUrl, request: JSON.stringify({ from: prepared.publicAddress, to: REVERTING_ROUTER, data: '0x12345678' }) })
+    await expect.poll(async () => (await pageRequests()).requests.at(-1)).toMatchObject({
+      operation: 'sign-and-send-transaction', status: 'awaiting-human',
+      details: { simulationAttempted: true, simulationSuccess: false, simulationRevert: { kind: 'message', message: 'Too little received' } }
+    })
+    const swapApproval = appWindow.getByRole('alertdialog', { name: /send transaction/i })
+    await expect(swapApproval.getByTestId('wallet-approval-revert-reason').locator('code')).toHaveText('Too little received')
+    expect(JSON.stringify(await pageRequests())).not.toContain(chain.url)
+    await swapApproval.getByRole('button', { name: 'Reject' }).click()
+    expect(await revertedSwap).toEqual({ code: 4001 })
+    expect(chain.rawTransactions).toHaveLength(1)
   } finally {
     chain.server.close()
   }
@@ -264,8 +294,10 @@ test('runs an EIP-5792 batch as one approval per call and reports its status to 
     const approveInHronaut = async (dialogName: RegExp) => {
       const approval = appWindow.getByRole('alertdialog', { name: dialogName })
       await expect(approval).toBeVisible()
+      const hash = await approval.getByTestId('wallet-approval-hash').textContent()
       await approval.getByRole('button', { name: 'Approve exact request' }).click()
-      await expect(approval).toBeHidden()
+      // The batch's next call can open its own approval right away, so wait for this request's dialog to go.
+      await expect(appWindow.getByTestId('wallet-approval-hash').filter({ hasText: hash ?? '' })).toBeHidden()
     }
 
     // Like a wagmi useSendCalls dApp: approve a token, then use it, in one request.

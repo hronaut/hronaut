@@ -468,6 +468,13 @@ export const enUS = {
       successful: 'Successful',
       failed: 'Failed',
       unavailable: 'Not available',
+      revertReason: 'Revert reason',
+      revertMessageTruncated: '(shortened)',
+      revertPanic: 'Solidity panic {code}',
+      revertPanicMeaning: 'Solidity panic {code}: {meaning}',
+      revertCustomError: 'Custom error {selector}',
+      revertNamedCustomError: 'Custom error {name} ({selector})',
+      revertNoReason: 'The contract reverted without a reason',
       expires: 'Expires',
       undecodable: 'Hronaut could not fully decode this request. Approval requires extra care.',
       transactionWarnings: {

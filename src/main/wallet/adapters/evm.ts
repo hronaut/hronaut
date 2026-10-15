@@ -18,8 +18,9 @@ import {
   type PublicClient
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { EVM_FILTER_RPC_METHODS, EVM_READ_RPC_METHODS, type WalletDescriptor } from '../../../shared/wallet.js'
+import { EVM_FILTER_RPC_METHODS, EVM_READ_RPC_METHODS, type WalletDescriptor, type WalletSimulationRevert } from '../../../shared/wallet.js'
 import { deriveWalletAccount } from '../accounts.js'
+import { evmRevertFromError } from '../evm-revert.js'
 import type { WalletSecret } from '../vault.js'
 import type {
   WalletChainAdapter,
@@ -178,8 +179,18 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
 }
 
 type EvmClient = Pick<PublicClient,
-  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt' | 'request' | 'readContract'
+  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt' | 'request' | 'readContract' | 'getBlock'
 >
+
+/** EIP-7825 caps a transaction's gas limit at 2^24; nodes refuse a larger one. */
+const MAX_TRANSACTION_GAS = 16_777_216n
+
+/** The gas limit other wallets fall back to when estimation fails: most of the latest block's. */
+async function fallbackGasLimit(client: EvmClient): Promise<bigint> {
+  const { gasLimit } = await client.getBlock({ blockTag: 'latest' })
+  const limit = gasLimit * 19n / 20n
+  return limit < MAX_TRANSACTION_GAS ? limit : MAX_TRANSACTION_GAS
+}
 
 const ERC20_READ_ABI = parseAbi([
   'function allowance(address owner, address spender) view returns (uint256)',
@@ -206,6 +217,8 @@ function readRpcError(error: unknown): Error {
 export class EvmWalletAdapter implements WalletChainAdapter {
   readonly family = 'evm' as const
   readonly tokenAllowances = true
+  /** Why gas estimation reverted, for transactions prepared with the fallback gas limit. */
+  private readonly estimationReverts = new WeakMap<WalletNormalizedTransaction, WalletSimulationRevert>()
 
   constructor(private readonly clientFor = (wallet: WalletDescriptor): EvmClient => createPublicClient({
     transport: http(wallet.network.rpcUrl, { retryCount: 0, timeout: 15_000 })
@@ -239,21 +252,33 @@ export class EvmWalletAdapter implements WalletChainAdapter {
     const data = (input.data ?? input.input ?? '0x') as Hex
     const value = quantity(input.value) ?? 0n
     const requestedType = transactionType(input.type)
-    const raw = await client.prepareTransactionRequest({
+    const requestedGas = quantity(input.gas ?? input.gasLimit)
+    const request = {
       account: getAddress(wallet.publicAddress),
       ...(to ? { to } : {}),
       data,
       value,
       chainId: Number(configuredChainId),
       ...(requestedNonce === undefined ? {} : { nonce: Number(requestedNonce) }),
-      ...(quantity(input.gas ?? input.gasLimit) === undefined ? {} : { gas: quantity(input.gas ?? input.gasLimit) }),
+      ...(requestedGas === undefined ? {} : { gas: requestedGas }),
       ...(quantity(input.gasPrice) === undefined ? {} : { gasPrice: quantity(input.gasPrice) }),
       ...(quantity(input.maxFeePerGas) === undefined ? {} : { maxFeePerGas: quantity(input.maxFeePerGas) }),
       ...(quantity(input.maxPriorityFeePerGas) === undefined ? {} : { maxPriorityFeePerGas: quantity(input.maxPriorityFeePerGas) }),
       ...(requestedType === undefined ? {} : { type: requestedType })
-    } as Parameters<EvmClient['prepareTransactionRequest']>[0])
+    } as Parameters<EvmClient['prepareTransactionRequest']>[0]
+    let raw: Awaited<ReturnType<EvmClient['prepareTransactionRequest']>>
+    let estimationRevert: WalletSimulationRevert | undefined
+    try {
+      raw = await client.prepareTransactionRequest(request)
+    } catch (error) {
+      // A transaction the contract would revert still reaches the person, as in
+      // other wallets, so they and the agent see why its simulation failed.
+      estimationRevert = requestedGas === undefined ? evmRevertFromError(error) : undefined
+      if (!estimationRevert) throw error
+      raw = await client.prepareTransactionRequest({ ...request, gas: await fallbackGasLimit(client) })
+    }
     const nonce = typeof raw.nonce === 'number' ? BigInt(raw.nonce) : raw.nonce
-    return {
+    const normalized: WalletNormalizedTransaction = {
       chainFamily: this.family,
       networkId: wallet.network.id,
       signer: getAddress(wallet.publicAddress),
@@ -261,9 +286,14 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       raw: raw as Record<string, unknown>,
       decoded: decodeOperation(to, data, value, getAddress(wallet.publicAddress))
     }
+    if (estimationRevert) this.estimationReverts.set(normalized, estimationRevert)
+    return normalized
   }
 
   async simulate(wallet: WalletDescriptor, transaction: WalletNormalizedTransaction): Promise<WalletTransactionSimulation> {
+    // Calling again with the fallback gas limit could fail on the fee it reserves instead.
+    const estimationRevert = this.estimationReverts.get(transaction)
+    if (estimationRevert) return { attempted: true, success: false, error: 'EVM gas estimation reverted', revert: estimationRevert }
     try {
       const client = this.clientFor(wallet)
       const request = transaction.raw as Parameters<EvmClient['call']>[0]
@@ -276,7 +306,13 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       transaction.decoded.estimatedFee = estimatedFee
       return { attempted: true, success: true, estimatedFee }
     } catch (error) {
-      return { attempted: true, success: false, error: error instanceof Error ? error.message.slice(0, 512) : 'EVM simulation failed' }
+      const revert = evmRevertFromError(error)
+      return {
+        attempted: true,
+        success: false,
+        error: error instanceof Error ? error.message.slice(0, 512) : 'EVM simulation failed',
+        ...(revert ? { revert } : {})
+      }
     }
   }
 

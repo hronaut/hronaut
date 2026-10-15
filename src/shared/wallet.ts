@@ -393,6 +393,34 @@ export const WalletTypedDataDisplaySchema = z.object({
 }).strict()
 export type WalletTypedDataDisplay = z.infer<typeof WalletTypedDataDisplaySchema>
 
+/** Visible characters of a contract's revert message shown for a failed simulation. */
+export const WALLET_REVERT_MESSAGE_MAX_LENGTH = 200
+
+/**
+ * Why a failed EVM transaction simulation reverted, read from the revert
+ * data: the contract's message, a Solidity panic code, a custom error
+ * selector (named when Hronaut knows it), or no reason at all.
+ */
+export const WalletSimulationRevertSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('message'),
+    message: z.string().min(1).max(WALLET_REVERT_MESSAGE_MAX_LENGTH),
+    truncated: z.literal(true).optional()
+  }).strict(),
+  z.object({
+    kind: z.literal('panic'),
+    code: z.string().regex(/^0x[0-9a-f]{1,64}$/),
+    meaning: z.string().min(1).max(128).optional()
+  }).strict(),
+  z.object({
+    kind: z.literal('custom-error'),
+    selector: z.string().regex(/^0x[0-9a-f]{8}$/),
+    name: z.string().min(1).max(128).optional()
+  }).strict(),
+  z.object({ kind: z.literal('no-reason') }).strict()
+])
+export type WalletSimulationRevert = z.infer<typeof WalletSimulationRevertSchema>
+
 export const WalletRequestSummarySchema = z.object({
   id: z.string().trim().min(1).max(128),
   walletId: WalletIdSchema,
@@ -416,6 +444,7 @@ export const WalletRequestSummarySchema = z.object({
     understood: z.boolean(),
     simulationAttempted: z.boolean(),
     simulationSuccess: z.boolean(),
+    simulationRevert: WalletSimulationRevertSchema.optional(),
     contract: z.string().max(512).optional(),
     source: z.string().max(512).optional(),
     destination: z.string().max(512).optional(),

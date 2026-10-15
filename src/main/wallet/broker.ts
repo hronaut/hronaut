@@ -38,6 +38,7 @@ import {
   parseSendCalls,
   type EvmCallReceipt
 } from './evm-call-bundles.js'
+import { simulationRevertFromStored, storedSimulationRevert } from './evm-revert.js'
 import { EvmFilterRegistry, isEvmFilterCreateMethod, isEvmFilterId, MAX_EVM_FILTERS_PER_PAGE, type EvmFilterOwner } from './evm-filters.js'
 import {
   EvmAssetSuggestionLog,
@@ -157,14 +158,34 @@ function walletChainName(family: WalletChainFamily): string {
   return family === 'solana' ? 'Solana' : 'Tron'
 }
 
+const SIMULATION_FAILED = 'Wallet transaction simulation failed'
+
+/**
+ * The simulation as approval records keep it: adapter error text, which can
+ * name the RPC endpoint, becomes a fixed message, or a revert reason read
+ * from the revert data, stored in the error text older versions accept.
+ */
 function sanitizedSimulation(simulation: WalletTransactionSimulation): WalletTransactionSimulation {
+  const revert = !simulation.success && simulation.revert ? storedSimulationRevert(simulation.revert) : undefined
   return {
     attempted: simulation.attempted,
     success: simulation.success,
     ...(simulation.estimatedFee && /^\d+(?:\.\d+)?$/.test(simulation.estimatedFee)
       ? { estimatedFee: simulation.estimatedFee }
       : {}),
-    ...(simulation.error ? { error: 'Wallet transaction simulation failed' } : {})
+    ...(revert ? { error: revert } : simulation.error ? { error: SIMULATION_FAILED } : {})
+  }
+}
+
+/** A recorded simulation for an agent, with its revert reason read back. */
+function agentSimulation(simulation: WalletTransactionSimulation): Record<string, unknown> {
+  const revert = simulation.success ? undefined : simulationRevertFromStored(simulation.error)
+  return {
+    attempted: simulation.attempted,
+    success: simulation.success,
+    ...(simulation.estimatedFee ? { estimatedFee: simulation.estimatedFee } : {}),
+    ...(simulation.error ? { error: SIMULATION_FAILED } : {}),
+    ...(revert ? { revert } : {})
   }
 }
 
@@ -192,6 +213,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
     ? restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
     : undefined
   const warnings = normalized ? transactionWarnings(normalized.decoded) : []
+  const simulationRevert = record.simulation && !record.simulation.success ? simulationRevertFromStored(record.simulation.error) : undefined
   return {
     id: record.id,
     walletId: record.request.walletId,
@@ -215,6 +237,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
         understood: normalized?.decoded.understood ?? record.request.operation === 'connect-account',
         simulationAttempted: record.simulation?.attempted ?? false,
         simulationSuccess: record.simulation?.success ?? false,
+        ...(simulationRevert ? { simulationRevert } : {}),
         ...(normalized?.decoded.contract ? { contract: normalized.decoded.contract } : {}),
         ...(normalized?.decoded.source ? { source: normalized.decoded.source } : {}),
         ...(normalized?.decoded.destination ? { destination: normalized.decoded.destination } : {}),
@@ -232,6 +255,21 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
 }
 
 const HIDDEN_WALLET_ADDRESS = 'this wallet (address hidden until account permission)'
+/** Hex digits of an address that a shortened message can end with and still be hidden. */
+const MIN_HIDDEN_ADDRESS_PREFIX = 4
+
+/** A contract's revert message with an EVM wallet's address hidden, including its start where the message was cut. */
+function hideAddressInRevertMessage(message: string, truncated: boolean, publicAddress: string): string {
+  const hex = publicAddress.slice(2).toLowerCase()
+  const hidden = message.replace(new RegExp(`(?:0x)?${hex}`, 'gi'), HIDDEN_WALLET_ADDRESS)
+  const tail = truncated ? /[0-9a-fA-F]+$/.exec(hidden) : null
+  if (!tail) return hidden
+  for (let start = tail.index; start <= hidden.length - MIN_HIDDEN_ADDRESS_PREFIX; start += 1) {
+    if (!hex.startsWith(hidden.slice(start).toLowerCase())) continue
+    return `${hidden.slice(0, hidden.slice(start - 2, start).toLowerCase() === '0x' ? start - 2 : start)}${HIDDEN_WALLET_ADDRESS}`
+  }
+  return hidden
+}
 
 function agentSummary(
   record: WalletApprovalRecord,
@@ -245,6 +283,11 @@ function agentSummary(
     // A request can name the wallet itself, such as a transfer to its own address.
     for (const field of ['contract', 'source', 'destination'] as const) {
       if (walletPolicyDestinationMatches(details.chainFamily, [publicAddress], details[field])) details[field] = HIDDEN_WALLET_ADDRESS
+    }
+    // A contract can put the calling account in its revert message.
+    if (details.simulationRevert?.kind === 'message' && /^0x[0-9a-fA-F]{40}$/.test(publicAddress)) {
+      const { message, truncated } = details.simulationRevert
+      details.simulationRevert = { ...details.simulationRevert, message: hideAddressInRevertMessage(message, truncated === true, publicAddress) }
     }
   }
   return {
@@ -512,7 +555,7 @@ export class WalletBroker {
         networkId: wallet.network.id,
         publicAddress: wallet.publicAddress,
         decoded: structuredClone(normalized.decoded),
-        simulation: structuredClone(simulation)
+        simulation: agentSimulation(simulation)
       }
     })
   }
