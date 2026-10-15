@@ -102,7 +102,11 @@ export function isMainnetWebsiteSignInPolicy(policy: WalletPolicy, now: Date): b
 }
 
 function isLoopbackRpc(rpcUrl: string): boolean {
-  const hostname = new URL(rpcUrl).hostname.toLowerCase()
+  return isLoopbackHostname(new URL(rpcUrl).hostname)
+}
+
+function isLoopbackHostname(value: string): boolean {
+  const hostname = value.toLowerCase()
   return hostname === 'localhost'
     || hostname === '::1'
     || hostname === '[::1]'
@@ -159,7 +163,9 @@ const CHAIN_ID_LINE = /^Chain ID: ([1-9]\d{0,19})$/
  * undefined when it is bounded UTF-8 plain text. Text that looks like an
  * EIP-4361 sign-in message must name the requesting site, the wallet address
  * and the wallet's chain, so one allowed site cannot obtain a sign-in for
- * another site or chain.
+ * another site or chain. A personal_sign signature is valid on every chain,
+ * so other plain text is signed only by a dedicated agent wallet; a managed
+ * or imported key may also be the person's key elsewhere.
  */
 export function websiteSignInMessageIssue(message: Uint8Array, wallet: WalletDescriptor, topLevelOrigin: string): string | undefined {
   if (!message.length || message.length > WEBSITE_SIGN_IN_MAX_MESSAGE_BYTES) return 'message-not-plain-text'
@@ -170,7 +176,7 @@ export function websiteSignInMessageIssue(message: Uint8Array, wallet: WalletDes
     return 'message-not-plain-text'
   }
   if (NON_PLAIN_TEXT.test(text)) return 'message-not-plain-text'
-  if (!SIGN_IN_PHRASE.test(text)) return undefined
+  if (!SIGN_IN_PHRASE.test(text)) return wallet.kind === 'agent' ? undefined : 'plain-text-requires-agent-wallet'
   const lines = text.split('\n')
   const header = EIP_4361_HEADER.exec(lines[0] ?? '')
   const addressLine = lines[1] ?? ''
@@ -183,6 +189,9 @@ export function websiteSignInMessageIssue(message: Uint8Array, wallet: WalletDes
   }
   const [, scheme, domain] = header
   if (scheme !== undefined && `${scheme.toLowerCase()}:` !== origin.protocol) return 'sign-in-domain-mismatch'
+  // EIP-4361 verifiers read a missing scheme as https, so a plain-HTTP site
+  // other than a loopback development server must name its scheme.
+  if (scheme === undefined && origin.protocol === 'http:' && !isLoopbackHostname(origin.hostname)) return 'sign-in-domain-mismatch'
   if (domain?.toLowerCase() !== origin.host.toLowerCase()) return 'sign-in-domain-mismatch'
   if (addressLine.toLowerCase() !== wallet.publicAddress.toLowerCase()) return 'sign-in-address-mismatch'
   const chainLines = lines.filter((line) => line.startsWith('Chain ID:'))

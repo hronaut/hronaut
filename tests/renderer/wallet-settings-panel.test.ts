@@ -663,7 +663,7 @@ describe('WalletsSettingsPanel', () => {
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
     await user.click(screen.getByLabelText('Let this site connect and sign in without asking'))
-    expect(screen.getByText(/plain-text sign-in messages/i)).toBeVisible()
+    expect(screen.getByText(/Sign-In with Ethereum messages that name that site/i)).toBeVisible()
     expect(screen.queryByLabelText('Also allow on mainnet')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()

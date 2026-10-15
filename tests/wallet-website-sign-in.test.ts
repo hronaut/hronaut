@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { verifyMessage } from 'viem'
 import { WalletBroker, type WalletBrokerContext } from '../src/main/wallet/broker.js'
+import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
 import type { WalletDescriptor, WalletPolicy } from '../src/shared/wallet.js'
@@ -42,9 +43,30 @@ async function setup(environment: 'testnet' | 'mainnet' = 'testnet', dedicatedAg
     workspaceIds: ['workspace-1'], dedicatedAgent
   })
   await service.confirmRecovery(generated.wallet.id)
-  const broker = new WalletBroker(service, { now, requestExpiryScheduler: () => () => {} })
+  const broker = new WalletBroker(service, { now, requestExpiryScheduler: () => () => {}, adapters: { evm: adapter() } })
   brokers.push(broker)
   return { service, broker, wallet: service.list()[0]! }
+}
+
+function adapter(): WalletChainAdapter {
+  return {
+    family: 'evm',
+    validateAddress: () => true,
+    normalizeTransaction: async (wallet): Promise<WalletNormalizedTransaction> => ({
+      chainFamily: 'evm', networkId: wallet.network.id, signer: wallet.publicAddress, nonceOrBlockhash: '7',
+      raw: { to: '0x0000000000000000000000000000000000000002', value: 1n, nonce: 7n },
+      decoded: {
+        understood: true, destination: '0x0000000000000000000000000000000000000002', method: 'native-transfer',
+        nativeAmount: '0.000000000000000001', estimatedFee: '0.000021',
+        unlimitedAllowance: false, newContractOrProgram: false, blindMessage: false
+      }
+    }),
+    simulate: async () => ({ attempted: true, success: true, estimatedFee: '0.000021' }),
+    sign: vi.fn(async () => 'signed-transaction'),
+    broadcast: vi.fn(async () => '0xtransaction'),
+    confirmation: async () => ({ confirmed: true, failed: false, blockReference: '1' }),
+    balance: async () => '1'
+  }
 }
 
 function context(overrides: Partial<WalletBrokerContext> = {}): WalletBrokerContext {
@@ -88,7 +110,7 @@ async function awaitingHuman(broker: WalletBroker) {
 
 describe('website sign-in without a click', () => {
   it('connects and signs plain-text sign-in messages for the allowed testnet site, counting each operation', async () => {
-    const { service, broker, wallet } = await setup()
+    const { service, broker, wallet } = await setup('testnet', true)
     await service.setPolicy(signInPolicy(wallet))
 
     await expect(connectAccount(broker)).resolves.toEqual([wallet.publicAddress])
@@ -104,6 +126,51 @@ describe('website sign-in without a click', () => {
     expect(audit.filter((entry) => entry.type === 'request-approved-by-policy')).toHaveLength(3)
     // Access granted by the policy ends with the policy rather than after 30 days.
     expect(service.permissions.list()).toEqual([expect.objectContaining({ origin: 'https://dapp.example', expiresAt: '2026-09-05T12:00:00.000Z' })])
+  })
+
+  it('signs only domain-bound sign-in text on a managed wallet, because personal_sign is valid on every chain', async () => {
+    const { service, broker, wallet } = await setup()
+    expect(wallet.kind).toBe('managed')
+    await service.setPolicy(signInPolicy(wallet))
+    await connectAccount(broker)
+    const message = siwe(wallet)
+    const signature = await personalSign(broker, wallet, message) as `0x${string}`
+    await expect(verifyMessage({ address: wallet.publicAddress as `0x${string}`, message, signature })).resolves.toBe(true)
+    const plain = settle(personalSign(broker, wallet, 'Welcome to another service. Nonce: 7'))
+    const pending = await awaitingHuman(broker)
+    expect(pending).toMatchObject({ operation: 'sign-message' })
+    await broker.reject(pending.id)
+    expect(await plain).toMatchObject({ status: 'rejected' })
+    expect(service.policyUsage.snapshot('sign-in', now()).operationCount).toBe(2)
+  })
+
+  it('keeps agent message requests with a person and does not let a mainnet sign-in policy approve agent transactions', async () => {
+    const { service, broker, wallet } = await setup('mainnet', true)
+    await service.setPolicy(signInPolicy(wallet, { allowMainnetWebsiteSignIn: true }))
+    const agent = context({ requester: { type: 'agent', id: 'agent-1', name: 'Agent' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+
+    const message = await broker.requestAgentMessage(agent, wallet.id, new TextEncoder().encode(siwe(wallet)))
+    expect(message).toMatchObject({ status: 'requested', request: { status: 'awaiting-human' } })
+    const transaction = await broker.requestAgentTransaction(agent, wallet.id, { to: '0x0000000000000000000000000000000000000002' }, true)
+    expect(transaction).toMatchObject({ status: 'requested', request: { status: 'awaiting-human' } })
+    expect(service.policyUsage.snapshot('sign-in', now()).operationCount).toBe(0)
+  })
+
+  it('cancels a queued automatic connection when the page navigates', async () => {
+    const { service, broker, wallet } = await setup()
+    await service.setPolicy(signInPolicy(wallet))
+    const reserve = service.policyUsage.reserve.bind(service.policyUsage)
+    vi.spyOn(service.policyUsage, 'reserve').mockImplementationOnce(async (...args) => {
+      const reservation = await reserve(...args)
+      await broker.cancelForNavigation('tab-1', 2)
+      return reservation
+    })
+    const connecting = await settle(connectAccount(broker))
+    expect(connecting).toMatchObject({ status: 'rejected' })
+    expect(service.permissions.list()).toEqual([])
+    expect((await service.auditHistory()).map((entry) => entry.type)).not.toContain('request-approved-by-policy')
   })
 
   it('keeps other sites, typed data, raw signing, binary and mismatched sign-in messages with a person', async () => {

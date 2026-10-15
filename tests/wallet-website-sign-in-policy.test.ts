@@ -26,6 +26,8 @@ const wallet: WalletDescriptor = {
   updatedAt: '2026-08-28T12:00:00.000Z'
 }
 
+const agentWallet: WalletDescriptor = { ...wallet, kind: 'agent' }
+
 const mainnetAgent: WalletDescriptor = {
   ...wallet,
   kind: 'agent',
@@ -84,12 +86,20 @@ function evaluate(overrides: Partial<WalletWebsiteSignInEvaluation> = {}) {
 }
 
 describe('website sign-in message checks', () => {
-  it('accepts bounded plain text and a sign-in message for the requesting site, address and chain', () => {
-    expect(websiteSignInMessageIssue(text('Log in to Dapp\tnonce 42\n'), wallet, 'https://dapp.example')).toBeUndefined()
-    expect(websiteSignInMessageIssue(text('Привіт, 日本 😀'), wallet, 'https://dapp.example')).toBeUndefined()
+  it('accepts a sign-in message for the requesting site, address and chain, and other plain text only for an agent wallet', () => {
+    expect(websiteSignInMessageIssue(text('Log in to Dapp\tnonce 42\n'), agentWallet, 'https://dapp.example')).toBeUndefined()
+    expect(websiteSignInMessageIssue(text('Привіт, 日本 😀'), agentWallet, 'https://dapp.example')).toBeUndefined()
+    // personal_sign signatures are valid on every chain, so a managed or imported key only signs domain-bound sign-in text.
+    expect(websiteSignInMessageIssue(text('Log in to Dapp\tnonce 42\n'), wallet, 'https://dapp.example')).toBe('plain-text-requires-agent-wallet')
     expect(websiteSignInMessageIssue(text(siwe()), wallet, 'https://dapp.example')).toBeUndefined()
     expect(websiteSignInMessageIssue(text(siwe({ header: 'https://dapp.example wants you to sign in with your Ethereum account:', address: address.toLowerCase() })), wallet, 'https://dapp.example')).toBeUndefined()
     expect(websiteSignInMessageIssue(text(siwe({ header: 'localhost:5173 wants you to sign in with your Ethereum account:' })), wallet, 'http://localhost:5173')).toBeUndefined()
+    expect(websiteSignInMessageIssue(text(siwe({ header: 'http://dapp.example wants you to sign in with your Ethereum account:' })), wallet, 'http://dapp.example')).toBeUndefined()
+  })
+
+  it('needs an explicit scheme from a plain-HTTP site that is not loopback, because verifiers read a missing scheme as https', () => {
+    expect(websiteSignInMessageIssue(text(siwe()), wallet, 'http://dapp.example')).toBe('sign-in-domain-mismatch')
+    expect(websiteSignInMessageIssue(text(siwe({ header: '127.0.0.1:8080 wants you to sign in with your Ethereum account:' })), wallet, 'http://127.0.0.1:8080')).toBeUndefined()
   })
 
   it.each([
@@ -103,7 +113,7 @@ describe('website sign-in message checks', () => {
     ['an empty message', new Uint8Array()],
     ['a message over 4 KiB', text('a'.repeat(4097))]
   ])('keeps %s with a person', (_name, message) => {
-    expect(websiteSignInMessageIssue(message, wallet, 'https://dapp.example')).toBe('message-not-plain-text')
+    expect(websiteSignInMessageIssue(message, agentWallet, 'https://dapp.example')).toBe('message-not-plain-text')
   })
 
   it.each([
@@ -134,10 +144,12 @@ describe('website sign-in policy', () => {
   it.each([
     ['an agent requester', { request: request({ requester: { type: 'agent', id: 'agent-1' } }) }, 'requester-not-website'],
     ['another origin', { request: request({ topLevelOrigin: 'https://other.example' }) }, 'no-matching-policy'],
-    ['another workspace', { request: request({ workspaceId: 'workspace-2' }) }, 'wallet-not-eligible'],
+    ['a workspace the wallet is not attached to', { request: request({ workspaceId: 'workspace-2' }) }, 'wallet-not-eligible'],
+    ['another workspace of an any-workspace wallet', { wallet: { ...wallet, availableInAllWorkspaces: true }, request: request({ workspaceId: 'workspace-2' }) }, 'no-matching-policy'],
     ['a transaction', { request: request({ operation: 'sign-transaction', capability: 'sign' }) }, 'operation-requires-human'],
     ['typed data', { request: request({ operation: 'sign-message', capability: 'sign' }), message: { kind: 'typed-data' as const } }, 'typed-data-requires-human'],
     ['raw eth_sign', { request: request({ operation: 'sign-message', capability: 'sign' }), message: { kind: 'message' as const, bytes: text('hello'), raw: true } }, 'raw-signing-requires-human'],
+    ['non-sign-in text on a managed wallet', { request: request({ operation: 'sign-message', capability: 'sign' }), message: { kind: 'message' as const, bytes: text('hello'), raw: false } }, 'plain-text-requires-agent-wallet'],
     ['a message without text', { request: request({ operation: 'sign-message', capability: 'sign' }) }, 'typed-data-requires-human'],
     ['an exhausted operation limit', { usageByPolicy: { 'sign-in': { operationCount: 5 } } }, 'no-matching-policy'],
     ['an expired policy', { now: new Date('2026-08-29T12:00:00.000Z') }, 'no-matching-policy'],
