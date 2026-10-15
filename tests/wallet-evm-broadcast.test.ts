@@ -57,7 +57,9 @@ describe('EVM broadcast refusals', () => {
     expect(await refusal('replacement transaction underpriced'))
       .toBe('EVM RPC error (code -32000): the node refused the transaction: replacement transaction underpriced')
     expect(await refusal('transaction underpriced: tip needed 1, tip permitted 0'))
-      .toBe('EVM RPC error (code -32000): the node refused the transaction: gas price is below the node minimum')
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: gas price is too low for the node to accept it')
+    expect(await refusal('transaction gas price below minimum: gas tip cap 0, minimum needed 1'))
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: gas price is too low for the node to accept it')
     expect(await refusal('max fee per gas less than block base fee: address 0x9858, maxFeePerGas: 1 baseFee: 7'))
       .toBe('EVM RPC error (code -32000): the node refused the transaction: max fee per gas is below the block base fee')
     expect(await refusal('already known'))
@@ -66,6 +68,25 @@ describe('EVM broadcast refusals', () => {
       .toBe('EVM RPC error (code -32000): the node refused the transaction: gas limit is below the minimum for this transaction')
     expect(await refusal('exceeds block gas limit', -32003))
       .toBe('EVM RPC error (code -32003): the node refused the transaction: gas limit is above what the network allows')
+    // Besu and Hardhat wordings.
+    expect(await refusal('Upfront cost exceeds account balance', -32004))
+      .toBe('EVM RPC error (code -32004): the node refused the transaction: the account cannot pay for gas and value')
+    expect(await refusal("Sender doesn't have enough funds to send tx. The max upfront cost is: 21000"))
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: the account cannot pay for gas and value')
+    expect(await refusal('Wrong chainId'))
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: the transaction is for another chain')
+    // Geth wraps signer errors in "invalid sender"; the more specific reason wins.
+    expect(await refusal('invalid sender: invalid chain id for signer: have 1 want 31337'))
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: the transaction is for another chain')
+    expect(await refusal('invalid sender: transaction type not supported'))
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: the network does not support this transaction type')
+    // A code outside the JSON-RPC server range never reaches the page, so 4001 cannot read as "the person rejected it".
+    expect(await refusal('nonce too high', 4001))
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: nonce too high, an earlier nonce has not been sent')
+    expect(await refusal('nonce too high', 5720))
+      .toBe('EVM RPC error (code -32000): the node refused the transaction: nonce too high, an earlier nonce has not been sent')
+    // "unknown transaction" is not "known transaction".
+    expect(await refusal('unknown transaction status')).not.toMatch(/node refused/)
     // Anything else keeps the original error, which the broker turns into its generic message.
     expect(await refusal('https://rpc.example.invalid/?apiKey=rpc-query-secret is rate limited')).toContain('rate limited')
   })

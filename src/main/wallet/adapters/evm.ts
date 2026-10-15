@@ -210,27 +210,33 @@ const MAX_READ_RPC_ERROR_DATA_CHARS = 258
  * can name the RPC endpoint. More specific wordings come first.
  */
 const BROADCAST_REFUSALS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/insufficient funds/i, 'the account cannot pay for gas and value'],
+  [/insufficient funds|upfront cost exceeds account balance|doesn't have enough funds/i, 'the account cannot pay for gas and value'],
   [/nonce too low|nonce has already been used/i, 'nonce too low, the account already used this nonce'],
   [/nonce too high/i, 'nonce too high, an earlier nonce has not been sent'],
   [/replacement transaction underpriced|replacement fee too low/i, 'replacement transaction underpriced'],
-  [/already known|known transaction|already imported/i, 'the node already has this transaction'],
+  [/already known|\bknown transaction|already imported/i, 'the node already has this transaction'],
   [/(?:max fee per gas|fee cap) less than block base fee/i, 'max fee per gas is below the block base fee'],
   [/max priority fee per gas higher than max fee per gas|tip higher than fee cap/i, 'priority fee is above the max fee'],
-  [/underpriced|gas price too low/i, 'gas price is below the node minimum'],
+  // Geth also says "transaction underpriced" when its pool is full and the fee cannot compete.
+  [/underpriced|gas price too low|gas price below minimum|fee too low/i, 'gas price is too low for the node to accept it'],
   [/intrinsic gas too low/i, 'gas limit is below the minimum for this transaction'],
-  [/exceeds block gas limit|gas limit too high|max transaction gas limit/i, 'gas limit is above what the network allows'],
-  [/(?:tx|transaction) type not supported/i, 'the network does not support this transaction type'],
-  [/invalid chain ?id/i, 'the transaction is for another chain'],
+  [/exceeds block gas limit|gas limit too high|gas limit reached|max transaction gas limit/i, 'gas limit is above what the network allows'],
+  [/(?:tx|transaction) type not supported|unsupported transaction type/i, 'the network does not support this transaction type'],
+  [/(?:invalid|wrong) chain ?id/i, 'the transaction is for another chain'],
   [/invalid sender/i, 'the node could not verify the signature']
 ]
+
+/** JSON-RPC server error codes; anything else could pass for a provider code such as 4001 (user rejected). */
+function serverErrorCode(code: number): number {
+  return Number.isSafeInteger(code) && code >= -32099 && code <= -32000 ? code : -32000
+}
 
 function broadcastError(error: unknown): unknown {
   const rpc = (error as BaseError | undefined)?.walk?.((cause) => cause instanceof RpcRequestError) as RpcRequestError | null | undefined
   if (!(rpc instanceof RpcRequestError)) return error
   const refusal = BROADCAST_REFUSALS.find(([pattern]) => pattern.test(rpc.details))
   if (!refusal) return error
-  return new Error(`EVM RPC error (code ${Number.isSafeInteger(rpc.code) ? rpc.code : -32000}): the node refused the transaction: ${refusal[1]}`)
+  return new Error(`EVM RPC error (code ${serverErrorCode(rpc.code)}): the node refused the transaction: ${refusal[1]}`)
 }
 
 function readRpcError(error: unknown): Error {
