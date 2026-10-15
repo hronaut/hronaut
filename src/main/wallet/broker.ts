@@ -5,6 +5,7 @@ import type {
   WalletAgentDescriptor,
   WalletChainFamily,
   WalletDescriptor,
+  WalletMessageWarning,
   WalletOperation,
   WalletOperationRequest,
   WalletPolicy,
@@ -17,6 +18,7 @@ import type {
 } from '../../shared/wallet.js'
 import {
   EVM_READ_RPC_METHODS,
+  WALLET_MESSAGE_DISPLAY_MAX_LENGTH,
   WALLET_PROVIDER_METHODS,
   WalletProviderRequestSchema,
   WalletUpdateInputSchema,
@@ -37,9 +39,14 @@ import type {
 } from './adapters/types.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
 import {
+  hasHiddenMessageCharacters,
   isMainnetAgentAutomationPolicy,
+  isSignInText,
+  revealHiddenMessageCharacters,
+  signInTextIssue,
   websiteSignInPolicyApplies,
   WalletPolicyEngine,
+  type WalletSignInTextIssue,
   type WalletPolicyDecision,
   type WalletWebsiteSignInEvaluation
 } from './policy.js'
@@ -224,6 +231,45 @@ function trustedMessageRaw(input: WalletMessageSigningInput): Record<string, unk
   return { message }
 }
 
+const SIGN_IN_TEXT_WARNINGS: Record<WalletSignInTextIssue, WalletMessageWarning> = {
+  'sign-in-domain-mismatch': 'sign-in-other-site',
+  'sign-in-address-mismatch': 'sign-in-other-account',
+  'sign-in-chain-mismatch': 'sign-in-other-chain',
+  'sign-in-message-unverified': 'sign-in-unverified'
+}
+
+/**
+ * Readable text of a UTF-8 message for the trusted approval dialog. Hidden
+ * characters are shown as [U+XXXX] markers, and Sign-In with Ethereum text
+ * that names another site, account or chain than this request is flagged.
+ * Binary messages and typed data have no text; the raw request shows them.
+ */
+function trustedMessageDisplay(
+  input: WalletMessageSigningInput,
+  wallet: WalletDescriptor,
+  topLevelOrigin: string
+): NonNullable<WalletRequestSummary['details']>['message'] {
+  if (input.kind !== 'message') return undefined
+  let text: string
+  try {
+    text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(input.message)
+  } catch {
+    return undefined
+  }
+  const warnings: WalletMessageWarning[] = []
+  if (hasHiddenMessageCharacters(text)) warnings.push('hidden-characters')
+  if (wallet.chainFamily === 'evm' && isSignInText(text)) {
+    const issue = signInTextIssue(text, wallet, topLevelOrigin)
+    if (issue) warnings.push(SIGN_IN_TEXT_WARNINGS[issue])
+  }
+  const visible = revealHiddenMessageCharacters(text)
+  return {
+    text: visible.slice(0, WALLET_MESSAGE_DISPLAY_MAX_LENGTH),
+    ...(visible.length > WALLET_MESSAGE_DISPLAY_MAX_LENGTH ? { truncated: true as const } : {}),
+    warnings
+  }
+}
+
 export class WalletBroker {
   private readonly adapters: Record<WalletChainFamily, WalletChainAdapter>
   private readonly policy = new WalletPolicyEngine()
@@ -294,11 +340,18 @@ export class WalletBroker {
   listPending(): WalletRequestSummary[] {
     const wallets = new Map(this.service.list().map((wallet) => [wallet.id, wallet]))
     return this.service.approvals.list().map((record) => {
-      const result = summary(record, wallets.get(record.request.walletId))
+      const wallet = wallets.get(record.request.walletId)
+      const result = summary(record, wallet)
       const pendingMessage = this.pendingMessages.get(record.id)
-      if (result.details && pendingMessage) {
+      if (result.details && pendingMessage && wallet) {
         result.details.raw = { ...result.details.raw, ...trustedMessageRaw(pendingMessage) }
         result.details.method = pendingMessage.kind === 'typed-data' ? 'typed-data-signing' : 'message-signing'
+        const message = trustedMessageDisplay(pendingMessage, wallet, record.request.topLevelOrigin)
+        if (message) {
+          result.details.message = message
+          // The whole text is on screen, so it is not an undecodable request.
+          result.details.understood = !message.truncated && !message.warnings.includes('hidden-characters')
+        }
       }
       return result
     })

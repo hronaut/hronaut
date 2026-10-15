@@ -91,7 +91,7 @@ The page can also read chain state through the provider itself (`eth_blockNumber
 1. Click **Discover provider**. The log must show an EIP-6963 announcement with `rdns: "dev.hronaut.wallet"` and `isHronaut: true`.
 2. Click **Request accounts**, then reject the trusted Hronaut dialog. The fixture must log a correlated `provider-rejection` with error code `4001`, while wallet dispatch and approval remain `unknown` and no account is exposed.
 3. Request accounts again and approve. The fixture logs the disposable account count and an `accountsChanged` count without recording the address.
-4. Click **Sign in with Ethereum**. In the Hronaut approval, expand **Raw unsigned request**: `message.utf8Preview` holds the sign-in text naming `http://127.0.0.1:4173`, the account, and chain ID `31337`. Reject it once and check for a correlated `provider-rejection` with code `4001`, then click again and approve. The fixture logs `signatureReturned: true` and `signatureBytes: 65`, never the text or signature.
+4. Click **Sign in with Ethereum**. The Hronaut approval shows the sign-in text under **Message to sign**, naming `http://127.0.0.1:4173`, the account, and chain ID `31337`, with no warning. Reject it once and check for a correlated `provider-rejection` with code `4001`, then click again and approve. The fixture logs `signatureReturned: true` and `signatureBytes: 65`, never the text or signature.
 5. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
 
 For a real network-change event, start a second disposable node:

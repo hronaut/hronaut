@@ -16,6 +16,11 @@
 .wallet-approval-grid dt { @apply text-muted [font-size:11px] [font-weight:750] uppercase; }
 .wallet-approval-grid dd { @apply [margin:4px_0_0] [overflow-wrap:anywhere]; }
 .wallet-approval-warning { @apply [padding:11px_13px] [border:1px_solid_#d97706] [border-radius:8px] [background:rgba(217,_119,_6,_.12)]; }
+.wallet-approval-message { @apply grid [gap:8px]; }
+.wallet-approval-message h3 { @apply m-0 text-muted [font-size:11px] [font-weight:750] uppercase; }
+.wallet-approval-message p { @apply m-0; }
+.wallet-approval-message-text { @apply [max-height:240px] m-0 [padding:12px] overflow-auto [border:1px_solid_var(--border-soft)] [border-radius:8px] bg-surface-muted [font-size:12px] whitespace-pre-wrap [overflow-wrap:anywhere]; }
+.wallet-approval-message-note { @apply text-muted [font-size:11px]; }
 .wallet-approval-raw { @apply [border:1px_solid_var(--border-soft)] [border-radius:8px]; }
 .wallet-approval-raw summary { @apply [padding:10px_12px] cursor-pointer; }
 .wallet-approval-raw pre { @apply [max-height:240px] m-0 [padding:12px] overflow-auto [border-top:1px_solid_var(--border-soft)] bg-surface-muted [font-size:11px] whitespace-pre-wrap; }

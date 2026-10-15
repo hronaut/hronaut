@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
+import type { WalletMessageWarning } from '../../../shared/wallet.js'
 
 const props = defineProps<{
   controller: WalletsController
@@ -21,6 +22,14 @@ const workspaceName = computed(() => {
 const panel = ref<HTMLElement | null>(null)
 
 useModalDialogFocus({ open, panel, focusKey: requestId })
+
+const messageWarningKeys: Record<WalletMessageWarning, string> = {
+  'hidden-characters': 'hiddenCharacters',
+  'sign-in-other-site': 'signInOtherSite',
+  'sign-in-other-account': 'signInOtherAccount',
+  'sign-in-other-chain': 'signInOtherChain',
+  'sign-in-unverified': 'signInUnverified'
+}
 
 function rawDetails(): string {
   return JSON.stringify(request.value?.details?.raw ?? {}, null, 2)
@@ -54,6 +63,12 @@ function rawDetails(): string {
       <div v-if="!request.details?.understood" class="wallet-approval-warning" role="alert">
         {{ t('wallets.approval.undecodable') }}
       </div>
+      <section v-if="request.details?.message" class="wallet-approval-message" aria-labelledby="wallet-approval-message-title">
+        <h3 id="wallet-approval-message-title">{{ t('wallets.approval.message') }}</h3>
+        <p v-for="warning in request.details.message.warnings" :key="warning" class="wallet-approval-warning" role="alert">{{ t(`wallets.approval.messageWarnings.${messageWarningKeys[warning]}`) }}</p>
+        <pre class="wallet-approval-message-text" tabindex="0" :aria-label="t('wallets.approval.message')">{{ request.details.message.text }}</pre>
+        <p v-if="request.details.message.truncated" class="wallet-approval-message-note">{{ t('wallets.approval.messageTruncated') }}</p>
+      </section>
       <details class="wallet-approval-raw">
         <summary>{{ t('wallets.approval.raw') }}</summary>
         <pre>{{ rawDetails() }}</pre>

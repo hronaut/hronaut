@@ -455,6 +455,15 @@ export const enUS = {
       unavailable: 'Not available',
       expires: 'Expires',
       undecodable: 'Hronaut could not fully decode this request. Approval requires extra care.',
+      message: 'Message to sign',
+      messageTruncated: 'Only the first 4,096 characters are shown here. The raw unsigned request below holds the complete message as base64.',
+      messageWarnings: {
+        hiddenCharacters: 'This message contains hidden or direction-changing characters, shown here as [U+…] codes. They can make the text look different elsewhere.',
+        signInOtherSite: 'This sign-in message names a different website than the one asking. Signing it could log someone in to that other site as you.',
+        signInOtherAccount: 'This sign-in message names a different account than this wallet.',
+        signInOtherChain: "This sign-in message names a different chain than this wallet's network.",
+        signInUnverified: 'This looks like a Sign-In with Ethereum message but does not follow its format, so Hronaut cannot check which site, account and chain it is for.'
+      },
       raw: 'Raw unsigned request',
       hash: 'Approval hash',
       hashPending: 'calculated on approval',

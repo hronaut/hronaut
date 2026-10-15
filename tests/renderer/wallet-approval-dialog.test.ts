@@ -83,6 +83,42 @@ describe('WalletApprovalDialog', () => {
     background.remove()
   })
 
+  it('shows message text outside the raw request, with each warning as an alert', () => {
+    const pending = request()
+    pending.details = {
+      ...pending.details!,
+      understood: true,
+      message: { text: 'phishing.example wants you to sign in with your Ethereum account:\n0x01', warnings: ['sign-in-other-site', 'sign-in-other-chain'] }
+    }
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+
+    const text = screen.getByLabelText('Message to sign', { selector: 'pre' })
+    expect(text.tagName).toBe('PRE')
+    expect(text.closest('details')).toBeNull()
+    expect(text.textContent).toBe('phishing.example wants you to sign in with your Ethereum account:\n0x01')
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent)).toEqual([
+      'This sign-in message names a different website than the one asking. Signing it could log someone in to that other site as you.',
+      "This sign-in message names a different chain than this wallet's network."
+    ])
+    expect(screen.queryByText(/could not fully decode/)).toBeNull()
+    expect(screen.queryByText(/first 4,096 characters/)).toBeNull()
+  })
+
+  it('says when the shown message text is cut short', () => {
+    const pending = request()
+    pending.details = { ...pending.details!, understood: false, message: { text: 'a'.repeat(4_096), truncated: true, warnings: [] } }
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+
+    expect(screen.getByText(/Only the first 4,096 characters are shown here/)).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('could not fully decode')
+  })
+
   it('falls back to the immutable workspace ID when the workspace no longer exists', () => {
     const wallets = controller()
     render(WalletApprovalDialog, {

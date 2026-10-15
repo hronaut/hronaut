@@ -153,6 +153,7 @@ export const WEBSITE_SIGN_IN_MAX_MESSAGE_BYTES = 4096
 // characters. Carriage returns are excluded so a sign-in header cannot hide
 // behind CRLF line endings.
 const NON_PLAIN_TEXT = /[^\P{Cc}\t\n]|[\p{Cf}\p{Co}\p{Zl}\p{Zp}]/u
+const HIDDEN_CHARACTERS = new RegExp(NON_PLAIN_TEXT.source, 'gu')
 const SIGN_IN_PHRASE = /wants you to sign in with your/i
 const EIP_4361_HEADER = /^(?:([a-zA-Z][a-zA-Z0-9+.-]*):\/\/)?([^\s/?#]+) wants you to sign in with your Ethereum account:$/
 const EVM_ADDRESS_LINE = /^0x[0-9a-fA-F]{40}$/
@@ -176,7 +177,36 @@ export function websiteSignInMessageIssue(message: Uint8Array, wallet: WalletDes
     return 'message-not-plain-text'
   }
   if (NON_PLAIN_TEXT.test(text)) return 'message-not-plain-text'
-  if (!SIGN_IN_PHRASE.test(text)) return wallet.kind === 'agent' ? undefined : 'plain-text-requires-agent-wallet'
+  if (!isSignInText(text)) return wallet.kind === 'agent' ? undefined : 'plain-text-requires-agent-wallet'
+  return signInTextIssue(text, wallet, topLevelOrigin)
+}
+
+export type WalletSignInTextIssue =
+  | 'sign-in-message-unverified'
+  | 'sign-in-domain-mismatch'
+  | 'sign-in-address-mismatch'
+  | 'sign-in-chain-mismatch'
+
+/** Whether text uses the Sign-In with Ethereum or Solana phrase. */
+export function isSignInText(text: string): boolean {
+  return SIGN_IN_PHRASE.test(text)
+}
+
+/** Whether text holds control (other than tab and line feed), format, bidirectional, zero-width, private-use, or line or paragraph separator characters. */
+export function hasHiddenMessageCharacters(text: string): boolean {
+  return NON_PLAIN_TEXT.test(text)
+}
+
+/** Replaces each hidden character with a visible [U+XXXX] marker. */
+export function revealHiddenMessageCharacters(text: string): string {
+  return text.replace(HIDDEN_CHARACTERS, (character) => `[U+${(character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}]`)
+}
+
+/**
+ * Why EIP-4361 text does not name the requesting site, the wallet address and
+ * its chain, or undefined when it names all three.
+ */
+export function signInTextIssue(text: string, wallet: WalletDescriptor, topLevelOrigin: string): WalletSignInTextIssue | undefined {
   const lines = text.split('\n')
   const header = EIP_4361_HEADER.exec(lines[0] ?? '')
   const addressLine = lines[1] ?? ''
