@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
+// @vitest-environment-options {"url": "http://127.0.0.1:4173/"}
 import { readFile } from 'node:fs/promises'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { websiteSignInMessageIssue } from '../src/main/wallet/policy.js'
+import type { WalletDescriptor } from '../src/shared/wallet.js'
 
 interface FixtureEvent {
   kind: string
@@ -30,7 +33,7 @@ function pageWith(provider?: { request?: ReturnType<typeof vi.fn> }): FixturePag
   const page = frame.contentWindow as FixturePage
   page.document.body.innerHTML = `
     <button id="discover"></button><button id="connect"></button><button id="accounts"></button>
-    <button id="chain"></button><button id="switch"></button><button id="send"></button>
+    <button id="chain"></button><button id="switch"></button><button id="sign-in"></button><button id="send"></button>
     <button id="receipt"></button><input id="chain-id" value="0x7a6a">
     <input id="recipient" value="0x1000000000000000000000000000000000000001">
     <input id="hash"><input id="rpc" value="http://127.0.0.1:8545">
@@ -246,6 +249,98 @@ describe('wallet QA request evidence', () => {
     ]))
     expect(page.document.querySelector('#log')?.textContent).not.toContain('private.example')
     expect(page.document.querySelector('#log')?.textContent).not.toContain('secret')
+  })
+})
+
+describe('wallet QA sign-in', () => {
+  const account = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  const signature = `0x${'c'.repeat(130)}`
+  const importedWallet: WalletDescriptor = {
+    id: 'wallet-1',
+    name: 'Disposable Anvil wallet',
+    kind: 'imported',
+    chainFamily: 'evm',
+    publicAddress: account,
+    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+    capabilities: ['read', 'sign', 'send'],
+    workspaceIds: ['workspace-1'],
+    policyIds: [],
+    recoveryConfirmed: true,
+    createdAt: '2026-10-15T12:00:00.000Z',
+    updatedAt: '2026-10-15T12:00:00.000Z'
+  }
+  const signer = (accounts: string[]) => vi.fn(async ({ method }: { method: string; params?: unknown[] }) => {
+    if (method === 'eth_accounts') return accounts
+    if (method === 'eth_chainId') return '0x7a69'
+    if (method === 'personal_sign') return signature
+    throw new Error('Unexpected method')
+  })
+
+  it('signs Sign-In with Ethereum text that the website sign-in policy accepts for this page', async () => {
+    const request = signer([account])
+    const page = pageWith({ request })
+
+    await click(page, '#sign-in')
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts', 'eth_chainId', 'personal_sign'])
+    const [encoded, signingAccount] = request.mock.calls[2]?.[0].params as [string, string]
+    expect(signingAccount).toBe(account)
+    expect(encoded).toMatch(/^0x(?:[0-9a-f]{2})+$/)
+    const bytes = Uint8Array.from(encoded.slice(2).match(/../g) ?? [], byte => Number.parseInt(byte, 16))
+    const lines = new TextDecoder().decode(bytes).split('\n')
+    expect(lines.slice(0, 8)).toEqual([
+      'http://127.0.0.1:4173 wants you to sign in with your Ethereum account:',
+      account,
+      '',
+      'Sign in to the Hronaut wallet QA fixture.',
+      '',
+      'URI: http://127.0.0.1:4173/',
+      'Version: 1',
+      'Chain ID: 31337'
+    ])
+    expect(lines[8]).toMatch(/^Nonce: [0-9a-f]{16}$/)
+    expect(lines[9]).toMatch(/^Issued At: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    expect(lines).toHaveLength(10)
+    // The same check Hronaut runs before signing without a click.
+    expect(websiteSignInMessageIssue(bytes, importedWallet, 'http://127.0.0.1:4173')).toBeUndefined()
+
+    expect(events(page)).toEqual(expect.arrayContaining([
+      {
+        kind: 'request:start',
+        value: expect.objectContaining({
+          requestId: 'request-3',
+          method: 'personal_sign',
+          parameterSummary: { message: 'eip-4361-sign-in', encoding: 'hex-utf8', account: 'first-connected-account' }
+        })
+      },
+      {
+        kind: 'request:result',
+        value: expect.objectContaining({
+          requestId: 'request-3',
+          method: 'personal_sign',
+          result: { signatureReturned: true, signatureBytes: 65 }
+        })
+      }
+    ]))
+    const visibleLog = page.document.querySelector('#log')?.textContent ?? ''
+    expect(visibleLog.toLowerCase()).not.toContain(account.toLowerCase())
+    expect(visibleLog).not.toContain(signature)
+    expect(visibleLog).not.toContain(encoded)
+    expect(visibleLog).not.toContain('wants you to sign in')
+    expect(visibleLog).not.toContain(lines[8]?.slice('Nonce: '.length))
+  })
+
+  it('asks for no signature before the page has a connected account', async () => {
+    const request = signer([])
+    const page = pageWith({ request })
+
+    await click(page, '#sign-in')
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts'])
+    expect(events(page).at(-1)).toEqual({
+      kind: 'fixture:error',
+      value: { stage: 'sign-in-account', walletBehavior: 'not-exercised', error: { category: 'fixture-error' } }
+    })
   })
 })
 

@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Websites can connect and sign in without a click when you opt in. A new, default-off **Let this site connect and sign in without asking** switch on a bounded wallet policy approves account connection and `personal_sign` sign-in messages from that policy's exact origin on EVM testnets and loopback local chains, so an agent can test a dApp's login flow unattended. A Sign-In with Ethereum message must name the requesting site, the wallet address and its chain; other plain text is signed without asking only by a dedicated agent wallet. Typed data, raw `eth_sign` and transactions still ask, each connection or signature counts toward the policy's operation limit, and granted access expires no later than the policy. A second, separate **Also allow on mainnet** switch with a warning extends this to a dedicated EVM mainnet agent wallet with one origin, at most 100 operations and a seven-day expiry.
 
+- The local wallet QA fixture has a **Sign in with Ethereum** button that signs an EIP-4361 message for the page's origin, connected account and chain, logging only whether a signature came back and its length. The wallet QA quickstart shows how to approve it by hand and how to let an agent sign in without a click.
+
 ## [2.44.0] - 2026-10-15
 
 ### Added
