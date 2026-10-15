@@ -1,7 +1,8 @@
 import type { BrowserWindow, WebContents, WebContentsView } from 'electron'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
 
 const pending = new WeakSet<WebContentsView>()
-const VISIBILITY_WORLD_ID = 1010
+const VISIBILITY_WORLD_ID = ISOLATED_WORLDS.presentedViewVisibility
 const VISIBILITY_PROBE_TIMEOUT_MS = 1_500
 
 /** Repair Electron 44's stale native visibility without reloading or focusing. */

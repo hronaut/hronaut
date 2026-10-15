@@ -1,7 +1,8 @@
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import type { BrowserImageState } from '../../shared/types.js'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
 
-export const IMAGE_STATE_WORLD_ID = 1022
+export const IMAGE_STATE_WORLD_ID = ISOLATED_WORLDS.imageState
 
 export function imageStateScript(selector: string, token: string, deadline: number): string {
   return `(() => {

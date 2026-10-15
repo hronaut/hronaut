@@ -3,8 +3,9 @@ import { OMITTED_METADATA_URL, PAGE_METADATA_LIMITS, pageMetadataScript } from '
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { BrowserPageMetadataReport } from '../../../shared/types.js'
+import { ISOLATED_WORLDS } from '../isolated-worlds.js'
 
-const PAGE_METADATA_WORLD_ID = 1004
+const PAGE_METADATA_WORLD_ID = ISOLATED_WORLDS.pageMetadata
 
 export interface PageMetadataTab {
   id: string

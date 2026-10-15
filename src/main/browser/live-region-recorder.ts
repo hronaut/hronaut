@@ -8,8 +8,9 @@ import {
 } from '../../shared/live-region.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
 import { isHronautHomeUrl } from './url.js'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
 
-const LIVE_REGION_WORLD_ID = 1024
+const LIVE_REGION_WORLD_ID = ISOLATED_WORLDS.liveRegion
 
 export interface BrowserLiveRegionRecordingState {
   active: boolean

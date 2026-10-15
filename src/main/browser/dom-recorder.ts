@@ -3,8 +3,9 @@ import type { BrowserDomChangesAction, BrowserDomChangesReport } from '../../sha
 import { domChangesPageScript } from '../../shared/dom-changes.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
 import { isHronautHomeUrl } from './url.js'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
 
-const DOM_CHANGES_WORLD_ID = 1005
+const DOM_CHANGES_WORLD_ID = ISOLATED_WORLDS.domChanges
 
 export interface BrowserDomRecordingState {
   active: boolean
