@@ -7,7 +7,6 @@ import {
   hexToBigInt,
   http,
   isAddress,
-  maxUint256,
   parseAbi,
   RpcRequestError,
   TransactionReceiptNotFoundError,
@@ -30,6 +29,7 @@ import type {
   WalletTransactionSimulation
 } from './types.js'
 import { formatTokenUnits } from './types.js'
+import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
 
 const HexSchema = z.string().regex(/^0x(?:[a-fA-F0-9]{2})*$/).max(2_000_002)
 const QuantitySchema = z.union([
@@ -58,10 +58,14 @@ const EvmTransactionSchema = z.object({
   }
 })
 
+// ERC-721 shares the approve and transferFrom signatures, so those can also be
+// an NFT approval or transfer whose amount is a token ID.
 const TOKEN_ABI = parseAbi([
   'function transfer(address to, uint256 amount) returns (bool)',
   'function approve(address spender, uint256 amount) returns (bool)',
-  'function transferFrom(address from, address to, uint256 amount) returns (bool)'
+  'function increaseAllowance(address spender, uint256 addedValue) returns (bool)',
+  'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+  'function setApprovalForAll(address operator, bool approved)'
 ])
 
 function quantity(value: z.infer<typeof QuantitySchema> | undefined): bigint | undefined {
@@ -111,6 +115,7 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
     if (decoded.functionName === 'transfer') {
       return {
         understood: true,
+        contract: to,
         destination: decoded.args[0],
         method: 'erc20.transfer',
         nativeAmount: formatEther(value),
@@ -120,14 +125,28 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
         blindMessage: false
       }
     }
-    if (decoded.functionName === 'approve') {
+    if (decoded.functionName === 'approve' || decoded.functionName === 'increaseAllowance') {
       return {
         understood: true,
+        contract: to,
         destination: decoded.args[0],
-        method: 'erc20.approve',
+        method: `erc20.${decoded.functionName}`,
         nativeAmount: formatEther(value),
         tokenAmount: decoded.args[1].toString(),
-        unlimitedAllowance: decoded.args[1] === maxUint256,
+        unlimitedAllowance: decoded.args[1] >= UNLIMITED_TOKEN_AMOUNT,
+        newContractOrProgram: false,
+        blindMessage: false
+      }
+    }
+    if (decoded.functionName === 'setApprovalForAll') {
+      // Approving lets the operator move every NFT this wallet holds in the collection.
+      return {
+        understood: true,
+        contract: to,
+        destination: decoded.args[0],
+        method: 'nft.setApprovalForAll',
+        nativeAmount: formatEther(value),
+        unlimitedAllowance: decoded.args[1],
         newContractOrProgram: false,
         blindMessage: false
       }
@@ -135,6 +154,7 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
     const source = decoded.args[0]
     return {
       understood: sameAddress(source, signer),
+      contract: to,
       source,
       destination: decoded.args[1],
       method: 'erc20.transferFrom',

@@ -219,6 +219,51 @@ describe('WalletApprovalDialog', () => {
     )
   })
 
+  it('names the token contract and spender of a token approval and warns about an unlimited amount', () => {
+    const pending = request()
+    pending.operation = 'sign-and-send-transaction'
+    pending.details = {
+      ...pending.details!,
+      capability: 'send', method: 'erc20.approve', source: undefined,
+      contract: '0x00000000000000000000000000000000000000Aa', destination: '0x0000000000000000000000000000000000000003',
+      tokenAmount: (2n ** 256n - 1n).toString(), transactionWarnings: ['token-approval', 'unlimited-allowance']
+    }
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+    const dialog = screen.getByRole('alertdialog')
+    const row = (label: string) => [...dialog.querySelectorAll('dt')].find((term) => term.textContent === label)?.nextElementSibling?.textContent
+    expect(row('Token contract')).toBe('0x00000000000000000000000000000000000000Aa')
+    expect(row('Spender')).toBe('0x0000000000000000000000000000000000000003')
+    expect(row('Destination')).toBeUndefined()
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toEqual([
+      'This is a token approval. It lets the spender move this token from your wallet later, up to the amount shown, without asking you again. On an NFT contract the amount is the ID of the one NFT it can move.',
+      'The approved amount is unlimited, so the spender can move all of this token in your wallet, now or later. On an NFT contract it is instead a very large token ID.'
+    ])
+  })
+
+  it('names the operator of a collection-wide NFT approval and warns about it', () => {
+    const pending = request()
+    pending.operation = 'sign-and-send-transaction'
+    pending.details = {
+      ...pending.details!,
+      capability: 'send', method: 'nft.setApprovalForAll', source: undefined,
+      contract: '0x00000000000000000000000000000000000000Bb', destination: '0x0000000000000000000000000000000000000004',
+      transactionWarnings: ['collection-approval']
+    }
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+    const dialog = screen.getByRole('alertdialog')
+    const row = (label: string) => [...dialog.querySelectorAll('dt')].find((term) => term.textContent === label)?.nextElementSibling?.textContent
+    expect(row('Operator')).toBe('0x0000000000000000000000000000000000000004')
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toEqual([
+      'This approves the operator for the whole collection. It can move every NFT this wallet holds from this contract, including ones it receives later, until the approval is revoked.'
+    ])
+  })
+
   it('falls back to the immutable workspace ID when the workspace no longer exists', () => {
     const wallets = controller()
     render(WalletApprovalDialog, {

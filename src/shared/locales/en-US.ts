@@ -450,8 +450,11 @@ export const enUS = {
       requester: 'Requester',
       requesterValue: '{name} ({type})',
       method: 'Method',
+      contract: 'Token contract',
       source: 'Source account',
       destination: 'Destination',
+      spender: 'Spender',
+      operator: 'Operator',
       nativeAmount: 'Native amount',
       tokenAmount: 'Token amount',
       estimatedFee: 'Estimated fee',
@@ -461,6 +464,12 @@ export const enUS = {
       unavailable: 'Not available',
       expires: 'Expires',
       undecodable: 'Hronaut could not fully decode this request. Approval requires extra care.',
+      transactionWarnings: {
+        tokenApproval: 'This is a token approval. It lets the spender move this token from your wallet later, up to the amount shown, without asking you again. On an NFT contract the amount is the ID of the one NFT it can move.',
+        allowanceIncrease: "This raises the spender's token allowance by the amount shown. The spender can then move this token from your wallet later without asking you again, up to the new total, which may be more than the amount shown.",
+        unlimitedAllowance: 'The approved amount is unlimited, so the spender can move all of this token in your wallet, now or later. On an NFT contract it is instead a very large token ID.',
+        collectionApproval: 'This approves the operator for the whole collection. It can move every NFT this wallet holds from this contract, including ones it receives later, until the approval is revoked.'
+      },
       message: 'Message to sign',
       messageTruncated: 'Only the first {count} characters are shown here. The raw unsigned request below holds the complete message as base64.',
       messageWarnings: {

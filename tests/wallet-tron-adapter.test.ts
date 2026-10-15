@@ -123,6 +123,22 @@ describe('TronWalletAdapter', () => {
     })
   })
 
+  it('names the TRC-20 contract and treats near-maximum approvals as unlimited', async () => {
+    const adapter = new TronWalletAdapter(() => rpc())
+    await expect(adapter.normalizeTransaction(wallet(), trc20('095ea7b3', 2n ** 200n))).resolves.toMatchObject({
+      decoded: { method: 'trc20.approve', contract: destination, destination, unlimitedAllowance: true }
+    })
+    await expect(adapter.normalizeTransaction(wallet(), trc20('095ea7b3', 2n ** 160n - 2n))).resolves.toMatchObject({
+      decoded: { method: 'trc20.approve', unlimitedAllowance: false }
+    })
+    await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n))).resolves.toMatchObject({
+      decoded: { method: 'trc20.transfer', contract: destination }
+    })
+    await expect(adapter.normalizeTransaction(wallet(), trc20TransferFrom(owner, 5n))).resolves.toMatchObject({
+      decoded: { method: 'trc20.transferFrom', contract: destination, source: owner }
+    })
+  })
+
   it('rejects account mismatch, malformed addresses, and multi-contract requests', async () => {
     const adapter = new TronWalletAdapter(() => rpc())
     await expect(adapter.normalizeTransaction(wallet({ publicAddress: destination }), transfer()))

@@ -10,6 +10,12 @@ All notable changes to Hronaut are documented in this file.
 
 - Wallet approvals for EIP-712 typed data warn when the request looks like a marketplace or exchange order (Seaport, Blur, 1inch, CoW Protocol, 0x or LooksRare), which anyone can fill to take the tokens or NFTs it offers, or a Safe multisig transaction or message, which can move the Safe's assets.
 
+- Transaction approvals for token calls show the token contract, call an approval's destination the spender, and warn that a token approval lets the spender move the token later without asking. NFT `setApprovalForAll` calls are now recognized: granting access warns that the operator can move every NFT in the collection. ERC-20 `increaseAllowance` is recognized too, with a warning that it adds to any existing allowance.
+
+### Changed
+
+- An ERC-20 or TRC-20 approval of at least 2^160 − 1, not only the exact uint256 maximum, now counts as unlimited, so it always needs a person even when a bounded policy lists `erc20.approve`. A `setApprovalForAll` that grants access and every `increaseAllowance` also always need a person. A bounded policy that lists `nft.setApprovalForAll` can now sign a call that revokes an operator without a click.
+
 ## [2.45.0] - 2026-10-15
 
 ### Added
