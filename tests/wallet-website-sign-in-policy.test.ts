@@ -300,6 +300,29 @@ describe('website typed-data policy', () => {
     }
   })
 
+  it('signs a Safe transaction on a testnet but keeps one on mainnet with a person', () => {
+    const safeTx = (chainId: number) => ({
+      domain: { chainId, verifyingContract: permitToken },
+      primaryType: 'SafeTx',
+      types: { SafeTx: [{ name: 'to', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'data', type: 'bytes' }, { name: 'nonce', type: 'uint256' }] },
+      message: { to: permitSpender, value: '1', data: '0x', nonce: '0' }
+    })
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(safeTx(11155111)) }))
+      .toMatchObject({ outcome: 'approved' })
+    expect(evaluate({
+      wallet: mainnetAgent, request: request({ operation: 'sign-message', capability: 'sign', networkId: '1' }),
+      policies: [mainnetTypedDataPolicy], message: typedDataMessage(safeTx(1))
+    })).toEqual({ outcome: 'awaiting-human', reason: 'typed-data-safe-transaction-on-mainnet' })
+    const safeMessage = {
+      domain: { chainId: 1, verifyingContract: permitToken }, primaryType: 'SafeMessage',
+      types: { SafeMessage: [{ name: 'message', type: 'bytes' }] }, message: { message: '0x1234' }
+    }
+    expect(evaluate({
+      wallet: mainnetAgent, request: request({ operation: 'sign-message', capability: 'sign', networkId: '1' }),
+      policies: [mainnetTypedDataPolicy], message: typedDataMessage(safeMessage)
+    })).toEqual({ outcome: 'awaiting-human', reason: 'typed-data-safe-transaction-on-mainnet' })
+  })
+
   it('needs the separate mainnet typed-data switch on mainnet', () => {
     const mainnetSign = request({ operation: 'sign-message', capability: 'sign', networkId: '1' })
     const mainnetPermit = typedDataMessage(permit({ name: 'QA Token', version: '1', chainId: 1, verifyingContract: permitToken }))

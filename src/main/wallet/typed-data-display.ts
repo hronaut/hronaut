@@ -20,6 +20,29 @@ const PERMIT2_TRANSFER_TYPES = new Set([
 ])
 // EIP-3009 authorizations move tokens directly to a recipient.
 const TRANSFER_AUTHORIZATION_TYPES = new Set(['TransferWithAuthorization', 'ReceiveWithAuthorization'])
+// Marketplace and exchange orders that anyone can fill to take what they offer:
+// Seaport and its bulk listings, Blur (and its bulk Root), 1inch, CoW Protocol
+// and 0x (Order), 1inch RFQ, 0x v4 and LooksRare. Matching by name may also warn
+// about an unrelated "Order", which errs on the side of caution.
+const ASSET_ORDER_TYPES = new Set([
+  'OrderComponents',
+  'BulkOrder',
+  'Order',
+  'Root',
+  'OrderRFQ',
+  'LimitOrder',
+  'RfqOrder',
+  'OtcOrder',
+  'ERC721Order',
+  'ERC1155Order',
+  'Maker',
+  'MakerOrder',
+  'BatchOrder'
+])
+// A Safe multisig transaction can move the Safe's assets or change its owners,
+// and a Safe message makes the Safe accept any signature it wraps, such as a
+// permit for the Safe's tokens.
+const SAFE_TYPES = new Set(['SafeTx', 'SafeMessage'])
 
 type Allowance = NonNullable<WalletTypedDataDisplay['tokenAccess']>['allowances'][number]
 type Types = Record<string, unknown>
@@ -174,7 +197,8 @@ export function typedDataSignedChainId(typedData: unknown): bigint | undefined {
  * What an EIP-712 request asks to sign, for the trusted approval dialog:
  * its type and signed domain fields, the spender or recipient and tokens of
  * a token permit or transfer authorization, and warnings for those, for
- * unlimited amounts and for a domain on another chain. The typed data comes
+ * unlimited amounts, for marketplace or exchange orders and Safe
+ * transactions, and for a domain on another chain. The typed data comes
  * from the page, so every field is treated as unknown, and only fields the
  * signer hashes are read.
  */
@@ -195,6 +219,8 @@ export function typedDataDisplay(typedData: unknown, wallet: WalletDescriptor): 
     if (access.unlimited) warnings.push('unlimited-amount')
     if (access.unreadable) warnings.push('unreadable-amount')
   }
+  if (ASSET_ORDER_TYPES.has(primaryType)) warnings.push('asset-order')
+  if (SAFE_TYPES.has(primaryType)) warnings.push('safe-transaction')
   const name = text(domain.get('name')?.value)
   const version = text(domain.get('version')?.value)
   const chainIdText = integerText(chainId)

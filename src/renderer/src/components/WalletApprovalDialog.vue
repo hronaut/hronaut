@@ -36,7 +36,9 @@ const typedDataWarningKeys: Record<WalletTypedDataWarning, string> = {
   'token-permit': 'tokenPermit',
   'token-transfer': 'tokenTransfer',
   'unlimited-amount': 'unlimitedAmount',
-  'unreadable-amount': 'unreadableAmount'
+  'unreadable-amount': 'unreadableAmount',
+  'asset-order': 'assetOrder',
+  'safe-transaction': 'safeTransaction'
 }
 
 // Transfers move an amount once; permits grant an allowance. Several are numbered.
