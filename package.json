@@ -135,7 +135,7 @@
     "eslint-plugin-promise": "^7.3.0",
     "eslint-plugin-vue": "^10.11.1",
     "globals": "^17.13.0",
-    "jsdom": "^30.1.2",
+    "jsdom": "^30.1.1",
     "react-dom-fixture": "npm:react-dom@19.2.4",
     "react-fixture": "npm:react@19.2.4",
     "scheduler-fixture": "npm:scheduler@0.27.0",
