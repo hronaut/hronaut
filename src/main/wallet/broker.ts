@@ -1746,7 +1746,8 @@ export class WalletBroker {
       && record.request.topLevelOrigin === context.topLevelOrigin
       && record.request.requester.type === 'agent'
       && record.request.requester.id === context.requester.id
-      && ['validated', 'simulated', 'policy-decision', 'awaiting-human'].includes(record.status)
+      // An approved request is about to grant the permission; asking again would prompt the person twice.
+      && ['validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'].includes(record.status)
     ))
     const record = existing ?? (await this.createAddressPermissionRequest(context, wallet)).record
     return agentSummary(record, wallet, false)
