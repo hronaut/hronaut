@@ -4,6 +4,7 @@ import { expect, test, text } from './capability-fixtures.js'
 interface PageRequestList {
   origin: string
   requests: Array<{ id: string; operation: string; status: string; requester: { type: string }; details?: Record<string, unknown> }>
+  failedCalls?: Array<{ family: string; method: string; error: string; failedAt: string }>
 }
 
 test('lets an agent read the wallet requests a dApp page made, without approving them', async ({ capabilities, appWindow, electronApp }) => {
@@ -33,6 +34,21 @@ test('lets an agent read the wallet requests a dApp page made, without approving
     return JSON.parse(text(result)) as PageRequestList
   }
   expect(await readPageRequests()).toEqual({ origin: fixtureOrigin, requests: [] })
+
+  // A dApp that calls a method Hronaut does not support gets code 4200, and the agent sees why its button did nothing.
+  const unsupported = await electronApp.evaluate(({ webContents }, pageUrl) => (
+    webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)?.executeJavaScript(
+      `window.ethereum.request({ method: 'eth_signTypedData', params: ['0x0', 'page-secret-typed-data'] }).then(() => 'resolved', (error) => error.code)`
+    )
+  ), fixtureUrl)
+  expect(unsupported).toBe(4200)
+  const afterUnsupported = await readPageRequests()
+  expect(afterUnsupported).toEqual({
+    origin: fixtureOrigin,
+    requests: [],
+    failedCalls: [{ family: 'evm', method: 'eth_signTypedData', error: 'Unsupported EVM wallet method: eth_signTypedData', failedAt: expect.any(String) }]
+  })
+  expect(JSON.stringify(afterUnsupported)).not.toContain('page-secret-typed-data')
 
   await electronApp.evaluate(async ({ webContents }, pageUrl) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
