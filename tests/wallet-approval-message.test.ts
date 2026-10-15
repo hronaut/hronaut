@@ -119,6 +119,26 @@ describe('message text in the trusted approval', () => {
     await settle()
   })
 
+  it('shows default-ignorable characters such as Hangul fillers and variation selectors as codes', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const { pending, settle } = await pendingMessage(broker, wallet, 'Hi\u3164there\uFE0F\u2800')
+
+    expect(pending.details?.message).toEqual({ text: 'Hi[U+3164]there[U+FE0F][U+2800]', warnings: ['hidden-characters'] })
+    await settle()
+  })
+
+  it.each([
+    ['a revealed code', 'a'.repeat(4_090) + '\u200B'],
+    ['a surrogate pair', 'a'.repeat(4_095) + '\u{1F600}']
+  ])('cuts the shown text before %s rather than through it', async (_label, message) => {
+    const { broker, wallet } = await connectedWallet()
+    const { pending, settle } = await pendingMessage(broker, wallet, message)
+
+    expect(pending.details?.message?.text).toBe('a'.repeat(message.length - (message.endsWith('\u200B') ? 1 : 2)))
+    expect(pending.details?.message?.truncated).toBe(true)
+    await settle()
+  })
+
   it('shows no text for binary messages', async () => {
     const { broker, wallet } = await connectedWallet()
     const { pending, settle } = await pendingMessage(broker, wallet, '0xff00fe')
@@ -126,5 +146,48 @@ describe('message text in the trusted approval', () => {
     expect(pending.details?.message).toBeUndefined()
     expect(pending.details?.understood).toBe(false)
     await settle()
+  })
+})
+
+describe('Sign-In with Solana text in the trusted approval', () => {
+  async function connectedSolanaWallet() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(now())
+    onTestFinished(() => { vi.useRealTimers() })
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-wallet-approval-solana-'))
+    directories.push(directory)
+    const service = new WalletService({ directory, platform: 'linux', safeStorage: safeStorage(), now })
+    await service.initialize()
+    const generated = await service.generate({
+      name: 'Solana wallet', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1'], dedicatedAgent: false
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    const broker = new WalletBroker(service, { now, requestExpiryScheduler: () => () => {} })
+    brokers.push(broker)
+    const connecting = broker.providerRequest(context, { family: 'solana', method: 'connect' })
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    await broker.approve(broker.listPending().find((request) => request.status === 'awaiting-human')!.id)
+    await connecting
+    return { broker, wallet }
+  }
+
+  it.each([
+    ['dapp.example', [] as string[]],
+    ['phishing.example', ['sign-in-other-site']]
+  ])('checks the site a Solana sign-in for %s names', async (domain, warnings) => {
+    const { broker, wallet } = await connectedSolanaWallet()
+    const message = `${domain} wants you to sign in with your Solana account:\n${wallet.publicAddress}\n\nSign in.`
+    const signing = broker.providerRequest(context, {
+      family: 'solana', method: 'signMessage',
+      params: [{ account: { address: wallet.publicAddress }, message: new TextEncoder().encode(message) }]
+    })
+    signing.catch(() => undefined)
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
+    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+
+    expect(pending.details?.message).toEqual({ text: message, warnings })
+    await broker.reject(pending.id)
   })
 })

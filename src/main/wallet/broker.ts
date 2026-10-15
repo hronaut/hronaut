@@ -43,7 +43,7 @@ import {
   isMainnetAgentAutomationPolicy,
   isSignInText,
   revealHiddenMessageCharacters,
-  signInTextIssue,
+  signInTextWarningIssue,
   websiteSignInPolicyApplies,
   WalletPolicyEngine,
   type WalletSignInTextIssue,
@@ -240,9 +240,9 @@ const SIGN_IN_TEXT_WARNINGS: Record<WalletSignInTextIssue, WalletMessageWarning>
 
 /**
  * Readable text of a UTF-8 message for the trusted approval dialog. Hidden
- * characters are shown as [U+XXXX] markers, and Sign-In with Ethereum text
- * that names another site, account or chain than this request is flagged.
- * Binary messages and typed data have no text; the raw request shows them.
+ * characters are shown as [U+XXXX] markers, and sign-in text that names
+ * another site, account or chain than this request is flagged. Binary
+ * messages and typed data have no text; the raw request shows them.
  */
 function trustedMessageDisplay(
   input: WalletMessageSigningInput,
@@ -258,16 +258,10 @@ function trustedMessageDisplay(
   }
   const warnings: WalletMessageWarning[] = []
   if (hasHiddenMessageCharacters(text)) warnings.push('hidden-characters')
-  if (wallet.chainFamily === 'evm' && isSignInText(text)) {
-    const issue = signInTextIssue(text, wallet, topLevelOrigin)
-    if (issue) warnings.push(SIGN_IN_TEXT_WARNINGS[issue])
-  }
-  const visible = revealHiddenMessageCharacters(text)
-  return {
-    text: visible.slice(0, WALLET_MESSAGE_DISPLAY_MAX_LENGTH),
-    ...(visible.length > WALLET_MESSAGE_DISPLAY_MAX_LENGTH ? { truncated: true as const } : {}),
-    warnings
-  }
+  const signInIssue = isSignInText(text) ? signInTextWarningIssue(text, wallet, topLevelOrigin) : undefined
+  if (signInIssue) warnings.push(SIGN_IN_TEXT_WARNINGS[signInIssue])
+  const visible = revealHiddenMessageCharacters(text, WALLET_MESSAGE_DISPLAY_MAX_LENGTH)
+  return { text: visible.text, ...(visible.truncated ? { truncated: true as const } : {}), warnings }
 }
 
 export class WalletBroker {

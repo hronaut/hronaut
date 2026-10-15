@@ -95,7 +95,7 @@ describe('WalletApprovalDialog', () => {
       global: { plugins: [createHronautI18n('en-US')] }
     })
 
-    const text = screen.getByLabelText('Message to sign', { selector: 'pre' })
+    const text = screen.getByRole('region', { name: 'Message to sign' })
     expect(text.tagName).toBe('PRE')
     expect(text.closest('details')).toBeNull()
     expect(text.textContent).toBe('phishing.example wants you to sign in with your Ethereum account:\n0x01')

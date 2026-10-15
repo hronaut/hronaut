@@ -172,9 +172,8 @@ test('shows the sign-in text and a warning when a page asks to sign in for anoth
   // The policy connects the account, but a sign-in for another site goes to a person, who sees why.
   const approval = appWindow.getByRole('alertdialog', { name: /sign message/i })
   await expect(approval).toBeVisible()
-  await expect(approval.getByLabel('Message to sign', { exact: true }).and(approval.locator('pre'))).toHaveText(signIn)
+  await expect(approval.getByRole('region', { name: 'Message to sign' })).toHaveText(signIn)
   await expect(approval.getByRole('alert')).toHaveText('This sign-in message names a different website than the one asking. Signing it could log someone in to that other site as you.')
   await approval.getByRole('button', { name: 'Reject' }).click()
   await expect.poll(() => page('window.__otherSiteSignIn')).toBe('failed:4001')
 })
-

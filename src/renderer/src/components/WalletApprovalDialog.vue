@@ -4,13 +4,13 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
-import type { WalletMessageWarning } from '../../../shared/wallet.js'
+import { WALLET_MESSAGE_DISPLAY_MAX_LENGTH, type WalletMessageWarning } from '../../../shared/wallet.js'
 
 const props = defineProps<{
   controller: WalletsController
   workspaces: readonly { id: string; name: string }[]
 }>()
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const request = computed(() => props.controller.awaitingApproval.value[0])
 const open = computed(() => Boolean(request.value))
 const requestId = computed(() => request.value?.id)
@@ -63,11 +63,11 @@ function rawDetails(): string {
       <div v-if="!request.details?.understood" class="wallet-approval-warning" role="alert">
         {{ t('wallets.approval.undecodable') }}
       </div>
-      <section v-if="request.details?.message" class="wallet-approval-message" aria-labelledby="wallet-approval-message-title">
+      <section v-if="request.details?.message" class="wallet-approval-message">
         <h3 id="wallet-approval-message-title">{{ t('wallets.approval.message') }}</h3>
         <p v-for="warning in request.details.message.warnings" :key="warning" class="wallet-approval-warning" role="alert">{{ t(`wallets.approval.messageWarnings.${messageWarningKeys[warning]}`) }}</p>
-        <pre class="wallet-approval-message-text" tabindex="0" :aria-label="t('wallets.approval.message')">{{ request.details.message.text }}</pre>
-        <p v-if="request.details.message.truncated" class="wallet-approval-message-note">{{ t('wallets.approval.messageTruncated') }}</p>
+        <pre class="wallet-approval-message-text" role="region" tabindex="0" aria-labelledby="wallet-approval-message-title">{{ request.details.message.text }}</pre>
+        <p v-if="request.details.message.truncated" class="wallet-approval-message-note">{{ t('wallets.approval.messageTruncated', { count: WALLET_MESSAGE_DISPLAY_MAX_LENGTH.toLocaleString(locale) }) }}</p>
       </section>
       <details class="wallet-approval-raw">
         <summary>{{ t('wallets.approval.raw') }}</summary>
