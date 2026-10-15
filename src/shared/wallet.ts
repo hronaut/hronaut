@@ -348,6 +348,33 @@ export const WalletMessageWarningSchema = z.enum([
   'sign-in-unverified'
 ])
 export type WalletMessageWarning = z.infer<typeof WalletMessageWarningSchema>
+/** Token amounts listed for one typed-data permit or transfer in the trusted approval dialog. */
+export const WALLET_TYPED_DATA_MAX_ALLOWANCES = 16
+export const WalletTypedDataWarningSchema = z.enum(['typed-data-other-chain', 'token-permit', 'token-transfer', 'unlimited-amount', 'unreadable-amount'])
+export type WalletTypedDataWarning = z.infer<typeof WalletTypedDataWarningSchema>
+const typedDataDisplayText = z.string().max(256)
+export const WalletTypedDataDisplaySchema = z.object({
+  primaryType: typedDataDisplayText,
+  domain: z.object({
+    name: typedDataDisplayText.optional(),
+    version: typedDataDisplayText.optional(),
+    chainId: typedDataDisplayText.optional(),
+    verifyingContract: typedDataDisplayText.optional()
+  }).strict(),
+  tokenAccess: z.object({
+    kind: z.enum(['allowance', 'transfer']),
+    spender: typedDataDisplayText.optional(),
+    recipient: typedDataDisplayText.optional(),
+    allowances: z.array(z.object({
+      token: typedDataDisplayText.optional(),
+      amount: typedDataDisplayText.optional(),
+      unlimited: z.literal(true).optional()
+    }).strict()).max(WALLET_TYPED_DATA_MAX_ALLOWANCES),
+    moreAllowances: z.literal(true).optional()
+  }).strict().optional(),
+  warnings: z.array(WalletTypedDataWarningSchema).max(WalletTypedDataWarningSchema.options.length)
+}).strict()
+export type WalletTypedDataDisplay = z.infer<typeof WalletTypedDataDisplaySchema>
 
 export const WalletRequestSummarySchema = z.object({
   id: z.string().trim().min(1).max(128),
@@ -383,6 +410,7 @@ export const WalletRequestSummarySchema = z.object({
       truncated: z.literal(true).optional(),
       warnings: z.array(WalletMessageWarningSchema).max(WalletMessageWarningSchema.options.length)
     }).strict().optional(),
+    typedData: WalletTypedDataDisplaySchema.optional(),
     raw: z.record(z.string(), z.unknown())
   }).strict().optional()
 }).strict()

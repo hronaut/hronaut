@@ -139,6 +139,77 @@ describe('message text in the trusted approval', () => {
     await settle()
   })
 
+  it('summarizes a typed-data token permit and keeps it out of what agents see', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const spender = '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD'
+    const signing = broker.providerRequest(context, {
+      family: 'evm', method: 'eth_signTypedData_v4', params: [wallet.publicAddress, JSON.stringify({
+        domain: { name: 'Permit2', chainId: 1, verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3' },
+        primaryType: 'PermitSingle',
+        types: {
+          EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }],
+          PermitSingle: [{ name: 'details', type: 'PermitDetails' }, { name: 'spender', type: 'address' }, { name: 'sigDeadline', type: 'uint256' }],
+          PermitDetails: [{ name: 'token', type: 'address' }, { name: 'amount', type: 'uint160' }, { name: 'expiration', type: 'uint48' }, { name: 'nonce', type: 'uint48' }]
+        },
+        message: { details: { token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', amount: (2n ** 160n - 1n).toString(), expiration: 0, nonce: 0 }, spender, sigDeadline: 0 }
+      })]
+    })
+    signing.catch(() => undefined)
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
+    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+
+    expect(pending.details?.typedData).toMatchObject({
+      primaryType: 'PermitSingle',
+      domain: { name: 'Permit2', chainId: '1' },
+      tokenAccess: { spender, allowances: [{ unlimited: true }] },
+      warnings: ['typed-data-other-chain', 'token-permit', 'unlimited-amount']
+    })
+    expect(pending.details?.message).toBeUndefined()
+    const agentView = JSON.stringify(broker.agentPageRequests({ ...context, requester: { type: 'agent', id: 'agent-1' } }))
+    expect(agentView).toContain('typed-data-signing')
+    expect(agentView).not.toContain(spender)
+    expect(agentView).not.toContain('typedData')
+    await broker.reject(pending.id)
+  })
+
+  it('does not let undeclared keys or an array amount hide an unlimited permit', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const token = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'
+    const maxUint256 = (2n ** 256n - 1n).toString()
+    // The signer ignores `allowed`, which this permit type does not declare, and reads ['max'] as max.
+    const signing = broker.providerRequest(context, {
+      family: 'evm', method: 'eth_signTypedData_v4', params: [wallet.publicAddress, JSON.stringify({
+        domain: { name: 'USD Coin', version: '2', chainId: Number(wallet.network.id), verifyingContract: token },
+        primaryType: 'Permit',
+        types: {
+          EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'version', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }],
+          Permit: [
+            { name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' },
+            { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }
+          ]
+        },
+        message: { owner: wallet.publicAddress, spender: token, value: [maxUint256], nonce: 0, deadline: 0, allowed: false }
+      })]
+    })
+    signing.catch(() => undefined)
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
+    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+
+    expect(pending.details?.typedData?.tokenAccess?.allowances).toEqual([{ token, amount: maxUint256, unlimited: true }])
+    expect(pending.details?.typedData?.warnings).toEqual(['token-permit', 'unlimited-amount'])
+    await broker.reject(pending.id)
+  })
+
+  it('keeps message text out of what agents see', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const { settle } = await pendingMessage(broker, wallet, siwe(wallet))
+
+    const agentView = JSON.stringify(broker.agentPageRequests({ ...context, requester: { type: 'agent', id: 'agent-1' } }))
+    expect(agentView).toContain('message-signing')
+    expect(agentView).not.toContain('wants you to sign in')
+    await settle()
+  })
+
   it('shows no text for binary messages', async () => {
     const { broker, wallet } = await connectedWallet()
     const { pending, settle } = await pendingMessage(broker, wallet, '0xff00fe')

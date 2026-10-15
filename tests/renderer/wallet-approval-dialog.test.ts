@@ -119,6 +119,74 @@ describe('WalletApprovalDialog', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('could not fully decode')
   })
 
+  it('summarizes a typed-data permit with its spender, tokens and warnings', () => {
+    const pending = request()
+    pending.details = {
+      ...pending.details!,
+      understood: false,
+      typedData: {
+        primaryType: 'PermitBatch',
+        domain: { name: 'Permit2', version: '1', chainId: '1', verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3' },
+        tokenAccess: {
+          kind: 'allowance',
+          spender: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD',
+          allowances: [{ token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', amount: '1461501637330902918203684832716283019655932542975', unlimited: true }, { token: '0x2000000000000000000000000000000000000002', amount: '42' }],
+          moreAllowances: true
+        },
+        warnings: ['token-permit', 'unlimited-amount']
+      }
+    }
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+
+    const section = screen.getByRole('region', { name: 'Typed data to sign' })
+    expect(section).toHaveTextContent('PermitBatch')
+    expect(section).toHaveTextContent('Permit2 · version 1')
+    expect(section).toHaveTextContent('0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD')
+    expect(section).toHaveTextContent('Token allowance 10x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 · Unlimited')
+    expect(section).toHaveTextContent('Token allowance 20x2000000000000000000000000000000000000002 · 42 (smallest token units)')
+    expect(section).toHaveTextContent('More tokens are listed in the raw unsigned request.')
+    expect(section).not.toHaveTextContent('Recipient')
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toEqual([
+      'Hronaut could not fully decode this request. Approval requires extra care.',
+      'This is a token permit. Signing it lets the spender move your tokens without another approval from you.',
+      'This signature covers an unlimited amount of the token.'
+    ])
+  })
+
+  it('summarizes a typed-data token transfer with its recipient, amounts and an unreadable amount', () => {
+    const pending = request()
+    pending.details = {
+      ...pending.details!,
+      understood: false,
+      typedData: {
+        primaryType: 'TransferWithAuthorization',
+        domain: { version: '2', chainId: '1', verifyingContract: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' },
+        tokenAccess: { kind: 'transfer', recipient: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD', allowances: [{ token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', amount: '2500000' }, { token: '0x2000000000000000000000000000000000000002' }] },
+        warnings: ['token-transfer', 'unreadable-amount']
+      }
+    }
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+
+    const section = screen.getByRole('region', { name: 'Typed data to sign' })
+    expect(section).toHaveTextContent('AppVersion 2')
+    expect(section).toHaveTextContent('Recipient0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD')
+    expect(section).toHaveTextContent('Token amount 10x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 · 2500000 (smallest token units)')
+    expect(section).toHaveTextContent('Token amount 20x2000000000000000000000000000000000000002 · Amount not readable')
+    expect(section).not.toHaveTextContent('Spender')
+    expect(section).not.toHaveTextContent('Token allowance')
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toEqual([
+      'Hronaut could not fully decode this request. Approval requires extra care.',
+      'This is a token transfer authorization. Signing it lets the tokens be moved from your wallet to the recipient without another approval from you.',
+      'Hronaut could not read every amount in this signature. Treat it as unlimited.'
+    ])
+  })
+
   it('falls back to the immutable workspace ID when the workspace no longer exists', () => {
     const wallets = controller()
     render(WalletApprovalDialog, {
