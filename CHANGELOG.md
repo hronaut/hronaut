@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.48.0] - 2026-10-15
+
 ### Added
 
 - An agent testing a dApp can now see the wallet calls the page made that failed. `wallet_page_requests` lists the newest 20 as `failedCalls`, with the method and the error the page received, such as a method Hronaut does not support (`eth_signTypedData` gets code 4200), a network it cannot switch to, or a refused token offer. Before, a dApp button that silently caught such an error left the agent with nothing to go on. Reads forwarded to the node, such as `eth_call`, are left out, the page's parameters are never listed, and the wallet's address stays hidden until the agent has account permission.
@@ -19,6 +21,17 @@ All notable changes to Hronaut are documented in this file.
 - Hronaut no longer follows CCIP-Read (EIP-3668) offchain lookups in its own wallet reads and simulations. Before, a contract could answer the token checks behind a page's `wallet_watchAsset`, an agent's `wallet_balance`, or a transaction simulation with an `OffchainLookup` revert naming any URL, including addresses on the local network, and Hronaut's main process fetched it without asking anyone. Those reads now fail like any other revert. A dApp's own `eth_call` through the provider still returns the revert data, so the page can do the lookup itself in the browser.
 - An agent that asks for wallet account access again while the person is approving its first request, such as one polling `wallet_balance`, no longer opens a second **Connect account** prompt. The repeat reuses the request being approved.
 - Contract event listeners in dApps built on ethers v6, such as `contract.on('Transfer', …)`, now fire in Hronaut. ethers listens through node filters, which the wallet provider rejected, so the listener retried forever without delivering events. The provider now forwards `eth_newFilter`, `eth_newBlockFilter`, `eth_getFilterChanges`, `eth_getFilterLogs` and `eth_uninstallFilter` to the active wallet network's RPC. A filter belongs to the tab and site that created it and survives the dApp's route changes, so one site cannot read or remove another's filter by guessing its ID. A tab keeps at most 32 filters per site; past that, ethers and viem fall back to polling logs.
+
+### Known issues
+
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network drops stays pending, and `wallet_showCallsStatus` is not supported.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- When the node answers that it already has a transaction the person approved, Hronaut still reports the request as failed, although that transaction may be mined.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.47.0] - 2026-10-15
 
