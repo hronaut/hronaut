@@ -194,6 +194,7 @@ export interface WalletAgentOperations {
   requestTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown, broadcast: boolean) => Promise<unknown>
   requestMessage: (target: WalletAgentToolTarget, walletId: string, message: Uint8Array) => Promise<unknown>
   requestStatus: (target: WalletAgentToolTarget, requestId: string) => Promise<unknown>
+  pageRequests?: (target: WalletAgentToolTarget) => Promise<unknown>
   cancelRequest: (target: WalletAgentToolTarget, requestId: string) => Promise<unknown>
   cancelRequester?: (requesterId: string) => Promise<void>
 }
@@ -471,6 +472,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   wallet_prepare_transaction: 'wallet',
   wallet_request: 'wallet',
   wallet_request_status: 'wallet',
+  wallet_page_requests: 'wallet',
   wallet_cancel_request: 'wallet'
 }
 
@@ -496,7 +498,8 @@ const WORKSPACE_LEASE_OBSERVATION_TOOLS = new Set([
   'wallet_list',
   'wallet_balance',
   'wallet_prepare_transaction',
-  'wallet_request_status'
+  'wallet_request_status',
+  'wallet_page_requests'
 ])
 
 function requiresWorkspaceWriteLease(toolName: string, input: Record<string, unknown>): boolean {
@@ -5569,6 +5572,21 @@ function createBrowserMcpServer(
     tabTool('wallet_request_status', async ({ workspaceId, tabId, walletSessionId, requestId }: {
       workspaceId: string; tabId: string; walletSessionId: string; requestId: string
     }) => textResult(await requireWallets().requestStatus(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
+  )
+  registerWorkspaceTool(
+    'wallet_page_requests',
+    {
+      description: toolDescription('wallet_page_requests'),
+      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema }
+    },
+    tabTool('wallet_page_requests', async ({ workspaceId, tabId, walletSessionId }: {
+      workspaceId: string; tabId: string; walletSessionId: string
+    }) => {
+      const target = walletTarget(walletSessionId, workspaceId, tabId)
+      const operations = requireWallets()
+      if (!operations.pageRequests) throw new Error('Wallet page requests are unavailable')
+      return textResult(await operations.pageRequests(target))
+    })
   )
   registerWorkspaceTool(
     'wallet_cancel_request',

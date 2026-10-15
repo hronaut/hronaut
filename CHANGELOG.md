@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `wallet_page_requests` lets an agent that is testing a dApp see which wallet requests the page made (connect, sign message or typed data, sign or send transaction), with status and transaction hash, for the same tab and page only. It is read-only, and approval stays with a person in Hronaut.
+
 ## [2.42.0] - 2026-10-15
 
 ### Added

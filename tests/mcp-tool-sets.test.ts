@@ -66,7 +66,7 @@ describe('MCP tool sets', () => {
     const qa = mcpToolCatalogForSet('qa').map(({ name }) => name)
     const all = mcpToolCatalogForSet('complete').map(({ name }) => name)
 
-    expect(browse).toHaveLength(35)
+    expect(browse).toHaveLength(36)
     expect(browse).toEqual([
       'browser_workspaces',
       'browser_saved_workspaces',
@@ -102,6 +102,7 @@ describe('MCP tool sets', () => {
       'wallet_prepare_transaction',
       'wallet_request',
       'wallet_request_status',
+      'wallet_page_requests',
       'wallet_cancel_request'
     ])
     expect(qa).toEqual(expect.arrayContaining(browse))
@@ -125,7 +126,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(89)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(90)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -165,7 +166,8 @@ describe('MCP tool sets', () => {
         'browser_network_wait',
         'browser_network_search',
         'browser_network_request',
-        'wallet_request_status'
+        'wallet_request_status',
+        'wallet_page_requests'
       ])
 
     expect(BROWSER_TOOL_CATALOG

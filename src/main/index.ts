@@ -4193,6 +4193,7 @@ function createRuntimeMcpServer(
       requestStatus: async (target, requestId) => (
         requireWalletBroker().agentRequestStatus(walletAgentContext(target), requestId)
       ),
+      pageRequests: async (target) => requireWalletBroker().agentPageRequests(walletAgentContext(target)),
       cancelRequest: async (target, requestId) => (
         requireWalletBroker().cancelAgentRequest(walletAgentContext(target), requestId)
       ),

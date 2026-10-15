@@ -60,6 +60,7 @@ describe('MCP wallet tools', () => {
     const manager = walletWorkspaceManager()
     const list = vi.fn<WalletAgentOperations['list']>(async () => [])
     const requestStatus = vi.fn<WalletAgentOperations['requestStatus']>(async (target, requestId) => ({ target, requestId }))
+    const pageRequests = vi.fn<NonNullable<WalletAgentOperations['pageRequests']>>(async () => ({ origin: 'https://dapp.example', requests: [] }))
     const wallets: WalletAgentOperations = {
       list,
       balance: vi.fn(async () => ({})),
@@ -67,6 +68,7 @@ describe('MCP wallet tools', () => {
       requestTransaction: vi.fn(async () => ({})),
       requestMessage: vi.fn(async () => ({})),
       requestStatus,
+      pageRequests,
       cancelRequest: vi.fn(async () => ({}))
     }
     server = new McpHttpServer(manager as never, {
@@ -84,7 +86,7 @@ describe('MCP wallet tools', () => {
     const catalog = await client.listTools()
     expect(catalog.tools.map(({ name }) => name)).toEqual(expect.arrayContaining([
       'wallet_list', 'wallet_balance', 'wallet_prepare_transaction', 'wallet_request',
-      'wallet_request_status', 'wallet_cancel_request'
+      'wallet_request_status', 'wallet_page_requests', 'wallet_cancel_request'
     ]))
     expect(catalog.tools.some(({ name }) => /approve|decrypt|export|private|seed|mnemonic/i.test(name))).toBe(false)
 
@@ -112,6 +114,24 @@ describe('MCP wallet tools', () => {
       tabId,
       client: expect.objectContaining({ id: listTarget.client.id })
     }), 'request-1')
+
+    const page = await client.callTool({
+      name: 'wallet_page_requests',
+      arguments: { workspaceId, tabId, walletSessionId: listing.walletSessionId }
+    }) as CallToolResult
+    expect(page.isError, text(page)).not.toBe(true)
+    expect(JSON.parse(text(page))).toEqual({ origin: 'https://dapp.example', requests: [] })
+    expect(pageRequests).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId,
+      tabId,
+      client: expect.objectContaining({ id: listTarget.client.id })
+    }))
+    const forged = await client.callTool({
+      name: 'wallet_page_requests',
+      arguments: { workspaceId, tabId, walletSessionId: '00000000-0000-4000-8000-000000000000' }
+    }) as CallToolResult
+    expect(forged.isError).toBe(true)
+    expect(pageRequests).toHaveBeenCalledTimes(1)
   })
 
   it('rejects secret-bearing transaction fields before invoking wallet operations', async () => {
