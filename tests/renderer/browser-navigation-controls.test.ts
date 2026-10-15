@@ -49,7 +49,7 @@ describe('BrowserNavigationControls', () => {
     await user.click(screen.getByRole('button', { name: 'Back' }))
     await user.click(screen.getByRole('button', { name: 'Reload' }))
     await user.click(screen.getByRole('button', { name: 'Find in page' }))
-    await user.click(screen.getByRole('button', { name: 'Page zoom controls' }))
+    await user.click(screen.getByRole('button', { name: /^Page zoom controls, \d+%$/ }))
     await user.click(screen.getByRole('button', { name: 'Bookmarks' }))
 
     expect(view.emitted().back).toHaveLength(1)
@@ -75,7 +75,7 @@ describe('BrowserNavigationControls', () => {
 
     expect(screen.getByRole('button', { name: 'Reload' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Find in page' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Page zoom controls' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^Page zoom controls, \d+%$/ })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Bookmarks' })).toBeDisabled()
   })
 })

@@ -1,5 +1,14 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { readFileSync } from 'node:fs'
 import { expect, test, text } from './capability-fixtures.js'
+
+// Engine versions follow the installed packages, so dependency bumps do not
+// need a test edit.
+const installedVersion = (name: string) => (JSON.parse(
+  readFileSync(new URL(`../../node_modules/${name}/package.json`, import.meta.url), 'utf8')
+) as { version: string }).version
+const axeVersion = installedVersion('axe-core')
+const webVitalsVersion = installedVersion('web-vitals')
 
 test('reports accessibility, quality and performance with human panels', async ({ capabilities, appWindow }) => {
   const { client, tabId, openPageTool } = capabilities
@@ -20,7 +29,7 @@ test('reports accessibility, quality and performance with human panels', async (
     action: 'measure',
     standard: 'wcag-aa',
     scope: { selector: '#audit-scope', maxViolations: 5, maxNodesPerViolation: 2 },
-    engine: { name: 'axe-core', version: '4.13.0' }
+    engine: { name: 'axe-core', version: axeVersion }
   })
   expect(accessibilityAudit.violationCount).toBeGreaterThan(0)
   expect(accessibilityAudit.violations).toEqual(expect.arrayContaining([
@@ -124,7 +133,7 @@ test('reports accessibility, quality and performance with human panels', async (
     tabId,
     action: 'measure',
     scope: 'current-visit',
-    engine: { name: 'web-vitals', version: '6.2.2' },
+    engine: { name: 'web-vitals', version: webVitalsVersion },
     resources: { count: expect.any(Number) },
     longTasks: { count: expect.any(Number) },
     longAnimationFrames: {

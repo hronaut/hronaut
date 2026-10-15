@@ -1298,7 +1298,7 @@ export const esES = {
       "addressPlaceholder": "Buscar o escribir una dirección",
       "findTitle": "Buscar en la página (Ctrl/Cmd+F)",
       "find": "Buscar en la página",
-      "zoom": "Controles de zoom de la página",
+      "zoom": "Controles de zoom de la página, {percent}",
       "bookmarks": "Marcadores"
     },
     "siteControls": {

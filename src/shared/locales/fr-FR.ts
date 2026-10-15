@@ -1298,7 +1298,7 @@ export const frFR = {
       "addressPlaceholder": "Rechercher ou saisir une adresse",
       "findTitle": "Rechercher dans la page (Ctrl/Cmd+F)",
       "find": "Rechercher dans la page",
-      "zoom": "Contrôles du zoom de la page",
+      "zoom": "Contrôles du zoom de la page, {percent}",
       "bookmarks": "Favoris"
     },
     "siteControls": {

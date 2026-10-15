@@ -548,7 +548,7 @@ export const enUS = {
     actions: {
       commandsTitle: 'Commands (Ctrl/Cmd+Shift+P)', commands: 'Open command palette', searchTabsTitle: 'Search tabs (Ctrl/Cmd+Shift+A)', searchTabs: 'Search tabs', historyTitle: 'Browsing history (Ctrl+H / Cmd+Y)', history: 'Browsing history', muteAllTabs: 'Mute all tabs', unmuteAllTabs: 'Unmute all tabs', followAgents: 'Follow agents', followingAgents: 'Following agents', followAgentActivityDescription: 'Follow agent activity without taking keyboard or mouse focus', stopFollowingAgentActivityDescription: 'Stop following agent activity', settings: 'Settings'
     },
-    toolbar: { back: 'Back', forward: 'Forward', address: 'Address', addressPlaceholder: 'Search or enter address', findTitle: 'Find in page (Ctrl/Cmd+F)', find: 'Find in page', zoom: 'Page zoom controls', bookmarks: 'Bookmarks' },
+    toolbar: { back: 'Back', forward: 'Forward', address: 'Address', addressPlaceholder: 'Search or enter address', findTitle: 'Find in page (Ctrl/Cmd+F)', find: 'Find in page', zoom: 'Page zoom controls, {percent}', bookmarks: 'Bookmarks' },
     siteControls: {
       close: 'Close site controls', cookie: 'cookie', cookies: 'cookies', historyPage: 'history page', historyPages: 'history pages', visit: 'visit', visits: 'visits', permissions: 'Permissions', defaults: 'Using defaults', allow: 'Allow', block: 'Block', reset: 'Reset to default', empty: 'No custom decisions for this website. Hronaut will ask when a permission is needed.', allSettings: 'All site settings', clearData: 'Clear data for this website'
     },

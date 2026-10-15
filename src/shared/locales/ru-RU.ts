@@ -1298,7 +1298,7 @@ export const ruRU = {
       "addressPlaceholder": "Поиск или ввод адреса",
       "findTitle": "Найти на странице (Ctrl/Cmd+F)",
       "find": "Найти на странице",
-      "zoom": "Управление масштабом страницы",
+      "zoom": "Управление масштабом страницы, {percent}",
       "bookmarks": "Закладки"
     },
     "siteControls": {
