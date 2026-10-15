@@ -228,6 +228,11 @@ describe('EvmWalletAdapter', () => {
     }))
     allowance = (1n << 256n) - 1n
     expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toMatchObject({ unlimited: true, rawAmount: allowance.toString() })
+    // Permit2's unlimited amount is the threshold; one less is a large but limited approval.
+    allowance = (1n << 160n) - 1n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toMatchObject({ unlimited: true })
+    allowance -= 1n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).not.toHaveProperty('unlimited')
     allowance = 0n
     expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toEqual({ spender: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', amount: '0', rawAmount: '0' })
     // Without a spender, no allowance is read.

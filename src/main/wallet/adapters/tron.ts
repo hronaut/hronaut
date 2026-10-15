@@ -286,6 +286,7 @@ function defaultClient(wallet: WalletDescriptor): TronRpcClient {
 
 export class TronWalletAdapter implements WalletChainAdapter {
   readonly family = 'tron' as const
+  readonly tokenAllowances = true
 
   constructor(private readonly clientFor: (wallet: WalletDescriptor) => TronRpcClient = defaultClient) {}
 
@@ -378,8 +379,6 @@ export class TronWalletAdapter implements WalletChainAdapter {
     if (!this.validateAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
     return formatTrx(await this.clientFor(wallet).balance(wallet.publicAddress))
   }
-
-  readonly tokenAllowances = true
 
   async tokenBalance(wallet: WalletDescriptor, token: string, spender?: string): Promise<WalletTokenBalance> {
     if (!this.validateAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')

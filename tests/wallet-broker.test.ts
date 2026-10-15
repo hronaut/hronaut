@@ -433,6 +433,12 @@ describe('WalletBroker', () => {
     })
     expect(await broker.agentBalance(agent, wallet.id, token, router)).toMatchObject({ status: 'ready', token: { token, allowance } })
     expect(chain.tokenBalance).toHaveBeenCalledWith(expect.objectContaining({ id: wallet.id }), token, router)
+
+    // A failed allowance read says so, without RPC details.
+    chain.tokenBalance = vi.fn(async () => { throw new Error('RPC https://rpc.example.invalid/?apiKey=token-secret reverted') })
+    const failed = await settle(broker.agentBalance(agent, wallet.id, token, router))
+    expect(failed).toMatchObject({ status: 'rejected', reason: expect.objectContaining({ message: 'EVM token balance or allowance lookup failed' }) })
+    expect(JSON.stringify(failed)).not.toMatch(/rpc\.example|token-secret/)
   })
 
   it('keeps RPC simulation details out of agent responses and durable approval state', async () => {

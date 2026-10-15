@@ -205,6 +205,7 @@ function readRpcError(error: unknown): Error {
 
 export class EvmWalletAdapter implements WalletChainAdapter {
   readonly family = 'evm' as const
+  readonly tokenAllowances = true
 
   constructor(private readonly clientFor = (wallet: WalletDescriptor): EvmClient => createPublicClient({
     transport: http(wallet.network.rpcUrl, { retryCount: 0, timeout: 15_000 })
@@ -335,8 +336,6 @@ export class EvmWalletAdapter implements WalletChainAdapter {
     if (!isAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
     return formatEther(await this.clientFor(wallet).getBalance({ address: getAddress(wallet.publicAddress) }))
   }
-
-  readonly tokenAllowances = true
 
   async tokenBalance(wallet: WalletDescriptor, token: string, spender?: string): Promise<WalletTokenBalance> {
     if (!isAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')

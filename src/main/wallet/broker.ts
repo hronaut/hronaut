@@ -462,7 +462,8 @@ export class WalletBroker {
         }
         else balance = await adapter.balance(wallet)
       } catch {
-        throw new Error(`${walletChainName(wallet.chainFamily)} ${token === undefined ? '' : 'token '}balance lookup failed`)
+        const lookup = token === undefined ? 'balance' : spender === undefined ? 'token balance' : 'token balance or allowance'
+        throw new Error(`${walletChainName(wallet.chainFamily)} ${lookup} lookup failed`)
       }
       this.assertRequestContextActive(context)
       return {
