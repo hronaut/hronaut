@@ -16,6 +16,8 @@ All notable changes to Hronaut are documented in this file.
 
 - `browser_new_tab` takes an optional `defaultFontSize` (9–72 CSS px) that sets the browser default text size for that tab only, so an agent can check a page at 24px or 32px the way a person with a larger browser font setting sees it. Text sized by the browser default and `em`/`rem` media queries follow it; authored pixel sizes do not. It survives navigation, reload, sleep, duplicating, reopening a closed tab and restart, and the zoom bar shows it (#771).
 
+- Websites can connect and sign in without a click when you opt in. A new, default-off **Let this site connect and sign in without asking** switch on a bounded wallet policy approves account connection and plain-text `personal_sign` messages from that policy's exact origin on EVM testnets and loopback local chains, so an agent can test a dApp's login flow unattended. A Sign-In with Ethereum message must name the requesting site, the wallet address and its chain. Typed data, raw `eth_sign` and transactions still ask, each connection or signature counts toward the policy's operation limit, and granted access ends with the policy. A second, separate **Also allow on mainnet** switch with a warning extends this to a dedicated EVM mainnet agent wallet with one origin, at most 100 operations and a seven-day expiry.
+
 ## [2.43.0] - 2026-10-15
 
 ### Added

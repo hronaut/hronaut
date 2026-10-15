@@ -36,7 +36,13 @@ import type {
   WalletTransactionSimulation
 } from './adapters/types.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
-import { isMainnetAgentAutomationPolicy, WalletPolicyEngine } from './policy.js'
+import {
+  isMainnetAgentAutomationPolicy,
+  websiteSignInPolicyApplies,
+  WalletPolicyEngine,
+  type WalletPolicyDecision,
+  type WalletWebsiteSignInEvaluation
+} from './policy.js'
 import type { WalletService } from './service.js'
 
 export interface WalletBrokerContext {
@@ -987,8 +993,8 @@ export class WalletBroker {
     const existing = this.pendingConnections.get(key)
     if (existing) return existing
     const connection = (async () => {
-      const record = await this.createAddressPermissionRequest(context, wallet)
-      return this.wait(record.id)
+      const request = await this.createAddressPermissionRequest(context, wallet, true)
+      return request.approved ? request.result : this.wait(request.record.id)
     })()
     this.pendingConnections.set(key, connection)
     try {
@@ -1148,10 +1154,22 @@ export class WalletBroker {
       await this.service.approvals.recordSimulation(record.id, { attempted: false, success: false }, this.now())
       await this.service.approvals.transition(record.id, 'simulated', this.now())
       await this.service.approvals.transition(record.id, 'policy-decision', this.now())
+      const signIn = this.websiteSignInDecision(context, currentWallet, record.id, retainedInput.kind === 'message'
+        ? { kind: 'message', bytes: retainedInput.message, raw: rawSigning }
+        : { kind: 'typed-data' })
       await this.service.audit.append('request-simulated', {
         requestId: record.id, walletId: wallet.id, success: false, attempted: false,
-        policyDecision: 'awaiting-human', reason: rawSigning ? 'raw-signing-requires-human' : 'message-signing-requires-human'
+        policyDecision: signIn?.decision.outcome ?? 'awaiting-human',
+        reason: signIn?.decision.reason ?? (rawSigning ? 'raw-signing-requires-human' : 'message-signing-requires-human')
       }, this.now().toISOString())
+      if (signIn?.decision.outcome === 'approved') {
+        const automatic = await this.approveWebsiteSignIn(context, currentWallet, record.id, signIn.policies, signIn.decision.policyId)
+        if (automatic.approved) {
+          this.clearRequestExpiry(record.id)
+          this.publish()
+          return automatic.result
+        }
+      }
       await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
       if (returnSummary) this.publish()
       return returnSummary
@@ -1162,7 +1180,11 @@ export class WalletBroker {
     }
   }
 
-  private async execute(record: WalletApprovalRecord, activeAgentContext?: WalletBrokerContext): Promise<unknown> {
+  private async execute(
+    record: WalletApprovalRecord,
+    activeAgentContext?: WalletBrokerContext,
+    options: { permissionNotAfter?: string } = {}
+  ): Promise<unknown> {
     this.assertRecordPageActive(record)
     if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
     if (record.request.operation === 'connect-account') {
@@ -1183,7 +1205,11 @@ export class WalletBroker {
           const permission = await this.service.permissions.grant({
             ...permissionScope,
             capabilities: ['read'],
-            expiresAt: new Date(this.now().getTime() + 30 * 24 * 60 * 60_000).toISOString()
+            // Access granted by a sign-in policy never outlives that policy.
+            expiresAt: new Date(Math.min(
+              this.now().getTime() + 30 * 24 * 60 * 60_000,
+              options.permissionNotAfter ? Date.parse(options.permissionNotAfter) : Number.POSITIVE_INFINITY
+            )).toISOString()
           })
           grantedPermissionId = permission.id
         }
@@ -1460,8 +1486,9 @@ export class WalletBroker {
 
   private async createAddressPermissionRequest(
     context: WalletBrokerContext,
-    wallet: WalletDescriptor
-  ): Promise<WalletApprovalRecord> {
+    wallet: WalletDescriptor,
+    allowWebsiteSignIn = false
+  ): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
     const currentWallet = this.requireAccessibleWallet(context, wallet.id)
     const record = await this.createRequest(context, currentWallet, 'connect-account', 'read', { account: currentWallet.publicAddress })
     try {
@@ -1469,12 +1496,113 @@ export class WalletBroker {
       await this.service.approvals.recordSimulation(record.id, { attempted: false, success: false }, this.now())
       await this.service.approvals.transition(record.id, 'simulated', this.now())
       await this.service.approvals.transition(record.id, 'policy-decision', this.now())
+      const signIn = allowWebsiteSignIn ? this.websiteSignInDecision(context, currentWallet, record.id) : undefined
+      if (signIn) {
+        await this.service.audit.append('request-simulated', {
+          requestId: record.id, walletId: currentWallet.id, success: false, attempted: false,
+          policyDecision: signIn.decision.outcome, reason: signIn.decision.reason
+        }, this.now().toISOString())
+        if (signIn.decision.outcome === 'approved') {
+          const automatic = await this.approveWebsiteSignIn(context, currentWallet, record.id, signIn.policies, signIn.decision.policyId)
+          if (automatic.approved) {
+            this.clearRequestExpiry(record.id)
+            this.publish()
+            return { record: this.service.approvals.get(record.id)!, approved: true, result: automatic.result }
+          }
+        }
+      }
       await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
       this.publish()
-      return this.service.approvals.get(record.id)!
+      return { record: this.service.approvals.get(record.id)!, approved: false }
     } catch (error) {
       throw await this.fail(record.id, error)
     }
+  }
+
+  /**
+   * Evaluates a website's connection or message request against the wallet's
+   * opted-in sign-in policies. Returns undefined when no attached policy allows
+   * website sign-in, so requests on other wallets keep their existing path.
+   */
+  private websiteSignInDecision(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    recordId: string,
+    message?: WalletWebsiteSignInEvaluation['message']
+  ): { decision: WalletPolicyDecision; policies: WalletPolicy[] } | undefined {
+    if (context.requester.type !== 'website') return undefined
+    const policies = this.service.policies.list(wallet.id)
+      .filter((policy) => wallet.policyIds.includes(policy.id) && policy.allowWebsiteSignIn === true)
+    if (!policies.length) return undefined
+    const now = this.now()
+    const usageByPolicy = Object.fromEntries(policies.map((policy) => [
+      policy.id,
+      { operationCount: this.service.policyUsage.snapshot(policy.id, now).operationCount }
+    ]))
+    const decision = this.policy.evaluateWebsiteSignIn({
+      request: this.service.approvals.get(recordId)!.request,
+      wallet,
+      policies,
+      now,
+      usageByPolicy,
+      ...(message ? { message } : {})
+    })
+    return { decision, policies }
+  }
+
+  /**
+   * Reserves one operation on the matching sign-in policy, re-checks the
+   * policy and wallet inside the lifecycle queue, then approves and executes
+   * the request as the policy. Anything that changed returns it to a person.
+   */
+  private async approveWebsiteSignIn(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    recordId: string,
+    policies: readonly WalletPolicy[],
+    policyId: string
+  ): Promise<{ approved: false } | { approved: true; result: unknown }> {
+    this.assertRequestContextActive(context)
+    const policy = policies.find((entry) => entry.id === policyId)
+    if (!policy) throw new Error('Wallet automatic policy is unavailable')
+    const reservation = await this.service.policyUsage.reserve(policy, '0', this.now())
+    if (!reservation.reserved) {
+      await this.service.audit.append('policy-reservation-denied', {
+        requestId: recordId, walletId: wallet.id, policyId: policy.id, reason: reservation.reason
+      }, this.now().toISOString())
+      return { approved: false }
+    }
+    await this.service.audit.append('policy-reservation-created', {
+      requestId: recordId, walletId: wallet.id, policyId: policy.id,
+      operationCount: reservation.snapshot.operationCount
+    }, this.now().toISOString())
+    return this.queueLifecycle(async () => {
+      this.assertRequestContextActive(context)
+      const currentWallet = this.requireAccessibleWallet(context, wallet.id)
+      const currentPolicy = this.service.policies.list(wallet.id).find((entry) => entry.id === policy.id)
+      const current = this.service.approvals.get(recordId)!
+      const authorizationNow = this.now()
+      if (
+        !currentPolicy
+        || !currentWallet.policyIds.includes(policy.id)
+        || !isDeepStrictEqual(currentPolicy, policy)
+        || currentWallet.network.id !== current.request.networkId
+        || !websiteSignInPolicyApplies(currentWallet, currentPolicy, authorizationNow)
+      ) {
+        await this.service.audit.append('policy-authorization-invalidated', {
+          requestId: recordId, walletId: wallet.id, policyId: policy.id
+        }, this.now().toISOString())
+        return { approved: false }
+      }
+      await this.service.approvals.approve(recordId, current.request, authorizationNow)
+      await this.service.audit.append('request-approved-by-policy', {
+        requestId: recordId, walletId: wallet.id, policyId: policy.id,
+        operation: current.request.operation, requester: current.request.requester, origin: current.request.topLevelOrigin
+      }, this.now().toISOString())
+      this.assertRequestContextActive(context)
+      const result = await this.execute(this.service.approvals.get(recordId)!, context, { permissionNotAfter: currentPolicy.expiresAt })
+      return { approved: true, result }
+    })
   }
 
   private async ensureAgentAddressPermission(
@@ -1493,7 +1621,7 @@ export class WalletBroker {
       && record.request.requester.id === context.requester.id
       && ['validated', 'simulated', 'policy-decision', 'awaiting-human'].includes(record.status)
     ))
-    const record = existing ?? await this.createAddressPermissionRequest(context, wallet)
+    const record = existing ?? (await this.createAddressPermissionRequest(context, wallet)).record
     return agentSummary(record, wallet, false)
   }
 
