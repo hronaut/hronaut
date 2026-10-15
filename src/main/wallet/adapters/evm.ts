@@ -7,6 +7,7 @@ import {
   hexToBigInt,
   http,
   isAddress,
+  keccak256,
   parseAbi,
   RpcRequestError,
   TransactionReceiptNotFoundError,
@@ -179,7 +180,7 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
 }
 
 type EvmClient = Pick<PublicClient,
-  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt' | 'request' | 'readContract' | 'getBlock'
+  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransaction' | 'getTransactionReceipt' | 'request' | 'readContract' | 'getBlock'
 >
 
 /** EIP-7825 caps a transaction's gas limit at 2^24; nodes refuse a larger one. */
@@ -209,12 +210,20 @@ const MAX_READ_RPC_ERROR_DATA_CHARS = 258
  * word it and reported in Hronaut's own words, never the node's text, which
  * can name the RPC endpoint. More specific wordings come first.
  */
+/**
+ * The node has seen this exact transaction, for example after a hosted RPC
+ * retried the send itself (Geth, Erigon, Besu, Hardhat, Anvil, Nethermind,
+ * OpenEthereum and Cosmos EVM wordings).
+ */
+const ALREADY_KNOWN = /already ?known|\bknown transaction|already imported|existing txn with same hash|tx already exists in cache/i
+
 const BROADCAST_REFUSALS: ReadonlyArray<readonly [RegExp, string]> = [
   [/insufficient funds|upfront cost exceeds account balance|doesn't have enough funds/i, 'the account cannot pay for gas and value'],
   [/nonce too low|nonce has already been used/i, 'nonce too low, the account already used this nonce'],
   [/nonce too high/i, 'nonce too high, an earlier nonce has not been sent'],
   [/replacement transaction underpriced|replacement fee too low/i, 'replacement transaction underpriced'],
-  [/already known|\bknown transaction|already imported/i, 'the node already has this transaction'],
+  // Only when the node no longer holds it, for example after dropping it; see broadcast().
+  [ALREADY_KNOWN, 'the node says it already has this transaction'],
   [/(?:max fee per gas|fee cap) less than block base fee/i, 'max fee per gas is below the block base fee'],
   [/max priority fee per gas higher than max fee per gas|tip higher than fee cap/i, 'priority fee is above the max fee'],
   // Geth also says "transaction underpriced" when its pool is full and the fee cannot compete.
@@ -231,17 +240,22 @@ function serverErrorCode(code: number): number {
   return Number.isSafeInteger(code) && code >= -32099 && code <= -32000 ? code : -32000
 }
 
+function rpcRequestError(error: unknown): RpcRequestError | undefined {
+  const rpc = (error as BaseError | undefined)?.walk?.((cause) => cause instanceof RpcRequestError)
+  return rpc instanceof RpcRequestError ? rpc : undefined
+}
+
 function broadcastError(error: unknown): unknown {
-  const rpc = (error as BaseError | undefined)?.walk?.((cause) => cause instanceof RpcRequestError) as RpcRequestError | null | undefined
-  if (!(rpc instanceof RpcRequestError)) return error
+  const rpc = rpcRequestError(error)
+  if (!rpc) return error
   const refusal = BROADCAST_REFUSALS.find(([pattern]) => pattern.test(rpc.details))
   if (!refusal) return error
   return new Error(`EVM RPC error (code ${serverErrorCode(rpc.code)}): the node refused the transaction: ${refusal[1]}`)
 }
 
 function readRpcError(error: unknown): Error {
-  const rpc = (error as BaseError | undefined)?.walk?.((cause) => cause instanceof RpcRequestError) as RpcRequestError | null | undefined
-  if (!(rpc instanceof RpcRequestError) || !Number.isSafeInteger(rpc.code)) return new Error('EVM RPC read request failed')
+  const rpc = rpcRequestError(error)
+  if (!rpc || !Number.isSafeInteger(rpc.code)) return new Error('EVM RPC read request failed')
   const data = typeof rpc.data === 'string' && /^0x[0-9a-fA-F]*$/.test(rpc.data) && rpc.data.length <= MAX_READ_RPC_ERROR_DATA_CHARS
     ? `, data ${rpc.data}`
     : ''
@@ -370,9 +384,19 @@ export class EvmWalletAdapter implements WalletChainAdapter {
 
   async broadcast(wallet: WalletDescriptor, signedTransaction: string): Promise<string> {
     if (!/^0x[0-9a-f]+$/i.test(signedTransaction)) throw new Error('Signed EVM transaction is invalid')
+    const client = this.clientFor(wallet)
     try {
-      return await this.clientFor(wallet).sendRawTransaction({ serializedTransaction: signedTransaction as Hex })
+      return await client.sendRawTransaction({ serializedTransaction: signedTransaction as Hex })
     } catch (error) {
+      // Like MetaMask, count it as sent, but only while the node still holds
+      // it: Nethermind and Erigon also say so for a transaction they rejected
+      // or dropped. A legacy (RLP list), EIP-2930 or EIP-1559 transaction's
+      // hash is the hash of its signed bytes.
+      const rpc = rpcRequestError(error)
+      if (rpc && ALREADY_KNOWN.test(rpc.details) && /^0x(?:0[12]|[c-f])/i.test(signedTransaction)) {
+        const hash = keccak256(signedTransaction as Hex)
+        if (await client.getTransaction({ hash }).then(() => true, () => false)) return hash
+      }
       throw broadcastError(error)
     }
   }
