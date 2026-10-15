@@ -1659,7 +1659,7 @@ describe('WalletBroker', () => {
     const pending = await nextApproval()
 
     await vi.waitFor(() => expect(broker.agentPageRequests(agent).callBatches).toEqual([
-      { id: '0xstopped', networkId: '11155111', calls: 2, state: 'stopped', transactions: [{ transactionHash: '0xtransaction', status: 'confirmed' }] },
+      { id: '0xstopped', networkId: '11155111', calls: 2, state: 'stopped', transactions: [{ transactionHash: '0xtransaction', status: 'confirmed' }], error: 'Wallet request was rejected by the user' },
       { id: 'not shown', networkId: '11155111', calls: 1, state: 'sending', transactions: [] }
     ]))
     // Batches belong to the site in this workspace, whichever of its tabs the agent reads.
@@ -1671,8 +1671,60 @@ describe('WalletBroker', () => {
     expect(await sending).toMatchObject({ status: 'rejected' })
     // A batch whose first call never went out is forgotten, as wallet_getCallsStatus forgets it.
     expect(broker.agentPageRequests(agent).callBatches).toEqual([
-      { id: '0xstopped', networkId: '11155111', calls: 2, state: 'stopped', transactions: [{ transactionHash: '0xtransaction', status: 'confirmed' }] }
+      { id: '0xstopped', networkId: '11155111', calls: 2, state: 'stopped', transactions: [{ transactionHash: '0xtransaction', status: 'confirmed' }], error: 'Wallet request was rejected by the user' }
     ])
+  })
+
+  it('lists the newest 20 batches for an agent, says why one stopped before a call went out, and hides the wallet in a batch ID', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    let broadcasts = 0
+    chain.broadcast.mockImplementation(async () => `0x${(broadcasts += 1).toString(16).padStart(64, '0')}`)
+    const unfunded = '0x0000000000000000000000000000000000000003'
+    const broker = new WalletBroker(service, {
+      adapters: {
+        evm: {
+          ...chain,
+          normalizeTransaction: async (selected: WalletDescriptor, payload: unknown) => {
+            if ((payload as { to?: string }).to === unfunded) throw new Error('Insufficient funds for the transaction fee')
+            return chain.normalizeTransaction(selected, payload)
+          }
+        }
+      },
+      confirmationPollIntervalMs: 5
+    })
+    await connect(broker)
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    const batch = (id: string, to: string[]) => broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', id, chainId: '0xaa36a7', atomicRequired: false, calls: to.map((address) => ({ to: address, value: '0x1' })) }]
+    })
+    const approveNext = async () => broker.approve((await broker.waitForPending((request) => (
+      request.status === 'awaiting-human' && request.operation === 'sign-and-send-transaction'
+    ))).id)
+    const send = async (id: string, to: string[]) => {
+      const sending = batch(id, to)
+      await approveNext()
+      return sending
+    }
+    const funded = '0x0000000000000000000000000000000000000002'
+
+    // The second call cannot even be prepared, so no request records it and the page already has its batch ID.
+    await expect(send('0xunfunded', [funded, unfunded])).resolves.toEqual({ id: '0xunfunded' })
+    await expect(send(wallet.publicAddress.slice(2).toLowerCase(), [funded])).resolves.toEqual({ id: wallet.publicAddress.slice(2).toLowerCase() })
+    expect(broker.agentPageRequests(agent).callBatches).toEqual([
+      expect.objectContaining({ id: '0xunfunded', state: 'stopped', transactions: [expect.objectContaining({ transactionHash: `0x${'1'.padStart(64, '0')}` })], error: 'Insufficient funds for the transaction fee' }),
+      expect.objectContaining({ id: 'this wallet (address hidden until account permission)', state: 'sent' })
+    ])
+
+    for (let index = 1; index <= 19; index += 1) await send(`0xbatch-${index}`, [funded])
+    const listed = broker.agentPageRequests(agent).callBatches as Array<{ id: string; state: string }>
+    // The oldest batch drops out once 20 newer ones are listed; the rest stay oldest first.
+    expect(listed.map(({ id }) => id)).toEqual([
+      'this wallet (address hidden until account permission)',
+      ...Array.from({ length: 19 }, (_, index) => `0xbatch-${index + 1}`)
+    ])
+    expect(listed.every(({ state }) => state === 'sent')).toBe(true)
   })
 
   it('returns batch call refusals to the page with their codes intact', async () => {

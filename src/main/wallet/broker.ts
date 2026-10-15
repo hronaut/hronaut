@@ -699,10 +699,13 @@ export class WalletBroker {
 
   /**
    * The site's wallet_sendCalls batches in this workspace, newest 20, so an
-   * agent can see that a batch stopped and at which call. Each sent call
-   * shows its transaction hash and its request's status.
+   * agent can see that a batch stopped, at which call and, when the next
+   * call could not be sent, why. Each sent call shows its transaction hash
+   * and its request's status.
    */
   private agentCallBatches(context: WalletBrokerContext, hiddenAccounts: string[]): Array<Record<string, unknown>> {
+    const batches = this.evmCallBundles.forSite(context).slice(-MAX_AGENT_CALL_BATCHES)
+    if (!batches.length) return []
     const statuses = new Map(this.service.approvals.list().flatMap((record) => (
       record.transactionHash
       && record.request.workspaceId === context.workspaceId
@@ -710,7 +713,7 @@ export class WalletBroker {
         ? [[record.transactionHash.toLowerCase(), record.status] as const]
         : []
     )))
-    return this.evmCallBundles.forSite(context).slice(-MAX_AGENT_CALL_BATCHES).map(({ id, bundle }) => ({
+    return batches.map(({ id, bundle }) => ({
       id: withoutWalletAddresses(agentCallBundleId(id), hiddenAccounts, HIDDEN_WALLET_ADDRESS),
       networkId: bundle.wallet.network.id,
       calls: bundle.calls,
@@ -719,7 +722,8 @@ export class WalletBroker {
         transactionHash: hash,
         status: statuses.get(hash.toLowerCase()) ?? 'unknown',
         ...(this.replacedTransactionHashes.has(hash.toLowerCase()) ? { replaced: true } : {})
-      }))
+      })),
+      ...(bundle.error ? { error: withoutWalletAddresses(bundle.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS) } : {})
     }))
   }
 
@@ -2158,6 +2162,8 @@ export class WalletBroker {
         this.evmCallBundles.delete(owner, started.id)
         throw error
       }
+      // The page already has its batch ID, so only an agent reading the batch learns why it stopped.
+      started.bundle.error = sanitizedError(error).message
     } finally {
       started.bundle.finished = true
     }

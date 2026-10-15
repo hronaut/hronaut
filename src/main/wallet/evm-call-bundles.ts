@@ -85,6 +85,8 @@ export interface EvmCallBundle {
   hashes: string[]
   /** True once Hronaut has stopped sending this bundle's calls. */
   finished: boolean
+  /** Why the next call could not be sent, sanitized, when that stopped the bundle. */
+  error?: string
 }
 
 export class EvmCallBundleStore {
