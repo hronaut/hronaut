@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Show the tab's Lock input, Pause agents, Freeze and Mute toggles as icon buttons at every window width, with tooltips and pressed states. The toolbar stays on one row at 1440 px, the address gets that room, and page freeze has its own snowflake icon instead of sharing the pause icon. Every existing command is kept.
 
+### Fixed
+
+- Vertically centre “MCP ready” with “Pause agents” in the MCP status pill; the status sat 4.5 px lower in the top-tab layout.
+
 ## [2.41.0] - 2026-10-15
 
 ### Added
