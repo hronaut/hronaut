@@ -636,18 +636,10 @@
 
 .interaction-lock-button.tab-mute-button { @apply flex-none [height:34px] [border:1px_solid_var(--border-soft)] [border-radius:8px] bg-surface-muted; }
 .interaction-lock-button.tab-mute-button.muted { @apply text-accent-copy border-accent bg-accent-soft; }
-@media (max-width: 1400px) {
-  .interaction-lock-button.tab-interaction-lock-button,
-  .interaction-lock-button.tab-agent-control-button,
-  .interaction-lock-button.page-lifecycle-button {
-    @apply [width:32px] [min-width:32px] justify-center [padding:0];
-  }
-  .tab-interaction-lock-button > span,
-  .tab-agent-control-button > span,
-  .page-lifecycle-button > span { @apply hidden; }
-  .interaction-lock-button.tab-mute-button { @apply [width:32px] [min-width:32px] justify-center [padding:0]; }
-  .tab-mute-label { @apply hidden; }
-}
+/* Tab toggles are icon buttons at every width so the address keeps its room.
+   Names and current state come from aria-label, title and aria-pressed. */
+.tab-controls > .interaction-lock-button { @apply [width:32px] [min-width:32px] justify-center [padding:0]; }
+.interaction-lock-button.page-lifecycle-button.frozen { @apply text-accent-copy border-accent bg-accent-soft; }
 
 .interaction-lock-button .state-spinner,
 .all-lock-button .state-spinner,

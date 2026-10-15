@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Show the tab's Lock input, Pause agents, Freeze and Mute toggles as icon buttons at every window width, with tooltips and pressed states. The toolbar stays on one row at 1440 px, the address gets that room, and page freeze has its own snowflake icon instead of sharing the pause icon. Every existing command is kept.
+
 ## [2.41.0] - 2026-10-15
 
 ### Added
