@@ -17,7 +17,9 @@
 .mcp-controls { overflow: visible; }
 .shell:not(.vertical-tabs-shell) .topbar:has(.mcp-summary [aria-expanded="true"]) { z-index: 3; }
 .mcp-summary { height: 100%; flex: 1; min-width: 0; }
-.mcp-summary .mcp-pill { width: 100%; border-radius: 999px 0 0 999px; }
+.mcp-summary .mcp-pill { width: 100%; min-height: 0; border-radius: 999px 0 0 999px; }
+/* The popover trigger is a UiButton with a 36px minimum; inside the 29px pill
+   that pushed "MCP ready" below the centred pause label. */
 .mcp-pause-button { display: flex; align-items: center; gap: 4px; border-radius: 0 999px 999px 0; }
 .vertical-tabs-shell .mcp-summary .ui-popover__panel { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; }
 .mcp-pause-label { font-size: 11px; }
