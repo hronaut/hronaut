@@ -20,6 +20,7 @@ import type { PendingVideoInspection, VideoSourceBinding } from '../browser/vide
 import { videoInspectionSchema } from '../../shared/video-inspection.js'
 import type { PendingFrameObservation } from '../browser/frame-observation.js'
 import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
+import { LIVE_REGION_LIMITS } from '../../shared/live-region.js'
 import { frameObservationResult } from './frame-observation-result.js'
 import type { ReactInspectionAuthority } from '../browser/react-inspection.js'
 import { REACT_INSPECTION_ACTIONS, type ReactInspectionCommand } from '../../shared/react-inspection.js'
@@ -398,6 +399,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_repro: new Set(['get']),
   browser_video: new Set(['get', 'inspect']),
   browser_dom_changes: new Set(['get']),
+  browser_live_region: new Set(['get']),
   browser_pwa_lifecycle: new Set(['get']),
   browser_issues: new Set(['list']),
   browser_console: new Set(['list']),
@@ -454,6 +456,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_repro: 'browser-state',
   browser_video: 'browser-state',
   browser_dom_changes: 'browser-state',
+  browser_live_region: 'browser-state',
   browser_pwa_lifecycle: 'browser-state',
   browser_visual_compare: 'browser-state',
   browser_issues: 'browser-state',
@@ -5022,6 +5025,27 @@ function createBrowserMcpServer(
       tabId?: string
       action: 'start' | 'get' | 'stop' | 'clear'
     }) => textResult(await manager.domChanges(action, tabId)))
+  )
+  registerWorkspaceTool(
+    'browser_live_region',
+    {
+      description: toolDescription('browser_live_region'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        action: z.enum(['start', 'get', 'stop', 'clear']).default('get'),
+        selector: z.string().min(1).max(LIVE_REGION_LIMITS.maxSelectorChars).optional()
+          .describe('CSS selector for exactly one top-level light-DOM region; required for start')
+      }
+    },
+    tabTool('browser_live_region', async ({
+      tabId,
+      action,
+      selector
+    }: {
+      tabId?: string
+      action: 'start' | 'get' | 'stop' | 'clear'
+      selector?: string
+    }) => textResult(await manager.liveRegion(action, tabId, selector)))
   )
   registerWorkspaceTool(
     'browser_visual_compare',
