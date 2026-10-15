@@ -68,7 +68,7 @@ test('supports real 400% page zoom, reflow, input and isolated workspaces', asyn
     await expect.poll(() => page.evaluate('window.hits')).toBe(1)
     await call('browser_scroll', { tabId, deltaY: 250 })
     await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0)
-    await appWindow.getByRole('button', { name: 'Page zoom controls', exact: true }).click()
+    await appWindow.getByRole('button', { name: /^Page zoom controls, \d+%$/ }).click()
     const controls = appWindow.getByRole('group', { name: 'Page zoom controls' })
     await expect(controls.locator('output')).toHaveText('400%')
     await expect(controls.getByRole('button', { name: 'Zoom in', exact: true })).toBeDisabled()

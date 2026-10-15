@@ -3,7 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { BrowserContext, TestInfo } from '@playwright/test'
 
-type TraceTarget = { context(): { tracing: Pick<BrowserContext['tracing'], 'start' | 'stop'> } }
+// Playwright 1.64 returns a Disposable from tracing.start; only its completion is awaited.
+type TraceTarget = { context(): { tracing: {
+  start(options?: Parameters<BrowserContext['tracing']['start']>[0]): Promise<unknown>
+  stop: BrowserContext['tracing']['stop']
+} } }
 type TraceInfo = Pick<TestInfo, 'title' | 'retry' | 'status' | 'expectedStatus' | 'attach'> & {
   project: { use: Pick<TestInfo['project']['use'], 'trace'> }
 }

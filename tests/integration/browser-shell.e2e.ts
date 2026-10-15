@@ -1084,7 +1084,7 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   }
   for (const label of ['Back', 'Forward', 'Address', 'Find in page', 'Page zoom controls', 'Bookmarks', 'Page tools']) {
     if (label === 'Address') await expect(appWindow.locator('.toolbar').getByRole('combobox', { name: label })).toBeVisible()
-    else await expect(appWindow.locator('.toolbar').getByRole('button', { name: label, exact: true })).toBeVisible()
+    else await expect(appWindow.locator('.toolbar').getByRole('button', { name: label === 'Page zoom controls' ? /^Page zoom controls, \d+%$/ : label, exact: true })).toBeVisible()
   }
   await expect(appWindow.locator('.tab')).toContainText('New tab')
   await expect(appWindow.locator('.tab')).toHaveAttribute('aria-selected', 'true')

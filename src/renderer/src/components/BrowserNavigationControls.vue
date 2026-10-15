@@ -59,7 +59,7 @@ function refreshOrStop(): void {
     class="zoom-button"
     type="button"
     :title="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
-    :aria-label="t('shell.toolbar.zoom')"
+    :aria-label="t('shell.toolbar.zoom', { percent: `${activeTab?.zoomPercent ?? 100}%` })"
     :aria-expanded="zoomOpen"
     :disabled="!activeTab"
     @click="emit('toggleZoom')"
