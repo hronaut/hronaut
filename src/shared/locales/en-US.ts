@@ -504,12 +504,15 @@ export const enUS = {
         baseUnits: '{amount} (smallest token units)',
         unknownAmount: 'Amount not readable',
         moreAllowances: 'More tokens are listed in the raw unsigned request.',
+        validUntil: 'Valid until',
+        neverExpires: 'Never expires',
         warnings: {
           otherChain: "This signature does not name this wallet's chain, so it may be used on another chain.",
           tokenPermit: 'This is a token permit. Signing it lets the spender move your tokens without another approval from you.',
           tokenTransfer: 'This is a token transfer authorization. Signing it lets the tokens be moved from your wallet to the recipient without another approval from you.',
           unlimitedAmount: 'This signature covers an unlimited amount of the token.',
           unreadableAmount: 'Hronaut could not read every amount in this signature. Treat it as unlimited.',
+          noExpiry: 'This signature never expires, so it can still be used long after you sign it.',
           assetOrder: 'This looks like a marketplace or exchange order. Once it is signed, anyone who fills it can take the tokens or NFTs it offers from this wallet.',
           safeTransaction: "This looks like a Safe multisig transaction or message. Once enough owners sign, it can move the Safe's assets or change its owners."
         }

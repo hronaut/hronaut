@@ -42,6 +42,10 @@ const ASSET_ORDER_TYPES = new Set([
 // and a Safe message makes the Safe accept any signature it wraps, such as a
 // permit for the Safe's tokens.
 const SAFE_TYPES = new Set(['SafeTx', 'SafeMessage'])
+// Deadlines past the year 9999, such as Permit2's uint48 maximum or a uint256
+// maximum, are how permits say "no expiry"; they also cannot be shown as a date.
+const LAST_DISPLAYABLE_SECOND = 253_402_300_799n
+const NEVER = 'never'
 
 type Allowance = NonNullable<WalletTypedDataDisplay['tokenAccess']>['allowances'][number]
 type Types = Record<string, unknown>
@@ -147,24 +151,74 @@ interface TokenAccess {
   unreadable: boolean
 }
 
+type Expiry = bigint | typeof NEVER | undefined
+
+/**
+ * Seconds since the epoch in a declared integer field, or undefined when the
+ * type declares no such field. A declared value that cannot be read is
+ * treated as never expiring, the same caution as an unreadable amount.
+ */
+function seconds(field: Field | undefined): Expiry {
+  if (!field) return undefined
+  const value = isInteger(field) ? integer(field.value) : undefined
+  return value !== undefined && value >= 0n ? value : NEVER
+}
+
+/**
+ * The latest time a Permit2 allowance can be used. An entry's expiration of
+ * zero ends the allowance in the block that submits it, which must happen
+ * before the signature deadline; any other expiration bounds the allowance.
+ */
+function permit2Expiry(entries: Array<Map<string, Field>>, signatureDeadline: Expiry): Expiry {
+  let latest: bigint | undefined
+  for (const entry of entries) {
+    const expiration = seconds(entry.get('expiration'))
+    const effective = expiration === 0n ? signatureDeadline : expiration
+    if (effective === NEVER) return NEVER
+    if (effective === undefined) return undefined
+    if (latest === undefined || effective > latest) latest = effective
+  }
+  return latest
+}
+
+function expiryDisplay(expiry: Expiry): { expiresAt: string } | { neverExpires: true } | undefined {
+  if (expiry === undefined) return undefined
+  if (expiry === NEVER || expiry > LAST_DISPLAYABLE_SECOND) return { neverExpires: true }
+  return { expiresAt: new Date(Number(expiry) * 1000).toISOString() }
+}
+
 function tokenAccess(types: Types, primaryType: string, message: unknown, verifyingContract: unknown): TokenAccess | undefined {
   const fields = declaredFields(types, primaryType, message)
   let allowances: Allowance[]
   let party: { spender?: string } | { recipient?: string }
+  let expiry: Expiry
   if (primaryType === 'Permit') {
     const allowed = fields.get('allowed')
-    // DAI-style permits approve all or nothing with a declared `allowed` flag.
+    // DAI-style permits approve all or nothing with a declared `allowed` flag,
+    // and an `expiry` of zero means the permit never expires.
     allowances = allowed?.type === 'bool'
       ? [{ ...amount(verifyingContract, undefined), ...(allowed.value === true ? { unlimited: true as const } : allowed.value === false ? { amount: '0' } : {}) }]
       : [amount(verifyingContract, fields.get('value'))]
     party = { spender: text(fields.get('spender')?.value) }
+    if (allowed?.type === 'bool') {
+      const daiExpiry = seconds(fields.get('expiry'))
+      expiry = daiExpiry === 0n ? NEVER : daiExpiry
+    } else {
+      expiry = seconds(fields.get('deadline'))
+    }
   } else if (PERMIT2_DETAILS_TYPES.has(primaryType) || PERMIT2_TRANSFER_TYPES.has(primaryType)) {
     const entries = structEntries(types, fields.get(PERMIT2_DETAILS_TYPES.has(primaryType) ? 'details' : 'permitted'))
     allowances = entries.map((entry) => amount(entry.get('token')?.value, entry.get('amount')))
     party = { spender: text(fields.get('spender')?.value) }
+    expiry = PERMIT2_DETAILS_TYPES.has(primaryType)
+      ? permit2Expiry(entries, seconds(fields.get('sigDeadline')))
+      : seconds(fields.get('deadline'))
   } else if (TRANSFER_AUTHORIZATION_TYPES.has(primaryType)) {
     allowances = [amount(verifyingContract, fields.get('value'))]
     party = { recipient: text(fields.get('to')?.value) }
+    // validBefore is exclusive: the last second it can be used is one earlier.
+    const validBefore = seconds(fields.get('validBefore'))
+    expiry = typeof validBefore === 'bigint' && validBefore > 0n ? validBefore - 1n : validBefore
   } else {
     return undefined
   }
@@ -173,7 +227,8 @@ function tokenAccess(types: Types, primaryType: string, message: unknown, verify
       kind: PERMIT2_TRANSFER_TYPES.has(primaryType) || TRANSFER_AUTHORIZATION_TYPES.has(primaryType) ? 'transfer' : 'allowance',
       ...Object.fromEntries(Object.entries(party).filter(([, value]) => value !== undefined)),
       allowances: allowances.slice(0, WALLET_TYPED_DATA_MAX_ALLOWANCES),
-      ...(allowances.length > WALLET_TYPED_DATA_MAX_ALLOWANCES ? { moreAllowances: true as const } : {})
+      ...(allowances.length > WALLET_TYPED_DATA_MAX_ALLOWANCES ? { moreAllowances: true as const } : {}),
+      ...expiryDisplay(expiry)
     },
     // Judged on every entry, including those past the shown limit.
     unlimited: allowances.some((entry) => entry.unlimited),
@@ -194,9 +249,9 @@ export function typedDataSignedChainId(typedData: unknown): bigint | undefined {
 
 /**
  * What an EIP-712 request asks to sign, for the trusted approval dialog:
- * its type and signed domain fields, the spender or recipient and tokens of
- * a token permit or transfer authorization, and warnings for those, for
- * unlimited amounts, for marketplace or exchange orders and Safe
+ * its type and signed domain fields, the spender or recipient, tokens and
+ * expiry of a token permit or transfer authorization, and warnings for those,
+ * for unlimited amounts, for permits that never expire, for marketplace or exchange orders and Safe
  * transactions, and for a domain on another chain. The typed data comes
  * from the page, so every field is treated as unknown, and only fields the
  * signer hashes are read.
@@ -217,6 +272,7 @@ export function typedDataDisplay(typedData: unknown, wallet: WalletDescriptor): 
     warnings.push(TRANSFER_AUTHORIZATION_TYPES.has(primaryType) ? 'token-transfer' : 'token-permit')
     if (access.unlimited) warnings.push('unlimited-amount')
     if (access.unreadable) warnings.push('unreadable-amount')
+    if (access.display.neverExpires) warnings.push('no-expiry')
   }
   if (ASSET_ORDER_TYPES.has(primaryType)) warnings.push('asset-order')
   if (SAFE_TYPES.has(primaryType)) warnings.push('safe-transaction')

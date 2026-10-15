@@ -362,7 +362,7 @@ export type WalletMessageWarning = z.infer<typeof WalletMessageWarningSchema>
 /** Token amounts listed for one typed-data permit or transfer in the trusted approval dialog. */
 export const WALLET_TYPED_DATA_MAX_ALLOWANCES = 16
 export const WalletTypedDataWarningSchema = z.enum([
-  'typed-data-other-chain', 'token-permit', 'token-transfer', 'unlimited-amount', 'unreadable-amount', 'asset-order', 'safe-transaction'
+  'typed-data-other-chain', 'token-permit', 'token-transfer', 'unlimited-amount', 'unreadable-amount', 'no-expiry', 'asset-order', 'safe-transaction'
 ])
 export type WalletTypedDataWarning = z.infer<typeof WalletTypedDataWarningSchema>
 export const WalletTransactionWarningSchema = z.enum(['token-approval', 'allowance-increase', 'unlimited-allowance', 'collection-approval'])
@@ -385,7 +385,9 @@ export const WalletTypedDataDisplaySchema = z.object({
       amount: typedDataDisplayText.optional(),
       unlimited: z.literal(true).optional()
     }).strict()).max(WALLET_TYPED_DATA_MAX_ALLOWANCES),
-    moreAllowances: z.literal(true).optional()
+    moreAllowances: z.literal(true).optional(),
+    expiresAt: IsoDateSchema.optional(),
+    neverExpires: z.literal(true).optional()
   }).strict().optional(),
   warnings: z.array(WalletTypedDataWarningSchema).max(WalletTypedDataWarningSchema.options.length)
 }).strict()

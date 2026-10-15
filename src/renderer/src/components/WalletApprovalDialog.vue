@@ -42,6 +42,7 @@ const typedDataWarningKeys: Record<WalletTypedDataWarning, string> = {
   'token-transfer': 'tokenTransfer',
   'unlimited-amount': 'unlimitedAmount',
   'unreadable-amount': 'unreadableAmount',
+  'no-expiry': 'noExpiry',
   'asset-order': 'assetOrder',
   'safe-transaction': 'safeTransaction'
 }
@@ -130,6 +131,7 @@ function rawDetails(): string {
             <dt>{{ tokenAmountLabel(index) }}</dt>
             <dd><code v-if="allowance.token">{{ allowance.token }}</code>{{ allowance.token ? ' · ' : '' }}{{ allowance.unlimited ? t('wallets.approval.typedData.unlimited') : allowance.amount ? t('wallets.approval.typedData.baseUnits', { amount: allowance.amount }) : t('wallets.approval.typedData.unknownAmount') }}</dd>
           </div>
+          <div v-if="request.details.typedData.tokenAccess?.expiresAt || request.details.typedData.tokenAccess?.neverExpires"><dt>{{ t('wallets.approval.typedData.validUntil') }}</dt><dd>{{ request.details.typedData.tokenAccess.expiresAt ? new Date(request.details.typedData.tokenAccess.expiresAt).toLocaleString() : t('wallets.approval.typedData.neverExpires') }}</dd></div>
         </dl>
         <p v-if="request.details.typedData.tokenAccess?.moreAllowances" class="wallet-approval-message-note">{{ t('wallets.approval.typedData.moreAllowances') }}</p>
       </section>

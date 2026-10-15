@@ -156,6 +156,36 @@ describe('WalletApprovalDialog', () => {
     ])
   })
 
+  it('shows until when a typed-data permit can be used, and warns when it never expires', () => {
+    const expiresAt = '2027-01-15T08:00:00.000Z'
+    const permit = (tokenAccess: Record<string, unknown>, warnings: string[]): WalletRequestSummary => {
+      const pending = request()
+      pending.details = {
+        ...pending.details!,
+        typedData: {
+          primaryType: 'Permit', domain: { name: 'USD Coin', chainId: '1' },
+          tokenAccess: { kind: 'allowance', allowances: [{ amount: '5' }], ...tokenAccess },
+          warnings
+        } as NonNullable<NonNullable<WalletRequestSummary['details']>['typedData']>
+      }
+      return pending
+    }
+    const view = render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([permit({ expiresAt }, ['token-permit'])]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+    expect(screen.getByRole('region', { name: 'Typed data to sign' })).toHaveTextContent(`Valid until${new Date(expiresAt).toLocaleString()}`)
+    view.unmount()
+
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([permit({ neverExpires: true }, ['token-permit', 'no-expiry'])]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+    expect(screen.getByRole('region', { name: 'Typed data to sign' })).toHaveTextContent('Valid untilNever expires')
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim()))
+      .toContain('This signature never expires, so it can still be used long after you sign it.')
+  })
+
   it('summarizes a typed-data token transfer with its recipient, amounts and an unreadable amount', () => {
     const pending = request()
     pending.details = {
