@@ -1194,6 +1194,7 @@ export const plPL = {
       "touch": " dotykowy",
       "geolocation": "niestandardowa geolokalizacja",
       "safeArea": "niestandardowe marginesy obszaru bezpiecznego",
+      "textScale": "systemowy rozmiar tekstu {percent}",
       "locale": "ustawienia regionalne {locale}",
       "timezone": "strefa czasowa {timezone}",
       "cpu": "CPU {rate}× wolniejszy",

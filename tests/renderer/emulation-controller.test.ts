@@ -104,9 +104,10 @@ describe('emulation controller', () => {
     controller.dispose()
   })
 
-  it('names an active safe-area override in the description', () => {
+  it('names safe-area and OS text-scale overrides in the description', () => {
     const { controller } = createController()
     expect(controller.describe({ ...defaultEmulation(), safeAreaInsets: { top: 47 } })).toBe('runtimeDetails.emulation.safeArea')
+    expect(controller.describe({ ...defaultEmulation(), osTextScale: 2 })).toContain('runtimeDetails.emulation.textScale')
   })
 
   it('treats a missing legacy animation playback rate as the normal default', () => {

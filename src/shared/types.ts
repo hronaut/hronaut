@@ -155,6 +155,8 @@ export interface BrowserEmulationState {
   geolocation?: BrowserGeolocationEmulation
   /** Present while an override is active; omitted fields resolve to 0px. */
   safeAreaInsets?: BrowserSafeAreaInsets
+  /** Emulated OS text-scale factor; absent means the browser's own preference. */
+  osTextScale?: number
   extraHttpHeaderNames?: string[]
   renderingDebug?: BrowserRenderingDebugOverlays
 }
@@ -195,6 +197,8 @@ export interface BrowserEmulationOptions {
   geolocation?: BrowserGeolocationEmulation | null
   /** Replaces the whole override; null restores the browser's own values. */
   safeAreaInsets?: BrowserSafeAreaInsets | null
+  /** 0.85–2; null restores the browser's own text-scale preference. */
+  osTextScale?: number | null
   extraHttpHeaders?: Record<string, string>
   renderingDebug?: Partial<BrowserRenderingDebugOverlays> | null
 }
