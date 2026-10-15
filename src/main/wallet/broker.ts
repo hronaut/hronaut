@@ -50,6 +50,7 @@ import {
 import { WalletPageLog } from './page-log.js'
 import { solanaSignInMessage } from './solana-sign-in.js'
 import { typedDataDisplay } from './typed-data-display.js'
+import { TYPED_DATA_V3_UNSUPPORTED, typedDataV3MatchesV4 } from './typed-data-v3.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
 import type {
@@ -1015,15 +1016,16 @@ export class WalletBroker {
       this.assertAddressPermission(context, selected, method === 'eth_sendTransaction' ? 'send' : 'sign')
       return this.transactionRequest(context, selected, payload, method === 'eth_sendTransaction')
     }
-    if (method === 'personal_sign' || method === 'eth_sign' || method === 'eth_signTypedData_v4') {
+    if (method === 'personal_sign' || method === 'eth_sign' || method === 'eth_signTypedData_v4' || method === 'eth_signTypedData_v3') {
       const values = paramsArray(params)
       const addressIndex = method === 'personal_sign' ? 1 : 0
       const messageIndex = method === 'personal_sign' ? 0 : 1
       const requestedAddress = values[addressIndex]
       const selected = this.selectEvmAccount(activeWallets, requestedAddress)
       this.assertAddressPermission(context, selected, 'sign')
-      if (method === 'eth_signTypedData_v4') {
+      if (method === 'eth_signTypedData_v4' || method === 'eth_signTypedData_v3') {
         const typedData = typeof values[messageIndex] === 'string' ? JSON.parse(values[messageIndex]) : values[messageIndex]
+        if (method === 'eth_signTypedData_v3' && !typedDataV3MatchesV4(typedData)) throw new Error(TYPED_DATA_V3_UNSUPPORTED)
         return this.messageRequest(context, selected, { kind: 'typed-data', typedData })
       }
       return this.messageRequest(context, selected, {

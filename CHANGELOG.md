@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- dApps that sign EIP-712 typed data with the older `eth_signTypedData_v3` method now work in Hronaut. The request gets the same approval dialog, warnings and wallet policy checks as `eth_signTypedData_v4`, and is signed the way MetaMask signs it. Hronaut accepts it only when v3 and v4 produce the same signature: no array types, a declared `EIP712Domain` type and a value for every declared field. Other v3 requests fail with code 4200 and a message that names `eth_signTypedData_v4`, instead of a signature the dApp's contract would reject.
+
 ## [2.48.0] - 2026-10-15
 
 ### Added
