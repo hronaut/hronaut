@@ -1,7 +1,7 @@
 import { normalizeTabLabel, MAX_TAB_LABEL_INPUT_LENGTH } from '../../shared/tab-label.js'
 import { MAX_COMPARED_TEXT_VALUE_LENGTH } from '../../shared/value-comparison.js'
 import { browserClickSchema } from './browser-click-input.js'
-import { EMULATION_INPUT_ERRORS, EmulationInputError } from '../browser/emulation-state.js'
+import { EMULATION_INPUT_ERRORS, EmulationInputError, MAX_SAFE_AREA_INSET, SAFE_AREA_INSET_FIELDS } from '../browser/emulation-state.js'
 import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure, type StorageComparisonHooks } from '../browser/storage-comparison-operation.js'
 import { nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
@@ -4604,6 +4604,9 @@ function createBrowserMcpServer(
           longitude: z.number().min(-180).max(180),
           accuracy: z.number().min(0).max(100_000).default(100)
         }).nullable().optional(),
+        safeAreaInsets: z.object(Object.fromEntries(SAFE_AREA_INSET_FIELDS.map(name => [name, z.number().int().min(0).max(MAX_SAFE_AREA_INSET).optional()])))
+          .strict().nullable().optional()
+          .describe('Override env(safe-area-inset-*) and env(safe-area-max-inset-*) in integer CSS pixels: top, left, bottom, right and their *Max fields. Replaces the whole override; omitted fields leave that variable undefined so CSS fallbacks apply. Null restores the browser values. Not a device frame or notch overlay.'),
         renderingDebug: z.object({
           paintFlashing: z.boolean().optional()
             .describe('Flash repainted regions. This can produce rapid flashing and should be used with photosensitivity caution.'),

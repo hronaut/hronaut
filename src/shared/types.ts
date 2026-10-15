@@ -113,6 +113,18 @@ export interface BrowserGeolocationEmulation {
   accuracy: number
 }
 
+/** Integer CSS pixels for env(safe-area-inset-*) and env(safe-area-max-inset-*). */
+export interface BrowserSafeAreaInsets {
+  top?: number
+  topMax?: number
+  left?: number
+  leftMax?: number
+  bottom?: number
+  bottomMax?: number
+  right?: number
+  rightMax?: number
+}
+
 export interface BrowserRenderingDebugOverlays {
   paintFlashing: boolean
   layoutShiftRegions: boolean
@@ -141,6 +153,8 @@ export interface BrowserEmulationState {
   javaScriptDisabled?: boolean
   viewport?: BrowserViewportEmulation
   geolocation?: BrowserGeolocationEmulation
+  /** Present while an override is active; omitted fields leave that variable undefined. */
+  safeAreaInsets?: BrowserSafeAreaInsets
   extraHttpHeaderNames?: string[]
   renderingDebug?: BrowserRenderingDebugOverlays
 }
@@ -179,6 +193,8 @@ export interface BrowserEmulationOptions {
   viewportPreset?: BrowserViewportPresetId
   viewportOrientation?: BrowserViewportOrientation
   geolocation?: BrowserGeolocationEmulation | null
+  /** Replaces the whole override; null restores the browser's own values. */
+  safeAreaInsets?: BrowserSafeAreaInsets | null
   extraHttpHeaders?: Record<string, string>
   renderingDebug?: Partial<BrowserRenderingDebugOverlays> | null
 }

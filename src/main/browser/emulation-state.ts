@@ -1,5 +1,5 @@
 import { validateHeaderName, validateHeaderValue } from 'node:http'
-import type { BrowserEmulationOptions, BrowserEmulationState, BrowserViewportEmulation } from '../../shared/types.js'
+import type { BrowserEmulationOptions, BrowserEmulationState, BrowserSafeAreaInsets, BrowserViewportEmulation } from '../../shared/types.js'
 import { resolveViewportPreset } from '../../shared/viewport-presets.js'
 import { DEFAULT_RENDERING_DEBUG, isValidBrowserLocale, isValidBrowserTimezone } from '../../shared/browser-environment.js'
 
@@ -13,6 +13,24 @@ export const EMULATION_INPUT_ERRORS = {
 /** Bounded option-combination errors; never include request or native error text. */
 export class EmulationInputError extends Error {
   constructor(readonly reason: keyof typeof EMULATION_INPUT_ERRORS) { super(EMULATION_INPUT_ERRORS[reason]) }
+}
+
+export const SAFE_AREA_INSET_FIELDS = ['top', 'topMax', 'left', 'leftMax', 'bottom', 'bottomMax', 'right', 'rightMax'] as const
+export const MAX_SAFE_AREA_INSET = 1_000
+
+function validateSafeAreaInsets(insets: BrowserSafeAreaInsets): void {
+  if (!insets || typeof insets !== 'object' || Array.isArray(insets)) throw new Error('safeAreaInsets must be an object or null')
+  for (const [name, value] of Object.entries(insets)) {
+    if (!(SAFE_AREA_INSET_FIELDS as readonly string[]).includes(name)) throw new Error(`Invalid safe-area inset: ${name}`)
+    if (value === undefined) continue
+    if (!Number.isInteger(value) || value < 0 || value > MAX_SAFE_AREA_INSET) {
+      throw new Error(`safeAreaInsets.${name} must be an integer from 0 to ${MAX_SAFE_AREA_INSET} CSS pixels`)
+    }
+  }
+}
+
+function copySafeAreaInsets(insets: BrowserSafeAreaInsets): BrowserSafeAreaInsets {
+  return Object.fromEntries(SAFE_AREA_INSET_FIELDS.flatMap(name => insets[name] === undefined ? [] : [[name, insets[name]]]))
 }
 
 export const DEFAULT_EMULATION: BrowserEmulationState = {
@@ -51,6 +69,7 @@ export function hasEmulationOverrides(state: BrowserEmulationState): boolean {
     || state.javaScriptDisabled === true
     || state.viewport !== undefined
     || state.geolocation !== undefined
+    || state.safeAreaInsets !== undefined
     || Boolean(state.extraHttpHeaderNames?.length)
     || Boolean(state.renderingDebug && Object.values(state.renderingDebug).some(Boolean))
 }
@@ -60,6 +79,7 @@ export function cloneEmulationState(state: BrowserEmulationState): BrowserEmulat
     ...state,
     ...(state.viewport ? { viewport: { ...state.viewport } } : {}),
     ...(state.geolocation ? { geolocation: { ...state.geolocation } } : {}),
+    ...(state.safeAreaInsets ? { safeAreaInsets: copySafeAreaInsets(state.safeAreaInsets) } : {}),
     ...(state.extraHttpHeaderNames ? { extraHttpHeaderNames: [...state.extraHttpHeaderNames] } : {}),
     ...(state.renderingDebug ? { renderingDebug: { ...state.renderingDebug } } : {})
   }
@@ -120,6 +140,7 @@ export function prepareBrowserEmulation(
     || options.viewport !== undefined
     || options.viewportPreset !== undefined
     || options.geolocation !== undefined
+    || options.safeAreaInsets !== undefined
     || options.extraHttpHeaders !== undefined
     || options.renderingDebug !== undefined
   if (options.recover) {
@@ -161,6 +182,7 @@ export function prepareBrowserEmulation(
       throw new Error('geolocation accuracy must be between 0 and 100000 meters')
     }
   }
+  if (options.safeAreaInsets !== undefined && options.safeAreaInsets !== null) validateSafeAreaInsets(options.safeAreaInsets)
   if (options.extraHttpHeaders !== undefined) {
     const entries = Object.entries(options.extraHttpHeaders)
     if (entries.length > 50) throw new Error('extraHttpHeaders cannot contain more than 50 headers')
@@ -223,6 +245,9 @@ export function prepareBrowserEmulation(
           : {}),
         ...(options.geolocation !== undefined
           ? { geolocation: options.geolocation === null ? undefined : { ...options.geolocation } }
+          : {}),
+        ...(options.safeAreaInsets !== undefined
+          ? { safeAreaInsets: options.safeAreaInsets === null ? undefined : copySafeAreaInsets(options.safeAreaInsets) }
           : {}),
         ...(options.extraHttpHeaders !== undefined
           ? { extraHttpHeaderNames: Object.keys(nextHeaders).sort((left, right) => left.localeCompare(right)) }
