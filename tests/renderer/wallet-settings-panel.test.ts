@@ -648,6 +648,34 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
   })
 
+  it('keeps a policy draft edited while the previous save was still pending', async () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
+    let finishSave = (): void => undefined
+    const setPolicy = vi.fn((policy: WalletPolicy) => new Promise<WalletPolicy>((resolve) => { finishSave = () => resolve(policy) }))
+    const wallets = controller({ wallets: ref([signingWallet]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+    expect(setPolicy).toHaveBeenCalledOnce()
+
+    await user.clear(screen.getByLabelText('Allowed origin'))
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://next.example')
+    finishSave()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // The late completion must not erase the newer draft.
+    expect(screen.getByLabelText('Allowed origin')).toHaveValue('https://next.example')
+    expect(screen.getByLabelText('Method / instruction')).toHaveValue('transfer')
+  })
+
   it('saves the token contract a token-call policy names, and clears it with the draft', async () => {
     const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
     signingWallet.kind = 'managed'
