@@ -36,24 +36,22 @@ function fixture(options: { keepDomEnabled?: boolean } = {}) {
     observationGeneration: 1,
     webContents
   }
+  // Both entry points share one serial queue, like the tab's debugger queue.
   let queue = Promise.resolve()
+  const serial = <R>(_tab: unknown, operation: () => Promise<R>): Promise<R> => {
+    const run = queue.then(operation)
+    queue = run.then(() => undefined, () => undefined)
+    return run
+  }
   const host = {
     isCurrent: vi.fn(() => true),
-    withDebugger: vi.fn(<R>(_tab: unknown, operation: () => Promise<R>) => {
-      const run = queue.then(operation)
-      queue = run.then(() => undefined, () => undefined)
-      return run
-    }),
-    inDebuggerQueue: vi.fn(<R>(_tab: unknown, operation: () => Promise<R>) => {
-      const run = queue.then(operation)
-      queue = run.then(() => undefined, () => undefined)
-      return run
-    }),
+    withDebugger: serial,
+    inDebuggerQueue: serial,
     conflict: vi.fn((): string | undefined => undefined),
     keepDomEnabled: vi.fn(() => options.keepDomEnabled === true),
     changed: vi.fn()
-  } satisfies CssStatePreviewHost<typeof tab>
-  const preview = new BrowserCssStatePreview(host)
+  }
+  const preview = new BrowserCssStatePreview<typeof tab>(host satisfies CssStatePreviewHost<typeof tab>)
   const methods = () => sendCommand.mock.calls.map(([method]) => method)
   const forced = () => sendCommand.mock.calls
     .filter(([method]) => method === 'CSS.forcePseudoState')

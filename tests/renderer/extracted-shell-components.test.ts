@@ -236,7 +236,7 @@ describe('extracted shell components', () => {
     }
     const props = {
       siteControlsOpen: false,
-      panelDock: 'right',
+      panelDock: 'right' as const,
       activeTab: tab(),
       addressController: {
         address: ref('https://example.test/app'),
@@ -271,7 +271,7 @@ describe('extracted shell components', () => {
       pageToolsPresentation: { activeNetworkRouteCount: ref(0) } as unknown as PageToolsPresentationController,
       siteDataController: { summary: ref(null), state: ref('idle'), message: ref('') } as unknown as SiteDataSummaryController,
       sitePermissionsController: { permissionLabel: (value: string) => value, isPending: () => false } as unknown as SitePermissionsController,
-      locale: 'en-US',
+      locale: 'en-US' as const,
       formatNumber: (value: number) => String(value),
       runAction: (action: () => unknown) => action(),
       actions: {
