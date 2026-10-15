@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   assertWalletNetworkForChainFamily,
+  isWalletTokenMethod,
   WalletCreateInputSchema,
   WalletImportDetailsSchema,
   WalletPolicySchema,
@@ -468,10 +469,17 @@ export class WalletService {
       }
     }
     if (candidate.mode === 'bounded-auto') {
+      if (candidate.allowAnyTokenContract && candidate.contracts?.length) {
+        throw new Error('A wallet policy that allows any token contract cannot also name one')
+      }
+      if (candidate.methods.some(isWalletTokenMethod) && !candidate.contracts?.length && candidate.allowAnyTokenContract !== true) {
+        throw new Error('A wallet policy for a token method must name its token contract or allow any token contract')
+      }
       if (wallet.network.environment === 'mainnet') {
         if (wallet.chainFamily !== 'evm' || wallet.kind !== 'agent') {
           throw new Error('Mainnet Bypass Approve mode requires a dedicated EVM agent wallet')
         }
+        if ((candidate.contracts?.length ?? 0) > 1) throw new Error('Mainnet Bypass Approve mode allows one token contract')
         if ((candidate.allowMainnetAgentAutomation || !websiteSignIn) && !isMainnetAgentAutomationPolicy(candidate, this.now())) {
           throw new Error('Mainnet Bypass Approve mode requires complete transaction, spend, fee, operation, and expiry limits')
         }
@@ -479,8 +487,10 @@ export class WalletService {
           if (!isMainnetWebsiteSignInPolicy(candidate, this.now())) {
             throw new Error('Mainnet website sign-in without approval requires its separate mainnet switch, one website origin, at most 100 operations and an expiry within 7 days')
           }
-          if (!candidate.allowMainnetAgentAutomation && (candidate.destinations.length > 0 || candidate.methods.length > 0)) {
-            throw new Error('A mainnet sign-in policy without Bypass Approve cannot list transaction destinations or methods')
+          if (!candidate.allowMainnetAgentAutomation
+            && (candidate.destinations.length > 0 || candidate.methods.length > 0
+              || (candidate.contracts?.length ?? 0) > 0 || candidate.allowAnyTokenContract === true)) {
+            throw new Error('A mainnet sign-in policy without Bypass Approve cannot list transaction destinations, contracts or methods')
           }
         }
       } else {

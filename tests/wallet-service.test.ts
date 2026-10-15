@@ -444,6 +444,23 @@ describe('WalletService', () => {
     })).rejects.toThrow(/complete transaction, spend, fee, operation, and expiry limits/i)
     await expect(service.setPolicy({ ...policy, walletId: dedicated.wallet.id }))
       .resolves.toMatchObject({ allowMainnetAgentAutomation: true })
+    await expect(service.setPolicy({ ...policy, id: 'mainnet-token', walletId: dedicated.wallet.id, methods: ['erc20.transfer'] }))
+      .rejects.toThrow('must name its token contract')
+    await expect(service.setPolicy({
+      ...policy, id: 'mainnet-tokens', walletId: dedicated.wallet.id, methods: ['erc20.transfer'],
+      contracts: ['0x00000000000000000000000000000000000000aa', '0x00000000000000000000000000000000000000bb']
+    })).rejects.toThrow('allows one token contract')
+    await expect(service.setPolicy({
+      ...policy, id: 'mainnet-token', walletId: dedicated.wallet.id, methods: ['erc20.transfer'],
+      contracts: ['0x00000000000000000000000000000000000000aa']
+    })).resolves.toMatchObject({ contracts: ['0x00000000000000000000000000000000000000aa'] })
+    await expect(service.setPolicy({
+      ...policy, id: 'mainnet-any-token', walletId: dedicated.wallet.id, methods: ['erc20.transfer'], allowAnyTokenContract: true
+    })).resolves.toMatchObject({ allowAnyTokenContract: true })
+    await expect(service.setPolicy({
+      ...policy, id: 'mainnet-any-and-one', walletId: dedicated.wallet.id, methods: ['erc20.transfer'], allowAnyTokenContract: true,
+      contracts: ['0x00000000000000000000000000000000000000aa']
+    })).rejects.toThrow('cannot also name one')
   })
 
   it.each([

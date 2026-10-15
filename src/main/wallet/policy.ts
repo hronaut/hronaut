@@ -1,5 +1,6 @@
 import { hashTypedData } from 'viem'
 import {
+  isWalletTokenMethod,
   MAX_WALLET_DECIMAL_LENGTH,
   walletAllowsWorkspace,
   type WalletDescriptor,
@@ -81,6 +82,7 @@ export function isMainnetAgentAutomationPolicy(policy: WalletPolicy, now: Date):
     && policy.networkIds.length === 1
     && policy.origins.length === 1
     && policy.destinations.length === 1
+    && (policy.contracts?.length ?? 0) <= 1
     && policy.methods.length === 1
     && policy.maxNativeAmount !== undefined
     && policy.maxTokenAmount !== undefined
@@ -390,6 +392,11 @@ export class WalletPolicyEngine {
       if (!policy.networkIds.includes(request.networkId) || !policy.origins.includes(request.topLevelOrigin)) continue
       if (!walletPolicyDestinationMatches(wallet.chainFamily, policy.destinations, decoded.destination)
         || !includesNormalized(policy.methods, decoded.method)) continue
+      // A token call's destination is its recipient, spender or operator; the token must be listed too.
+      // A token method without a decoded contract never matches, unless the policy allows any token contract.
+      if ((decoded.contract !== undefined || isWalletTokenMethod(decoded.method ?? ''))
+        && policy.allowAnyTokenContract !== true
+        && !walletPolicyDestinationMatches(wallet.chainFamily, policy.contracts ?? [], decoded.contract)) continue
       if (request.operation === 'sign-message' && !policy.allowMessageSigning) continue
       if (policy.maxNativeAmount && walletDecimalCompare(decoded.nativeAmount, policy.maxNativeAmount) > 0) continue
       if (policy.maxTokenAmount && walletDecimalCompare(decoded.tokenAmount, policy.maxTokenAmount) > 0) continue
