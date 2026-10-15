@@ -403,11 +403,9 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
 
   async function closeWorkspace(): Promise<void> {
     const current = workspace.value
+    // The global lock blocks human page input, not trusted Hronaut controls. This
+    // confirmed action matches Home's Clear, which never required unlocking.
     if (!current || current.deletionProtected || actionPending.value || storageState.value === 'saving') return
-    if (options.state.value.allHumanInteractionLocked) {
-      error.value = options.translate('runtime.workspace.unlock')
-      return
-    }
     if (!options.confirm(options.translate('runtimeActions.workspace.closeConfirm', { name: current.name }))) return
     const presentation = presentationGeneration
     actionState.value = 'closing'

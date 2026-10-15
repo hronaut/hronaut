@@ -361,7 +361,7 @@ onBeforeUnmount(dispose)
 
         </section>
         </details>
-          <div v-if="mode === 'edit'" class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton variant="danger" type="button" :disabled="dismissBlocked || deletionBlocked || state.allHumanInteractionLocked" :title="state.allHumanInteractionLocked ? t('workspaceEditor.unlockTitle') : undefined" data-lock-protected-tab-close @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
+          <div v-if="mode === 'edit'" class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton variant="danger" type="button" :disabled="dismissBlocked || deletionBlocked" @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
         <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
       </div>
       <footer v-if="!importTarget"><UiButton type="button" :disabled="dismissBlocked || templateBusy || importBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
