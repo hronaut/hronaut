@@ -40,7 +40,7 @@ export const LIVE_REGION_CAVEATS = [
   'Selected page text can contain private information. Text is captured only from the region you select, only while recording, and is never persisted, exported, or written to diagnostic logs.',
   'Entries are DOM observations at MutationObserver callback time, not announcements delivered to assistive technology. Synchronous changes between callbacks are coalesced, so intermediate text is not invented and counts are not announcement counts.',
   'Metadata repeats authored role and aria-* tokens only; it is not computed accessibility semantics or an accessible name.',
-  'Form fields and values, editable content, scripts, styles, frames, and shadow roots are never read. Text is DOM text, so hidden descendants are included.',
+  'Form fields and values, editable content, scripts, styles, frames, and shadow roots are never read. Text is DOM text, so hidden descendants are included. Recording stops if the region later becomes editable, enters design mode or moves into a shadow tree.',
   'A full document navigation, pausing the agent on the tab, a workspace control change, or removal of the selected element stops the recording; it never rebinds to a replacement element.'
 ]
 
@@ -76,9 +76,10 @@ export class BrowserLiveRegionRecorder<T extends LiveRegionRecordingTab> {
     const observationGeneration = tab.observationGeneration
     const navigationGeneration = tab.navigationGeneration
     const webContents = tab.webContents
-    const effectiveAction = tab.liveRegionRecording
-      && tab.liveRegionRecording.observationGeneration !== observationGeneration
-      && action !== 'start'
+    // Without a current recording, any page-side state belongs to an older document, workspace
+    // or abandoned start (for example one restored from the back/forward cache), so clear it.
+    const effectiveAction = action !== 'start'
+      && (!tab.liveRegionRecording || tab.liveRegionRecording.observationGeneration !== observationGeneration)
       ? 'clear'
       : action
     const requests = this.requests.get(tab) ?? { requested: 0, applied: 0 }

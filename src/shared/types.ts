@@ -2056,6 +2056,7 @@ export type BrowserLiveRegionStopReason =
   | 'stopped'
   | 'expired'
   | 'detached'
+  | 'excluded'
   | 'total-char-limit'
   | 'observation-limit'
   | 'callback-limit'

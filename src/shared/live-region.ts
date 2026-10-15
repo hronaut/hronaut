@@ -94,6 +94,27 @@ export function liveRegionPageScript(action: LiveRegionPageAction, selector?: st
       }
       return { text, empty: text.length === 0, truncated };
     };
+    // The region can become editable, enter design mode or move into a shadow tree after start,
+    // so eligibility is checked again before every read, not only when recording starts.
+    const ineligible = (region) => {
+      if (!region.isConnected) return 'detached';
+      if (region.getRootNode() !== document || document.designMode === 'on' || region.isContentEditable === true) return 'excluded';
+      let steps = 0;
+      for (let element = region; element; element = element.parentElement) {
+        if (++steps > limits.maxNodesPerRead || excluded(element)) return 'excluded';
+      }
+      return '';
+    };
+    // Mutations inside excluded descendants are not counted, so counts reveal nothing about typing there.
+    const insideExcluded = (node, region) => {
+      let element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      let steps = 0;
+      while (element && element !== region) {
+        if (++steps > limits.maxNodesPerRead || excluded(element)) return true;
+        element = element.parentElement;
+      }
+      return false;
+    };
     const empty = () => ({ active: false, observations: [], callbackCount: 0, unchangedCallbacks: 0, totalChars: 0 });
     const snapshot = (state) => ({
       selector: state.selector,
@@ -120,7 +141,8 @@ export function liveRegionPageScript(action: LiveRegionPageAction, selector?: st
     };
     const previous = globalThis[key];
     if (previous) {
-      if (previous.active && !previous.region.isConnected) stop(previous, 'detached');
+      const reason = previous.active ? ineligible(previous.region) : '';
+      if (reason) stop(previous, reason);
       if (previous.active && Date.now() - previous.startedAtMs >= limits.maxDurationMs) stop(previous, 'expired');
     }
     if (action === 'clear') {
@@ -147,9 +169,7 @@ export function liveRegionPageScript(action: LiveRegionPageAction, selector?: st
     if (matches.length > 1) return { error: 'not-unique' };
     const region = matches[0];
     if (region === document.documentElement || region === document.head || region === document.body) return { error: 'too-broad' };
-    for (let element = region; element; element = element.parentElement) {
-      if (excluded(element)) return { error: 'excluded-region' };
-    }
+    if (ineligible(region)) return { error: 'excluded-region' };
     const startedAtMs = Date.now();
     const startedAtPerf = performance.now();
     const initial = readText(region);
@@ -166,18 +186,24 @@ export function liveRegionPageScript(action: LiveRegionPageAction, selector?: st
       unchangedCallbacks: 0,
       totalChars: initial.text.length,
       lastText: initial.text,
+      lastTruncated: initial.truncated,
       observer: null,
       timer: 0
     };
     state.observer = new MutationObserver((records) => {
       if (!state.active) return;
+      const reason = ineligible(state.region);
+      if (reason) { stop(state, reason); return; }
+      const relevant = records.filter((record) => !insideExcluded(record.target, state.region));
+      if (!relevant.length) return;
       state.callbackCount += 1;
-      if (!state.region.isConnected) { stop(state, 'detached'); return; }
       if (state.callbackCount > limits.maxCallbacks) { stop(state, 'callback-limit'); return; }
       const read = readText(state.region);
-      if (read.text === state.lastText && !read.truncated) { state.unchangedCallbacks += 1; return; }
+      // Only the bounded text is observable; a change beyond it reads as unchanged.
+      if (read.text === state.lastText && read.truncated === state.lastTruncated) { state.unchangedCallbacks += 1; return; }
       if (state.totalChars + read.text.length > limits.maxTotalChars) { stop(state, 'total-char-limit'); return; }
       state.lastText = read.text;
+      state.lastTruncated = read.truncated;
       state.totalChars += read.text.length;
       const busy = token(state.region, 'aria-busy', ['true', 'false']);
       state.observations.push({
@@ -186,7 +212,7 @@ export function liveRegionPageScript(action: LiveRegionPageAction, selector?: st
         text: read.text,
         empty: read.empty,
         truncated: read.truncated,
-        mutationRecords: records.length,
+        mutationRecords: relevant.length,
         ...(busy ? { ariaBusy: busy === 'true' } : {})
       });
       if (state.observations.length >= limits.maxObservations) stop(state, 'observation-limit');
