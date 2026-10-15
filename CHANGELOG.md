@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- A dedicated agent wallet can sign a website's EIP-712 typed data without a click when you opt in. A new, default-off **Also sign typed data without asking** switch on a website sign-in policy signs `eth_signTypedData_v4` requests from that policy's exact origin on EVM testnets and loopback local chains, only when the typed data is valid, at most 32 KiB and signs this wallet's chain ID, so an agent can test permit and order flows unattended. Managed wallets and imported keys that are not dedicated agent wallets still ask, and each signature counts toward the policy's operation limit. A second, separate **Also sign typed data on mainnet** switch with a warning extends this to a mainnet agent wallet under the mainnet sign-in limits: one origin, at most 100 operations and a seven-day expiry.
+
 ## [2.45.0] - 2026-10-15
 
 ### Added

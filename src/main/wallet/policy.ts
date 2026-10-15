@@ -1,3 +1,4 @@
+import { hashTypedData } from 'viem'
 import {
   MAX_WALLET_DECIMAL_LENGTH,
   walletAllowsWorkspace,
@@ -5,6 +6,7 @@ import {
   type WalletOperationRequest,
   type WalletPolicy
 } from '../../shared/wallet.js'
+import { typedDataSignedChainId } from './typed-data-display.js'
 
 export interface WalletDecodedOperation {
   understood: boolean
@@ -147,16 +149,43 @@ export function websiteSignInPolicyApplies(wallet: WalletDescriptor, policy: Wal
 }
 
 export const WEBSITE_SIGN_IN_MAX_MESSAGE_BYTES = 4096
+export const WEBSITE_TYPED_DATA_MAX_BYTES = 32_768
+
+/**
+ * Whether a sign-in policy also lets websites get EIP-712 typed data signed
+ * without a click. Only a dedicated agent wallet qualifies, and mainnet also
+ * needs the separate mainnet typed-data switch.
+ */
+export function websiteTypedDataPolicyApplies(wallet: WalletDescriptor, policy: WalletPolicy, now: Date): boolean {
+  if (policy.allowWebsiteTypedData !== true || wallet.kind !== 'agent') return false
+  if (!websiteSignInPolicyApplies(wallet, policy, now)) return false
+  return wallet.network.environment === 'mainnet'
+    ? policy.allowMainnetWebsiteTypedData === true
+    : policy.allowMainnetWebsiteTypedData !== true
+}
+
+/**
+ * Returns why website typed data cannot be signed without a click, or
+ * undefined when it can: it must be bounded, valid for the signer, and sign
+ * this wallet's chain ID in its domain, so the signature cannot be replayed
+ * on another chain.
+ */
+export function websiteTypedDataIssue(typedData: unknown, serializedBytes: number, wallet: WalletDescriptor): string | undefined {
+  if (serializedBytes > WEBSITE_TYPED_DATA_MAX_BYTES) return 'typed-data-too-large'
+  try {
+    hashTypedData(typedData as Parameters<typeof hashTypedData>[0])
+  } catch {
+    return 'typed-data-invalid'
+  }
+  if (typedDataSignedChainId(typedData)?.toString() !== wallet.network.id) return 'typed-data-chain-mismatch'
+  return undefined
+}
 
 // Control characters other than tab and line feed, plus format (including
 // bidirectional and zero-width), private-use and line or paragraph separator
 // characters. Carriage returns are excluded so a sign-in header cannot hide
 // behind CRLF line endings.
 const NON_PLAIN_TEXT = /[^\P{Cc}\t\n]|[\p{Cf}\p{Co}\p{Zl}\p{Zp}]/u
-// For display only: also default-ignorable characters (such as variation
-// selectors and Hangul fillers), noncharacters and the blank braille pattern,
-// which render as nothing or as blank space.
-const HIDDEN_DISPLAY_CHARACTER = /[^\P{Cc}\t\n]|[\p{Cf}\p{Co}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\p{Noncharacter_Code_Point}\u2800]/u
 const SIGN_IN_PHRASE = /wants you to sign in with your/i
 const EIP_4361_HEADER = /^(?:([a-zA-Z][a-zA-Z0-9+.-]*):\/\/)?([^\s/?#]+) wants you to sign in with your Ethereum account:$/
 const SOLANA_SIGN_IN_HEADER = /^(?:([a-zA-Z][a-zA-Z0-9+.-]*):\/\/)?([^\s/?#]+) wants you to sign in with your Solana account:$/
@@ -194,33 +223,6 @@ export type WalletSignInTextIssue =
 /** Whether text uses the Sign-In with Ethereum or Solana phrase. */
 export function isSignInText(text: string): boolean {
   return SIGN_IN_PHRASE.test(text)
-}
-
-/**
- * Whether text holds a character that renders as nothing, as blank space or
- * reorders text: controls other than tab and line feed, format (bidirectional
- * and zero-width), default-ignorable, private-use, line or paragraph
- * separator, noncharacter or blank braille characters. Display only; the
- * automatic sign-in check keeps its own narrower rule.
- */
-export function hasHiddenMessageCharacters(text: string): boolean {
-  return HIDDEN_DISPLAY_CHARACTER.test(text)
-}
-
-/**
- * The first maxLength characters of text, with each hidden character shown as
- * a visible [U+XXXX] marker. It never splits a character or a marker.
- */
-export function revealHiddenMessageCharacters(text: string, maxLength: number): { text: string; truncated: boolean } {
-  let visible = ''
-  for (const character of text) {
-    const piece = HIDDEN_DISPLAY_CHARACTER.test(character)
-      ? `[U+${(character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}]`
-      : character
-    if (visible.length + piece.length > maxLength) return { text: visible, truncated: true }
-    visible += piece
-  }
-  return { text: visible, truncated: false }
 }
 
 /**
@@ -282,7 +284,7 @@ export interface WalletWebsiteSignInEvaluation {
   policies: readonly WalletPolicy[]
   now: Date
   usageByPolicy: Readonly<Record<string, { operationCount: number }>>
-  message?: { kind: 'message'; bytes: Uint8Array; raw: boolean } | { kind: 'typed-data' }
+  message?: { kind: 'message'; bytes: Uint8Array; raw: boolean } | { kind: 'typed-data'; typedData: unknown; serializedBytes: number }
 }
 
 function decimal(value: string | undefined): DecimalValue {
@@ -380,9 +382,10 @@ export class WalletPolicyEngine {
   }
 
   /**
-   * Decides whether a website's account connection or plain-text message
-   * signature can proceed under an opted-in sign-in policy. It never rejects:
-   * anything it does not approve goes to the person as before.
+   * Decides whether a website's account connection, plain-text message
+   * signature or, with the policy's typed-data switch, EIP-712 signature can
+   * proceed under an opted-in sign-in policy. It never rejects: anything it
+   * does not approve goes to the person as before.
    */
   evaluateWebsiteSignIn(input: WalletWebsiteSignInEvaluation): WalletPolicyDecision {
     const { request, wallet } = input
@@ -396,15 +399,23 @@ export class WalletPolicyEngine {
     if (wallet.chainFamily !== request.chainFamily || wallet.network.id !== request.networkId) {
       return { outcome: 'awaiting-human', reason: 'chain-or-network-mismatch' }
     }
+    const typedData = request.operation === 'sign-message' && input.message?.kind === 'typed-data'
     if (request.operation === 'sign-message') {
       const message = input.message
-      if (message?.kind !== 'message') return { outcome: 'awaiting-human', reason: 'typed-data-requires-human' }
-      if (message.raw) return { outcome: 'awaiting-human', reason: 'raw-signing-requires-human' }
-      const issue = websiteSignInMessageIssue(message.bytes, wallet, request.topLevelOrigin)
-      if (issue) return { outcome: 'awaiting-human', reason: issue }
+      if (!message) return { outcome: 'awaiting-human', reason: 'message-unavailable' }
+      if (message.kind === 'typed-data') {
+        if (wallet.kind !== 'agent') return { outcome: 'awaiting-human', reason: 'typed-data-requires-agent-wallet' }
+        const issue = websiteTypedDataIssue(message.typedData, message.serializedBytes, wallet)
+        if (issue) return { outcome: 'awaiting-human', reason: issue }
+      } else {
+        if (message.raw) return { outcome: 'awaiting-human', reason: 'raw-signing-requires-human' }
+        const issue = websiteSignInMessageIssue(message.bytes, wallet, request.topLevelOrigin)
+        if (issue) return { outcome: 'awaiting-human', reason: issue }
+      }
     }
     for (const policy of input.policies) {
       if (!websiteSignInPolicyApplies(wallet, policy, input.now) || policy.workspaceId !== request.workspaceId) continue
+      if (typedData && !websiteTypedDataPolicyApplies(wallet, policy, input.now)) continue
       if ((input.usageByPolicy[policy.id]?.operationCount ?? 0) >= policy.maximumOperationCount) continue
       if (!policy.networkIds.includes(request.networkId) || !policy.origins.includes(request.topLevelOrigin)) continue
       return { outcome: 'approved', reason: 'bounded-policy', policyId: policy.id }

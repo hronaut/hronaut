@@ -334,7 +334,9 @@ export const WalletPolicySchema = z.object({
   allowMessageSigning: z.boolean(),
   allowMainnetAgentAutomation: z.boolean().optional(),
   allowWebsiteSignIn: z.boolean().optional(),
-  allowMainnetWebsiteSignIn: z.boolean().optional()
+  allowMainnetWebsiteSignIn: z.boolean().optional(),
+  allowWebsiteTypedData: z.boolean().optional(),
+  allowMainnetWebsiteTypedData: z.boolean().optional()
 }).strict()
 export type WalletPolicy = z.infer<typeof WalletPolicySchema>
 

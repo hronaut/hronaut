@@ -13,7 +13,8 @@ interface PageRequestList {
 }
 
 // Imports Anvil's public test key for one workspace with a sign-in only policy for one origin.
-async function signInWallet(appWindow: Page, workspaceId: string, origin: string): Promise<{ publicAddress: string }> {
+// With typedData, the key is a dedicated agent wallet whose policy also signs typed data.
+async function signInWallet(appWindow: Page, workspaceId: string, origin: string, typedData = false): Promise<{ publicAddress: string }> {
   const vaultStatus = await appWindow.evaluate('window.hronautWallets.status()') as { managedWallets: string }
   if (vaultStatus.managedWallets === 'passphrase-setup-required') {
     await appWindow.evaluate(`window.hronautWallets.setupPassphrase('wallet website sign-in integration passphrase')`)
@@ -27,13 +28,14 @@ async function signInWallet(appWindow: Page, workspaceId: string, origin: string
     name: 'Sign-in wallet',
     network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
     workspaceIds: [${JSON.stringify(workspaceId)}],
-    dedicatedAgent: false
+    dedicatedAgent: ${typedData}
   })`) as { id: string }
   await appWindow.evaluate(`window.hronautWallets.setPolicy(${JSON.stringify({
     id: 'website-sign-in', name: 'Fixture sign-in', mode: 'bounded-auto', walletId: imported.id,
     workspaceId, networkIds: ['31337'], origins: [origin], destinations: [], methods: [],
     expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(), maximumOperationCount: 5,
-    requireSuccessfulSimulation: true, allowMessageSigning: false, allowWebsiteSignIn: true
+    requireSuccessfulSimulation: true, allowMessageSigning: false, allowWebsiteSignIn: true,
+    ...(typedData ? { allowWebsiteTypedData: true } : {})
   })})`)
   return { publicAddress: prepared.publicAddress }
 }
@@ -167,7 +169,7 @@ test('shows the wallet QA fixture token permit to a person, who approves it', as
     await expect.poll(fixtureLog).toContain('"accountCount": 1')
     await page(`document.querySelector('#sign-permit').click(); 'clicked';`)
 
-    // Typed data always goes to a person, who sees what the permit allows.
+    // Without the typed-data switch, typed data goes to a person, who sees what the permit allows.
     const approval = appWindow.getByRole('alertdialog', { name: /sign message/i })
     await expect(approval).toBeVisible()
     const summary = approval.getByRole('region', { name: 'Typed data to sign' })
@@ -188,6 +190,32 @@ test('shows the wallet QA fixture token permit to a person, who approves it', as
     const log = await fixtureLog()
     expect(log).toContain('"typedData": "eip-2612-permit"')
     expect(log.toLowerCase()).not.toContain(publicAddress.toLowerCase())
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('lets a dedicated agent wallet sign the wallet QA fixture token permit without a click under the typed-data switch', async ({ capabilities, appWindow, electronApp }) => {
+  const { client, workspace, tabId } = capabilities
+  const { origin, server } = await serveWalletQaFixture()
+  try {
+    const pageUrl = `${origin}/`
+    await signInWallet(appWindow, workspace.workspaceId, origin, true)
+    const navigated = await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: pageUrl } }) as CallToolResult
+    expect(navigated.isError, text(navigated)).not.toBe(true)
+    const readPageRequests = await pageRequestReader(client, tabId)
+    const page = pageScript(electronApp, pageUrl)
+    const fixtureLog = () => page(`document.querySelector('#log').textContent`) as Promise<string>
+
+    await page(`document.querySelector('#connect').click(); 'clicked';`)
+    await expect.poll(fixtureLog).toContain('"accountCount": 1')
+    await page(`document.querySelector('#sign-permit').click(); 'clicked';`)
+    await expect.poll(fixtureLog).toContain('"signatureBytes": 65')
+
+    await expect(appWindow.getByRole('alertdialog', { name: /sign message/i })).toHaveCount(0)
+    expect((await readPageRequests()).requests.map(({ operation, status }) => [operation, status]).sort())
+      .toEqual([['connect-account', 'confirmed'], ['sign-message', 'confirmed']])
+    expect(await fixtureLog()).toContain('"typedData": "eip-2612-permit"')
   } finally {
     await closeFixtureServer(server)
   }

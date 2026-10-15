@@ -38,14 +38,14 @@ import type {
   WalletTokenBalance,
   WalletTransactionSimulation
 } from './adapters/types.js'
+import { hasHiddenMessageCharacters, revealHiddenMessageCharacters } from './hidden-characters.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
 import {
-  hasHiddenMessageCharacters,
   isMainnetAgentAutomationPolicy,
   isSignInText,
-  revealHiddenMessageCharacters,
   signInTextWarningIssue,
   websiteSignInPolicyApplies,
+  websiteTypedDataPolicyApplies,
   WalletPolicyEngine,
   type WalletSignInTextIssue,
   type WalletPolicyDecision,
@@ -1206,14 +1206,16 @@ export class WalletBroker {
       await this.service.approvals.transition(record.id, 'policy-decision', this.now())
       const signIn = this.websiteSignInDecision(context, currentWallet, record.id, retainedInput.kind === 'message'
         ? { kind: 'message', bytes: retainedInput.message, raw: rawSigning }
-        : { kind: 'typed-data' })
+        : { kind: 'typed-data', typedData: retainedInput.typedData, serializedBytes: Buffer.byteLength(serialized, 'utf8') })
       await this.service.audit.append('request-simulated', {
         requestId: record.id, walletId: wallet.id, success: false, attempted: false,
         policyDecision: signIn?.decision.outcome ?? 'awaiting-human',
         reason: signIn?.decision.reason ?? (rawSigning ? 'raw-signing-requires-human' : 'message-signing-requires-human')
       }, this.now().toISOString())
       if (signIn?.decision.outcome === 'approved') {
-        const automatic = await this.approveWebsiteSignIn(context, currentWallet, record.id, signIn.policies, signIn.decision.policyId)
+        const automatic = await this.approveWebsiteSignIn(
+          context, currentWallet, record.id, signIn.policies, signIn.decision.policyId, retainedInput.kind === 'typed-data'
+        )
         if (automatic.approved) {
           this.clearRequestExpiry(record.id)
           this.publish()
@@ -1602,15 +1604,17 @@ export class WalletBroker {
 
   /**
    * Reserves one operation on the matching sign-in policy, re-checks the
-   * policy and wallet inside the lifecycle queue, then approves and executes
-   * the request as the policy. Anything that changed returns it to a person.
+   * policy and wallet inside the lifecycle queue, including the typed-data
+   * switch for typed data, then approves and executes the request as the
+   * policy. Anything that changed returns it to a person.
    */
   private async approveWebsiteSignIn(
     context: WalletBrokerContext,
     wallet: WalletDescriptor,
     recordId: string,
     policies: readonly WalletPolicy[],
-    policyId: string
+    policyId: string,
+    typedData = false
   ): Promise<{ approved: false } | { approved: true; result: unknown }> {
     this.assertRequestContextActive(context)
     const policy = policies.find((entry) => entry.id === policyId)
@@ -1638,6 +1642,7 @@ export class WalletBroker {
         || !isDeepStrictEqual(currentPolicy, policy)
         || currentWallet.network.id !== current.request.networkId
         || !websiteSignInPolicyApplies(currentWallet, currentPolicy, authorizationNow)
+        || (typedData && !websiteTypedDataPolicyApplies(currentWallet, currentPolicy, authorizationNow))
       ) {
         await this.service.audit.append('policy-authorization-invalidated', {
           requestId: recordId, walletId: wallet.id, policyId: policy.id

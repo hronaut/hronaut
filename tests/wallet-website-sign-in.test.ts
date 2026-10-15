@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { verifyMessage } from 'viem'
+import { verifyMessage, verifyTypedData } from 'viem'
 import { WalletBroker, type WalletBrokerContext } from '../src/main/wallet/broker.js'
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
 import { WalletService } from '../src/main/wallet/service.js'
@@ -97,6 +97,29 @@ const connectAccount = (broker: WalletBroker, overrides: Partial<WalletBrokerCon
 )
 const personalSign = (broker: WalletBroker, wallet: WalletDescriptor, message: string) => (
   broker.providerRequest(context(), { family: 'evm', method: 'personal_sign', params: [message, wallet.publicAddress] })
+)
+
+const PERMIT_SPENDER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+const PERMIT_TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+
+function permit(wallet: WalletDescriptor, domain: Record<string, unknown> = {
+  name: 'QA Token', version: '1', chainId: Number(wallet.network.id), verifyingContract: PERMIT_TOKEN
+}) {
+  return {
+    domain,
+    types: {
+      Permit: [
+        { name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }
+      ]
+    },
+    primaryType: 'Permit' as const,
+    message: { owner: wallet.publicAddress, spender: PERMIT_SPENDER, value: '1000000', nonce: '0', deadline: '1788000000' }
+  }
+}
+
+const signTypedData = (broker: WalletBroker, wallet: WalletDescriptor, typedData: unknown) => (
+  broker.providerRequest(context(), { family: 'evm', method: 'eth_signTypedData_v4', params: [wallet.publicAddress, JSON.stringify(typedData)] })
 )
 
 function settle<T>(promise: Promise<T>): Promise<{ status: 'fulfilled'; value: T } | { status: 'rejected'; reason: unknown }> {
@@ -272,5 +295,83 @@ describe('website sign-in without a click', () => {
     const signature = await personalSign(broker, wallet, message) as `0x${string}`
     await expect(verifyMessage({ address: wallet.publicAddress as `0x${string}`, message, signature })).resolves.toBe(true)
     expect(service.policyUsage.snapshot('sign-in', now()).operationCount).toBe(2)
+  })
+})
+
+describe('website typed data without a click', () => {
+  it('signs typed data for the allowed testnet site on a dedicated agent wallet with the typed-data switch, counting it', async () => {
+    const { service, broker, wallet } = await setup('testnet', true)
+    await service.setPolicy(signInPolicy(wallet, { allowWebsiteTypedData: true }))
+    await connectAccount(broker)
+
+    const typedData = permit(wallet)
+    const signature = await signTypedData(broker, wallet, typedData) as `0x${string}`
+    await expect(verifyTypedData({ address: wallet.publicAddress as `0x${string}`, ...typedData, signature })).resolves.toBe(true)
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    expect(service.policyUsage.snapshot('sign-in', now()).operationCount).toBe(2)
+    expect((await service.auditHistory()).filter((entry) => entry.type === 'request-approved-by-policy')).toHaveLength(2)
+  })
+
+  it('keeps typed data without the switch, for another chain, without a signed chain or invalid with a person', async () => {
+    const { service, broker, wallet } = await setup('testnet', true)
+    await service.setPolicy(signInPolicy(wallet, { allowWebsiteTypedData: true }))
+    await connectAccount(broker)
+
+    const cases: [string, unknown][] = [
+      ['another chain', permit(wallet, { name: 'QA Token', version: '1', chainId: 1, verifyingContract: PERMIT_TOKEN })],
+      ['no signed chain', permit(wallet, { name: 'QA Token', version: '1', verifyingContract: PERMIT_TOKEN })],
+      ['an unknown primary type', { ...permit(wallet), primaryType: 'Missing' }],
+      ['over 32 KiB', { ...permit(wallet), domain: { ...permit(wallet).domain, name: 'x'.repeat(33_000) } }]
+    ]
+    for (const [name, typedData] of cases) {
+      const result = settle(signTypedData(broker, wallet, typedData))
+      const pending = await awaitingHuman(broker)
+      expect(pending, name).toMatchObject({ operation: 'sign-message' })
+      await broker.reject(pending.id)
+      expect(await result, name).toMatchObject({ status: 'rejected' })
+    }
+
+    await service.setPolicy(signInPolicy(wallet))
+    const withoutSwitch = settle(signTypedData(broker, wallet, permit(wallet)))
+    const pending = await awaitingHuman(broker)
+    await broker.reject(pending.id)
+    expect(await withoutSwitch).toMatchObject({ status: 'rejected' })
+    expect(service.policyUsage.snapshot('sign-in', now()).operationCount).toBe(1)
+  })
+
+  it('signs mainnet typed data only with the separate mainnet typed-data switch', async () => {
+    const { service, broker, wallet } = await setup('mainnet', true)
+    await service.setPolicy(signInPolicy(wallet, { allowMainnetWebsiteSignIn: true }))
+    await connectAccount(broker)
+    const withoutSwitch = settle(signTypedData(broker, wallet, permit(wallet)))
+    await broker.reject((await awaitingHuman(broker)).id)
+    expect(await withoutSwitch).toMatchObject({ status: 'rejected' })
+
+    await service.setPolicy(signInPolicy(wallet, { allowMainnetWebsiteSignIn: true, allowWebsiteTypedData: true, allowMainnetWebsiteTypedData: true }))
+    const typedData = permit(wallet)
+    const signature = await signTypedData(broker, wallet, typedData) as `0x${string}`
+    await expect(verifyTypedData({ address: wallet.publicAddress as `0x${string}`, ...typedData, signature })).resolves.toBe(true)
+    expect(service.policyUsage.snapshot('sign-in', now()).operationCount).toBe(2)
+  })
+
+  it('validates the typed-data switches when saving a policy', async () => {
+    const managed = await setup()
+    await expect(managed.service.setPolicy(signInPolicy(managed.wallet, { allowWebsiteTypedData: true })))
+      .rejects.toThrow('requires a dedicated agent wallet')
+
+    const testnet = await setup('testnet', true)
+    await expect(testnet.service.setPolicy(signInPolicy(testnet.wallet, { allowWebsiteSignIn: false, allowWebsiteTypedData: true })))
+      .rejects.toThrow('requires website sign-in without approval')
+    await expect(testnet.service.setPolicy(signInPolicy(testnet.wallet, { allowMainnetWebsiteTypedData: true })))
+      .rejects.toThrow('requires typed-data signing without approval')
+    await expect(testnet.service.setPolicy(signInPolicy(testnet.wallet, { allowWebsiteTypedData: true, allowMainnetWebsiteTypedData: true })))
+      .rejects.toThrow('mainnet typed-data switch is only valid for a mainnet wallet')
+
+    const mainnet = await setup('mainnet', true)
+    await expect(mainnet.service.setPolicy(signInPolicy(mainnet.wallet, { allowMainnetWebsiteSignIn: true, allowWebsiteTypedData: true })))
+      .rejects.toThrow('Mainnet typed-data signing without approval requires its separate mainnet switch')
+    await expect(mainnet.service.setPolicy(signInPolicy(mainnet.wallet, {
+      allowMainnetWebsiteSignIn: true, allowWebsiteTypedData: true, allowMainnetWebsiteTypedData: true, maximumOperationCount: 101
+    }))).rejects.toThrow('at most 100 operations')
   })
 })

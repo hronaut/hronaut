@@ -665,6 +665,8 @@ describe('WalletsSettingsPanel', () => {
     await user.click(screen.getByLabelText('Let this site connect and sign in without asking'))
     expect(screen.getByText(/Sign-In with Ethereum messages that name that site/i)).toBeVisible()
     expect(screen.queryByLabelText('Also allow on mainnet')).not.toBeInTheDocument()
+    // Typed data can authorize token permits, so only a dedicated agent wallet offers it.
+    expect(screen.queryByLabelText('Also sign typed data without asking')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
     await user.clear(screen.getByLabelText('Destination / contract'))
@@ -722,6 +724,82 @@ describe('WalletsSettingsPanel', () => {
     })
     expect(saved).not.toHaveProperty('allowMainnetAgentAutomation')
     expect(saved).not.toHaveProperty('maxNativeAmount')
+  })
+
+  it('offers typed-data signing without a click only to a dedicated agent wallet with sign-in on', async () => {
+    const agentWallet: WalletDescriptor = {
+      ...wallet('testnet-agent', 'Testnet agent', ['workspace-a']),
+      kind: 'agent',
+      capabilities: ['read', 'sign', 'send']
+    }
+    const setPolicy = vi.fn(async (policy: WalletPolicy) => policy)
+    const wallets = controller({ wallets: ref([agentWallet]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+    expect(screen.queryByLabelText('Also sign typed data without asking')).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Let this site connect and sign in without asking'))
+    const typedData = screen.getByLabelText('Also sign typed data without asking')
+    expect(typedData).not.toBeChecked()
+    expect(screen.getByText(/Typed data can authorize token permits, transfers and orders/)).toBeVisible()
+    await user.click(typedData)
+    expect(screen.queryByLabelText('Also sign typed data on mainnet')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+
+    const saved = setPolicy.mock.calls[0]?.[0]
+    expect(saved).toMatchObject({ walletId: agentWallet.id, allowWebsiteSignIn: true, allowWebsiteTypedData: true })
+    expect(saved).not.toHaveProperty('allowMainnetWebsiteTypedData')
+    expect(screen.queryByLabelText('Also sign typed data without asking')).not.toBeInTheDocument()
+  })
+
+  it('needs the separate warned mainnet typed-data switch before saving mainnet typed-data signing', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-04T12:00:00.000Z'))
+    const mainnetAgent: WalletDescriptor = {
+      ...wallet('mainnet-agent', 'Mainnet agent', ['workspace-1']),
+      kind: 'agent',
+      capabilities: ['read', 'sign', 'send'],
+      network: { id: '1', name: 'Ethereum', environment: 'mainnet', rpcUrl: 'https://ethereum-rpc.publicnode.com' },
+      policyIds: ['existing']
+    }
+    const existing: WalletPolicy = {
+      id: 'existing', name: 'Existing', mode: 'bounded-auto', walletId: mainnetAgent.id, workspaceId: 'workspace-1',
+      networkIds: ['1'], origins: ['https://dapp.example'], destinations: [], methods: [],
+      expiresAt: '2026-09-05T12:00:00.000Z', maximumOperationCount: 10, requireSuccessfulSimulation: true, allowMessageSigning: false,
+      allowWebsiteSignIn: true, allowMainnetWebsiteSignIn: true, allowWebsiteTypedData: true, allowMainnetWebsiteTypedData: true
+    }
+    const setPolicy = vi.fn(async (policy: WalletPolicy) => policy)
+    const wallets = controller({ wallets: ref([mainnetAgent]), policies: ref([existing]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-1', name: 'Agent workspace' }] },
+      global
+    })
+    const user = userEvent.setup()
+    expect(screen.getByText('Typed data without asking, including mainnet')).toBeVisible()
+    await user.click(screen.getByLabelText('Let this site connect and sign in without asking'))
+    await user.click(screen.getByLabelText('Also allow on mainnet'))
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await fireEvent.update(screen.getByLabelText('Expires'), '2026-09-05T12:00')
+    const add = screen.getByRole('button', { name: 'Add bounded policy' })
+    expect(add).toBeEnabled()
+    expect(screen.queryByLabelText('Also sign typed data on mainnet')).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Also sign typed data without asking'))
+    const mainnetTypedData = screen.getByLabelText('Also sign typed data on mainnet')
+    expect(mainnetTypedData).not.toBeChecked()
+    expect(mainnetTypedData).toHaveAccessibleDescription(/Warning: on mainnet, typed data can authorize real token permits/)
+    expect(add).toBeDisabled()
+    await user.click(mainnetTypedData)
+    expect(add).toBeEnabled()
+    await user.click(add)
+
+    const saved = setPolicy.mock.calls[0]?.[0]
+    expect(saved).toMatchObject({
+      walletId: mainnetAgent.id, networkIds: ['1'], allowWebsiteSignIn: true, allowMainnetWebsiteSignIn: true,
+      allowWebsiteTypedData: true, allowMainnetWebsiteTypedData: true
+    })
   })
 
   it('renames a configured wallet inline without relying on unsupported prompt dialogs', async () => {
