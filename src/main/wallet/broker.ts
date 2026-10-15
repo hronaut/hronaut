@@ -32,6 +32,7 @@ import { TronWalletAdapter } from './adapters/tron.js'
 import type {
   WalletChainAdapter,
   WalletNormalizedTransaction,
+  WalletTokenBalance,
   WalletTransactionSimulation
 } from './adapters/types.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
@@ -334,16 +335,23 @@ export class WalletBroker {
       })
   }
 
-  async agentBalance(context: WalletBrokerContext, walletId: string): Promise<Record<string, unknown>> {
+  async agentBalance(context: WalletBrokerContext, walletId: string, token?: string): Promise<Record<string, unknown>> {
     return this.withAgentOperation(context, async () => {
       const wallet = this.requireAccessibleWallet(context, walletId)
+      const adapter = this.adapters[wallet.chainFamily]
+      if (token !== undefined) {
+        if (!adapter.tokenBalance) throw new Error(`${walletChainName(wallet.chainFamily)} token balances are not supported`)
+        if (!adapter.validateAddress(token)) throw new Error(`${walletChainName(wallet.chainFamily)} token address is invalid`)
+      }
       const permission = await this.ensureAgentAddressPermission(context, wallet)
       if (permission) return { status: 'permission-required', request: permission }
       let balance: string
+      let tokenBalance: WalletTokenBalance | undefined
       try {
-        balance = await this.adapters[wallet.chainFamily].balance(wallet)
+        if (token !== undefined) tokenBalance = await adapter.tokenBalance!(wallet, token)
+        else balance = await adapter.balance(wallet)
       } catch {
-        throw new Error(`${walletChainName(wallet.chainFamily)} balance lookup failed`)
+        throw new Error(`${walletChainName(wallet.chainFamily)} ${token === undefined ? '' : 'token '}balance lookup failed`)
       }
       this.assertRequestContextActive(context)
       return {
@@ -352,7 +360,7 @@ export class WalletBroker {
         chainFamily: wallet.chainFamily,
         networkId: wallet.network.id,
         publicAddress: wallet.publicAddress,
-        balance
+        ...(tokenBalance ? { token: tokenBalance } : { balance: balance! })
       }
     })
   }

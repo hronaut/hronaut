@@ -18,8 +18,10 @@ import type {
   WalletChainAdapter,
   WalletConfirmation,
   WalletNormalizedTransaction,
+  WalletTokenBalance,
   WalletTransactionSimulation
 } from './types.js'
+import { formatTokenUnits } from './types.js'
 
 const SYSTEM_PROGRAM = '11111111111111111111111111111111'
 const PayloadSchema = z.object({
@@ -37,6 +39,7 @@ interface SolanaSimulation {
 interface SolanaRpcClient {
   simulate(base64: string): Promise<SolanaSimulation>
   balance(address: string): Promise<bigint>
+  tokenBalance(owner: string, mint: string): Promise<{ amount: bigint; decimals: number }>
   send(base64: string): Promise<string>
   status(signature: string): Promise<{ confirmationStatus: string | null; err: unknown | null; slot: bigint } | null>
 }
@@ -132,6 +135,20 @@ function defaultClient(wallet: WalletDescriptor): SolanaRpcClient {
     },
     async balance(value) {
       return (await rpc.getBalance(address(value)).send()).value
+    },
+    async tokenBalance(owner, mint) {
+      const accounts = (await rpc.getTokenAccountsByOwner(address(owner), { mint: address(mint) }, { encoding: 'jsonParsed' }).send()).value
+      let amount = 0n
+      let decimals: number | undefined
+      for (const account of accounts) {
+        const tokenAmount = (account.account.data as { parsed?: { info?: { tokenAmount?: { amount?: unknown; decimals?: unknown } } } })
+          .parsed?.info?.tokenAmount
+        if (typeof tokenAmount?.amount !== 'string' || !/^\d{1,40}$/.test(tokenAmount.amount)) throw new Error('Solana token account is invalid')
+        amount += BigInt(tokenAmount.amount)
+        if (typeof tokenAmount.decimals === 'number') decimals = tokenAmount.decimals
+      }
+      if (decimals === undefined) decimals = (await rpc.getTokenSupply(address(mint)).send()).value.decimals
+      return { amount, decimals }
     },
     async send(base64) {
       return rpc.sendTransaction(base64 as never, { encoding: 'base64', skipPreflight: false }).send()
@@ -249,5 +266,13 @@ export class SolanaWalletAdapter implements WalletChainAdapter {
   async balance(wallet: WalletDescriptor): Promise<string> {
     if (!isAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
     return formatSol(await this.clientFor(wallet).balance(wallet.publicAddress))
+  }
+
+  async tokenBalance(wallet: WalletDescriptor, token: string): Promise<WalletTokenBalance> {
+    if (!isAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
+    if (!isAddress(token)) throw new Error('Solana token must be an SPL token mint address')
+    const { amount, decimals } = await this.clientFor(wallet).tokenBalance(wallet.publicAddress, token)
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) throw new Error('Solana token decimals are invalid')
+    return { token, balance: formatTokenUnits(amount, decimals), rawBalance: amount.toString(), decimals }
   }
 }

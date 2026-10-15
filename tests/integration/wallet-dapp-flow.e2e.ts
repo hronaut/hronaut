@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { keccak256, parseTransaction, type Hex } from 'viem'
+import { encodeAbiParameters, keccak256, parseTransaction, type Hex } from 'viem'
 import { expect, test, text } from './capability-fixtures.js'
 
 interface PageRequestList {
@@ -15,6 +15,8 @@ interface LocalChain {
   methods: string[]
   rawTransactions: Hex[]
 }
+
+const TOKEN_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
 
 // A minimal EVM JSON-RPC chain (chain ID 31337) that mines every submitted transaction at once.
 function startLocalChain(): Promise<LocalChain> {
@@ -37,7 +39,15 @@ function startLocalChain(): Promise<LocalChain> {
       case 'eth_maxPriorityFeePerGas': return '0x3b9aca00'
       case 'eth_gasPrice': return '0x77359400'
       case 'eth_estimateGas': return '0x5208'
-      case 'eth_call': return '0x'
+      case 'eth_call': {
+        // A 6-decimal "USDC" ERC-20 at TOKEN_ADDRESS holding 2.5 tokens for every account.
+        const call = params[0] as { to?: string; data?: string }
+        if (call.to?.toLowerCase() !== TOKEN_ADDRESS.toLowerCase()) return '0x'
+        if (call.data?.startsWith('0x70a08231')) return encodeAbiParameters([{ type: 'uint256' }], [2_500_000n])
+        if (call.data === '0x313ce567') return encodeAbiParameters([{ type: 'uint8' }], [6])
+        if (call.data === '0x95d89b41') return encodeAbiParameters([{ type: 'string' }], ['USDC'])
+        return '0x'
+      }
       case 'eth_sendRawTransaction': {
         const raw = params[0] as Hex
         rawTransactions.push(raw)
@@ -100,7 +110,7 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
 
     const listed = await client.callTool({ name: 'wallet_list', arguments: { tabId, agentName: 'dApp flow agent' } }) as CallToolResult
     expect(listed.isError, text(listed)).not.toBe(true)
-    const { walletSessionId } = JSON.parse(text(listed)) as { walletSessionId: string }
+    const { walletSessionId, wallets } = JSON.parse(text(listed)) as { walletSessionId: string; wallets: Array<{ id: string }> }
     const pageRequests = async () => {
       const result = await client.callTool({ name: 'wallet_page_requests', arguments: { tabId, walletSessionId } }) as CallToolResult
       expect(result.isError, text(result)).not.toBe(true)
@@ -180,6 +190,22 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
     await expect.poll(async () => (await pageRequests()).requests.find(({ operation }) => operation === 'sign-and-send-transaction'), { timeout: 20_000 })
       .toMatchObject({ status: 'confirmed', transactionHash: flow.hash })
     expect((await pageRequests()).origin).toBe(fixtureOrigin)
+
+    // After the flow the agent checks the dApp's token balance; the first read asks a human to disclose the account.
+    const tokenBalance = async () => {
+      const result = await client.callTool({
+        name: 'wallet_balance', arguments: { tabId, walletSessionId, walletId: wallets[0]!.id, token: TOKEN_ADDRESS }
+      }) as CallToolResult
+      expect(result.isError, text(result)).not.toBe(true)
+      return JSON.parse(text(result)) as Record<string, unknown>
+    }
+    expect(await tokenBalance()).toMatchObject({ status: 'permission-required' })
+    await approveInHronaut(/Connect account/i)
+    await expect.poll(async () => (await tokenBalance()).status).toBe('ready')
+    expect(await tokenBalance()).toMatchObject({
+      publicAddress: prepared.publicAddress,
+      token: { token: TOKEN_ADDRESS, balance: '2.5', rawBalance: '2500000', decimals: 6, symbol: 'USDC' }
+    })
   } finally {
     chain.server.close()
   }

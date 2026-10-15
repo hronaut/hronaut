@@ -365,6 +365,45 @@ describe('WalletBroker', () => {
     expect(JSON.stringify(result)).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret/)
   })
 
+  it('reads agent token balances after account permission and masks token RPC failures', async () => {
+    const { service, wallet } = await setup()
+    const agent = context({ requester: { type: 'agent', id: 'agent-token', name: 'Token agent' } })
+    const token = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+    const chain = adapter()
+    chain.validateAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(value)
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+
+    await expect(broker.agentBalance(agent, wallet.id, token)).rejects.toThrow('EVM token balances are not supported')
+    chain.tokenBalance = vi.fn(async () => ({ token, balance: '1.5', rawBalance: '1500000', decimals: 6, symbol: 'USDC' }))
+    await expect(broker.agentBalance(agent, wallet.id, 'not-an-address')).rejects.toThrow('EVM token address is invalid')
+    expect(await broker.agentBalance(agent, wallet.id, token)).toMatchObject({ status: 'permission-required' })
+    expect(chain.tokenBalance).not.toHaveBeenCalled()
+
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: agent.workspaceId,
+      origin: agent.topLevelOrigin,
+      frameOrigin: agent.topLevelOrigin,
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: agent.requester,
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const ready = await broker.agentBalance(agent, wallet.id, token)
+    expect(ready).toEqual({
+      status: 'ready', walletId: wallet.id, chainFamily: 'evm', networkId: wallet.network.id, publicAddress: wallet.publicAddress,
+      token: { token, balance: '1.5', rawBalance: '1500000', decimals: 6, symbol: 'USDC' }
+    })
+    expect(chain.tokenBalance).toHaveBeenCalledWith(expect.objectContaining({ id: wallet.id }), token)
+
+    chain.tokenBalance = vi.fn(async () => { throw new Error('RPC https://rpc.example.invalid/?apiKey=token-secret failed') })
+    const failed = await settle(broker.agentBalance(agent, wallet.id, token))
+    expect(failed).toMatchObject({ status: 'rejected', reason: expect.objectContaining({ message: 'EVM token balance lookup failed' }) })
+    expect(JSON.stringify(failed)).not.toMatch(/rpc\.example|token-secret/)
+  })
+
   it('keeps RPC simulation details out of agent responses and durable approval state', async () => {
     const { directory, service, wallet } = await setup()
     const agent = context({ requester: { type: 'agent', id: 'agent-simulation-error', name: 'Simulation error agent' } })

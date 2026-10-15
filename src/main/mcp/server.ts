@@ -189,7 +189,7 @@ export interface WalletAgentToolTarget {
 
 export interface WalletAgentOperations {
   list: (target: WalletAgentToolTarget) => Promise<WalletAgentDescriptor[]>
-  balance: (target: WalletAgentToolTarget, walletId: string) => Promise<unknown>
+  balance: (target: WalletAgentToolTarget, walletId: string, token?: string) => Promise<unknown>
   prepareTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown) => Promise<unknown>
   requestTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown, broadcast: boolean) => Promise<unknown>
   requestMessage: (target: WalletAgentToolTarget, walletId: string, message: Uint8Array) => Promise<unknown>
@@ -5498,11 +5498,17 @@ function createBrowserMcpServer(
     'wallet_balance',
     {
       description: toolDescription('wallet_balance'),
-      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema, walletId: walletIdSchema }
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        walletSessionId: walletSessionIdSchema,
+        walletId: walletIdSchema,
+        token: z.string().min(1).max(64).regex(/^[A-Za-z0-9]+$/).optional()
+          .describe('Optional fungible token to read instead of the native balance: an ERC-20 contract address on EVM or an SPL token mint on Solana.')
+      }
     },
-    tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId }: {
-      workspaceId: string; tabId: string; walletSessionId: string; walletId: string
-    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId)))
+    tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId, token }: {
+      workspaceId: string; tabId: string; walletSessionId: string; walletId: string; token?: string
+    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId, token)))
   )
   registerWorkspaceTool(
     'wallet_prepare_transaction',

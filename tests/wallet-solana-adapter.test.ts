@@ -53,6 +53,7 @@ function rpc() {
   return {
     simulate: vi.fn(async () => ({ err: null, fee: 5_000n, logs: ['Program log: ok'] })),
     balance: vi.fn(async () => 2_500_000_000n),
+    tokenBalance: vi.fn(async () => ({ amount: 12_345_000n, decimals: 6 })),
     send: vi.fn(async () => '5'.repeat(88)),
     status: vi.fn(async () => ({ confirmationStatus: 'confirmed', err: null, slot: 99n }))
   }
@@ -99,6 +100,13 @@ describe('SolanaWalletAdapter', () => {
       attempted: true, success: true, estimatedFee: '0.000005', logs: ['Program log: ok']
     })
     await expect(adapter.balance(wallet())).resolves.toBe('2.5')
+    const mint = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+    await expect(adapter.tokenBalance(wallet(), mint)).resolves.toEqual({
+      token: mint, balance: '12.345', rawBalance: '12345000', decimals: 6
+    })
+    expect(client.tokenBalance).toHaveBeenCalledWith(wallet().publicAddress, mint)
+    await expect(adapter.tokenBalance(wallet(), '0x9858EfFD232B4033E47d90003D41EC34EcaEda94'))
+      .rejects.toThrow('SPL token mint address')
 
     const material = Buffer.from(mnemonic)
     const signed = await adapter.sign(wallet(), { format: 'mnemonic', material }, normalized)
