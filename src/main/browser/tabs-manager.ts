@@ -11427,6 +11427,9 @@ export class BrowserTabsManager {
     } else {
       await send('Emulation.clearGeolocationOverride')
     }
+    // An empty override resolves every safe-area variable to 0px, matching a
+    // tab that never had one; there is no separate clear command.
+    await send('Emulation.setSafeAreaInsetsOverride', { insets: state.safeAreaInsets ?? {} })
     await send('Emulation.setScriptExecutionDisabled', {
       value: state.javaScriptDisabled === true
     })

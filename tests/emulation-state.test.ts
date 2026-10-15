@@ -164,6 +164,31 @@ describe('emulation configuration', () => {
     expect(hasEmulationOverrides(cleared)).toBe(false)
   })
 
+  it('replaces safe-area insets as a whole, clears them with null, and copies them', () => {
+    const current = prepare({ safeAreaInsets: { top: 47, bottom: 34, bottomMax: 40 } })!.state
+    expect(current.safeAreaInsets).toEqual({ top: 47, bottom: 34, bottomMax: 40 })
+    expect(hasEmulationOverrides(current)).toBe(true)
+    const copy = cloneEmulationState(current)
+    copy.safeAreaInsets!.top = 1
+    expect(current.safeAreaInsets!.top).toBe(47)
+    const replaced = prepareBrowserEmulation(current, {}, { safeAreaInsets: { left: 12 } })!.state
+    expect(replaced.safeAreaInsets).toEqual({ left: 12 })
+    const cleared = prepareBrowserEmulation(replaced, {}, { safeAreaInsets: null })!.state
+    expect(cleared.safeAreaInsets).toBeUndefined()
+    expect(hasEmulationOverrides(cleared)).toBe(false)
+    expect(prepareBrowserEmulation(current, {}, { reset: true })!.state.safeAreaInsets).toBeUndefined()
+  })
+
+  it.each([
+    [{ top: -1 }, 'safeAreaInsets.top'],
+    [{ rightMax: 1001 }, 'safeAreaInsets.rightMax'],
+    [{ bottom: 1.5 }, 'safeAreaInsets.bottom'],
+    [{ left: Number.NaN }, 'safeAreaInsets.left'],
+    [{ notch: 10 }, 'Invalid safe-area inset: notch']
+  ])('rejects malformed safe-area insets %j', (insets, message) => {
+    expect(() => prepare({ safeAreaInsets: insets as BrowserEmulationOptions['safeAreaInsets'] })).toThrow(message)
+  })
+
   it('enforces the header limit in bytes including names', () => {
     const exact = 'x'.repeat(65536 - 'X-Test'.length)
     expect(prepare({ extraHttpHeaders: { 'X-Test': exact } })!.headers['X-Test']).toBe(exact)

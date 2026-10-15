@@ -153,7 +153,7 @@ export interface BrowserEmulationState {
   javaScriptDisabled?: boolean
   viewport?: BrowserViewportEmulation
   geolocation?: BrowserGeolocationEmulation
-  /** Present while an override is active; omitted fields leave that variable undefined. */
+  /** Present while an override is active; omitted fields resolve to 0px. */
   safeAreaInsets?: BrowserSafeAreaInsets
   extraHttpHeaderNames?: string[]
   renderingDebug?: BrowserRenderingDebugOverlays

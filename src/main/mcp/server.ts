@@ -4606,7 +4606,7 @@ function createBrowserMcpServer(
         }).nullable().optional(),
         safeAreaInsets: z.object(Object.fromEntries(SAFE_AREA_INSET_FIELDS.map(name => [name, z.number().int().min(0).max(MAX_SAFE_AREA_INSET).optional()])))
           .strict().nullable().optional()
-          .describe('Override env(safe-area-inset-*) and env(safe-area-max-inset-*) in integer CSS pixels: top, left, bottom, right and their *Max fields. Replaces the whole override; omitted fields leave that variable undefined so CSS fallbacks apply. Null restores the browser values. Not a device frame or notch overlay.'),
+          .describe('Override env(safe-area-inset-*) and env(safe-area-max-inset-*) in integer CSS pixels: top, left, bottom, right and their *Max fields. Replaces the whole override; omitted fields resolve to 0px, so CSS fallbacks do not apply. Null restores the browser values. Not a device frame or notch overlay.'),
         renderingDebug: z.object({
           paintFlashing: z.boolean().optional()
             .describe('Flash repainted regions. This can produce rapid flashing and should be used with photosensitivity caution.'),

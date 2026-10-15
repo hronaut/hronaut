@@ -104,6 +104,11 @@ describe('emulation controller', () => {
     controller.dispose()
   })
 
+  it('names an active safe-area override in the description', () => {
+    const { controller } = createController()
+    expect(controller.describe({ ...defaultEmulation(), safeAreaInsets: { top: 47 } })).toBe('runtimeDetails.emulation.safeArea')
+  })
+
   it('treats a missing legacy animation playback rate as the normal default', () => {
     const { controller } = createController()
     const legacyEmulation = {
