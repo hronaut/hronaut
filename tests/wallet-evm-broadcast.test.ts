@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
+import { keccak256 } from 'viem'
 import { EvmWalletAdapter } from '../src/main/wallet/adapters/evm.js'
 import type { WalletDescriptor } from '../src/shared/wallet.js'
 
@@ -62,8 +63,6 @@ describe('EVM broadcast refusals', () => {
       .toBe('EVM RPC error (code -32000): the node refused the transaction: gas price is too low for the node to accept it')
     expect(await refusal('max fee per gas less than block base fee: address 0x9858, maxFeePerGas: 1 baseFee: 7'))
       .toBe('EVM RPC error (code -32000): the node refused the transaction: max fee per gas is below the block base fee')
-    expect(await refusal('already known'))
-      .toBe('EVM RPC error (code -32000): the node refused the transaction: the node already has this transaction')
     expect(await refusal('intrinsic gas too low: gas 21000, minimum needed 53000'))
       .toBe('EVM RPC error (code -32000): the node refused the transaction: gas limit is below the minimum for this transaction')
     expect(await refusal('exceeds block gas limit', -32003))
@@ -89,5 +88,19 @@ describe('EVM broadcast refusals', () => {
     expect(await refusal('unknown transaction status')).not.toMatch(/node refused/)
     // Anything else keeps the original error, which the broker turns into its generic message.
     expect(await refusal('https://rpc.example.invalid/?apiKey=rpc-query-secret is rate limited')).toContain('rate limited')
+  })
+
+  it('counts a transaction the node already has as sent, under its own hash', async () => {
+    const adapter = new EvmWalletAdapter()
+    // A hosted RPC that retried the send itself, Geth, OpenEthereum and older Geth wordings.
+    for (const message of ['already known', 'Transaction with the same hash was already imported.', 'known transaction: 6ba7b8']) {
+      expect(await adapter.broadcast(await refusingNode({ code: -32000, message }), SIGNED)).toBe(keccak256(SIGNED))
+      await new Promise<void>((resolve) => server!.close(() => resolve()))
+      server = undefined
+    }
+    const legacy = '0xf86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83'
+    // The EIP-155 example transaction, whose hash is known.
+    expect(await adapter.broadcast(await refusingNode({ code: -32000, message: 'already known' }), legacy))
+      .toBe('0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788')
   })
 })
