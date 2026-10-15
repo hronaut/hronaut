@@ -204,6 +204,35 @@ const MAX_READ_RPC_PARAMS = 4
 const MAX_READ_RPC_RESULT_BYTES = 4_000_000
 const MAX_READ_RPC_ERROR_DATA_CHARS = 258
 
+/**
+ * Why a node refused a signed transaction, matched against how common clients
+ * word it and reported in Hronaut's own words, never the node's text, which
+ * can name the RPC endpoint. More specific wordings come first.
+ */
+const BROADCAST_REFUSALS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/insufficient funds/i, 'the account cannot pay for gas and value'],
+  [/nonce too low|nonce has already been used/i, 'nonce too low, the account already used this nonce'],
+  [/nonce too high/i, 'nonce too high, an earlier nonce has not been sent'],
+  [/replacement transaction underpriced|replacement fee too low/i, 'replacement transaction underpriced'],
+  [/already known|known transaction|already imported/i, 'the node already has this transaction'],
+  [/(?:max fee per gas|fee cap) less than block base fee/i, 'max fee per gas is below the block base fee'],
+  [/max priority fee per gas higher than max fee per gas|tip higher than fee cap/i, 'priority fee is above the max fee'],
+  [/underpriced|gas price too low/i, 'gas price is below the node minimum'],
+  [/intrinsic gas too low/i, 'gas limit is below the minimum for this transaction'],
+  [/exceeds block gas limit|gas limit too high|max transaction gas limit/i, 'gas limit is above what the network allows'],
+  [/(?:tx|transaction) type not supported/i, 'the network does not support this transaction type'],
+  [/invalid chain ?id/i, 'the transaction is for another chain'],
+  [/invalid sender/i, 'the node could not verify the signature']
+]
+
+function broadcastError(error: unknown): unknown {
+  const rpc = (error as BaseError | undefined)?.walk?.((cause) => cause instanceof RpcRequestError) as RpcRequestError | null | undefined
+  if (!(rpc instanceof RpcRequestError)) return error
+  const refusal = BROADCAST_REFUSALS.find(([pattern]) => pattern.test(rpc.details))
+  if (!refusal) return error
+  return new Error(`EVM RPC error (code ${Number.isSafeInteger(rpc.code) ? rpc.code : -32000}): the node refused the transaction: ${refusal[1]}`)
+}
+
 function readRpcError(error: unknown): Error {
   const rpc = (error as BaseError | undefined)?.walk?.((cause) => cause instanceof RpcRequestError) as RpcRequestError | null | undefined
   if (!(rpc instanceof RpcRequestError) || !Number.isSafeInteger(rpc.code)) return new Error('EVM RPC read request failed')
@@ -333,9 +362,13 @@ export class EvmWalletAdapter implements WalletChainAdapter {
     }
   }
 
-  broadcast(wallet: WalletDescriptor, signedTransaction: string): Promise<string> {
+  async broadcast(wallet: WalletDescriptor, signedTransaction: string): Promise<string> {
     if (!/^0x[0-9a-f]+$/i.test(signedTransaction)) throw new Error('Signed EVM transaction is invalid')
-    return this.clientFor(wallet).sendRawTransaction({ serializedTransaction: signedTransaction as Hex })
+    try {
+      return await this.clientFor(wallet).sendRawTransaction({ serializedTransaction: signedTransaction as Hex })
+    } catch (error) {
+      throw broadcastError(error)
+    }
   }
 
   async confirmation(wallet: WalletDescriptor, transactionHash: string): Promise<WalletConfirmation> {
