@@ -3,6 +3,7 @@ import {
   WalletAgentDescriptorSchema,
   WalletDescriptorSchema,
   WalletOperationRequestSchema,
+  WalletProviderRequestSchema,
   WalletPublicRequestPayloadSchema,
   WalletRequestStatusSchema
 } from '../src/shared/wallet.js'
@@ -203,6 +204,37 @@ describe('wallet public contracts', () => {
     ['non-plain object', { transaction: new Map([['destination', 'silently dropped']]) }]
   ])('rejects %s values instead of letting JSON serialization change the signed request', (_kind, payload) => {
     expect(() => WalletPublicRequestPayloadSchema.parse(payload)).toThrow(/serializable/i)
+  })
+
+  it('drops undefined provider params properties as JSON-RPC does, while keeping every other payload check', () => {
+    const call = { to: '0x0000000000000000000000000000000000000002', data: '0x', value: undefined }
+    const parsed = WalletProviderRequestSchema.parse({
+      family: 'evm',
+      method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', id: undefined, chainId: '0xaa36a7', atomicRequired: false, calls: [call], capabilities: undefined }]
+    })
+    expect(parsed.params).toEqual([{ version: '2.0.0', chainId: '0xaa36a7', atomicRequired: false, calls: [{ to: call.to, data: '0x' }] }])
+    expect(Object.keys((parsed.params as Array<Record<string, unknown>>)[0]!)).not.toContain('capabilities')
+
+    const shared = { value: 'safe leaf' }
+    const nullPrototype = Object.assign(Object.create(null) as Record<string, unknown>, { privateKey: 'not forwarded', skipped: undefined })
+    const huge: unknown[] = []
+    huge.length = 1_000_000_000
+    Object.defineProperty(huge, 0, { get: () => { throw new Error('touched a rejected sparse array') } })
+    const rejected: unknown[] = [
+      [shared, shared],
+      [{ entry: undefined }, undefined],
+      new Array(2),
+      [nullPrototype],
+      [huge],
+      [new Map([['to', '0x2']])]
+    ]
+    for (const params of rejected) {
+      expect(() => WalletProviderRequestSchema.parse({ family: 'evm', method: 'eth_sendTransaction', params })).toThrow()
+    }
+    expect(WalletProviderRequestSchema.parse({ family: 'evm', method: 'eth_chainId' }).params).toBeUndefined()
+    expect(WalletProviderRequestSchema.parse({ family: 'solana', method: 'signMessage', params: [{ message: new Uint8Array([1, 2]) }] }).params)
+      .toEqual([{ message: new Uint8Array([1, 2]) }])
   })
 
   it('recognizes only the explicit approval state machine statuses', () => {

@@ -13,6 +13,7 @@ import {
 } from '../src/main/wallet/broker.js'
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
 import { EvmWalletAdapter } from '../src/main/wallet/adapters/evm.js'
+import { EvmCallBundleStore } from '../src/main/wallet/evm-call-bundles.js'
 import { MAX_EVM_FILTERS_PER_PAGE } from '../src/main/wallet/evm-filters.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
@@ -1183,6 +1184,63 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).toHaveBeenCalledOnce()
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['rejected-second'] }))
       .resolves.toMatchObject({ status: 600, atomic: false, receipts: [{ transactionHash: '0xtransaction' }] })
+  })
+
+  it('prepares each batch call only after the one before it is mined, and stops when one reverts', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    chain.broadcast.mockResolvedValueOnce('0xapprove').mockResolvedValueOnce('0xswap').mockResolvedValueOnce('0xreverted')
+    let approvalMined = false
+    const confirmation = vi.fn(async (_wallet: WalletDescriptor, hash: string) => {
+      if (hash === '0xapprove' && !approvalMined) return { confirmed: false, failed: false }
+      return { confirmed: hash !== '0xreverted', failed: hash === '0xreverted', blockReference: '1' }
+    })
+    const readRpc = vi.fn(async (_wallet: WalletDescriptor, _method: string, params: unknown) => ({
+      status: (params as string[])[0] === '0xreverted' ? '0x0' : '0x1', logs: [], blockHash: '0xb', blockNumber: '0x1', gasUsed: '0x5208', transactionHash: (params as string[])[0]
+    }))
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, confirmation, readRpc } }, confirmationPollIntervalMs: 5 })
+    await connect(broker)
+    const call = { to: '0x0000000000000000000000000000000000000002', value: '0x1' }
+    const batch = (id: string, calls: number) => broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', id, chainId: '0xaa36a7', atomicRequired: false, calls: Array.from({ length: calls }, () => ({ ...call })) }]
+    })
+    const nextApproval = () => broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation === 'sign-and-send-transaction')
+
+    // The swap is only prepared, and so estimated against the approved allowance, once the approval is mined.
+    const swap = batch('approve-then-swap', 2)
+    await broker.approve((await nextApproval()).id)
+    await vi.waitFor(() => expect(confirmation.mock.calls.filter(([, hash]) => hash === '0xapprove').length).toBeGreaterThan(2))
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    approvalMined = true
+    await broker.approve((await nextApproval()).id)
+    await expect(swap).resolves.toEqual({ id: 'approve-then-swap' })
+    expect(chain.broadcast).toHaveBeenCalledTimes(2)
+
+    // A reverted call ends the batch; the calls after it are never offered.
+    const reverting = batch('reverting', 3)
+    await broker.approve((await nextApproval()).id)
+    await expect(reverting).resolves.toEqual({ id: 'reverting' })
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    expect(chain.broadcast).toHaveBeenCalledTimes(3)
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['reverting'] }))
+      .resolves.toMatchObject({ status: 500, receipts: [{ status: '0x0', transactionHash: '0xreverted' }] })
+  })
+
+  it('returns batch call refusals to the page with their codes intact', async () => {
+    const { service } = await setup('testnet')
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await connect(broker)
+    const send = (request: Record<string, unknown>) => broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', chainId: '0xaa36a7', atomicRequired: false, calls: [{ to: '0x0000000000000000000000000000000000000002' }], ...request }]
+    })
+    await expect(send({ version: '1.0' })).rejects.toThrow('EVM RPC error (code -32602): wallet_sendCalls supports only version 2.0.0')
+    await expect(send({ capabilities: { paymasterService: { url: 'https://paymaster.example' } } }))
+      .rejects.toThrow('EVM RPC error (code 5700): Hronaut does not support the required capability paymasterService')
+    const start = vi.spyOn(EvmCallBundleStore.prototype, 'start').mockReturnValueOnce('full')
+    onTestFinished(() => start.mockRestore())
+    await expect(send({})).rejects.toThrow('EVM RPC error (code -32005): Too many wallet_sendCalls batches are still being sent')
   })
 
   it('supports EIP-2255 account permissions and wallet_addEthereumChain only for configured networks', async () => {

@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
-- dApps that batch calls with EIP-5792, such as wagmi's `useSendCalls` approving a token and then swapping it, now work in Hronaut. `wallet_sendCalls` runs the calls one at a time, in order, each as an ordinary transaction with its own approval dialog or wallet policy check, and stops at the first call that is rejected or fails. `wallet_getCallsStatus` reports the batch's status and receipts to the site that sent it, and `wallet_getCapabilities` tells the dApp that calls are not atomic, so a dApp that requires an atomic batch gets the standard error code 5760 instead.
+- dApps that batch calls with EIP-5792, such as wagmi's `useSendCalls` approving a token and then swapping it, now work in Hronaut. `wallet_sendCalls` runs the calls one at a time, in order, each as an ordinary transaction with its own approval dialog or wallet policy check, waits for each call to be mined before preparing the next, and stops at the first call that is rejected, fails, or reverts. `wallet_getCallsStatus` reports the batch's status and receipts to the site that sent it, and `wallet_getCapabilities` tells the dApp that calls are not atomic, so a dApp that requires an atomic batch gets the standard error code 5760 instead.
 
 ### Fixed
 

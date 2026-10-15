@@ -6,8 +6,10 @@ import type { WalletDescriptor } from '../../shared/wallet.js'
 export const EVM_CALL_BUNDLE_VERSION = '2.0.0'
 /** Calls one `wallet_sendCalls` request may carry. */
 export const MAX_EVM_BUNDLE_CALLS = 10
-/** Bundles remembered for `wallet_getCallsStatus`; the oldest is forgotten first. */
+/** Bundles remembered for `wallet_getCallsStatus` across all sites; the oldest finished one is forgotten first. */
 export const MAX_EVM_CALL_BUNDLES = 256
+/** Bundles one site may have remembered at once. */
+export const MAX_EVM_CALL_BUNDLES_PER_SITE = 32
 
 /** EIP-5792 status codes. */
 export const CALL_BUNDLE_STATUS = { pending: 100, confirmed: 200, reverted: 500, partiallyReverted: 600 } as const
@@ -51,7 +53,7 @@ export function parseSendCalls(params: unknown): EvmSendCalls {
   if (!parsed.success) throw callBundleError(-32602, 'wallet_sendCalls expects one request with version, chainId, atomicRequired and calls')
   const request = parsed.data
   if (request.version !== EVM_CALL_BUNDLE_VERSION) {
-    throw callBundleError(-32602, `wallet_sendCalls version ${request.version} is not supported; use ${EVM_CALL_BUNDLE_VERSION}`)
+    throw callBundleError(-32602, `wallet_sendCalls supports only version ${EVM_CALL_BUNDLE_VERSION}`)
   }
   if (request.calls.length > MAX_EVM_BUNDLE_CALLS) {
     throw callBundleError(5740, `Hronaut sends at most ${MAX_EVM_BUNDLE_CALLS} calls in one batch`)
@@ -59,7 +61,10 @@ export function parseSendCalls(params: unknown): EvmSendCalls {
   const required = [request.capabilities, ...request.calls.map((call) => call.capabilities)]
     .flatMap((capabilities) => Object.entries(capabilities ?? {}))
     .find(([, capability]) => (capability as { optional?: unknown } | null)?.optional !== true)
-  if (required) throw callBundleError(5700, `Hronaut does not support the required capability ${required[0].slice(0, 64)}`)
+  if (required) {
+    const name = /^[A-Za-z0-9_]{1,64}$/.test(required[0]) ? ` ${required[0]}` : ''
+    throw callBundleError(5700, `Hronaut does not support the required capability${name}`)
+  }
   if (request.atomicRequired && request.calls.length > 1) {
     throw callBundleError(5760, 'Hronaut sends each call as its own transaction, so it cannot run them atomically')
   }
@@ -85,18 +90,34 @@ export interface EvmCallBundle {
 export class EvmCallBundleStore {
   private readonly bundles = new Map<string, EvmCallBundle>()
 
-  /** Starts a bundle, or returns undefined when this site already used the ID. */
-  start(owner: EvmCallBundleOwner, wallet: WalletDescriptor, calls: number, requestedId?: string): { id: string; bundle: EvmCallBundle } | undefined {
+  /**
+   * Starts a bundle. It is refused as a duplicate when this site already
+   * used the ID, and as full when the site, or all sites together, already
+   * have the most bundles remembered and none of them has finished: a bundle
+   * still sending calls is never forgotten, so its ID stays reserved.
+   */
+  start(
+    owner: EvmCallBundleOwner,
+    wallet: WalletDescriptor,
+    calls: number,
+    requestedId?: string
+  ): { id: string; bundle: EvmCallBundle } | 'duplicate' | 'full' {
     const id = requestedId ?? `0x${randomBytes(32).toString('hex')}`
     const key = bundleKey(owner, id)
-    if (this.bundles.has(key)) return undefined
+    if (this.bundles.has(key)) return 'duplicate'
+    const site = siteKey(owner)
+    const sameSite = [...this.bundles].filter(([, bundle]) => siteKey(bundle.owner) === site)
+    if (sameSite.length >= MAX_EVM_CALL_BUNDLES_PER_SITE && !this.forgetOldestFinished(sameSite)) return 'full'
+    if (this.bundles.size >= MAX_EVM_CALL_BUNDLES && !this.forgetOldestFinished([...this.bundles])) return 'full'
     const bundle: EvmCallBundle = { owner, wallet, calls, hashes: [], finished: false }
     this.bundles.set(key, bundle)
-    for (const [oldest] of this.bundles) {
-      if (this.bundles.size <= MAX_EVM_CALL_BUNDLES) break
-      this.bundles.delete(oldest)
-    }
     return { id, bundle }
+  }
+
+  private forgetOldestFinished(entries: Array<[string, EvmCallBundle]>): boolean {
+    const oldest = entries.find(([, bundle]) => bundle.finished)
+    if (oldest) this.bundles.delete(oldest[0])
+    return oldest !== undefined
   }
 
   get(owner: EvmCallBundleOwner, id: unknown): EvmCallBundle | undefined {
@@ -112,6 +133,10 @@ export class EvmCallBundleStore {
       if (predicate(bundle.owner)) this.bundles.delete(key)
     }
   }
+}
+
+function siteKey(owner: EvmCallBundleOwner): string {
+  return JSON.stringify([owner.workspaceId, owner.topLevelOrigin])
 }
 
 function bundleKey(owner: EvmCallBundleOwner, id: string): string {

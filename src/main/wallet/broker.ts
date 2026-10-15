@@ -123,6 +123,9 @@ export interface WalletBrokerOptions {
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const MAX_AGENT_PAGE_REQUESTS = 50
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
+// A batch waits for each call to be mined before preparing the next one.
+const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
+const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
 const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
@@ -1931,9 +1934,11 @@ export class WalletBroker {
   /**
    * EIP-5792 batch calls, sent one after another as ordinary transactions:
    * each goes through the same approval or policy as `eth_sendTransaction`.
-   * Hronaut stops at the first call that is rejected or fails, because later
-   * calls usually depend on it, such as a swap after its token approval. When
-   * the first call does not go out, the request fails with that call's error.
+   * Later calls usually depend on earlier ones, such as a swap after its
+   * token approval, so each call is prepared only once the one before it is
+   * mined and succeeded, and Hronaut stops at the first call that is
+   * rejected, fails or reverts. When the first call does not go out, the
+   * request fails with that call's error.
    */
   private async sendEvmCalls(
     context: WalletBrokerContext,
@@ -1949,16 +1954,18 @@ export class WalletBroker {
     this.assertAddressPermission(context, selected, 'send')
     const owner = { workspaceId: context.workspaceId, topLevelOrigin: context.topLevelOrigin }
     const started = this.evmCallBundles.start(owner, selected, request.calls.length, request.id)
-    if (!started) throw callBundleError(5720, 'This site already sent a batch with this ID')
+    if (started === 'duplicate') throw callBundleError(5720, 'This site already sent a batch with this ID')
+    if (started === 'full') throw callBundleError(-32005, 'Too many wallet_sendCalls batches are still being sent')
     try {
-      for (const call of request.calls) {
-        const hash = await this.transactionRequest(context, selected, {
+      for (const [index, call] of request.calls.entries()) {
+        const hash = String(await this.transactionRequest(context, selected, {
           from: selected.publicAddress,
           ...(call.to === undefined ? {} : { to: call.to }),
           ...(call.data === undefined ? {} : { data: call.data }),
           ...(call.value === undefined ? {} : { value: call.value })
-        }, true)
-        started.bundle.hashes.push(String(hash))
+        }, true))
+        started.bundle.hashes.push(hash)
+        if (index < request.calls.length - 1 && !await this.evmCallSucceeded(context, selected, hash)) break
       }
     } catch (error) {
       if (!started.bundle.hashes.length) {
@@ -1969,6 +1976,23 @@ export class WalletBroker {
       started.bundle.finished = true
     }
     return { id: started.id }
+  }
+
+  /** Waits until a batch call is mined; false when it reverted, the page left, or it was not mined in time. */
+  private async evmCallSucceeded(context: WalletBrokerContext, wallet: WalletDescriptor, hash: string): Promise<boolean> {
+    const interval = Math.min(this.confirmationPollIntervalMs(), EVM_BATCH_CONFIRMATION_POLL_MS)
+    const deadline = this.now().getTime() + EVM_BATCH_CONFIRMATION_TIMEOUT_MS
+    while (this.isRequestContextActive(context) && this.now().getTime() < deadline) {
+      try {
+        const confirmation = await this.adapters.evm.confirmation(wallet, hash)
+        if (confirmation.failed) return false
+        if (confirmation.confirmed) return true
+      } catch {
+        // A node that cannot answer yet is asked again.
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval))
+    }
+    return false
   }
 
   private async evmCallsStatus(context: WalletBrokerContext, params: unknown): Promise<unknown> {

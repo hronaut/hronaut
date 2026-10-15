@@ -252,11 +252,12 @@ test('runs an EIP-5792 batch as one approval per call and reports its status to 
             const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
             flow.capabilities = await window.ethereum.request({ method: 'wallet_getCapabilities', params: [account] });
             flow.phase = 'sending';
+            // viem leaves options the dApp did not set as undefined properties.
             const { id } = await window.ethereum.request({ method: 'wallet_sendCalls', params: [{
-              version: '2.0.0', chainId: '0x7a69', from: account, atomicRequired: false,
+              version: '2.0.0', id: undefined, chainId: '0x7a69', from: account, atomicRequired: false, capabilities: undefined,
               calls: [
-                { to: '0x1000000000000000000000000000000000000001', value: '0x1' },
-                { to: '0x1000000000000000000000000000000000000002', value: '0x2' }
+                { to: '0x1000000000000000000000000000000000000001', data: undefined, value: '0x1' },
+                { to: '0x1000000000000000000000000000000000000002', data: undefined, value: '0x2' }
               ]
             }] });
             flow.id = id;
