@@ -484,6 +484,8 @@ test('persists a favicon that finishes after the navigation state save', async (
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Delayed favicon server is unavailable')
     const url = `http://127.0.0.1:${address.port}/page`
+    // Tab mutations fail closed until saved workspaces finish loading; startup reads wait for it.
+    await appWindow.evaluate('window.hronautHistory.list()')
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
     const statePath = join(profileDirectory, 'tabs.json')
     await expect.poll(async () => {
