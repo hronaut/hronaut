@@ -144,7 +144,7 @@ describe('live region page script', () => {
     expect(JSON.stringify([wideReport, deepReport])).not.toContain('canary')
   })
 
-  it('distinguishes a truncated observation from an unchanged one', async () => {
+  it('compares only the bounded text, so growth beyond it reads as unchanged', async () => {
     document.body.innerHTML = '<div id="log"></div>'
     const log = document.getElementById('log')!
     run('start', '#log')
@@ -153,9 +153,46 @@ describe('live region page script', () => {
     log.append('c')
     await callback()
     const report = run('get')
-    expect(report.observations).toHaveLength(2)
-    expect(report.observations.every(entry => entry.truncated && entry.text.length === LIVE_REGION_LIMITS.maxObservationChars)).toBe(true)
-    expect(report.unchangedCallbacks).toBe(0)
+    expect(report.observations).toHaveLength(1)
+    expect(report.observations[0]).toMatchObject({ truncated: true })
+    expect(report.observations[0]!.text).toHaveLength(LIVE_REGION_LIMITS.maxObservationChars)
+    expect(report).toMatchObject({ callbackCount: 2, unchangedCallbacks: 1 })
+  })
+
+  it.each([
+    ['the region becomes editable', (region: HTMLElement) => region.setAttribute('contenteditable', 'true')],
+    ['an ancestor becomes editable', (region: HTMLElement) => region.parentElement!.setAttribute('contenteditable', '')],
+    ['the document enters design mode', () => { (document as unknown as { designMode: string }).designMode = 'on' }],
+    ['the region moves into a shadow tree', (region: HTMLElement) => {
+      const host = document.createElement('div')
+      document.body.append(host)
+      host.attachShadow({ mode: 'open' }).append(region)
+    }]
+  ])('stops without reading when %s after start', async (_case, change) => {
+    document.body.innerHTML = '<section><div id="status">Ready</div></section>'
+    const region = document.getElementById('status')!
+    run('start', '#status')
+    region.textContent = 'Saved'
+    await callback()
+    change(region)
+    region.textContent = 'canary-typed-by-the-user'
+    await callback()
+    const report = run('get')
+    expect(report).toMatchObject({ active: false, stopReason: 'excluded' })
+    expect(report.observations.map(entry => entry.text)).toEqual(['Saved'])
+    expect(JSON.stringify(report)).not.toContain('canary')
+    ;(document as unknown as { designMode: string }).designMode = 'off'
+  })
+
+  it('does not count mutations inside skipped editable descendants', async () => {
+    document.body.innerHTML = '<div id="region">Comments <div id="editor" contenteditable="true">draft</div></div>'
+    const editor = document.getElementById('editor')!
+    run('start', '#region')
+    for (const text of ['d', 'dr', 'dra']) {
+      editor.textContent = text
+      await callback()
+    }
+    expect(run('get')).toMatchObject({ active: true, callbackCount: 0, unchangedCallbacks: 0, observations: [] })
   })
 
   it('stops at the observation limit', async () => {

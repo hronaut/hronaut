@@ -108,6 +108,15 @@ describe('live region recorder ownership', () => {
     expect(f.tab.liveRegionRecording).toBeUndefined()
   })
 
+  it('clears page-side state when no current recording exists, such as a document restored from the back/forward cache', async () => {
+    const f = fixture()
+    f.execute.mockResolvedValue({ active: false, observations: [], callbackCount: 0, unchangedCallbacks: 0, totalChars: 0 })
+    for (const action of ['get', 'stop'] as const) {
+      await expect(f.recorder.manage(f.tab, action)).resolves.toMatchObject({ active: false, observations: [] })
+      expect(f.execute).toHaveBeenLastCalledWith(1024, [{ code: liveRegionPageScript('clear') }], false)
+    }
+  })
+
   it('refuses the Hronaut home page', async () => {
     const f = fixture()
     f.tab.url = 'hronaut://home/'

@@ -98,6 +98,14 @@ test('records transient text of one selected live region without unrelated or fo
   expect(detached).toMatchObject({ active: false, stopReason: 'detached', observations: [] })
   expect(JSON.stringify(detached)).not.toContain('live-canary-replacement')
 
+  // Eligibility is checked again before every read: design mode makes the region editable.
+  await liveRegion({ action: 'start', selector: '#live-status' })
+  await evaluate(`(() => { document.designMode = 'on'; document.querySelector('#live-status').textContent = 'live-canary-design-mode'; return true })()`)
+  const designMode = await liveRegion({ action: 'get' })
+  expect(designMode).toMatchObject({ active: false, stopReason: 'excluded' })
+  expect(JSON.stringify(designMode)).not.toContain('live-canary-design-mode')
+  await evaluate(`(() => { document.designMode = 'off'; return true })()`)
+
   // A person taking over the tab releases the recorded text before the agent can read it again.
   await liveRegion({ action: 'start', selector: '#live-status' })
   await evaluate(`(() => { document.querySelector('#live-status').textContent = 'live-canary-before-pause'; return true })()`)

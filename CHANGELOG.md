@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 - `wallet_balance` reads TRC-20 token balances on TRON wallets too, with decimals and symbol, alongside ERC-20 and SPL tokens.
 
-- `browser_live_region` records the text of one selected status, loading or result region at each DOM mutation callback, so an agent can review transient updates that a later snapshot misses. Start it with a selector for exactly one region; form fields, editable content, frames, scripts and styles are never read, and reads, observations and duration are bounded. Selected text can be private, so it is never persisted, exported or logged, and navigation, element removal, pausing the agent or a workspace control change stops and releases it. Results are DOM observations, not screen-reader announcements (#688).
+- `browser_live_region` records the text of one selected status, loading or result region at each DOM mutation callback, so an agent can review transient updates that a later snapshot misses. Start it with a selector for exactly one region; form fields, editable content, frames, scripts and styles are never read, and reads, observations and duration are bounded. Selected text can be private, so it is never persisted, exported or logged, and navigation, element removal, pausing the agent or a workspace control change stops and releases it. If the region later becomes editable, recording stops before reading it. Results are DOM observations, not screen-reader announcements (#688).
 
 ## [2.43.0] - 2026-10-15
 
