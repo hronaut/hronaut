@@ -25,6 +25,7 @@ it.each(['browser_screenshot', 'browser_snapshot'])('withholds %s when cancellat
     tabBelongsToMcpGroup: vi.fn(() => true),
     wakeTab: vi.fn(async () => undefined),
     screenshot: vi.fn(async () => ({ data: Buffer.from('synthetic pixels'), mimeType: 'image/png' })),
+    cssStatePreviewMarker: vi.fn(() => undefined),
     snapshotDetails: vi.fn(async () => ({ text: 'Synthetic publication marker' })),
     postWriteContextFingerprint: vi.fn(() => 'a'.repeat(64)),
     readPostWritePostcondition: vi.fn(async () => 'matches'),
