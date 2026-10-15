@@ -1,7 +1,69 @@
-import { readFile } from 'node:fs/promises'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const read = (path: string): Promise<string> => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
+
+const gitEnvironment = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' }
+
+function git(directory: string, ...args: string[]): string {
+  return execFileSync('git', args, { cwd: directory, encoding: 'utf8', env: gitEnvironment, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+}
+
+async function commitFiles(directory: string, files: Record<string, string>, message: string): Promise<void> {
+  for (const [path, contents] of Object.entries(files)) {
+    await mkdir(join(directory, path, '..'), { recursive: true })
+    await writeFile(join(directory, path), contents)
+  }
+  git(directory, 'add', '.')
+  git(directory, '-c', 'user.name=Release test', '-c', 'user.email=release@example.invalid', 'commit', '--no-gpg-sign', '-m', message)
+}
+
+// Runs the release workflow's manifest push step in a checkout of a local bare
+// "origin", after another clone has moved main the way a merge during a release does.
+async function pushManifestAfterConcurrentMerge(concurrent?: Record<string, string>) {
+  const root = await mkdtemp(join(tmpdir(), 'hronaut-scoop-push-'))
+  try {
+    const origin = join(root, 'origin.git')
+    const seed = join(root, 'seed')
+    const checkout = join(root, 'checkout')
+    const other = join(root, 'other')
+    git(root, 'init', '--bare', '--initial-branch=main', origin)
+    git(root, 'clone', origin, seed)
+    await commitFiles(seed, { 'package.json': '{"version":"2.44.0"}\n', 'packaging/scoop/hronaut.json': '{"version":"2.43.0"}\n' }, 'Release 2.44.0')
+    git(seed, 'push', 'origin', 'HEAD:main')
+    git(root, 'clone', origin, checkout)
+    await writeFile(join(checkout, 'packaging/scoop/hronaut.json'), '{"version":"2.44.0"}\n')
+    if (concurrent) {
+      git(root, 'clone', origin, other)
+      await commitFiles(other, concurrent, 'Concurrent merge')
+      git(other, 'push', 'origin', 'HEAD:main')
+    }
+
+    const workflow = await read('.github/workflows/release.yml')
+    const step = workflow.split('      - name: Push the verified manifest\n')[1]?.split('\n      - name:')[0]
+    const run = step?.split('        run: |\n')[1]
+    if (!run) throw new Error('Scoop manifest push shell was not found')
+    const script = run.split('\n').map(line => line.replace(/^ {10}/, '')).join('\n')
+    const output = join(root, 'step-output')
+    const result = spawnSync('bash', ['-c', script], {
+      cwd: checkout,
+      encoding: 'utf8',
+      env: { ...gitEnvironment, VERSION: '2.44.0', GITHUB_OUTPUT: output }
+    })
+    return {
+      status: result.status,
+      stderr: result.stderr,
+      output: await readFile(output, 'utf8').catch(() => ''),
+      subjects: git(origin, 'log', '--format=%s', 'main').split('\n'),
+      manifest: git(origin, 'show', 'main:packaging/scoop/hronaut.json')
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+}
 
 describe('Scoop package QA', () => {
   it('documents the verified Scoop install path without pinning a release', async () => {
@@ -116,5 +178,34 @@ describe('Scoop package QA', () => {
     expect(ciWorkflow).toMatch(/on:\n[ ]{2}workflow_dispatch:/)
     expect(updater).toContain('Expected exactly one checksum')
     expect(updater).toContain('Scoop manifest URL does not match')
+  })
+})
+
+// The production workflow runs Bash on Ubuntu; native Windows need not provide it.
+describe.skipIf(process.platform === 'win32')('Scoop manifest push', () => {
+  it('replays the manifest commit on a main that moved during the release', async () => {
+    const result = await pushManifestAfterConcurrentMerge({ 'notes.txt': 'merged while the release ran\n' })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.output).toContain('pushed=true')
+    expect(result.subjects).toEqual(['Publish Scoop manifest for Hronaut 2.44.0', 'Concurrent merge', 'Release 2.44.0'])
+    expect(result.manifest).toBe('{"version":"2.44.0"}')
+  })
+
+  it('leaves main alone when it moved to a newer release', async () => {
+    const result = await pushManifestAfterConcurrentMerge({ 'package.json': '{"version":"2.45.0"}\n' })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.output).toContain('pushed=false')
+    expect(result.subjects).toEqual(['Concurrent merge', 'Release 2.44.0'])
+    expect(result.manifest).toBe('{"version":"2.43.0"}')
+  })
+
+  it('pushes directly when main did not move', async () => {
+    const result = await pushManifestAfterConcurrentMerge()
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.output).toContain('pushed=true')
+    expect(result.subjects).toEqual(['Publish Scoop manifest for Hronaut 2.44.0', 'Release 2.44.0'])
   })
 })
