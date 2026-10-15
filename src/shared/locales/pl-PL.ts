@@ -1195,6 +1195,7 @@ export const plPL = {
       "geolocation": "niestandardowa geolokalizacja",
       "safeArea": "niestandardowe marginesy obszaru bezpiecznego",
       "textScale": "systemowy rozmiar tekstu {percent}",
+      "smallViewport": "duży obszar widoku wyższy o {difference} px",
       "locale": "ustawienia regionalne {locale}",
       "timezone": "strefa czasowa {timezone}",
       "cpu": "CPU {rate}× wolniejszy",

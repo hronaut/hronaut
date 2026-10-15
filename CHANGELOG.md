@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- `browser_emulate` can emulate mobile browser controls for viewport units (`smallViewportHeightDifference`, 0–1000 CSS px): `100lvh` becomes that much taller than `100svh` in one tab, for full-height mobile layout QA. Top-level frame only; `dvh` and address-bar animation are not emulated (#766).
+
 - `wallet_balance` reads TRC-20 token balances on TRON wallets too, with decimals and symbol, alongside ERC-20 and SPL tokens.
 
 ## [2.43.0] - 2026-10-15

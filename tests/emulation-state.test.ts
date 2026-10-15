@@ -189,6 +189,31 @@ describe('emulation configuration', () => {
     expect(() => prepare({ safeAreaInsets: insets as BrowserEmulationOptions['safeAreaInsets'] })).toThrow(message)
   })
 
+  it('sets, replaces and clears the small-viewport height difference', () => {
+    const current = prepare({ smallViewportHeightDifference: 56 })!.state
+    expect(current.smallViewportHeightDifference).toBe(56)
+    expect(hasEmulationOverrides(current)).toBe(true)
+    expect(prepareBrowserEmulation(current, {}, { colorScheme: 'dark' })!.state.smallViewportHeightDifference).toBe(56)
+    expect(prepareBrowserEmulation(current, {}, { smallViewportHeightDifference: 0 })!.state.smallViewportHeightDifference).toBe(0)
+    const cleared = prepareBrowserEmulation(current, {}, { smallViewportHeightDifference: null })!.state
+    expect(cleared.smallViewportHeightDifference).toBeUndefined()
+    expect(hasEmulationOverrides(cleared)).toBe(false)
+    expect(prepareBrowserEmulation(current, {}, { reset: true })!.state.smallViewportHeightDifference).toBeUndefined()
+    for (const smallViewportHeightDifference of [-1, 1.5, 1_001, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => prepare({ smallViewportHeightDifference })).toThrow('smallViewportHeightDifference must be an integer from 0 to 1000')
+    }
+  })
+
+  it('keeps the small-viewport difference below an emulated viewport height', () => {
+    const viewport = { width: 390, height: 600, deviceScaleFactor: 3, mobile: true, touch: true, orientation: 'portrait' as const }
+    expect(prepare({ viewport, smallViewportHeightDifference: 599 })!.state.smallViewportHeightDifference).toBe(599)
+    expect(() => prepare({ viewport, smallViewportHeightDifference: 600 })).toThrow('smaller than the emulated viewport height')
+    const retained = prepare({ smallViewportHeightDifference: 700 })!.state
+    expect(() => prepareBrowserEmulation(retained, {}, { viewport })).toThrow('smaller than the emulated viewport height')
+    expect(prepareBrowserEmulation(retained, {}, { viewport, smallViewportHeightDifference: 100 })!.state)
+      .toMatchObject({ viewport: { height: 600 }, smallViewportHeightDifference: 100 })
+  })
+
   it('sets, replaces and clears the OS text scale within 0.85 to 2', () => {
     const current = prepare({ osTextScale: 2 })!.state
     expect(current.osTextScale).toBe(2)

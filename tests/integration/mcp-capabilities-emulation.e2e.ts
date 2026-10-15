@@ -811,3 +811,82 @@ test('emulates OS text scale for opted-in pages in one tab only', async ({ capab
   expect(await readScale(tabId)).toEqual(baseline)
   expect(await readScale(siblingTabId)).toEqual(baseline)
 })
+
+test('emulates a small-viewport height difference for svh in one tab only', async ({ capabilities }) => {
+  const { client, tabId, fixtureOrigin } = capabilities
+  const readUnits = async (targetTabId: string) => JSON.parse(text(await client.callTool({
+    name: 'browser_evaluate',
+    arguments: {
+      tabId: targetTabId,
+      script: `(() => {
+        const measure = (id, height) => {
+          let probe = document.getElementById(id);
+          if (!probe) {
+            probe = document.createElement('div');
+            probe.id = id;
+            probe.style.cssText = 'position: absolute; top: 0; left: 0; width: 1px; height: ' + height;
+            document.body.append(probe);
+          }
+          return probe.getBoundingClientRect().height;
+        };
+        return { svh: measure('svh-probe', '100svh'), lvh: measure('lvh-probe', '100lvh') };
+      })()`
+    }
+  }) as CallToolResult)) as { svh: number; lvh: number }
+  const emulate = async (args: Record<string, unknown>) => {
+    const result = await client.callTool({ name: 'browser_emulate', arguments: { tabId, ...args } }) as CallToolResult
+    expect(result.isError, text(result)).not.toBe(true)
+    return JSON.parse(text(result)) as Record<string, unknown>
+  }
+  const siblingResult = await client.callTool({
+    name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/`, active: false }
+  }) as CallToolResult
+  expect(siblingResult.isError, text(siblingResult)).not.toBe(true)
+  const siblingTabId = JSON.parse(text(siblingResult)).tabs.find((tab: { id: string; url: string }) => tab.url === `${fixtureOrigin}/` && tab.id !== tabId)?.id as string
+  expect(siblingTabId).toBeTruthy()
+  await client.callTool({ name: 'browser_wait', arguments: { tabId: siblingTabId } })
+
+  // A clean desktop tab has no browser controls, so svh and lvh match.
+  const baseline = await readUnits(tabId)
+  expect(baseline.svh).toBe(baseline.lvh)
+  const siblingBaseline = await readUnits(siblingTabId)
+
+  // In a desktop tab the visible viewport stays the small viewport and the large viewport grows.
+  expect((await emulate({ smallViewportHeightDifference: 100 })).smallViewportHeightDifference).toBe(100)
+  await expect.poll(() => readUnits(tabId)).toEqual({ svh: baseline.svh, lvh: baseline.svh + 100 })
+  expect(await readUnits(siblingTabId)).toEqual(siblingBaseline)
+
+  await emulate({ smallViewportHeightDifference: 40 })
+  await expect.poll(() => readUnits(tabId)).toEqual({ svh: baseline.svh, lvh: baseline.svh + 40 })
+
+  await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: `${fixtureOrigin}/` } })
+  await client.callTool({ name: 'browser_wait', arguments: { tabId } })
+  expect(await readUnits(tabId)).toEqual({ svh: baseline.svh, lvh: baseline.svh + 40 })
+
+  // With mobile viewport emulation the emulated height is the large viewport and svh shrinks instead,
+  // still by the same CSS pixels at a 3x device scale.
+  const phone = await emulate({ viewport: { width: 390, height: 700, deviceScaleFactor: 3, mobile: true, touch: true, orientation: 'portrait' } })
+  expect(phone.smallViewportHeightDifference).toBe(40)
+  await expect.poll(() => readUnits(tabId)).toEqual({ svh: 660, lvh: 700 })
+
+  for (const smallViewportHeightDifference of [-1, 1.5, 1_001, 'tall', 700]) {
+    const rejected = await client.callTool({ name: 'browser_emulate', arguments: { tabId, smallViewportHeightDifference } }) as CallToolResult
+    expect(rejected.isError, String(smallViewportHeightDifference)).toBe(true)
+  }
+  expect((await emulate({})).smallViewportHeightDifference).toBe(40)
+
+  await emulate({ smallViewportHeightDifference: 0 })
+  await expect.poll(() => readUnits(tabId)).toEqual({ svh: 700, lvh: 700 })
+  await emulate({ smallViewportHeightDifference: 56 })
+  await expect.poll(() => readUnits(tabId)).toEqual({ svh: 644, lvh: 700 })
+
+  const cleared = await emulate({ smallViewportHeightDifference: null })
+  expect(cleared.smallViewportHeightDifference).toBeUndefined()
+  await expect.poll(() => readUnits(tabId)).toEqual({ svh: 700, lvh: 700 })
+
+  await emulate({ smallViewportHeightDifference: 120 })
+  await expect.poll(() => readUnits(tabId)).toEqual({ svh: 580, lvh: 700 })
+  await emulate({ reset: true })
+  await expect.poll(() => readUnits(tabId)).toEqual(baseline)
+  expect(await readUnits(siblingTabId)).toEqual(siblingBaseline)
+})

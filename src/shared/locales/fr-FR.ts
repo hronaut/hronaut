@@ -1195,6 +1195,7 @@ export const frFR = {
       "geolocation": "géolocalisation personnalisée",
       "safeArea": "marges de zone sûre personnalisées",
       "textScale": "taille du texte du système {percent}",
+      "smallViewport": "grande fenêtre d’affichage plus haute de {difference} px",
       "locale": "paramètres régionaux {locale}",
       "timezone": "fuseau horaire {timezone}",
       "cpu": "CPU {rate}× plus lent",
