@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   encodeFunctionData,
+  getAddress,
   maxUint256,
   parseAbi,
   parseTransaction,
@@ -14,7 +15,9 @@ import type { WalletDescriptor } from '../src/shared/wallet.js'
 const TOKEN_ABI = parseAbi([
   'function transfer(address to, uint256 amount) returns (bool)',
   'function approve(address spender, uint256 amount) returns (bool)',
-  'function transferFrom(address from, address to, uint256 amount) returns (bool)'
+  'function increaseAllowance(address spender, uint256 addedValue) returns (bool)',
+  'function transferFrom(address from, address to, uint256 amount) returns (bool)',
+  'function setApprovalForAll(address operator, bool approved)'
 ])
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 
@@ -77,6 +80,35 @@ describe('EvmWalletAdapter', () => {
       destination: '0x0000000000000000000000000000000000000003',
       unlimitedAllowance: true
     })
+  })
+
+  it('names the token contract and treats near-maximum and collection-wide approvals as unlimited', async () => {
+    const adapter = new EvmWalletAdapter(() => rpc() as never)
+    const token = '0x00000000000000000000000000000000000000aa'
+    const spender = '0x0000000000000000000000000000000000000003'
+    const decode = async (data: Hex) => (await adapter.normalizeTransaction(wallet(), { to: token, data })).decoded
+    const approve = (amount: bigint) => encodeFunctionData({ abi: TOKEN_ABI, functionName: 'approve', args: [spender, amount] })
+
+    expect(await decode(approve(2n ** 200n))).toMatchObject({
+      understood: true, method: 'erc20.approve', contract: getAddress(token), destination: spender, unlimitedAllowance: true
+    })
+    expect(await decode(approve(2n ** 160n - 1n))).toMatchObject({ unlimitedAllowance: true })
+    expect(await decode(approve(2n ** 160n - 2n))).toMatchObject({ method: 'erc20.approve', unlimitedAllowance: false })
+    expect(await decode(encodeFunctionData({ abi: TOKEN_ABI, functionName: 'increaseAllowance', args: [spender, maxUint256] })))
+      .toMatchObject({ understood: true, method: 'erc20.increaseAllowance', contract: getAddress(token), tokenAmount: maxUint256.toString(), unlimitedAllowance: true })
+    expect(await decode(encodeFunctionData({ abi: TOKEN_ABI, functionName: 'transfer', args: [spender, 5n] })))
+      .toMatchObject({ method: 'erc20.transfer', contract: getAddress(token), destination: spender, tokenAmount: '5' })
+
+    const approveAll = await decode(encodeFunctionData({ abi: TOKEN_ABI, functionName: 'setApprovalForAll', args: [spender, true] }))
+    expect(approveAll).toMatchObject({
+      understood: true, method: 'nft.setApprovalForAll', contract: getAddress(token), destination: spender, unlimitedAllowance: true
+    })
+    expect(approveAll).not.toHaveProperty('tokenAmount')
+    expect(await decode(encodeFunctionData({ abi: TOKEN_ABI, functionName: 'setApprovalForAll', args: [spender, false] })))
+      .toMatchObject({ understood: true, method: 'nft.setApprovalForAll', unlimitedAllowance: false })
+    // A boolean word other than 0 or 1 is not a valid call, so it stays unknown.
+    const invalidBool = encodeFunctionData({ abi: TOKEN_ABI, functionName: 'setApprovalForAll', args: [spender, true] }).replace(/1$/, '2') as Hex
+    expect(await decode(invalidBool)).toMatchObject({ understood: false, method: 'contract-call:0xa22cb465', newContractOrProgram: true })
   })
 
   it('shows the token source and requires manual review for third-party transferFrom calls', async () => {

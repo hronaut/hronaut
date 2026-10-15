@@ -5,12 +5,11 @@ import {
   type WalletTypedDataWarning
 } from '../../shared/wallet.js'
 import { revealHiddenMessageCharacters } from './hidden-characters.js'
+import { UNLIMITED_TOKEN_AMOUNT } from './transaction-display.js'
 
 const MAX_TEXT = 256
 // Long enough for zero-padded uint256 values; anything longer is reported as unreadable.
 const MAX_INTEGER_TEXT = 4_096
-// Permit2 allowances are uint160; ERC-20 permits commonly use the uint256 maximum.
-const UNLIMITED_AMOUNT = 2n ** 160n - 1n
 const PERMIT2_DETAILS_TYPES = new Set(['PermitSingle', 'PermitBatch'])
 const PERMIT2_TRANSFER_TYPES = new Set([
   'PermitTransferFrom',
@@ -131,7 +130,7 @@ function amount(token: unknown, field: Field | undefined): Allowance {
   return {
     ...(tokenText === undefined ? {} : { token: tokenText }),
     ...(amountText === undefined ? {} : { amount: amountText }),
-    ...(parsed !== undefined && parsed >= UNLIMITED_AMOUNT ? { unlimited: true as const } : {})
+    ...(parsed !== undefined && parsed >= UNLIMITED_TOKEN_AMOUNT ? { unlimited: true as const } : {})
   }
 }
 

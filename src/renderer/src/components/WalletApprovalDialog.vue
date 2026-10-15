@@ -4,7 +4,12 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
-import { WALLET_MESSAGE_DISPLAY_MAX_LENGTH, type WalletMessageWarning, type WalletTypedDataWarning } from '../../../shared/wallet.js'
+import {
+  WALLET_MESSAGE_DISPLAY_MAX_LENGTH,
+  type WalletMessageWarning,
+  type WalletTransactionWarning,
+  type WalletTypedDataWarning
+} from '../../../shared/wallet.js'
 
 const props = defineProps<{
   controller: WalletsController
@@ -41,6 +46,22 @@ const typedDataWarningKeys: Record<WalletTypedDataWarning, string> = {
   'safe-transaction': 'safeTransaction'
 }
 
+const transactionWarningKeys: Record<WalletTransactionWarning, string> = {
+  'token-approval': 'tokenApproval',
+  'allowance-increase': 'allowanceIncrease',
+  'unlimited-allowance': 'unlimitedAllowance',
+  'collection-approval': 'collectionApproval'
+}
+
+// An approval's destination is who it lets move the tokens, not where they go.
+const destinationLabelKeys: Readonly<Record<string, string>> = {
+  'erc20.approve': 'spender',
+  'erc20.increaseAllowance': 'spender',
+  'trc20.approve': 'spender',
+  'nft.setApprovalForAll': 'operator'
+}
+const destinationLabel = computed(() => t(`wallets.approval.${destinationLabelKeys[request.value?.details?.method ?? ''] ?? 'destination'}`))
+
 // Transfers move an amount once; permits grant an allowance. Several are numbered.
 function tokenAmountLabel(index: number): string {
   const tokenAccess = request.value?.details?.typedData?.tokenAccess
@@ -76,8 +97,9 @@ function rawDetails(): string {
         <div><dt>{{ t('wallets.approval.workspace') }}</dt><dd :title="request.workspaceId">{{ workspaceName }}</dd></div>
         <div><dt>{{ t('wallets.approval.requester') }}</dt><dd>{{ t('wallets.approval.requesterValue', { name: request.requester.name ?? request.requester.id, type: request.requester.type }) }}</dd></div>
         <div v-if="request.details?.method"><dt>{{ t('wallets.approval.method') }}</dt><dd>{{ request.details.method }}</dd></div>
+        <div v-if="request.details?.contract"><dt>{{ t('wallets.approval.contract') }}</dt><dd><code>{{ request.details.contract }}</code></dd></div>
         <div v-if="request.details?.source"><dt>{{ t('wallets.approval.source') }}</dt><dd><code>{{ request.details.source }}</code></dd></div>
-        <div v-if="request.details?.destination"><dt>{{ t('wallets.approval.destination') }}</dt><dd><code>{{ request.details.destination }}</code></dd></div>
+        <div v-if="request.details?.destination"><dt>{{ destinationLabel }}</dt><dd><code>{{ request.details.destination }}</code></dd></div>
         <div v-if="request.details?.nativeAmount"><dt>{{ t('wallets.approval.nativeAmount') }}</dt><dd>{{ request.details.nativeAmount }}</dd></div>
         <div v-if="request.details?.tokenAmount"><dt>{{ t('wallets.approval.tokenAmount') }}</dt><dd>{{ request.details.tokenAmount }}</dd></div>
         <div v-if="request.details?.estimatedFee"><dt>{{ t('wallets.approval.estimatedFee') }}</dt><dd>{{ request.details.estimatedFee }}</dd></div>
@@ -87,6 +109,7 @@ function rawDetails(): string {
       <div v-if="!request.details?.understood" class="wallet-approval-warning" role="alert">
         {{ t('wallets.approval.undecodable') }}
       </div>
+      <p v-for="warning in request.details?.transactionWarnings ?? []" :key="warning" class="wallet-approval-warning" role="alert">{{ t(`wallets.approval.transactionWarnings.${transactionWarningKeys[warning]}`) }}</p>
       <section v-if="request.details?.message" class="wallet-approval-message">
         <h3 id="wallet-approval-message-title">{{ t('wallets.approval.message') }}</h3>
         <p v-for="warning in request.details.message.warnings" :key="warning" class="wallet-approval-warning" role="alert">{{ t(`wallets.approval.messageWarnings.${messageWarningKeys[warning]}`) }}</p>

@@ -11,6 +11,8 @@ import { typedDataDisplay, typedDataSignedChainId } from './typed-data-display.j
 
 export interface WalletDecodedOperation {
   understood: boolean
+  /** The token or NFT contract a recognized token call acts on. */
+  contract?: string
   source?: string
   destination?: string
   method?: string
@@ -371,6 +373,8 @@ export class WalletPolicyEngine {
     }
     if (!decoded.understood) return { outcome: 'awaiting-human', reason: 'unknown-transaction' }
     if (decoded.unlimitedAllowance) return { outcome: 'awaiting-human', reason: 'unlimited-allowance' }
+    // An increase adds to an allowance the policy cannot see, so its amount limit cannot bound the total.
+    if (decoded.method === 'erc20.increaseAllowance') return { outcome: 'awaiting-human', reason: 'allowance-increase' }
     if (decoded.newContractOrProgram) return { outcome: 'awaiting-human', reason: 'new-contract-or-program' }
     if (decoded.blindMessage) return { outcome: 'awaiting-human', reason: 'blind-message' }
     if (!simulation.attempted || !simulation.success) return { outcome: 'awaiting-human', reason: 'simulation-required' }

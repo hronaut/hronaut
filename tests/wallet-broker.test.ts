@@ -4,7 +4,7 @@ import { address, getAddressEncoder } from '@solana/kit'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { verifyMessage } from 'viem'
+import { encodeFunctionData, getAddress, parseAbi, verifyMessage, type Hex } from 'viem'
 import { TronWeb } from 'tronweb'
 import {
   WalletBroker as BaseWalletBroker,
@@ -12,6 +12,7 @@ import {
   type WalletBrokerOptions
 } from '../src/main/wallet/broker.js'
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
+import { EvmWalletAdapter } from '../src/main/wallet/adapters/evm.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
 import type { WalletChainFamily, WalletDescriptor, WalletPolicy, WalletRequestSummary } from '../src/shared/wallet.js'
@@ -1833,6 +1834,90 @@ describe('WalletBroker', () => {
         payload: expect.objectContaining({ requestId: confirmedRequestId })
       })
     ])))
+  })
+
+  it('shows token approval warnings and keeps unlimited and collection-wide approvals with a person under a policy', async () => {
+    const { service, wallet } = await setup('testnet')
+    const client = {
+      getChainId: vi.fn(async () => Number(wallet.network.id)),
+      prepareTransactionRequest: vi.fn(async (request: Record<string, unknown>) => ({
+        nonce: 7, gas: 60_000n, gasPrice: 1_000_000_000n, type: 'legacy', ...request
+      })),
+      call: vi.fn(async () => ({ data: '0x' })),
+      estimateGas: vi.fn(async () => 60_000n),
+      getGasPrice: vi.fn(async () => 1_000_000_000n),
+      sendRawTransaction: vi.fn(async () => `0x${'a'.repeat(64)}`),
+      getTransactionReceipt: vi.fn(async () => ({ status: 'success', blockNumber: 1n }))
+    }
+    const broker = new WalletBroker(service, { adapters: { evm: new EvmWalletAdapter(() => client as never) } })
+    await connect(broker)
+    const token = getAddress('0x00000000000000000000000000000000000000aa')
+    const spender = '0x0000000000000000000000000000000000000003'
+    await service.setPolicy({
+      id: 'policy-1', name: 'Testnet approvals', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
+      destinations: [spender], methods: ['erc20.approve', 'erc20.increaseAllowance', 'nft.setApprovalForAll'],
+      expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    const send = (data: Hex) => broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: token, data }]
+    })
+    const abi = parseAbi([
+      'function approve(address, uint256)', 'function increaseAllowance(address, uint256)', 'function setApprovalForAll(address, bool)'
+    ])
+    const awaitingPerson = async (request: Promise<unknown>) => {
+      const result = settle(request)
+      // A request that is signed settles first; one that asks a person is published as awaiting approval.
+      const first = await Promise.race([
+        result.then(() => 'settled' as const),
+        broker.waitForPending((pending) => pending.status === 'awaiting-human').then(() => 'awaiting-human' as const)
+      ])
+      expect(first).toBe('awaiting-human')
+      const pending = broker.listPending().find((entry) => entry.status === 'awaiting-human')!
+      return { pending, result }
+    }
+
+    // A bounded approval the policy covers is signed without a person.
+    await expect(send(encodeFunctionData({ abi, functionName: 'approve', args: [spender, 10n] }))).resolves.toBe(`0x${'a'.repeat(64)}`)
+    expect(client.sendRawTransaction).toHaveBeenCalledOnce()
+
+    // An approval this large is unlimited in practice even below the uint256 maximum.
+    const unlimited = await awaitingPerson(send(encodeFunctionData({ abi, functionName: 'approve', args: [spender, 2n ** 200n] })))
+    expect(unlimited.pending.details).toMatchObject({
+      method: 'erc20.approve', contract: token, destination: spender, tokenAmount: (2n ** 200n).toString(),
+      transactionWarnings: ['token-approval', 'unlimited-allowance']
+    })
+    await broker.reject(unlimited.pending.id)
+    await expect(unlimited.result).resolves.toMatchObject({ status: 'rejected' })
+
+    // An increase adds to an allowance the policy cannot see, so it asks even when listed.
+    const increase = await awaitingPerson(send(encodeFunctionData({ abi, functionName: 'increaseAllowance', args: [spender, 10n] })))
+    expect(increase.pending.details).toMatchObject({
+      understood: true, method: 'erc20.increaseAllowance', contract: token, transactionWarnings: ['allowance-increase']
+    })
+    await broker.reject(increase.pending.id)
+    await expect(increase.result).resolves.toMatchObject({ status: 'rejected' })
+
+    const collection = await awaitingPerson(send(encodeFunctionData({ abi, functionName: 'setApprovalForAll', args: [spender, true] })))
+    expect(collection.pending.details).toMatchObject({
+      understood: true, method: 'nft.setApprovalForAll', contract: token, destination: spender,
+      transactionWarnings: ['collection-approval']
+    })
+    // An agent testing the page sees the same contract and warnings, but not the raw request.
+    const pageRequest = (broker.agentPageRequests(context({ requester: { type: 'agent', id: 'qa-agent' } })).requests as Array<{
+      id: string; details: Record<string, unknown>
+    }>).find((entry) => entry.id === collection.pending.id)!
+    expect(pageRequest.details).toMatchObject({ contract: token, transactionWarnings: ['collection-approval'] })
+    expect(pageRequest.details).not.toHaveProperty('raw')
+    await broker.reject(collection.pending.id)
+    await expect(collection.result).resolves.toMatchObject({ status: 'rejected' })
+    expect(client.sendRawTransaction).toHaveBeenCalledOnce()
+
+    // Revoking the operator gives nothing away, so the policy may sign it.
+    await expect(send(encodeFunctionData({ abi, functionName: 'setApprovalForAll', args: [spender, false] })))
+      .resolves.toBe(`0x${'a'.repeat(64)}`)
+    expect(client.sendRawTransaction).toHaveBeenCalledTimes(2)
   })
 
   it('does not auto-sign after the selected policy is removed before approval', async () => {

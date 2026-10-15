@@ -356,6 +356,8 @@ export const WalletTypedDataWarningSchema = z.enum([
   'typed-data-other-chain', 'token-permit', 'token-transfer', 'unlimited-amount', 'unreadable-amount', 'asset-order', 'safe-transaction'
 ])
 export type WalletTypedDataWarning = z.infer<typeof WalletTypedDataWarningSchema>
+export const WalletTransactionWarningSchema = z.enum(['token-approval', 'allowance-increase', 'unlimited-allowance', 'collection-approval'])
+export type WalletTransactionWarning = z.infer<typeof WalletTransactionWarningSchema>
 const typedDataDisplayText = z.string().max(256)
 export const WalletTypedDataDisplaySchema = z.object({
   primaryType: typedDataDisplayText,
@@ -403,12 +405,14 @@ export const WalletRequestSummarySchema = z.object({
     understood: z.boolean(),
     simulationAttempted: z.boolean(),
     simulationSuccess: z.boolean(),
+    contract: z.string().max(512).optional(),
     source: z.string().max(512).optional(),
     destination: z.string().max(512).optional(),
     method: z.string().max(512).optional(),
     nativeAmount: z.string().max(256).optional(),
     tokenAmount: z.string().max(256).optional(),
     estimatedFee: z.string().max(256).optional(),
+    transactionWarnings: z.array(WalletTransactionWarningSchema).max(WalletTransactionWarningSchema.options.length).optional(),
     message: z.object({
       text: z.string().max(WALLET_MESSAGE_DISPLAY_MAX_LENGTH),
       truncated: z.literal(true).optional(),

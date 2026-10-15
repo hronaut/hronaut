@@ -12,6 +12,7 @@ import type {
   WalletTransactionSimulation
 } from './types.js'
 import { formatTokenUnits } from './types.js'
+import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
 
 const TronContractSchema = z.object({
   type: z.string().min(1).max(128),
@@ -113,10 +114,11 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
         owner,
         decoded: {
           understood: true,
+          contract: contractAddress,
           destination: addressWord(words[0]!),
           method: selector === 'a9059cbb' ? 'trc20.transfer' : 'trc20.approve',
           tokenAmount: amount.toString(),
-          unlimitedAllowance: selector === '095ea7b3' && amount === (1n << 256n) - 1n,
+          unlimitedAllowance: selector === '095ea7b3' && amount >= UNLIMITED_TOKEN_AMOUNT,
           newContractOrProgram: false,
           blindMessage: false
         }
@@ -133,6 +135,7 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
         owner,
         decoded: {
           understood: source === owner,
+          contract: contractAddress,
           source,
           destination: addressWord(words[1]!),
           method: 'trc20.transferFrom',

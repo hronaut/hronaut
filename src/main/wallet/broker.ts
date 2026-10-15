@@ -39,6 +39,7 @@ import type {
   WalletTransactionSimulation
 } from './adapters/types.js'
 import { hasHiddenMessageCharacters, revealHiddenMessageCharacters } from './hidden-characters.js'
+import { transactionWarnings } from './transaction-display.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
 import {
   isMainnetAgentAutomationPolicy,
@@ -168,6 +169,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
   const normalized = record.request.payload.normalized
     ? restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
     : undefined
+  const warnings = normalized ? transactionWarnings(normalized.decoded) : []
   return {
     id: record.id,
     walletId: record.request.walletId,
@@ -191,6 +193,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
         understood: normalized?.decoded.understood ?? record.request.operation === 'connect-account',
         simulationAttempted: record.simulation?.attempted ?? false,
         simulationSuccess: record.simulation?.success ?? false,
+        ...(normalized?.decoded.contract ? { contract: normalized.decoded.contract } : {}),
         ...(normalized?.decoded.source ? { source: normalized.decoded.source } : {}),
         ...(normalized?.decoded.destination ? { destination: normalized.decoded.destination } : {}),
         ...(normalized?.decoded.method ? { method: normalized.decoded.method } : {}),
@@ -199,6 +202,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
         ...((record.simulation?.estimatedFee ?? normalized?.decoded.estimatedFee) ? {
           estimatedFee: record.simulation?.estimatedFee ?? normalized?.decoded.estimatedFee
         } : {}),
+        ...(warnings.length ? { transactionWarnings: warnings } : {}),
         raw: walletJsonInspectable(normalized?.raw ?? record.request.payload) as Record<string, unknown>
       }
     } : {})
