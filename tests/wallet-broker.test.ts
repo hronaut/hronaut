@@ -521,21 +521,21 @@ describe('WalletBroker', () => {
     } as never))
     const failure = (method: string, error: string) => ({ family: 'evm', method, error, failedAt: '2026-10-15T20:00:00.000Z' })
 
-    await call('eth_signTypedData_v3', [wallet.publicAddress, 'page-secret-typed-data'])
+    await call('eth_signTypedData', [wallet.publicAddress, 'page-secret-typed-data'])
     await call('bad method name!')
     // Reads forwarded to the node fail whenever a contract reverts, so they are left out.
     await call('eth_call', [{ to: wallet.publicAddress, data: '0xdeadbeef' }])
     // The site's own route change keeps its failures listed; another tab or site does not see them.
     await call('wallet_showCallsStatus', ['0x01'], { navigationGeneration: 2 })
-    await call('eth_signTypedData_v3', [], { tabId: 'tab-2' })
-    await call('eth_signTypedData_v3', [], { topLevelOrigin: 'https://other.example', requester: { type: 'website', id: 'https://other.example' } })
-    await expect(broker.providerRequest(agent, { family: 'evm', method: 'eth_signTypedData_v3' } as never)).rejects.toThrow('Unsupported')
+    await call('eth_signTypedData', [], { tabId: 'tab-2' })
+    await call('eth_signTypedData', [], { topLevelOrigin: 'https://other.example', requester: { type: 'website', id: 'https://other.example' } })
+    await expect(broker.providerRequest(agent, { family: 'evm', method: 'eth_signTypedData' } as never)).rejects.toThrow('Unsupported')
     await connect(broker)
     await call('eth_sendTransaction', [{ from: wallet.publicAddress, to: '0x00000000000000000000000000000000000000aa' }])
 
     const hidden = broker.agentPageRequests(agent)
     expect(hidden.failedCalls).toEqual([
-      failure('eth_signTypedData_v3', 'Unsupported EVM wallet method: eth_signTypedData_v3'),
+      failure('eth_signTypedData', 'Unsupported EVM wallet method: eth_signTypedData'),
       failure('invalid', 'Wallet request failed validation or processing'),
       failure('wallet_showCallsStatus', 'Unsupported EVM wallet method: wallet_showCallsStatus'),
       failure('eth_sendTransaction', 'EVM transaction from this wallet (address hidden until account permission) is not supported here')
@@ -543,7 +543,7 @@ describe('WalletBroker', () => {
     expect(JSON.stringify(hidden)).not.toMatch(/page-secret-typed-data|deadbeef/)
     expect(JSON.stringify(hidden).toLowerCase()).not.toContain(wallet.publicAddress.slice(2).toLowerCase())
     expect(broker.agentPageRequests({ ...agent, tabId: 'tab-2' }).failedCalls).toEqual([
-      failure('eth_signTypedData_v3', 'Unsupported EVM wallet method: eth_signTypedData_v3')
+      failure('eth_signTypedData', 'Unsupported EVM wallet method: eth_signTypedData')
     ])
 
     const permission = await broker.agentBalance(agent, wallet.id)

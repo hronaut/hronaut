@@ -38,7 +38,7 @@ test('lets an agent read the wallet requests a dApp page made, without approving
   // A dApp that calls a method Hronaut does not support gets code 4200, and the agent sees why its button did nothing.
   const unsupported = await electronApp.evaluate(({ webContents }, pageUrl) => (
     webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)?.executeJavaScript(
-      `window.ethereum.request({ method: 'eth_signTypedData_v3', params: ['0x0', 'page-secret-typed-data'] }).then(() => 'resolved', (error) => error.code)`
+      `window.ethereum.request({ method: 'eth_signTypedData', params: ['0x0', 'page-secret-typed-data'] }).then(() => 'resolved', (error) => error.code)`
     )
   ), fixtureUrl)
   expect(unsupported).toBe(4200)
@@ -46,7 +46,7 @@ test('lets an agent read the wallet requests a dApp page made, without approving
   expect(afterUnsupported).toEqual({
     origin: fixtureOrigin,
     requests: [],
-    failedCalls: [{ family: 'evm', method: 'eth_signTypedData_v3', error: 'Unsupported EVM wallet method: eth_signTypedData_v3', failedAt: expect.any(String) }]
+    failedCalls: [{ family: 'evm', method: 'eth_signTypedData', error: 'Unsupported EVM wallet method: eth_signTypedData', failedAt: expect.any(String) }]
   })
   expect(JSON.stringify(afterUnsupported)).not.toContain('page-secret-typed-data')
 
