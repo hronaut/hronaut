@@ -3,7 +3,10 @@ import {
   WalletPolicyEngine,
   isMainnetWebsiteSignInPolicy,
   websiteSignInMessageIssue,
+  WEBSITE_TYPED_DATA_MAX_BYTES,
   websiteSignInPolicyApplies,
+  websiteTypedDataIssue,
+  websiteTypedDataPolicyApplies,
   type WalletWebsiteSignInEvaluation
 } from '../src/main/wallet/policy.js'
 import type { WalletDescriptor, WalletOperationRequest, WalletPolicy } from '../src/shared/wallet.js'
@@ -79,6 +82,30 @@ function siwe(overrides: { header?: string; address?: string; chain?: string; ex
   ].join('\n')
 }
 
+const permitSpender = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+const permitToken = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+
+function permit(domain: Record<string, unknown> = { name: 'QA Token', version: '1', chainId: 11155111, verifyingContract: permitToken }) {
+  return {
+    domain,
+    types: {
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
+        { name: 'value', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' }
+      ]
+    },
+    primaryType: 'Permit',
+    message: { owner: permitSpender, spender: permitSpender, value: '1000000', nonce: '0', deadline: '1788000000' }
+  }
+}
+
+function typedDataMessage(typedData: unknown = permit(), serializedBytes = JSON.stringify(typedData).length) {
+  return { kind: 'typed-data' as const, typedData, serializedBytes }
+}
+
 function evaluate(overrides: Partial<WalletWebsiteSignInEvaluation> = {}) {
   return new WalletPolicyEngine().evaluateWebsiteSignIn({
     request: request(), wallet, policies: [policy], now, usageByPolicy: {}, ...overrides
@@ -147,10 +174,10 @@ describe('website sign-in policy', () => {
     ['a workspace the wallet is not attached to', { request: request({ workspaceId: 'workspace-2' }) }, 'wallet-not-eligible'],
     ['another workspace of an any-workspace wallet', { wallet: { ...wallet, availableInAllWorkspaces: true }, request: request({ workspaceId: 'workspace-2' }) }, 'no-matching-policy'],
     ['a transaction', { request: request({ operation: 'sign-transaction', capability: 'sign' }) }, 'operation-requires-human'],
-    ['typed data', { request: request({ operation: 'sign-message', capability: 'sign' }), message: { kind: 'typed-data' as const } }, 'typed-data-requires-human'],
+    ['typed data on a managed wallet', { request: request({ operation: 'sign-message', capability: 'sign' }), message: typedDataMessage(), policies: [{ ...policy, allowWebsiteTypedData: true }] }, 'typed-data-requires-agent-wallet'],
     ['raw eth_sign', { request: request({ operation: 'sign-message', capability: 'sign' }), message: { kind: 'message' as const, bytes: text('hello'), raw: true } }, 'raw-signing-requires-human'],
     ['non-sign-in text on a managed wallet', { request: request({ operation: 'sign-message', capability: 'sign' }), message: { kind: 'message' as const, bytes: text('hello'), raw: false } }, 'plain-text-requires-agent-wallet'],
-    ['a message without text', { request: request({ operation: 'sign-message', capability: 'sign' }) }, 'typed-data-requires-human'],
+    ['a message without content', { request: request({ operation: 'sign-message', capability: 'sign' }) }, 'message-unavailable'],
     ['an exhausted operation limit', { usageByPolicy: { 'sign-in': { operationCount: 5 } } }, 'no-matching-policy'],
     ['an expired policy', { now: new Date('2026-08-29T12:00:00.000Z') }, 'no-matching-policy'],
     ['a policy without the switch', { policies: [{ ...policy, allowWebsiteSignIn: false }] }, 'no-matching-policy'],
@@ -184,5 +211,117 @@ describe('website sign-in policy', () => {
     expect(websiteSignInPolicyApplies(mainnetAgent, mainnetPolicy, now)).toBe(true)
     expect(isMainnetWebsiteSignInPolicy(mainnetPolicy, now)).toBe(true)
     expect(isMainnetWebsiteSignInPolicy({ ...mainnetPolicy, allowWebsiteSignIn: false }, now)).toBe(false)
+  })
+})
+
+describe('website typed-data policy', () => {
+  const typedDataPolicy: WalletPolicy = { ...policy, allowWebsiteTypedData: true }
+  const mainnetTypedDataPolicy: WalletPolicy = { ...mainnetPolicy, allowWebsiteTypedData: true, allowMainnetWebsiteTypedData: true }
+  const signRequest = request({ operation: 'sign-message', capability: 'sign' })
+
+  it('approves typed data that signs this chain on a dedicated agent wallet with the switch', () => {
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage() }))
+      .toEqual({ outcome: 'approved', reason: 'bounded-policy', policyId: 'sign-in' })
+    // A declared uint256 chain ID given as a decimal string hashes the same integer, so it binds this chain too.
+    expect(evaluate({
+      wallet: agentWallet, request: signRequest, policies: [typedDataPolicy],
+      message: typedDataMessage({
+        ...permit({ name: 'QA Token', chainId: '11155111', verifyingContract: permitToken }),
+        types: { ...permit().types, EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }] }
+      })
+    })).toMatchObject({ outcome: 'approved' })
+  })
+
+  it.each([
+    ['a policy without the typed-data switch', { policies: [policy] }, 'typed-data-switch-off'],
+    ['typed data that signs only a domain', { message: typedDataMessage({ ...permit(), primaryType: 'EIP712Domain' }) }, 'typed-data-domain-only'],
+    ['an imported or managed wallet', { wallet, policies: [typedDataPolicy] }, 'typed-data-requires-agent-wallet'],
+    ['another chain', { message: typedDataMessage(permit({ name: 'QA Token', chainId: 1, verifyingContract: permitToken })) }, 'typed-data-chain-mismatch'],
+    // Without a declared domain, the signer only signs a numeric chain ID.
+    ['a text chain ID in an undeclared domain', { message: typedDataMessage(permit({ name: 'QA Token', chainId: '11155111', verifyingContract: permitToken })) }, 'typed-data-chain-mismatch'],
+    ['no chain in the domain', { message: typedDataMessage(permit({ name: 'QA Token', verifyingContract: permitToken })) }, 'typed-data-chain-mismatch'],
+    ['a chain ID the declared domain does not sign', {
+      message: typedDataMessage({
+        ...permit(),
+        types: { ...permit().types, EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'verifyingContract', type: 'address' }] }
+      })
+    }, 'typed-data-chain-mismatch'],
+    ['a chain ID declared as text', {
+      message: typedDataMessage({
+        ...permit({ name: 'QA Token', chainId: '11155111' }),
+        types: { ...permit().types, EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'chainId', type: 'string' }] }
+      })
+    }, 'typed-data-chain-mismatch'],
+    ['invalid typed data', { message: typedDataMessage({ ...permit(), primaryType: 'Missing' }) }, 'typed-data-invalid'],
+    ['an invalid address in the message', { message: typedDataMessage({ ...permit(), message: { ...permit().message, spender: 'not-an-address' } }) }, 'typed-data-invalid'],
+    ['typed data over 32 KiB', { message: typedDataMessage(permit(), WEBSITE_TYPED_DATA_MAX_BYTES + 1) }, 'typed-data-too-large'],
+    ['an exhausted operation limit', { usageByPolicy: { 'sign-in': { operationCount: 5 } } }, 'no-matching-policy'],
+    ['another origin', { request: request({ operation: 'sign-message', capability: 'sign', topLevelOrigin: 'https://other.example' }) }, 'no-matching-policy'],
+    ['a testnet policy carrying the mainnet typed-data switch', { policies: [{ ...typedDataPolicy, allowMainnetWebsiteTypedData: true }] }, 'no-matching-policy']
+  ])('leaves %s with a person', (_name, overrides, reason) => {
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(), ...overrides }))
+      .toEqual({ outcome: 'awaiting-human', reason })
+  })
+
+  // Each A item makes viem re-encode a 201-type graph, so hashing this 8 KiB request takes seconds.
+  function slowToHash(chainId = 11155111) {
+    const types: Record<string, Array<{ name: string; type: string }>> = { M: [{ name: 'a', type: 'A[]' }], A: [] }
+    for (let index = 0; index < 200; index++) {
+      types.A!.push({ name: `f${index}`, type: `T${index}` })
+      types[`T${index}`] = []
+    }
+    return { types, domain: { chainId }, primaryType: 'M', message: { a: Array(2000).fill(0) } }
+  }
+
+  it('keeps typed data that is slow to hash with a person without hashing it, and checks content only for a matching page', () => {
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(slowToHash()) }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-too-complex' })
+    // Another site, or a wallet without the switch, never reaches the content checks.
+    expect(evaluate({
+      wallet: agentWallet, request: request({ operation: 'sign-message', capability: 'sign', topLevelOrigin: 'https://other.example' }),
+      policies: [typedDataPolicy], message: typedDataMessage(slowToHash())
+    })).toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [policy], message: typedDataMessage(slowToHash()) }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-switch-off' })
+  })
+
+  it('signs an unlimited permit on a testnet but keeps unlimited and unreadable amounts on mainnet with a person', () => {
+    const unlimited = { ...permit(), message: { ...permit().message, value: (2n ** 256n - 1n).toString() } }
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(unlimited) }))
+      .toMatchObject({ outcome: 'approved' })
+    const mainnetSign = request({ operation: 'sign-message', capability: 'sign', networkId: '1' })
+    const mainnetDomain = { name: 'QA Token', version: '1', chainId: 1, verifyingContract: permitToken }
+    const mainnetUnlimited = { ...unlimited, domain: mainnetDomain }
+    // A Permit that does not sign its amount is unreadable, so it counts as unlimited.
+    const mainnetUnreadable = { ...permit(mainnetDomain), types: { Permit: permit().types.Permit.filter(({ name }) => name !== 'value') } }
+    for (const typedData of [mainnetUnlimited, mainnetUnreadable]) {
+      expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [mainnetTypedDataPolicy], message: typedDataMessage(typedData) }))
+        .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-unlimited-on-mainnet' })
+    }
+  })
+
+  it('needs the separate mainnet typed-data switch on mainnet', () => {
+    const mainnetSign = request({ operation: 'sign-message', capability: 'sign', networkId: '1' })
+    const mainnetPermit = typedDataMessage(permit({ name: 'QA Token', version: '1', chainId: 1, verifyingContract: permitToken }))
+    expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [mainnetTypedDataPolicy], message: mainnetPermit }))
+      .toMatchObject({ outcome: 'approved' })
+    expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [{ ...mainnetTypedDataPolicy, allowMainnetWebsiteTypedData: false }], message: mainnetPermit }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    // The mainnet sign-in limits still apply to typed data.
+    expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [{ ...mainnetTypedDataPolicy, maximumOperationCount: 101 }], message: mainnetPermit }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [mainnetTypedDataPolicy], message: typedDataMessage() }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-chain-mismatch' })
+  })
+
+  it('reports whether the typed-data switch applies for re-validation before approval', () => {
+    expect(websiteTypedDataPolicyApplies(agentWallet, typedDataPolicy, now)).toBe(true)
+    expect(websiteTypedDataPolicyApplies(wallet, typedDataPolicy, now)).toBe(false)
+    expect(websiteTypedDataPolicyApplies(agentWallet, policy, now)).toBe(false)
+    expect(websiteTypedDataPolicyApplies(agentWallet, { ...typedDataPolicy, allowWebsiteSignIn: false }, now)).toBe(false)
+    expect(websiteTypedDataPolicyApplies(agentWallet, typedDataPolicy, new Date('2026-08-29T12:00:00.000Z'))).toBe(false)
+    expect(websiteTypedDataPolicyApplies(mainnetAgent, mainnetTypedDataPolicy, now)).toBe(true)
+    expect(websiteTypedDataPolicyApplies(mainnetAgent, { ...mainnetTypedDataPolicy, allowMainnetWebsiteTypedData: false }, now)).toBe(false)
+    expect(websiteTypedDataIssue(permit(), 100, agentWallet)).toBeUndefined()
   })
 })

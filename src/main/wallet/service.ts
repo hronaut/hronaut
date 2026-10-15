@@ -454,6 +454,19 @@ export class WalletService {
       if (wallet.chainFamily !== 'evm') throw new Error('Website sign-in without approval is only available for EVM wallets')
       if (candidate.origins.length === 0) throw new Error('Website sign-in without approval requires an allowed website origin')
     }
+    const websiteTypedData = candidate.allowWebsiteTypedData === true
+    if (websiteTypedData || candidate.allowMainnetWebsiteTypedData) {
+      if (!websiteTypedData) throw new Error('The mainnet typed-data switch requires typed-data signing without approval')
+      if (!websiteSignIn) throw new Error('Typed-data signing without approval requires website sign-in without approval')
+      if (wallet.kind !== 'agent') throw new Error('Typed-data signing without approval requires a dedicated agent wallet')
+      if (wallet.network.environment === 'mainnet') {
+        if (!candidate.allowMainnetWebsiteTypedData) {
+          throw new Error('Mainnet typed-data signing without approval requires its separate mainnet switch')
+        }
+      } else if (candidate.allowMainnetWebsiteTypedData) {
+        throw new Error('The mainnet typed-data switch is only valid for a mainnet wallet')
+      }
+    }
     if (candidate.mode === 'bounded-auto') {
       if (wallet.network.environment === 'mainnet') {
         if (wallet.chainFamily !== 'evm' || wallet.kind !== 'agent') {

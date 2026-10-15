@@ -4,7 +4,7 @@ import {
   type WalletTypedDataDisplay,
   type WalletTypedDataWarning
 } from '../../shared/wallet.js'
-import { revealHiddenMessageCharacters } from './policy.js'
+import { revealHiddenMessageCharacters } from './hidden-characters.js'
 
 const MAX_TEXT = 256
 // Long enough for zero-padded uint256 values; anything longer is reported as unreadable.
@@ -157,6 +157,17 @@ function tokenAccess(types: Types, primaryType: string, message: unknown, verify
     unlimited: allowances.some((entry) => entry.unlimited),
     unreadable: allowances.length === 0 || allowances.some((entry) => entry.amount === undefined && !entry.unlimited)
   }
+}
+
+/**
+ * The chain ID the signer hashes into the typed data's domain, or undefined
+ * when the domain signs none or it cannot be read.
+ */
+export function typedDataSignedChainId(typedData: unknown): bigint | undefined {
+  const definition = record(typedData)
+  if (!definition) return undefined
+  const field = domainFields(record(definition.types) ?? {}, record(definition.domain) ?? {}).get('chainId')
+  return isInteger(field) ? integer(field.value) : undefined
 }
 
 /**
