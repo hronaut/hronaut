@@ -427,7 +427,7 @@ export const WALLET_PROVIDER_METHODS = {
     ...EVM_READ_RPC_METHODS
   ],
   solana: [
-    'connect', 'disconnect', 'signTransaction', 'signAllTransactions', 'signAndSendTransaction', 'signMessage',
+    'connect', 'disconnect', 'signTransaction', 'signAllTransactions', 'signAndSendTransaction', 'signMessage', 'signIn',
     'legacy_signTransaction', 'legacy_signAllTransactions', 'legacy_signAndSendTransaction', 'legacy_signMessage'
   ],
   tron: [

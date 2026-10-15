@@ -26,6 +26,7 @@ import { normalizeTronProviderChainId, tronProviderChainId } from '../../shared/
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
+import { solanaSignInMessage } from './solana-sign-in.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
 import type {
@@ -829,6 +830,16 @@ export class WalletBroker {
       })) }
     }
     this.assertAddressPermission(context, wallet, walletMethod === 'signAndSendTransaction' ? 'send' : 'sign')
+    if (walletMethod === 'signIn') {
+      const message = new TextEncoder().encode(solanaSignInMessage(paramsArray(params)[0], context.topLevelOrigin, wallet.publicAddress))
+      const signature = await this.messageRequest(context, wallet, { kind: 'message', message })
+      return {
+        account: wallet.publicAddress,
+        signedMessage: message,
+        signature: this.base64ResultBytes(signature, 'Solana sign-in signature'),
+        signatureType: 'ed25519'
+      }
+    }
     if (walletMethod === 'signTransaction' || walletMethod === 'signAllTransactions' || walletMethod === 'signAndSendTransaction') {
       const values = paramsArray(params)
       if (!values.length || values.length > 64) throw new Error('Solana wallet request must include between 1 and 64 transactions')
