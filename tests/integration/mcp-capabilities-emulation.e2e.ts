@@ -672,3 +672,73 @@ test('rejects unsupported rendering overlays from environment IPC without changi
   expect(state.network).toBe('none')
   expect(state.renderingDebug).toBeUndefined()
 })
+
+test('applies, replaces and clears safe-area insets in one tab only', async ({ capabilities }) => {
+  const { client, tabId, fixtureOrigin } = capabilities
+  const readInsets = async (targetTabId: string) => JSON.parse(text(await client.callTool({
+    name: 'browser_evaluate',
+    arguments: {
+      tabId: targetTabId,
+      script: `(() => {
+        let probe = document.getElementById('safe-area-probe');
+        if (!probe) {
+          probe = document.createElement('div');
+          probe.id = 'safe-area-probe';
+          probe.style.cssText = 'padding: env(safe-area-inset-top, 7px) env(safe-area-inset-right, 7px) env(safe-area-inset-bottom, 7px) env(safe-area-inset-left, 7px); margin-bottom: env(safe-area-max-inset-bottom, 9px)';
+          document.body.append(probe);
+        }
+        const style = getComputedStyle(probe);
+        return { top: style.paddingTop, right: style.paddingRight, bottom: style.paddingBottom, left: style.paddingLeft, bottomMax: style.marginBottom };
+      })()`
+    }
+  }) as CallToolResult)) as Record<string, string>
+  const siblingResult = await client.callTool({
+    name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/`, active: false }
+  }) as CallToolResult
+  expect(siblingResult.isError, text(siblingResult)).not.toBe(true)
+  const siblingTabId = JSON.parse(text(siblingResult)).tabs.find((tab: { id: string; url: string }) => tab.url === `${fixtureOrigin}/` && tab.id !== tabId)?.id as string
+  expect(siblingTabId).toBeTruthy()
+  await client.callTool({ name: 'browser_wait', arguments: { tabId: siblingTabId } })
+  const baseline = await readInsets(tabId)
+  expect(await readInsets(siblingTabId)).toEqual(baseline)
+
+  const applied = await client.callTool({
+    name: 'browser_emulate',
+    arguments: { tabId, safeAreaInsets: { top: 47, bottom: 34, bottomMax: 40 } }
+  }) as CallToolResult
+  expect(applied.isError, text(applied)).not.toBe(true)
+  expect(JSON.parse(text(applied)).safeAreaInsets).toEqual({ top: 47, bottom: 34, bottomMax: 40 })
+  expect(await readInsets(tabId)).toEqual({ ...baseline, top: '47px', bottom: '34px', bottomMax: '40px' })
+  expect(await readInsets(siblingTabId)).toEqual(baseline)
+
+  await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: `${fixtureOrigin}/` } })
+  await client.callTool({ name: 'browser_wait', arguments: { tabId } })
+  expect(await readInsets(tabId)).toEqual({ ...baseline, top: '47px', bottom: '34px', bottomMax: '40px' })
+
+  for (const safeAreaInsets of [{ top: -1 }, { top: 1001 }, { top: 1.5 }, { notch: 10 }]) {
+    const rejected = await client.callTool({ name: 'browser_emulate', arguments: { tabId, safeAreaInsets } }) as CallToolResult
+    expect(rejected.isError, JSON.stringify(safeAreaInsets)).toBe(true)
+  }
+  const afterRejected = JSON.parse(text(await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult))
+  expect(afterRejected.safeAreaInsets).toEqual({ top: 47, bottom: 34, bottomMax: 40 })
+
+  const replaced = await client.callTool({
+    name: 'browser_emulate', arguments: { tabId, safeAreaInsets: { left: 12 } }
+  }) as CallToolResult
+  expect(JSON.parse(text(replaced)).safeAreaInsets).toEqual({ left: 12 })
+  expect(await readInsets(tabId)).toEqual({ ...baseline, left: '12px' })
+
+  const cleared = await client.callTool({
+    name: 'browser_emulate', arguments: { tabId, safeAreaInsets: null }
+  }) as CallToolResult
+  expect(cleared.isError, text(cleared)).not.toBe(true)
+  expect(JSON.parse(text(cleared)).safeAreaInsets).toBeUndefined()
+  expect(await readInsets(tabId)).toEqual(baseline)
+
+  await client.callTool({ name: 'browser_emulate', arguments: { tabId, safeAreaInsets: { right: 20 } } })
+  expect((await readInsets(tabId)).right).toBe('20px')
+  const reset = await client.callTool({ name: 'browser_emulate', arguments: { tabId, reset: true } }) as CallToolResult
+  expect(JSON.parse(text(reset)).safeAreaInsets).toBeUndefined()
+  expect(await readInsets(tabId)).toEqual(baseline)
+  expect(await readInsets(siblingTabId)).toEqual(baseline)
+})

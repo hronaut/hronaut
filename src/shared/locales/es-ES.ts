@@ -1193,6 +1193,7 @@ export const esES = {
       "mobile": " móvil",
       "touch": " táctil",
       "geolocation": "geolocalización personalizada",
+      "safeArea": "márgenes de área segura personalizados",
       "locale": "configuración regional {locale}",
       "timezone": "zona horaria {timezone}",
       "cpu": "CPU {rate}× más lenta",

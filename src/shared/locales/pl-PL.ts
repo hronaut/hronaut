@@ -1193,6 +1193,7 @@ export const plPL = {
       "mobile": " mobilny",
       "touch": " dotykowy",
       "geolocation": "niestandardowa geolokalizacja",
+      "safeArea": "niestandardowe marginesy obszaru bezpiecznego",
       "locale": "ustawienia regionalne {locale}",
       "timezone": "strefa czasowa {timezone}",
       "cpu": "CPU {rate}× wolniejszy",

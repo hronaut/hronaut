@@ -1193,6 +1193,7 @@ export const deDE = {
       "mobile": " mobil",
       "touch": " Touch",
       "geolocation": "benutzerdefinierter Standort",
+      "safeArea": "benutzerdefinierte Safe-Area-Abstände",
       "locale": "Gebietsschema {locale}",
       "timezone": "Zeitzone {timezone}",
       "cpu": "CPU {rate}× langsamer",

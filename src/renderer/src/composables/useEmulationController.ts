@@ -87,6 +87,7 @@ export function useEmulationController(options: EmulationControllerOptions) {
       conditions.push(options.translate('runtimeDetails.emulation.viewport', { size: `${options.formatNumber(emulation.viewport.width)}×${options.formatNumber(emulation.viewport.height)}`, scale: options.formatNumber(emulation.viewport.deviceScaleFactor), mobile: emulation.viewport.mobile ? options.translate('runtimeDetails.emulation.mobile') : '', touch: emulation.viewport.touch ? options.translate('runtimeDetails.emulation.touch') : '', orientation: emulation.viewport.orientation }))
     }
     if (emulation.geolocation) conditions.push(options.translate('runtimeDetails.emulation.geolocation'))
+    if (emulation.safeAreaInsets) conditions.push(options.translate('runtimeDetails.emulation.safeArea'))
     if (emulation.locale) conditions.push(options.translate('runtimeDetails.emulation.locale', { locale: emulation.locale }))
     if (emulation.timezoneId) conditions.push(options.translate('runtimeDetails.emulation.timezone', { timezone: emulation.timezoneId }))
     if (emulation.cpuThrottlingRate > 1) conditions.push(options.translate('runtimeDetails.emulation.cpu', { rate: options.formatNumber(emulation.cpuThrottlingRate) }))

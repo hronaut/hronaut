@@ -1193,6 +1193,7 @@ export const frFR = {
       "mobile": " mobile",
       "touch": " tactile",
       "geolocation": "géolocalisation personnalisée",
+      "safeArea": "marges de zone sûre personnalisées",
       "locale": "paramètres régionaux {locale}",
       "timezone": "fuseau horaire {timezone}",
       "cpu": "CPU {rate}× plus lent",
