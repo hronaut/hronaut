@@ -2652,6 +2652,7 @@ export const ruRU = {
   },
   "zoom": {
     "isolated": "Только эта вкладка",
+    "defaultFontSize": "Текст по умолчанию {size}px",
     "controls": "Управление масштабом страницы",
     "heading": "Масштаб страницы",
     "outTitle": "Уменьшить (Ctrl/Cmd+-)",

@@ -7,7 +7,8 @@ export function performanceEnvironmentFingerprint(
   headers: Record<string, string>,
   viewport: { width: number; height: number },
   zoomPercent: number,
-  zoomIsolated = false
+  zoomIsolated = false,
+  defaultFontSize?: number
 ): string {
   const emulation = cloneEmulationState(state)
   if (emulation.extraHttpHeaderNames) emulation.extraHttpHeaderNames.sort()
@@ -16,7 +17,9 @@ export function performanceEnvironmentFingerprint(
     extraHttpHeaders: headers,
     viewport: { width: viewport.width, height: viewport.height },
     zoomPercent,
-    zoomIsolated
+    zoomIsolated,
+    // Only a non-default size is added, so fingerprints of ordinary tabs stay comparable.
+    ...(defaultFontSize === undefined ? {} : { defaultFontSize })
   }, (_key, value: unknown) => {
     // Settings insertion order does not change the browser environment.
     if (value && typeof value === 'object' && !Array.isArray(value)) {

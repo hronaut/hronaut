@@ -261,6 +261,8 @@ export interface BrowserTabState {
   zoomPercent: number
   /** Page zoom is independent of other same-origin tabs. Set only at creation. */
   zoomIsolated?: boolean
+  /** Browser default (standard) font size in CSS px when it is not 16. Set only at creation. */
+  defaultFontSize?: number
   faviconDataUrl?: string
   audible: boolean
   tabMuted?: boolean
@@ -478,6 +480,7 @@ export interface BrowserClosedTabState {
   closedAt: string
   mcpGroupId?: string
   zoomIsolated?: boolean
+  defaultFontSize?: number
 }
 
 export const MAX_BROWSER_TABS = 50
@@ -729,6 +732,8 @@ export interface NewTabOptions {
   focus?: boolean
   /** Give this tab its own page zoom instead of sharing the origin's zoom level. */
   zoomIsolated?: boolean
+  /** Browser default (standard) font size in CSS px for this tab; 16 is the browser default. */
+  defaultFontSize?: number
 }
 
 export interface NavigateOptions {
@@ -1052,6 +1057,7 @@ export interface BrowserPerformanceEnvironment {
   }
   zoomPercent: number
   zoomIsolated?: boolean
+  defaultFontSize?: number
   userAgentOverridden: boolean
   localeOverridden: boolean
   timezoneOverridden: boolean

@@ -41,4 +41,14 @@ describe('performance environment fingerprint', () => {
     expect(performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, { width: 801, height: 600 }, 100)).not.toBe(baseline)
     expect(performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, { width: 800, height: 600 }, 110)).not.toBe(baseline)
   })
+
+  it('separates a browser default font size from zoom while keeping ordinary tabs comparable', () => {
+    const baseline = fingerprint(DEFAULT_EMULATION)
+    const view = { width: 800, height: 600 }
+    expect(performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, view, 100, false, undefined)).toBe(baseline)
+    const larger = performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, view, 100, false, 32)
+    expect(larger).not.toBe(baseline)
+    expect(larger).not.toBe(performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, view, 200, false, undefined))
+    expect(larger).not.toBe(performanceEnvironmentFingerprint(DEFAULT_EMULATION, {}, view, 100, false, 24))
+  })
 })

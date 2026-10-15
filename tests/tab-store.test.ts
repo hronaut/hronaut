@@ -130,6 +130,21 @@ describe('TabStateStore', () => {
     expect((await store.load())?.tabs[0]).not.toHaveProperty('zoomIsolated')
   })
 
+  it('persists a non-default browser font size and drops invalid or default values', async () => {
+    const { store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.defaultFontSize = 32
+    ;(state.tabs[0] as unknown as Record<string, unknown>).defaultFontSize = '32'
+    await store.save(state)
+    expect((await store.load())?.tabs[1]).toMatchObject({ defaultFontSize: 32 })
+    expect((await store.load())?.tabs[0]).not.toHaveProperty('defaultFontSize')
+    for (const value of [16, 8, 73, 24.5]) {
+      state.tabs[1]!.defaultFontSize = value
+      await store.save(state)
+      expect((await store.load())?.tabs[1], String(value)).not.toHaveProperty('defaultFontSize')
+    }
+  })
+
   it('loads legacy workspaces without descriptions as empty context', async () => {
     const { path, store } = await createStore()
     const state = currentState()

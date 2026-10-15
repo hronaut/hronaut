@@ -2652,6 +2652,7 @@ export const esES = {
   },
   "zoom": {
     "isolated": "Solo esta pestaña",
+    "defaultFontSize": "Texto predeterminado {size}px",
     "controls": "Controles de zoom de la página",
     "heading": "Zoom de la página",
     "outTitle": "Alejar (Ctrl/Cmd+-)",
