@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Wallet approvals for a typed-data token permit or transfer authorization show **Valid until**, the time until which it can be used: an ERC-20 permit's deadline, a DAI permit's expiry, a Permit2 allowance's expiration or an EIP-3009 authorization's `validBefore`. A permit that never expires, such as a DAI permit with expiry 0 or a deadline set to the maximum integer, reads **Never expires** with a warning that it can still be used long after you sign it.
+
 - A `browser_click` result now lists the tabs the clicked page opened while the click ran, through a `target="_blank"` link or `window.open`, under `tabsOpenedDuringClick`, so an agent can go straight to a popup instead of rescanning its tabs. It lists up to five tabs still open in the same workspace and counts further, closed, blocked and failed requests. A page timer that opens a tab during the click is listed too, and a popup that opens after the click returns is not. Clicks that open nothing return the same result as before.
 
 ### Fixed

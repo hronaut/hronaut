@@ -118,7 +118,7 @@ describe('typed data in the trusted approval', () => {
     expect(typedDataDisplay({ domain: usdc, primaryType: 'Permit', types: erc2612Types, message: erc2612Message }, wallet)).toEqual({
       primaryType: 'Permit',
       domain: { name: 'USD Coin', version: '2', chainId: '11155111', verifyingContract: token },
-      tokenAccess: { kind: 'allowance', spender, allowances: [{ token, amount: '1000000' }] },
+      tokenAccess: { kind: 'allowance', spender, allowances: [{ token, amount: '1000000' }], expiresAt: '2027-01-15T08:00:00.000Z' },
       warnings: ['token-permit']
     })
   })
@@ -138,9 +138,9 @@ describe('typed data in the trusted approval', () => {
 
   it('treats a DAI-style permit as all or nothing', () => {
     expect(typedDataDisplay({ domain: usdc, primaryType: 'Permit', types: daiTypes, message: daiMessage }, wallet))
-      .toMatchObject({ tokenAccess: { spender, allowances: [{ token, unlimited: true }] }, warnings: ['token-permit', 'unlimited-amount'] })
-    expect(typedDataDisplay({ domain: usdc, primaryType: 'Permit', types: daiTypes, message: { ...daiMessage, allowed: false } }, wallet))
-      .toMatchObject({ tokenAccess: { spender, allowances: [{ token, amount: '0' }] }, warnings: ['token-permit'] })
+      .toMatchObject({ tokenAccess: { spender, allowances: [{ token, unlimited: true }], neverExpires: true }, warnings: ['token-permit', 'unlimited-amount', 'no-expiry'] })
+    expect(typedDataDisplay({ domain: usdc, primaryType: 'Permit', types: daiTypes, message: { ...daiMessage, allowed: false, expiry: 1_800_000_000 } }, wallet))
+      .toMatchObject({ tokenAccess: { spender, allowances: [{ token, amount: '0' }], expiresAt: '2027-01-15T08:00:00.000Z' }, warnings: ['token-permit'] })
   })
 
   it('ignores message keys the permit type does not sign', () => {
@@ -264,9 +264,37 @@ describe('typed data in the trusted approval', () => {
     }, wallet)).toEqual({
       primaryType: 'TransferWithAuthorization',
       domain: { name: 'USD Coin', version: '2', chainId: '11155111', verifyingContract: token },
-      tokenAccess: { kind: 'transfer', recipient: spender, allowances: [{ token, amount: '2500000' }] },
+      tokenAccess: { kind: 'transfer', recipient: spender, allowances: [{ token, amount: '2500000' }], expiresAt: '2027-01-15T08:00:00.000Z' },
       warnings: ['token-transfer']
     })
+  })
+
+  it('shows until when a permit can be used, and warns when it never expires', () => {
+    const permit = (deadline: string | number) => typedDataDisplay({
+      domain: usdc, primaryType: 'Permit', types: erc2612Types, message: { ...erc2612Message, deadline }
+    }, wallet)
+    expect(permit(maxUint256)).toMatchObject({ tokenAccess: { neverExpires: true }, warnings: ['token-permit', 'no-expiry'] })
+    // The last second that still reads as a date, and the first that does not.
+    expect(permit(253_402_300_799)?.tokenAccess).toMatchObject({ expiresAt: '9999-12-31T23:59:59.000Z' })
+    expect(permit(253_402_300_800)?.tokenAccess).toMatchObject({ neverExpires: true })
+    // An unreadable deadline shows no expiry rather than a guess.
+    expect(permit('soon')?.tokenAccess).not.toHaveProperty('expiresAt')
+    expect(permit('soon')?.tokenAccess).not.toHaveProperty('neverExpires')
+
+    // Permit2: an allowance lasts until its expiration, and one of zero ends
+    // in the block that submits it, so the signature deadline bounds it.
+    const permit2Single = (expiration: number | string, sigDeadline: number | string) => typedDataDisplay({
+      domain: { name: 'Permit2', chainId: 11155111, verifyingContract: permit2 }, primaryType: 'PermitSingle', types: permitSingleTypes,
+      message: { details: { token, amount: '5', expiration, nonce: 0 }, spender, sigDeadline }
+    }, wallet)?.tokenAccess
+    expect(permit2Single(1_800_000_000, 1_700_000_000)).toMatchObject({ expiresAt: '2027-01-15T08:00:00.000Z' })
+    expect(permit2Single(0, 1_800_000_000)).toMatchObject({ expiresAt: '2027-01-15T08:00:00.000Z' })
+    expect(permit2Single((2n ** 48n - 1n).toString(), 1_700_000_000)).toMatchObject({ neverExpires: true })
+    const batch = typedDataDisplay({
+      domain: { chainId: 11155111, verifyingContract: permit2 }, primaryType: 'PermitBatch', types: permitBatchTypes,
+      message: { details: [{ token, amount: '1', expiration: 1_700_000_000, nonce: 0 }, { token, amount: '1', expiration: 1_800_000_000, nonce: 0 }], spender, sigDeadline: 0 }
+    }, wallet)
+    expect(batch?.tokenAccess?.expiresAt).toBe('2027-01-15T08:00:00.000Z')
   })
 
   it('warns that a marketplace or exchange order or a Safe transaction can move assets', () => {
