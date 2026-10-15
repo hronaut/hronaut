@@ -26,8 +26,10 @@ import type {
   WalletChainAdapter,
   WalletConfirmation,
   WalletNormalizedTransaction,
+  WalletTokenBalance,
   WalletTransactionSimulation
 } from './types.js'
+import { formatTokenUnits } from './types.js'
 
 const HexSchema = z.string().regex(/^0x(?:[a-fA-F0-9]{2})*$/).max(2_000_002)
 const QuantitySchema = z.union([
@@ -156,8 +158,14 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
 }
 
 type EvmClient = Pick<PublicClient,
-  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt' | 'request'
+  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt' | 'request' | 'readContract'
 >
+
+const ERC20_READ_ABI = parseAbi([
+  'function balanceOf(address owner) view returns (uint256)',
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)'
+])
 
 const MAX_READ_RPC_PARAMS = 4
 const MAX_READ_RPC_RESULT_BYTES = 4_000_000
@@ -304,5 +312,25 @@ export class EvmWalletAdapter implements WalletChainAdapter {
   async balance(wallet: WalletDescriptor): Promise<string> {
     if (!isAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
     return formatEther(await this.clientFor(wallet).getBalance({ address: getAddress(wallet.publicAddress) }))
+  }
+
+  async tokenBalance(wallet: WalletDescriptor, token: string): Promise<WalletTokenBalance> {
+    if (!isAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
+    if (!isAddress(token)) throw new Error('EVM token must be an ERC-20 contract address')
+    const client = this.clientFor(wallet)
+    const contract = getAddress(token)
+    const [raw, decimals, symbol] = await Promise.all([
+      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'balanceOf', args: [getAddress(wallet.publicAddress)] }),
+      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'decimals' }),
+      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'symbol' }).catch(() => undefined)
+    ])
+    const safeSymbol = typeof symbol === 'string' && /^[A-Za-z0-9 ._$+-]{1,32}$/.test(symbol) ? symbol : undefined
+    return {
+      token: contract,
+      balance: formatTokenUnits(raw, decimals),
+      rawBalance: raw.toString(),
+      decimals,
+      ...(safeSymbol ? { symbol: safeSymbol } : {})
+    }
   }
 }

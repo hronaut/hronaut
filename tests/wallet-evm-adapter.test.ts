@@ -42,6 +42,9 @@ function rpc() {
     estimateGas: vi.fn(async () => 21_000n),
     getGasPrice: vi.fn(async () => 1_000_000_000n),
     getBalance: vi.fn(async () => 2_000_000_000_000_000_000n),
+    readContract: vi.fn(async ({ functionName }: { functionName: string }): Promise<unknown> => (
+      functionName === 'balanceOf' ? 1_500_000n : functionName === 'decimals' ? 6 : 'USDC'
+    )),
     sendRawTransaction: vi.fn(async () => `0x${'a'.repeat(64)}`),
     getTransactionReceipt: vi.fn(async () => ({ status: 'success', blockNumber: 123n })),
     waitForTransactionReceipt: vi.fn(async () => ({ status: 'success', blockNumber: 123n }))
@@ -147,6 +150,32 @@ describe('EvmWalletAdapter', () => {
     })
     expect(client.getTransactionReceipt).toHaveBeenCalledOnce()
     expect(client.waitForTransactionReceipt).not.toHaveBeenCalled()
+  })
+
+  it('reads ERC-20 token balances with decimals and a sanitized symbol', async () => {
+    const client = rpc()
+    const adapter = new EvmWalletAdapter(() => client as never)
+    const token = '0x5fbdb2315678afecb367f032d93f642f64180aa3'
+
+    await expect(adapter.tokenBalance(wallet(), token)).resolves.toEqual({
+      token: '0x5FbDB2315678afecb367f032d93F642f64180aa3', balance: '1.5', rawBalance: '1500000', decimals: 6, symbol: 'USDC'
+    })
+    expect(client.readContract).toHaveBeenCalledWith(expect.objectContaining({
+      functionName: 'balanceOf', args: [wallet().publicAddress]
+    }))
+
+    client.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
+      if (functionName === 'symbol') throw new Error('no symbol')
+      return functionName === 'balanceOf' ? 7n : 0
+    })
+    await expect(adapter.tokenBalance(wallet(), token)).resolves.toEqual({
+      token: '0x5FbDB2315678afecb367f032d93F642f64180aa3', balance: '7', rawBalance: '7', decimals: 0
+    })
+    client.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => (
+      functionName === 'balanceOf' ? 1n : functionName === 'decimals' ? 18 : '<script>'
+    ))
+    await expect(adapter.tokenBalance(wallet(), token)).resolves.not.toHaveProperty('symbol')
+    await expect(adapter.tokenBalance(wallet(), 'not-an-address')).rejects.toThrow('ERC-20 contract address')
   })
 
   it('reports a missing receipt as pending without opening a long-lived waiter', async () => {

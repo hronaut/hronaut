@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- `wallet_balance` takes an optional `token` and returns that ERC-20 (EVM) or SPL mint (Solana) balance with its decimals and symbol, so an agent testing a dApp can check that a swap, mint or faucet credited the wallet. It uses the same human-approved account permission as the native balance; RPC details stay out of errors.
+
 - Sign-In with Solana: the Solana wallet supports the Wallet Standard `solana:signIn` feature. Hronaut writes the sign-in text for the requesting site's own domain, rejects another site's domain or address, and the person approves the exact text before it is signed.
 
 - The Solana Wallet Standard wallet advertises version 0 transactions as well as legacy ones, so dApps that build versioned transactions (most current Solana apps) can ask Hronaut to sign them. Undecodable transactions still need human approval.
