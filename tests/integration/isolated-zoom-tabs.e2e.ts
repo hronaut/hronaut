@@ -79,7 +79,7 @@ test('keeps an explicitly isolated tab zoom independent of same-origin tabs', as
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id), isolated.id)
     await appWindow.keyboard.press('Control+0')
     await expect.poll(() => zoom('/isolated-next')).toBe(1)
-    await appWindow.getByRole('button', { name: 'Page zoom controls', exact: true }).click()
+    await appWindow.getByRole('button', { name: /^Page zoom controls, \d+%$/ }).click()
     const controls = appWindow.getByRole('group', { name: 'Page zoom controls' })
     await expect(controls.getByTestId('zoom-isolated')).toHaveText('This tab only')
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.selectTab(id), sibling.id)

@@ -1298,7 +1298,7 @@ export const plPL = {
       "addressPlaceholder": "Wyszukaj lub wpisz adres",
       "findTitle": "Znajdź na stronie (Ctrl/Cmd+F)",
       "find": "Znajdź na stronie",
-      "zoom": "Sterowanie powiększeniem strony",
+      "zoom": "Sterowanie powiększeniem strony, {percent}",
       "bookmarks": "Zakładki"
     },
     "siteControls": {
