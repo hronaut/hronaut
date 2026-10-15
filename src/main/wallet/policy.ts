@@ -197,6 +197,8 @@ export function websiteTypedDataIssue(typedData: unknown, serializedBytes: numbe
     if (warnings.includes('unlimited-amount') || warnings.includes('unreadable-amount')) return 'typed-data-unlimited-on-mainnet'
     // A Safe owner's signature can move the Safe's assets, which this wallet's own funds do not bound.
     if (warnings.includes('safe-transaction')) return 'typed-data-safe-transaction-on-mainnet'
+    // A meta-transaction is a contract call from this wallet that a relayer submits.
+    if (warnings.includes('forwarded-call')) return 'typed-data-forwarded-call-on-mainnet'
   }
   return undefined
 }

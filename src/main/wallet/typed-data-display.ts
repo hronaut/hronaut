@@ -42,6 +42,19 @@ const ASSET_ORDER_TYPES = new Set([
 // and a Safe message makes the Safe accept any signature it wraps, such as a
 // permit for the Safe's tokens.
 const SAFE_TYPES = new Set(['SafeTx', 'SafeMessage'])
+// Meta-transactions: a relayer submits the signed call and the target contract
+// treats it as coming from this account, so it can move tokens like a
+// transaction. ERC-2771 forwarders (OpenZeppelin, GSN), Gelato's ERC-2771
+// relay calls, native meta-transactions (Biconomy, Polygon PoS tokens) and
+// ERC-4337 user operations signed as typed data.
+const FORWARDED_CALL_TYPES = new Set([
+  'ForwardRequest',
+  'RelayRequest',
+  'SponsoredCallERC2771',
+  'CallWithSyncFeeERC2771',
+  'MetaTransaction',
+  'PackedUserOperation'
+])
 // Deadlines past the year 9999, such as Permit2's uint48 maximum or a uint256
 // maximum, are how permits say "no expiry"; they also cannot be shown as a date.
 const LAST_DISPLAYABLE_SECOND = 253_402_300_799n
@@ -251,8 +264,8 @@ export function typedDataSignedChainId(typedData: unknown): bigint | undefined {
  * What an EIP-712 request asks to sign, for the trusted approval dialog:
  * its type and signed domain fields, the spender or recipient, tokens and
  * expiry of a token permit or transfer authorization, and warnings for those,
- * for unlimited amounts, for permits that never expire, for marketplace or exchange orders and Safe
- * transactions, and for a domain on another chain. The typed data comes
+ * for unlimited amounts, for permits that never expire, for marketplace or exchange orders, Safe
+ * transactions and meta-transactions, and for a domain on another chain. The typed data comes
  * from the page, so every field is treated as unknown, and only fields the
  * signer hashes are read.
  */
@@ -276,6 +289,7 @@ export function typedDataDisplay(typedData: unknown, wallet: WalletDescriptor): 
   }
   if (ASSET_ORDER_TYPES.has(primaryType)) warnings.push('asset-order')
   if (SAFE_TYPES.has(primaryType)) warnings.push('safe-transaction')
+  if (FORWARDED_CALL_TYPES.has(primaryType)) warnings.push('forwarded-call')
   const name = text(domain.get('name')?.value)
   const version = text(domain.get('version')?.value)
   const chainIdText = integerText(chainId)

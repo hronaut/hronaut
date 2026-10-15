@@ -354,6 +354,10 @@ describe('typed data in the trusted approval', () => {
       domain: { chainId: 11155111, verifyingContract: spender }, primaryType: 'SafeMessage',
       types: { SafeMessage: [{ name: 'message', type: 'bytes' }] }, message: { message: '0x1234' }
     }, wallet)?.warnings).toEqual(['safe-transaction'])
+    // A meta-transaction is a contract call from this wallet that a relayer submits.
+    for (const primaryType of ['ForwardRequest', 'RelayRequest', 'SponsoredCallERC2771', 'CallWithSyncFeeERC2771', 'MetaTransaction', 'PackedUserOperation']) {
+      expect(typedDataDisplay({ domain: {}, primaryType, types: { [primaryType]: [] }, message: {} }, wallet)?.warnings, primaryType).toEqual(['forwarded-call'])
+    }
     // A plain login or vote is not an order.
     expect(typedDataDisplay({ domain: {}, primaryType: 'Login', types: { Login: [] }, message: {} }, wallet)?.warnings).toEqual([])
   })
