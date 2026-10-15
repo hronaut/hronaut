@@ -211,8 +211,8 @@ describe('wallet provider bootstrap', () => {
     expect(atob(wallet.icon.split(',')[1])).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
     expect(wallet.features).toHaveProperty('standard:connect')
     expect(wallet.features).toHaveProperty('solana:signTransaction')
-    expect(wallet.features['solana:signTransaction'].supportedTransactionVersions).toEqual(['legacy'])
-    expect(wallet.features['solana:signAndSendTransaction'].supportedTransactionVersions).toEqual(['legacy'])
+    expect(wallet.features['solana:signTransaction'].supportedTransactionVersions).toEqual(['legacy', 0])
+    expect(wallet.features['solana:signAndSendTransaction'].supportedTransactionVersions).toEqual(['legacy', 0])
     expect(Object.isFrozen(wallet.features['solana:signTransaction'].supportedTransactionVersions)).toBe(true)
     target.__hronautWalletBridge!.request.mockResolvedValueOnce(Uint8Array.from([9, 8, 7]))
     const transaction = { serialize: vi.fn(() => Uint8Array.from([1, 2, 3])) }

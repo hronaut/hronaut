@@ -2791,7 +2791,7 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       returnedAddress: prepared.publicAddress,
       providerAddress: prepared.publicAddress,
       isConnected: true,
-      standardTransactionVersions: { sign: ['legacy'], send: ['legacy'] },
+      standardTransactionVersions: { sign: ['legacy', 0], send: ['legacy', 0] },
       standardAccounts: [prepared.publicAddress],
       standardIcon: { base64: true, svg: true },
       standardChanges: [[prepared.publicAddress]],

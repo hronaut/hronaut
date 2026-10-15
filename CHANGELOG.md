@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- The Solana Wallet Standard wallet advertises version 0 transactions as well as legacy ones, so dApps that build versioned transactions (most current Solana apps) can ask Hronaut to sign them. Undecodable transactions still need human approval.
+
 - The EVM wallet provider answers `wallet_addEthereumChain` (switching to a network already configured on a workspace wallet; websites still cannot add networks or RPC URLs), the EIP-2255 `wallet_getPermissions`, `wallet_requestPermissions` and `wallet_revokePermissions` methods for `eth_accounts`, and the legacy `enable()`, `isConnected()` and `off()` helpers, so more dApps connect without a fallback path.
 
 - dApp pages can read chain state through Hronaut's EVM wallet provider: block number, balances, `eth_call`, gas estimates, receipts, blocks and logs are forwarded to the active wallet network's RPC, so wagmi, viem and ethers reads work without a separate RPC. Reads need no account permission and never sign; revert codes and data reach the page, the RPC URL does not.
