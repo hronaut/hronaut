@@ -126,7 +126,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(90)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(91)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -200,6 +200,8 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityAction('browser_downloads', { action: 'cancel' })).toBe('cancel')
     expect(mcpCapabilityOperationClass('browser_pwa_lifecycle', { action: 'get' })).toBe('read')
     for (const action of ['start', 'stop', 'clear']) expect(mcpCapabilityOperationClass('browser_pwa_lifecycle', { action })).toBe('browser-state')
+    expect(mcpCapabilityOperationClass('browser_live_region', { action: 'get' })).toBe('read')
+    for (const action of ['start', 'stop', 'clear']) expect(mcpCapabilityOperationClass('browser_live_region', { action, selector: '#status' })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_video', { action: 'get' })).toBe('read')
     expect(mcpCapabilityOperationClass('browser_video', { action: 'start' })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_video', { action: 'export' })).toBe('external-request')

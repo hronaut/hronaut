@@ -52,6 +52,7 @@ import { NativePreviewCapture } from './native-preview-capture.js'
 import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
+import { BrowserLiveRegionRecorder, liveRegionRecordingKeepsTabAwake, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import { normalizeNetworkRouteInput } from './network-route-input.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
@@ -300,6 +301,8 @@ import type {
   BrowserReproRecording,
   BrowserDomChangesAction,
   BrowserDomChangesReport,
+  BrowserLiveRegionAction,
+  BrowserLiveRegionReport,
   BrowserNetworkRequest,
   BrowserNetworkWaitOptions,
   BrowserNetworkWaitResult,
@@ -675,6 +678,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   performanceBaselineGeneration: number
   reproRecording?: BrowserReproRecordingInternal
   domChangesRecording?: BrowserDomRecordingState
+  liveRegionRecording?: BrowserLiveRegionRecordingState
   visualComparison?: BrowserVisualComparisonInternal
   visualComparisonGeneration: number
   storageComparison?: {
@@ -1083,6 +1087,7 @@ export class BrowserTabsManager {
       tab.authChallenges = []
       tab.authChallengesTruncated = false
       tab.securitySnapshot = undefined
+      this.liveRegionRecorder.release(tab)
       this.networkWaitController.reject(tab.id, 'Workspace control changed while waiting for network activity.')
     }
     this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
@@ -1116,6 +1121,9 @@ export class BrowserTabsManager {
   private readonly domRecorder = new BrowserDomRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     changed: () => this.changed(false)
+  })
+  private readonly liveRegionRecorder = new BrowserLiveRegionRecorder<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab
   })
   private readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
@@ -4978,6 +4986,7 @@ export class BrowserTabsManager {
     this.allAgentsPaused = paused
     this.agentPauseOverridesAllowed = allowTabOverrides
     this.globallyResumedAgentTabIds.clear()
+    if (paused) for (const tab of this.tabs.values()) this.liveRegionRecorder.release(tab)
     this.changed(false)
   }
 
@@ -4993,6 +5002,8 @@ export class BrowserTabsManager {
     } else {
       tab.tabAgentPaused = paused
     }
+    // A person taking over the tab may reveal text the agent should not read back later.
+    if (this.isTabAgentPaused(tab.id)) this.liveRegionRecorder.release(tab)
     this.changed()
     return this.getState()
   }
@@ -7086,6 +7097,10 @@ export class BrowserTabsManager {
 
   async domChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport> {
     return this.domRecorder.manage(this.getTab(tabId), action)
+  }
+
+  async liveRegion(action: BrowserLiveRegionAction, tabId?: string, selector?: string): Promise<BrowserLiveRegionReport> {
+    return this.liveRegionRecorder.manage(this.getTab(tabId), action, selector)
   }
 
   private recordAuthChallenge(tab: BrowserTab, details: Electron.AuthenticationResponseDetails, authInfo: Electron.AuthInfo): void {
@@ -9600,6 +9615,7 @@ export class BrowserTabsManager {
       tab.authNavigationPending = true
       tab.securitySnapshot = undefined
       tab.domChangesRecording = undefined
+      tab.liveRegionRecording = undefined
       this.changed(false)
     })
     webContents.on('page-favicon-updated', (_event, favicons) => {
@@ -10096,6 +10112,7 @@ export class BrowserTabsManager {
     if (this.videoRecorder.state(tab.id).status === 'recording') return 'A tab recording video stays active.'
     if (tab.reproRecording?.active) return 'A tab recording reproduction steps stays active.'
     if (tab.domChangesRecording?.active) return 'A tab recording DOM changes stays active.'
+    if (liveRegionRecordingKeepsTabAwake(tab)) return 'A tab recording a live region stays active.'
     if (tab.codeCoverage?.recording) return 'A tab recording code coverage stays active.'
     if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
     if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'
