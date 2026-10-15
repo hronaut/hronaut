@@ -77,12 +77,18 @@ function addressWord(value: string): string {
   return fromHexAddress(value.slice(24))
 }
 
+// TronWeb encodes these fields through Number(), so larger strings would sign a rounded amount.
+function integerAmount(value: unknown): bigint | undefined {
+  const amount = typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? BigInt(value)
+    : typeof value === 'string' && /^\d+$/.test(value) ? BigInt(value) : undefined
+  return amount !== undefined && amount <= BigInt(Number.MAX_SAFE_INTEGER) ? amount : undefined
+}
+
 function contractOperation(contract: z.infer<typeof TronContractSchema>) {
   const value = contract.parameter.value
   if (contract.type === 'TransferContract') {
-    const amount = typeof value.amount === 'number' && Number.isSafeInteger(value.amount) && value.amount >= 0
-      ? BigInt(value.amount)
-      : typeof value.amount === 'string' && /^\d+$/.test(value.amount) ? BigInt(value.amount) : undefined
+    const amount = integerAmount(value.amount)
     if (amount === undefined) throw new Error('Tron transfer amount is invalid')
     return {
       owner: fromHexAddress(value.owner_address),
@@ -104,8 +110,12 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
     const data = value.data.toLowerCase()
     const selector = data.slice(0, 8)
     const words = data.slice(8).match(/.{64}/g) ?? []
-    if (
-      (selector === 'a9059cbb' || selector === '095ea7b3')
+    // TRX and TRC-10 tokens sent along with the call leave the wallet too.
+    const callValue = value.call_value === undefined ? 0n : integerAmount(value.call_value)
+    const callTokenValue = value.call_token_value === undefined ? 0n : integerAmount(value.call_token_value)
+    if (callValue === undefined || callTokenValue === undefined) throw new Error('Tron contract call value is invalid')
+    const native = callValue > 0n ? { nativeAmount: formatTrx(callValue) } : {}
+    if (callTokenValue === 0n && (selector === 'a9059cbb' || selector === '095ea7b3')
       && data.length === 8 + 64 * 2
       && /^0{24}[a-fA-F0-9]{40}$/.test(words[0] ?? '')
     ) {
@@ -117,6 +127,7 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
           contract: contractAddress,
           destination: addressWord(words[0]!),
           method: selector === 'a9059cbb' ? 'trc20.transfer' : 'trc20.approve',
+          ...native,
           tokenAmount: amount.toString(),
           unlimitedAllowance: selector === '095ea7b3' && amount >= UNLIMITED_TOKEN_AMOUNT,
           newContractOrProgram: false,
@@ -125,7 +136,8 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
       }
     }
     if (
-      selector === '23b872dd'
+      callTokenValue === 0n
+      && selector === '23b872dd'
       && data.length === 8 + 64 * 3
       && /^0{24}[a-fA-F0-9]{40}$/.test(words[0] ?? '')
       && /^0{24}[a-fA-F0-9]{40}$/.test(words[1] ?? '')
@@ -139,6 +151,7 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
           source,
           destination: addressWord(words[1]!),
           method: 'trc20.transferFrom',
+          ...native,
           tokenAmount: uint256Word(words[2]!).toString(),
           unlimitedAllowance: false,
           newContractOrProgram: false,
@@ -152,6 +165,7 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
         understood: false,
         destination: contractAddress,
         method: `contract-call:${selector}`,
+        ...native,
         unlimitedAllowance: false,
         newContractOrProgram: true,
         blindMessage: false
@@ -227,6 +241,8 @@ function defaultClient(wallet: WalletDescriptor): TronRpcClient {
           owner_address: value.owner_address,
           contract_address: value.contract_address,
           data: value.data,
+          ...(value.call_value === undefined ? {} : { call_value: value.call_value }),
+          ...(value.call_token_value === undefined ? {} : { call_token_value: value.call_token_value, token_id: value.token_id }),
           visible: false
         }),
         signal: AbortSignal.timeout(15_000)
