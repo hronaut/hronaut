@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.46.0] - 2026-10-15
+
 ### Added
 
 - A dedicated agent wallet can sign a website's EIP-712 typed data without a click when you opt in. A new, default-off **Also sign typed data without asking** switch on a website sign-in policy signs `eth_signTypedData_v4` requests from that policy's exact origin on EVM testnets and loopback local chains, only when the typed data is valid, quick to hash, at most 32 KiB and signs this wallet's chain ID, so an agent can test permit and order flows unattended. Managed wallets and imported keys that are not dedicated agent wallets still ask, and each signature counts toward the policy's operation limit. A second, separate **Also sign typed data on mainnet** switch with a warning extends this to a mainnet agent wallet under the mainnet sign-in limits: one origin, at most 100 operations and a seven-day expiry. On mainnet, permits with an unlimited or unreadable amount, and Safe transactions and messages, still ask.
@@ -20,6 +22,13 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - An agent reading a page's wallet requests with `wallet_page_requests` before it had account permission could see the wallet's address when a request named it, for example a transfer to the wallet itself. That source, destination or token contract now reads `this wallet (address hidden until account permission)` until the agent is granted access.
+
+### Known issues
+
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) no longer sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.45.0] - 2026-10-15
 
