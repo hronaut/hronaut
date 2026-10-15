@@ -64,6 +64,17 @@ These setup and approval steps are deliberately human-only.
 
 The fixture cannot import a key, attach a workspace, grant account permission, approve a request, or create a bypass policy. An agent may drive the dApp controls, but a person owns those trusted Hronaut decisions. Solana and Tron public testnets also require human transaction approval; only the documented, bounded EVM local/testnet policy can automate eligible requests.
 
+## Let a coding agent drive the run
+
+From the release after 2.42.0, an agent connected to Hronaut's MCP server can run the dApp side of this test and keep the person in the loop:
+
+1. Call `wallet_list` with the fixture's `tabId` and an `agentName`. Keep the returned `walletSessionId`.
+2. Drive the fixture with the normal browser tools: `browser_snapshot`, then click **Request accounts** or **Send 1 wei**.
+3. Call `wallet_page_requests` with the same `tabId` and `walletSessionId` to see what the page asked the wallet for: operation, status (for example `awaiting-human`, `submitted`, `confirmed`), and the transaction hash once there is one. It covers only that tab's current page and origin. It leaves out the wallet address unless the agent itself has account permission for that wallet.
+4. When a request is `awaiting-human`, ask the person to review it in Hronaut, for example with `browser_request_user_attention`, and poll `wallet_page_requests` until it changes. The agent has no tool to approve, reject, connect, or create a policy.
+
+The page can also read chain state through the provider itself (`eth_blockNumber`, `eth_getBalance`, `eth_call`, `eth_getTransactionReceipt`, and the other read methods listed in [WALLETS.md](WALLETS.md#evm)), so wagmi, viem, and ethers dApps work without a separate RPC. This fixture still reads receipts directly from Anvil, because that local read is the authoritative evidence for this test.
+
 ## 3. Check discovery, connect, and account changes
 
 1. Click **Discover provider**. The log must show an EIP-6963 announcement with `rdns: "dev.hronaut.wallet"` and `isHronaut: true`.
