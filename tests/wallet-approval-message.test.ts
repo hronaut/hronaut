@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { verifyTypedData, type Hex } from 'viem'
 import { WalletBroker, type WalletBrokerContext } from '../src/main/wallet/broker.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
@@ -170,6 +171,37 @@ describe('message text in the trusted approval', () => {
     expect(agentView).not.toContain(spender)
     expect(agentView).not.toContain('typedData')
     await broker.reject(pending.id)
+  })
+
+  it('signs eth_signTypedData_v3 like v4 when both hash it the same, and refuses v3 with arrays', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const mail = {
+      types: {
+        EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }],
+        Person: [{ name: 'name', type: 'string' }, { name: 'wallet', type: 'address' }],
+        Mail: [{ name: 'from', type: 'Person' }, { name: 'to', type: 'Person' }, { name: 'contents', type: 'string' }]
+      },
+      primaryType: 'Mail',
+      domain: { name: 'Ether Mail', chainId: 11155111 },
+      message: {
+        from: { name: 'Cow', wallet: '0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826' },
+        to: { name: 'Bob', wallet: '0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB' },
+        contents: 'Hello, Bob!'
+      }
+    } as const
+    const signing = broker.providerRequest(context, { family: 'evm', method: 'eth_signTypedData_v3', params: [wallet.publicAddress, JSON.stringify(mail)] })
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
+    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+    expect(pending.details?.typedData).toMatchObject({ primaryType: 'Mail', domain: { name: 'Ether Mail', chainId: '11155111' } })
+    await broker.approve(pending.id)
+    const signature = await signing as Hex
+    expect(await verifyTypedData({ address: wallet.publicAddress as Hex, signature, ...mail } as never)).toBe(true)
+
+    // v3 has no arrays, so a v3 request using one would be signed differently by MetaMask.
+    await expect(broker.providerRequest(context, { family: 'evm', method: 'eth_signTypedData_v3', params: [wallet.publicAddress, JSON.stringify({
+      ...mail, types: { ...mail.types, Mail: [...mail.types.Mail, { name: 'cc', type: 'Person[]' }] }, message: { ...mail.message, cc: [] }
+    })] })).rejects.toThrow('Unsupported EVM wallet method: eth_signTypedData_v3 with arrays')
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
   })
 
   it('does not let undeclared keys or an array amount hide an unlimited permit', async () => {

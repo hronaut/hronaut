@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - dApps can now run more of viem's read actions through Hronaut's wallet provider: `createAccessList`, `getProof`, `getBlobBaseFee`, `getBlockTransactionCount`, `getTransaction` by block and index, and `simulateBlocks` or `simulateCalls`, which some dApps use to preview a swap's balance changes. Their methods (`eth_createAccessList`, `eth_getProof`, `eth_blobBaseFee`, the block transaction count and by-index methods, and `eth_simulateV1`) are forwarded to the active wallet network's RPC like the other reads, without an account permission or a prompt. Before, they failed with code 4200 in Hronaut, although MetaMask forwards them.
+- dApps that sign EIP-712 typed data with the older `eth_signTypedData_v3` method now work in Hronaut. The request gets the same approval dialog, warnings and wallet policy checks as `eth_signTypedData_v4`, and is signed the way MetaMask signs it. Hronaut accepts it only when v3 and v4 produce the same signature: no array types, a declared `EIP712Domain` type and a value for every declared field. Other v3 requests fail with code 4200 and a message that names `eth_signTypedData_v4`, instead of a signature the dApp's contract would reject.
 
 ### Fixed
 
