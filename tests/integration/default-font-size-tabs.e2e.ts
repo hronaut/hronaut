@@ -104,10 +104,13 @@ test('creates a tab with its own browser default font size for accessibility QA'
 
     // The trusted zoom bar names the setting only for tabs that have one.
     await selectTab(reopened.id)
-    await appWindow.getByRole('button', { name: /^Page zoom controls, \d+%$/ }).click()
+    const zoomButton = appWindow.getByRole('button', { name: /^Page zoom controls, \d+%$/ })
+    await zoomButton.click()
     const controls = appWindow.getByRole('group', { name: 'Page zoom controls' })
     await expect(controls.getByTestId('zoom-default-font-size')).toHaveText('Default text 32px')
     await selectTab(ordinary.id)
+    if (await zoomButton.getAttribute('aria-expanded') !== 'true') await zoomButton.click()
+    await expect(controls).toBeVisible()
     await expect(controls.getByTestId('zoom-default-font-size')).toHaveCount(0)
 
     const before = await tabIds()
