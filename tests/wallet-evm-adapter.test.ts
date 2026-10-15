@@ -314,10 +314,12 @@ describe('EvmWalletAdapter', () => {
     await expect(adapter.readRpc(wallet(), 'eth_blockNumber', undefined)).resolves.toBe('0x1234')
     expect(client.request).toHaveBeenLastCalledWith({ method: 'eth_blockNumber', params: [] })
     await expect(adapter.readRpc(wallet(), 'net_version', undefined)).resolves.toBe('31337')
+    await expect(adapter.readRpc(wallet(), 'eth_newFilter', [{ fromBlock: 'latest' }])).resolves.toBe('0x1234')
+    expect(client.request).toHaveBeenLastCalledWith({ method: 'eth_newFilter', params: [{ fromBlock: 'latest' }] })
     await expect(adapter.readRpc(wallet(), 'eth_sendRawTransaction', ['0x00'])).rejects.toThrow('Unsupported EVM wallet method')
     await expect(adapter.readRpc(wallet(), 'eth_getLogs', [{}, {}, {}, {}, {}])).rejects.toThrow('at most 4 values')
     await expect(adapter.readRpc(wallet(), 'eth_getLogs', { fromBlock: '0x0' })).rejects.toThrow('must be an array')
-    expect(client.request).toHaveBeenCalledTimes(2)
+    expect(client.request).toHaveBeenCalledTimes(3)
   })
 
   it('returns node errors with code and revert data but never the RPC endpoint', async () => {
