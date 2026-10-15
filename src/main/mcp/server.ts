@@ -193,7 +193,7 @@ export interface WalletAgentToolTarget {
 
 export interface WalletAgentOperations {
   list: (target: WalletAgentToolTarget) => Promise<WalletAgentDescriptor[]>
-  balance: (target: WalletAgentToolTarget, walletId: string, token?: string) => Promise<unknown>
+  balance: (target: WalletAgentToolTarget, walletId: string, token?: string, spender?: string) => Promise<unknown>
   prepareTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown) => Promise<unknown>
   requestTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown, broadcast: boolean) => Promise<unknown>
   requestMessage: (target: WalletAgentToolTarget, walletId: string, message: Uint8Array) => Promise<unknown>
@@ -5591,12 +5591,14 @@ function createBrowserMcpServer(
         walletSessionId: walletSessionIdSchema,
         walletId: walletIdSchema,
         token: z.string().min(1).max(64).regex(/^[A-Za-z0-9]+$/).optional()
-          .describe('Optional fungible token to read instead of the native balance: an ERC-20 contract address on EVM, an SPL token mint on Solana, or a TRC-20 contract address on TRON.')
+          .describe('Optional fungible token to read instead of the native balance: an ERC-20 contract address on EVM, an SPL token mint on Solana, or a TRC-20 contract address on TRON.'),
+        spender: z.string().min(1).max(64).regex(/^[A-Za-z0-9]+$/).optional()
+          .describe('Optional, with token on EVM or TRON: also read how much of the token this spender address may still move from the wallet, such as a DEX router after an approval.')
       }
     },
-    tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId, token }: {
-      workspaceId: string; tabId: string; walletSessionId: string; walletId: string; token?: string
-    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId, token)))
+    tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId, token, spender }: {
+      workspaceId: string; tabId: string; walletSessionId: string; walletId: string; token?: string; spender?: string
+    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId, token, spender)))
   )
   registerWorkspaceTool(
     'wallet_prepare_transaction',

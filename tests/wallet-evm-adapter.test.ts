@@ -210,6 +210,38 @@ describe('EvmWalletAdapter', () => {
     await expect(adapter.tokenBalance(wallet(), 'not-an-address')).rejects.toThrow('ERC-20 contract address')
   })
 
+  it('reads how much a spender may still move, and marks an unlimited approval', async () => {
+    const client = rpc()
+    const adapter = new EvmWalletAdapter(() => client as never)
+    const token = '0x5fbdb2315678afecb367f032d93f642f64180aa3'
+    const spender = '0x70997970c51812dc3a010c7d01b50e0d17dc79c8'
+    let allowance = 2_500_000n
+    client.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => (
+      functionName === 'allowance' ? allowance : functionName === 'balanceOf' ? 1_500_000n : functionName === 'decimals' ? 6 : 'USDC'
+    ))
+
+    await expect(adapter.tokenBalance(wallet(), token, spender)).resolves.toMatchObject({
+      balance: '1.5', allowance: { spender: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', amount: '2.5', rawAmount: '2500000' }
+    })
+    expect(client.readContract).toHaveBeenCalledWith(expect.objectContaining({
+      functionName: 'allowance', args: [wallet().publicAddress, '0x70997970C51812dc3A010C7d01b50e0d17dc79C8']
+    }))
+    allowance = (1n << 256n) - 1n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toMatchObject({ unlimited: true, rawAmount: allowance.toString() })
+    // Permit2's unlimited amount is the threshold; one less is a large but limited approval.
+    allowance = (1n << 160n) - 1n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toMatchObject({ unlimited: true })
+    allowance -= 1n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).not.toHaveProperty('unlimited')
+    allowance = 0n
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toEqual({ spender: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', amount: '0', rawAmount: '0' })
+    // Without a spender, no allowance is read.
+    client.readContract.mockClear()
+    await expect(adapter.tokenBalance(wallet(), token)).resolves.not.toHaveProperty('allowance')
+    expect(client.readContract).not.toHaveBeenCalledWith(expect.objectContaining({ functionName: 'allowance' }))
+    await expect(adapter.tokenBalance(wallet(), token, 'not-an-address')).rejects.toThrow('spender must be an address')
+  })
+
   it('reads a token contract\'s own symbol and decimals without the wallet account, leaving out what it does not report', async () => {
     const client = rpc()
     const adapter = new EvmWalletAdapter(() => client as never)

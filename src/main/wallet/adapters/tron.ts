@@ -11,7 +11,7 @@ import type {
   WalletTokenBalance,
   WalletTransactionSimulation
 } from './types.js'
-import { formatTokenUnits } from './types.js'
+import { formatTokenUnits, tokenAllowance } from './types.js'
 import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
 
 const TronContractSchema = z.object({
@@ -286,6 +286,7 @@ function defaultClient(wallet: WalletDescriptor): TronRpcClient {
 
 export class TronWalletAdapter implements WalletChainAdapter {
   readonly family = 'tron' as const
+  readonly tokenAllowances = true
 
   constructor(private readonly clientFor: (wallet: WalletDescriptor) => TronRpcClient = defaultClient) {}
 
@@ -379,15 +380,19 @@ export class TronWalletAdapter implements WalletChainAdapter {
     return formatTrx(await this.clientFor(wallet).balance(wallet.publicAddress))
   }
 
-  async tokenBalance(wallet: WalletDescriptor, token: string): Promise<WalletTokenBalance> {
+  async tokenBalance(wallet: WalletDescriptor, token: string, spender?: string): Promise<WalletTokenBalance> {
     if (!this.validateAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
     if (!this.validateAddress(token)) throw new Error('TRON token must be a TRC-20 contract address')
+    if (spender !== undefined && !this.validateAddress(spender)) throw new Error('TRON token spender must be an address')
     const client = this.clientFor(wallet)
     const owner = wallet.publicAddress
-    const [rawResult, decimalsResult, symbolResult] = await Promise.all([
+    const [rawResult, decimalsResult, symbolResult, allowanceResult] = await Promise.all([
       client.constantCall(owner, token, 'balanceOf(address)', [{ type: 'address', value: owner }]),
       client.constantCall(owner, token, 'decimals()', []),
-      client.constantCall(owner, token, 'symbol()', []).catch(() => undefined)
+      client.constantCall(owner, token, 'symbol()', []).catch(() => undefined),
+      spender === undefined
+        ? undefined
+        : client.constantCall(owner, token, 'allowance(address,address)', [{ type: 'address', value: owner }, { type: 'address', value: spender }])
     ])
     const [raw] = decodeAbiParameters([{ type: 'uint256' }], rawResult)
     const [decimals] = decodeAbiParameters([{ type: 'uint8' }], decimalsResult)
@@ -398,12 +403,16 @@ export class TronWalletAdapter implements WalletChainAdapter {
       symbol = undefined
     }
     const safeSymbol = symbol !== undefined && /^[A-Za-z0-9 ._$+-]{1,32}$/.test(symbol) ? symbol : undefined
+    const allowance = spender !== undefined && allowanceResult !== undefined
+      ? tokenAllowance(spender, decodeAbiParameters([{ type: 'uint256' }], allowanceResult)[0], decimals)
+      : undefined
     return {
       token,
       balance: formatTokenUnits(raw, decimals),
       rawBalance: raw.toString(),
       decimals,
-      ...(safeSymbol ? { symbol: safeSymbol } : {})
+      ...(safeSymbol ? { symbol: safeSymbol } : {}),
+      ...(allowance ? { allowance } : {})
     }
   }
 }

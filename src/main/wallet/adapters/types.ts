@@ -1,5 +1,6 @@
 import type { WalletDecodedOperation, WalletSimulationResult } from '../policy.js'
 import type { WalletDescriptor } from '../../../shared/wallet.js'
+import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
 import type { WalletSecret } from '../vault.js'
 
 export interface WalletNormalizedTransaction {
@@ -22,12 +23,22 @@ export interface WalletConfirmation {
   blockReference?: string
 }
 
+export interface WalletTokenAllowance {
+  spender: string
+  amount: string
+  rawAmount: string
+  /** At or above the amount Hronaut treats as an unlimited approval. */
+  unlimited?: true
+}
+
 export interface WalletTokenBalance {
   token: string
   balance: string
   rawBalance: string
   decimals: number
   symbol?: string
+  /** What `spender` may still move from the wallet with `transferFrom`, when one was asked for. */
+  allowance?: WalletTokenAllowance
 }
 
 /** Formats an integer token amount with the token's decimals, trimming trailing zeros. */
@@ -39,6 +50,16 @@ export function formatTokenUnits(amount: bigint, decimals: number): string {
   return fraction ? `${whole}.${fraction}` : whole.toString()
 }
 
+/** An allowance read from an ERC-20 style `allowance(owner, spender)` call. */
+export function tokenAllowance(spender: string, raw: bigint, decimals: number): WalletTokenAllowance {
+  return {
+    spender,
+    amount: formatTokenUnits(raw, decimals),
+    rawAmount: raw.toString(),
+    ...(raw >= UNLIMITED_TOKEN_AMOUNT ? { unlimited: true as const } : {})
+  }
+}
+
 export interface WalletChainAdapter {
   readonly family: WalletDescriptor['chainFamily']
   validateAddress(address: string): boolean
@@ -48,8 +69,13 @@ export interface WalletChainAdapter {
   broadcast(wallet: WalletDescriptor, signedTransaction: string): Promise<string>
   confirmation(wallet: WalletDescriptor, transactionHash: string): Promise<WalletConfirmation>
   balance(wallet: WalletDescriptor): Promise<string>
-  /** Reads the wallet's balance of one fungible token (ERC-20 contract or SPL mint). */
-  tokenBalance?(wallet: WalletDescriptor, token: string): Promise<WalletTokenBalance>
+  /**
+   * Reads the wallet's balance of one fungible token (ERC-20 contract or SPL
+   * mint) and, on adapters that support `spender`, that spender's allowance.
+   */
+  tokenBalance?(wallet: WalletDescriptor, token: string, spender?: string): Promise<WalletTokenBalance>
+  /** Whether `tokenBalance` can read an ERC-20 style allowance for a spender. */
+  readonly tokenAllowances?: boolean
   /** Reads an ERC-20 contract's own symbol and decimals; a value it does not report is left out. */
   tokenContractDetails?(wallet: WalletDescriptor, token: string): Promise<{ symbol?: string; decimals?: number }>
   /** Forwards an allowlisted read-only JSON-RPC method to the wallet network. */

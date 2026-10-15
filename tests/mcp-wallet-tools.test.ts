@@ -202,11 +202,14 @@ describe('MCP wallet tools', () => {
     }) as CallToolResult
     const { walletSessionId } = JSON.parse(text(listed)) as { walletSessionId: string }
 
+    const token = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+    const spender = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
     const ownerResult = await client.callTool({
-      name: 'wallet_balance', arguments: { workspaceId, tabId, walletSessionId, walletId: 'wallet-1' }
+      name: 'wallet_balance', arguments: { workspaceId, tabId, walletSessionId, walletId: 'wallet-1', token, spender }
     }) as CallToolResult
     expect(ownerResult.isError).not.toBe(true)
     expect(balance).toHaveBeenCalledTimes(1)
+    expect(balance).toHaveBeenCalledWith(expect.anything(), 'wallet-1', token, spender)
 
     const reused = await otherClient.callTool({
       name: 'wallet_balance', arguments: { workspaceId, tabId, walletSessionId, walletId: 'wallet-1' }
