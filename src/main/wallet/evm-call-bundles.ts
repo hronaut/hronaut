@@ -12,7 +12,7 @@ export const MAX_EVM_CALL_BUNDLES = 256
 export const MAX_EVM_CALL_BUNDLES_PER_SITE = 32
 
 /** EIP-5792 status codes. */
-export const CALL_BUNDLE_STATUS = { pending: 100, confirmed: 200, reverted: 500, partiallyReverted: 600 } as const
+export const CALL_BUNDLE_STATUS = { pending: 100, confirmed: 200, notIncluded: 400, reverted: 500, partiallyReverted: 600 } as const
 
 /** An error the page receives with its EIP-5792 or JSON-RPC code. */
 export function callBundleError(code: number, message: string): Error {
@@ -172,14 +172,23 @@ export function callReceipt(value: unknown): EvmCallReceipt | undefined {
 }
 
 /**
- * Pending until every sent call is mined; confirmed when every call was sent
- * and succeeded; reverted when none succeeded; otherwise partially reverted,
- * including when Hronaut stopped before sending every call.
+ * Pending until every sent call is mined or known to be replaced; confirmed
+ * when every call was sent and succeeded; not included when no call reached
+ * the chain because another transaction took its nonce; reverted when none
+ * succeeded; otherwise partially reverted, including when Hronaut stopped
+ * before sending every call. `replaced` marks calls without a receipt that
+ * another transaction from the account replaced, so they will never be mined.
  */
-export function callBundleStatus(bundle: EvmCallBundle, receipts: Array<EvmCallReceipt | undefined>): number {
-  if (!bundle.finished || receipts.some((receipt) => receipt === undefined)) return CALL_BUNDLE_STATUS.pending
+export function callBundleStatus(
+  bundle: EvmCallBundle,
+  receipts: Array<EvmCallReceipt | undefined>,
+  replaced: readonly boolean[] = []
+): number {
+  const waiting = receipts.some((receipt, index) => receipt === undefined && !replaced[index])
+  if (!bundle.finished || waiting) return CALL_BUNDLE_STATUS.pending
   const succeeded = receipts.filter((receipt) => receipt?.status === '0x1').length
   if (succeeded === bundle.calls) return CALL_BUNDLE_STATUS.confirmed
+  if (receipts.every((receipt) => receipt === undefined)) return CALL_BUNDLE_STATUS.notIncluded
   if (succeeded === 0) return CALL_BUNDLE_STATUS.reverted
   return CALL_BUNDLE_STATUS.partiallyReverted
 }
