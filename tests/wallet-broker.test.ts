@@ -473,6 +473,46 @@ describe('WalletBroker', () => {
     await Promise.all([otherTab, otherPage])
   })
 
+  it('hides the wallet address an agent sees in a page request until the agent has account permission', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    // The page sends tokens from this wallet to itself, so its own address appears as source and destination.
+    chain.normalizeTransaction = async (target): Promise<WalletNormalizedTransaction> => ({
+      chainFamily: 'evm', networkId: target.network.id, signer: target.publicAddress, nonceOrBlockhash: '7',
+      raw: { to: '0x00000000000000000000000000000000000000aa', nonce: 7n },
+      decoded: {
+        understood: true, contract: '0x00000000000000000000000000000000000000aa',
+        source: target.publicAddress.toLowerCase(), destination: target.publicAddress, method: 'erc20.transferFrom',
+        nativeAmount: '0', tokenAmount: '1', unlimitedAllowance: false, newContractOrProgram: false, blindMessage: false
+      }
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    const transfer = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', data: '0x23b872dd' }]
+    }))
+    const pending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation !== 'connect-account')
+
+    const hidden = (broker.agentPageRequests(agent).requests as Array<{ id: string; details: Record<string, unknown> }>)
+      .find((request) => request.id === pending.id)!
+    expect(JSON.stringify(hidden).toLowerCase()).not.toContain(wallet.publicAddress.toLowerCase())
+    expect(hidden.details).toMatchObject({
+      contract: '0x00000000000000000000000000000000000000aa',
+      source: 'this wallet (address hidden until account permission)',
+      destination: 'this wallet (address hidden until account permission)'
+    })
+
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    const shown = (broker.agentPageRequests(agent).requests as Array<{ id: string; details: Record<string, unknown> }>)
+      .find((request) => request.id === pending.id)!
+    expect(shown.details).toMatchObject({ source: wallet.publicAddress.toLowerCase(), destination: wallet.publicAddress })
+
+    await broker.reject(pending.id)
+    await expect(transfer).resolves.toMatchObject({ status: 'rejected' })
+  })
+
   it('isolates agent address permissions and request status by requester, workspace, tab, and navigation', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
