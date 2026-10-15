@@ -30,6 +30,12 @@
   </section>
 
   <section>
+    <h2>Sign-in</h2>
+    <p>Builds a Sign-In with Ethereum (EIP-4361) message for this page's origin, the first connected account, and the current chain, then asks the wallet to sign it with <code>personal_sign</code>. Connect first with <strong>Request accounts</strong>.</p>
+    <button id="sign-in">Sign in with Ethereum</button>
+  </section>
+
+  <section>
     <h2>Transaction and receipt</h2>
     <label>recipient <input id="recipient" value="0x1000000000000000000000000000000000000001" spellcheck="false"></label>
     <button id="send">Send 1 wei</button>
@@ -85,6 +91,13 @@
         const chainId = params[0]?.chainId
         return { chainId: typeof chainId === 'string' && chainId.length <= 18 && /^0x[0-9a-f]+$/i.test(chainId) ? chainId : 'invalid' }
       }
+      if (method === 'personal_sign') {
+        return {
+          message: 'eip-4361-sign-in',
+          encoding: typeof params[0] === 'string' && params[0].startsWith('0x') ? 'hex-utf8' : 'other',
+          account: 'first-connected-account'
+        }
+      }
       if (method === 'eth_sendTransaction') {
         return {
           transactionCount: Array.isArray(params) ? params.length : 0,
@@ -102,6 +115,12 @@
         return { chainId: typeof result === 'string' && result.length <= 18 && /^0x[0-9a-f]+$/i.test(result) ? result : 'unknown' }
       }
       if (method === 'wallet_switchEthereumChain') return { accepted: result == null }
+      if (method === 'personal_sign') {
+        return {
+          signatureReturned: typeof result === 'string',
+          signatureBytes: typeof result === 'string' && /^0x[0-9a-f]*$/i.test(result) ? Math.floor((result.length - 2) / 2) : 0
+        }
+      }
       if (method === 'eth_sendTransaction') {
         return {
           transactionHashReturned: typeof result === 'string',
@@ -183,6 +202,25 @@
       }))
     }
 
+    // EIP-4361 text for this page. The scheme is always named, because
+    // verifiers read a missing scheme as https.
+    const signInMessage = (origin, account, chainId) => {
+      const nonce = Array.from(crypto.getRandomValues(new Uint8Array(8)), byte => byte.toString(16).padStart(2, '0')).join('')
+      return [
+        `${origin} wants you to sign in with your Ethereum account:`,
+        account,
+        '',
+        'Sign in to the Hronaut wallet QA fixture.',
+        '',
+        `URI: ${origin}/`,
+        'Version: 1',
+        `Chain ID: ${BigInt(chainId).toString()}`,
+        `Nonce: ${nonce}`,
+        `Issued At: ${new Date().toISOString()}`
+      ].join('\n')
+    }
+    const utf8Hex = text => `0x${Array.from(new TextEncoder().encode(text), byte => byte.toString(16).padStart(2, '0')).join('')}`
+
     window.addEventListener('eip6963:announceProvider', event => {
       providers.push(event.detail)
       log('eip6963:announceProvider', {
@@ -209,6 +247,18 @@
     document.querySelector('#switch').addEventListener('click', () => request('wallet_switchEthereumChain', [{
       chainId: document.querySelector('#chain-id').value.trim()
     }]))
+    document.querySelector('#sign-in').addEventListener('click', async () => {
+      const origin = self.origin
+      if (!/^https?:\/\/[^\s/?#]+$/.test(origin)) {
+        fixtureFailure('sign-in-origin', new Error('Sign-in needs an http or https page origin'))
+        return
+      }
+      const accounts = await request('eth_accounts')
+      if (!Array.isArray(accounts) || typeof accounts[0] !== 'string') return
+      const chainId = await request('eth_chainId')
+      if (typeof chainId !== 'string' || !/^0x[0-9a-f]{1,16}$/i.test(chainId)) return
+      await request('personal_sign', [utf8Hex(signInMessage(origin, accounts[0], chainId)), accounts[0]])
+    })
     document.querySelector('#send').addEventListener('click', async () => {
       const accounts = await request('eth_accounts')
       if (!Array.isArray(accounts) || !accounts[0]) return

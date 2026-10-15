@@ -6,7 +6,7 @@ The test uses only a disposable local chain and Anvil's public test key. Do not 
 
 ## What this test covers
 
-The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, accepted and rejected account connections, `accountsChanged` and `chainChanged`, accepted and rejected transaction approvals, a successful receipt, a delayed receipt, and a reverted receipt. It distinguishes these stages:
+The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, accepted and rejected account connections, `accountsChanged` and `chainChanged`, a Sign-In with Ethereum (EIP-4361) message signature, accepted and rejected transaction approvals, a successful receipt, a delayed receipt, and a reverted receipt. It distinguishes these stages:
 
 | Stage | Evidence |
 | --- | --- |
@@ -15,7 +15,7 @@ The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, acc
 | confirmed | An authoritative `eth_getTransactionReceipt` read from the local chain has `status: "0x1"`. |
 | failed | The authoritative receipt has `status: "0x0"`, or Hronaut rejects the request before submission. |
 
-The fixture gives every provider attempt and local receipt read a page-local `request-N` ID. A `request:start` entry records the method, the `provider` or `local-rpc-read` channel, and an allowlisted input summary. It does not record account addresses, transaction hashes, recipient addresses, signing payloads, RPC URLs, raw receipts, or provider error messages. Account events and results contain counts; transaction results say whether a hash was returned; receipt results contain only presence, bounded status, and block-number presence.
+The fixture gives every provider attempt and local receipt read a page-local `request-N` ID. A `request:start` entry records the method, the `provider` or `local-rpc-read` channel, and an allowlisted input summary. It does not record account addresses, transaction hashes, recipient addresses, signing payloads, signatures, RPC URLs, raw receipts, or provider error messages. Account events and results contain counts; sign-in results say whether a signature was returned and its length in bytes; transaction results say whether a hash was returned; receipt results contain only presence, bounded status, and block-number presence.
 
 Provider evidence then records one of these stages:
 
@@ -69,9 +69,20 @@ The fixture cannot import a key, attach a workspace, grant account permission, a
 From the release after 2.42.0, an agent connected to Hronaut's MCP server can run the dApp side of this test and keep the person in the loop:
 
 1. Call `wallet_list` with the fixture's `tabId` and an `agentName`. Keep the returned `walletSessionId`.
-2. Drive the fixture with the normal browser tools: `browser_snapshot`, then click **Request accounts** or **Send 1 wei**.
+2. Drive the fixture with the normal browser tools: `browser_snapshot`, then click **Request accounts**, **Sign in with Ethereum**, or **Send 1 wei**.
 3. Call `wallet_page_requests` with the same `tabId` and `walletSessionId` to see what the page asked the wallet for: operation, status (for example `awaiting-human`, `submitted`, `confirmed`), and the transaction hash once there is one. It covers only that tab's current page and origin. It leaves out the wallet address unless the agent itself has account permission for that wallet.
 4. When a request is `awaiting-human`, ask the person to review it in Hronaut, for example with `browser_request_user_attention`, and poll `wallet_page_requests` until it changes. The agent has no tool to approve, reject, connect, or create a policy.
+
+### Let the agent sign in without a click
+
+From the release after 2.44.0, a person can let this one page connect the disposable wallet and sign in on its own, so an agent can complete a dApp login unattended. The agent still cannot turn this on.
+
+1. In **Settings → Wallets**, select the disposable wallet and, under **Access & automation**, add a bounded policy: the test workspace, allowed origin `http://127.0.0.1:4173`, an operation count such as `5`, and an expiry later today. Turn on **Let this site connect and sign in without asking**. Leave the destination and method empty, so transactions still ask.
+2. The agent clicks **Request accounts**, then **Sign in with Ethereum**. Neither opens a Hronaut dialog. `wallet_page_requests` lists `connect-account` and `sign-message` as `confirmed`, and the fixture logs `signatureReturned: true` with `signatureBytes: 65`.
+3. The agent clicks **Send 1 wei**. The request stays `awaiting-human` because the policy has no transaction rule; reject it.
+4. Before the approval checks below, remove the policy and revoke the site under **Website permissions**. Removing the policy alone stops new automatic approvals but does not disconnect the site.
+
+The fixture's message names the page's `http://127.0.0.1:4173` origin, the connected account, and chain ID `31337`, which Hronaut checks before signing it. Typed data, other plain text on an imported key, other origins, and mainnet wallets still go to a person; see [WALLETS.md](WALLETS.md) for the exact rules and the separate mainnet switch.
 
 The page can also read chain state through the provider itself (`eth_blockNumber`, `eth_getBalance`, `eth_call`, `eth_getTransactionReceipt`, and the other read methods listed in [WALLETS.md](WALLETS.md#evm)), so wagmi, viem, and ethers dApps work without a separate RPC. This fixture still reads receipts directly from Anvil, because that local read is the authoritative evidence for this test.
 
@@ -80,7 +91,8 @@ The page can also read chain state through the provider itself (`eth_blockNumber
 1. Click **Discover provider**. The log must show an EIP-6963 announcement with `rdns: "dev.hronaut.wallet"` and `isHronaut: true`.
 2. Click **Request accounts**, then reject the trusted Hronaut dialog. The fixture must log a correlated `provider-rejection` with error code `4001`, while wallet dispatch and approval remain `unknown` and no account is exposed.
 3. Request accounts again and approve. The fixture logs the disposable account count and an `accountsChanged` count without recording the address.
-4. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
+4. Click **Sign in with Ethereum**. Hronaut shows the exact sign-in text naming `http://127.0.0.1:4173`, the account, and chain ID `31337`. Reject it once and check for a correlated `provider-rejection` with code `4001`, then click again and approve. The fixture logs `signatureReturned: true` and `signatureBytes: 65`, never the text or signature.
+5. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
 
 For a real network-change event, start a second disposable node:
 
