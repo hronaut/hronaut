@@ -2166,6 +2166,42 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).not.toHaveBeenCalled()
   })
 
+  it('signs a Sign-In with Solana message for the requesting origin after human approval', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Solana wallet', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const solanaWallet = await service.confirmRecovery(generated.wallet.id)
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.providerRequest(context(), { family: 'solana', method: 'signIn', params: [{}] }))
+      .rejects.toThrow('Wallet account access must be approved before sign')
+    const connection = broker.providerRequest(context(), { family: 'solana', method: 'connect' })
+    await broker.approve((await broker.waitForPending((request) => request.status === 'awaiting-human')).id)
+    await connection
+
+    await expect(broker.providerRequest(context(), { family: 'solana', method: 'signIn', params: [{ domain: 'bank.example' }] }))
+      .rejects.toThrow('domain does not match the requesting website')
+    expect(broker.listPending().filter((request) => request.operation === 'sign-message')).toEqual([])
+
+    const signIn = broker.providerRequest(context(), {
+      family: 'solana', method: 'signIn', params: [{ statement: 'Sign in to the dApp', nonce: 'abc12345' }]
+    })
+    const pending = await broker.waitForPending((request) => request.operation === 'sign-message' && request.status === 'awaiting-human')
+    await broker.approve(pending.id)
+    const result = await signIn as { account: string; signedMessage: Uint8Array; signature: Uint8Array; signatureType: string }
+    const expected = `dapp.example wants you to sign in with your Solana account:\n${solanaWallet.publicAddress}\n\nSign in to the dApp\n\nNonce: abc12345`
+    expect(result).toMatchObject({ account: solanaWallet.publicAddress, signatureType: 'ed25519' })
+    expect(new TextDecoder().decode(result.signedMessage)).toBe(expected)
+    const publicKey = createPublicKey({
+      key: { kty: 'OKP', crv: 'Ed25519', x: Buffer.from(getAddressEncoder().encode(address(solanaWallet.publicAddress))).toString('base64url') },
+      format: 'jwk'
+    })
+    expect(verify(null, Buffer.from(result.signedMessage), publicKey, Buffer.from(result.signature))).toBe(true)
+  })
+
   it('disconnects only the selected Solana wallet and cancels its pending requests', async () => {
     const { service, wallet: evmWallet } = await setup()
     const generated = await service.generate({

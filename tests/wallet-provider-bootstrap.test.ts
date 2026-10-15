@@ -197,6 +197,32 @@ describe('wallet provider bootstrap', () => {
     )).toThrow(TypeError)
   })
 
+  it('implements solana:signIn by connecting first and returning the Wallet Standard account', async () => {
+    const register = vi.fn()
+    window.addEventListener('wallet-standard:register-wallet', (event) => {
+      ;(event as CustomEvent).detail({ register })
+    }, { once: true })
+    const account = 'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk'
+    const signedMessage = new TextEncoder().encode('dapp.example wants you to sign in with your Solana account:')
+    target.__hronautWalletBridge!.request.mockImplementation(async (input: { method: string }) => input.method === 'connect'
+      ? { accounts: [{ address: account, publicKey: new Uint8Array(32), chains: ['solana:devnet'], features: [] }] }
+      : { account, signedMessage, signature: new Uint8Array(64).fill(7), signatureType: 'ed25519' })
+
+    installHronautWalletProviders()
+    const wallet = register.mock.calls[0]?.[0]
+    const [output] = await wallet.features['solana:signIn'].signIn({ statement: 'Sign in', nonce: 'abc12345' })
+
+    expect(target.__hronautWalletBridge!.request.mock.calls.map(([input]) => input)).toEqual([
+      { family: 'solana', method: 'connect' },
+      { family: 'solana', method: 'signIn', params: [{ statement: 'Sign in', nonce: 'abc12345' }] }
+    ])
+    expect(output.account).toBe(wallet.accounts[0])
+    expect(output.account.address).toBe(account)
+    expect(Array.from(output.signedMessage)).toEqual(Array.from(signedMessage))
+    expect(Array.from(output.signature)).toEqual(Array(64).fill(7))
+    expect(output.signatureType).toBe('ed25519')
+  })
+
   it('registers Solana Wallet Standard and exposes narrowly scoped legacy compatibility', async () => {
     const register = vi.fn()
     window.addEventListener('wallet-standard:register-wallet', (event) => {

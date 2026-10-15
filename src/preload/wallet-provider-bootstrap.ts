@@ -322,7 +322,31 @@ export function installHronautWalletProviders(): void {
         supportedTransactionVersions: Object.freeze(['legacy', 0]),
         signAndSendTransaction: (...inputs: unknown[]) => solanaRequest('signAndSendTransaction', inputs)
       }),
-      'solana:signMessage': Object.freeze({ version: '1.0.0', signMessage: (...inputs: unknown[]) => solanaRequest('signMessage', inputs) })
+      'solana:signMessage': Object.freeze({ version: '1.0.0', signMessage: (...inputs: unknown[]) => solanaRequest('signMessage', inputs) }),
+      'solana:signIn': Object.freeze({
+        version: '1.0.0',
+        signIn: async (...inputs: unknown[]) => {
+          const requested = inputs.length ? inputs : [{}]
+          if (requested.length > 8) throw new Error('Solana sign-in accepts at most 8 requests')
+          if (!solanaAccounts.length) await solanaRequest('connect')
+          const outputs: unknown[] = []
+          for (const input of requested) {
+            const result = await solanaRequest('signIn', [input]) as { account?: unknown; signedMessage?: unknown; signature?: unknown }
+            const account = solanaAccounts.find((entry) => (entry as { address?: unknown }).address === result?.account)
+            const isBytes = (value: unknown): value is Uint8Array => Object.prototype.toString.call(value) === '[object Uint8Array]'
+            if (!account || !isBytes(result.signedMessage) || !isBytes(result.signature)) {
+              throw new Error('Solana sign-in returned an invalid result')
+            }
+            outputs.push(Object.freeze({
+              account,
+              signedMessage: Uint8Array.from(result.signedMessage),
+              signature: Uint8Array.from(result.signature),
+              signatureType: 'ed25519'
+            }))
+          }
+          return outputs
+        }
+      })
     })
   })
   const registerSolana = (api: unknown): void => {
