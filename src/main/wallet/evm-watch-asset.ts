@@ -1,4 +1,5 @@
 import { getAddress } from 'viem'
+import { WalletPageLog } from './page-log.js'
 
 /** Token suggestions remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
 export const MAX_EVM_ASSET_SUGGESTIONS_PER_TAB = 20
@@ -153,17 +154,6 @@ export function withHiddenWalletAddresses(
   return result
 }
 
-/**
- * The tab and site a suggestion came from. Unlike wallet requests it stays
- * listed across the site's own navigations, such as a faucet's route change
- * after its "Add token" button, because nothing waits on it.
- */
-export interface EvmAssetSuggestionPage {
-  workspaceId: string
-  tabId: string
-  topLevelOrigin: string
-}
-
 export interface EvmAssetSuggestionEntry extends EvmAssetSuggestion {
   networkId: string
   suggestedAt: string
@@ -173,41 +163,9 @@ export interface EvmAssetSuggestionEntry extends EvmAssetSuggestion {
   refused?: EvmAssetRefusal
 }
 
-interface StoredSuggestion {
-  page: EvmAssetSuggestionPage
-  entry: EvmAssetSuggestionEntry
-}
-
-export class EvmAssetSuggestionLog {
-  private readonly tabs = new Map<string, StoredSuggestion[]>()
-
-  add(page: EvmAssetSuggestionPage, entry: EvmAssetSuggestionEntry): void {
-    const key = tabKey(page)
-    const suggestions = this.tabs.get(key) ?? []
-    suggestions.push({ page: { workspaceId: page.workspaceId, tabId: page.tabId, topLevelOrigin: page.topLevelOrigin }, entry })
-    if (suggestions.length > MAX_EVM_ASSET_SUGGESTIONS_PER_TAB) suggestions.splice(0, suggestions.length - MAX_EVM_ASSET_SUGGESTIONS_PER_TAB)
-    this.tabs.delete(key)
-    this.tabs.set(key, suggestions)
-    for (const [leastRecent] of this.tabs) {
-      if (this.tabs.size <= MAX_EVM_ASSET_SUGGESTION_TABS) break
-      this.tabs.delete(leastRecent)
-    }
+/** Token suggestions each tab's sites made; closing a tab forgets them. */
+export class EvmAssetSuggestionLog extends WalletPageLog<EvmAssetSuggestionEntry> {
+  constructor() {
+    super(MAX_EVM_ASSET_SUGGESTIONS_PER_TAB, MAX_EVM_ASSET_SUGGESTION_TABS)
   }
-
-  /** Suggestions the tab's current site made, oldest first. */
-  forPage(page: EvmAssetSuggestionPage): EvmAssetSuggestionEntry[] {
-    return (this.tabs.get(tabKey(page)) ?? [])
-      .filter((stored) => stored.page.topLevelOrigin === page.topLevelOrigin)
-      .map((stored) => ({ ...stored.entry }))
-  }
-
-  clear(predicate: (page: EvmAssetSuggestionPage) => boolean): void {
-    for (const [key, suggestions] of this.tabs) {
-      if (suggestions[0] && predicate(suggestions[0].page)) this.tabs.delete(key)
-    }
-  }
-}
-
-function tabKey(page: EvmAssetSuggestionPage): string {
-  return JSON.stringify([page.workspaceId, page.tabId])
 }

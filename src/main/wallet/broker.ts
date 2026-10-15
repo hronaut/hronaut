@@ -47,6 +47,7 @@ import {
   withHiddenWalletAddresses,
   type EvmTokenContractDetails
 } from './evm-watch-asset.js'
+import { WalletPageLog } from './page-log.js'
 import { solanaSignInMessage } from './solana-sign-in.js'
 import { typedDataDisplay } from './typed-data-display.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
@@ -130,6 +131,29 @@ export interface WalletBrokerOptions {
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const MAX_AGENT_PAGE_REQUESTS = 50
+/** Failed wallet calls remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
+const MAX_PAGE_CALL_FAILURES_PER_TAB = 20
+/** Tabs whose failed wallet calls are remembered at once; closing a tab forgets them sooner. */
+const MAX_PAGE_CALL_FAILURE_TABS = 256
+
+/** A wallet call a page made that failed, as an agent testing the page sees it. */
+interface WalletPageCallFailure {
+  family: WalletChainFamily
+  /** The method the page called, or `invalid` when it is not a plain method name. */
+  method: string
+  /** The error the page received, which never holds request parameters or the RPC URL. */
+  error: string
+  failedAt: string
+}
+
+/** Text with each wallet address replaced by the label, the EVM ones in any letter case and with or without 0x. */
+function withoutWalletAddresses(text: string, addresses: string[], label: string): string {
+  return addresses.reduce((result, address) => (
+    /^0x[0-9a-fA-F]{40}$/.test(address)
+      ? result.replace(new RegExp(`(?:0x)?${address.slice(2)}`, 'gi'), label)
+      : result.split(address).join(label)
+  ), text)
+}
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 // A batch waits for each call to be mined before preparing the next one.
 const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
@@ -261,7 +285,7 @@ const MIN_HIDDEN_ADDRESS_PREFIX = 4
 /** A contract's revert message with an EVM wallet's address hidden, including its start where the message was cut. */
 function hideAddressInRevertMessage(message: string, truncated: boolean, publicAddress: string): string {
   const hex = publicAddress.slice(2).toLowerCase()
-  const hidden = message.replace(new RegExp(`(?:0x)?${hex}`, 'gi'), HIDDEN_WALLET_ADDRESS)
+  const hidden = withoutWalletAddresses(message, [publicAddress], HIDDEN_WALLET_ADDRESS)
   const tail = truncated ? /[0-9a-fA-F]+$/.exec(hidden) : null
   if (!tail) return hidden
   for (let start = tail.index; start <= hidden.length - MIN_HIDDEN_ADDRESS_PREFIX; start += 1) {
@@ -367,6 +391,7 @@ export class WalletBroker {
   private readonly evmFilters = new EvmFilterRegistry((owner, ids) => this.uninstallEvmFilters(owner.wallet, ids))
   private readonly evmCallBundles = new EvmCallBundleStore()
   private readonly evmAssetSuggestions = new EvmAssetSuggestionLog()
+  private readonly pageCallFailures = new WalletPageLog<WalletPageCallFailure>(MAX_PAGE_CALL_FAILURES_PER_TAB, MAX_PAGE_CALL_FAILURE_TABS)
   private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
@@ -624,11 +649,17 @@ export class WalletBroker {
       .map((wallet) => wallet.publicAddress)
     const suggestedAssets = this.evmAssetSuggestions.forPage(context)
       .map((asset) => withHiddenWalletAddresses(asset, hiddenAddresses, HIDDEN_WALLET_ADDRESS))
+    const hiddenAccounts = [...wallets.values()]
+      .filter((wallet) => !this.hasAddressPermission(context, wallet))
+      .map((wallet) => wallet.publicAddress)
+    const failedCalls = this.pageCallFailures.forPage(context)
+      .map((failure) => ({ ...failure, error: withoutWalletAddresses(failure.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS) }))
     return {
       origin: context.topLevelOrigin,
       requests,
       ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {}),
-      ...(suggestedAssets.length ? { suggestedAssets } : {})
+      ...(suggestedAssets.length ? { suggestedAssets } : {}),
+      ...(failedCalls.length ? { failedCalls } : {})
     }
   }
 
@@ -720,8 +751,25 @@ export class WalletBroker {
       if (request.family === 'solana') return await this.solanaRequest(context, wallets, request.method, request.params)
       return await this.tronRequest(context, wallets, request.method, request.params)
     } catch (error) {
-      throw sanitizedError(error)
+      const sanitized = sanitizedError(error)
+      this.recordPageCallFailure(context, input, sanitized)
+      throw sanitized
     }
+  }
+
+  /**
+   * Remembers a website's failed wallet call, such as an unsupported method or
+   * a network it cannot switch to, so an agent testing the page can see why a
+   * button did nothing. Reads forwarded to the node are left out: contracts
+   * revert them routinely and the page gets the node's answer.
+   */
+  private recordPageCallFailure(context: WalletBrokerContext, input: WalletProviderRequest, error: Error): void {
+    if (context.requester.type !== 'website' || !this.isRequestContextActive(context)) return
+    const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
+    if (family !== 'evm' && family !== 'solana' && family !== 'tron') return
+    const name = typeof method === 'string' && /^[A-Za-z0-9_]{1,64}$/.test(method) ? method : 'invalid'
+    if (family === 'evm' && ([...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS] as readonly string[]).includes(name)) return
+    this.pageCallFailures.add(context, { family, method: name, error: error.message, failedAt: this.now().toISOString() })
   }
 
   private assertSupportedProviderMethod(input: unknown): void {
@@ -828,6 +876,7 @@ export class WalletBroker {
     this.clearEvmProviderSessions((session) => session.tabId === tabId)
     this.evmFilters.clear((owner) => owner.tabId === tabId)
     this.evmAssetSuggestions.clear((page) => page.tabId === tabId)
+    this.pageCallFailures.clear((page) => page.tabId === tabId)
     this.clearAccountProviderSessions((session) => session.tabId === tabId)
     await this.queueLifecycle(async () => {
       try {
@@ -856,6 +905,7 @@ export class WalletBroker {
     this.evmFilters.clear((owner) => owner.workspaceId === workspaceId)
     this.evmCallBundles.clear((owner) => owner.workspaceId === workspaceId)
     this.evmAssetSuggestions.clear((page) => page.workspaceId === workspaceId)
+    this.pageCallFailures.clear((page) => page.workspaceId === workspaceId)
     this.clearAccountProviderSessions((session) => session.workspaceId === workspaceId)
     await this.queueLifecycle(async () => {
       try {

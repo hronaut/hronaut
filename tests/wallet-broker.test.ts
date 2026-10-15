@@ -509,6 +509,52 @@ describe('WalletBroker', () => {
     await Promise.all([otherTab, otherPage])
   })
 
+  it('shows an agent the wallet calls its page made that failed, without what the page sent', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    // An error that names the account, which an agent sees only once it has account permission.
+    chain.normalizeTransaction = async () => { throw new Error(`EVM transaction from ${wallet.publicAddress.toLowerCase()} is not supported here`) }
+    const broker = new WalletBroker(service, { adapters: { evm: chain }, now: () => new Date('2026-10-15T20:00:00.000Z') })
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    const call = (method: string, params?: unknown, overrides: Partial<WalletBrokerContext> = {}) => settle(broker.providerRequest(context(overrides), {
+      family: 'evm', method, ...(params === undefined ? {} : { params })
+    } as never))
+    const failure = (method: string, error: string) => ({ family: 'evm', method, error, failedAt: '2026-10-15T20:00:00.000Z' })
+
+    await call('eth_signTypedData_v3', [wallet.publicAddress, 'page-secret-typed-data'])
+    await call('bad method name!')
+    // Reads forwarded to the node fail whenever a contract reverts, so they are left out.
+    await call('eth_call', [{ to: wallet.publicAddress, data: '0xdeadbeef' }])
+    // The site's own route change keeps its failures listed; another tab or site does not see them.
+    await call('wallet_showCallsStatus', ['0x01'], { navigationGeneration: 2 })
+    await call('eth_signTypedData_v3', [], { tabId: 'tab-2' })
+    await call('eth_signTypedData_v3', [], { topLevelOrigin: 'https://other.example', requester: { type: 'website', id: 'https://other.example' } })
+    await expect(broker.providerRequest(agent, { family: 'evm', method: 'eth_signTypedData_v3' } as never)).rejects.toThrow('Unsupported')
+    await connect(broker)
+    await call('eth_sendTransaction', [{ from: wallet.publicAddress, to: '0x00000000000000000000000000000000000000aa' }])
+
+    const hidden = broker.agentPageRequests(agent)
+    expect(hidden.failedCalls).toEqual([
+      failure('eth_signTypedData_v3', 'Unsupported EVM wallet method: eth_signTypedData_v3'),
+      failure('invalid', 'Wallet request failed validation or processing'),
+      failure('wallet_showCallsStatus', 'Unsupported EVM wallet method: wallet_showCallsStatus'),
+      failure('eth_sendTransaction', 'EVM transaction from this wallet (address hidden until account permission) is not supported here')
+    ])
+    expect(JSON.stringify(hidden)).not.toMatch(/page-secret-typed-data|deadbeef/)
+    expect(JSON.stringify(hidden).toLowerCase()).not.toContain(wallet.publicAddress.slice(2).toLowerCase())
+    expect(broker.agentPageRequests({ ...agent, tabId: 'tab-2' }).failedCalls).toEqual([
+      failure('eth_signTypedData_v3', 'Unsupported EVM wallet method: eth_signTypedData_v3')
+    ])
+
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    expect((broker.agentPageRequests(agent).failedCalls as unknown[]).at(-1))
+      .toEqual(failure('eth_sendTransaction', `EVM transaction from ${wallet.publicAddress.toLowerCase()} is not supported here`))
+
+    await broker.cancelForTab('tab-1')
+    expect(broker.agentPageRequests(agent)).not.toHaveProperty('failedCalls')
+  })
+
   it('accepts a dApp token suggestion without a prompt and shows it to an agent on that site only', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() }, now: () => new Date('2026-10-15T20:00:00.000Z') })
@@ -533,7 +579,13 @@ describe('WalletBroker', () => {
     // Nothing waits for a person.
     expect(broker.listPending()).toEqual([])
 
-    expect(broker.agentPageRequests(agent)).toEqual({ origin: 'https://dapp.example', requests: [], suggestedAssets: [listed, listed] })
+    expect(broker.agentPageRequests(agent)).toEqual({
+      origin: 'https://dapp.example', requests: [], suggestedAssets: [listed, listed],
+      failedCalls: [{
+        family: 'evm', method: 'wallet_watchAsset', failedAt: '2026-10-15T20:00:00.000Z',
+        error: 'EVM RPC error (code -32602): wallet_watchAsset decimals must be a whole number from 0 to 36'
+      }]
+    })
     expect(broker.agentPageRequests({ ...agent, workspaceId: 'workspace-2' })).not.toHaveProperty('suggestedAssets')
 
     // A page that offers the account itself as a token does not reveal it to an agent without account permission.
