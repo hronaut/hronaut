@@ -290,8 +290,10 @@ test('runs an EIP-5792 batch as one approval per call and reports its status to 
     const approveInHronaut = async (dialogName: RegExp) => {
       const approval = appWindow.getByRole('alertdialog', { name: dialogName })
       await expect(approval).toBeVisible()
+      const hash = await approval.getByTestId('wallet-approval-hash').textContent()
       await approval.getByRole('button', { name: 'Approve exact request' }).click()
-      await expect(approval).toBeHidden()
+      // The batch's next call can open its own approval right away, so wait for this request's dialog to go.
+      await expect(appWindow.getByTestId('wallet-approval-hash').filter({ hasText: hash ?? '' })).toBeHidden()
     }
 
     // Like a wagmi useSendCalls dApp: approve a token, then use it, in one request.

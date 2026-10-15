@@ -153,7 +153,7 @@ function rawDetails(): string {
         <summary>{{ t('wallets.approval.raw') }}</summary>
         <pre>{{ rawDetails() }}</pre>
       </details>
-      <p class="wallet-approval-hash">{{ t('wallets.approval.hash') }} <code>{{ request.approvalHash ?? t('wallets.approval.hashPending') }}</code></p>
+      <p class="wallet-approval-hash">{{ t('wallets.approval.hash') }} <code data-testid="wallet-approval-hash">{{ request.approvalHash ?? t('wallets.approval.hashPending') }}</code></p>
       <output v-if="controller.errorMessage.value" class="site-controls-error" role="alert">{{ controller.errorMessage.value }}</output>
       <footer>
         <UiButton type="button" :disabled="controller.busy.value" @click="controller.reject(request.id)">{{ t('wallets.approval.reject') }}</UiButton>
