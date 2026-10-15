@@ -405,7 +405,7 @@ export const enUS = {
     websiteTypedData: 'Also sign typed data without asking',
     websiteTypedDataDescription: "This dedicated agent wallet signs EIP-712 typed data from pages on the allowed origin without a click, on EVM testnets and local chains, only when the data names this wallet's chain. Typed data can authorize token permits, transfers and orders. Each signature counts toward the operation limit.",
     mainnetWebsiteTypedData: 'Also sign typed data on mainnet',
-    mainnetWebsiteTypedDataWarning: 'Warning: on mainnet, typed data can authorize real token permits, transfers and marketplace orders. Until the policy expires or reaches its operation limit, pages on the allowed site can get such signatures from this agent wallet without your click, and a signed permit can move tokens later. Keep only funds you can afford to lose in this wallet. The same limits apply: one origin, at most 100 operations and an expiry within 7 days. Permits with an unlimited or unreadable amount still ask.',
+    mainnetWebsiteTypedDataWarning: 'Warning: on mainnet, typed data can authorize real token permits, transfers and marketplace orders. Until the policy expires or reaches its operation limit, pages on the allowed site can get such signatures from this agent wallet without your click, and a signed permit can move tokens later. Keep only funds you can afford to lose in this wallet. The same limits apply: one origin, at most 100 operations and an expiry within 7 days. Permits with an unlimited or unreadable amount, and Safe transactions, still ask.',
     signInOnlyNote: 'Leave the destination and method empty for a sign-in only policy.',
     policyName: 'Bounded {network} policy',
     policyWorkspace: 'Policy workspace',
@@ -494,7 +494,9 @@ export const enUS = {
           tokenPermit: 'This is a token permit. Signing it lets the spender move your tokens without another approval from you.',
           tokenTransfer: 'This is a token transfer authorization. Signing it lets the tokens be moved from your wallet to the recipient without another approval from you.',
           unlimitedAmount: 'This signature covers an unlimited amount of the token.',
-          unreadableAmount: 'Hronaut could not read every amount in this signature. Treat it as unlimited.'
+          unreadableAmount: 'Hronaut could not read every amount in this signature. Treat it as unlimited.',
+          assetOrder: 'This looks like a marketplace or exchange order. Once it is signed, anyone who fills it can take the tokens or NFTs it offers from this wallet.',
+          safeTransaction: "This approves a Safe multisig transaction. Once enough owners sign, it can move the Safe's assets or change its owners."
         }
       },
       raw: 'Raw unsigned request',

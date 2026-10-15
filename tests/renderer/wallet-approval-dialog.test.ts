@@ -187,6 +187,38 @@ describe('WalletApprovalDialog', () => {
     ])
   })
 
+  it('warns that a typed-data marketplace order or Safe transaction can move assets', () => {
+    const pending = request()
+    pending.details = {
+      ...pending.details!,
+      understood: false,
+      typedData: { primaryType: 'OrderComponents', domain: { name: 'Seaport', chainId: '1' }, warnings: ['asset-order'] }
+    }
+    const safe = request()
+    safe.id = 'request-2'
+    safe.details = {
+      ...safe.details!,
+      understood: false,
+      typedData: { primaryType: 'SafeTx', domain: { chainId: '1' }, warnings: ['safe-transaction'] }
+    }
+    const view = render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toEqual([
+      'Hronaut could not fully decode this request. Approval requires extra care.',
+      'This looks like a marketplace or exchange order. Once it is signed, anyone who fills it can take the tokens or NFTs it offers from this wallet.'
+    ])
+    view.unmount()
+    render(WalletApprovalDialog, {
+      props: { controller: { ...controller(), awaitingApproval: ref([safe]) } as unknown as WalletsController, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+    expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toContain(
+      "This approves a Safe multisig transaction. Once enough owners sign, it can move the Safe's assets or change its owners."
+    )
+  })
+
   it('falls back to the immutable workspace ID when the workspace no longer exists', () => {
     const wallets = controller()
     render(WalletApprovalDialog, {

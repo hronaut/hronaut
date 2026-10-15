@@ -269,6 +269,48 @@ describe('typed data in the trusted approval', () => {
     })
   })
 
+  it('warns that a marketplace or exchange order or a Safe transaction can move assets', () => {
+    const offerItem = [
+      { name: 'itemType', type: 'uint8' }, { name: 'token', type: 'address' }, { name: 'identifierOrCriteria', type: 'uint256' },
+      { name: 'startAmount', type: 'uint256' }, { name: 'endAmount', type: 'uint256' }
+    ]
+    const seaport = {
+      domain: { name: 'Seaport', version: '1.6', chainId: 11155111, verifyingContract: permit2 },
+      primaryType: 'OrderComponents',
+      types: {
+        EIP712Domain: domainType,
+        OrderComponents: [{ name: 'offerer', type: 'address' }, { name: 'offer', type: 'OfferItem[]' }, { name: 'counter', type: 'uint256' }],
+        OfferItem: offerItem
+      },
+      message: { offerer: owner, offer: [{ itemType: 2, token, identifierOrCriteria: 7, startAmount: 1, endAmount: 1 }], counter: 0 }
+    }
+    expect(() => hashTypedData(seaport as Parameters<typeof hashTypedData>[0])).not.toThrow()
+    expect(typedDataDisplay(seaport, wallet)).toEqual({
+      primaryType: 'OrderComponents',
+      domain: { name: 'Seaport', version: '1.6', chainId: '11155111', verifyingContract: permit2 },
+      warnings: ['asset-order']
+    })
+    for (const primaryType of ['BulkOrder', 'Order', 'LimitOrder', 'RfqOrder', 'OtcOrder', 'ERC721Order', 'ERC1155Order', 'Maker', 'MakerOrder']) {
+      expect(typedDataDisplay({ domain: {}, primaryType, types: { [primaryType]: [] }, message: {} }, wallet)?.warnings, primaryType).toEqual(['asset-order'])
+    }
+    const safeTx = {
+      domain: { chainId: 11155111, verifyingContract: spender },
+      primaryType: 'SafeTx',
+      types: {
+        SafeTx: [
+          { name: 'to', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'data', type: 'bytes' }, { name: 'operation', type: 'uint8' },
+          { name: 'safeTxGas', type: 'uint256' }, { name: 'baseGas', type: 'uint256' }, { name: 'gasPrice', type: 'uint256' },
+          { name: 'gasToken', type: 'address' }, { name: 'refundReceiver', type: 'address' }, { name: 'nonce', type: 'uint256' }
+        ]
+      },
+      message: { to: token, value: 0, data: '0x', operation: 0, safeTxGas: 0, baseGas: 0, gasPrice: 0, gasToken: owner, refundReceiver: owner, nonce: 3 }
+    }
+    expect(() => hashTypedData(safeTx as Parameters<typeof hashTypedData>[0])).not.toThrow()
+    expect(typedDataDisplay(safeTx, wallet)?.warnings).toEqual(['safe-transaction'])
+    // A plain login or vote is not an order.
+    expect(typedDataDisplay({ domain: {}, primaryType: 'Login', types: { Login: [] }, message: {} }, wallet)?.warnings).toEqual([])
+  })
+
   it('still warns about a permit whose fields it cannot read', () => {
     expect(typedDataDisplay({ domain: {}, primaryType: 'PermitSingle', message: { details: 'odd' } }, wallet))
       .toEqual({ primaryType: 'PermitSingle', domain: {}, tokenAccess: { kind: 'allowance', allowances: [] }, warnings: ['token-permit', 'unreadable-amount'] })

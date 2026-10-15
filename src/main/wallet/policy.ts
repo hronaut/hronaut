@@ -172,7 +172,8 @@ export function websiteTypedDataPolicyApplies(wallet: WalletDescriptor, policy: 
  * undefined when it can: it must be small, sign this wallet's chain ID in its
  * domain so the signature cannot be replayed on another chain, hash quickly
  * and validly for the signer, and sign a message rather than only a domain.
- * On mainnet an unlimited or unreadable token amount also needs a person.
+ * On mainnet an unlimited or unreadable token amount, or a Safe transaction,
+ * also needs a person.
  * The cheap checks run first, so costly typed data is never hashed here.
  */
 export function websiteTypedDataIssue(typedData: unknown, serializedBytes: number, wallet: WalletDescriptor): string | undefined {
@@ -190,6 +191,8 @@ export function websiteTypedDataIssue(typedData: unknown, serializedBytes: numbe
   if (wallet.network.environment === 'mainnet') {
     const warnings = typedDataDisplay(typedData, wallet)?.warnings ?? []
     if (warnings.includes('unlimited-amount') || warnings.includes('unreadable-amount')) return 'typed-data-unlimited-on-mainnet'
+    // A Safe owner's signature can move the Safe's assets, which this wallet's own funds do not bound.
+    if (warnings.includes('safe-transaction')) return 'typed-data-safe-transaction-on-mainnet'
   }
   return undefined
 }
