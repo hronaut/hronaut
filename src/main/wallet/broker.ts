@@ -160,6 +160,15 @@ const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 // A batch waits for each call to be mined before preparing the next one.
 const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
 const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
+// A load-balanced node can briefly answer from a backend that lags behind, so a
+// transaction counts as replaced only after looking so on this many checks over
+// this long, without a longer pause between two checks (such as the computer
+// sleeping) than EVM_REPLACED_MAX_CHECK_GAP_MS.
+const EVM_REPLACED_TRANSACTION_MS = 60_000
+const EVM_REPLACED_TRANSACTION_CHECKS = 3
+const EVM_REPLACED_MAX_CHECK_GAP_MS = 30_000
+// Replaced transaction hashes kept for wallet_sendCalls batches, which Hronaut also keeps only in memory.
+const MAX_REPLACED_TRANSACTION_HASHES = 1_024
 const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
@@ -226,6 +235,16 @@ function jsonBytes(value: unknown): number {
 
 function paramsArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : value === undefined ? [] : [value]
+}
+
+/** The nonce a prepared EVM transaction was signed with, if Hronaut recorded one. */
+function transactionNonce(record: WalletApprovalRecord): string | undefined {
+  if (!record.request.payload.normalized) return undefined
+  try {
+    return (restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction).nonceOrBlockhash
+  } catch {
+    return undefined
+  }
 }
 
 function isSilentSolanaConnect(value: unknown): boolean {
@@ -387,6 +406,10 @@ export class WalletBroker {
   private permissionExpiryCancellation: (() => void) | null = null
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationInFlight = new Set<string>()
+  /** Consecutive checks on which a submitted EVM transaction looked replaced by another one with its nonce. */
+  private readonly replacedChecks = new Map<string, { since: number; last: number; count: number }>()
+  /** Lowercase hashes of sent EVM transactions that failed because another transaction replaced them. */
+  private readonly replacedTransactionHashes = new Set<string>()
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
@@ -2144,11 +2167,15 @@ export class WalletBroker {
     return true
   }
 
-  /** Waits until a batch call is mined; false when it reverted, the page left, or it was not mined in time. */
+  /**
+   * Waits until a batch call is mined; false when it reverted, another
+   * transaction replaced it, the page left, or it was not mined in time.
+   */
   private async evmCallSucceeded(context: WalletBrokerContext, wallet: WalletDescriptor, hash: string): Promise<boolean> {
     const interval = Math.min(this.confirmationPollIntervalMs(), EVM_BATCH_CONFIRMATION_POLL_MS)
     const deadline = this.now().getTime() + EVM_BATCH_CONFIRMATION_TIMEOUT_MS
     while (this.isRequestContextActive(context) && this.now().getTime() < deadline) {
+      if (this.replacedTransactionHashes.has(hash.toLowerCase())) return false
       try {
         const confirmation = await this.adapters.evm.confirmation(wallet, hash)
         if (confirmation.failed) return false
@@ -2173,11 +2200,12 @@ export class WalletBroker {
     const receipts = await Promise.all(bundle.hashes.map(async (hash) => (
       callReceipt(await adapter.readRpc!(bundle.wallet, 'eth_getTransactionReceipt', [hash]))
     )))
+    const replaced = bundle.hashes.map((hash, index) => receipts[index] === undefined && this.replacedTransactionHashes.has(hash.toLowerCase()))
     return {
       version: EVM_CALL_BUNDLE_VERSION,
       id,
       chainId: `0x${BigInt(bundle.wallet.network.id).toString(16)}`,
-      status: callBundleStatus(bundle, receipts),
+      status: callBundleStatus(bundle, receipts, replaced),
       atomic: false,
       receipts: receipts.filter((receipt): receipt is EvmCallReceipt => receipt !== undefined)
     }
@@ -2513,21 +2541,30 @@ export class WalletBroker {
         return
       }
       const confirmation = await this.withConfirmationShutdown(
-        this.adapters[wallet.chainFamily].confirmation(wallet, record.transactionHash)
+        this.adapters[wallet.chainFamily].confirmation(
+          wallet,
+          record.transactionHash,
+          wallet.chainFamily === 'evm' ? transactionNonce(record) : undefined
+        )
       )
       const current = this.service.approvals.get(requestId)
       if (current?.status !== 'submitted') return
-      if (confirmation.confirmed || confirmation.failed) {
+      const replaced = !confirmation.confirmed && !confirmation.failed && confirmation.replaced === true && this.replacedLongEnough(requestId)
+      if (!confirmation.replaced) this.replacedChecks.delete(requestId)
+      if (confirmation.confirmed || confirmation.failed || replaced) {
+        this.replacedChecks.delete(requestId)
         const terminalStatus = confirmation.confirmed ? 'confirmed' : 'failed'
         try {
           await this.service.approvals.transition(requestId, terminalStatus, this.now())
         } finally {
           if (this.service.approvals.get(requestId)?.status === terminalStatus) {
+            if (replaced) this.rememberReplacedTransaction(record.transactionHash)
             await this.appendTransactionAudit(
               confirmation.confirmed ? 'transaction-confirmed' : 'transaction-failed',
               record,
               record.transactionHash,
-              confirmation.blockReference
+              confirmation.blockReference,
+              replaced
             )
           }
           this.publish()
@@ -2541,7 +2578,34 @@ export class WalletBroker {
       this.confirmationInFlight.delete(requestId)
       if (retry && this.service.approvals.get(requestId)?.status === 'submitted') {
         this.scheduleConfirmation(requestId, this.confirmationPollIntervalMs())
+      } else {
+        this.replacedChecks.delete(requestId)
       }
+    }
+  }
+
+  /**
+   * Whether a submitted transaction has looked replaced on enough checks, over
+   * long enough, to count as failed. A long pause between two checks, or a
+   * clock that went back, starts the count again.
+   */
+  private replacedLongEnough(requestId: string): boolean {
+    const now = this.now().getTime()
+    const seen = this.replacedChecks.get(requestId)
+    const maxGap = Math.max(EVM_REPLACED_MAX_CHECK_GAP_MS, 3 * this.confirmationPollIntervalMs())
+    if (!seen || now < seen.last || now - seen.last > maxGap) {
+      this.replacedChecks.set(requestId, { since: now, last: now, count: 1 })
+      return false
+    }
+    seen.last = now
+    seen.count += 1
+    return seen.count >= EVM_REPLACED_TRANSACTION_CHECKS && now - seen.since >= EVM_REPLACED_TRANSACTION_MS
+  }
+
+  private rememberReplacedTransaction(hash: string): void {
+    this.replacedTransactionHashes.add(hash.toLowerCase())
+    if (this.replacedTransactionHashes.size > MAX_REPLACED_TRANSACTION_HASHES) {
+      this.replacedTransactionHashes.delete(this.replacedTransactionHashes.values().next().value!)
     }
   }
 
@@ -2592,7 +2656,8 @@ export class WalletBroker {
     type: 'transaction-submitted' | 'transaction-confirmed' | 'transaction-failed',
     record: WalletApprovalRecord,
     transactionHash: string,
-    blockReference?: string
+    blockReference?: string,
+    replaced = false
   ): Promise<void> {
     try {
       await this.service.audit.append(type, {
@@ -2603,7 +2668,8 @@ export class WalletBroker {
         requester: record.request.requester,
         networkId: record.request.networkId,
         transactionHash,
-        ...(blockReference ? { blockReference } : {})
+        ...(blockReference ? { blockReference } : {}),
+        ...(replaced ? { replaced: true } : {})
       }, this.now().toISOString())
     } catch {
       console.error('[wallet] Failed to persist transaction lifecycle audit event')

@@ -23,6 +23,8 @@ export interface WalletConfirmation {
   confirmed: boolean
   failed: boolean
   blockReference?: string
+  /** Not mined, unknown to the node, and another transaction from the account already used its nonce. */
+  replaced?: boolean
 }
 
 export interface WalletTokenAllowance {
@@ -69,7 +71,8 @@ export interface WalletChainAdapter {
   simulate(wallet: WalletDescriptor, transaction: WalletNormalizedTransaction): Promise<WalletTransactionSimulation>
   sign(wallet: WalletDescriptor, secret: WalletSecret, transaction: WalletNormalizedTransaction): Promise<string>
   broadcast(wallet: WalletDescriptor, signedTransaction: string): Promise<string>
-  confirmation(wallet: WalletDescriptor, transactionHash: string): Promise<WalletConfirmation>
+  /** `nonce` is the transaction's own nonce, which lets an EVM adapter see that another transaction replaced it. */
+  confirmation(wallet: WalletDescriptor, transactionHash: string, nonce?: string): Promise<WalletConfirmation>
   balance(wallet: WalletDescriptor): Promise<string>
   /**
    * Reads the wallet's balance of one fungible token (ERC-20 contract or SPL
