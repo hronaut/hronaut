@@ -39,6 +39,13 @@ import {
   type EvmCallReceipt
 } from './evm-call-bundles.js'
 import { EvmFilterRegistry, isEvmFilterCreateMethod, isEvmFilterId, MAX_EVM_FILTERS_PER_PAGE, type EvmFilterOwner } from './evm-filters.js'
+import {
+  EvmAssetSuggestionLog,
+  parseWatchAsset,
+  watchAssetRefusal,
+  withHiddenWalletAddresses,
+  type EvmTokenContractDetails
+} from './evm-watch-asset.js'
 import { solanaSignInMessage } from './solana-sign-in.js'
 import { typedDataDisplay } from './typed-data-display.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
@@ -316,6 +323,7 @@ export class WalletBroker {
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
   private readonly evmFilters = new EvmFilterRegistry((owner, ids) => this.uninstallEvmFilters(owner.wallet, ids))
   private readonly evmCallBundles = new EvmCallBundleStore()
+  private readonly evmAssetSuggestions = new EvmAssetSuggestionLog()
   private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
@@ -558,10 +566,16 @@ export class WalletBroker {
       if (details && pendingMessage) details.method = pendingMessage.kind === 'typed-data' ? 'typed-data-signing' : 'message-signing'
       return result
     })
+    const hiddenAddresses = [...wallets.values()]
+      .filter((wallet) => wallet.chainFamily === 'evm' && !this.hasAddressPermission(context, wallet))
+      .map((wallet) => wallet.publicAddress)
+    const suggestedAssets = this.evmAssetSuggestions.forPage(context)
+      .map((asset) => withHiddenWalletAddresses(asset, hiddenAddresses, HIDDEN_WALLET_ADDRESS))
     return {
       origin: context.topLevelOrigin,
       requests,
-      ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {})
+      ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {}),
+      ...(suggestedAssets.length ? { suggestedAssets } : {})
     }
   }
 
@@ -760,6 +774,7 @@ export class WalletBroker {
     this.closedTabs.add(tabId)
     this.clearEvmProviderSessions((session) => session.tabId === tabId)
     this.evmFilters.clear((owner) => owner.tabId === tabId)
+    this.evmAssetSuggestions.clear((page) => page.tabId === tabId)
     this.clearAccountProviderSessions((session) => session.tabId === tabId)
     await this.queueLifecycle(async () => {
       try {
@@ -787,6 +802,7 @@ export class WalletBroker {
     this.clearEvmProviderSessions((session) => session.workspaceId === workspaceId)
     this.evmFilters.clear((owner) => owner.workspaceId === workspaceId)
     this.evmCallBundles.clear((owner) => owner.workspaceId === workspaceId)
+    this.evmAssetSuggestions.clear((page) => page.workspaceId === workspaceId)
     this.clearAccountProviderSessions((session) => session.workspaceId === workspaceId)
     await this.queueLifecycle(async () => {
       try {
@@ -862,6 +878,7 @@ export class WalletBroker {
     }
     const wallet = this.selectWallet(activeWallets)
     if (method === 'eth_chainId') return `0x${BigInt(wallet.network.id).toString(16)}`
+    if (method === 'wallet_watchAsset') return this.watchEvmAsset(context, wallet, params)
     if ((EVM_READ_RPC_METHODS as readonly string[]).includes(method)) {
       const adapter = this.adapters.evm
       if (!adapter.readRpc) throw new Error(`Unsupported EVM wallet method: ${method}`)
@@ -1976,6 +1993,41 @@ export class WalletBroker {
       started.bundle.finished = true
     }
     return { id: started.id }
+  }
+
+  /**
+   * EIP-747 token suggestions, such as a faucet's "Add token to wallet"
+   * button. Hronaut keeps no token list to add them to, so it accepts a valid
+   * suggestion without a prompt: it moves no funds and reveals no account.
+   * Like MetaMask, it refuses an ERC-20 suggestion whose symbol or decimals
+   * disagree with the contract. An agent testing the page sees every
+   * suggestion, refused or not, with the contract's own values in
+   * `wallet_page_requests`.
+   */
+  private async watchEvmAsset(context: WalletBrokerContext, wallet: WalletDescriptor, params: unknown): Promise<true> {
+    const asset = parseWatchAsset(params)
+    let contract: EvmTokenContractDetails = {}
+    if (asset.type === 'ERC20' && this.adapters.evm.tokenContractDetails) {
+      try {
+        contract = await this.adapters.evm.tokenContractDetails(wallet, asset.address)
+      } catch {
+        // As in MetaMask, a contract that cannot be read leaves the page's values unchecked.
+      }
+      this.assertRequestContextActive(context)
+    }
+    const refusal = watchAssetRefusal(asset, contract)
+    if (context.requester.type === 'website') {
+      this.evmAssetSuggestions.add(context, {
+        ...asset,
+        ...(contract.symbol === undefined ? {} : { contractSymbol: contract.symbol }),
+        ...(contract.decimals === undefined ? {} : { contractDecimals: contract.decimals }),
+        ...(refusal ? { refused: refusal.reason } : {}),
+        networkId: wallet.network.id,
+        suggestedAt: this.now().toISOString()
+      })
+    }
+    if (refusal) throw refusal.error
+    return true
   }
 
   /** Waits until a batch call is mined; false when it reverted, the page left, or it was not mined in time. */

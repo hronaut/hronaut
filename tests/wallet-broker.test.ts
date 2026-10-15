@@ -475,6 +475,80 @@ describe('WalletBroker', () => {
     await Promise.all([otherTab, otherPage])
   })
 
+  it('accepts a dApp token suggestion without a prompt and shows it to an agent on that site only', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, now: () => new Date('2026-10-15T20:00:00.000Z') })
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    const watch = (params: unknown, overrides: Partial<WalletBrokerContext> = {}) => broker.providerRequest(context(overrides), {
+      family: 'evm', method: 'wallet_watchAsset', params
+    })
+    const usdc = { type: 'ERC20', options: { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', decimals: 6 } }
+    const listed = {
+      type: 'ERC20', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', decimals: 6,
+      networkId: wallet.network.id, suggestedAt: '2026-10-15T20:00:00.000Z'
+    }
+
+    await expect(watch(usdc)).resolves.toBe(true)
+    // A route change in the same site keeps the suggestion listed.
+    await expect(watch(usdc, { navigationGeneration: 2 })).resolves.toBe(true)
+    await expect(watch(usdc, { tabId: 'tab-2' })).resolves.toBe(true)
+    await expect(watch(usdc, { topLevelOrigin: 'https://other.example', requester: { type: 'website', id: 'https://other.example' } })).resolves.toBe(true)
+    await expect(watch({ ...usdc, options: { ...usdc.options, decimals: 99 } }))
+      .rejects.toThrow('EVM RPC error (code -32602): wallet_watchAsset decimals must be a whole number from 0 to 36')
+    await expect(broker.providerRequest(agent, { family: 'evm', method: 'wallet_watchAsset', params: usdc })).resolves.toBe(true)
+    // Nothing waits for a person.
+    expect(broker.listPending()).toEqual([])
+
+    expect(broker.agentPageRequests(agent)).toEqual({ origin: 'https://dapp.example', requests: [], suggestedAssets: [listed, listed] })
+    expect(broker.agentPageRequests({ ...agent, workspaceId: 'workspace-2' })).not.toHaveProperty('suggestedAssets')
+
+    // A page that offers the account itself as a token does not reveal it to an agent without account permission.
+    await expect(watch({ type: 'ERC20', options: { address: wallet.publicAddress, symbol: 'ME', decimals: 0 } }, { tabId: 'tab-3' })).resolves.toBe(true)
+    expect(broker.agentPageRequests({ ...agent, tabId: 'tab-3' })).toMatchObject({ suggestedAssets: [{ address: 'this wallet (address hidden until account permission)' }] })
+
+    await broker.cancelForTab('tab-1')
+    expect(broker.agentPageRequests(agent)).not.toHaveProperty('suggestedAssets')
+    expect(broker.agentPageRequests({ ...agent, tabId: 'tab-2' })).toMatchObject({ suggestedAssets: [{ symbol: 'USDC' }] })
+    await broker.cancelForWorkspace('workspace-1')
+    expect(broker.agentPageRequests({ ...agent, tabId: 'tab-2' })).not.toHaveProperty('suggestedAssets')
+  })
+
+  it('refuses a token suggestion whose decimals or symbol disagree with the contract, and shows the agent why', async () => {
+    const { service } = await setup()
+    const tokenContractDetails = vi.fn(async () => ({ symbol: 'USDC', decimals: 6 }))
+    const broker = new WalletBroker(service, { adapters: { evm: { ...adapter(), tokenContractDetails } } })
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    const watch = (options: Record<string, unknown>) => broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_watchAsset', params: { type: 'ERC20', options: { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', ...options } }
+    })
+
+    await expect(watch({ symbol: 'USDC', decimals: 18 }))
+      .rejects.toThrow('EVM RPC error (code -32602): wallet_watchAsset decimals 18 do not match the token contract decimals 6')
+    await expect(watch({ symbol: 'USDT' })).rejects.toThrow('EVM RPC error (code -32602): wallet_watchAsset symbol does not match the symbol of the token contract')
+    // Values the page leaves out come from the contract.
+    await expect(watch({})).resolves.toBe(true)
+    expect(tokenContractDetails).toHaveBeenCalledWith(expect.objectContaining({ chainFamily: 'evm' }), '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48')
+    expect((broker.agentPageRequests(agent).suggestedAssets as Array<Record<string, unknown>>).map(({ symbol, decimals, contractSymbol, contractDecimals, refused }) => (
+      { symbol, decimals, contractSymbol, contractDecimals, refused }
+    ))).toEqual([
+      { symbol: 'USDC', decimals: 18, contractSymbol: 'USDC', contractDecimals: 6, refused: 'decimals-mismatch' },
+      { symbol: 'USDT', decimals: undefined, contractSymbol: 'USDC', contractDecimals: 6, refused: 'symbol-mismatch' },
+      { symbol: undefined, decimals: undefined, contractSymbol: 'USDC', contractDecimals: 6, refused: undefined }
+    ])
+
+    // A contract that cannot be read leaves the page's values unchecked.
+    tokenContractDetails.mockRejectedValueOnce(new Error('node down'))
+    await expect(watch({ symbol: 'USDC', decimals: 18 })).resolves.toBe(true)
+  })
+
+  it('refuses a token suggestion when no wallet is on the page network', async () => {
+    const { service } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await expect(broker.providerRequest(context({ workspaceId: 'workspace-2' }), {
+      family: 'evm', method: 'wallet_watchAsset', params: { type: 'ERC20', options: { address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' } }
+    })).rejects.toThrow('No wallet is attached to this workspace for the requested chain')
+  })
+
   it('hides the wallet address an agent sees in a page request until the agent has account permission', async () => {
     const { service, wallet } = await setup()
     const chain = adapter()

@@ -50,6 +50,8 @@ export interface WalletChainAdapter {
   balance(wallet: WalletDescriptor): Promise<string>
   /** Reads the wallet's balance of one fungible token (ERC-20 contract or SPL mint). */
   tokenBalance?(wallet: WalletDescriptor, token: string): Promise<WalletTokenBalance>
+  /** Reads an ERC-20 contract's own symbol and decimals; a value it does not report is left out. */
+  tokenContractDetails?(wallet: WalletDescriptor, token: string): Promise<{ symbol?: string; decimals?: number }>
   /** Forwards an allowlisted read-only JSON-RPC method to the wallet network. */
   readRpc?(wallet: WalletDescriptor, method: string, params: unknown): Promise<unknown>
 }
