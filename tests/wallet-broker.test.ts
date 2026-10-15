@@ -948,6 +948,49 @@ describe('WalletBroker', () => {
     expect(readRpc).toHaveBeenCalledTimes(2)
   })
 
+  it('supports EIP-2255 account permissions and wallet_addEthereumChain only for configured networks', async () => {
+    const { service, wallet } = await setup()
+    const events = vi.fn()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, onProviderEvent: events })
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getPermissions' })).resolves.toEqual([])
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_requestPermissions', params: [{ eth_accounts: {}, snap_dialog: {} }]
+    })).rejects.toThrow('only eth_accounts can be requested or revoked')
+
+    const requested = broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }]
+    })
+    const pending = await broker.waitForPending((request) => request.status === 'awaiting-human')
+    await broker.approve(pending.id)
+    const granted = [{
+      invoker: 'https://dapp.example',
+      parentCapability: 'eth_accounts',
+      caveats: [{ type: 'restrictReturnedAccounts', value: [wallet.publicAddress] }]
+    }]
+    await expect(requested).resolves.toEqual(granted)
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getPermissions' })).resolves.toEqual(granted)
+
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_addEthereumChain',
+      params: [{ chainId: '0xaa36a7', chainName: 'Sepolia', rpcUrls: ['https://attacker.example'] }]
+    })).resolves.toBeNull()
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_addEthereumChain',
+      params: [{ chainId: '0x89', chainName: 'Polygon', rpcUrls: ['https://attacker.example'] }]
+    })).rejects.toThrow('Requested EVM chain was rejected: websites cannot add networks')
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_chainId' })).resolves.toBe('0xaa36a7')
+    expect(service.list().map((entry) => entry.network.rpcUrl)).toEqual(['http://127.0.0.1:8545'])
+
+    events.mockClear()
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }]
+    })).resolves.toBeNull()
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_accounts' })).resolves.toEqual([])
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getPermissions' })).resolves.toEqual([])
+    expect(events).toHaveBeenCalledWith('tab-1', { family: 'evm', event: 'accountsChanged', payload: [] })
+  })
+
   it('publishes EIP-1193 connectivity transitions for an EVM provider session', async () => {
     const { service, wallet } = await setup()
     const events = vi.fn()

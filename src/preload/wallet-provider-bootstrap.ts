@@ -112,11 +112,15 @@ export function installHronautWalletProviders(): void {
   }
 
   const evmEvents = createEmitter('evm')
+  const evmRequest = providerRequest('evm')
   const ethereum = Object.freeze({
     isHronaut: true,
-    request: providerRequest('evm'),
+    request: evmRequest,
     on: evmEvents.on,
-    removeListener: evmEvents.removeListener
+    removeListener: evmEvents.removeListener,
+    off: evmEvents.off,
+    isConnected: () => true,
+    enable: () => evmRequest({ method: 'eth_requestAccounts' })
   })
   target.hronautEthereum = ethereum
   if (!target.ethereum) target.ethereum = ethereum
@@ -310,12 +314,12 @@ export function installHronautWalletProviders(): void {
       }),
       'solana:signTransaction': Object.freeze({
         version: '1.0.0',
-        supportedTransactionVersions: Object.freeze(['legacy']),
+        supportedTransactionVersions: Object.freeze(['legacy', 0]),
         signTransaction: (...inputs: unknown[]) => solanaRequest('signTransaction', inputs)
       }),
       'solana:signAndSendTransaction': Object.freeze({
         version: '1.0.0',
-        supportedTransactionVersions: Object.freeze(['legacy']),
+        supportedTransactionVersions: Object.freeze(['legacy', 0]),
         signAndSendTransaction: (...inputs: unknown[]) => solanaRequest('signAndSendTransaction', inputs)
       }),
       'solana:signMessage': Object.freeze({ version: '1.0.0', signMessage: (...inputs: unknown[]) => solanaRequest('signMessage', inputs) })

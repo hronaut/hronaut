@@ -13,6 +13,9 @@ interface TestWindow extends Window {
     isHronaut: boolean
     on(event: string, listener: (...args: unknown[]) => void): TestWindow['ethereum']
     removeListener(event: string, listener: (...args: unknown[]) => void): TestWindow['ethereum']
+    off?(event: string, listener: (...args: unknown[]) => void): TestWindow['ethereum']
+    enable?(): Promise<unknown>
+    isConnected?(): boolean
   }
   hronautEthereum?: unknown
   solana?: {
@@ -74,6 +77,20 @@ describe('wallet provider bootstrap', () => {
       "Error invoking remote method 'wallet-provider:request': Error: EVM RPC error (code 3, data 0x08c379a0): execution reverted"
     ))
     await expect(target.ethereum!.request({ method: 'eth_call', params: [{}] })).rejects.toMatchObject({ code: 3, data: '0x08c379a0' })
+  })
+
+  it('keeps the legacy EVM provider helpers that older dApps call', async () => {
+    installHronautWalletProviders()
+    const ethereum = target.ethereum!
+
+    expect(ethereum.isConnected?.()).toBe(true)
+    await ethereum.enable?.()
+    expect(target.__hronautWalletBridge?.request).toHaveBeenCalledWith({ family: 'evm', method: 'eth_requestAccounts' })
+    const listener = vi.fn()
+    ethereum.on('chainChanged', listener)
+    expect(ethereum.off?.('chainChanged', listener)).toBe(ethereum)
+    emitWalletEvent({ family: 'evm', event: 'chainChanged', payload: '0x1' })
+    expect(listener).not.toHaveBeenCalled()
   })
 
   it('announces an EIP-6963 provider and supports the EIP-1193 request surface', async () => {
@@ -194,8 +211,8 @@ describe('wallet provider bootstrap', () => {
     expect(atob(wallet.icon.split(',')[1])).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
     expect(wallet.features).toHaveProperty('standard:connect')
     expect(wallet.features).toHaveProperty('solana:signTransaction')
-    expect(wallet.features['solana:signTransaction'].supportedTransactionVersions).toEqual(['legacy'])
-    expect(wallet.features['solana:signAndSendTransaction'].supportedTransactionVersions).toEqual(['legacy'])
+    expect(wallet.features['solana:signTransaction'].supportedTransactionVersions).toEqual(['legacy', 0])
+    expect(wallet.features['solana:signAndSendTransaction'].supportedTransactionVersions).toEqual(['legacy', 0])
     expect(Object.isFrozen(wallet.features['solana:signTransaction'].supportedTransactionVersions)).toBe(true)
     target.__hronautWalletBridge!.request.mockResolvedValueOnce(Uint8Array.from([9, 8, 7]))
     const transaction = { serialize: vi.fn(() => Uint8Array.from([1, 2, 3])) }

@@ -28,7 +28,7 @@ function wallet(overrides: Partial<WalletDescriptor> = {}): WalletDescriptor {
   }
 }
 
-function transferTransaction(lamports = 1_500_000_000n): string {
+function transferTransaction(lamports = 1_500_000_000n, version: 'legacy' | 0 = 'legacy'): string {
   const data = new Uint8Array(12)
   data[0] = 2
   let amount = lamports
@@ -45,7 +45,7 @@ function transferTransaction(lamports = 1_500_000_000n): string {
     data
   }, setTransactionMessageLifetimeUsingBlockhash({
     blockhash: blockhash(systemProgramAddress), lastValidBlockHeight: 100n
-  }, setTransactionMessageFeePayer(address(signerAddress), createTransactionMessage({ version: 'legacy' }))))
+  }, setTransactionMessageFeePayer(address(signerAddress), createTransactionMessage({ version }))))
   return getBase64EncodedWireTransaction(compileTransaction(message))
 }
 
@@ -109,5 +109,20 @@ describe('SolanaWalletAdapter', () => {
     await expect(adapter.confirmation(wallet(), '5'.repeat(88))).resolves.toEqual({
       confirmed: true, failed: false, blockReference: '99'
     })
+  })
+
+  it('normalizes, decodes, signs and verifies version 0 transactions like legacy ones', async () => {
+    const adapter = new SolanaWalletAdapter(() => rpc())
+    const transaction = transferTransaction(1_500_000_000n, 0)
+    expect(Buffer.from(transaction, 'base64').subarray(65)[0]).toBe(0x80)
+    const normalized = await adapter.normalizeTransaction(wallet(), {
+      transaction, account: { address: signerAddress }, chain: 'solana:localnet'
+    })
+    expect(normalized.decoded).toMatchObject({ understood: true, method: 'system.transfer', nativeAmount: '1.5' })
+
+    const signed = await adapter.sign(wallet(), { format: 'mnemonic', material: Buffer.from(mnemonic) }, normalized)
+    const decoded = getTransactionDecoder().decode(Buffer.from(signed, 'base64'))
+    expect(decoded.messageBytes[0]).toBe(0x80)
+    expect(decoded.signatures[address(signerAddress)]).not.toBeNull()
   })
 })
