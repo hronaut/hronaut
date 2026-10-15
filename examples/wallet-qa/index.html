@@ -31,7 +31,7 @@
 
   <section>
     <h2>Sign-in</h2>
-    <p>Builds a Sign-In with Ethereum (EIP-4361) message for this page's origin, the first connected account, and the current chain, then asks the wallet to sign it with <code>personal_sign</code>. Connect first with <strong>Request accounts</strong>.</p>
+    <p>Builds a Sign-In with Ethereum (EIP-4361) message for this page's origin, the first connected account, and the current chain, then asks the wallet to sign it with <code>personal_sign</code> and checks with <code>personal_ecRecover</code> that the connected account signed it, as a website's sign-in backend would. Connect first with <strong>Request accounts</strong>.</p>
     <button id="sign-in">Sign in with Ethereum</button>
   </section>
 
@@ -126,6 +126,9 @@
           decimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 99 ? decimals : 'other'
         }
       }
+      if (method === 'personal_ecRecover') {
+        return { message: 'eip-4361-sign-in', signature: 'returned-signature' }
+      }
       if (method === 'personal_sign') {
         return {
           message: 'eip-4361-sign-in',
@@ -151,6 +154,7 @@
       }
       if (method === 'wallet_switchEthereumChain') return { accepted: result == null }
       if (method === 'wallet_watchAsset') return { accepted: result === true }
+      if (method === 'personal_ecRecover') return { addressReturned: typeof result === 'string' && /^0x[0-9a-f]{40}$/i.test(result) }
       if (method === 'personal_sign' || method === 'eth_signTypedData_v4') {
         return {
           signatureReturned: typeof result === 'string',
@@ -325,7 +329,13 @@
         fixtureFailure('sign-in-chain', new Error('The provider returned no usable chain ID'))
         return
       }
-      await request('personal_sign', [utf8Hex(signInMessage(origin, accounts[0], chainId)), accounts[0]])
+      const message = utf8Hex(signInMessage(origin, accounts[0], chainId))
+      const signature = await request('personal_sign', [message, accounts[0]])
+      if (typeof signature !== 'string') return
+      // Checks the signature the way a website's sign-in backend would.
+      const signer = await request('personal_ecRecover', [message, signature])
+      if (typeof signer !== 'string') return
+      log('sign-in:verified', { signerMatches: signer.toLowerCase() === accounts[0].toLowerCase() })
     })
     document.querySelector('#sign-permit').addEventListener('click', async () => {
       const accounts = await request('eth_accounts')
