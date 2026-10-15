@@ -241,6 +241,14 @@ const statusCopy = computed(() => {
     : t('wallets.status', { status, backend })
 })
 
+/** The values resetPolicyDraft clears, compared before a late save clears them. */
+function policyDraftSnapshot(): string {
+  return JSON.stringify([selectedWalletId.value, policyOrigin.value, policyDestination.value, policyContract.value, policyAnyTokenContract.value,
+    policyMethod.value, policyMaxAmount.value, policyMaxTokenAmount.value, policyMaxFee.value, policySessionLimit.value, policyDailyLimit.value,
+    policyMaximumOperations.value, policyExpiry.value, policyBypassApprove.value, policyWebsiteSignIn.value, policyMainnetWebsiteSignIn.value,
+    policyWebsiteTypedData.value, policyMainnetWebsiteTypedData.value])
+}
+
 function resetPolicyDraft(): void {
   policyOrigin.value = ''
   policyDestination.value = ''
@@ -514,7 +522,9 @@ async function addPolicy(): Promise<void> {
     ...(typedData ? { allowWebsiteTypedData: true } : {}),
     ...(typedData && selectedWalletIsMainnet.value ? { allowMainnetWebsiteTypedData: true } : {})
   }
-  if (await props.controller.setPolicy(policy)) resetPolicyDraft()
+  const submitted = policyDraftSnapshot()
+  // Keep edits made while the save was pending; clear only the draft that was saved.
+  if (await props.controller.setPolicy(policy) && policyDraftSnapshot() === submitted) resetPolicyDraft()
 }
 </script>
 
