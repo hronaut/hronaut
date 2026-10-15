@@ -2652,6 +2652,7 @@ export const plPL = {
   },
   "zoom": {
     "isolated": "Tylko ta karta",
+    "defaultFontSize": "Domyślny tekst {size}px",
     "controls": "Sterowanie powiększeniem strony",
     "heading": "Powiększenie strony",
     "outTitle": "Pomniejsz (Ctrl/Cmd+-)",

@@ -93,6 +93,7 @@ defineExpose({ close, openForTab, setZoom })
   <div v-if="open" class="zoom-bar" role="group" :aria-label="t('zoom.controls')" :aria-busy="busy">
     <span>{{ t('zoom.heading') }}</span>
     <span v-if="activeTab?.zoomIsolated" class="zoom-isolated" data-testid="zoom-isolated">{{ t('zoom.isolated') }}</span>
+    <span v-if="activeTab?.defaultFontSize" class="zoom-isolated" data-testid="zoom-default-font-size">{{ t('zoom.defaultFontSize', { size: activeTab.defaultFontSize }) }}</span>
     <UiButton appearance="application"
       type="button"
       :title="t('zoom.outTitle')"

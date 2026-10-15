@@ -53,6 +53,7 @@ import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserCssStatePreview } from './css-state-preview.js'
+import { DEFAULT_FONT_SIZE_LIMITS, isDefaultFontSize, normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, liveRegionRecordingKeepsTabAwake, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import { normalizeNetworkRouteInput } from './network-route-input.js'
@@ -633,6 +634,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   humanInteractionLocked: boolean
   tabAgentPaused: boolean
   zoomIsolated: boolean
+  /** Construction-time WebPreferences value; undefined is the browser default of 16. */
+  defaultFontSize?: number
   preserveDiagnosticLogs: boolean
   faviconDataUrl?: string
   faviconRequestId: number
@@ -1452,6 +1455,7 @@ export class BrowserTabsManager {
           humanInteractionLocked: tab.humanInteractionLocked === true,
           tabAgentPaused: tab.tabAgentPaused === true,
           zoomIsolated: tab.zoomIsolated === true,
+          defaultFontSize: tab.defaultFontSize,
           faviconDataUrl: tab.faviconDataUrl,
           mcpGroupId: isHronautHomeUrl(tab.url)
             ? undefined
@@ -2303,6 +2307,7 @@ export class BrowserTabsManager {
       humanInteractionLocked: tab.humanInteractionLocked,
       tabAgentPaused: tab.tabAgentPaused,
       zoomIsolated: tab.zoomIsolated,
+      defaultFontSize: tab.defaultFontSize,
       navigationGeneration: tab.navigationGeneration,
       navigationHistory: this.navigationHistorySnapshot(tab)
     }))
@@ -3348,6 +3353,9 @@ export class BrowserTabsManager {
       return this.openHome()
     }
     if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
+    if (options.defaultFontSize !== undefined && !isDefaultFontSize(options.defaultFontSize)) {
+      throw new Error(`defaultFontSize must be an integer from ${DEFAULT_FONT_SIZE_LIMITS.min} to ${DEFAULT_FONT_SIZE_LIMITS.max} CSS pixels`)
+    }
     const createsWorkspace = !options.mcpGroupId && this.mcpTabGroups.size === 0
     const groupId = options.mcpGroupId ?? this.ensureHumanWorkspace()
     this.requireMcpTabGroup(groupId)
@@ -3360,6 +3368,7 @@ export class BrowserTabsManager {
         mcpGroupId: groupId,
         focus: options.focus,
         zoomIsolated: options.zoomIsolated === true,
+        defaultFontSize: options.defaultFontSize,
         onCreated,
         onCreationAttempt
       })
@@ -3387,7 +3396,7 @@ export class BrowserTabsManager {
     const [closed] = this.closedTabs.splice(index, 1)
     if (!closed) return this.getState()
     try {
-      await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active: true, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true })
+      await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active: true, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize })
     } catch (error) {
       this.closedTabs.splice(index, 0, closed)
       throw error
@@ -3412,7 +3421,8 @@ export class BrowserTabsManager {
       active: true,
       navigationHistory,
       mcpGroupId: source.mcpGroupId,
-      zoomIsolated: source.zoomIsolated
+      zoomIsolated: source.zoomIsolated,
+      defaultFontSize: source.defaultFontSize
     })
     this.reorderTab(duplicate.id, source.id, 'after')
     return this.getState()
@@ -4788,7 +4798,8 @@ export class BrowserTabsManager {
       pinned: tab.pinned,
       closedAt: new Date().toISOString(),
       ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {}),
-      ...(tab.zoomIsolated ? { zoomIsolated: true } : {})
+      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
+      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {})
     })
     if (this.closedTabs.length > MAX_CLOSED_TABS) this.closedTabs.shift()
   }
@@ -8963,6 +8974,7 @@ export class BrowserTabsManager {
     humanInteractionLocked?: boolean
     tabAgentPaused?: boolean
     zoomIsolated?: boolean
+    defaultFontSize?: number
     faviconDataUrl?: string
     focus?: boolean
     navigationGeneration?: number
@@ -8984,6 +8996,7 @@ export class BrowserTabsManager {
     if (options.mcpGroupId) {
       this.assertWorkspaceNavigationAllowed(options.mcpGroupId, url, 'direct')
     }
+    const defaultFontSize = isHronautHomeUrl(url) ? undefined : normalizeDefaultFontSize(options.defaultFontSize)
     const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
     const partition = isHronautHomeUrl(url)
       ? workspacePartition(this.options.partition, 'home')
@@ -9000,7 +9013,9 @@ export class BrowserTabsManager {
         allowRunningInsecureContent: false,
         // Construction-time only: switching a live view back to shared mode can
         // write its level into the origin zoom map.
-        ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {})
+        ...(options.zoomIsolated === true && !isHronautHomeUrl(url) ? { zoomMode: 'isolated' } : {}),
+        // Also construction-time only: Electron has no API to change it on a live view.
+        ...(defaultFontSize ? { defaultFontSize } : {})
       }
     })
     try {
@@ -9038,6 +9053,7 @@ export class BrowserTabsManager {
       lastActiveAt: Date.now(),
       tabAgentPaused: options.tabAgentPaused === true,
       zoomIsolated: options.zoomIsolated === true && !isHronautHomeUrl(url),
+      ...(defaultFontSize ? { defaultFontSize } : {}),
       humanInteractionLocked: options.humanInteractionLocked === true || workspace?.contextClass === 'public-observer',
       preserveDiagnosticLogs: true,
       ...(options.faviconDataUrl ? { faviconDataUrl: options.faviconDataUrl } : {}),
@@ -10343,6 +10359,7 @@ export class BrowserTabsManager {
       videoRecording: this.videoRecorder.state(tab.id).status,
       zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
       ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
+      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
       ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
       audible: tab.audible,
       tabMuted: tab.tabMuted,
@@ -11375,6 +11392,7 @@ export class BrowserTabsManager {
           },
       zoomPercent: Math.round(tab.webContents.getZoomFactor() * 100),
       ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
+      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
       userAgentOverridden: tab.emulation.userAgent !== undefined,
       localeOverridden: tab.emulation.locale !== undefined,
       timezoneOverridden: tab.emulation.timezoneId !== undefined,
@@ -11390,7 +11408,8 @@ export class BrowserTabsManager {
       tab.emulationExtraHttpHeaders,
       bounds,
       Math.round(tab.webContents.getZoomFactor() * 100),
-      tab.zoomIsolated
+      tab.zoomIsolated,
+      tab.defaultFontSize
     )
   }
 
@@ -12243,6 +12262,7 @@ export class BrowserTabsManager {
         humanInteractionLocked: tab.humanInteractionLocked,
         tabAgentPaused: tab.tabAgentPaused,
         ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}),
+        ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
         ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
         ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
       }))

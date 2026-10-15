@@ -2652,6 +2652,7 @@ export const deDE = {
   },
   "zoom": {
     "isolated": "Nur dieser Tab",
+    "defaultFontSize": "Standardtext {size}px",
     "controls": "Steuerung des Seitenzooms",
     "heading": "Seitenzoom",
     "outTitle": "Verkleinern (Ctrl/Cmd+-)",

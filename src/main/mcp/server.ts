@@ -22,6 +22,7 @@ import type { PendingFrameObservation } from '../browser/frame-observation.js'
 import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
 import { LIVE_REGION_LIMITS } from '../../shared/live-region.js'
 import { CSS_STATE_PREVIEW_LIMITS, CSS_STATE_PREVIEW_STATES } from '../../shared/css-state-preview.js'
+import { DEFAULT_FONT_SIZE_LIMITS } from '../../shared/default-font-size.js'
 import { frameObservationResult } from './frame-observation-result.js'
 import type { ReactInspectionAuthority } from '../browser/react-inspection.js'
 import { REACT_INSPECTION_ACTIONS, type ReactInspectionCommand } from '../../shared/react-inspection.js'
@@ -3541,15 +3542,18 @@ function createBrowserMcpServer(
         url: z.string().optional(),
         label: z.string().max(MAX_TAB_LABEL_INPUT_LENGTH).refine(value => { try { normalizeTabLabel(value); return true } catch { return false } }, 'Invalid tab label').optional().describe('Optional authored task label, at most 100 Unicode code points after trim/NFC. Not verified page identity. Creation reports label persistence separately.'),
         active: z.boolean().optional().describe('Select the new tab within the agent workspace; show it only while Follow agents is enabled.'),
-        zoomIsolated: z.boolean().optional().describe('Give the new tab its own page zoom, starting at 100%, instead of sharing zoom with same-origin tabs. Set only at creation; it cannot be switched later.')
+        zoomIsolated: z.boolean().optional().describe('Give the new tab its own page zoom, starting at 100%, instead of sharing zoom with same-origin tabs. Set only at creation; it cannot be switched later.'),
+        defaultFontSize: z.number().int().min(DEFAULT_FONT_SIZE_LIMITS.min).max(DEFAULT_FONT_SIZE_LIMITS.max).optional()
+          .describe(`Browser default (standard) font size in CSS px for this tab, ${DEFAULT_FONT_SIZE_LIMITS.min}–${DEFAULT_FONT_SIZE_LIMITS.max}; the browser default is ${DEFAULT_FONT_SIZE_LIMITS.browserDefault}. Changes text sized by the browser default and em/rem media queries, unlike page zoom or OS text scale. Set only at creation; open another tab for another size.`)
       }
     },
-    tool(async ({ workspaceId, url, active, label, zoomIsolated }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean }) => {
+    tool(async ({ workspaceId, url, active, label, zoomIsolated, defaultFontSize }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean; defaultFontSize?: number }) => {
+      const construction = { ...(zoomIsolated ? { zoomIsolated: true } : {}), ...(defaultFontSize === undefined ? {} : { defaultFontSize }) }
       if (label !== undefined) {
         const creation = frameRequests.getStore()!.labeledCreation!
         const validate = creation.publication!
         validate()
-        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...(zoomIsolated ? { zoomIsolated: true } : {}) }, label, () => creation.publication!(), tabId => {
+        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, label, () => creation.publication!(), tabId => {
           const activityId = randomUUID()
           onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() })
           creation.publication = () => {
@@ -3565,7 +3569,7 @@ function createBrowserMcpServer(
         return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(creation.knownNotSaved ? { isError: true } : {}) }
       }
       const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
-      const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...(zoomIsolated ? { zoomIsolated: true } : {}) })
+      const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction })
       const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
       if (createdTab) {
         const activityId = randomUUID()

@@ -2652,6 +2652,7 @@ export const frFR = {
   },
   "zoom": {
     "isolated": "Cet onglet uniquement",
+    "defaultFontSize": "Texte par défaut {size}px",
     "controls": "Contrôles du zoom de la page",
     "heading": "Zoom de la page",
     "outTitle": "Dézoomer (Ctrl/Cmd+-)",

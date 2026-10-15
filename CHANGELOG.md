@@ -14,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 - `browser_css_state_preview` forces `:hover` and/or `:active` styling on one selected element for up to a minute, so an agent can inspect or capture a component's hover or pressed look without moving the pointer. No input events are sent and focus does not change. The address bar shows `Forced :hover` while it is active and lets the person end it, and it also ends on expiry, navigation, removal of the element, pausing the agent or opening Developer Tools. Screenshots, element inspection and visual comparison taken meanwhile are marked with `cssStatePreview` (#478).
 
+- `browser_new_tab` takes an optional `defaultFontSize` (9–72 CSS px) that sets the browser default text size for that tab only, so an agent can check a page at 24px or 32px the way a person with a larger browser font setting sees it. Text sized by the browser default and `em`/`rem` media queries follow it; authored pixel sizes do not. It survives navigation, reload, sleep, duplicating, reopening a closed tab and restart, and the zoom bar shows it (#771).
+
 ## [2.43.0] - 2026-10-15
 
 ### Added

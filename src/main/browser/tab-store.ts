@@ -1,4 +1,5 @@
 import { restoreTabLabel } from '../../shared/tab-label.js'
+import { normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { readFile, lstat } from 'node:fs/promises'
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
@@ -32,6 +33,7 @@ export interface PersistedTab {
   muted?: boolean
   tabAgentPaused?: boolean
   zoomIsolated?: true
+  defaultFontSize?: number
   humanInteractionLocked?: boolean
   faviconDataUrl?: string
   mcpGroupId?: string
@@ -545,6 +547,8 @@ export class TabStateStore {
         if (normalizedUrl !== candidate.url) repairedPersistedState = true
         const faviconDataUrl = persistedFaviconDataUrl(candidate.faviconDataUrl)
         if (candidate.faviconDataUrl !== undefined && faviconDataUrl === undefined) repairedPersistedState = true
+        const defaultFontSize = normalizeDefaultFontSize(candidate.defaultFontSize)
+        if (candidate.defaultFontSize !== undefined && defaultFontSize === undefined) repairedPersistedState = true
         const normalizedTitle = normalizedUrl !== url
           ? 'New tab'
           : normalizeTabTitle(sanitizedUrlFallbackTitle(candidate.title, candidate.url as string, normalizedUrl), normalizedUrl)
@@ -560,6 +564,7 @@ export class TabStateStore {
           humanInteractionLocked: candidate.humanInteractionLocked === true,
           ...(candidate.tabAgentPaused === true ? { tabAgentPaused: true } : {}),
           ...(candidate.zoomIsolated === true ? { zoomIsolated: true as const } : {}),
+          ...(defaultFontSize ? { defaultFontSize } : {}),
           ...(faviconDataUrl ? { faviconDataUrl } : {}),
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})
         })
