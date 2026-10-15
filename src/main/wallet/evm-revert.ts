@@ -43,7 +43,9 @@ const KNOWN_CUSTOM_ERRORS = [
   'AllowanceExpired(uint256)', 'InsufficientAllowance(uint256)', 'SignatureExpired(uint256)', 'InvalidNonce()', 'InvalidSigner()',
   // Uniswap Universal Router
   'TransactionDeadlinePassed()', 'V2TooLittleReceived()', 'V2TooMuchRequested()', 'V3TooLittleReceived()', 'V3TooMuchRequested()',
-  'V4TooLittleReceived(uint256,uint256)', 'V4TooMuchRequested(uint256,uint256)', 'ExecutionFailed(uint256,bytes)'
+  'V4TooLittleReceived(uint256,uint256)', 'V4TooMuchRequested(uint256,uint256)', 'ExecutionFailed(uint256,bytes)',
+  // CCIP-Read (EIP-3668), which Hronaut does not follow
+  'OffchainLookup(address,string[],bytes,bytes4,bytes)'
 ]
 const CUSTOM_ERROR_NAMES = new Map<string, string>(KNOWN_CUSTOM_ERRORS.map((signature) => [
   toFunctionSelector(signature),
