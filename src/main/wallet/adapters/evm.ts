@@ -9,7 +9,9 @@ import {
   isAddress,
   maxUint256,
   parseAbi,
+  RpcRequestError,
   TransactionReceiptNotFoundError,
+  type BaseError,
   toHex,
   type Address,
   type Hash,
@@ -17,7 +19,7 @@ import {
   type PublicClient
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import type { WalletDescriptor } from '../../../shared/wallet.js'
+import { EVM_READ_RPC_METHODS, type WalletDescriptor } from '../../../shared/wallet.js'
 import { deriveWalletAccount } from '../accounts.js'
 import type { WalletSecret } from '../vault.js'
 import type {
@@ -154,8 +156,22 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
 }
 
 type EvmClient = Pick<PublicClient,
-  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt'
+  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt' | 'request'
 >
+
+const MAX_READ_RPC_PARAMS = 4
+const MAX_READ_RPC_RESULT_BYTES = 4_000_000
+const MAX_READ_RPC_ERROR_DATA_CHARS = 258
+
+function readRpcError(error: unknown): Error {
+  const rpc = (error as BaseError | undefined)?.walk?.((cause) => cause instanceof RpcRequestError) as RpcRequestError | null | undefined
+  if (!(rpc instanceof RpcRequestError) || !Number.isSafeInteger(rpc.code)) return new Error('EVM RPC read request failed')
+  const data = typeof rpc.data === 'string' && /^0x[0-9a-fA-F]*$/.test(rpc.data) && rpc.data.length <= MAX_READ_RPC_ERROR_DATA_CHARS
+    ? `, data ${rpc.data}`
+    : ''
+  const detail = rpc.details.replace(/[^A-Za-z0-9_ .,:'"()/-]/g, ' ').replace(/(?:https?|wss?):\/\/\S*/gi, '').trim().slice(0, 160)
+  return new Error(`EVM RPC error (code ${rpc.code}${data}): ${detail || 'request failed'}`)
+}
 
 export class EvmWalletAdapter implements WalletChainAdapter {
   readonly family = 'evm' as const
@@ -265,6 +281,24 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       failed: receipt.status === 'reverted',
       blockReference: receipt.blockNumber.toString()
     }
+  }
+
+  async readRpc(wallet: WalletDescriptor, method: string, params: unknown): Promise<unknown> {
+    if (!(EVM_READ_RPC_METHODS as readonly string[]).includes(method)) throw new Error(`Unsupported EVM wallet method: ${method}`)
+    if (method === 'net_version') return BigInt(wallet.network.id).toString(10)
+    const values = params === undefined ? [] : params
+    if (!Array.isArray(values) || values.length > MAX_READ_RPC_PARAMS) {
+      throw new Error(`EVM RPC read request params must be an array of at most ${MAX_READ_RPC_PARAMS} values`)
+    }
+    let result: unknown
+    try {
+      result = await this.clientFor(wallet).request({ method, params: values } as never)
+    } catch (error) {
+      throw readRpcError(error)
+    }
+    const serialized = JSON.stringify(result ?? null)
+    if (serialized.length > MAX_READ_RPC_RESULT_BYTES) throw new Error('EVM RPC read response is too large')
+    return JSON.parse(serialized) as unknown
   }
 
   async balance(wallet: WalletDescriptor): Promise<string> {

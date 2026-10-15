@@ -4,6 +4,7 @@ import {
   maxUint256,
   parseAbi,
   parseTransaction,
+  RpcRequestError,
   TransactionReceiptNotFoundError,
   type Hex
 } from 'viem'
@@ -238,5 +239,39 @@ describe('EvmWalletAdapter', () => {
       format: 'mnemonic', material: wrong
     }, transaction)).rejects.toThrow('signer does not match')
     expect(wrong.every((value) => value === 0)).toBe(true)
+  })
+
+  it('forwards only allowlisted read-only JSON-RPC methods and bounds their params', async () => {
+    const client = { ...rpc(), request: vi.fn(async () => '0x1234') }
+    const adapter = new EvmWalletAdapter(() => client as never)
+
+    await expect(adapter.readRpc(wallet(), 'eth_call', [{ to: '0x0000000000000000000000000000000000000002', data: '0x' }, 'latest']))
+      .resolves.toBe('0x1234')
+    expect(client.request).toHaveBeenCalledWith({
+      method: 'eth_call', params: [{ to: '0x0000000000000000000000000000000000000002', data: '0x' }, 'latest']
+    })
+    await expect(adapter.readRpc(wallet(), 'eth_blockNumber', undefined)).resolves.toBe('0x1234')
+    expect(client.request).toHaveBeenLastCalledWith({ method: 'eth_blockNumber', params: [] })
+    await expect(adapter.readRpc(wallet(), 'net_version', undefined)).resolves.toBe('31337')
+    await expect(adapter.readRpc(wallet(), 'eth_sendRawTransaction', ['0x00'])).rejects.toThrow('Unsupported EVM wallet method')
+    await expect(adapter.readRpc(wallet(), 'eth_getLogs', [{}, {}, {}, {}, {}])).rejects.toThrow('at most 4 values')
+    await expect(adapter.readRpc(wallet(), 'eth_getLogs', { fromBlock: '0x0' })).rejects.toThrow('must be an array')
+    expect(client.request).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns node errors with code and revert data but never the RPC endpoint', async () => {
+    const revert = new RpcRequestError({
+      body: { method: 'eth_call' },
+      error: { code: 3, message: 'execution reverted: Not owner', data: '0x08c379a0' },
+      url: 'https://secret-key.rpc.example/v3/abc'
+    })
+    const client = { ...rpc(), request: vi.fn(async () => { throw revert }) }
+    const adapter = new EvmWalletAdapter(() => client as never)
+    const error = await adapter.readRpc(wallet(), 'eth_call', [{}]).then(() => new Error('resolved'), (cause: unknown) => cause as Error)
+    expect(error.message).toBe('EVM RPC error (code 3, data 0x08c379a0): execution reverted: Not owner')
+    expect(error.message).not.toContain('secret-key')
+
+    client.request.mockRejectedValueOnce(new Error('fetch failed for https://secret-key.rpc.example/v3/abc'))
+    await expect(adapter.readRpc(wallet(), 'eth_blockNumber', [])).rejects.toThrow(/^EVM RPC read request failed$/)
   })
 })

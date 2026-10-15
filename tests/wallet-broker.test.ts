@@ -899,6 +899,26 @@ describe('WalletBroker', () => {
     })
   })
 
+  it('forwards allowlisted EVM read methods on the active chain without an account permission or approval', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const readRpc = vi.fn(async (_wallet: WalletDescriptor, method: string) => method === 'eth_blockNumber' ? '0x10' : '0x0')
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, readRpc } } })
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_blockNumber' })).resolves.toBe('0x10')
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_getBalance', params: [wallet.publicAddress, 'latest']
+    })).resolves.toBe('0x0')
+    expect(readRpc).toHaveBeenNthCalledWith(1, expect.objectContaining({ id: wallet.id }), 'eth_blockNumber', undefined)
+    expect(readRpc).toHaveBeenNthCalledWith(2, expect.objectContaining({ id: wallet.id }), 'eth_getBalance', [wallet.publicAddress, 'latest'])
+    expect(broker.listPending()).toEqual([])
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_sendRawTransaction', params: ['0x00'] } as never))
+      .rejects.toThrow('Unsupported EVM wallet method: eth_sendRawTransaction')
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'debug_traceCall' } as never))
+      .rejects.toThrow('Unsupported EVM wallet method: debug_traceCall')
+    expect(readRpc).toHaveBeenCalledTimes(2)
+  })
+
   it('publishes EIP-1193 connectivity transitions for an EVM provider session', async () => {
     const { service, wallet } = await setup()
     const events = vi.fn()

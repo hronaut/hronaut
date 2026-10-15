@@ -412,10 +412,18 @@ export const WalletPublicRequestPayloadSchema = z.unknown().superRefine((value, 
 
 const WalletProviderParamsSchema = WalletPublicRequestPayloadSchema
 
+/** Read-only EVM JSON-RPC methods a page may send through the active wallet network's RPC. */
+export const EVM_READ_RPC_METHODS = [
+  'eth_blockNumber', 'eth_call', 'eth_estimateGas', 'eth_gasPrice', 'eth_maxPriorityFeePerGas', 'eth_feeHistory',
+  'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getTransactionCount', 'eth_getTransactionByHash',
+  'eth_getTransactionReceipt', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getLogs', 'net_version'
+] as const
+
 export const WALLET_PROVIDER_METHODS = {
   evm: [
     'eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain',
-    'eth_sendTransaction', 'eth_signTransaction', 'personal_sign', 'eth_signTypedData_v4', 'eth_sign'
+    'eth_sendTransaction', 'eth_signTransaction', 'personal_sign', 'eth_signTypedData_v4', 'eth_sign',
+    ...EVM_READ_RPC_METHODS
   ],
   solana: [
     'connect', 'disconnect', 'signTransaction', 'signAllTransactions', 'signAndSendTransaction', 'signMessage',

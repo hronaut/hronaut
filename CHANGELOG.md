@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- dApp pages can read chain state through Hronaut's EVM wallet provider: block number, balances, `eth_call`, gas estimates, receipts, blocks and logs are forwarded to the active wallet network's RPC, so wagmi, viem and ethers reads work without a separate RPC. Reads need no account permission and never sign; revert codes and data reach the page, the RPC URL does not.
+
 - `browser_emulate` can emulate the operating-system text-size preference (`osTextScale`, 85–200%) in one tab, for pages that opt in with the `text-scale` meta tag or `env(preferred-text-scale)`. It survives navigation, shows in the tab's emulation summary, and is cleared with `null` or `reset: true` (#715).
 
 - `browser_emulate` can override a tab's safe-area insets (`env(safe-area-inset-*)` and the max variants) for notch and home-indicator layout QA. The override stays in that tab, survives navigation, and is cleared with `null` or `reset: true` (#745).

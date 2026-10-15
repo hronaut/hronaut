@@ -16,6 +16,7 @@ import type {
   WalletUpdateInput
 } from '../../shared/wallet.js'
 import {
+  EVM_READ_RPC_METHODS,
   WALLET_PROVIDER_METHODS,
   WalletProviderRequestSchema,
   WalletUpdateInputSchema,
@@ -715,6 +716,11 @@ export class WalletBroker {
     if (method === 'eth_accounts') return this.permittedAccounts(context, activeWallets)
     const wallet = this.selectWallet(activeWallets)
     if (method === 'eth_chainId') return `0x${BigInt(wallet.network.id).toString(16)}`
+    if ((EVM_READ_RPC_METHODS as readonly string[]).includes(method)) {
+      const adapter = this.adapters.evm
+      if (!adapter.readRpc) throw new Error(`Unsupported EVM wallet method: ${method}`)
+      return adapter.readRpc(wallet, method, params)
+    }
     if (method === 'eth_requestAccounts') {
       const permitted = this.permittedAccounts(context, activeWallets)
       return permitted.length ? permitted : this.connect(context, wallet)

@@ -88,6 +88,10 @@ export function installHronautWalletProviders(): void {
     } catch (cause) {
       const incoming = cause as { code?: unknown; message?: unknown }
       const message = typeof incoming?.message === 'string' ? incoming.message : 'Wallet request failed'
+      const rpcError = /EVM RPC error \(code (-?\d{1,9})(?:, data (0x[0-9a-fA-F]*))?\)/.exec(message)
+      if (rpcError) {
+        throw Object.assign(new Error(message), { code: Number(rpcError[1]), ...(rpcError[2] ? { data: rpcError[2] } : {}) })
+      }
       const code = typeof incoming?.code === 'number' && Number.isInteger(incoming.code)
         ? incoming.code
         : /reject|denied/i.test(message)
