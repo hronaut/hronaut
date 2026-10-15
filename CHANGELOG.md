@@ -4,11 +4,13 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-## [2.42.0] - 2026-10-15
-
 ### Added
 
 - `wallet_page_requests` lets an agent that is testing a dApp see which wallet requests the page made (connect, sign message or typed data, sign or send transaction), with status and transaction hash, for the same tab and page only. It is read-only, and approval stays with a person in Hronaut.
+
+## [2.42.0] - 2026-10-15
+
+### Added
 
 - `browser_emulate` can emulate the operating-system text-size preference (`osTextScale`, 85–200%) in one tab, for pages that opt in with the `text-scale` meta tag or `env(preferred-text-scale)`. It survives navigation, shows in the tab's emulation summary, and is cleared with `null` or `reset: true` (#715).
 
