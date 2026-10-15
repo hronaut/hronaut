@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- `wallet_page_requests` lets an agent that is testing a dApp see which wallet requests the page made (connect, sign message or typed data, sign or send transaction), with status and transaction hash, for the same tab and page only. It is read-only, and approval stays with a person in Hronaut.
+
 - `browser_emulate` can emulate the operating-system text-size preference (`osTextScale`, 85–200%) in one tab, for pages that opt in with the `text-scale` meta tag or `env(preferred-text-scale)`. It survives navigation, shows in the tab's emulation summary, and is cleared with `null` or `reset: true` (#715).
 
 - `browser_emulate` can override a tab's safe-area insets (`env(safe-area-inset-*)` and the max variants) for notch and home-indicator layout QA. The override stays in that tab, survives navigation, and is cleared with `null` or `reset: true` (#745).

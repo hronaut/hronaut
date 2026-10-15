@@ -167,6 +167,7 @@ export const BROWSER_TOOL_METADATA = {
   wallet_prepare_transaction: nonDestructiveTool('Prepare a wallet transaction'),
   wallet_request: destructiveTool('Request a wallet action'),
   wallet_request_status: readOnlyTool('Read wallet request status', false),
+  wallet_page_requests: readOnlyTool('Read wallet requests made by the page', false),
   wallet_cancel_request: destructiveTool('Cancel a wallet request', false, false)
 } as const satisfies Record<string, BrowserToolMetadata>
 
@@ -318,6 +319,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'wallet_prepare_transaction', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, normalize, decode, estimate fees, and simulate a chain-specific unsigned transaction without signing or broadcasting it.' },
   { name: 'wallet_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, request transaction signing, sign-and-send, or message signing through Hronaut policy and trusted human approval. This tool cannot approve its own request.' },
   { name: 'wallet_request_status', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, read the sanitized status of a request created by this exact wallet session, workspace, tab, and current top-level page. Wallet addresses stay hidden until account permission is active.' },
+  { name: 'wallet_page_requests', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, read the sanitized wallet requests the current top-level page itself made in this tab and navigation (connect, sign message or typed data, sign or send transaction), with status and result hashes, newest 50. Use it to check what a dApp asked for and whether a human approved it. Read-only; it cannot approve or reject. Wallet addresses stay hidden until account permission is active.' },
   { name: 'wallet_cancel_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, cancel a pending request created by this exact wallet session, workspace, tab, and current top-level page.' }
 ]
 
@@ -361,6 +363,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
   'wallet_prepare_transaction',
   'wallet_request',
   'wallet_request_status',
+  'wallet_page_requests',
   'wallet_cancel_request'
 ])
 
