@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- A TRON contract call that also sends TRX now shows that TRX as its native amount in the approval dialog and counts it toward a wallet policy's native amount and spend limits. Before, a TRC-20 `transfer`, `approve` or `transferFrom` that also sent TRX showed only the token amount, and its simulation left the TRX out. A call that also sends a TRC-10 token is now treated as an unknown call that needs a person.
 - Adding a bounded wallet policy no longer erases a new draft you started typing while the previous policy was still saving. The form now clears only when it still holds the policy that was saved.
 
 ## [2.46.0] - 2026-10-15

@@ -49,6 +49,8 @@ function transfer(amount = 1_500_000): Record<string, unknown> {
 function trc20(selector: 'a9059cbb' | '095ea7b3', amount: bigint, options: {
   addressWordPrefix?: string
   suffix?: string
+  callValue?: number
+  callTokenValue?: number
 } = {}): Record<string, unknown> {
   const destinationWord = TronWeb.address.toHex(destination).slice(2).padStart(64, '0')
   const amountWord = amount.toString(16).padStart(64, '0')
@@ -60,7 +62,9 @@ function trc20(selector: 'a9059cbb' | '095ea7b3', amount: bigint, options: {
           value: {
             owner_address: TronWeb.address.toHex(owner),
             contract_address: TronWeb.address.toHex(destination),
-            data: `${selector}${options.addressWordPrefix ?? destinationWord}${amountWord}${options.suffix ?? ''}`
+            data: `${selector}${options.addressWordPrefix ?? destinationWord}${amountWord}${options.suffix ?? ''}`,
+            ...(options.callValue === undefined ? {} : { call_value: options.callValue }),
+            ...(options.callTokenValue === undefined ? {} : { call_token_value: options.callTokenValue, token_id: 1000001 })
           },
           type_url: 'type.googleapis.com/protocol.TriggerSmartContract'
         },
@@ -121,6 +125,33 @@ describe('TronWalletAdapter', () => {
     await expect(adapter.normalizeTransaction(wallet(), trc20('095ea7b3', (1n << 256n) - 1n))).resolves.toMatchObject({
       decoded: { understood: true, method: 'trc20.approve', unlimitedAllowance: true }
     })
+  })
+
+  it('shows TRX sent along with a TRC-20 call and leaves calls that also send a TRC-10 token undecoded', async () => {
+    const client = rpc()
+    const adapter = new TronWalletAdapter(() => client)
+    await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n, { callValue: 2_500_000 }))).resolves.toMatchObject({
+      decoded: { understood: true, method: 'trc20.transfer', nativeAmount: '2.5', tokenAmount: '5' }
+    })
+    const plain = await adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n, { callValue: 0 }))
+    expect(plain.decoded).not.toHaveProperty('nativeAmount')
+    await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n, { callTokenValue: 7 }))).resolves.toMatchObject({
+      decoded: { understood: false, method: 'contract-call:a9059cbb' }
+    })
+  })
+
+  it('simulates a TRC-20 call with the TRX it sends', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ result: { result: true }, energy_used: 10 })))
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const adapter = new TronWalletAdapter()
+      const normalized = await adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 5n, { callValue: 2_500_000 }))
+      await expect(adapter.simulate(wallet(), normalized)).resolves.toMatchObject({ attempted: true, success: true })
+      const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body)) as Record<string, unknown>
+      expect(body.call_value).toBe(2_500_000)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('names the TRC-20 contract and treats near-maximum approvals as unlimited', async () => {
