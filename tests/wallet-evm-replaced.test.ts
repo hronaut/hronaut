@@ -66,10 +66,13 @@ async function node(state: NodeState): Promise<{ wallet: WalletDescriptor; calls
 
 async function confirmation(state: NodeState, nonce?: string) {
   const { wallet, calls } = await node(state)
-  const result = await new EvmWalletAdapter().confirmation(wallet, HASH, nonce)
-  await new Promise<void>((resolve) => server!.close(() => resolve()))
-  server = undefined
-  return { result, methods: calls.map((call) => call.method), calls }
+  try {
+    const result = await new EvmWalletAdapter().confirmation(wallet, HASH, nonce)
+    return { result, methods: calls.map((call) => call.method), calls }
+  } finally {
+    await new Promise<void>((resolve) => server!.close(() => resolve()))
+    server = undefined
+  }
 }
 
 describe('EVM confirmation of a replaced transaction', () => {
@@ -77,18 +80,21 @@ describe('EVM confirmation of a replaced transaction', () => {
     // The account has mined nonces 0 to 9, so nonce 9 went to another transaction.
     const replaced = await confirmation({ count: '0xa' }, '9')
     expect(replaced.result).toEqual({ confirmed: false, failed: false, replaced: true })
-    expect(replaced.methods).toEqual(['eth_getTransactionReceipt', 'eth_getTransactionByHash', 'eth_getTransactionCount'])
-    expect(replaced.calls[2]!.params).toEqual([ADDRESS, 'latest'])
+    expect(replaced.methods).toEqual(['eth_getTransactionReceipt', 'eth_getTransactionCount', 'eth_getTransactionByHash'])
+    expect(replaced.calls[1]!.params).toEqual([ADDRESS, 'latest'])
   })
 
-  it('keeps a transaction pending while its nonce is free, the node holds it, or the node cannot answer', async () => {
+  it('keeps a transaction pending while its nonce is free or the node holds it, and leaves an unanswered check undecided', async () => {
     const pending = { confirmed: false, failed: false }
-    // Nonce 9 is the account's next nonce, so this transaction can still be mined.
-    expect((await confirmation({ count: '0x9' }, '9')).result).toEqual(pending)
+    // Nonce 9 is the account's next nonce, so this transaction can still be mined, and one extra read decides it.
+    const free = await confirmation({ count: '0x9' }, '9')
+    expect(free.result).toEqual(pending)
+    expect(free.methods).toEqual(['eth_getTransactionReceipt', 'eth_getTransactionCount'])
     // The node still holds it, for example a lagging backend behind the same RPC.
     expect((await confirmation({ holds: true, count: '0xa' }, '9')).result).toEqual(pending)
-    expect((await confirmation({ lookupError: -32000, count: '0xa' }, '9')).result).toEqual(pending)
-    expect((await confirmation({ count: { code: -32000 } }, '9')).result).toEqual(pending)
+    // A check the node cannot answer counts neither way, so the broker asks again.
+    await expect(confirmation({ lookupError: -32000, count: '0xa' }, '9')).rejects.toThrow()
+    await expect(confirmation({ count: { code: -32000 } }, '9')).rejects.toThrow()
 
     // Without the transaction's nonce there is nothing to compare, and no extra lookups.
     const withoutNonce = await confirmation({ count: '0xa' })

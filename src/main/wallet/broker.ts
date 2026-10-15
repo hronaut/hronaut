@@ -159,9 +159,15 @@ const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 // A batch waits for each call to be mined before preparing the next one.
 const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
 const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
-// A load-balanced node can briefly answer from a backend that lags behind, so
-// a transaction must look replaced for this long before it counts as failed.
-const EVM_REPLACED_TRANSACTION_MS = 30_000
+// A load-balanced node can briefly answer from a backend that lags behind, so a
+// transaction counts as replaced only after looking so on this many checks over
+// this long, without a longer pause between two checks (such as the computer
+// sleeping) than EVM_REPLACED_MAX_CHECK_GAP_MS.
+const EVM_REPLACED_TRANSACTION_MS = 60_000
+const EVM_REPLACED_TRANSACTION_CHECKS = 3
+const EVM_REPLACED_MAX_CHECK_GAP_MS = 30_000
+// Replaced transaction hashes kept for wallet_sendCalls batches, which Hronaut also keeps only in memory.
+const MAX_REPLACED_TRANSACTION_HASHES = 1_024
 const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
@@ -399,8 +405,10 @@ export class WalletBroker {
   private permissionExpiryCancellation: (() => void) | null = null
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationInFlight = new Set<string>()
-  /** When each submitted EVM transaction first looked replaced by another one with its nonce. */
-  private readonly replacedSince = new Map<string, number>()
+  /** Consecutive checks on which a submitted EVM transaction looked replaced by another one with its nonce. */
+  private readonly replacedChecks = new Map<string, { since: number; last: number; count: number }>()
+  /** Lowercase hashes of sent EVM transactions that failed because another transaction replaced them. */
+  private readonly replacedTransactionHashes = new Set<string>()
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
@@ -2162,7 +2170,7 @@ export class WalletBroker {
     const interval = Math.min(this.confirmationPollIntervalMs(), EVM_BATCH_CONFIRMATION_POLL_MS)
     const deadline = this.now().getTime() + EVM_BATCH_CONFIRMATION_TIMEOUT_MS
     while (this.isRequestContextActive(context) && this.now().getTime() < deadline) {
-      if (this.failedTransactionHashes().has(hash.toLowerCase())) return false
+      if (this.replacedTransactionHashes.has(hash.toLowerCase())) return false
       try {
         const confirmation = await this.adapters.evm.confirmation(wallet, hash)
         if (confirmation.failed) return false
@@ -2187,9 +2195,7 @@ export class WalletBroker {
     const receipts = await Promise.all(bundle.hashes.map(async (hash) => (
       callReceipt(await adapter.readRpc!(bundle.wallet, 'eth_getTransactionReceipt', [hash]))
     )))
-    // A sent call that never got a receipt failed only when another transaction took its nonce.
-    const failed = this.failedTransactionHashes()
-    const replaced = bundle.hashes.map((hash, index) => receipts[index] === undefined && failed.has(hash.toLowerCase()))
+    const replaced = bundle.hashes.map((hash, index) => receipts[index] === undefined && this.replacedTransactionHashes.has(hash.toLowerCase()))
     return {
       version: EVM_CALL_BUNDLE_VERSION,
       id,
@@ -2198,13 +2204,6 @@ export class WalletBroker {
       atomic: false,
       receipts: receipts.filter((receipt): receipt is EvmCallReceipt => receipt !== undefined)
     }
-  }
-
-  /** Lowercase hashes of the sent transactions that ended failed. */
-  private failedTransactionHashes(): Set<string> {
-    return new Set(this.service.approvals.list().flatMap((record) => (
-      record.status === 'failed' && record.transactionHash ? [record.transactionHash.toLowerCase()] : []
-    )))
   }
 
   /** Removes filters Hronaut no longer tracks from the node; the node expires any it misses. */
@@ -2546,14 +2545,15 @@ export class WalletBroker {
       const current = this.service.approvals.get(requestId)
       if (current?.status !== 'submitted') return
       const replaced = !confirmation.confirmed && !confirmation.failed && confirmation.replaced === true && this.replacedLongEnough(requestId)
-      if (!confirmation.replaced) this.replacedSince.delete(requestId)
+      if (!confirmation.replaced) this.replacedChecks.delete(requestId)
       if (confirmation.confirmed || confirmation.failed || replaced) {
-        this.replacedSince.delete(requestId)
+        this.replacedChecks.delete(requestId)
         const terminalStatus = confirmation.confirmed ? 'confirmed' : 'failed'
         try {
           await this.service.approvals.transition(requestId, terminalStatus, this.now())
         } finally {
           if (this.service.approvals.get(requestId)?.status === terminalStatus) {
+            if (replaced) this.rememberReplacedTransaction(record.transactionHash)
             await this.appendTransactionAudit(
               confirmation.confirmed ? 'transaction-confirmed' : 'transaction-failed',
               record,
@@ -2574,20 +2574,34 @@ export class WalletBroker {
       if (retry && this.service.approvals.get(requestId)?.status === 'submitted') {
         this.scheduleConfirmation(requestId, this.confirmationPollIntervalMs())
       } else {
-        this.replacedSince.delete(requestId)
+        this.replacedChecks.delete(requestId)
       }
     }
   }
 
-  /** Whether a submitted transaction has looked replaced for long enough to count as failed. */
+  /**
+   * Whether a submitted transaction has looked replaced on enough checks, over
+   * long enough, to count as failed. A long pause between two checks, or a
+   * clock that went back, starts the count again.
+   */
   private replacedLongEnough(requestId: string): boolean {
     const now = this.now().getTime()
-    const since = this.replacedSince.get(requestId)
-    if (since === undefined) {
-      this.replacedSince.set(requestId, now)
+    const seen = this.replacedChecks.get(requestId)
+    const maxGap = Math.max(EVM_REPLACED_MAX_CHECK_GAP_MS, 3 * this.confirmationPollIntervalMs())
+    if (!seen || now < seen.last || now - seen.last > maxGap) {
+      this.replacedChecks.set(requestId, { since: now, last: now, count: 1 })
       return false
     }
-    return now - since >= EVM_REPLACED_TRANSACTION_MS
+    seen.last = now
+    seen.count += 1
+    return seen.count >= EVM_REPLACED_TRANSACTION_CHECKS && now - seen.since >= EVM_REPLACED_TRANSACTION_MS
+  }
+
+  private rememberReplacedTransaction(hash: string): void {
+    this.replacedTransactionHashes.add(hash.toLowerCase())
+    if (this.replacedTransactionHashes.size > MAX_REPLACED_TRANSACTION_HASHES) {
+      this.replacedTransactionHashes.delete(this.replacedTransactionHashes.values().next().value!)
+    }
   }
 
   private drainConfirmationTasks(): Promise<boolean> {

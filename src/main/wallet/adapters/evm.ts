@@ -255,23 +255,22 @@ function broadcastError(error: unknown): unknown {
 }
 
 /**
- * Whether the node no longer knows this transaction while the account's mined
- * transaction count is past its nonce, so another transaction took the nonce
- * and this one can never be mined. Unanswerable checks count as not replaced.
+ * Whether another transaction from the account took this one's nonce: the
+ * account's mined transaction count is past its nonce and the node no longer
+ * holds it. The count comes first, so a transaction that is merely pending
+ * costs one extra read. A node that cannot answer throws, so the caller asks
+ * again later instead of counting the check either way.
  */
 async function nonceTakenByAnother(client: EvmClient, wallet: WalletDescriptor, hash: Hash, nonce: string | undefined): Promise<boolean> {
   if (nonce === undefined || !/^\d{1,16}$/.test(nonce) || !isAddress(wallet.publicAddress)) return false
+  const mined = await client.getTransactionCount({ address: getAddress(wallet.publicAddress), blockTag: 'latest' })
+  if (BigInt(mined) <= BigInt(nonce)) return false
   try {
     await client.getTransaction({ hash })
     return false
   } catch (error) {
-    if (!(error instanceof TransactionNotFoundError)) return false
-  }
-  try {
-    const mined = await client.getTransactionCount({ address: getAddress(wallet.publicAddress), blockTag: 'latest' })
-    return BigInt(mined) > BigInt(nonce)
-  } catch {
-    return false
+    if (error instanceof TransactionNotFoundError) return true
+    throw error
   }
 }
 

@@ -2336,7 +2336,7 @@ describe('WalletBroker', () => {
     ])))
   })
 
-  it('fails a sent transaction once another transaction has held its nonce for 30 seconds', async () => {
+  it('fails a sent transaction once another transaction has held its nonce on steady checks for a minute', async () => {
     const { service } = await setup('testnet')
     const chain = adapter()
     let currentTime = Date.now()
@@ -2352,6 +2352,10 @@ describe('WalletBroker', () => {
       const calls = confirmation.mock.calls.length
       await vi.waitFor(() => expect(confirmation.mock.calls.length).toBeGreaterThan(calls + 1))
     }
+    const advance = async (ms: number) => {
+      currentTime += ms
+      await polled()
+    }
     const status = () => broker.listPending().find((request) => request.operation === 'sign-and-send-transaction')?.status
 
     const result = broker.providerRequest(context(), {
@@ -2362,20 +2366,25 @@ describe('WalletBroker', () => {
     await polled()
     // The adapter gets the nonce the transaction was signed with.
     expect(confirmation).toHaveBeenCalledWith(expect.objectContaining({ chainFamily: 'evm' }), '0xtransaction', '7')
-    currentTime += 29_000
-    await polled()
+    await advance(29_000)
+    await advance(29_000)
     expect(status()).toBe('submitted')
 
-    // A node that holds the transaction again restarts the wait, as a lagging backend could.
+    // A node that holds the transaction again restarts the count, as a lagging backend could.
     replaced = false
     await polled()
     replaced = true
     await polled()
-    currentTime += 29_000
-    await polled()
+    await advance(30_000)
+    await advance(29_000)
     expect(status()).toBe('submitted')
 
-    currentTime += 1_000
+    // So does a pause longer than 30 seconds between two checks, such as the computer sleeping.
+    await advance(31_000)
+    expect(status()).toBe('submitted')
+    await advance(30_000)
+    expect(status()).toBe('submitted')
+    currentTime += 30_000
     await vi.waitFor(() => expect(status()).toBe('failed'))
     await vi.waitFor(async () => expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
       type: 'transaction-failed',
@@ -2384,6 +2393,26 @@ describe('WalletBroker', () => {
     const settled = confirmation.mock.calls.length
     await new Promise((resolve) => setTimeout(resolve, 30))
     expect(confirmation.mock.calls.length).toBe(settled)
+  })
+
+  it('keeps a batch whose reverted call has no receipt yet pending, rather than calling it not included', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    chain.broadcast.mockResolvedValueOnce('0xreverted')
+    const confirmation = vi.spyOn(chain, 'confirmation').mockResolvedValue({ confirmed: false, failed: true, blockReference: '1' })
+    // A lagging backend that has not indexed the receipt yet.
+    const readRpc = vi.fn(async () => null)
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, confirmation, readRpc } }, confirmationPollIntervalMs: 5 })
+    await connect(broker)
+    const batch = broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', id: 'reverted-batch', chainId: '0xaa36a7', atomicRequired: false, calls: [{ to: '0x0000000000000000000000000000000000000002' }] }]
+    })
+    await broker.approve((await broker.waitForPending((request) => request.status === 'awaiting-human')).id)
+    await expect(batch).resolves.toEqual({ id: 'reverted-batch' })
+    await vi.waitFor(() => expect(broker.listPending().find((request) => request.operation === 'sign-and-send-transaction')?.status).toBe('failed'))
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['reverted-batch'] }))
+      .resolves.toMatchObject({ status: 100, receipts: [] })
   })
 
   it('reports a batch whose call another transaction replaced as not included, without sending the rest', async () => {
@@ -2411,6 +2440,11 @@ describe('WalletBroker', () => {
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['replaced-batch'] }))
       .resolves.toMatchObject({ status: 100, receipts: [] })
 
+    // The request's own confirmation checks are the ones that pass its nonce.
+    const nonceChecks = () => confirmation.mock.calls.filter(([, , nonce]) => nonce === '7').length
+    const checks = nonceChecks()
+    currentTime += 30_000
+    await vi.waitFor(() => expect(nonceChecks()).toBeGreaterThan(checks + 1))
     currentTime += 30_000
     await expect(batch).resolves.toEqual({ id: 'replaced-batch' })
     expect(chain.broadcast).toHaveBeenCalledOnce()
@@ -2445,7 +2479,8 @@ describe('WalletBroker', () => {
       adapters: { evm: chain }, confirmationPollIntervalMs: 5
     })
 
-    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledWith(wallet, '0xsubmitted-before-restart'), { timeout: 500 })
+    // The durable record has no prepared transaction, so there is no nonce to check for a replacement.
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledWith(wallet, '0xsubmitted-before-restart', undefined), { timeout: 500 })
     expect(broker.listPending().find((entry) => entry.id === created.id)).toMatchObject({
       status: 'confirmed', transactionHash: '0xsubmitted-before-restart'
     })
