@@ -1,4 +1,6 @@
-export const MULTI_SELECT_WORLD_ID = 1021
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
+
+export const MULTI_SELECT_WORLD_ID = ISOLATED_WORLDS.multiSelect
 export const MULTI_SELECT_LIMITS = { values: 50, valueLength: 1024, totalLength: 8192, options: 1000 } as const
 
 export function normalizeSelectValues(values: unknown): string[] {

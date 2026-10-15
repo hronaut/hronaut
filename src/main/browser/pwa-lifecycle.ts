@@ -7,8 +7,9 @@ import {
 } from '../../shared/pwa-lifecycle.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
 import { redactDiagnosticText } from '../../shared/debug-report.js'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
 
-const WORLD_ID = 1019
+const WORLD_ID = ISOLATED_WORLDS.pwaLifecycle
 interface CaptureTab {
   id: string
   url: string

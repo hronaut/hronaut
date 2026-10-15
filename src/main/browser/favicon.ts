@@ -1,6 +1,7 @@
 import { nativeImage, type NativeImage, type WebContents } from 'electron'
+import { ISOLATED_WORLDS } from './isolated-worlds.js'
 
-const FAVICON_DECODER_WORLD_ID = 1100
+const FAVICON_DECODER_WORLD_ID = ISOLATED_WORLDS.faviconDecoder
 
 export async function decodeWebsiteFavicon(
   bytes: Buffer,
