@@ -475,7 +475,31 @@ export const WalletPublicRequestPayloadSchema = z.unknown().superRefine((value, 
   }
 })
 
-const WalletProviderParamsSchema = WalletPublicRequestPayloadSchema
+/**
+ * Provider params are JSON-RPC params, and in JSON a property whose value is
+ * undefined does not exist. Libraries such as viem leave such properties in
+ * place, and MetaMask's JSON transport drops them, so Hronaut drops them too.
+ * Shared and cyclic references stay shared, so the payload checks still see them.
+ */
+function withoutUndefinedProperties(value: unknown, copies = new Map<object, unknown>(), depth = 0): unknown {
+  if (value === null || typeof value !== 'object' || depth > MAX_WALLET_REQUEST_NESTING) return value
+  if (copies.has(value)) return copies.get(value)
+  const array = Array.isArray(value)
+  const prototype = Object.getPrototypeOf(value) as unknown
+  // Oversized arrays and non-plain objects are left for the payload checks to refuse or accept.
+  if (array ? value.length > MAX_WALLET_REQUEST_ARRAY_ITEMS : prototype !== Object.prototype && prototype !== null) return value
+  const copy: object = array ? new Array<unknown>(value.length) : {}
+  copies.set(value, copy)
+  for (const key of Object.keys(value)) {
+    const entry: unknown = Reflect.get(value, key)
+    // Array holes and undefined entries stay, so the payload checks still refuse them.
+    if (entry === undefined && !array) continue
+    Object.defineProperty(copy, key, { value: withoutUndefinedProperties(entry, copies, depth + 1), enumerable: true, writable: true, configurable: true })
+  }
+  return copy
+}
+
+const WalletProviderParamsSchema = z.preprocess((value) => withoutUndefinedProperties(value), WalletPublicRequestPayloadSchema)
 
 /** Read-only EVM JSON-RPC methods a page may send through the active wallet network's RPC. */
 export const EVM_READ_RPC_METHODS = [
@@ -501,6 +525,7 @@ export const WALLET_PROVIDER_METHODS = {
     'eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain',
     'eth_sendTransaction', 'eth_signTransaction', 'personal_sign', 'eth_signTypedData_v4', 'eth_sign',
     'wallet_addEthereumChain', 'wallet_getPermissions', 'wallet_requestPermissions', 'wallet_revokePermissions',
+    'wallet_getCapabilities', 'wallet_sendCalls', 'wallet_getCallsStatus',
     ...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS
   ],
   solana: [

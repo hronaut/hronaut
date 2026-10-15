@@ -29,6 +29,15 @@ import { normalizeTronProviderChainId, tronProviderChainId } from '../../shared/
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
+import {
+  callBundleError,
+  callBundleStatus,
+  callReceipt,
+  EVM_CALL_BUNDLE_VERSION,
+  EvmCallBundleStore,
+  parseSendCalls,
+  type EvmCallReceipt
+} from './evm-call-bundles.js'
 import { EvmFilterRegistry, isEvmFilterCreateMethod, isEvmFilterId, MAX_EVM_FILTERS_PER_PAGE, type EvmFilterOwner } from './evm-filters.js'
 import { solanaSignInMessage } from './solana-sign-in.js'
 import { typedDataDisplay } from './typed-data-display.js'
@@ -114,6 +123,9 @@ export interface WalletBrokerOptions {
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const MAX_AGENT_PAGE_REQUESTS = 50
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
+// A batch waits for each call to be mined before preparing the next one.
+const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
+const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
 const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
@@ -303,6 +315,7 @@ export class WalletBroker {
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
   private readonly evmFilters = new EvmFilterRegistry((owner, ids) => this.uninstallEvmFilters(owner.wallet, ids))
+  private readonly evmCallBundles = new EvmCallBundleStore()
   private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
@@ -773,6 +786,7 @@ export class WalletBroker {
   async cancelForWorkspace(workspaceId: string): Promise<void> {
     this.clearEvmProviderSessions((session) => session.workspaceId === workspaceId)
     this.evmFilters.clear((owner) => owner.workspaceId === workspaceId)
+    this.evmCallBundles.clear((owner) => owner.workspaceId === workspaceId)
     this.clearAccountProviderSessions((session) => session.workspaceId === workspaceId)
     await this.queueLifecycle(async () => {
       try {
@@ -854,6 +868,9 @@ export class WalletBroker {
       return adapter.readRpc(wallet, method, params)
     }
     if ((EVM_FILTER_RPC_METHODS as readonly string[]).includes(method)) return this.evmFilterRequest(context, wallet, method, params)
+    if (method === 'wallet_getCapabilities') return this.evmCapabilities(context, wallets, params)
+    if (method === 'wallet_sendCalls') return this.sendEvmCalls(context, activeWallets, wallet, params)
+    if (method === 'wallet_getCallsStatus') return this.evmCallsStatus(context, params)
     if (method === 'eth_requestAccounts') {
       const permitted = this.permittedAccounts(context, activeWallets)
       return permitted.length ? permitted : this.connect(context, wallet)
@@ -1889,6 +1906,115 @@ export class WalletBroker {
     const result = await adapter.readRpc(wallet, method, params)
     if (method === 'eth_uninstallFilter') this.evmFilters.remove(owner, id)
     return result
+  }
+
+  /**
+   * EIP-5792 capabilities of a permitted account on each network it is
+   * permitted on. Hronaut sends batched calls one at a time, so it reports
+   * atomic execution as unsupported.
+   */
+  private evmCapabilities(context: WalletBrokerContext, wallets: WalletDescriptor[], params: unknown): Record<string, unknown> {
+    const [address, chainIds] = paramsArray(params)
+    if (typeof address !== 'string') throw callBundleError(-32602, 'wallet_getCapabilities expects an account address')
+    const accounts = wallets.filter((entry) => (
+      entry.publicAddress.toLowerCase() === address.toLowerCase() && this.hasAddressPermission(context, entry)
+    ))
+    if (!accounts.length) throw callBundleError(4100, 'Wallet account access must be approved before reading its capabilities')
+    const requested = Array.isArray(chainIds)
+      ? new Set(chainIds.map((chainId) => typeof chainId === 'string' && /^0x[0-9a-fA-F]{1,64}$/.test(chainId) ? BigInt(chainId).toString() : ''))
+      : undefined
+    const capabilities: Record<string, unknown> = {}
+    for (const account of accounts) {
+      if (requested && !requested.has(account.network.id)) continue
+      capabilities[`0x${BigInt(account.network.id).toString(16)}`] = { atomic: { status: 'unsupported' } }
+    }
+    return capabilities
+  }
+
+  /**
+   * EIP-5792 batch calls, sent one after another as ordinary transactions:
+   * each goes through the same approval or policy as `eth_sendTransaction`.
+   * Later calls usually depend on earlier ones, such as a swap after its
+   * token approval, so each call is prepared only once the one before it is
+   * mined and succeeded, and Hronaut stops at the first call that is
+   * rejected, fails or reverts. When the first call does not go out, the
+   * request fails with that call's error.
+   */
+  private async sendEvmCalls(
+    context: WalletBrokerContext,
+    activeWallets: WalletDescriptor[],
+    wallet: WalletDescriptor,
+    params: unknown
+  ): Promise<{ id: string }> {
+    const request = parseSendCalls(params)
+    if (BigInt(request.chainId).toString() !== wallet.network.id) {
+      throw callBundleError(5710, `Chain ${request.chainId} is not this tab's active wallet network`)
+    }
+    const selected = request.from === undefined ? wallet : this.selectEvmAccount(activeWallets, request.from)
+    this.assertAddressPermission(context, selected, 'send')
+    const owner = { workspaceId: context.workspaceId, topLevelOrigin: context.topLevelOrigin }
+    const started = this.evmCallBundles.start(owner, selected, request.calls.length, request.id)
+    if (started === 'duplicate') throw callBundleError(5720, 'This site already sent a batch with this ID')
+    if (started === 'full') throw callBundleError(-32005, 'Too many wallet_sendCalls batches are still being sent')
+    try {
+      for (const [index, call] of request.calls.entries()) {
+        const hash = String(await this.transactionRequest(context, selected, {
+          from: selected.publicAddress,
+          ...(call.to === undefined ? {} : { to: call.to }),
+          ...(call.data === undefined ? {} : { data: call.data }),
+          ...(call.value === undefined ? {} : { value: call.value })
+        }, true))
+        started.bundle.hashes.push(hash)
+        if (index < request.calls.length - 1 && !await this.evmCallSucceeded(context, selected, hash)) break
+      }
+    } catch (error) {
+      if (!started.bundle.hashes.length) {
+        this.evmCallBundles.delete(owner, started.id)
+        throw error
+      }
+    } finally {
+      started.bundle.finished = true
+    }
+    return { id: started.id }
+  }
+
+  /** Waits until a batch call is mined; false when it reverted, the page left, or it was not mined in time. */
+  private async evmCallSucceeded(context: WalletBrokerContext, wallet: WalletDescriptor, hash: string): Promise<boolean> {
+    const interval = Math.min(this.confirmationPollIntervalMs(), EVM_BATCH_CONFIRMATION_POLL_MS)
+    const deadline = this.now().getTime() + EVM_BATCH_CONFIRMATION_TIMEOUT_MS
+    while (this.isRequestContextActive(context) && this.now().getTime() < deadline) {
+      try {
+        const confirmation = await this.adapters.evm.confirmation(wallet, hash)
+        if (confirmation.failed) return false
+        if (confirmation.confirmed) return true
+      } catch {
+        // A node that cannot answer yet is asked again.
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval))
+    }
+    return false
+  }
+
+  private async evmCallsStatus(context: WalletBrokerContext, params: unknown): Promise<unknown> {
+    const id = paramsArray(params)[0]
+    const bundle = this.evmCallBundles.get({ workspaceId: context.workspaceId, topLevelOrigin: context.topLevelOrigin }, id)
+    if (!bundle) throw callBundleError(5730, 'Unknown batch ID')
+    if (!this.hasAddressPermission(context, bundle.wallet)) {
+      throw callBundleError(4100, 'Wallet account access must be approved before reading this batch')
+    }
+    const adapter = this.adapters.evm
+    if (!adapter.readRpc) throw new Error('Unsupported EVM wallet method: wallet_getCallsStatus')
+    const receipts = await Promise.all(bundle.hashes.map(async (hash) => (
+      callReceipt(await adapter.readRpc!(bundle.wallet, 'eth_getTransactionReceipt', [hash]))
+    )))
+    return {
+      version: EVM_CALL_BUNDLE_VERSION,
+      id,
+      chainId: `0x${BigInt(bundle.wallet.network.id).toString(16)}`,
+      status: callBundleStatus(bundle, receipts),
+      atomic: false,
+      receipts: receipts.filter((receipt): receipt is EvmCallReceipt => receipt !== undefined)
+    }
   }
 
   /** Removes filters Hronaut no longer tracks from the node; the node expires any it misses. */

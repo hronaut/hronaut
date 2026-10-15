@@ -107,7 +107,13 @@ test('lets a dApp page read chain state through the wallet provider without a co
           balance: await settle(provider.request({ method: 'eth_getBalance', params: [${JSON.stringify(address)}, 'latest'] })),
           netVersion: await settle(provider.request({ method: 'net_version' })),
           revert: await settle(provider.request({ method: 'eth_call', params: [{ to: '0x0000000000000000000000000000000000000002', data: '0x' }, 'latest'] })),
-          raw: await settle(provider.request({ method: 'eth_sendRawTransaction', params: ['0x00'] }))
+          raw: await settle(provider.request({ method: 'eth_sendRawTransaction', params: ['0x00'] })),
+          atomicBatch: await settle(provider.request({ method: 'wallet_sendCalls', params: [{
+            version: '2.0.0', chainId: '0x7a69', atomicRequired: true,
+            calls: [{ to: '0x0000000000000000000000000000000000000002', value: '0x1' }, { to: '0x0000000000000000000000000000000000000003', value: '0x1' }]
+          }] })),
+          unknownBatch: await settle(provider.request({ method: 'wallet_getCallsStatus', params: ['0x01'] })),
+          capabilities: await settle(provider.request({ method: 'wallet_getCapabilities', params: [${JSON.stringify(address)}] }))
         };
       })()`)
     }, { pageUrl: fixtureUrl, address: prepared.publicAddress })
@@ -119,6 +125,10 @@ test('lets a dApp page read chain state through the wallet provider without a co
     expect(results.revert.message).toContain('execution reverted: Not owner')
     expect(results.revert.message).not.toContain(rpc.url)
     expect(results.raw).toMatchObject({ code: 4200 })
+    // EIP-5792 errors reach the page with their own codes.
+    expect(results.atomicBatch).toMatchObject({ code: 5760 })
+    expect(results.unknownBatch).toMatchObject({ code: 5730 })
+    expect(results.capabilities).toMatchObject({ code: 4100 })
     expect(rpc.methods).toEqual(['eth_blockNumber', 'eth_getBalance', 'eth_call'])
     expect(await appWindow.evaluate('window.hronautWallets.listRequests()')).toEqual([])
   } finally {

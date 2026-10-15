@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- dApps that batch calls with EIP-5792, such as wagmi's `useSendCalls` approving a token and then swapping it, now work in Hronaut. `wallet_sendCalls` runs the calls one at a time, in order, each as an ordinary transaction with its own approval dialog or wallet policy check, waits for each call to be mined before preparing the next, and stops at the first call that is rejected, fails, or reverts. `wallet_getCallsStatus` reports the batch's status and receipts to the site that sent it, and `wallet_getCapabilities` tells the dApp that calls are not atomic, so a dApp that requires an atomic batch gets the standard error code 5760 instead.
+
 ### Fixed
 
 - Contract event listeners in dApps built on ethers v6, such as `contract.on('Transfer', …)`, now fire in Hronaut. ethers listens through node filters, which the wallet provider rejected, so the listener retried forever without delivering events. The provider now forwards `eth_newFilter`, `eth_newBlockFilter`, `eth_getFilterChanges`, `eth_getFilterLogs` and `eth_uninstallFilter` to the active wallet network's RPC. A filter belongs to the tab and site that created it and survives the dApp's route changes, so one site cannot read or remove another's filter by guessing its ID. A tab keeps at most 32 filters per site; past that, ethers and viem fall back to polling logs.
