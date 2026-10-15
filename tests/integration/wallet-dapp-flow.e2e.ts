@@ -32,6 +32,13 @@ function startLocalChain(): Promise<LocalChain> {
     extraData: '0x', logsBloom: `0x${'0'.repeat(512)}`, size: '0x200', stateRoot: `0x${'c'.repeat(64)}`,
     receiptsRoot: `0x${'d'.repeat(64)}`, transactionsRoot: `0x${'e'.repeat(64)}`, sha3Uncles: `0x${'f'.repeat(64)}`, mixHash: `0x${'0'.repeat(64)}`
   })
+  // A swap router that reverts every call and gas estimate, as one does when the price moved.
+  const revertAtRouter = (call: { to?: string }) => {
+    if (call.to?.toLowerCase() !== REVERTING_ROUTER) return
+    throw Object.assign(new Error('execution reverted: Too little received'), {
+      code: 3, data: encodeErrorResult({ abi: parseAbi(['error Error(string)']), errorName: 'Error', args: ['Too little received'] })
+    })
+  }
   const answer = (method: string, params: unknown[]): unknown => {
     switch (method) {
       case 'eth_chainId': return '0x7a69'
@@ -41,17 +48,14 @@ function startLocalChain(): Promise<LocalChain> {
       case 'eth_getBlockByNumber': return block(16)
       case 'eth_maxPriorityFeePerGas': return '0x3b9aca00'
       case 'eth_gasPrice': return '0x77359400'
-      case 'eth_estimateGas': return '0x5208'
+      case 'eth_estimateGas':
+        revertAtRouter(params[0] as { to?: string })
+        return '0x5208'
       case 'eth_call': {
         // A 6-decimal "USDC" ERC-20 at TOKEN_ADDRESS holding 2.5 tokens for every account, which every
         // account has approved without limit for every spender.
         const call = params[0] as { to?: string; data?: string }
-        // A swap router that reverts every call, as one does when the price moved.
-        if (call.to?.toLowerCase() === REVERTING_ROUTER) {
-          throw Object.assign(new Error('execution reverted: Too little received'), {
-            code: 3, data: encodeErrorResult({ abi: parseAbi(['error Error(string)']), errorName: 'Error', args: ['Too little received'] })
-          })
-        }
+        revertAtRouter(call)
         if (call.to?.toLowerCase() !== TOKEN_ADDRESS.toLowerCase()) return '0x'
         if (call.data?.startsWith('0x70a08231')) return encodeAbiParameters([{ type: 'uint256' }], [2_500_000n])
         if (call.data?.startsWith('0xdd62ed3e')) return encodeAbiParameters([{ type: 'uint256' }], [maxUint256])
@@ -255,7 +259,7 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
       details: { simulationAttempted: true, simulationSuccess: false, simulationRevert: { kind: 'message', message: 'Too little received' } }
     })
     const swapApproval = appWindow.getByRole('alertdialog', { name: /send transaction/i })
-    await expect(swapApproval.getByTestId('wallet-approval-revert-reason')).toHaveText('“Too little received”')
+    await expect(swapApproval.getByTestId('wallet-approval-revert-reason').locator('code')).toHaveText('Too little received')
     expect(JSON.stringify(await pageRequests())).not.toContain(chain.url)
     await swapApproval.getByRole('button', { name: 'Reject' }).click()
     expect(await revertedSwap).toEqual({ code: 4001 })

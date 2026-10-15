@@ -255,6 +255,21 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
 }
 
 const HIDDEN_WALLET_ADDRESS = 'this wallet (address hidden until account permission)'
+/** Hex digits of an address that a shortened message can end with and still be hidden. */
+const MIN_HIDDEN_ADDRESS_PREFIX = 4
+
+/** A contract's revert message with an EVM wallet's address hidden, including its start where the message was cut. */
+function hideAddressInRevertMessage(message: string, truncated: boolean, publicAddress: string): string {
+  const hex = publicAddress.slice(2).toLowerCase()
+  const hidden = message.replace(new RegExp(`(?:0x)?${hex}`, 'gi'), HIDDEN_WALLET_ADDRESS)
+  const tail = truncated ? /[0-9a-fA-F]+$/.exec(hidden) : null
+  if (!tail) return hidden
+  for (let start = tail.index; start <= hidden.length - MIN_HIDDEN_ADDRESS_PREFIX; start += 1) {
+    if (!hex.startsWith(hidden.slice(start).toLowerCase())) continue
+    return `${hidden.slice(0, hidden.slice(start - 2, start).toLowerCase() === '0x' ? start - 2 : start)}${HIDDEN_WALLET_ADDRESS}`
+  }
+  return hidden
+}
 
 function agentSummary(
   record: WalletApprovalRecord,
@@ -271,8 +286,8 @@ function agentSummary(
     }
     // A contract can put the calling account in its revert message.
     if (details.simulationRevert?.kind === 'message' && /^0x[0-9a-fA-F]{40}$/.test(publicAddress)) {
-      const account = new RegExp(`(?:0x)?${publicAddress.slice(2)}`, 'gi')
-      details.simulationRevert = { ...details.simulationRevert, message: details.simulationRevert.message.replace(account, HIDDEN_WALLET_ADDRESS) }
+      const { message, truncated } = details.simulationRevert
+      details.simulationRevert = { ...details.simulationRevert, message: hideAddressInRevertMessage(message, truncated === true, publicAddress) }
     }
   }
   return {

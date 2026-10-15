@@ -91,7 +91,7 @@ export function decodeRevertData(data: Hex): WalletSimulationRevert {
   if (data.length <= MAX_REVERT_DATA_HEX_LENGTH && selector === ERROR_STRING_SELECTOR) {
     try {
       const [message] = decodeAbiParameters([{ type: 'string' }], `0x${data.slice(10)}`)
-      const readable = revealHiddenMessageCharacters(message.replace(/[\t\n\r ]+/g, ' ').trim(), WALLET_REVERT_MESSAGE_MAX_LENGTH)
+      const readable = revealHiddenMessageCharacters(message.replace(/[\t\n\r\p{Zs}]+/gu, ' ').trim(), WALLET_REVERT_MESSAGE_MAX_LENGTH)
       if (!readable.text) return { kind: 'no-reason' }
       return { kind: 'message', message: readable.text, ...(readable.truncated ? { truncated: true as const } : {}) }
     } catch {

@@ -650,6 +650,24 @@ describe('WalletBroker', () => {
     })
     expect(JSON.stringify(hidden).toLowerCase()).not.toContain(wallet.publicAddress.slice(2).toLowerCase())
 
+    // A long message cut off partway through the address hides the part that is left.
+    const padding = 'x'.repeat(170)
+    chain.simulate = vi.fn(async () => ({
+      attempted: true, success: false, error: 'execution reverted',
+      revert: { kind: 'message' as const, message: `${padding} for ${wallet.publicAddress.slice(0, 20)}`, truncated: true as const }
+    }))
+    const cutSwap = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', data: '0x23b872dd' }]
+    }))
+    const cutPending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.id !== pending.id && request.operation !== 'connect-account')
+    const cut = (broker.agentPageRequests(agent).requests as Array<{ id: string; details: Record<string, unknown> }>)
+      .find((request) => request.id === cutPending.id)!
+    expect(cut.details.simulationRevert).toEqual({
+      kind: 'message', message: `${padding} for this wallet (address hidden until account permission)`, truncated: true
+    })
+    await broker.reject(cutPending.id)
+    await expect(cutSwap).resolves.toMatchObject({ status: 'rejected' })
+
     const permission = await broker.agentBalance(agent, wallet.id)
     await broker.approve((permission.request as { id: string }).id)
     const shown = (broker.agentPageRequests(agent).requests as Array<{ id: string; details: Record<string, unknown> }>)

@@ -204,6 +204,42 @@ describe('EvmWalletAdapter', () => {
     expect(await adapter.simulate(wallet(), transaction)).not.toHaveProperty('revert')
   })
 
+  it('still prepares a transaction whose gas estimate reverts, so its simulation shows why', async () => {
+    const client = Object.assign(rpc(), { getBlock: vi.fn(async () => ({ gasLimit: 30_000_000n })) })
+    const adapter = new EvmWalletAdapter(() => client as never)
+    const reverted = (data: unknown, details = 'execution reverted') => Object.assign(new Error(`RPC https://rpc.example.invalid/?apiKey=secret: ${details}`), {
+      name: 'EstimateGasExecutionError', details,
+      cause: Object.assign(new Error(details), { name: 'ExecutionRevertedError', details, cause: Object.assign(new Error(details), { name: 'RpcRequestError', data }) })
+    })
+    const reason = encodeErrorResult({ abi: parseAbi(['error Error(string)']), errorName: 'Error', args: ['Too little received'] })
+    const prepare = client.prepareTransactionRequest.getMockImplementation()!
+    client.prepareTransactionRequest.mockImplementation(async (request) => {
+      if (request.gas === undefined) throw reverted(reason)
+      return prepare(request)
+    })
+    const swap = { to: '0x0000000000000000000000000000000000000002', data: '0x12345678' }
+
+    const transaction = await adapter.normalizeTransaction(wallet(), swap)
+    // Most of the block's gas, within the EIP-7825 per-transaction cap.
+    expect(transaction.raw.gas).toBe(16_777_216n)
+    await expect(adapter.simulate(wallet(), transaction)).resolves.toMatchObject({
+      attempted: true, success: false, revert: { kind: 'message', message: 'Too little received' }
+    })
+    expect(client.call).not.toHaveBeenCalled()
+
+    client.getBlock.mockResolvedValueOnce({ gasLimit: 8_000_000n })
+    await expect(adapter.normalizeTransaction(wallet(), swap)).resolves.toMatchObject({ raw: { gas: 7_600_000n } })
+    // A gas limit the dApp chose, or a failure that is not a revert, still fails as before.
+    client.prepareTransactionRequest.mockRejectedValueOnce(reverted(reason))
+    await expect(adapter.normalizeTransaction(wallet(), { ...swap, gas: '0x5208' })).rejects.toThrow('execution reverted')
+    client.prepareTransactionRequest.mockRejectedValueOnce(reverted(undefined, 'insufficient funds for gas * price + value'))
+    await expect(adapter.normalizeTransaction(wallet(), swap)).rejects.toThrow('insufficient funds')
+    // A transaction prepared normally is simulated against the node.
+    client.prepareTransactionRequest.mockImplementation(prepare)
+    await expect(adapter.simulate(wallet(), await adapter.normalizeTransaction(wallet(), swap))).resolves.toMatchObject({ success: true })
+    expect(client.call).toHaveBeenCalledOnce()
+  })
+
   it('reads ERC-20 token balances with decimals and a sanitized symbol', async () => {
     const client = rpc()
     const adapter = new EvmWalletAdapter(() => client as never)

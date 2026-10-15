@@ -72,6 +72,9 @@ describe('EVM revert reasons', () => {
 
   it('keeps a revert message readable and short, and shows characters that would hide what it says', () => {
     expect(decodeRevertData(errorString('Pausable:\n  paused'))).toEqual({ kind: 'message', message: 'Pausable: paused' })
+    // Wide Unicode spaces cannot push text apart to look like separate dialog lines.
+    expect(decodeRevertData(errorString(`Swap failed${'\u2003'.repeat(40)}Approved\u3000by\u00a0Hronaut`)))
+      .toEqual({ kind: 'message', message: 'Swap failed Approved by Hronaut' })
     expect(decodeRevertData(errorString('Swap‮failed'))).toEqual({ kind: 'message', message: 'Swap[U+202E]failed' })
     expect(decodeRevertData(errorString(''))).toEqual({ kind: 'no-reason' })
     const long = decodeRevertData(errorString('x'.repeat(5_000)))
