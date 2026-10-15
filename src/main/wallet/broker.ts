@@ -29,6 +29,7 @@ import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
 import { solanaSignInMessage } from './solana-sign-in.js'
+import { typedDataDisplay } from './typed-data-display.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
 import type {
@@ -346,6 +347,8 @@ export class WalletBroker {
           // The whole text is on screen, so it is not an undecodable request.
           result.details.understood = !message.truncated && !message.warnings.includes('hidden-characters')
         }
+        const typedData = pendingMessage.kind === 'typed-data' ? typedDataDisplay(pendingMessage.typedData, wallet) : undefined
+        if (typedData) result.details.typedData = typedData
       }
       return result
     })

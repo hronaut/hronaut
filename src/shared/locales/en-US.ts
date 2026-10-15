@@ -464,6 +464,26 @@ export const enUS = {
         signInOtherChain: "This sign-in message names a different chain than this wallet's network.",
         signInUnverified: 'This looks like a sign-in message but does not follow a standard Hronaut can check, so it may be for another site, account or chain.'
       },
+      typedData: {
+        heading: 'Typed data to sign',
+        type: 'Type',
+        none: 'Not given',
+        app: 'App',
+        appVersion: '{name} · version {version}',
+        chainId: 'Chain ID',
+        contract: 'Contract',
+        spender: 'Spender',
+        allowance: 'Token allowance',
+        unlimited: 'Unlimited',
+        baseUnits: '{amount} (smallest token units)',
+        unknownAmount: 'Amount not readable',
+        moreAllowances: 'More tokens are listed in the raw unsigned request.',
+        warnings: {
+          otherChain: "This signature names a different chain than this wallet's network, so it may be used on that chain.",
+          tokenPermit: 'This is a token permit. Signing it lets the spender move your tokens without another approval from you, until it expires or is used.',
+          unlimitedAmount: 'The permit allows an unlimited amount.'
+        }
+      },
       raw: 'Raw unsigned request',
       hash: 'Approval hash',
       hashPending: 'calculated on approval',

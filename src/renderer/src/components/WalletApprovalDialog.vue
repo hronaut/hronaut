@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
-import { WALLET_MESSAGE_DISPLAY_MAX_LENGTH, type WalletMessageWarning } from '../../../shared/wallet.js'
+import { WALLET_MESSAGE_DISPLAY_MAX_LENGTH, type WalletMessageWarning, type WalletTypedDataWarning } from '../../../shared/wallet.js'
 
 const props = defineProps<{
   controller: WalletsController
@@ -29,6 +29,12 @@ const messageWarningKeys: Record<WalletMessageWarning, string> = {
   'sign-in-other-account': 'signInOtherAccount',
   'sign-in-other-chain': 'signInOtherChain',
   'sign-in-unverified': 'signInUnverified'
+}
+
+const typedDataWarningKeys: Record<WalletTypedDataWarning, string> = {
+  'typed-data-other-chain': 'otherChain',
+  'token-permit': 'tokenPermit',
+  'unlimited-amount': 'unlimitedAmount'
 }
 
 function rawDetails(): string {
@@ -68,6 +74,22 @@ function rawDetails(): string {
         <p v-for="warning in request.details.message.warnings" :key="warning" class="wallet-approval-warning" role="alert">{{ t(`wallets.approval.messageWarnings.${messageWarningKeys[warning]}`) }}</p>
         <pre class="wallet-approval-message-text" role="region" tabindex="0" aria-labelledby="wallet-approval-message-title">{{ request.details.message.text }}</pre>
         <p v-if="request.details.message.truncated" class="wallet-approval-message-note">{{ t('wallets.approval.messageTruncated', { count: WALLET_MESSAGE_DISPLAY_MAX_LENGTH.toLocaleString(locale) }) }}</p>
+      </section>
+      <section v-if="request.details?.typedData" class="wallet-approval-message" aria-labelledby="wallet-approval-typed-data-title">
+        <h3 id="wallet-approval-typed-data-title">{{ t('wallets.approval.typedData.heading') }}</h3>
+        <p v-for="warning in request.details.typedData.warnings" :key="warning" class="wallet-approval-warning" role="alert">{{ t(`wallets.approval.typedData.warnings.${typedDataWarningKeys[warning]}`) }}</p>
+        <dl class="wallet-approval-grid">
+          <div><dt>{{ t('wallets.approval.typedData.type') }}</dt><dd>{{ request.details.typedData.primaryType || t('wallets.approval.typedData.none') }}</dd></div>
+          <div v-if="request.details.typedData.domain.name"><dt>{{ t('wallets.approval.typedData.app') }}</dt><dd>{{ request.details.typedData.domain.version ? t('wallets.approval.typedData.appVersion', { name: request.details.typedData.domain.name, version: request.details.typedData.domain.version }) : request.details.typedData.domain.name }}</dd></div>
+          <div v-if="request.details.typedData.domain.chainId"><dt>{{ t('wallets.approval.typedData.chainId') }}</dt><dd>{{ request.details.typedData.domain.chainId }}</dd></div>
+          <div v-if="request.details.typedData.domain.verifyingContract"><dt>{{ t('wallets.approval.typedData.contract') }}</dt><dd><code>{{ request.details.typedData.domain.verifyingContract }}</code></dd></div>
+          <div v-if="request.details.typedData.permit?.spender"><dt>{{ t('wallets.approval.typedData.spender') }}</dt><dd><code>{{ request.details.typedData.permit.spender }}</code></dd></div>
+          <div v-for="(allowance, index) in request.details.typedData.permit?.allowances ?? []" :key="index">
+            <dt>{{ t('wallets.approval.typedData.allowance') }}</dt>
+            <dd><code v-if="allowance.token">{{ allowance.token }}</code>{{ allowance.token ? ' · ' : '' }}{{ allowance.unlimited ? t('wallets.approval.typedData.unlimited') : allowance.amount ? t('wallets.approval.typedData.baseUnits', { amount: allowance.amount }) : t('wallets.approval.typedData.unknownAmount') }}</dd>
+          </div>
+        </dl>
+        <p v-if="request.details.typedData.permit?.moreAllowances" class="wallet-approval-message-note">{{ t('wallets.approval.typedData.moreAllowances') }}</p>
       </section>
       <details class="wallet-approval-raw">
         <summary>{{ t('wallets.approval.raw') }}</summary>

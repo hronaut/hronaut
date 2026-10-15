@@ -139,6 +139,49 @@ describe('message text in the trusted approval', () => {
     await settle()
   })
 
+  it('summarizes a typed-data token permit and keeps it out of what agents see', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const spender = '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD'
+    const signing = broker.providerRequest(context, {
+      family: 'evm', method: 'eth_signTypedData_v4', params: [wallet.publicAddress, JSON.stringify({
+        domain: { name: 'Permit2', chainId: 1, verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3' },
+        primaryType: 'PermitSingle',
+        types: {
+          EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }],
+          PermitSingle: [{ name: 'details', type: 'PermitDetails' }, { name: 'spender', type: 'address' }, { name: 'sigDeadline', type: 'uint256' }],
+          PermitDetails: [{ name: 'token', type: 'address' }, { name: 'amount', type: 'uint160' }, { name: 'expiration', type: 'uint48' }, { name: 'nonce', type: 'uint48' }]
+        },
+        message: { details: { token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', amount: (2n ** 160n - 1n).toString(), expiration: 0, nonce: 0 }, spender, sigDeadline: 0 }
+      })]
+    })
+    signing.catch(() => undefined)
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
+    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+
+    expect(pending.details?.typedData).toMatchObject({
+      primaryType: 'PermitSingle',
+      domain: { name: 'Permit2', chainId: '1' },
+      permit: { spender, allowances: [{ unlimited: true }] },
+      warnings: ['typed-data-other-chain', 'token-permit', 'unlimited-amount']
+    })
+    expect(pending.details?.message).toBeUndefined()
+    const agentView = JSON.stringify(broker.agentPageRequests({ ...context, requester: { type: 'agent', id: 'agent-1' } }))
+    expect(agentView).toContain('typed-data-signing')
+    expect(agentView).not.toContain(spender)
+    expect(agentView).not.toContain('typedData')
+    await broker.reject(pending.id)
+  })
+
+  it('keeps message text out of what agents see', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const { settle } = await pendingMessage(broker, wallet, siwe(wallet))
+
+    const agentView = JSON.stringify(broker.agentPageRequests({ ...context, requester: { type: 'agent', id: 'agent-1' } }))
+    expect(agentView).toContain('message-signing')
+    expect(agentView).not.toContain('wants you to sign in')
+    await settle()
+  })
+
   it('shows no text for binary messages', async () => {
     const { broker, wallet } = await connectedWallet()
     const { pending, settle } = await pendingMessage(broker, wallet, '0xff00fe')

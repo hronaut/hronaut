@@ -105,6 +105,10 @@ test('lets an opted-in local dApp connect and sign a plain-text sign-in message 
   await expect.poll(async () => (await readPageRequests()).requests.filter(({ status }) => status === 'awaiting-human').map(({ operation }) => operation))
     .toEqual(['sign-message'])
   const typed = (await readPageRequests()).requests.find(({ status }) => status === 'awaiting-human')!
+  const typedSummary = appWindow.getByRole('region', { name: 'Typed data to sign' })
+  await expect(typedSummary).toContainText('Login')
+  await expect(typedSummary).toContainText('Fixture')
+  await expect(typedSummary).toContainText('31337')
   await appWindow.evaluate(`window.hronautWallets.rejectRequest(${JSON.stringify(typed.id)})`)
   await expect.poll(() => page('window.__walletTyped')).toBe('rejected:4001')
 })

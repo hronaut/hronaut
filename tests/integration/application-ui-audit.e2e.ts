@@ -199,7 +199,7 @@ for (const theme of ['light', 'dark']) {
       id: 'ui-audit-request', walletId: 'audit-wallet', workspaceId: 'audit-workspace', status: 'awaiting-human',
       approvalHash: 'a'.repeat(64), operation: 'sign-message', requester: { type: 'website', id: 'audit-tab', name: 'Local UI fixture' },
       origin: 'https://example.test', networkId: '1', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      details: { walletName: 'UI review wallet', publicAddress: '0x0000000000000000000000000000000000000001', chainFamily: 'evm', networkName: 'Ethereum', capability: 'sign', understood: true, simulationAttempted: false, simulationSuccess: false, method: 'personal_sign', message: { text: 'Interface review only', warnings: ['sign-in-other-site'] }, raw: { messageUtf8Preview: 'Interface review only' } }
+      details: { walletName: 'UI review wallet', publicAddress: '0x0000000000000000000000000000000000000001', chainFamily: 'evm', networkName: 'Ethereum', capability: 'sign', understood: true, simulationAttempted: false, simulationSuccess: false, method: 'personal_sign', message: { text: 'Interface review only', warnings: ['sign-in-other-site'] }, typedData: { primaryType: 'PermitSingle', domain: { name: 'Permit2', chainId: '1', verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3' }, permit: { spender: '0x0000000000000000000000000000000000000003', allowances: [{ token: '0x0000000000000000000000000000000000000004', amount: '42' }] }, warnings: ['token-permit'] }, raw: { messageUtf8Preview: 'Interface review only' } }
     }
     await electronApp.evaluate(({ BrowserWindow }, request) => BrowserWindow.getAllWindows()[0]!.webContents.send('wallets:requests-changed', [request]), request)
     try {
@@ -208,7 +208,8 @@ for (const theme of ['light', 'dark']) {
       const messageText = approval.locator('.wallet-approval-message-text')
       const rawDetails = approval.locator('.wallet-approval-raw summary')
       await expect(messageText).toHaveText('Interface review only')
-      await expect(approval.getByRole('alert')).toContainText('different website')
+      await expect(approval.getByRole('alert').filter({ hasText: 'different website' })).toBeVisible()
+      await expect(approval.getByRole('region', { name: 'Typed data to sign' })).toContainText('42 (smallest token units)')
       await approval.focus()
       await appWindow.keyboard.press('Tab')
       await expect(messageText).toBeFocused()
