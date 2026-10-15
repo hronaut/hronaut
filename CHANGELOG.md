@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- An agent that asks for wallet account access again while the person is approving its first request, such as one polling `wallet_balance`, no longer opens a second **Connect account** prompt. The repeat reuses the request being approved.
 - Contract event listeners in dApps built on ethers v6, such as `contract.on('Transfer', …)`, now fire in Hronaut. ethers listens through node filters, which the wallet provider rejected, so the listener retried forever without delivering events. The provider now forwards `eth_newFilter`, `eth_newBlockFilter`, `eth_getFilterChanges`, `eth_getFilterLogs` and `eth_uninstallFilter` to the active wallet network's RPC. A filter belongs to the tab and site that created it and survives the dApp's route changes, so one site cannot read or remove another's filter by guessing its ID. A tab keeps at most 32 filters per site; past that, ethers and viem fall back to polling logs.
 
 ## [2.47.0] - 2026-10-15
