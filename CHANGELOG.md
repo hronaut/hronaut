@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `wallet_balance` reads TRC-20 token balances on TRON wallets too, with decimals and symbol, alongside ERC-20 and SPL tokens.
+
 ## [2.43.0] - 2026-10-15
 
 ### Added

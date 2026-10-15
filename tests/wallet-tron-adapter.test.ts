@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { TronWeb, utils } from 'tronweb'
+import { encodeAbiParameters, type Hex } from 'viem'
 import { TronWalletAdapter } from '../src/main/wallet/adapters/tron.js'
 import type { WalletDescriptor } from '../src/shared/wallet.js'
 
@@ -98,7 +99,12 @@ function rpc() {
     simulate: vi.fn(async () => ({ attempted: true, success: true, estimatedFeeSun: 2_000_000n, logs: ['energy_used:1000'] })),
     balance: vi.fn(async () => 2_500_000n),
     broadcast: vi.fn(async (transaction: Record<string, unknown>) => ({ result: true, txid: transaction.txID as string })),
-    transactionInfo: vi.fn(async () => ({ blockNumber: 77, receipt: { result: 'SUCCESS' } }))
+    transactionInfo: vi.fn(async () => ({ blockNumber: 77, receipt: { result: 'SUCCESS' } })),
+    constantCall: vi.fn(async (_owner: string, _contract: string, selector: string): Promise<Hex> => (
+      selector === 'balanceOf(address)' ? encodeAbiParameters([{ type: 'uint256' }], [12_345_678n])
+        : selector === 'decimals()' ? encodeAbiParameters([{ type: 'uint8' }], [6])
+          : encodeAbiParameters([{ type: 'string' }], ['USDT'])
+    ))
   }
 }
 
@@ -185,6 +191,24 @@ describe('TronWalletAdapter', () => {
     await expect(adapter.sign(wallet(), { format: 'mnemonic', material }, normalized))
       .rejects.toThrow('integrity check failed')
     expect(material.every((value) => value === 0)).toBe(true)
+  })
+
+  it('reads TRC-20 token balances with decimals and a sanitized symbol', async () => {
+    const client = rpc()
+    const adapter = new TronWalletAdapter(() => client)
+    const token = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+
+    await expect(adapter.tokenBalance(wallet(), token)).resolves.toEqual({
+      token, balance: '12.345678', rawBalance: '12345678', decimals: 6, symbol: 'USDT'
+    })
+    expect(client.constantCall).toHaveBeenCalledWith(owner, token, 'balanceOf(address)', [{ type: 'address', value: owner }])
+
+    client.constantCall.mockImplementation(async (_owner: string, _contract: string, selector: string): Promise<Hex> => {
+      if (selector === 'symbol()') throw new Error('no symbol')
+      return selector === 'balanceOf(address)' ? encodeAbiParameters([{ type: 'uint256' }], [5n]) : encodeAbiParameters([{ type: 'uint8' }], [0])
+    })
+    await expect(adapter.tokenBalance(wallet(), token)).resolves.toEqual({ token, balance: '5', rawBalance: '5', decimals: 0 })
+    await expect(adapter.tokenBalance(wallet(), '0x5FbDB2315678afecb367f032d93F642f64180aa3')).rejects.toThrow('TRC-20 contract address')
   })
 
   it('simulates, signs, broadcasts, reads balances, and confirms without retaining the secret buffer', async () => {
