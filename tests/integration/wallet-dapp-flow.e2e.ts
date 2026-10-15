@@ -210,3 +210,91 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
     chain.server.close()
   }
 })
+
+test('runs an EIP-5792 batch as one approval per call and reports its status to the dApp', async ({ capabilities, appWindow, electronApp }) => {
+  const { workspace, fixtureUrl } = capabilities
+  const chain = await startLocalChain()
+  try {
+    const vaultStatus = await appWindow.evaluate('window.hronautWallets.status()') as { managedWallets: string }
+    if (vaultStatus.managedWallets === 'passphrase-setup-required') {
+      await appWindow.evaluate(`window.hronautWallets.setupPassphrase('wallet batch flow integration passphrase')`)
+    }
+    const prepared = await appWindow.evaluate(`window.hronautWallets.prepareImport(
+      'evm',
+      'private-key',
+      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+    )`) as { token: string; publicAddress: string }
+    await appWindow.evaluate(`window.hronautWallets.confirmImport(${JSON.stringify(prepared.token)}, {
+      name: 'Batch flow wallet',
+      network: { id: '31337', name: 'Local chain', environment: 'local', rpcUrl: ${JSON.stringify(chain.url)} },
+      workspaceIds: [${JSON.stringify(workspace.workspaceId)}],
+      dedicatedAgent: false
+    })`)
+    const pageState = () => electronApp.evaluate(({ webContents }, pageUrl) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)?.executeJavaScript('window.__batchFlow')
+    ), fixtureUrl) as Promise<Record<string, unknown>>
+    const approveInHronaut = async (dialogName: RegExp) => {
+      const approval = appWindow.getByRole('alertdialog', { name: dialogName })
+      await expect(approval).toBeVisible()
+      await approval.getByRole('button', { name: 'Approve exact request' }).click()
+      await expect(approval).toBeHidden()
+    }
+
+    // Like a wagmi useSendCalls dApp: approve a token, then use it, in one request.
+    await electronApp.evaluate(async ({ webContents }, pageUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
+      if (!page) throw new Error('Batch flow fixture WebContents was not found')
+      await page.executeJavaScript(`
+        window.__batchFlow = { phase: 'connecting' };
+        (async () => {
+          const flow = window.__batchFlow;
+          try {
+            const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            flow.capabilities = await window.ethereum.request({ method: 'wallet_getCapabilities', params: [account] });
+            flow.phase = 'sending';
+            const { id } = await window.ethereum.request({ method: 'wallet_sendCalls', params: [{
+              version: '2.0.0', chainId: '0x7a69', from: account, atomicRequired: false,
+              calls: [
+                { to: '0x1000000000000000000000000000000000000001', value: '0x1' },
+                { to: '0x1000000000000000000000000000000000000002', value: '0x2' }
+              ]
+            }] });
+            flow.id = id;
+            flow.phase = 'waiting-status';
+            for (let attempt = 0; attempt < 50 && flow.status?.status !== 200; attempt += 1) {
+              flow.status = await window.ethereum.request({ method: 'wallet_getCallsStatus', params: [id] });
+              if (flow.status.status !== 200) await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+            flow.phase = 'done';
+          } catch (error) {
+            flow.phase = 'failed';
+            flow.error = { code: error?.code, message: String(error?.message) };
+          }
+        })();
+        // Return now; the flow waits for approvals in Hronaut.
+        undefined;
+      `)
+    }, fixtureUrl)
+
+    await approveInHronaut(/Connect account/i)
+    await expect.poll(async () => (await pageState()).phase).toBe('sending')
+    expect((await pageState()).capabilities).toEqual({ '0x7a69': { atomic: { status: 'unsupported' } } })
+    await approveInHronaut(/send transaction/i)
+    await expect.poll(() => chain.rawTransactions.length).toBe(1)
+    await approveInHronaut(/send transaction/i)
+
+    await expect.poll(async () => (await pageState()).phase, { timeout: 20_000 }).toBe('done')
+    const flow = await pageState()
+    expect(chain.rawTransactions.map((raw) => parseTransaction(raw)))
+      .toMatchObject([
+        { chainId: 31337, nonce: 0, to: '0x1000000000000000000000000000000000000001', value: 1n },
+        { chainId: 31337, nonce: 1, to: '0x1000000000000000000000000000000000000002', value: 2n }
+      ])
+    expect(flow.status).toMatchObject({
+      version: '2.0.0', id: flow.id, chainId: '0x7a69', status: 200, atomic: false,
+      receipts: chain.rawTransactions.map((raw) => ({ status: '0x1', transactionHash: keccak256(raw) }))
+    })
+  } finally {
+    chain.server.close()
+  }
+})

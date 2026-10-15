@@ -1100,6 +1100,91 @@ describe('WalletBroker', () => {
       .rejects.toThrow(/^EVM RPC read request failed$/)
   })
 
+  it('sends EIP-5792 batch calls one at a time through the normal approval and reports their status', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    chain.broadcast.mockResolvedValueOnce('0xfirst').mockResolvedValueOnce('0xsecond')
+    const receipts: Record<string, unknown> = {
+      '0xfirst': { status: '0x1', logs: [], blockHash: '0xb1', blockNumber: '0x10', gasUsed: '0x5208', transactionHash: '0xfirst' },
+      '0xsecond': null
+    }
+    const readRpc = vi.fn(async (_wallet: WalletDescriptor, _method: string, params: unknown) => receipts[(params as string[])[0]!] ?? null)
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, readRpc } } })
+    await connect(broker)
+    const call = { to: '0x0000000000000000000000000000000000000002', value: '0x1' }
+
+    expect(await broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCapabilities', params: [wallet.publicAddress] }))
+      .toEqual({ '0xaa36a7': { atomic: { status: 'unsupported' } } })
+    expect(await broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCapabilities', params: [wallet.publicAddress, ['0x1']] }))
+      .toEqual({})
+    await expect(broker.providerRequest(context({ topLevelOrigin: 'https://other.example' }), {
+      family: 'evm', method: 'wallet_getCapabilities', params: [wallet.publicAddress]
+    })).rejects.toThrow('EVM RPC error (code 4100)')
+
+    const sent = broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', id: 'checkout-1', chainId: '0xaa36a7', from: wallet.publicAddress, atomicRequired: false, calls: [{ ...call }, { ...call }] }]
+    })
+    // Each call is its own transaction approval, in order.
+    for (let index = 0; index < 2; index += 1) {
+      const pending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation === 'sign-and-send-transaction')
+      await broker.approve(pending.id)
+    }
+    await expect(sent).resolves.toEqual({ id: 'checkout-1' })
+    expect(chain.broadcast).toHaveBeenCalledTimes(2)
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['checkout-1'] })).resolves.toEqual({
+      version: '2.0.0', id: 'checkout-1', chainId: '0xaa36a7', status: 100, atomic: false,
+      receipts: [{ status: '0x1', logs: [], blockHash: '0xb1', blockNumber: '0x10', gasUsed: '0x5208', transactionHash: '0xfirst' }]
+    })
+    receipts['0xsecond'] = { status: '0x1', logs: [], blockHash: '0xb2', blockNumber: '0x11', gasUsed: '0x5208', transactionHash: '0xsecond' }
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['checkout-1'] }))
+      .resolves.toMatchObject({ status: 200, receipts: [{ transactionHash: '0xfirst' }, { transactionHash: '0xsecond' }] })
+    expect(readRpc).toHaveBeenCalledWith(expect.objectContaining({ id: wallet.id }), 'eth_getTransactionReceipt', ['0xsecond'])
+
+    // Another site cannot read the batch, and the same ID cannot be sent twice.
+    await expect(broker.providerRequest(context({ topLevelOrigin: 'https://other.example' }), {
+      family: 'evm', method: 'wallet_getCallsStatus', params: ['checkout-1']
+    })).rejects.toThrow('EVM RPC error (code 5730)')
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', id: 'checkout-1', chainId: '0xaa36a7', atomicRequired: false, calls: [call] }]
+    })).rejects.toThrow('EVM RPC error (code 5720)')
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: '0x1', atomicRequired: false, calls: [call] }]
+    })).rejects.toThrow('EVM RPC error (code 5710)')
+    expect(chain.broadcast).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops a batch at the first rejected call and fails it when nothing was sent', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    const readRpc = vi.fn(async () => ({ status: '0x1', logs: [], blockHash: '0xb', blockNumber: '0x1', gasUsed: '0x5208', transactionHash: '0xtransaction' }))
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, readRpc } } })
+    await connect(broker)
+    const call = { to: '0x0000000000000000000000000000000000000002', value: '0x1' }
+    const batch = (id: string) => broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls', params: [{ version: '2.0.0', id, chainId: '0xaa36a7', atomicRequired: false, calls: [{ ...call }, { ...call }, { ...call }] }]
+    })
+    const nextApproval = () => broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation === 'sign-and-send-transaction')
+
+    const rejectedFirst = settle(batch('rejected-first'))
+    await broker.reject((await nextApproval()).id)
+    expect(await rejectedFirst).toMatchObject({ status: 'rejected', reason: expect.objectContaining({ message: 'Wallet request was rejected by the user' }) })
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['rejected-first'] }))
+      .rejects.toThrow('EVM RPC error (code 5730)')
+
+    const rejectedSecond = batch('rejected-second')
+    await broker.approve((await nextApproval()).id)
+    await broker.reject((await nextApproval()).id)
+    await expect(rejectedSecond).resolves.toEqual({ id: 'rejected-second' })
+    // The third call is never offered once the second is rejected.
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    expect(chain.broadcast).toHaveBeenCalledOnce()
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['rejected-second'] }))
+      .resolves.toMatchObject({ status: 600, atomic: false, receipts: [{ transactionHash: '0xtransaction' }] })
+  })
+
   it('supports EIP-2255 account permissions and wallet_addEthereumChain only for configured networks', async () => {
     const { service, wallet } = await setup()
     const events = vi.fn()

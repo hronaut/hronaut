@@ -501,6 +501,7 @@ export const WALLET_PROVIDER_METHODS = {
     'eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain',
     'eth_sendTransaction', 'eth_signTransaction', 'personal_sign', 'eth_signTypedData_v4', 'eth_sign',
     'wallet_addEthereumChain', 'wallet_getPermissions', 'wallet_requestPermissions', 'wallet_revokePermissions',
+    'wallet_getCapabilities', 'wallet_sendCalls', 'wallet_getCallsStatus',
     ...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS
   ],
   solana: [
