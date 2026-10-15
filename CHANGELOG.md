@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- A `browser_click` result now lists the tabs the clicked page opened while the click ran, through a `target="_blank"` link or `window.open`, under `tabsOpenedDuringClick`, so an agent can go straight to a popup instead of rescanning its tabs. It lists up to five tabs still open in the same workspace and counts further, closed, blocked and failed requests. A page timer that opens a tab during the click is listed too, and a popup that opens after the click returns is not. Clicks that open nothing return the same result as before.
+
 ## [2.46.0] - 2026-10-15
 
 ### Added

@@ -395,8 +395,19 @@ import {
   workspacePartition
 } from './workspace-storage.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
+import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
+type BrowserClickTarget = {
+  tabId?: string
+  ref?: string
+  selector?: string
+  x?: number
+  y?: number
+  doubleClick?: boolean
+  native?: boolean
+  button?: 'left' | 'right'
+} & BrowserDialogHandlingOptions
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = 50
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
@@ -6120,16 +6131,22 @@ export class BrowserTabsManager {
     })
   }
 
-  async click(target: {
-    tabId?: string
-    ref?: string
-    selector?: string
-    x?: number
-    y?: number
-    doubleClick?: boolean
-    native?: boolean
-    button?: 'left' | 'right'
-  } & BrowserDialogHandlingOptions, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void): Promise<unknown> {
+  async click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void): Promise<unknown> {
+    let observed: { tab: BrowserTab; observation: OpenedTabObservation } | undefined
+    try {
+      const result = await this.dispatchClick(target, validateClick, recordClickProgress, retainClickAuthority, (tab) => {
+        observed = { tab, observation: this.observeOpenedTabs(tab) }
+      })
+      const current = observed
+      observed = undefined
+      const opened = current && this.stopObservingOpenedTabs(current.tab, current.observation)
+      return opened && result && typeof result === 'object' ? { ...result, tabsOpenedDuringClick: opened } : result
+    } finally {
+      if (observed) this.stopObservingOpenedTabs(observed.tab, observed.observation)
+    }
+  }
+
+  private async dispatchClick(target: BrowserClickTarget, validateClick: ((validateContext: () => void) => void) | undefined, recordClickProgress: ((progress: NativeClickProgress) => void) | undefined, retainClickAuthority: ((authority: { validate(): void; dispose(): void }) => void) | undefined, observeTab: (tab: BrowserTab) => void): Promise<unknown> {
     const rightClick = target.button === 'right'
     if (rightClick) {
       assertRightClickPlatform(process.platform)
@@ -6138,6 +6155,7 @@ export class BrowserTabsManager {
     }
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
+    observeTab(tab)
     const webContents = tab.webContents
     const dialogAction = target.dialogAction
     if (target.promptText !== undefined && dialogAction !== 'accept') {
@@ -9856,25 +9874,34 @@ export class BrowserTabsManager {
       this.changed(false)
     })
     webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
-      if (tab.mcpGroupId && isHronautHomeUrl(url)) return { action: 'deny' }
+      const observations = [...(this.openedTabObservations.get(tab) ?? [])]
+      const blocked = (): { action: 'deny' } => {
+        for (const observation of observations) observation.blockedRequest()
+        return { action: 'deny' }
+      }
+      if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()
       if (tab.mcpGroupId
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, url, 'popup')) return { action: 'deny' }
+        && !this.workspaceNavigationAllowed(tab.mcpGroupId, url, 'popup')) return blocked()
       let loadOptions: LoadURLOptions | undefined
       try {
         loadOptions = interceptedWindowLoadOptions(postBody, referrer)
       } catch (error) {
         console.error(`[browser] Could not preserve the requested page navigation to ${url}:`, error)
         this.options.onActionFailed?.('open page in new tab', error)
+        for (const observation of observations) observation.failedRequest()
         return { action: 'deny' }
       }
+      const creations = observations.map(observation => observation.creationStarted())
       void this.createTab({
         url,
         active: disposition !== 'background-tab',
         selectVisible: !this.agentInputWebContents.has(webContents.id) || this.followAgentActivity,
         mcpGroupId: tab.mcpGroupId,
-        loadOptions
+        loadOptions,
+        onCreated: (created) => { for (const creation of creations) creation.created(created.id) }
       })
         .catch((error) => {
+          for (const creation of creations) creation.failed()
           console.error(`[browser] Could not open requested page ${url}:`, error)
           this.options.onActionFailed?.('open page in new tab', error)
         })
@@ -11014,6 +11041,28 @@ export class BrowserTabsManager {
   }
 
   private readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
+  private readonly openedTabObservations = new Map<BrowserTab, Set<OpenedTabObservation>>()
+
+  private observeOpenedTabs(tab: BrowserTab): OpenedTabObservation {
+    const observation = new OpenedTabObservation()
+    const observations = this.openedTabObservations.get(tab) ?? new Set()
+    observations.add(observation)
+    this.openedTabObservations.set(tab, observations)
+    return observation
+  }
+
+  /** Publishes only tabs that are still open in the source tab's current workspace. */
+  private stopObservingOpenedTabs(tab: BrowserTab, observation: OpenedTabObservation): TabsOpenedDuringClick | undefined {
+    const observations = this.openedTabObservations.get(tab)
+    observations?.delete(observation)
+    if (observations?.size === 0) this.openedTabObservations.delete(tab)
+    const sourceCurrent = this.tabs.get(tab.id) === tab
+    const report = observation.stop((tabId) => {
+      const opened = this.tabs.get(tabId)
+      return sourceCurrent && opened !== undefined && opened.mcpGroupId === tab.mcpGroupId
+    })
+    return sourceCurrent ? report : undefined
+  }
 
   private async withAgentInput<T>(
     webContents: BrowserTab['view']['webContents'],
