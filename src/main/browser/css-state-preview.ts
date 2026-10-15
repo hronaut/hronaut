@@ -38,7 +38,6 @@ interface PreviewRecord {
   expiresAt: number
   nodeId: number
   webContents: WebContents
-  observationGeneration: number
   resetUncertain: boolean
   timer?: ReturnType<typeof setTimeout>
   listener: (event: Electron.Event, method: string) => void
@@ -47,14 +46,19 @@ interface PreviewRecord {
 
 const SPECIAL_ELEMENTS = new Set(['html', 'head', 'body'])
 const UNBOUND_NODE = /could not find node|no node with given id/i
+// Disabling the CSS agent resets every forced state it held, so an already disabled agent holds none.
+const CSS_AGENT_DISABLED = /css agent was not enabled/i
 
 /**
- * Owns at most one forced :hover/:active preview per tab. The override lives in Hronaut's own
- * DevTools session, so ending the session, unbinding the node or replacing the document drops it.
+ * Owns at most one forced :hover/:active preview per tab. The override lives in the CSS agent of
+ * Hronaut's own DevTools session: CSS.disable or ending the session drops it. Unbinding DOM nodes
+ * (DOM.disable, a new DOM.getDocument) does not, so an unknown node is never proof of a clean reset.
  */
 export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
   private readonly records = new Map<T, PreviewRecord>()
   private readonly lastEnded = new Map<T, { reason: CssStatePreviewEndReason; endedAt: string; clean: boolean }>()
+  /** Counts end requests, so a start still in flight never outlives a pause, reset or other end. */
+  private readonly cancellations = new Map<T, number>()
 
   constructor(private readonly host: CssStatePreviewHost<T>) {}
 
@@ -100,7 +104,13 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
     const navigationGeneration = tab.navigationGeneration
     const observationGeneration = tab.observationGeneration
     const webContents = tab.webContents
+    const cancellation = this.cancellations.get(tab) ?? 0
+    // Checked after every command and right before the preview is recorded, so a later pause,
+    // reset, navigation or conflicting recording always wins over this start.
     const assertCurrent = (): void => {
+      if ((this.cancellations.get(tab) ?? 0) !== cancellation) {
+        throw new Error('The CSS state preview was ended while it was starting: the agent was paused, the person reset it or the tab changed. This request forced nothing.')
+      }
       if (!this.host.isCurrent(tab)
         || tab.webContents !== webContents
         || webContents.isDestroyed()
@@ -108,11 +118,11 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
         || tab.observationGeneration !== observationGeneration) {
         throw new Error('The page changed while starting the CSS state preview. Try again on the current page.')
       }
+      const blocked = this.host.conflict(tab)
+      if (blocked) throw new Error(blocked)
     }
     await this.host.withDebugger(tab, async () => {
       assertCurrent()
-      const blocked = this.host.conflict(tab)
-      if (blocked) throw new Error(blocked)
       const previous = this.records.get(tab)
       if (previous) await this.removeForcedState(tab, previous, 'replaced')
       if (previous && this.records.get(tab) === previous) {
@@ -125,6 +135,7 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
       }
       let started = false
       try {
+        assertCurrent()
         await send('DOM.enable')
         await send('CSS.enable')
         const document = await send<{ root: { nodeId: number } }>('DOM.getDocument', { depth: 0, pierce: false })
@@ -160,14 +171,13 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
           expiresAt: startedAt + durationMs,
           nodeId,
           webContents,
-          observationGeneration,
           resetUncertain: false,
           verifying: false,
           listener: (_event, method) => {
             if (method === 'DOM.childNodeRemoved' || method === 'DOM.documentUpdated') this.scheduleVerify(tab, record)
           }
         }
-        record.timer = setTimeout(() => { void this.clear(tab, 'expired').catch(() => undefined) }, durationMs)
+        record.timer = setTimeout(() => { void this.endRecord(tab, record, 'expired').catch(() => undefined) }, durationMs)
         webContents.debugger.on('message', record.listener)
         this.records.set(tab, record)
         this.lastEnded.delete(tab)
@@ -183,10 +193,35 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
     })
   }
 
-  /** Removes the override for an explicit reason. Safe to call from lifecycle hooks; never throws for a missing preview. */
+  /**
+   * Ends the preview and any start still in flight for an explicit reason. Safe to call from
+   * lifecycle hooks; never throws for a missing preview.
+   */
   async clear(tab: T, reason: CssStatePreviewEndReason): Promise<void> {
+    this.cancel(tab)
     const record = this.records.get(tab)
-    if (!record) return
+    if (record) await this.endRecord(tab, record, reason)
+  }
+
+  /** The DevTools session ended, which drops every override it held. */
+  debuggerDetached(tab: T): void {
+    this.cancel(tab)
+    const record = this.records.get(tab)
+    if (record) this.end(tab, record, 'debugger-detached', true)
+  }
+
+  forget(tab: T): void {
+    this.cancel(tab)
+    const record = this.records.get(tab)
+    if (record) this.end(tab, record, 'tab-closed', true)
+    this.lastEnded.delete(tab)
+  }
+
+  private cancel(tab: T): void {
+    this.cancellations.set(tab, (this.cancellations.get(tab) ?? 0) + 1)
+  }
+
+  private async endRecord(tab: T, record: PreviewRecord, reason: CssStatePreviewEndReason): Promise<void> {
     if (record.timer) clearTimeout(record.timer)
     record.timer = undefined
     if (record.webContents.isDestroyed() || !record.webContents.debugger.isAttached()) {
@@ -196,18 +231,6 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
     await this.host.inDebuggerQueue(tab, () => this.removeForcedState(tab, record, reason))
   }
 
-  /** The DevTools session ended, which drops every override it held. */
-  debuggerDetached(tab: T): void {
-    const record = this.records.get(tab)
-    if (record) this.end(tab, record, 'debugger-detached', true)
-  }
-
-  forget(tab: T): void {
-    const record = this.records.get(tab)
-    if (record) this.end(tab, record, 'tab-closed', true)
-    this.lastEnded.delete(tab)
-  }
-
   private async removeForcedState(tab: T, record: PreviewRecord, reason: CssStatePreviewEndReason): Promise<void> {
     if (this.records.get(tab) !== record) return
     const contents = record.webContents
@@ -215,22 +238,16 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
       this.end(tab, record, reason, true)
       return
     }
-    let clean = false
-    try {
-      await contents.debugger.sendCommand('CSS.forcePseudoState', { nodeId: record.nodeId, forcedPseudoClasses: [] })
-      clean = true
-    } catch (error) {
-      // Chromium drops an override when it unbinds the node, so an unknown node is already clean.
-      if (UNBOUND_NODE.test(String(error))) clean = true
-    }
-    if (!clean && !this.host.keepDomEnabled(tab)) {
-      // Disabling the DOM domain unbinds every node in this session and drops every override.
-      clean = await contents.debugger.sendCommand('DOM.disable').then(() => true, () => false)
-    }
-    if (clean && !contents.isDestroyed() && contents.debugger.isAttached()) {
-      await contents.debugger.sendCommand('CSS.disable').catch(() => undefined)
-      if (!this.host.keepDomEnabled(tab)) await contents.debugger.sendCommand('DOM.disable').catch(() => undefined)
-    }
+    // A bound node with an empty state is clean; an unbound node may still carry the override.
+    const targeted = await contents.debugger.sendCommand('CSS.forcePseudoState', { nodeId: record.nodeId, forcedPseudoClasses: [] })
+      .then(() => true, () => false)
+    // Nothing else keeps the CSS agent enabled while a preview is active, so disabling it is safe
+    // and resets every forced state in this session.
+    const disabled = await contents.debugger.sendCommand('CSS.disable')
+      .then(() => true, (error: unknown) => CSS_AGENT_DISABLED.test(String(error)))
+    const detached = contents.isDestroyed() || !contents.debugger.isAttached()
+    const clean = targeted || disabled || detached
+    if (clean && !detached && !this.host.keepDomEnabled(tab)) await contents.debugger.sendCommand('DOM.disable').catch(() => undefined)
     this.end(tab, record, reason, clean)
   }
 
@@ -275,10 +292,8 @@ export class BrowserCssStatePreview<T extends CssStatePreviewTab> {
     try {
       await contents.debugger.sendCommand('DOM.describeNode', { nodeId: record.nodeId, depth: 0, pierce: false })
     } catch (error) {
-      if (UNBOUND_NODE.test(String(error))) {
-        if (record.timer) clearTimeout(record.timer)
-        this.end(tab, record, 'target-removed', true)
-      }
+      // Removed from the page or replaced with the document. Still reset the CSS agent before calling it clean.
+      if (UNBOUND_NODE.test(String(error))) await this.removeForcedState(tab, record, 'target-removed')
     }
   }
 

@@ -6,6 +6,12 @@ import { CSS_STATE_PREVIEW_LIMITS, normalizeCssStatePreviewStates } from '../src
 
 type Handler = (params: Record<string, unknown> | undefined) => unknown
 
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>(done => { resolve = done })
+  return { promise, resolve }
+}
+
 function fixture(options: { keepDomEnabled?: boolean } = {}) {
   const events = new EventEmitter()
   const handlers: Record<string, Handler> = {
@@ -151,32 +157,46 @@ describe('forced CSS state preview', () => {
     expect(f.events.listenerCount('message')).toBe(0)
   })
 
-  it('treats a node Chromium already unbound as clean', async () => {
+  it('resets the CSS agent when the node is already unbound, because unbinding alone keeps the override', async () => {
     const f = fixture()
     await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
     f.handlers['CSS.forcePseudoState'] = () => { throw new Error('Could not find node with given id') }
-    expect(await f.preview.manage(f.tab, 'clear')).toMatchObject({ status: 'inactive', lastEnded: { clean: true } })
-  })
-
-  it('falls back to disabling the DOM domain, which drops every override in the session', async () => {
-    const f = fixture()
-    await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
-    f.handlers['CSS.forcePseudoState'] = () => { throw new Error('Target busy') }
     f.sendCommand.mockClear()
     expect(await f.preview.manage(f.tab, 'clear')).toMatchObject({ status: 'inactive', lastEnded: { clean: true } })
-    expect(f.methods()).toEqual(['CSS.forcePseudoState', 'DOM.disable', 'CSS.disable', 'DOM.disable'])
+    expect(f.methods()).toEqual(['CSS.forcePseudoState', 'CSS.disable', 'DOM.disable'])
+  })
+
+  it('never reports an unbound node as clean when the CSS agent cannot be reset', async () => {
+    const f = fixture()
+    await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
+    f.handlers['CSS.forcePseudoState'] = () => { throw new Error('Could not find node with given id') }
+    f.handlers['CSS.disable'] = () => { throw new Error('Target busy') }
+    expect(await f.preview.manage(f.tab, 'clear')).toMatchObject({ status: 'reset-uncertain', lastEnded: { clean: false } })
+    expect(f.methods()).not.toContain('DOM.disable')
+  })
+
+  it('treats a CSS agent that is already disabled as holding no forced state', async () => {
+    const f = fixture({ keepDomEnabled: true })
+    await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
+    f.handlers['CSS.forcePseudoState'] = () => { throw new Error('Target busy') }
+    f.handlers['CSS.disable'] = () => { throw new Error('CSS agent was not enabled') }
+    f.sendCommand.mockClear()
+    expect(await f.preview.manage(f.tab, 'clear')).toMatchObject({ status: 'inactive', lastEnded: { clean: true } })
+    expect(f.methods()).toEqual(['CSS.forcePseudoState', 'CSS.disable'])
   })
 
   it('keeps an unconfirmed removal visible and retries it on the next clear', async () => {
-    const f = fixture({ keepDomEnabled: true })
+    const f = fixture()
     await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['active'] })
     f.handlers['CSS.forcePseudoState'] = () => { throw new Error('Target busy') }
+    f.handlers['CSS.disable'] = () => { throw new Error('Target busy') }
     const uncertain = await f.preview.manage(f.tab, 'clear')
     expect(uncertain).toMatchObject({ status: 'reset-uncertain', preview: { resetUncertain: true }, lastEnded: { reason: 'cleared', clean: false } })
     expect(f.preview.summary(f.tab)).toMatchObject({ states: ['active'], selector: '#card', resetUncertain: true })
     await expect(f.preview.manage(f.tab, 'set', { selector: '#other', states: ['hover'] })).rejects.toThrow('could not be removed')
 
     delete f.handlers['CSS.forcePseudoState']
+    delete f.handlers['CSS.disable']
     await f.preview.clear(f.tab, 'human-reset')
     expect(f.preview.summary(f.tab)).toBeUndefined()
     expect(await f.preview.manage(f.tab, 'get')).toMatchObject({ status: 'inactive', lastEnded: { reason: 'human-reset', clean: true } })
@@ -216,6 +236,7 @@ describe('forced CSS state preview', () => {
     f.events.emit('message', {}, 'DOM.childNodeRemoved', { parentNodeId: 1, nodeId: 43 })
     await vi.waitFor(() => expect(f.preview.active(f.tab)).toBe(false))
     expect(f.methods().filter(method => method === 'DOM.describeNode')).toHaveLength(2)
+    expect(f.methods().slice(-3)).toEqual(['CSS.forcePseudoState', 'CSS.disable', 'DOM.disable'])
     expect(await f.preview.manage(f.tab, 'get')).toMatchObject({ status: 'inactive', lastEnded: { reason: 'target-removed', clean: true } })
     expect(f.events.listenerCount('message')).toBe(0)
   })
@@ -245,6 +266,76 @@ describe('forced CSS state preview', () => {
     f.preview.forget(f.tab)
     expect(f.preview.active(f.tab)).toBe(false)
     expect((await f.preview.manage(f.tab, 'get')).lastEnded).toBeUndefined()
+  })
+
+  it('cancels a start that is still in flight when the agent is paused', async () => {
+    const f = fixture()
+    const enabling = deferred()
+    f.handlers['CSS.enable'] = () => enabling.promise
+    const starting = f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
+    await vi.waitFor(() => expect(f.methods()).toContain('CSS.enable'))
+    await f.preview.clear(f.tab, 'agent-paused')
+    enabling.resolve()
+    await expect(starting).rejects.toThrow('ended while it was starting')
+    expect(f.forced()).toEqual([])
+    expect(f.methods().slice(-2)).toEqual(['CSS.disable', 'DOM.disable'])
+    expect((await f.preview.manage(f.tab, 'get')).status).toBe('inactive')
+    expect(f.events.listenerCount('message')).toBe(0)
+  })
+
+  it('rolls back an override applied just before the person reset it', async () => {
+    const f = fixture()
+    const forcing = deferred()
+    f.handlers['CSS.forcePseudoState'] = (params) => (params?.forcedPseudoClasses as string[]).length ? forcing.promise : {}
+    const starting = f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
+    await vi.waitFor(() => expect(f.forced()).toHaveLength(1))
+    await f.preview.clear(f.tab, 'human-reset')
+    forcing.resolve()
+    await expect(starting).rejects.toThrow('ended while it was starting')
+    expect(f.forced()).toEqual([
+      { nodeId: 42, forcedPseudoClasses: ['hover'] },
+      { nodeId: 42, forcedPseudoClasses: [] }
+    ])
+    expect(f.methods().at(-2)).toBe('CSS.disable')
+    expect(f.preview.active(f.tab)).toBe(false)
+  })
+
+  it('lets a reset requested during a queued replacement end the preview instead of the replacement', async () => {
+    const f = fixture()
+    await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
+    const busy = deferred()
+    const blocker = f.host.inDebuggerQueue(f.tab, () => busy.promise)
+    f.handlers['DOM.querySelectorAll'] = () => ({ nodeIds: [77] })
+    const replacing = f.preview.manage(f.tab, 'set', { selector: '#press', states: ['active'] })
+    const reset = f.preview.clear(f.tab, 'human-reset')
+    busy.resolve()
+    await blocker
+    await expect(replacing).rejects.toThrow('ended while it was starting')
+    await reset
+    expect(f.forced()).toEqual([
+      { nodeId: 42, forcedPseudoClasses: ['hover'] },
+      { nodeId: 42, forcedPseudoClasses: [] }
+    ])
+    expect(await f.preview.manage(f.tab, 'get')).toMatchObject({ status: 'inactive', lastEnded: { reason: 'human-reset', clean: true } })
+  })
+
+  it('gives way to code coverage that starts while the preview is starting', async () => {
+    const f = fixture()
+    const enabling = deferred()
+    f.handlers['DOM.enable'] = () => enabling.promise
+    const starting = f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })
+    await vi.waitFor(() => expect(f.methods()).toContain('DOM.enable'))
+    f.host.conflict.mockReturnValue('Stop code coverage before previewing CSS states')
+    enabling.resolve()
+    await expect(starting).rejects.toThrow('Stop code coverage')
+    expect(f.forced()).toEqual([])
+    expect(f.preview.active(f.tab)).toBe(false)
+  })
+
+  it('does not let a start that began after an earlier pause be cancelled by it', async () => {
+    const f = fixture()
+    await f.preview.clear(f.tab, 'agent-paused')
+    expect((await f.preview.manage(f.tab, 'set', { selector: '#card', states: ['hover'] })).status).toBe('active')
   })
 
   it('ignores lifecycle clears when nothing is forced', async () => {
