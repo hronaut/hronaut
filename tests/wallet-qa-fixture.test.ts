@@ -273,12 +273,13 @@ const importedWallet: WalletDescriptor = {
   updatedAt: '2026-10-15T12:00:00.000Z'
 }
 
-// A stub provider on Anvil's chain that signs messages and typed data.
-function signer(accounts: string[], chainId = '0x7a69') {
+// A stub provider on Anvil's chain that signs messages and typed data, and recovers `recovered` as their signer.
+function signer(accounts: string[], chainId = '0x7a69', recovered = accounts[0]) {
   return vi.fn(async ({ method }: { method: string; params?: unknown[] }) => {
     if (method === 'eth_accounts') return accounts
     if (method === 'eth_chainId') return chainId
     if (method === 'personal_sign' || method === 'eth_signTypedData_v4') return signature
+    if (method === 'personal_ecRecover') return recovered
     throw new Error('Unexpected method')
   })
 }
@@ -291,8 +292,10 @@ describe('wallet QA sign-in', () => {
 
     await click(page, '#sign-in')
 
-    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts', 'eth_chainId', 'personal_sign'])
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts', 'eth_chainId', 'personal_sign', 'personal_ecRecover'])
     const [encoded, signingAccount] = request.mock.calls[2]?.[0].params as [string, string]
+    // The fixture checks the returned signature over the same text, as a sign-in backend would.
+    expect(request.mock.calls[3]?.[0].params).toEqual([encoded, signature])
     expect(signingAccount).toBe(account)
     expect(encoded).toMatch(/^0x(?:[0-9a-f]{2})+$/)
     const bytes = Uint8Array.from(encoded.slice(2).match(/../g) ?? [], byte => Number.parseInt(byte, 16))
@@ -329,14 +332,53 @@ describe('wallet QA sign-in', () => {
           method: 'personal_sign',
           result: { signatureReturned: true, signatureBytes: 65 }
         })
+      },
+      {
+        kind: 'request:start',
+        value: expect.objectContaining({
+          requestId: 'request-4',
+          method: 'personal_ecRecover',
+          parameterSummary: { message: 'eip-4361-sign-in', signature: 'returned-signature' }
+        })
+      },
+      {
+        kind: 'request:result',
+        value: expect.objectContaining({ requestId: 'request-4', method: 'personal_ecRecover', result: { addressReturned: true } })
       }
     ]))
+    expect(events(page).at(-1)).toEqual({ kind: 'sign-in:verified', value: { signerMatches: true } })
     const visibleLog = page.document.querySelector('#log')?.textContent ?? ''
     expect(visibleLog.toLowerCase()).not.toContain(account.toLowerCase())
     expect(visibleLog).not.toContain(signature)
     expect(visibleLog).not.toContain(encoded)
     expect(visibleLog).not.toContain('wants you to sign in')
     expect(visibleLog).not.toContain(lines[8]?.slice('Nonce: '.length))
+  })
+
+  it('reports a signature that another account made as not matching, without naming either account', async () => {
+    const other = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+    const page = pageWith({ request: signer([account], '0x7a69', other) })
+
+    await click(page, '#sign-in')
+
+    expect(events(page).at(-1)).toEqual({ kind: 'sign-in:verified', value: { signerMatches: false } })
+    const visibleLog = (page.document.querySelector('#log')?.textContent ?? '').toLowerCase()
+    expect(visibleLog).not.toContain(account.toLowerCase())
+    expect(visibleLog).not.toContain(other.toLowerCase())
+  })
+
+  it('skips the check when the wallet returns no signature', async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === 'eth_accounts') return [account]
+      if (method === 'eth_chainId') return '0x7a69'
+      throw Object.assign(new Error('User rejected the request.'), { code: 4001 })
+    })
+    const page = pageWith({ request })
+
+    await click(page, '#sign-in')
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts', 'eth_chainId', 'personal_sign'])
+    expect(events(page).at(-1)).toMatchObject({ kind: 'request:error', value: { method: 'personal_sign', error: { code: 4001 } } })
   })
 
   it('asks for no signature before the page has a connected account', async () => {

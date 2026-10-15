@@ -142,6 +142,8 @@ test('lets an agent sign in on the local wallet QA fixture without a click', asy
     await expect.poll(fixtureLog).toContain('"accountCount": 1')
     await page(`document.querySelector('#sign-in').click(); 'clicked';`)
     await expect.poll(fixtureLog).toContain('"signatureBytes": 65')
+    // The fixture checks the signature with personal_ecRecover, as a sign-in backend would.
+    await expect.poll(fixtureLog).toContain('"signerMatches": true')
 
     expect((await readPageRequests()).requests.map(({ operation, status }) => [operation, status]).sort())
       .toEqual([['connect-account', 'confirmed'], ['sign-message', 'confirmed']])
