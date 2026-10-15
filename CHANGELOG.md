@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
-- Wallet approvals for EIP-712 typed data warn when the request looks like a meta-transaction (an ERC-2771 `ForwardRequest` or `RelayRequest`, a Gelato ERC-2771 call, a native `MetaTransaction` or an ERC-4337 `PackedUserOperation`): a relayer submits the signed call and the contract treats it as coming from this wallet, so it can transfer tokens like a transaction. On mainnet, the typed-data switch keeps these with a person, like Safe transactions.
+- Wallet approvals for EIP-712 typed data warn when the request looks like a meta-transaction or a delegation: a recognized ERC-2771, GSN, Gelato, Biconomy, 0x, ERC-4337 or Safe 4337 request, a MetaMask delegation, or any type that signs call data in a `data`, `callData` or `functionSignature` field. Someone else submits the signed call and the contract treats it as coming from this account, so it can transfer tokens like a transaction. On mainnet, the typed-data switch keeps these with a person, like Safe transactions.
 
 - Wallet approvals for a typed-data token permit or transfer authorization show **Valid until**, the time until which it can be used: an ERC-20 permit's deadline, a DAI permit's expiry, a Permit2 allowance's expiration or an EIP-3009 authorization's `validBefore`. A permit that never expires, such as a DAI permit with expiry 0 or a deadline set to the maximum integer, or whose end Hronaut cannot read, reads **Never expires** with a warning that it can still be used long after you sign it.
 

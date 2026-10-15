@@ -354,12 +354,33 @@ describe('typed data in the trusted approval', () => {
       domain: { chainId: 11155111, verifyingContract: spender }, primaryType: 'SafeMessage',
       types: { SafeMessage: [{ name: 'message', type: 'bytes' }] }, message: { message: '0x1234' }
     }, wallet)?.warnings).toEqual(['safe-transaction'])
-    // A meta-transaction is a contract call from this wallet that a relayer submits.
-    for (const primaryType of ['ForwardRequest', 'RelayRequest', 'SponsoredCallERC2771', 'CallWithSyncFeeERC2771', 'MetaTransaction', 'PackedUserOperation']) {
+    // A meta-transaction is a contract call from this account that someone else submits.
+    for (const primaryType of [
+      'ForwardRequest', 'ERC20ForwardRequest', 'RelayRequest', 'SponsoredCallERC2771', 'SponsoredCallConcurrentERC2771', 'CallWithSyncFeeERC2771',
+      'CallWithSyncFeeConcurrentERC2771', 'MetaTransaction', 'MetaTransactionDataV2', 'PackedUserOperation', 'SafeOp'
+    ]) {
       expect(typedDataDisplay({ domain: {}, primaryType, types: { [primaryType]: [] }, message: {} }, wallet)?.warnings, primaryType).toEqual(['forwarded-call'])
     }
-    // A plain login or vote is not an order.
+    // A forwarder can accept any type name, so signed call data counts whatever the type is called.
+    for (const name of ['data', 'callData', 'calldata', 'functionSignature']) {
+      expect(typedDataDisplay({
+        domain: {}, primaryType: 'Login', types: { Login: [{ name: 'to', type: 'address' }, { name, type: 'bytes' }] }, message: { to: token, [name]: '0x' }
+      }, wallet)?.warnings, name).toEqual(['forwarded-call'])
+    }
+    // A MetaMask delegation lets its delegate act as the delegator's account; a vote delegation does not.
+    expect(typedDataDisplay({
+      domain: {}, primaryType: 'Delegation',
+      types: { Delegation: [{ name: 'delegate', type: 'address' }, { name: 'delegator', type: 'address' }, { name: 'authority', type: 'bytes32' }, { name: 'salt', type: 'uint256' }] },
+      message: { delegate: spender, delegator: owner, authority: `0x${'f'.repeat(64)}`, salt: 1 }
+    }, wallet)?.warnings).toEqual(['forwarded-call'])
+    expect(typedDataDisplay({
+      domain: {}, primaryType: 'Delegation',
+      types: { Delegation: [{ name: 'delegatee', type: 'address' }, { name: 'nonce', type: 'uint256' }, { name: 'expiry', type: 'uint256' }] },
+      message: { delegatee: spender, nonce: 0, expiry: 1 }
+    }, wallet)?.warnings).toEqual([])
+    // A plain login or vote is not an order, and a fixed-size hash is not call data.
     expect(typedDataDisplay({ domain: {}, primaryType: 'Login', types: { Login: [] }, message: {} }, wallet)?.warnings).toEqual([])
+    expect(typedDataDisplay({ domain: {}, primaryType: 'Vote', types: { Vote: [{ name: 'data', type: 'bytes32' }] }, message: { data: `0x${'0'.repeat(64)}` } }, wallet)?.warnings).toEqual([])
   })
 
   it('still warns about a permit whose fields it cannot read', () => {
