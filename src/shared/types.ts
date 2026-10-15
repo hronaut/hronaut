@@ -157,6 +157,8 @@ export interface BrowserEmulationState {
   safeAreaInsets?: BrowserSafeAreaInsets
   /** Emulated OS text-scale factor; absent means the browser's own preference. */
   osTextScale?: number
+  /** CSS pixels by which the large viewport (lvh) exceeds the visible small viewport (svh). */
+  smallViewportHeightDifference?: number
   extraHttpHeaderNames?: string[]
   renderingDebug?: BrowserRenderingDebugOverlays
 }
@@ -199,6 +201,8 @@ export interface BrowserEmulationOptions {
   safeAreaInsets?: BrowserSafeAreaInsets | null
   /** 0.85–2; null restores the browser's own text-scale preference. */
   osTextScale?: number | null
+  /** Integer 0–1000 CSS pixels; null restores the browser's own small viewport. */
+  smallViewportHeightDifference?: number | null
   extraHttpHeaders?: Record<string, string>
   renderingDebug?: Partial<BrowserRenderingDebugOverlays> | null
 }

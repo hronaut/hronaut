@@ -11432,6 +11432,8 @@ export class BrowserTabsManager {
     await send('Emulation.setSafeAreaInsetsOverride', { insets: state.safeAreaInsets ?? {} })
     // Omitting scale removes the override and restores the browser's preference.
     await send('Emulation.setEmulatedOSTextScale', state.osTextScale === undefined ? {} : { scale: state.osTextScale })
+    // There is no clear command; a difference of 0 matches a desktop tab with no browser controls.
+    await send('Emulation.setSmallViewportHeightDifferenceOverride', { difference: state.smallViewportHeightDifference ?? 0 })
     await send('Emulation.setScriptExecutionDisabled', {
       value: state.javaScriptDisabled === true
     })

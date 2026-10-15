@@ -19,6 +19,7 @@ export const SAFE_AREA_INSET_FIELDS = ['top', 'topMax', 'left', 'leftMax', 'bott
 export const MAX_SAFE_AREA_INSET = 1_000
 export const MIN_OS_TEXT_SCALE = 0.85
 export const MAX_OS_TEXT_SCALE = 2
+export const MAX_SMALL_VIEWPORT_HEIGHT_DIFFERENCE = 1_000
 
 function validateSafeAreaInsets(insets: BrowserSafeAreaInsets): void {
   if (!insets || typeof insets !== 'object' || Array.isArray(insets)) throw new Error('safeAreaInsets must be an object or null')
@@ -73,6 +74,7 @@ export function hasEmulationOverrides(state: BrowserEmulationState): boolean {
     || state.geolocation !== undefined
     || state.safeAreaInsets !== undefined
     || state.osTextScale !== undefined
+    || state.smallViewportHeightDifference !== undefined
     || Boolean(state.extraHttpHeaderNames?.length)
     || Boolean(state.renderingDebug && Object.values(state.renderingDebug).some(Boolean))
 }
@@ -145,6 +147,7 @@ export function prepareBrowserEmulation(
     || options.geolocation !== undefined
     || options.safeAreaInsets !== undefined
     || options.osTextScale !== undefined
+    || options.smallViewportHeightDifference !== undefined
     || options.extraHttpHeaders !== undefined
     || options.renderingDebug !== undefined
   if (options.recover) {
@@ -192,6 +195,12 @@ export function prepareBrowserEmulation(
       || options.osTextScale < MIN_OS_TEXT_SCALE || options.osTextScale > MAX_OS_TEXT_SCALE)) {
     // Chromium accepts any value here, so the documented range is enforced before dispatch.
     throw new Error(`osTextScale must be between ${MIN_OS_TEXT_SCALE} and ${MAX_OS_TEXT_SCALE}`)
+  }
+  if (options.smallViewportHeightDifference !== undefined && options.smallViewportHeightDifference !== null
+    && (!Number.isInteger(options.smallViewportHeightDifference)
+      || options.smallViewportHeightDifference < 0
+      || options.smallViewportHeightDifference > MAX_SMALL_VIEWPORT_HEIGHT_DIFFERENCE)) {
+    throw new Error(`smallViewportHeightDifference must be an integer from 0 to ${MAX_SMALL_VIEWPORT_HEIGHT_DIFFERENCE} CSS pixels`)
   }
   if (options.extraHttpHeaders !== undefined) {
     const entries = Object.entries(options.extraHttpHeaders)
@@ -262,6 +271,13 @@ export function prepareBrowserEmulation(
         ...(options.osTextScale !== undefined
           ? { osTextScale: options.osTextScale === null ? undefined : options.osTextScale }
           : {}),
+        ...(options.smallViewportHeightDifference !== undefined
+          ? {
+              smallViewportHeightDifference: options.smallViewportHeightDifference === null
+                ? undefined
+                : options.smallViewportHeightDifference
+            }
+          : {}),
         ...(options.extraHttpHeaders !== undefined
           ? { extraHttpHeaderNames: Object.keys(nextHeaders).sort((left, right) => left.localeCompare(right)) }
           : {}),
@@ -278,6 +294,12 @@ export function prepareBrowserEmulation(
           : {})
       }
   if (!next.extraHttpHeaderNames?.length) delete next.extraHttpHeaderNames
+  // The small viewport must keep a positive height, so the difference stays below an emulated viewport's
+  // height; this also rejects a later viewport change that would leave a retained difference invalid.
+  if (next.smallViewportHeightDifference !== undefined && next.viewport
+    && next.smallViewportHeightDifference >= next.viewport.height) {
+    throw new Error('smallViewportHeightDifference must be smaller than the emulated viewport height')
+  }
   if (next.renderingDebug && !Object.values(next.renderingDebug).some(Boolean)) delete next.renderingDebug
   return { state: next, headers: nextHeaders }
 }

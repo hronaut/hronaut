@@ -1195,6 +1195,7 @@ export const esES = {
       "geolocation": "geolocalización personalizada",
       "safeArea": "márgenes de área segura personalizados",
       "textScale": "tamaño de texto del sistema {percent}",
+      "smallViewport": "ventana gráfica grande {difference} px más alta",
       "locale": "configuración regional {locale}",
       "timezone": "zona horaria {timezone}",
       "cpu": "CPU {rate}× más lenta",

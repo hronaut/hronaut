@@ -108,6 +108,7 @@ describe('emulation controller', () => {
     const { controller } = createController()
     expect(controller.describe({ ...defaultEmulation(), safeAreaInsets: { top: 47 } })).toBe('runtimeDetails.emulation.safeArea')
     expect(controller.describe({ ...defaultEmulation(), osTextScale: 2 })).toContain('runtimeDetails.emulation.textScale')
+    expect(controller.describe({ ...defaultEmulation(), smallViewportHeightDifference: 0 })).toContain('runtimeDetails.emulation.smallViewport')
   })
 
   it('treats a missing legacy animation playback rate as the normal default', () => {

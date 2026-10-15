@@ -1195,6 +1195,7 @@ export const ruRU = {
       "geolocation": "своя геолокация",
       "safeArea": "свои отступы безопасной зоны",
       "textScale": "системный размер текста {percent}",
+      "smallViewport": "большая область просмотра выше на {difference} px",
       "locale": "локаль {locale}",
       "timezone": "часовой пояс {timezone}",
       "cpu": "CPU замедлен в {rate}×",
