@@ -7,6 +7,7 @@ import { expect, test, text } from './capability-fixtures.js'
 interface PageRequestList {
   origin: string
   requests: Array<{ id: string; operation: string; status: string; transactionHash?: string }>
+  suggestedAssets?: Array<Record<string, unknown>>
 }
 
 interface LocalChain {
@@ -206,6 +207,26 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
       publicAddress: prepared.publicAddress,
       token: { token: TOKEN_ADDRESS, balance: '2.5', rawBalance: '2500000', decimals: 6, symbol: 'USDC' }
     })
+
+    // The dApp's "Add token to wallet" button, as viem's watchAsset sends it. A wrong decimals value is refused, as in
+    // MetaMask; a correct offer is accepted without a prompt. The agent sees both, with what the contract reports.
+    const watchAsset = (options: Record<string, unknown>) => electronApp.evaluate(({ webContents }, { pageUrl, request }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
+      return page?.executeJavaScript(`window.ethereum.request({ method: 'wallet_watchAsset', params: ${request} })
+        .then((result) => ({ result }), (error) => ({ code: error.code, message: error.message }))`)
+    }, { pageUrl: fixtureUrl, request: JSON.stringify({ type: 'ERC20', options: { address: TOKEN_ADDRESS.toLowerCase(), ...options } }) })
+    expect(await watchAsset({ symbol: 'USDC', decimals: 18 })).toEqual({
+      code: -32602, message: expect.stringContaining('EVM RPC error (code -32602): wallet_watchAsset decimals 18 do not match the token contract decimals 6')
+    })
+    expect(await watchAsset({ symbol: 'USDC', decimals: 6, image: 'https://tokens.example/usdc.png?v=2' })).toEqual({ result: true })
+    const afterSuggestion = await pageRequests()
+    // No wallet request was added for a person to approve.
+    expect(afterSuggestion.requests.map(({ operation }) => operation)).toEqual(['connect-account', 'sign-and-send-transaction'])
+    const suggested = { type: 'ERC20', address: TOKEN_ADDRESS, symbol: 'USDC', contractSymbol: 'USDC', contractDecimals: 6, networkId: '31337', suggestedAt: expect.any(String) }
+    expect(afterSuggestion.suggestedAssets).toEqual([
+      { ...suggested, decimals: 18, refused: 'decimals-mismatch' },
+      { ...suggested, decimals: 6, image: 'https://tokens.example/usdc.png' }
+    ])
   } finally {
     chain.server.close()
   }

@@ -210,6 +210,23 @@ describe('EvmWalletAdapter', () => {
     await expect(adapter.tokenBalance(wallet(), 'not-an-address')).rejects.toThrow('ERC-20 contract address')
   })
 
+  it('reads a token contract\'s own symbol and decimals without the wallet account, leaving out what it does not report', async () => {
+    const client = rpc()
+    const adapter = new EvmWalletAdapter(() => client as never)
+    const token = '0x5fbdb2315678afecb367f032d93f642f64180aa3'
+
+    await expect(adapter.tokenContractDetails(wallet(), token)).resolves.toEqual({ symbol: 'USDC', decimals: 6 })
+    expect(client.readContract).not.toHaveBeenCalledWith(expect.objectContaining({ functionName: 'balanceOf' }))
+    client.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
+      if (functionName === 'decimals') throw new Error('no decimals')
+      return 'USD\u20AE0'
+    })
+    await expect(adapter.tokenContractDetails(wallet(), token)).resolves.toEqual({ symbol: 'USD\u20AE0' })
+    client.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => (functionName === 'decimals' ? 18 : 'US\u202EDC'))
+    await expect(adapter.tokenContractDetails(wallet(), token)).resolves.toEqual({ decimals: 18 })
+    await expect(adapter.tokenContractDetails(wallet(), 'not-an-address')).rejects.toThrow('ERC-20 contract address')
+  })
+
   it('reports a missing receipt as pending without opening a long-lived waiter', async () => {
     const client = rpc()
     const hash = `0x${'a'.repeat(64)}` as Hex

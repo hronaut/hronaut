@@ -353,4 +353,18 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       ...(safeSymbol ? { symbol: safeSymbol } : {})
     }
   }
+
+  async tokenContractDetails(wallet: WalletDescriptor, token: string): Promise<{ symbol?: string; decimals?: number }> {
+    if (!isAddress(token)) throw new Error('EVM token must be an ERC-20 contract address')
+    const client = this.clientFor(wallet)
+    const contract = getAddress(token)
+    const [decimals, symbol] = await Promise.all([
+      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'decimals' }).catch(() => undefined),
+      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'symbol' }).catch(() => undefined)
+    ])
+    return {
+      ...(typeof symbol === 'string' && symbol.length <= 64 && !/[\p{C}]/u.test(symbol) ? { symbol } : {}),
+      ...(typeof decimals === 'number' ? { decimals } : {})
+    }
+  }
 }
