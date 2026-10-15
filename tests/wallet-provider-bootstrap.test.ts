@@ -68,6 +68,14 @@ beforeEach(() => {
 })
 
 describe('wallet provider bootstrap', () => {
+  it('surfaces forwarded RPC error codes and revert data to the page', async () => {
+    installHronautWalletProviders()
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(new Error(
+      "Error invoking remote method 'wallet-provider:request': Error: EVM RPC error (code 3, data 0x08c379a0): execution reverted"
+    ))
+    await expect(target.ethereum!.request({ method: 'eth_call', params: [{}] })).rejects.toMatchObject({ code: 3, data: '0x08c379a0' })
+  })
+
   it('announces an EIP-6963 provider and supports the EIP-1193 request surface', async () => {
     const announcements: CustomEvent[] = []
     window.addEventListener('eip6963:announceProvider', (event) => announcements.push(event as CustomEvent), { once: true })

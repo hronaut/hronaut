@@ -31,4 +31,6 @@ export interface WalletChainAdapter {
   broadcast(wallet: WalletDescriptor, signedTransaction: string): Promise<string>
   confirmation(wallet: WalletDescriptor, transactionHash: string): Promise<WalletConfirmation>
   balance(wallet: WalletDescriptor): Promise<string>
+  /** Forwards an allowlisted read-only JSON-RPC method to the wallet network. */
+  readRpc?(wallet: WalletDescriptor, method: string, params: unknown): Promise<unknown>
 }
