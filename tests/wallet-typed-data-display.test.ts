@@ -118,7 +118,7 @@ describe('typed data in the trusted approval', () => {
     expect(typedDataDisplay({ domain: usdc, primaryType: 'Permit', types: erc2612Types, message: erc2612Message }, wallet)).toEqual({
       primaryType: 'Permit',
       domain: { name: 'USD Coin', version: '2', chainId: '11155111', verifyingContract: token },
-      tokenAccess: { spender, allowances: [{ token, amount: '1000000' }] },
+      tokenAccess: { kind: 'allowance', spender, allowances: [{ token, amount: '1000000' }] },
       warnings: ['token-permit']
     })
   })
@@ -160,14 +160,40 @@ describe('typed data in the trusted approval', () => {
     // A Permit type that does not declare `value` has no readable amount, whatever the message says.
     expect(typedDataDisplay({
       domain: usdc, primaryType: 'Permit', types: { Permit: erc2612Types.Permit.filter(({ name }) => name !== 'value') }, message: erc2612Message
-    }, wallet)?.tokenAccess?.allowances).toEqual([{ token }])
+    }, wallet)).toMatchObject({ tokenAccess: { allowances: [{ token }] }, warnings: ['token-permit', 'unreadable-amount'] })
+  })
+
+  it('reads every amount value the signer accepts, and warns when it cannot', () => {
+    // The page sends JSON, so arrays are the shape that matters: the signer reads ['5'] as 5.
+    const candidates: unknown[] = [
+      '1', ' 0x10 ', '', '  ', '+3', '-1', '1.5', 1.5, 1e60, true, false, null, {}, [], ['5'], [['7']], [1, 2], [maxUint256],
+      `${'0'.repeat(300)}${maxUint160}`, `0x${'0'.repeat(300)}${'f'.repeat(64)}`, '0b101', '0o17', 'ff', '1_000', 'abc',
+      Buffer.from('42'), maxUint256, (2n ** 256n).toString()
+    ]
+    for (const value of candidates) {
+      const typedData = { domain: usdc, primaryType: 'Permit', types: erc2612Types, message: { ...erc2612Message, value } }
+      const display = typedDataDisplay(typedData, wallet)
+      let hash: string
+      try {
+        hash = signedHash(typedData)
+      } catch {
+        continue
+      }
+      const [allowance] = display?.tokenAccess?.allowances ?? []
+      expect(allowance?.amount, JSON.stringify(value)).toBeDefined()
+      expect(signedHash({ ...typedData, message: { ...erc2612Message, value: allowance!.amount } }), JSON.stringify(value)).toBe(hash)
+      expect(Boolean(allowance!.unlimited), JSON.stringify(value)).toBe(BigInt(allowance!.amount!) >= 2n ** 160n - 1n)
+      expect(display?.warnings, JSON.stringify(value)).not.toContain('unreadable-amount')
+    }
   })
 
   it.each([
     ['binary', `0b${'1'.repeat(160)}`],
     ['octal', `0o${(2n ** 160n - 1n).toString(8)}`],
     ['padded hex', `  0X${'F'.repeat(40)}\n`],
-    ['signed decimal', `+${maxUint160}`]
+    ['signed decimal', `+${maxUint160}`],
+    ['zero-padded', `${'0'.repeat(400)}${maxUint160}`],
+    ['one-item array', [maxUint160]]
   ])('reads a %s amount the way the signer encodes it', (_label, amount) => {
     const typedData = {
       domain: { chainId: 11155111, verifyingContract: permit2 }, primaryType: 'PermitSingle', types: permitSingleTypes,
@@ -200,6 +226,22 @@ describe('typed data in the trusted approval', () => {
     expect(display?.warnings).toEqual(['token-permit'])
   })
 
+  it('warns about an unlimited Permit2 allowance listed after the shown ones', () => {
+    const details = [
+      ...Array.from({ length: 16 }, (_, index) => ({ token: `0x${(index + 1).toString(16).padStart(40, '0')}`, amount: '1', expiration: 0, nonce: 0 })),
+      { token, amount: maxUint160, expiration: 0, nonce: 0 }
+    ]
+    const typedData = {
+      domain: { chainId: 11155111, verifyingContract: permit2 }, primaryType: 'PermitBatch', types: permitBatchTypes,
+      message: { details, spender, sigDeadline: 0 }
+    }
+    expect(() => signedHash(typedData)).not.toThrow()
+    const display = typedDataDisplay(typedData, wallet)
+    expect(display?.tokenAccess?.allowances.some((entry) => entry.unlimited)).toBe(false)
+    expect(display?.tokenAccess?.moreAllowances).toBe(true)
+    expect(display?.warnings).toEqual(['token-permit', 'unlimited-amount'])
+  })
+
   it('reads Permit2 signature transfers', () => {
     expect(typedDataDisplay({
       domain: { chainId: 11155111, verifyingContract: permit2 }, primaryType: 'PermitWitnessTransferFrom',
@@ -212,7 +254,7 @@ describe('typed data in the trusted approval', () => {
         Order: [{ name: 'id', type: 'uint256' }]
       },
       message: { permitted: { token, amount: '42' }, spender, nonce: 1, deadline: 0, witness: { id: 1 } }
-    }, wallet)).toMatchObject({ tokenAccess: { spender, allowances: [{ token, amount: '42' }] }, warnings: ['token-permit'] })
+    }, wallet)).toMatchObject({ tokenAccess: { kind: 'transfer', spender, allowances: [{ token, amount: '42' }] }, warnings: ['token-permit'] })
   })
 
   it('shows the recipient and amount of an EIP-3009 transfer authorization', () => {
@@ -222,21 +264,21 @@ describe('typed data in the trusted approval', () => {
     }, wallet)).toEqual({
       primaryType: 'TransferWithAuthorization',
       domain: { name: 'USD Coin', version: '2', chainId: '11155111', verifyingContract: token },
-      tokenAccess: { recipient: spender, allowances: [{ token, amount: '2500000' }] },
+      tokenAccess: { kind: 'transfer', recipient: spender, allowances: [{ token, amount: '2500000' }] },
       warnings: ['token-transfer']
     })
   })
 
   it('still warns about a permit whose fields it cannot read', () => {
     expect(typedDataDisplay({ domain: {}, primaryType: 'PermitSingle', message: { details: 'odd' } }, wallet))
-      .toEqual({ primaryType: 'PermitSingle', domain: {}, tokenAccess: { allowances: [] }, warnings: ['token-permit'] })
+      .toEqual({ primaryType: 'PermitSingle', domain: {}, tokenAccess: { kind: 'allowance', allowances: [] }, warnings: ['token-permit', 'unreadable-amount'] })
     for (const types of [null, 'types', [], { Permit: 'value' }, { Permit: [null, 7, { name: 'value' }, { name: 'value', type: 'uint256' }] }]) {
       expect(typedDataDisplay({ domain: {}, primaryType: 'Permit', types, message: { value: { amount: '1' } } }, wallet))
-        .toEqual({ primaryType: 'Permit', domain: {}, tokenAccess: { allowances: [{}] }, warnings: ['token-permit'] })
+        .toEqual({ primaryType: 'Permit', domain: {}, tokenAccess: { kind: 'allowance', allowances: [{}] }, warnings: ['token-permit', 'unreadable-amount'] })
     }
     expect(typedDataDisplay({
       domain: {}, primaryType: 'PermitSingle', types: permitSingleTypes, message: { details: [{ token, amount: '1' }], spender }
-    }, wallet)?.tokenAccess).toEqual({ spender, allowances: [{}] })
+    }, wallet)).toMatchObject({ tokenAccess: { spender, allowances: [{}] }, warnings: ['token-permit', 'unreadable-amount'] })
   })
 
   it('leaves out an amount too long to show instead of cutting it', () => {
@@ -244,16 +286,21 @@ describe('typed data in the trusted approval', () => {
       domain: usdc, primaryType: 'Permit', types: erc2612Types, message: { ...erc2612Message, value: `0x${'f'.repeat(290)}` }
     }, wallet)
     expect(display?.tokenAccess?.allowances).toEqual([{ token, unlimited: true }])
+    expect(display?.warnings).toEqual(['token-permit', 'unlimited-amount'])
     expect(typedDataDisplay({
-      domain: usdc, primaryType: 'Permit', types: erc2612Types, message: { ...erc2612Message, value: '9'.repeat(301) }
-    }, wallet)?.tokenAccess?.allowances).toEqual([{ token }])
+      domain: usdc, primaryType: 'Permit', types: erc2612Types, message: { ...erc2612Message, value: '9'.repeat(4_097) }
+    }, wallet)).toMatchObject({ tokenAccess: { allowances: [{ token }] }, warnings: ['token-permit', 'unreadable-amount'] })
   })
 
   it('bounds page-supplied text, reveals hidden characters and ignores non-object typed data', () => {
     const display = typedDataDisplay({ domain: { name: 'x'.repeat(1_000) }, primaryType: 'y'.repeat(1_000), message: {} }, wallet)
-    expect(display?.domain.name).toHaveLength(256)
-    expect(display?.primaryType).toHaveLength(256)
+    expect(display?.domain.name).toBe(`${'x'.repeat(255)}…`)
+    expect(display?.primaryType).toBe(`${'y'.repeat(255)}…`)
     expect(typedDataDisplay({ domain: { name: 'USD‮Coin' }, primaryType: 'Login', message: {} }, wallet)?.domain.name).toBe('USD[U+202E]Coin')
+    // A string field is signed as its own text, so a number there is not shown as if it were that text.
+    const numericName = { domain: { name: 123 }, primaryType: 'Login', types: { EIP712Domain: [{ name: 'name', type: 'string' }], Login: [] }, message: {} }
+    expect(signedHash(numericName)).not.toBe(signedHash({ ...numericName, domain: { name: '123' } }))
+    expect(typedDataDisplay(numericName, wallet)?.domain).toEqual({})
     expect(typedDataDisplay('not typed data', wallet)).toBeUndefined()
     expect(typedDataDisplay(null, wallet)).toBeUndefined()
   })

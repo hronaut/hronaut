@@ -470,6 +470,7 @@ export const enUS = {
         none: 'Not given',
         app: 'App',
         appVersion: '{name} · version {version}',
+        versionOnly: 'Version {version}',
         chainId: 'Chain ID',
         contract: 'Contract',
         spender: 'Spender',
@@ -483,10 +484,11 @@ export const enUS = {
         unknownAmount: 'Amount not readable',
         moreAllowances: 'More tokens are listed in the raw unsigned request.',
         warnings: {
-          otherChain: "This signature names a different chain than this wallet's network, so it may be used on that chain.",
+          otherChain: "This signature does not name this wallet's chain, so it may be used on another chain.",
           tokenPermit: 'This is a token permit. Signing it lets the spender move your tokens without another approval from you.',
           tokenTransfer: 'This is a token transfer authorization. Signing it lets the tokens be moved from your wallet to the recipient without another approval from you.',
-          unlimitedAmount: 'This signature covers an unlimited amount of the token.'
+          unlimitedAmount: 'This signature covers an unlimited amount of the token.',
+          unreadableAmount: 'Hronaut could not read every amount in this signature. Treat it as unlimited.'
         }
       },
       raw: 'Raw unsigned request',

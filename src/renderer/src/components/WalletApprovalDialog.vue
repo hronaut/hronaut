@@ -35,16 +35,22 @@ const typedDataWarningKeys: Record<WalletTypedDataWarning, string> = {
   'typed-data-other-chain': 'otherChain',
   'token-permit': 'tokenPermit',
   'token-transfer': 'tokenTransfer',
-  'unlimited-amount': 'unlimitedAmount'
+  'unlimited-amount': 'unlimitedAmount',
+  'unreadable-amount': 'unreadableAmount'
 }
 
-// Transfer authorizations move an amount; permits grant an allowance. Several are numbered.
+// Transfers move an amount once; permits grant an allowance. Several are numbered.
 function tokenAmountLabel(index: number): string {
-  const typedData = request.value?.details?.typedData
-  const key = typedData?.warnings.includes('token-transfer') ? 'transferAmount' : 'allowance'
-  return (typedData?.tokenAccess?.allowances.length ?? 0) > 1
+  const tokenAccess = request.value?.details?.typedData?.tokenAccess
+  const key = tokenAccess?.kind === 'transfer' ? 'transferAmount' : 'allowance'
+  return (tokenAccess?.allowances.length ?? 0) > 1
     ? t(`wallets.approval.typedData.${key}Numbered`, { number: index + 1 })
     : t(`wallets.approval.typedData.${key}`)
+}
+
+function appText(domain: { name?: string; version?: string }): string {
+  if (domain.name && domain.version) return t('wallets.approval.typedData.appVersion', { name: domain.name, version: domain.version })
+  return domain.name || t('wallets.approval.typedData.versionOnly', { version: domain.version })
 }
 
 function rawDetails(): string {
@@ -90,7 +96,7 @@ function rawDetails(): string {
         <p v-for="warning in request.details.typedData.warnings" :key="warning" class="wallet-approval-warning" role="alert">{{ t(`wallets.approval.typedData.warnings.${typedDataWarningKeys[warning]}`) }}</p>
         <dl class="wallet-approval-grid">
           <div><dt>{{ t('wallets.approval.typedData.type') }}</dt><dd>{{ request.details.typedData.primaryType || t('wallets.approval.typedData.none') }}</dd></div>
-          <div v-if="request.details.typedData.domain.name"><dt>{{ t('wallets.approval.typedData.app') }}</dt><dd>{{ request.details.typedData.domain.version ? t('wallets.approval.typedData.appVersion', { name: request.details.typedData.domain.name, version: request.details.typedData.domain.version }) : request.details.typedData.domain.name }}</dd></div>
+          <div v-if="request.details.typedData.domain.name || request.details.typedData.domain.version"><dt>{{ t('wallets.approval.typedData.app') }}</dt><dd>{{ appText(request.details.typedData.domain) }}</dd></div>
           <div v-if="request.details.typedData.domain.chainId"><dt>{{ t('wallets.approval.typedData.chainId') }}</dt><dd>{{ request.details.typedData.domain.chainId }}</dd></div>
           <div v-if="request.details.typedData.domain.verifyingContract"><dt>{{ t('wallets.approval.typedData.contract') }}</dt><dd><code>{{ request.details.typedData.domain.verifyingContract }}</code></dd></div>
           <div v-if="request.details.typedData.tokenAccess?.spender"><dt>{{ t('wallets.approval.typedData.spender') }}</dt><dd><code>{{ request.details.typedData.tokenAccess.spender }}</code></dd></div>

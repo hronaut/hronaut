@@ -128,6 +128,7 @@ describe('WalletApprovalDialog', () => {
         primaryType: 'PermitBatch',
         domain: { name: 'Permit2', version: '1', chainId: '1', verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3' },
         tokenAccess: {
+          kind: 'allowance',
           spender: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD',
           allowances: [{ token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', amount: '1461501637330902918203684832716283019655932542975', unlimited: true }, { token: '0x2000000000000000000000000000000000000002', amount: '42' }],
           moreAllowances: true
@@ -155,16 +156,16 @@ describe('WalletApprovalDialog', () => {
     ])
   })
 
-  it('summarizes a typed-data token transfer with its recipient and amount', () => {
+  it('summarizes a typed-data token transfer with its recipient, amounts and an unreadable amount', () => {
     const pending = request()
     pending.details = {
       ...pending.details!,
       understood: false,
       typedData: {
         primaryType: 'TransferWithAuthorization',
-        domain: { name: 'USD Coin', version: '2', chainId: '1', verifyingContract: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' },
-        tokenAccess: { recipient: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD', allowances: [{ token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', amount: '2500000' }] },
-        warnings: ['token-transfer']
+        domain: { version: '2', chainId: '1', verifyingContract: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' },
+        tokenAccess: { kind: 'transfer', recipient: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD', allowances: [{ token: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238', amount: '2500000' }, { token: '0x2000000000000000000000000000000000000002' }] },
+        warnings: ['token-transfer', 'unreadable-amount']
       }
     }
     render(WalletApprovalDialog, {
@@ -173,13 +174,16 @@ describe('WalletApprovalDialog', () => {
     })
 
     const section = screen.getByRole('region', { name: 'Typed data to sign' })
+    expect(section).toHaveTextContent('AppVersion 2')
     expect(section).toHaveTextContent('Recipient0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD')
-    expect(section).toHaveTextContent('Token amount0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 · 2500000 (smallest token units)')
+    expect(section).toHaveTextContent('Token amount 10x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238 · 2500000 (smallest token units)')
+    expect(section).toHaveTextContent('Token amount 20x2000000000000000000000000000000000000002 · Amount not readable')
     expect(section).not.toHaveTextContent('Spender')
     expect(section).not.toHaveTextContent('Token allowance')
     expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toEqual([
       'Hronaut could not fully decode this request. Approval requires extra care.',
-      'This is a token transfer authorization. Signing it lets the tokens be moved from your wallet to the recipient without another approval from you.'
+      'This is a token transfer authorization. Signing it lets the tokens be moved from your wallet to the recipient without another approval from you.',
+      'Hronaut could not read every amount in this signature. Treat it as unlimited.'
     ])
   })
 

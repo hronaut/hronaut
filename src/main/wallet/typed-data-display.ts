@@ -7,7 +7,8 @@ import {
 import { revealHiddenMessageCharacters } from './policy.js'
 
 const MAX_TEXT = 256
-const MAX_INTEGER_TEXT = 300
+// Long enough for zero-padded uint256 values; anything longer is reported as unreadable.
+const MAX_INTEGER_TEXT = 4_096
 // Permit2 allowances are uint160; ERC-20 permits commonly use the uint256 maximum.
 const UNLIMITED_AMOUNT = 2n ** 160n - 1n
 const PERMIT2_DETAILS_TYPES = new Set(['PermitSingle', 'PermitBatch'])
@@ -28,23 +29,36 @@ function record(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 }
 
+// The signer hashes a string field's own text and accepts an address only as a string.
 function text(value: unknown): string | undefined {
-  if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'bigint' && typeof value !== 'boolean') return undefined
-  return revealHiddenMessageCharacters(String(value), MAX_TEXT).text
+  if (typeof value !== 'string') return undefined
+  const visible = revealHiddenMessageCharacters(value, MAX_TEXT - 1)
+  return visible.truncated ? `${visible.text}…` : visible.text
 }
 
 /**
- * The integer the signer encodes for a uint or int field (it converts the
- * value with BigInt), or undefined when it cannot be read.
+ * The integer the signer encodes for a uint or int field, or undefined when
+ * it cannot be read. The signer converts the value with BigInt, which also
+ * reads an array or byte array through its text form, so this does too.
  */
 function integer(value: unknown): bigint | undefined {
   if (typeof value === 'bigint') return value
   if (typeof value === 'boolean') return value ? 1n : 0n
   if (typeof value === 'number') return Number.isInteger(value) ? BigInt(value) : undefined
-  if (typeof value !== 'string') return undefined
-  const trimmed = value.trim()
-  if (trimmed.length > MAX_INTEGER_TEXT || !/^(?:0x[0-9a-f]+|0o[0-7]+|0b[01]+|[+-]?\d+)$/i.test(trimmed)) return undefined
-  return BigInt(trimmed)
+  let source: unknown = value
+  if (value !== null && typeof value === 'object') {
+    try {
+      source = String(value)
+    } catch {
+      return undefined
+    }
+  }
+  if (typeof source !== 'string' || source.length > MAX_INTEGER_TEXT) return undefined
+  try {
+    return BigInt(source)
+  } catch {
+    return undefined
+  }
 }
 
 function integerText(value: bigint | undefined): string | undefined {
@@ -105,7 +119,13 @@ function structEntries(types: Types, field: Field | undefined): Array<Map<string
   return values.map((value) => declaredFields(types, list?.[1] ?? field.type, value))
 }
 
-function tokenAccess(types: Types, primaryType: string, message: unknown, verifyingContract: unknown): WalletTypedDataDisplay['tokenAccess'] {
+interface TokenAccess {
+  display: NonNullable<WalletTypedDataDisplay['tokenAccess']>
+  unlimited: boolean
+  unreadable: boolean
+}
+
+function tokenAccess(types: Types, primaryType: string, message: unknown, verifyingContract: unknown): TokenAccess | undefined {
   const fields = declaredFields(types, primaryType, message)
   let allowances: Allowance[]
   let party: { spender?: string } | { recipient?: string }
@@ -127,9 +147,15 @@ function tokenAccess(types: Types, primaryType: string, message: unknown, verify
     return undefined
   }
   return {
-    ...Object.fromEntries(Object.entries(party).filter(([, value]) => value !== undefined)),
-    allowances: allowances.slice(0, WALLET_TYPED_DATA_MAX_ALLOWANCES),
-    ...(allowances.length > WALLET_TYPED_DATA_MAX_ALLOWANCES ? { moreAllowances: true as const } : {})
+    display: {
+      kind: PERMIT2_TRANSFER_TYPES.has(primaryType) || TRANSFER_AUTHORIZATION_TYPES.has(primaryType) ? 'transfer' : 'allowance',
+      ...Object.fromEntries(Object.entries(party).filter(([, value]) => value !== undefined)),
+      allowances: allowances.slice(0, WALLET_TYPED_DATA_MAX_ALLOWANCES),
+      ...(allowances.length > WALLET_TYPED_DATA_MAX_ALLOWANCES ? { moreAllowances: true as const } : {})
+    },
+    // Judged on every entry, including those past the shown limit.
+    unlimited: allowances.some((entry) => entry.unlimited),
+    unreadable: allowances.length === 0 || allowances.some((entry) => entry.amount === undefined && !entry.unlimited)
   }
 }
 
@@ -155,7 +181,8 @@ export function typedDataDisplay(typedData: unknown, wallet: WalletDescriptor): 
   const access = tokenAccess(types, primaryType, definition.message, verifyingContract)
   if (access) {
     warnings.push(TRANSFER_AUTHORIZATION_TYPES.has(primaryType) ? 'token-transfer' : 'token-permit')
-    if (access.allowances.some((entry) => entry.unlimited)) warnings.push('unlimited-amount')
+    if (access.unlimited) warnings.push('unlimited-amount')
+    if (access.unreadable) warnings.push('unreadable-amount')
   }
   const name = text(domain.get('name')?.value)
   const version = text(domain.get('version')?.value)
@@ -169,7 +196,7 @@ export function typedDataDisplay(typedData: unknown, wallet: WalletDescriptor): 
       ...(chainIdText === undefined ? {} : { chainId: chainIdText }),
       ...(contract === undefined ? {} : { verifyingContract: contract })
     },
-    ...(access ? { tokenAccess: access } : {}),
+    ...(access ? { tokenAccess: access.display } : {}),
     warnings
   }
 }

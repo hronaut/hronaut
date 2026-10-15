@@ -172,6 +172,34 @@ describe('message text in the trusted approval', () => {
     await broker.reject(pending.id)
   })
 
+  it('does not let undeclared keys or an array amount hide an unlimited permit', async () => {
+    const { broker, wallet } = await connectedWallet()
+    const token = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'
+    const maxUint256 = (2n ** 256n - 1n).toString()
+    // The signer ignores `allowed`, which this permit type does not declare, and reads ['max'] as max.
+    const signing = broker.providerRequest(context, {
+      family: 'evm', method: 'eth_signTypedData_v4', params: [wallet.publicAddress, JSON.stringify({
+        domain: { name: 'USD Coin', version: '2', chainId: Number(wallet.network.id), verifyingContract: token },
+        primaryType: 'Permit',
+        types: {
+          EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'version', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }],
+          Permit: [
+            { name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' },
+            { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }
+          ]
+        },
+        message: { owner: wallet.publicAddress, spender: token, value: [maxUint256], nonce: 0, deadline: 0, allowed: false }
+      })]
+    })
+    signing.catch(() => undefined)
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
+    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+
+    expect(pending.details?.typedData?.tokenAccess?.allowances).toEqual([{ token, amount: maxUint256, unlimited: true }])
+    expect(pending.details?.typedData?.warnings).toEqual(['token-permit', 'unlimited-amount'])
+    await broker.reject(pending.id)
+  })
+
   it('keeps message text out of what agents see', async () => {
     const { broker, wallet } = await connectedWallet()
     const { settle } = await pendingMessage(broker, wallet, siwe(wallet))
