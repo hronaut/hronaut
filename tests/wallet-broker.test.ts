@@ -404,6 +404,35 @@ describe('WalletBroker', () => {
     expect(persisted).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret|rpc-log-secret/)
   })
 
+  it('shows an agent only the wallet requests its own tab and current page made', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    expect(broker.agentPageRequests(agent)).toEqual({ origin: 'https://dapp.example', requests: [] })
+
+    const connect = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    const otherTab = settle(broker.providerRequest(context({ tabId: 'tab-2' }), { family: 'evm', method: 'eth_requestAccounts' }))
+    const otherPage = settle(broker.providerRequest(context({ navigationGeneration: 2 }), { family: 'evm', method: 'eth_requestAccounts' }))
+    await broker.waitForPending(request => request.status === 'awaiting-human' && request.origin === 'https://dapp.example')
+    await vi.waitFor(() => expect(broker.listPending().filter(request => request.status === 'awaiting-human')).toHaveLength(3))
+    await broker.agentBalance(agent, wallet.id)
+
+    const listed = broker.agentPageRequests(agent) as { requests: Array<Record<string, unknown>> }
+    expect(listed.requests).toHaveLength(1)
+    expect(listed.requests[0]).toMatchObject({
+      operation: 'connect-account', status: 'awaiting-human', origin: 'https://dapp.example',
+      requester: { type: 'website', id: 'https://dapp.example' }
+    })
+    expect(JSON.stringify(listed)).not.toContain(wallet.publicAddress)
+    expect(() => broker.agentPageRequests(context())).toThrow('only to agents')
+
+    await broker.approve(listed.requests[0]!.id as string)
+    await expect(connect).resolves.toMatchObject({ status: 'fulfilled' })
+    expect(broker.agentPageRequests(agent)).toMatchObject({ requests: [{ status: 'confirmed', operation: 'connect-account' }] })
+    await broker.shutdown()
+    await Promise.all([otherTab, otherPage])
+  })
+
   it('isolates agent address permissions and request status by requester, workspace, tab, and navigation', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })

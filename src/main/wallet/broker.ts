@@ -92,6 +92,7 @@ export interface WalletBrokerOptions {
 }
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
+const MAX_AGENT_PAGE_REQUESTS = 50
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
@@ -430,6 +431,35 @@ export class WalletBroker {
     const record = this.requireAgentRequest(context, requestId)
     const wallet = this.requireWallet(record.request.walletId)
     return agentSummary(record, wallet, this.hasAddressPermission(context, wallet))
+  }
+
+  /**
+   * Requests the current page made itself, so an agent driving a dApp can see what
+   * it asked for. Read-only: approval still happens only in trusted Hronaut UI.
+   */
+  agentPageRequests(context: WalletBrokerContext): Record<string, unknown> {
+    if (context.requester.type !== 'agent') throw new Error('Wallet page requests are available only to agents')
+    const wallets = new Map(this.service.list().map((wallet) => [wallet.id, wallet]))
+    const records = this.service.approvals.list().filter((record) => (
+      record.request.requester.type === 'website'
+      && record.request.workspaceId === context.workspaceId
+      && record.request.tabId === context.tabId
+      && record.request.navigationGeneration === context.navigationGeneration
+      && record.request.topLevelOrigin === context.topLevelOrigin
+    ))
+    const requests = records.slice(-MAX_AGENT_PAGE_REQUESTS).map((record) => {
+      const wallet = wallets.get(record.request.walletId)
+      const result = agentSummary(record, wallet, wallet ? this.hasAddressPermission(context, wallet) : false)
+      const pendingMessage = this.pendingMessages.get(record.id)
+      const details = result.details as Record<string, unknown> | undefined
+      if (details && pendingMessage) details.method = pendingMessage.kind === 'typed-data' ? 'typed-data-signing' : 'message-signing'
+      return result
+    })
+    return {
+      origin: context.topLevelOrigin,
+      requests,
+      ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {})
+    }
   }
 
   async cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
