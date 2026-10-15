@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.44.0] - 2026-10-15
+
 ### Added
 
 - `browser_emulate` can emulate mobile browser controls for viewport units (`smallViewportHeightDifference`, 0–1000 CSS px): `100lvh` becomes that much taller than `100svh` in one tab, for full-height mobile layout QA. Top-level frame only; `dvh` and address-bar animation are not emulated (#766).
@@ -15,6 +17,12 @@ All notable changes to Hronaut are documented in this file.
 - `browser_css_state_preview` forces `:hover` and/or `:active` styling on one selected element for up to a minute, so an agent can inspect or capture a component's hover or pressed look without moving the pointer. No input events are sent and focus does not change. The address bar shows `Forced :hover` while it is active and lets the person end it, and it also ends on expiry, navigation, removal of the element, pausing the agent or opening Developer Tools. Screenshots, element inspection and visual comparison taken meanwhile are marked with `cssStatePreview` (#478).
 
 - `browser_new_tab` takes an optional `defaultFontSize` (9–72 CSS px) that sets the browser default text size for that tab only, so an agent can check a page at 24px or 32px the way a person with a larger browser font setting sees it. Text sized by the browser default and `em`/`rem` media queries follow it; authored pixel sizes do not. It survives navigation, reload, sleep, duplicating, reopening a closed tab and restart, and the zoom bar shows it (#771).
+
+### Known issues
+
+- Websites still need a person to approve every account connection and message signature, including Sign-In with Ethereum and Sign-In with Solana, even on testnets and local chains.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.43.0] - 2026-10-15
 
