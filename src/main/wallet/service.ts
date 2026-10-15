@@ -31,7 +31,7 @@ import {
   type WalletVaultProtection
 } from './key-provider.js'
 import { WalletPermissionStore } from './permissions.js'
-import { isMainnetAgentAutomationPolicy, isWalletNetworkEligibleForAutomation } from './policy.js'
+import { isMainnetAgentAutomationPolicy, isMainnetWebsiteSignInPolicy, isWalletNetworkEligibleForAutomation } from './policy.js'
 import { WalletPolicyStore } from './policy-store.js'
 import { WalletPolicyUsageStore } from './policy-usage.js'
 import { discardObsoleteWalletData, readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
@@ -447,17 +447,35 @@ export class WalletService {
     }
     if (!walletAllowsWorkspace(wallet, candidate.workspaceId)) throw new Error('Wallet policy workspace is not attached to the wallet')
     if (!candidate.networkIds.includes(wallet.network.id)) throw new Error('Wallet policy must include the wallet network')
+    const websiteSignIn = candidate.allowWebsiteSignIn === true
+    if (websiteSignIn || candidate.allowMainnetWebsiteSignIn) {
+      if (candidate.mode !== 'bounded-auto') throw new Error('Website sign-in without approval requires a bounded automatic policy')
+      if (!websiteSignIn) throw new Error('The mainnet website sign-in switch requires website sign-in without approval')
+      if (wallet.chainFamily !== 'evm') throw new Error('Website sign-in without approval is only available for EVM wallets')
+      if (candidate.origins.length === 0) throw new Error('Website sign-in without approval requires an allowed website origin')
+    }
     if (candidate.mode === 'bounded-auto') {
       if (wallet.network.environment === 'mainnet') {
         if (wallet.chainFamily !== 'evm' || wallet.kind !== 'agent') {
           throw new Error('Mainnet Bypass Approve mode requires a dedicated EVM agent wallet')
         }
-        if (!isMainnetAgentAutomationPolicy(candidate, this.now())) {
+        if ((candidate.allowMainnetAgentAutomation || !websiteSignIn) && !isMainnetAgentAutomationPolicy(candidate, this.now())) {
           throw new Error('Mainnet Bypass Approve mode requires complete transaction, spend, fee, operation, and expiry limits')
+        }
+        if (websiteSignIn) {
+          if (!isMainnetWebsiteSignInPolicy(candidate, this.now())) {
+            throw new Error('Mainnet website sign-in without approval requires its separate mainnet switch, one website origin, at most 100 operations and an expiry within 7 days')
+          }
+          if (!candidate.allowMainnetAgentAutomation && (candidate.destinations.length > 0 || candidate.methods.length > 0)) {
+            throw new Error('A mainnet sign-in policy without Bypass Approve cannot list transaction destinations or methods')
+          }
         }
       } else {
         if (candidate.allowMainnetAgentAutomation) {
           throw new Error('Bypass Approve mode is only valid for a mainnet agent policy')
+        }
+        if (candidate.allowMainnetWebsiteSignIn) {
+          throw new Error('The mainnet website sign-in switch is only valid for a mainnet wallet')
         }
         if (!isWalletNetworkEligibleForAutomation(wallet)) {
           throw new Error('Wallet network is not eligible for automatic approval')

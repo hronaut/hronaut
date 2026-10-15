@@ -87,6 +87,8 @@ const policyMaximumOperations = ref(1)
 const policyExpiry = ref('')
 const dedicatedAgent = ref(false)
 const policyBypassApprove = ref(false)
+const policyWebsiteSignIn = ref(false)
+const policyMainnetWebsiteSignIn = ref(false)
 let importPreparationGeneration = 0
 let unmounted = false
 const vaultUsesPassphrase = computed(() => ['passphrase', 'basic_text', 'unknown'].includes(
@@ -160,11 +162,32 @@ const mainnetBypassLimitsValid = computed(() => {
     && expiresAt <= Date.now() + 7 * 24 * 60 * 60_000
     && policyMaximumOperations.value <= 100
 })
+const websiteSignInSupported = computed(() => (
+  selectedWallet.value?.chainFamily === 'evm'
+  && (!selectedWalletIsMainnet.value || mainnetBypassSupported.value)
+))
+// Transaction rules apply on test and local networks, and on mainnet only with
+// Bypass Approve. A mainnet sign-in policy carries no transaction target.
+const transactionRulesActive = computed(() => !selectedWalletIsMainnet.value || policyBypassApprove.value)
+const policyHasTransactionTarget = computed(() => (
+  policyDestination.value.trim().length > 0 && policyMethod.value.trim().length > 0
+))
+const policyHasNoTransactionTarget = computed(() => (
+  policyDestination.value.trim().length === 0 && policyMethod.value.trim().length === 0
+))
+const mainnetSignInLimitsValid = computed(() => {
+  const expiresAt = Date.parse(policyExpiry.value)
+  return Number.isFinite(expiresAt)
+    && expiresAt > Date.now()
+    && expiresAt <= Date.now() + 7 * 24 * 60 * 60_000
+    && policyMaximumOperations.value <= 100
+})
 const canAddBoundedPolicy = computed(() => (
   policyWorkspaceOptions.value.some((workspace) => workspace.id === policyWorkspaceId.value)
   && policyOriginValid.value
-  && policyDestination.value.trim().length > 0
-  && policyMethod.value.trim().length > 0
+  && (transactionRulesActive.value
+    ? policyHasTransactionTarget.value || (policyWebsiteSignIn.value && websiteSignInSupported.value && policyHasNoTransactionTarget.value)
+    : policyWebsiteSignIn.value)
   && optionalPolicyAmountsValid.value
   && Number.isInteger(policyMaximumOperations.value)
   && policyMaximumOperations.value > 0
@@ -172,8 +195,9 @@ const canAddBoundedPolicy = computed(() => (
   && (!policyExpiry.value || Date.parse(policyExpiry.value) > Date.now())
   && (!selectedWalletIsMainnet.value || (
     mainnetBypassSupported.value
-    && policyBypassApprove.value
-    && mainnetBypassLimitsValid.value
+    && (policyBypassApprove.value || policyWebsiteSignIn.value)
+    && (!policyBypassApprove.value || (mainnetBypassLimitsValid.value && policyHasTransactionTarget.value))
+    && (!policyWebsiteSignIn.value || (policyMainnetWebsiteSignIn.value && mainnetSignInLimitsValid.value))
   ))
 ))
 const backendTranslationKeys: Record<string, string> = {
@@ -216,6 +240,8 @@ function resetPolicyDraft(): void {
   policyMaximumOperations.value = 1
   policyExpiry.value = ''
   policyBypassApprove.value = false
+  policyWebsiteSignIn.value = false
+  policyMainnetWebsiteSignIn.value = false
 }
 
 watch(() => props.controller.wallets.value, (wallets) => {
@@ -444,18 +470,26 @@ async function addPolicy(): Promise<void> {
   const wallet = selectedWallet.value
   if (!wallet) return
   const expiry = policyExpiry.value ? new Date(policyExpiry.value).toISOString() : new Date(Date.now() + 60 * 60_000).toISOString()
+  const transactionRules = transactionRulesActive.value
+  const transactionTarget = transactionRules && policyHasTransactionTarget.value
+  const signIn = policyWebsiteSignIn.value && websiteSignInSupported.value
+    && (!selectedWalletIsMainnet.value || policyMainnetWebsiteSignIn.value)
   const policy: WalletPolicy = {
     id: crypto.randomUUID(), name: t('wallets.policyName', { network: wallet.network.name }), mode: 'bounded-auto', walletId: wallet.id,
     workspaceId: policyWorkspaceId.value, networkIds: [wallet.network.id],
-    origins: [policyOrigin.value.trim()], destinations: [policyDestination.value.trim()], methods: [policyMethod.value.trim()],
-    ...(policyMaxAmount.value ? { maxNativeAmount: policyMaxAmount.value } : {}),
-    ...(policyMaxTokenAmount.value ? { maxTokenAmount: policyMaxTokenAmount.value } : {}),
-    ...(policyMaxFee.value ? { maxFee: policyMaxFee.value } : {}),
-    ...(policySessionLimit.value ? { sessionSpendLimit: policySessionLimit.value } : {}),
-    ...(policyDailyLimit.value ? { dailySpendLimit: policyDailyLimit.value } : {}),
+    origins: [policyOrigin.value.trim()],
+    destinations: transactionTarget ? [policyDestination.value.trim()] : [],
+    methods: transactionTarget ? [policyMethod.value.trim()] : [],
+    ...(transactionRules && policyMaxAmount.value ? { maxNativeAmount: policyMaxAmount.value } : {}),
+    ...(transactionRules && policyMaxTokenAmount.value ? { maxTokenAmount: policyMaxTokenAmount.value } : {}),
+    ...(transactionRules && policyMaxFee.value ? { maxFee: policyMaxFee.value } : {}),
+    ...(transactionRules && policySessionLimit.value ? { sessionSpendLimit: policySessionLimit.value } : {}),
+    ...(transactionRules && policyDailyLimit.value ? { dailySpendLimit: policyDailyLimit.value } : {}),
     expiresAt: expiry, maximumOperationCount: policyMaximumOperations.value,
     requireSuccessfulSimulation: true, allowMessageSigning: false,
-    ...(policyBypassApprove.value ? { allowMainnetAgentAutomation: true } : {})
+    ...(selectedWalletIsMainnet.value && policyBypassApprove.value ? { allowMainnetAgentAutomation: true } : {}),
+    ...(signIn ? { allowWebsiteSignIn: true } : {}),
+    ...(signIn && selectedWalletIsMainnet.value ? { allowMainnetWebsiteSignIn: true } : {})
   }
   if (await props.controller.setPolicy(policy)) resetPolicyDraft()
 }
@@ -538,11 +572,13 @@ async function addPolicy(): Promise<void> {
             <template v-if="selectedWalletCanSign">
               <label v-if="mainnetBypassSupported" class="wallet-choice-card wallet-bypass-option"><input v-model="policyBypassApprove" type="checkbox" :aria-label="t('wallets.bypassApprove')"><span><strong>{{ t('wallets.bypassApprove') }}</strong><small>{{ t('wallets.bypassApproveDescription') }}</small></span></label>
               <p v-else-if="selectedWalletIsMainnet" class="wallet-mainnet-bypass-unavailable">{{ t('wallets.bypassApproveUnavailable') }}</p>
-              <div class="wallet-form"><label class="wallet-wide">{{ t('wallets.policyWorkspace') }} <select v-model="policyWorkspaceId" required :disabled="policyWorkspaceOptions.length === 0"><option value="" disabled>{{ t('wallets.selectPolicyWorkspace') }}</option><option v-for="workspace in policyWorkspaceOptions" :key="workspace.id" :value="workspace.id">{{ workspace.name }}</option></select></label><p v-if="policyWorkspaceOptions.length === 0" class="wallet-wide wallet-form-note">{{ t('wallets.policyWorkspaceRequired') }}</p><label>{{ t('wallets.allowedOrigin') }} <input v-model="policyOrigin" type="url" required :placeholder="t('wallets.originPlaceholder')"></label><label>{{ t('wallets.destinationContract') }} <input v-model="policyDestination" required></label><label>{{ t('wallets.methodInstruction') }} <input v-model="policyMethod" required :placeholder="t('wallets.methodPlaceholder')"></label><label>{{ t('wallets.maxNativeAmount') }} <input v-model="policyMaxAmount" inputmode="decimal"></label><label>{{ t('wallets.maxTokenAmount') }} <input v-model="policyMaxTokenAmount" inputmode="decimal"></label><label>{{ t('wallets.maxFee') }} <input v-model="policyMaxFee" inputmode="decimal"></label><label>{{ t('wallets.sessionSpend') }} <input v-model="policySessionLimit" inputmode="decimal"></label><label>{{ t('wallets.dailySpend') }} <input v-model="policyDailyLimit" inputmode="decimal"></label><label>{{ t('wallets.operationCount') }} <input v-model.number="policyMaximumOperations" type="number" min="1" :max="selectedWalletIsMainnet ? 100 : 1000000"></label><label>{{ t('wallets.expires') }} <input v-model="policyExpiry" type="datetime-local"></label><UiButton variant="primary" class="primary-button" type="button" :disabled="controller.busy.value || !canAddBoundedPolicy" @click="addPolicy">{{ selectedWalletIsMainnet ? t('wallets.enableBypassApprove') : t('wallets.addBoundedPolicy') }}</UiButton></div>
+              <label v-if="websiteSignInSupported" class="wallet-choice-card wallet-sign-in-option"><input v-model="policyWebsiteSignIn" type="checkbox" :aria-label="t('wallets.websiteSignIn')"><span><strong>{{ t('wallets.websiteSignIn') }}</strong><small>{{ t('wallets.websiteSignInDescription') }}</small></span></label>
+              <label v-if="websiteSignInSupported && selectedWalletIsMainnet && policyWebsiteSignIn" class="wallet-choice-card wallet-bypass-option wallet-mainnet-sign-in-option"><input v-model="policyMainnetWebsiteSignIn" type="checkbox" :aria-label="t('wallets.mainnetWebsiteSignIn')" aria-describedby="wallet-mainnet-sign-in-warning"><span><strong>{{ t('wallets.mainnetWebsiteSignIn') }}</strong><small id="wallet-mainnet-sign-in-warning">{{ t('wallets.mainnetWebsiteSignInWarning') }}</small></span></label>
+              <div class="wallet-form"><label class="wallet-wide">{{ t('wallets.policyWorkspace') }} <select v-model="policyWorkspaceId" required :disabled="policyWorkspaceOptions.length === 0"><option value="" disabled>{{ t('wallets.selectPolicyWorkspace') }}</option><option v-for="workspace in policyWorkspaceOptions" :key="workspace.id" :value="workspace.id">{{ workspace.name }}</option></select></label><p v-if="policyWorkspaceOptions.length === 0" class="wallet-wide wallet-form-note">{{ t('wallets.policyWorkspaceRequired') }}</p><label>{{ t('wallets.allowedOrigin') }} <input v-model="policyOrigin" type="url" required :placeholder="t('wallets.originPlaceholder')"></label><p v-if="policyWebsiteSignIn && transactionRulesActive" class="wallet-wide wallet-form-note">{{ t('wallets.signInOnlyNote') }}</p><label>{{ t('wallets.destinationContract') }} <input v-model="policyDestination" :required="!policyWebsiteSignIn" :disabled="!transactionRulesActive"></label><label>{{ t('wallets.methodInstruction') }} <input v-model="policyMethod" :required="!policyWebsiteSignIn" :disabled="!transactionRulesActive" :placeholder="t('wallets.methodPlaceholder')"></label><label>{{ t('wallets.maxNativeAmount') }} <input v-model="policyMaxAmount" inputmode="decimal" :disabled="!transactionRulesActive"></label><label>{{ t('wallets.maxTokenAmount') }} <input v-model="policyMaxTokenAmount" inputmode="decimal" :disabled="!transactionRulesActive"></label><label>{{ t('wallets.maxFee') }} <input v-model="policyMaxFee" inputmode="decimal" :disabled="!transactionRulesActive"></label><label>{{ t('wallets.sessionSpend') }} <input v-model="policySessionLimit" inputmode="decimal" :disabled="!transactionRulesActive"></label><label>{{ t('wallets.dailySpend') }} <input v-model="policyDailyLimit" inputmode="decimal" :disabled="!transactionRulesActive"></label><label>{{ t('wallets.operationCount') }} <input v-model.number="policyMaximumOperations" type="number" min="1" :max="selectedWalletIsMainnet ? 100 : 1000000"></label><label>{{ t('wallets.expires') }} <input v-model="policyExpiry" type="datetime-local"></label><UiButton variant="primary" class="primary-button" type="button" :disabled="controller.busy.value || !canAddBoundedPolicy" @click="addPolicy">{{ selectedWalletIsMainnet && policyBypassApprove ? t('wallets.enableBypassApprove') : t('wallets.addBoundedPolicy') }}</UiButton></div>
             </template>
             <p v-else class="wallet-mainnet-bypass-unavailable">{{ t('wallets.watchOnlyAutomationUnavailable') }}</p>
             <p v-if="selectedPolicies.length === 0" class="wallet-form-note">{{ t('wallets.noPolicies') }}</p>
-            <ul class="wallet-list"><li v-for="policy in selectedPolicies" :key="policy.id"><span><strong>{{ policy.name }}</strong><small>{{ policy.allowMainnetAgentAutomation ? t('wallets.policyBypassValue', { origins: policy.origins.join(', ') }) : t('wallets.policyValue', { mode: policy.mode, origins: policy.origins.join(', ') }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.removePolicy(policy.id)">{{ t('wallets.remove') }}</UiButton></li></ul>
+            <ul class="wallet-list"><li v-for="policy in selectedPolicies" :key="policy.id"><span><strong>{{ policy.name }}</strong><small>{{ policy.allowMainnetAgentAutomation ? t('wallets.policyBypassValue', { origins: policy.origins.join(', ') }) : t('wallets.policyValue', { mode: policy.mode, origins: policy.origins.join(', ') }) }}</small><small v-if="policy.allowWebsiteSignIn" class="wallet-policy-sign-in">{{ policy.allowMainnetWebsiteSignIn ? t('wallets.policyMainnetSignInValue') : t('wallets.policySignInValue') }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.removePolicy(policy.id)">{{ t('wallets.remove') }}</UiButton></li></ul>
           </div>
 
             <div class="wallet-subsection"><h5>{{ t('wallets.websitePermissions') }}</h5><p v-if="selectedPermissions.length === 0">{{ t('wallets.noPermissions') }}</p><ul class="wallet-list"><li v-for="permission in selectedPermissions" :key="permission.id"><span><strong>{{ permission.origin }}</strong><small>{{ t('wallets.permissionValue', { workspace: permission.workspaceId, expires: new Date(permission.expiresAt).toLocaleString() }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.revokePermission(permission.id)">{{ t('wallets.revoke') }}</UiButton></li></ul></div>

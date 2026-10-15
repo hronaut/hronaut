@@ -89,8 +89,24 @@ export function isMainnetAgentAutomationPolicy(policy: WalletPolicy, now: Date):
     && expiresIn <= MAINNET_AGENT_AUTOMATION_MAX_DURATION_MS
 }
 
+export function isMainnetWebsiteSignInPolicy(policy: WalletPolicy, now: Date): boolean {
+  const expiresIn = Date.parse(policy.expiresAt) - now.getTime()
+  return policy.allowWebsiteSignIn === true
+    && policy.allowMainnetWebsiteSignIn === true
+    && policy.mode === 'bounded-auto'
+    && policy.networkIds.length === 1
+    && policy.origins.length === 1
+    && policy.maximumOperationCount <= MAINNET_AGENT_AUTOMATION_MAX_OPERATIONS
+    && expiresIn > 0
+    && expiresIn <= MAINNET_AGENT_AUTOMATION_MAX_DURATION_MS
+}
+
 function isLoopbackRpc(rpcUrl: string): boolean {
-  const hostname = new URL(rpcUrl).hostname.toLowerCase()
+  return isLoopbackHostname(new URL(rpcUrl).hostname)
+}
+
+function isLoopbackHostname(value: string): boolean {
+  const hostname = value.toLowerCase()
   return hostname === 'localhost'
     || hostname === '::1'
     || hostname === '[::1]'
@@ -114,6 +130,84 @@ export function isWalletNetworkEligibleForAutomation(wallet: WalletDescriptor): 
       && isLoopbackRpc(wallet.network.rpcUrl)
   }
   return false
+}
+
+/**
+ * Whether a bounded policy lets websites connect and sign plain-text sign-in
+ * messages on this wallet without a click. Testnets and loopback local chains
+ * qualify on their own; mainnet also needs the separate mainnet switch, a
+ * dedicated EVM agent wallet and the tighter mainnet limits.
+ */
+export function websiteSignInPolicyApplies(wallet: WalletDescriptor, policy: WalletPolicy, now: Date): boolean {
+  if (policy.mode !== 'bounded-auto' || policy.allowWebsiteSignIn !== true || policy.walletId !== wallet.id) return false
+  if (wallet.chainFamily !== 'evm' || wallet.kind === 'watch-only' || !wallet.capabilities.includes('sign')) return false
+  if (Date.parse(policy.expiresAt) <= now.getTime() || !policy.networkIds.includes(wallet.network.id)) return false
+  if (wallet.network.environment === 'mainnet') return wallet.kind === 'agent' && isMainnetWebsiteSignInPolicy(policy, now)
+  return policy.allowMainnetWebsiteSignIn !== true && isWalletNetworkEligibleForAutomation(wallet)
+}
+
+export const WEBSITE_SIGN_IN_MAX_MESSAGE_BYTES = 4096
+
+// Control characters other than tab and line feed, plus format (including
+// bidirectional and zero-width), private-use and line or paragraph separator
+// characters. Carriage returns are excluded so a sign-in header cannot hide
+// behind CRLF line endings.
+const NON_PLAIN_TEXT = /[^\P{Cc}\t\n]|[\p{Cf}\p{Co}\p{Zl}\p{Zp}]/u
+const SIGN_IN_PHRASE = /wants you to sign in with your/i
+const EIP_4361_HEADER = /^(?:([a-zA-Z][a-zA-Z0-9+.-]*):\/\/)?([^\s/?#]+) wants you to sign in with your Ethereum account:$/
+const EVM_ADDRESS_LINE = /^0x[0-9a-fA-F]{40}$/
+const CHAIN_ID_LINE = /^Chain ID: ([1-9]\d{0,19})$/
+
+/**
+ * Returns why a website message cannot be signed without a click, or
+ * undefined when it is bounded UTF-8 plain text. Text that looks like an
+ * EIP-4361 sign-in message must name the requesting site, the wallet address
+ * and the wallet's chain, so one allowed site cannot obtain a sign-in for
+ * another site or chain. A personal_sign signature is valid on every chain,
+ * so other plain text is signed only by a dedicated agent wallet; a managed
+ * or imported key may also be the person's key elsewhere.
+ */
+export function websiteSignInMessageIssue(message: Uint8Array, wallet: WalletDescriptor, topLevelOrigin: string): string | undefined {
+  if (!message.length || message.length > WEBSITE_SIGN_IN_MAX_MESSAGE_BYTES) return 'message-not-plain-text'
+  let text: string
+  try {
+    text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(message)
+  } catch {
+    return 'message-not-plain-text'
+  }
+  if (NON_PLAIN_TEXT.test(text)) return 'message-not-plain-text'
+  if (!SIGN_IN_PHRASE.test(text)) return wallet.kind === 'agent' ? undefined : 'plain-text-requires-agent-wallet'
+  const lines = text.split('\n')
+  const header = EIP_4361_HEADER.exec(lines[0] ?? '')
+  const addressLine = lines[1] ?? ''
+  if (!header || !EVM_ADDRESS_LINE.test(addressLine)) return 'sign-in-message-unverified'
+  let origin: URL
+  try {
+    origin = new URL(topLevelOrigin)
+  } catch {
+    return 'sign-in-domain-mismatch'
+  }
+  const [, scheme, domain] = header
+  if (scheme !== undefined && `${scheme.toLowerCase()}:` !== origin.protocol) return 'sign-in-domain-mismatch'
+  // EIP-4361 verifiers read a missing scheme as https, so a plain-HTTP site
+  // other than a loopback development server must name its scheme.
+  if (scheme === undefined && origin.protocol === 'http:' && !isLoopbackHostname(origin.hostname)) return 'sign-in-domain-mismatch'
+  if (domain?.toLowerCase() !== origin.host.toLowerCase()) return 'sign-in-domain-mismatch'
+  if (addressLine.toLowerCase() !== wallet.publicAddress.toLowerCase()) return 'sign-in-address-mismatch'
+  const chainLines = lines.filter((line) => line.startsWith('Chain ID:'))
+  const chainId = chainLines.length === 1 ? CHAIN_ID_LINE.exec(chainLines[0] ?? '')?.[1] : undefined
+  if (!chainId) return 'sign-in-message-unverified'
+  if (chainId !== wallet.network.id) return 'sign-in-chain-mismatch'
+  return undefined
+}
+
+export interface WalletWebsiteSignInEvaluation {
+  request: WalletOperationRequest
+  wallet: WalletDescriptor
+  policies: readonly WalletPolicy[]
+  now: Date
+  usageByPolicy: Readonly<Record<string, { operationCount: number }>>
+  message?: { kind: 'message'; bytes: Uint8Array; raw: boolean } | { kind: 'typed-data' }
 }
 
 function decimal(value: string | undefined): DecimalValue {
@@ -205,6 +299,39 @@ export class WalletPolicyEngine {
       if (policy.maxFee && walletDecimalCompare(decoded.estimatedFee, policy.maxFee) > 0) continue
       if (policy.sessionSpendLimit && walletDecimalCompare(walletDecimalAdd(usage.sessionSpend, decoded.nativeAmount), policy.sessionSpendLimit) > 0) continue
       if (policy.dailySpendLimit && walletDecimalCompare(walletDecimalAdd(usage.dailySpend, decoded.nativeAmount), policy.dailySpendLimit) > 0) continue
+      return { outcome: 'approved', reason: 'bounded-policy', policyId: policy.id }
+    }
+    return { outcome: 'awaiting-human', reason: 'no-matching-policy' }
+  }
+
+  /**
+   * Decides whether a website's account connection or plain-text message
+   * signature can proceed under an opted-in sign-in policy. It never rejects:
+   * anything it does not approve goes to the person as before.
+   */
+  evaluateWebsiteSignIn(input: WalletWebsiteSignInEvaluation): WalletPolicyDecision {
+    const { request, wallet } = input
+    if (request.requester.type !== 'website') return { outcome: 'awaiting-human', reason: 'requester-not-website' }
+    if (request.operation !== 'connect-account' && request.operation !== 'sign-message') {
+      return { outcome: 'awaiting-human', reason: 'operation-requires-human' }
+    }
+    if (!wallet.capabilities.includes(request.capability) || !walletAllowsWorkspace(wallet, request.workspaceId)) {
+      return { outcome: 'awaiting-human', reason: 'wallet-not-eligible' }
+    }
+    if (wallet.chainFamily !== request.chainFamily || wallet.network.id !== request.networkId) {
+      return { outcome: 'awaiting-human', reason: 'chain-or-network-mismatch' }
+    }
+    if (request.operation === 'sign-message') {
+      const message = input.message
+      if (message?.kind !== 'message') return { outcome: 'awaiting-human', reason: 'typed-data-requires-human' }
+      if (message.raw) return { outcome: 'awaiting-human', reason: 'raw-signing-requires-human' }
+      const issue = websiteSignInMessageIssue(message.bytes, wallet, request.topLevelOrigin)
+      if (issue) return { outcome: 'awaiting-human', reason: issue }
+    }
+    for (const policy of input.policies) {
+      if (!websiteSignInPolicyApplies(wallet, policy, input.now) || policy.workspaceId !== request.workspaceId) continue
+      if ((input.usageByPolicy[policy.id]?.operationCount ?? 0) >= policy.maximumOperationCount) continue
+      if (!policy.networkIds.includes(request.networkId) || !policy.origins.includes(request.topLevelOrigin)) continue
       return { outcome: 'approved', reason: 'bounded-policy', policyId: policy.id }
     }
     return { outcome: 'awaiting-human', reason: 'no-matching-policy' }

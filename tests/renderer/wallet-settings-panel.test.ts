@@ -648,6 +648,82 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
   })
 
+  it('adds a testnet sign-in policy without a transaction target', async () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
+    const setPolicy = vi.fn(async (policy: WalletPolicy) => policy)
+    const wallets = controller({ wallets: ref([signingWallet]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+    expect(screen.queryByLabelText('Also allow on mainnet')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
+    await user.click(screen.getByLabelText('Let this site connect and sign in without asking'))
+    expect(screen.getByText(/Sign-In with Ethereum messages that name that site/i)).toBeVisible()
+    expect(screen.queryByLabelText('Also allow on mainnet')).not.toBeInTheDocument()
+    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
+    await user.clear(screen.getByLabelText('Destination / contract'))
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+
+    expect(setPolicy).toHaveBeenCalledOnce()
+    const saved = setPolicy.mock.calls[0]?.[0]
+    expect(saved).toMatchObject({
+      walletId: 'signing', mode: 'bounded-auto', origins: ['https://dapp.example'],
+      destinations: [], methods: [], allowWebsiteSignIn: true, allowMessageSigning: false
+    })
+    expect(saved).not.toHaveProperty('allowMainnetWebsiteSignIn')
+    expect(saved).not.toHaveProperty('allowMainnetAgentAutomation')
+    expect(screen.getByLabelText('Let this site connect and sign in without asking')).not.toBeChecked()
+  })
+
+  it('needs the separate warned mainnet switch before saving a mainnet sign-in policy', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-04T12:00:00.000Z'))
+    const mainnetAgent: WalletDescriptor = {
+      ...wallet('mainnet-agent', 'Mainnet agent', ['workspace-1']),
+      kind: 'agent',
+      capabilities: ['read', 'sign', 'send'],
+      network: { id: '1', name: 'Ethereum', environment: 'mainnet', rpcUrl: 'https://ethereum-rpc.publicnode.com' }
+    }
+    const setPolicy = vi.fn(async (policy: WalletPolicy) => policy)
+    const wallets = controller({ wallets: ref([mainnetAgent]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-1', name: 'Agent workspace' }] },
+      global
+    })
+    const user = userEvent.setup()
+    expect(screen.queryByLabelText('Also allow on mainnet')).not.toBeInTheDocument()
+    await user.click(screen.getByLabelText('Let this site connect and sign in without asking'))
+    const mainnetSwitch = screen.getByLabelText('Also allow on mainnet')
+    expect(mainnetSwitch).not.toBeChecked()
+    expect(mainnetSwitch).toHaveAccessibleDescription(/Warning: this is a real mainnet account/)
+    expect(screen.getByLabelText('Destination / contract')).toBeDisabled()
+    expect(screen.getByLabelText('Max native amount')).toBeDisabled()
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await fireEvent.update(screen.getByLabelText('Expires'), '2026-09-05T12:00')
+    const add = screen.getByRole('button', { name: 'Add bounded policy' })
+    expect(add).toBeDisabled()
+    await user.click(mainnetSwitch)
+    await fireEvent.update(screen.getByLabelText('Expires'), '2026-09-12T12:00')
+    expect(add).toBeDisabled()
+    await fireEvent.update(screen.getByLabelText('Expires'), '2026-09-05T12:00')
+    expect(add).toBeEnabled()
+    await user.click(add)
+
+    const saved = setPolicy.mock.calls[0]?.[0]
+    expect(saved).toMatchObject({
+      walletId: mainnetAgent.id, mode: 'bounded-auto', networkIds: ['1'], origins: ['https://dapp.example'],
+      destinations: [], methods: [], allowWebsiteSignIn: true, allowMainnetWebsiteSignIn: true
+    })
+    expect(saved).not.toHaveProperty('allowMainnetAgentAutomation')
+    expect(saved).not.toHaveProperty('maxNativeAmount')
+  })
+
   it('renames a configured wallet inline without relying on unsupported prompt dialogs', async () => {
     const configured = wallet('a', 'Old wallet name', [])
     const update = vi.fn(async () => configured)
