@@ -625,9 +625,11 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   loading: boolean
   navigationGeneration: number
   /**
-   * The navigation generation of the current document. A dApp's own route
-   * change (a history API or fragment navigation in the same document) leaves
-   * it unchanged, so the page keeps its pending wallet requests and network.
+   * The navigation generation wallet requests are bound to. It advances when a
+   * navigation to another document starts, even one that never commits, such
+   * as a download. A dApp's own route change (a history API or fragment
+   * navigation in the same document) leaves it unchanged, so the page keeps
+   * its pending wallet requests and network.
    */
   walletNavigationGeneration: number
   performanceDocumentRouted?: boolean
