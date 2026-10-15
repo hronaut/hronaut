@@ -47,6 +47,7 @@ import {
   signInTextWarningIssue,
   websiteSignInPolicyApplies,
   websiteTypedDataPolicyApplies,
+  walletPolicyDestinationMatches,
   WalletPolicyEngine,
   type WalletSignInTextIssue,
   type WalletPolicyDecision,
@@ -209,6 +210,8 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
   }
 }
 
+const HIDDEN_WALLET_ADDRESS = 'this wallet (address hidden until account permission)'
+
 function agentSummary(
   record: WalletApprovalRecord,
   wallet?: WalletDescriptor,
@@ -217,6 +220,12 @@ function agentSummary(
   const full = summary(record, wallet)
   if (!full.details) return full
   const { raw: _raw, publicAddress, ...details } = full.details
+  if (!includeAddress) {
+    // A request can name the wallet itself, such as a transfer to its own address.
+    for (const field of ['contract', 'source', 'destination'] as const) {
+      if (walletPolicyDestinationMatches(details.chainFamily, [publicAddress], details[field])) details[field] = HIDDEN_WALLET_ADDRESS
+    }
+  }
   return {
     ...full,
     details: {
