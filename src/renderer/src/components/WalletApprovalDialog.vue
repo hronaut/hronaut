@@ -34,7 +34,17 @@ const messageWarningKeys: Record<WalletMessageWarning, string> = {
 const typedDataWarningKeys: Record<WalletTypedDataWarning, string> = {
   'typed-data-other-chain': 'otherChain',
   'token-permit': 'tokenPermit',
+  'token-transfer': 'tokenTransfer',
   'unlimited-amount': 'unlimitedAmount'
+}
+
+// Transfer authorizations move an amount; permits grant an allowance. Several are numbered.
+function tokenAmountLabel(index: number): string {
+  const typedData = request.value?.details?.typedData
+  const key = typedData?.warnings.includes('token-transfer') ? 'transferAmount' : 'allowance'
+  return (typedData?.tokenAccess?.allowances.length ?? 0) > 1
+    ? t(`wallets.approval.typedData.${key}Numbered`, { number: index + 1 })
+    : t(`wallets.approval.typedData.${key}`)
 }
 
 function rawDetails(): string {
@@ -83,13 +93,14 @@ function rawDetails(): string {
           <div v-if="request.details.typedData.domain.name"><dt>{{ t('wallets.approval.typedData.app') }}</dt><dd>{{ request.details.typedData.domain.version ? t('wallets.approval.typedData.appVersion', { name: request.details.typedData.domain.name, version: request.details.typedData.domain.version }) : request.details.typedData.domain.name }}</dd></div>
           <div v-if="request.details.typedData.domain.chainId"><dt>{{ t('wallets.approval.typedData.chainId') }}</dt><dd>{{ request.details.typedData.domain.chainId }}</dd></div>
           <div v-if="request.details.typedData.domain.verifyingContract"><dt>{{ t('wallets.approval.typedData.contract') }}</dt><dd><code>{{ request.details.typedData.domain.verifyingContract }}</code></dd></div>
-          <div v-if="request.details.typedData.permit?.spender"><dt>{{ t('wallets.approval.typedData.spender') }}</dt><dd><code>{{ request.details.typedData.permit.spender }}</code></dd></div>
-          <div v-for="(allowance, index) in request.details.typedData.permit?.allowances ?? []" :key="index">
-            <dt>{{ t('wallets.approval.typedData.allowance') }}</dt>
+          <div v-if="request.details.typedData.tokenAccess?.spender"><dt>{{ t('wallets.approval.typedData.spender') }}</dt><dd><code>{{ request.details.typedData.tokenAccess.spender }}</code></dd></div>
+          <div v-if="request.details.typedData.tokenAccess?.recipient"><dt>{{ t('wallets.approval.typedData.recipient') }}</dt><dd><code>{{ request.details.typedData.tokenAccess.recipient }}</code></dd></div>
+          <div v-for="(allowance, index) in request.details.typedData.tokenAccess?.allowances ?? []" :key="index">
+            <dt>{{ tokenAmountLabel(index) }}</dt>
             <dd><code v-if="allowance.token">{{ allowance.token }}</code>{{ allowance.token ? ' · ' : '' }}{{ allowance.unlimited ? t('wallets.approval.typedData.unlimited') : allowance.amount ? t('wallets.approval.typedData.baseUnits', { amount: allowance.amount }) : t('wallets.approval.typedData.unknownAmount') }}</dd>
           </div>
         </dl>
-        <p v-if="request.details.typedData.permit?.moreAllowances" class="wallet-approval-message-note">{{ t('wallets.approval.typedData.moreAllowances') }}</p>
+        <p v-if="request.details.typedData.tokenAccess?.moreAllowances" class="wallet-approval-message-note">{{ t('wallets.approval.typedData.moreAllowances') }}</p>
       </section>
       <details class="wallet-approval-raw">
         <summary>{{ t('wallets.approval.raw') }}</summary>

@@ -473,15 +473,20 @@ export const enUS = {
         chainId: 'Chain ID',
         contract: 'Contract',
         spender: 'Spender',
+        recipient: 'Recipient',
         allowance: 'Token allowance',
+        allowanceNumbered: 'Token allowance {number}',
+        transferAmount: 'Token amount',
+        transferAmountNumbered: 'Token amount {number}',
         unlimited: 'Unlimited',
         baseUnits: '{amount} (smallest token units)',
         unknownAmount: 'Amount not readable',
         moreAllowances: 'More tokens are listed in the raw unsigned request.',
         warnings: {
           otherChain: "This signature names a different chain than this wallet's network, so it may be used on that chain.",
-          tokenPermit: 'This is a token permit. Signing it lets the spender move your tokens without another approval from you, until it expires or is used.',
-          unlimitedAmount: 'The permit allows an unlimited amount.'
+          tokenPermit: 'This is a token permit. Signing it lets the spender move your tokens without another approval from you.',
+          tokenTransfer: 'This is a token transfer authorization. Signing it lets the tokens be moved from your wallet to the recipient without another approval from you.',
+          unlimitedAmount: 'This signature covers an unlimited amount of the token.'
         }
       },
       raw: 'Raw unsigned request',

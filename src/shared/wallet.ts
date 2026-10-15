@@ -348,9 +348,9 @@ export const WalletMessageWarningSchema = z.enum([
   'sign-in-unverified'
 ])
 export type WalletMessageWarning = z.infer<typeof WalletMessageWarningSchema>
-/** Token allowances listed for one typed-data permit in the trusted approval dialog. */
+/** Token amounts listed for one typed-data permit or transfer in the trusted approval dialog. */
 export const WALLET_TYPED_DATA_MAX_ALLOWANCES = 16
-export const WalletTypedDataWarningSchema = z.enum(['typed-data-other-chain', 'token-permit', 'unlimited-amount'])
+export const WalletTypedDataWarningSchema = z.enum(['typed-data-other-chain', 'token-permit', 'token-transfer', 'unlimited-amount'])
 export type WalletTypedDataWarning = z.infer<typeof WalletTypedDataWarningSchema>
 const typedDataDisplayText = z.string().max(256)
 export const WalletTypedDataDisplaySchema = z.object({
@@ -361,8 +361,9 @@ export const WalletTypedDataDisplaySchema = z.object({
     chainId: typedDataDisplayText.optional(),
     verifyingContract: typedDataDisplayText.optional()
   }).strict(),
-  permit: z.object({
+  tokenAccess: z.object({
     spender: typedDataDisplayText.optional(),
+    recipient: typedDataDisplayText.optional(),
     allowances: z.array(z.object({
       token: typedDataDisplayText.optional(),
       amount: typedDataDisplayText.optional(),

@@ -161,7 +161,7 @@ describe('message text in the trusted approval', () => {
     expect(pending.details?.typedData).toMatchObject({
       primaryType: 'PermitSingle',
       domain: { name: 'Permit2', chainId: '1' },
-      permit: { spender, allowances: [{ unlimited: true }] },
+      tokenAccess: { spender, allowances: [{ unlimited: true }] },
       warnings: ['typed-data-other-chain', 'token-permit', 'unlimited-amount']
     })
     expect(pending.details?.message).toBeUndefined()
