@@ -324,6 +324,14 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
   appWindow: async ({ electronApp }, use) => {
     const window = await electronApp.firstWindow()
     await window.waitForLoadState('domcontentloaded')
+    // Tab mutations fail closed until saved workspaces finish loading, and startup reads wait for that,
+    // so one read here keeps tests from racing initialization on slow runners. A failed read means
+    // startup itself failed, which the tests that cover it assert on their own.
+    // Startups that wait on a person (recovery prompts) are bounded so those tests still get the window.
+    await window.evaluate(`Promise.race([
+      Promise.resolve(window.hronautHistory?.list()).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, 10000))
+    ]).then(() => undefined)`)
     await use(window)
   }
 })
