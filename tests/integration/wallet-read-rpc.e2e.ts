@@ -63,7 +63,11 @@ function startJsonRpc(): Promise<{ server: Server; url: string; methods: string[
           ? { result: '0xde0b6b3a7640000' }
           : call.method === 'eth_call'
             ? { error: { code: 3, message: 'execution reverted: Not owner', data: '0x08c379a0' } }
-            : { error: { code: -32601, message: 'Method not found' } }
+            : call.method === 'eth_blobBaseFee'
+              ? { result: '0x3' }
+              : call.method === 'eth_createAccessList'
+                ? { result: { accessList: [], gasUsed: '0x5208' } }
+                : { error: { code: -32601, message: 'Method not found' } }
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ jsonrpc: '2.0', id: call.id, ...reply }))
     })
@@ -107,6 +111,8 @@ test('lets a dApp page read chain state through the wallet provider without a co
           balance: await settle(provider.request({ method: 'eth_getBalance', params: [${JSON.stringify(address)}, 'latest'] })),
           netVersion: await settle(provider.request({ method: 'net_version' })),
           revert: await settle(provider.request({ method: 'eth_call', params: [{ to: '0x0000000000000000000000000000000000000002', data: '0x' }, 'latest'] })),
+          blobBaseFee: await settle(provider.request({ method: 'eth_blobBaseFee' })),
+          accessList: await settle(provider.request({ method: 'eth_createAccessList', params: [{ to: '0x0000000000000000000000000000000000000002', data: '0x' }, 'latest'] })),
           raw: await settle(provider.request({ method: 'eth_sendRawTransaction', params: ['0x00'] })),
           atomicBatch: await settle(provider.request({ method: 'wallet_sendCalls', params: [{
             version: '2.0.0', chainId: '0x7a69', atomicRequired: true,
@@ -124,12 +130,14 @@ test('lets a dApp page read chain state through the wallet provider without a co
     expect(results.revert).toMatchObject({ code: 3, data: '0x08c379a0' })
     expect(results.revert.message).toContain('execution reverted: Not owner')
     expect(results.revert.message).not.toContain(rpc.url)
+    expect(results.blobBaseFee).toEqual({ value: '0x3' })
+    expect(results.accessList).toEqual({ value: { accessList: [], gasUsed: '0x5208' } })
     expect(results.raw).toMatchObject({ code: 4200 })
     // EIP-5792 errors reach the page with their own codes.
     expect(results.atomicBatch).toMatchObject({ code: 5760 })
     expect(results.unknownBatch).toMatchObject({ code: 5730 })
     expect(results.capabilities).toMatchObject({ code: 4100 })
-    expect(rpc.methods).toEqual(['eth_blockNumber', 'eth_getBalance', 'eth_call'])
+    expect(rpc.methods).toEqual(['eth_blockNumber', 'eth_getBalance', 'eth_call', 'eth_blobBaseFee', 'eth_createAccessList'])
     expect(await appWindow.evaluate('window.hronautWallets.listRequests()')).toEqual([])
   } finally {
     rpc.server.close()

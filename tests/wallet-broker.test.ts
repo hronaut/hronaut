@@ -4,7 +4,7 @@ import { address, getAddressEncoder } from '@solana/kit'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { encodeFunctionData, getAddress, keccak256, parseAbi, verifyMessage, type Hex } from 'viem'
+import { createPublicClient, custom, encodeFunctionData, getAddress, keccak256, parseAbi, verifyMessage, type Hex } from 'viem'
 import { TronWeb } from 'tronweb'
 import {
   WalletBroker as BaseWalletBroker,
@@ -1381,6 +1381,63 @@ describe('WalletBroker', () => {
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'debug_traceCall' } as never))
       .rejects.toThrow('Unsupported EVM wallet method: debug_traceCall')
     expect(readRpc).toHaveBeenCalledTimes(2)
+  })
+
+  it('runs the viem read actions dApps use through the wallet provider, forwarded to the wallet network', async () => {
+    const { service, wallet } = await setup()
+    const block: Hex = `0x${'b'.repeat(64)}`
+    const transaction = {
+      hash: `0x${'c'.repeat(64)}`, nonce: '0x0', blockHash: block, blockNumber: '0x1', transactionIndex: '0x0',
+      from: wallet.publicAddress, to: '0x0000000000000000000000000000000000000002', value: '0x1', gas: '0x5208',
+      gasPrice: '0x1', input: '0x', type: '0x0', chainId: '0x7a69', v: '0xf5e5', r: `0x${'1'.repeat(64)}`, s: `0x${'2'.repeat(64)}`
+    }
+    const answers: Record<string, unknown> = {
+      eth_createAccessList: { accessList: [{ address: '0x0000000000000000000000000000000000000002', storageKeys: [] }], gasUsed: '0x5300' },
+      eth_getProof: {
+        address: '0x0000000000000000000000000000000000000002', accountProof: ['0x01'], balance: '0x0', codeHash: `0x${'d'.repeat(64)}`,
+        nonce: '0x0', storageHash: `0x${'e'.repeat(64)}`, storageProof: []
+      },
+      eth_blobBaseFee: '0x3',
+      eth_getBlockTransactionCountByNumber: '0x2',
+      eth_getBlockTransactionCountByHash: '0x2',
+      eth_getTransactionByBlockNumberAndIndex: transaction,
+      eth_getTransactionByBlockHashAndIndex: transaction,
+      eth_simulateV1: [{
+        number: '0x2', hash: `0x${'f'.repeat(64)}`, timestamp: '0x1', gasLimit: '0x1c9c380', gasUsed: '0x5208', baseFeePerGas: '0x1',
+        transactions: [], calls: [{ status: '0x1', returnData: '0x2a', gasUsed: '0x5208', logs: [] }]
+      }]
+    }
+    const forwarded: Array<{ method: string; params: unknown }> = []
+    // A node behind the real EVM adapter; the dApp's viem client talks only to the page provider.
+    const node = createPublicClient({ transport: custom({ request: async ({ method, params }: { method: string; params?: unknown }) => {
+      forwarded.push({ method, params })
+      if (!(method in answers)) throw new Error(`Unexpected node method ${method}`)
+      return answers[method]
+    } }) })
+    const broker = new WalletBroker(service, { adapters: { evm: new EvmWalletAdapter(() => node as never) } })
+    const dApp = createPublicClient({ transport: custom({
+      request: ({ method, params }: { method: string; params?: unknown }) => broker.providerRequest(context(), { family: 'evm', method, params } as never)
+    }) })
+    const to = '0x0000000000000000000000000000000000000002' as const
+
+    await expect(dApp.createAccessList({ to, data: '0x' })).resolves.toEqual({
+      accessList: [{ address: to, storageKeys: [] }], gasUsed: 0x5300n
+    })
+    await expect(dApp.getProof({ address: to, storageKeys: [] })).resolves.toMatchObject({ address: to, accountProof: ['0x01'], balance: 0n })
+    await expect(dApp.getBlobBaseFee()).resolves.toBe(3n)
+    await expect(dApp.getBlockTransactionCount({ blockNumber: 1n })).resolves.toBe(2)
+    await expect(dApp.getBlockTransactionCount({ blockHash: block })).resolves.toBe(2)
+    await expect(dApp.getTransaction({ blockNumber: 1n, index: 0 })).resolves.toMatchObject({ hash: transaction.hash, value: 1n })
+    await expect(dApp.getTransaction({ blockHash: block, index: 0 })).resolves.toMatchObject({ hash: transaction.hash })
+    const [simulated] = await dApp.simulateBlocks({ blocks: [{ calls: [{ to, data: '0x' }] }] })
+    expect(simulated?.calls).toEqual([expect.objectContaining({ status: 'success', data: '0x2a', gasUsed: 0x5208n })])
+    expect(forwarded.map(({ method }) => method)).toEqual([
+      'eth_createAccessList', 'eth_getProof', 'eth_blobBaseFee', 'eth_getBlockTransactionCountByNumber',
+      'eth_getBlockTransactionCountByHash', 'eth_getTransactionByBlockNumberAndIndex', 'eth_getTransactionByBlockHashAndIndex',
+      'eth_simulateV1'
+    ])
+    // Reads need no account permission and never wait for a person.
+    expect(broker.listPending()).toEqual([])
   })
 
   it('forwards node filters and lets only the tab and site that created one poll or remove it', async () => {
