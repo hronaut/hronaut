@@ -64,7 +64,11 @@ for attempt in 1 2 3; do
   sleep "$((attempt * 5))" || break
 done
 
-if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
+capture_diagnostics=false
+if [[ "${HRONAUT_CONTINUITY_RESIZE_DIAGNOSTICS:-false}" == 'true' && "${HRONAUT_INTEGRATION_SHARD:-}" == '8/8' ]]; then
+  capture_diagnostics=true
+fi
+if { (( status != 0 )) || [[ "$capture_diagnostics" == true ]]; } && docker inspect "$container_name" >/dev/null 2>&1; then
   if [[ "$local_artifacts" == true ]]; then
     mkdir -p test-results
     artifact_directory="$(mktemp -d test-results/local-docker-XXXXXX)" || exit "$status"
@@ -72,7 +76,11 @@ if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
   mkdir -p "$artifact_directory"
   extract_directory test-results
   extract_directory playwright-report
-  echo "Failure artifacts: $artifact_directory"
+  if (( status != 0 )); then
+    echo "Failure artifacts: $artifact_directory"
+  else
+    echo "Diagnostic artifacts: $artifact_directory"
+  fi
 fi
 
 exit "$status"

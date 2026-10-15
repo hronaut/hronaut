@@ -1,3 +1,4 @@
+import { continuityResizeDiagnostics, hasContinuityResizeCapture } from './continuity-resize-diagnostics.js'
 import { mkdir, readFile, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createServer } from 'node:http'
@@ -8,6 +9,7 @@ import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, launchHronaut, expect, test } from './fixtures.js'
 
 test('blocks a resumed write after navigation and rejects stale continuity reconciliation', async ({ appWindow, electronApp, mcpPort, mcpToken }, testInfo) => {
+  testInfo.skip(testInfo.repeatEachIndex > 0 && hasContinuityResizeCapture(), 'Bounded diagnostic stopped after the first captured stall')
   const fixture = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<!doctype html><title>Continuity fixture</title><main>Private fixture</main>') })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const address = fixture.address()
@@ -30,7 +32,9 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
     if (!page) throw new Error('Missing fixture page')
     await page.loadURL(`${target.origin}/${target.path}`)
   }, { origin, path })
+  let probe: Awaited<ReturnType<typeof continuityResizeDiagnostics>>
   try {
+    probe = await continuityResizeDiagnostics(electronApp, testInfo)
     await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
     const first = await connect()
     const workspace = decode<{ id: string; resumeKey: string }>(await call(first, 'browser_workspaces', { action: 'create', storage: 'scratch', name: 'Continuity QA' }))
@@ -60,15 +64,18 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
       await appWindow.evaluate(`window.hronautSettings.setLanguagePreference(${JSON.stringify(locale)})`)
       await expect(appWindow.locator('html')).toHaveAttribute('lang', locale)
       for (const theme of ['light', 'dark']) {
-        await appWindow.evaluate(`window.hronautSettings.setTheme(${JSON.stringify(theme)})`)
+        const applyTheme = () => appWindow.evaluate(`window.hronautSettings.setTheme(${JSON.stringify(theme)})`)
+        await (probe ? probe.measure('theme', applyTheme) : applyTheme())
         await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)
         for (const width of [1200, 640]) {
-          await electronApp.evaluate(({ BrowserWindow }, width) => {
+          const resize = () => electronApp.evaluate(({ BrowserWindow }, width) => {
             const window = BrowserWindow.getAllWindows()[0]!
             window.setMinimumSize(600, 600)
             window.setSize(width, 800)
           }, width)
-          await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(width)
+          await (probe ? probe.measure('resize', resize) : resize())
+          const readWidth = () => appWindow.evaluate(() => innerWidth)
+          await expect.poll(() => probe ? probe.measure('innerWidth', readWidth) : readWidth()).toBe(width)
           await panel.scrollIntoViewIfNeeded()
           const layout = await panel.evaluate(element => {
             const bounds = element.getBoundingClientRect()
@@ -123,8 +130,10 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
     expect(write.isError).not.toBe(true)
     expect(await electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))?.executeJavaScript('window.writes'), origin)).toBe(1)
   } finally {
-    await Promise.allSettled(clients.map(client => client.close()))
-    await closeFixtureServer(fixture)
+    try { await probe?.stop() } finally {
+      await Promise.allSettled(clients.map(client => client.close()))
+      await closeFixtureServer(fixture)
+    }
   }
 })
 
