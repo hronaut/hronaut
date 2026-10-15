@@ -313,6 +313,14 @@ describe('website typed-data policy', () => {
       wallet: mainnetAgent, request: request({ operation: 'sign-message', capability: 'sign', networkId: '1' }),
       policies: [mainnetTypedDataPolicy], message: typedDataMessage(safeTx(1))
     })).toEqual({ outcome: 'awaiting-human', reason: 'typed-data-safe-transaction-on-mainnet' })
+    const safeMessage = {
+      domain: { chainId: 1, verifyingContract: permitToken }, primaryType: 'SafeMessage',
+      types: { SafeMessage: [{ name: 'message', type: 'bytes' }] }, message: { message: '0x1234' }
+    }
+    expect(evaluate({
+      wallet: mainnetAgent, request: request({ operation: 'sign-message', capability: 'sign', networkId: '1' }),
+      policies: [mainnetTypedDataPolicy], message: typedDataMessage(safeMessage)
+    })).toEqual({ outcome: 'awaiting-human', reason: 'typed-data-safe-transaction-on-mainnet' })
   })
 
   it('needs the separate mainnet typed-data switch on mainnet', () => {

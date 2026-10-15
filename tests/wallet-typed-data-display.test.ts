@@ -290,7 +290,7 @@ describe('typed data in the trusted approval', () => {
       domain: { name: 'Seaport', version: '1.6', chainId: '11155111', verifyingContract: permit2 },
       warnings: ['asset-order']
     })
-    for (const primaryType of ['BulkOrder', 'Order', 'LimitOrder', 'RfqOrder', 'OtcOrder', 'ERC721Order', 'ERC1155Order', 'Maker', 'MakerOrder']) {
+    for (const primaryType of ['BulkOrder', 'Order', 'Root', 'OrderRFQ', 'LimitOrder', 'RfqOrder', 'OtcOrder', 'ERC721Order', 'ERC1155Order', 'Maker', 'MakerOrder', 'BatchOrder']) {
       expect(typedDataDisplay({ domain: {}, primaryType, types: { [primaryType]: [] }, message: {} }, wallet)?.warnings, primaryType).toEqual(['asset-order'])
     }
     const safeTx = {
@@ -307,6 +307,11 @@ describe('typed data in the trusted approval', () => {
     }
     expect(() => hashTypedData(safeTx as Parameters<typeof hashTypedData>[0])).not.toThrow()
     expect(typedDataDisplay(safeTx, wallet)?.warnings).toEqual(['safe-transaction'])
+    // A Safe message makes the Safe accept whatever signature it wraps.
+    expect(typedDataDisplay({
+      domain: { chainId: 11155111, verifyingContract: spender }, primaryType: 'SafeMessage',
+      types: { SafeMessage: [{ name: 'message', type: 'bytes' }] }, message: { message: '0x1234' }
+    }, wallet)?.warnings).toEqual(['safe-transaction'])
     // A plain login or vote is not an order.
     expect(typedDataDisplay({ domain: {}, primaryType: 'Login', types: { Login: [] }, message: {} }, wallet)?.warnings).toEqual([])
   })

@@ -215,7 +215,7 @@ describe('WalletApprovalDialog', () => {
       global: { plugins: [createHronautI18n('en-US')] }
     })
     expect(screen.getAllByRole('alert').map((alert) => alert.textContent?.trim())).toContain(
-      "This approves a Safe multisig transaction. Once enough owners sign, it can move the Safe's assets or change its owners."
+      "This looks like a Safe multisig transaction or message. Once enough owners sign, it can move the Safe's assets or change its owners."
     )
   })
 

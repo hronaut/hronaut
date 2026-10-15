@@ -21,23 +21,28 @@ const PERMIT2_TRANSFER_TYPES = new Set([
 // EIP-3009 authorizations move tokens directly to a recipient.
 const TRANSFER_AUTHORIZATION_TYPES = new Set(['TransferWithAuthorization', 'ReceiveWithAuthorization'])
 // Marketplace and exchange orders that anyone can fill to take what they offer:
-// Seaport and its bulk listings, Blur, 1inch, CoW Protocol and 0x (Order), 0x v4
-// and LooksRare. Matching by name may also warn about an unrelated "Order",
-// which errs on the side of caution.
+// Seaport and its bulk listings, Blur (and its bulk Root), 1inch, CoW Protocol
+// and 0x (Order), 1inch RFQ, 0x v4 and LooksRare. Matching by name may also warn
+// about an unrelated "Order", which errs on the side of caution.
 const ASSET_ORDER_TYPES = new Set([
   'OrderComponents',
   'BulkOrder',
   'Order',
+  'Root',
+  'OrderRFQ',
   'LimitOrder',
   'RfqOrder',
   'OtcOrder',
   'ERC721Order',
   'ERC1155Order',
   'Maker',
-  'MakerOrder'
+  'MakerOrder',
+  'BatchOrder'
 ])
-// A Safe multisig transaction can move the Safe's assets or change its owners.
-const SAFE_TRANSACTION_TYPE = 'SafeTx'
+// A Safe multisig transaction can move the Safe's assets or change its owners,
+// and a Safe message makes the Safe accept any signature it wraps, such as a
+// permit for the Safe's tokens.
+const SAFE_TYPES = new Set(['SafeTx', 'SafeMessage'])
 
 type Allowance = NonNullable<WalletTypedDataDisplay['tokenAccess']>['allowances'][number]
 type Types = Record<string, unknown>
@@ -215,7 +220,7 @@ export function typedDataDisplay(typedData: unknown, wallet: WalletDescriptor): 
     if (access.unreadable) warnings.push('unreadable-amount')
   }
   if (ASSET_ORDER_TYPES.has(primaryType)) warnings.push('asset-order')
-  if (primaryType === SAFE_TRANSACTION_TYPE) warnings.push('safe-transaction')
+  if (SAFE_TYPES.has(primaryType)) warnings.push('safe-transaction')
   const name = text(domain.get('name')?.value)
   const version = text(domain.get('version')?.value)
   const chainIdText = integerText(chainId)

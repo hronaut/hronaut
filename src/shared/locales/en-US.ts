@@ -496,7 +496,7 @@ export const enUS = {
           unlimitedAmount: 'This signature covers an unlimited amount of the token.',
           unreadableAmount: 'Hronaut could not read every amount in this signature. Treat it as unlimited.',
           assetOrder: 'This looks like a marketplace or exchange order. Once it is signed, anyone who fills it can take the tokens or NFTs it offers from this wallet.',
-          safeTransaction: "This approves a Safe multisig transaction. Once enough owners sign, it can move the Safe's assets or change its owners."
+          safeTransaction: "This looks like a Safe multisig transaction or message. Once enough owners sign, it can move the Safe's assets or change its owners."
         }
       },
       raw: 'Raw unsigned request',
