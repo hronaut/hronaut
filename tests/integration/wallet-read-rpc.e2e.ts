@@ -166,7 +166,7 @@ test('delivers an ethers v6 contract event listener through the wallet provider 
     expect(results.foreign).toMatchObject({ code: -32000 })
     expect(results.foreign.message).toContain('filter not found')
     const newFilter = rpc.calls.find((call) => call.method === 'eth_newFilter')
-    expect(newFilter?.params[0]).toMatchObject({ address: TOKEN.toLowerCase(), topics: [TRANSFER_TOPIC] })
+    expect(newFilter?.params[0]).toMatchObject({ address: [TOKEN.toLowerCase()], topics: [TRANSFER_TOPIC] })
     expect(rpc.calls.filter((call) => call.method === 'eth_getFilterChanges').every((call) => call.params[0] === '0x1')).toBe(true)
     await expect.poll(() => rpc.calls.some((call) => call.method === 'eth_uninstallFilter' && call.params[0] === '0x1')).toBe(true)
     expect(await appWindow.evaluate('window.hronautWallets.listRequests()')).toEqual([])
