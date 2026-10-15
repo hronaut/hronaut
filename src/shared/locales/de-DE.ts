@@ -1298,7 +1298,7 @@ export const deDE = {
       "addressPlaceholder": "Suchen oder Adresse eingeben",
       "findTitle": "Auf Seite suchen (Ctrl/Cmd+F)",
       "find": "Auf Seite suchen",
-      "zoom": "Steuerung des Seitenzooms",
+      "zoom": "Steuerung des Seitenzooms, {percent}",
       "bookmarks": "Lesezeichen"
     },
     "siteControls": {

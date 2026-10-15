@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Wait for workspace initialization before answering startup collection and layout reads, avoiding spurious startup warnings while retaining fail-closed mutation and sender checks.
 
+- The page zoom button's accessible name now includes the visible percentage, and the workspace header's visible name and tab count are separated, so both pass the label-in-name check (WCAG 2.5.3) that axe-core 4.14 adds. Voice-control users can say what they see.
+
 - Allow Close workspace in Edit workspace while all tabs are locked, matching Home’s Clear…. The button was disabled with only a tooltip, so the same workspace could be cleared from Home but not from its editor. The confirmation still applies, and deletion protection still blocks it.
 
 - Vertically centre “MCP ready” with “Pause agents” in the MCP status pill; the status sat 4.5 px lower in the top-tab layout.

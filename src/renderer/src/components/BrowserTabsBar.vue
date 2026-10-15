@@ -593,8 +593,8 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       >
         <IconKeyboardArrowRight v-if="isTabGroupCollapsed(workspace.id)" aria-hidden="true" />
         <IconKeyboardArrowDown v-else aria-hidden="true" />
-        <span>{{ workspace.name }}</span>
-        <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
+        <!-- The space keeps the visible name and count apart for label-in-name checks; inline-flex does not render it. -->
+        <span>{{ workspace.name }}</span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
       <div
         class="workspace-tab-list"

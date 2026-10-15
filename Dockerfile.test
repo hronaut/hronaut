@@ -1,11 +1,11 @@
-FROM mcr.microsoft.com/playwright:v1.63.0-noble AS install-inputs
+FROM mcr.microsoft.com/playwright:v1.64.0-noble AS install-inputs
 
 WORKDIR /inputs
 COPY package.json package-lock.json ./
 COPY scripts/docker-install-inputs.ts ./scripts/
 RUN node scripts/docker-install-inputs.ts package-lock.json /install package.json
 
-FROM mcr.microsoft.com/playwright:v1.63.0-noble AS dependencies
+FROM mcr.microsoft.com/playwright:v1.64.0-noble AS dependencies
 
 ENV CI=true
 WORKDIR /workspace
