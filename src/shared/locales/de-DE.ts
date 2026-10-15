@@ -994,6 +994,12 @@ export const deDE = {
       "custom": "Benutzerdefinierter Browser",
       "reset": "Tab-Emulation zurücksetzen: {description}"
     },
+    "cssStatePreview": {
+      "label": "Erzwungen: {states}",
+      "reset": "{states} auf {selector} nicht mehr erzwingen",
+      "uncertain": "Entfernen von {states} nicht bestätigt",
+      "retry": "Erneut versuchen, {states} von {selector} zu entfernen"
+    },
     "suggestion": {
       "bookmark": "Lesezeichen",
       "history": "Verlauf",

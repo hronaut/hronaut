@@ -52,6 +52,7 @@ import { NativePreviewCapture } from './native-preview-capture.js'
 import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
+import { BrowserCssStatePreview } from './css-state-preview.js'
 import { BrowserLiveRegionRecorder, liveRegionRecordingKeepsTabAwake, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import { normalizeNetworkRouteInput } from './network-route-input.js'
@@ -303,6 +304,9 @@ import type {
   BrowserDomChangesReport,
   BrowserLiveRegionAction,
   BrowserLiveRegionReport,
+  BrowserCssStatePreviewAction,
+  BrowserCssStatePreviewReport,
+  BrowserCssStatePreviewSummary,
   BrowserNetworkRequest,
   BrowserNetworkWaitOptions,
   BrowserNetworkWaitResult,
@@ -1088,6 +1092,7 @@ export class BrowserTabsManager {
       tab.authChallengesTruncated = false
       tab.securitySnapshot = undefined
       this.liveRegionRecorder.release(tab)
+      void this.cssStatePreview.clear(tab, 'workspace-control-changed').catch(() => undefined)
       this.networkWaitController.reject(tab.id, 'Workspace control changed while waiting for network activity.')
     }
     this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
@@ -1124,6 +1129,15 @@ export class BrowserTabsManager {
   })
   private readonly liveRegionRecorder = new BrowserLiveRegionRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab
+  })
+  private readonly cssStatePreview = new BrowserCssStatePreview<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab,
+    withDebugger: (tab, operation) => this.withDebugger(tab.webContents, operation),
+    inDebuggerQueue: (tab, operation) => this.debuggerQueue.run(tab.webContents.id, operation),
+    // Stopping coverage disables the DOM domain, which would silently drop the override.
+    conflict: tab => tab.codeCoverage?.recording ? 'Stop code coverage before previewing CSS states' : undefined,
+    keepDomEnabled: tab => Boolean(tab.emulation.renderingDebug && Object.values(tab.emulation.renderingDebug).some(Boolean)),
+    changed: () => this.changed(false)
   })
   private readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
@@ -4781,6 +4795,7 @@ export class BrowserTabsManager {
 
   private removeTabRecord(tab: BrowserTab): void {
     const browserSession = tab.browserSession
+    this.cssStatePreview.forget(tab)
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewPreviewCaptures.cancelPending(tab.id)
     this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -4986,7 +5001,12 @@ export class BrowserTabsManager {
     this.allAgentsPaused = paused
     this.agentPauseOverridesAllowed = allowTabOverrides
     this.globallyResumedAgentTabIds.clear()
-    if (paused) for (const tab of this.tabs.values()) this.liveRegionRecorder.release(tab)
+    if (paused) {
+      for (const tab of this.tabs.values()) {
+        this.liveRegionRecorder.release(tab)
+        void this.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
+      }
+    }
     this.changed(false)
   }
 
@@ -5003,7 +5023,10 @@ export class BrowserTabsManager {
       tab.tabAgentPaused = paused
     }
     // A person taking over the tab may reveal text the agent should not read back later.
-    if (this.isTabAgentPaused(tab.id)) this.liveRegionRecorder.release(tab)
+    if (this.isTabAgentPaused(tab.id)) {
+      this.liveRegionRecorder.release(tab)
+      void this.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
+    }
     this.changed()
     return this.getState()
   }
@@ -5624,6 +5647,9 @@ export class BrowserTabsManager {
   }
 
   codeCoverage(options: BrowserCodeCoverageOptions = {}): Promise<BrowserCodeCoverageResult> {
+    if (options.action === 'start' && this.cssStatePreview.active(this.getTab(options.tabId))) {
+      return Promise.reject(new Error('Clear the CSS state preview before recording code coverage'))
+    }
     return this.profiling.codeCoverage(options)
   }
 
@@ -5810,9 +5836,11 @@ export class BrowserTabsManager {
     try {
       assertCurrent()
       if (properties || includeFonts) {
+        // CSS provenance resets this session's DOM bindings, which would drop a CSS state preview.
         const conflict = (): boolean => this.devToolsOpening.has(tab.webContents.id)
           || tab.webContents.isDevToolsOpened()
           || Boolean(tab.codeCoverage?.recording || tab.cpuProfile?.recording)
+          || this.cssStatePreview.active(tab)
         if (conflict()) {
           if (properties) cssProvenance = unavailableCssProvenance(properties, 'debugger-in-use')
           if (includeFonts) renderedFonts = unavailableRenderedFonts('debugger-in-use')
@@ -7101,6 +7129,27 @@ export class BrowserTabsManager {
 
   async liveRegion(action: BrowserLiveRegionAction, tabId?: string, selector?: string): Promise<BrowserLiveRegionReport> {
     return this.liveRegionRecorder.manage(this.getTab(tabId), action, selector)
+  }
+
+  async cssStatePreviewAction(
+    action: BrowserCssStatePreviewAction,
+    tabId?: string,
+    options: { selector?: string; states?: readonly string[]; durationMs?: number } = {}
+  ): Promise<BrowserCssStatePreviewReport> {
+    return this.cssStatePreview.manage(this.getTab(tabId), action, options)
+  }
+
+  /** Marks screenshots and inspections taken while a forced CSS state was applied. */
+  cssStatePreviewMarker(tabId?: string): BrowserCssStatePreviewSummary | undefined {
+    const tab = this.tabs.get(tabId ?? this.activeTabId ?? '')
+    const summary = tab ? this.cssStatePreview.summary(tab) : undefined
+    return summary ? { states: summary.states, selector: summary.selector, startedAt: summary.startedAt, expiresAt: summary.expiresAt } : undefined
+  }
+
+  /** The trusted address-bar reset. It works whatever the agent's state, including while paused. */
+  async clearCssStatePreview(tabId: string): Promise<BrowserState> {
+    await this.cssStatePreview.clear(this.getTab(tabId), 'human-reset')
+    return this.getState()
   }
 
   private recordAuthChallenge(tab: BrowserTab, details: Electron.AuthenticationResponseDetails, authInfo: Electron.AuthInfo): void {
@@ -9419,7 +9468,10 @@ export class BrowserTabsManager {
       if (this.isHumanInteractionLocked(tab)) return
       this.showContextMenu(tab, params)
     })
-    webContents.on('devtools-opened', () => this.changed(false))
+    webContents.on('devtools-opened', () => {
+      void this.cssStatePreview.clear(tab, 'devtools-opened').catch(() => undefined)
+      this.changed(false)
+    })
     webContents.on('devtools-closed', () => {
       this.changed(false)
       void this.ensureDialogMonitoring(tab)
@@ -9522,6 +9574,7 @@ export class BrowserTabsManager {
         tab.pageLifecycleUnknownRequest = 'frozen'
       }
       this.profiling.handleDebuggerDetached(tab)
+      this.cssStatePreview.debuggerDetached(tab)
       this.defaultExecutionContexts.delete(webContents.id)
       this.changed(false)
       if (
@@ -9603,6 +9656,8 @@ export class BrowserTabsManager {
         tab.performanceDocumentRouted = true
         return
       }
+      // Remove it now, not at commit: a navigation that never commits (a download or a 204) keeps the old document.
+      void this.cssStatePreview.clear(tab, 'navigation').catch(() => undefined)
       tab.discoveryTitle.clear()
       tab.faviconAbortController?.abort()
       tab.faviconAbortController = undefined
@@ -10113,6 +10168,7 @@ export class BrowserTabsManager {
     if (tab.reproRecording?.active) return 'A tab recording reproduction steps stays active.'
     if (tab.domChangesRecording?.active) return 'A tab recording DOM changes stays active.'
     if (liveRegionRecordingKeepsTabAwake(tab)) return 'A tab recording a live region stays active.'
+    if (this.cssStatePreview.active(tab)) return 'A tab previewing a forced CSS state stays active.'
     if (tab.codeCoverage?.recording) return 'A tab recording code coverage stays active.'
     if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
     if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'
@@ -10304,6 +10360,7 @@ export class BrowserTabsManager {
         }
       } : {}),
       pwaLifecycleActive: this.pwaLifecycleRecorder.active(tab.id),
+      ...(this.cssStatePreview.summary(tab) ? { cssStatePreview: this.cssStatePreview.summary(tab) } : {}),
       ...(tab.domChangesRecording?.observationGeneration === tab.observationGeneration ? {
         domChangesRecording: {
           active: tab.domChangesRecording.active,

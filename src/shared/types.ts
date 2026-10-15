@@ -278,6 +278,7 @@ export interface BrowserTabState {
     startedAt: string
   }
   pwaLifecycleActive?: boolean
+  cssStatePreview?: BrowserCssStatePreviewSummary & { resetUncertain?: boolean }
   domChangesRecording?: {
     active: boolean
     changeCount: number
@@ -2051,6 +2052,37 @@ export interface BrowserReproRecording {
   caveats: string[]
 }
 
+export type BrowserCssStatePreviewAction = 'set' | 'get' | 'clear'
+
+export interface BrowserCssStatePreviewSummary {
+  states: Array<'hover' | 'active'>
+  selector: string
+  startedAt: string
+  expiresAt: string
+}
+
+export interface BrowserCssStatePreviewReport {
+  tabId: string
+  title: string
+  url: string
+  /** reset-uncertain: Hronaut could not confirm the override was removed; clear again or reload. */
+  status: 'active' | 'inactive' | 'reset-uncertain'
+  preview?: BrowserCssStatePreviewSummary & { remainingMs: number; resetUncertain?: boolean }
+  lastEnded?: {
+    reason: import('./css-state-preview.js').CssStatePreviewEndReason
+    endedAt: string
+    clean: boolean
+  }
+  limits: {
+    states: Array<'hover' | 'active'>
+    maxSelectorChars: number
+    minDurationMs: number
+    defaultDurationMs: number
+    maxDurationMs: number
+  }
+  caveats: string[]
+}
+
 export type BrowserLiveRegionAction = 'start' | 'get' | 'stop' | 'clear'
 export type BrowserLiveRegionStopReason =
   | 'stopped'
@@ -2707,6 +2739,7 @@ export interface HronautApi {
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState>
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState>
   setTabAgentPaused(tabId: string, paused: boolean): Promise<BrowserState>
+  clearCssStatePreview(tabId: string): Promise<BrowserState>
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>

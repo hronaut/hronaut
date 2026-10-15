@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
@@ -25,6 +26,7 @@ import SiteControlsPanel from './SiteControlsPanel.vue'
 export interface BrowserAddressBarActions {
   toggleSiteControls: () => unknown
   resetActiveTabEmulation: () => unknown
+  clearActiveCssStatePreview: () => unknown
   openRequestConditions: () => unknown
   setSitePermission: (entry: SitePermissionEntry, decision: SitePermissionDecision) => boolean | Promise<boolean>
   resetSitePermission: (entry: SitePermissionEntry) => boolean | Promise<boolean>
@@ -77,6 +79,17 @@ const { activeEmulation, resetPending, label: emulationLabel, describe: emulatio
 const { activeNetworkRouteCount, networkConditionsUnconfirmed } = props.pageToolsPresentation
 const { summary: siteDataSummary, state: siteDataState, message: siteDataMessage } = props.siteDataController
 const { permissionLabel, isPending: isSitePermissionPending } = props.sitePermissionsController
+// A forced :hover/:active state changes how the page looks, so the person always sees it and can end it.
+const cssStatePreview = computed(() => {
+  const preview = props.activeTab?.cssStatePreview
+  if (!preview) return undefined
+  const states = preview.states.map((state) => `:${state}`).join(' ')
+  return {
+    label: t(preview.resetUncertain ? 'runtime.cssStatePreview.uncertain' : 'runtime.cssStatePreview.label', { states }),
+    action: t(preview.resetUncertain ? 'runtime.cssStatePreview.retry' : 'runtime.cssStatePreview.reset', { states, selector: preview.selector }),
+    uncertain: preview.resetUncertain === true
+  }
+})
 
 function run(action: () => unknown): void {
   void props.runAction(action)
@@ -156,6 +169,20 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
     >
       <IconSpeed aria-hidden="true" />
       <span>{{ emulationLabel(activeEmulation) }}</span>
+      <IconClose aria-hidden="true" />
+    </UiButton>
+    <UiButton appearance="application"
+      v-if="cssStatePreview"
+      class="emulation-pill"
+      :class="{ offline: cssStatePreview.uncertain }"
+      data-testid="css-state-preview-pill"
+      type="button"
+      :title="cssStatePreview.action"
+      :aria-label="cssStatePreview.action"
+      @click="run(actions.clearActiveCssStatePreview)"
+    >
+      <IconAdsClick aria-hidden="true" />
+      <span>{{ cssStatePreview.label }}</span>
       <IconClose aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"

@@ -994,6 +994,12 @@ export const frFR = {
       "custom": "Navigateur personnalisé",
       "reset": "Réinitialiser l’émulation de l’onglet : {description}"
     },
+    "cssStatePreview": {
+      "label": "Forcé : {states}",
+      "reset": "Ne plus forcer {states} sur {selector}",
+      "uncertain": "Retrait de {states} non confirmé",
+      "retry": "Réessayer de retirer {states} de {selector}"
+    },
     "suggestion": {
       "bookmark": "Favori",
       "history": "Historique",

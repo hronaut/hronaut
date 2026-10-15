@@ -994,6 +994,12 @@ export const ruRU = {
       "custom": "Пользовательский браузер",
       "reset": "Сбросить эмуляцию вкладки: {description}"
     },
+    "cssStatePreview": {
+      "label": "Принудительно: {states}",
+      "reset": "Перестать принудительно включать {states} для {selector}",
+      "uncertain": "Снятие {states} не подтверждено",
+      "retry": "Повторить снятие {states} с {selector}"
+    },
     "suggestion": {
       "bookmark": "Закладка",
       "history": "История",

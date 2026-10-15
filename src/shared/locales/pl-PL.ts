@@ -994,6 +994,12 @@ export const plPL = {
       "custom": "Niestandardowa przeglądarka",
       "reset": "Zresetuj emulację karty: {description}"
     },
+    "cssStatePreview": {
+      "label": "Wymuszono: {states}",
+      "reset": "Przestań wymuszać {states} na {selector}",
+      "uncertain": "Nie potwierdzono usunięcia {states}",
+      "retry": "Ponów usunięcie {states} z {selector}"
+    },
     "suggestion": {
       "bookmark": "Zakładka",
       "history": "Historia",
