@@ -778,6 +778,9 @@ describe('WalletBroker', () => {
     const result = await send
     expect(result.status === 'rejected' && (result.reason as Error).message).toBe(refusal)
     expect(service.approvals.get(pending.id)?.status).toBe('failed')
+    // An agent testing the page sees the same reason.
+    expect(broker.agentPageRequests(context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })).failedCalls)
+      .toEqual([{ family: 'evm', method: 'eth_sendTransaction', error: refusal, failedAt: expect.any(String) }])
   })
 
   it('simulates the very transaction it prepared, which can carry why its gas estimate reverted', async () => {
