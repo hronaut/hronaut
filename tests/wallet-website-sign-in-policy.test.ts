@@ -233,7 +233,8 @@ describe('website typed-data policy', () => {
   })
 
   it.each([
-    ['a policy without the typed-data switch', { policies: [policy] }, 'no-matching-policy'],
+    ['a policy without the typed-data switch', { policies: [policy] }, 'typed-data-switch-off'],
+    ['typed data that signs only a domain', { message: typedDataMessage({ ...permit(), primaryType: 'EIP712Domain' }) }, 'typed-data-domain-only'],
     ['an imported or managed wallet', { wallet, policies: [typedDataPolicy] }, 'typed-data-requires-agent-wallet'],
     ['another chain', { message: typedDataMessage(permit({ name: 'QA Token', chainId: 1, verifyingContract: permitToken })) }, 'typed-data-chain-mismatch'],
     // Without a declared domain, the signer only signs a numeric chain ID.
@@ -260,6 +261,43 @@ describe('website typed-data policy', () => {
   ])('leaves %s with a person', (_name, overrides, reason) => {
     expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(), ...overrides }))
       .toEqual({ outcome: 'awaiting-human', reason })
+  })
+
+  // Each A item makes viem re-encode a 201-type graph, so hashing this 8 KiB request takes seconds.
+  function slowToHash(chainId = 11155111) {
+    const types: Record<string, Array<{ name: string; type: string }>> = { M: [{ name: 'a', type: 'A[]' }], A: [] }
+    for (let index = 0; index < 200; index++) {
+      types.A!.push({ name: `f${index}`, type: `T${index}` })
+      types[`T${index}`] = []
+    }
+    return { types, domain: { chainId }, primaryType: 'M', message: { a: Array(2000).fill(0) } }
+  }
+
+  it('keeps typed data that is slow to hash with a person without hashing it, and checks content only for a matching page', () => {
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(slowToHash()) }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-too-complex' })
+    // Another site, or a wallet without the switch, never reaches the content checks.
+    expect(evaluate({
+      wallet: agentWallet, request: request({ operation: 'sign-message', capability: 'sign', topLevelOrigin: 'https://other.example' }),
+      policies: [typedDataPolicy], message: typedDataMessage(slowToHash())
+    })).toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [policy], message: typedDataMessage(slowToHash()) }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-switch-off' })
+  })
+
+  it('signs an unlimited permit on a testnet but keeps unlimited and unreadable amounts on mainnet with a person', () => {
+    const unlimited = { ...permit(), message: { ...permit().message, value: (2n ** 256n - 1n).toString() } }
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(unlimited) }))
+      .toMatchObject({ outcome: 'approved' })
+    const mainnetSign = request({ operation: 'sign-message', capability: 'sign', networkId: '1' })
+    const mainnetDomain = { name: 'QA Token', version: '1', chainId: 1, verifyingContract: permitToken }
+    const mainnetUnlimited = { ...unlimited, domain: mainnetDomain }
+    // A Permit that does not sign its amount is unreadable, so it counts as unlimited.
+    const mainnetUnreadable = { ...permit(mainnetDomain), types: { Permit: permit().types.Permit.filter(({ name }) => name !== 'value') } }
+    for (const typedData of [mainnetUnlimited, mainnetUnreadable]) {
+      expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [mainnetTypedDataPolicy], message: typedDataMessage(typedData) }))
+        .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-unlimited-on-mainnet' })
+    }
   })
 
   it('needs the separate mainnet typed-data switch on mainnet', () => {

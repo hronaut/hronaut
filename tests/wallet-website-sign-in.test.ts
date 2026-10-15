@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { verifyMessage, verifyTypedData } from 'viem'
 import { WalletBroker, type WalletBrokerContext } from '../src/main/wallet/broker.js'
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
+import { walletJsonSafe } from '../src/main/wallet/json-safe.js'
+import { WEBSITE_TYPED_DATA_MAX_BYTES } from '../src/main/wallet/policy.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
 import type { WalletDescriptor, WalletPolicy } from '../src/shared/wallet.js'
@@ -337,6 +339,23 @@ describe('website typed data without a click', () => {
     await broker.reject(pending.id)
     expect(await withoutSwitch).toMatchObject({ status: 'rejected' })
     expect(service.policyUsage.snapshot('sign-in', now()).operationCount).toBe(1)
+  })
+
+  it('measures the size limit on the typed data as the page sent it', async () => {
+    const { service, broker, wallet } = await setup('testnet', true)
+    await service.setPolicy(signInPolicy(wallet, { allowWebsiteTypedData: true }))
+    await connectAccount(broker)
+    const batch = {
+      domain: { name: 'Batch', chainId: Number(wallet.network.id) },
+      types: { Batch: [{ name: 'items', type: 'Item[]' }], Item: [{ name: 'v', type: 'uint8' }] },
+      primaryType: 'Batch' as const,
+      message: { items: Array(800).fill({ v: '1' }) }
+    }
+    // Hronaut's internal encoding wraps each object, which would push this past the limit.
+    expect(JSON.stringify(batch).length).toBeLessThan(WEBSITE_TYPED_DATA_MAX_BYTES)
+    expect(JSON.stringify(walletJsonSafe({ kind: 'typed-data', typedData: batch })).length).toBeGreaterThan(WEBSITE_TYPED_DATA_MAX_BYTES)
+    const signature = await signTypedData(broker, wallet, batch) as `0x${string}`
+    await expect(verifyTypedData({ address: wallet.publicAddress as `0x${string}`, ...batch, signature })).resolves.toBe(true)
   })
 
   it('signs mainnet typed data only with the separate mainnet typed-data switch', async () => {

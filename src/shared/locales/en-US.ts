@@ -405,7 +405,7 @@ export const enUS = {
     websiteTypedData: 'Also sign typed data without asking',
     websiteTypedDataDescription: "This dedicated agent wallet signs EIP-712 typed data from pages on the allowed origin without a click, on EVM testnets and local chains, only when the data names this wallet's chain. Typed data can authorize token permits, transfers and orders. Each signature counts toward the operation limit.",
     mainnetWebsiteTypedData: 'Also sign typed data on mainnet',
-    mainnetWebsiteTypedDataWarning: 'Warning: on mainnet, typed data can authorize real token permits, transfers and marketplace orders. Until the policy expires or reaches its operation limit, pages on the allowed site can get such signatures from this agent wallet without your click, and a signed permit can move tokens later. Keep only funds you can afford to lose in this wallet. The same limits apply: one origin, at most 100 operations and an expiry within 7 days.',
+    mainnetWebsiteTypedDataWarning: 'Warning: on mainnet, typed data can authorize real token permits, transfers and marketplace orders. Until the policy expires or reaches its operation limit, pages on the allowed site can get such signatures from this agent wallet without your click, and a signed permit can move tokens later. Keep only funds you can afford to lose in this wallet. The same limits apply: one origin, at most 100 operations and an expiry within 7 days. Permits with an unlimited or unreadable amount still ask.',
     signInOnlyNote: 'Leave the destination and method empty for a sign-in only policy.',
     policyName: 'Bounded {network} policy',
     policyWorkspace: 'Policy workspace',

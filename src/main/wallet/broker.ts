@@ -145,6 +145,15 @@ function sanitizedSimulation(simulation: WalletTransactionSimulation): WalletTra
   }
 }
 
+// Size in UTF-8 JSON bytes, as a page sends it; anything unserializable is unbounded.
+function jsonBytes(value: unknown): number {
+  try {
+    return Buffer.byteLength(JSON.stringify(value) ?? '', 'utf8')
+  } catch {
+    return Number.POSITIVE_INFINITY
+  }
+}
+
 function paramsArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : value === undefined ? [] : [value]
 }
@@ -1206,7 +1215,7 @@ export class WalletBroker {
       await this.service.approvals.transition(record.id, 'policy-decision', this.now())
       const signIn = this.websiteSignInDecision(context, currentWallet, record.id, retainedInput.kind === 'message'
         ? { kind: 'message', bytes: retainedInput.message, raw: rawSigning }
-        : { kind: 'typed-data', typedData: retainedInput.typedData, serializedBytes: Buffer.byteLength(serialized, 'utf8') })
+        : { kind: 'typed-data', typedData: retainedInput.typedData, serializedBytes: jsonBytes(retainedInput.typedData) })
       await this.service.audit.append('request-simulated', {
         requestId: record.id, walletId: wallet.id, success: false, attempted: false,
         policyDecision: signIn?.decision.outcome ?? 'awaiting-human',
