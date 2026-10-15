@@ -994,6 +994,12 @@ export const esES = {
       "custom": "Navegador personalizado",
       "reset": "Restablecer emulación de pestaña: {description}"
     },
+    "cssStatePreview": {
+      "label": "Forzado: {states}",
+      "reset": "Dejar de forzar {states} en {selector}",
+      "uncertain": "Retirada de {states} sin confirmar",
+      "retry": "Reintentar quitar {states} de {selector}"
+    },
     "suggestion": {
       "bookmark": "Marcador",
       "history": "Historial",

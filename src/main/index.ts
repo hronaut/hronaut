@@ -2424,6 +2424,11 @@ function registerIpc(): void {
     if (!mcpServer) throw new Error('Agent service is unavailable')
     return mcpServer.setTabAgentPaused(tabId, paused)
   })
+  handleBrowserIpc('browser:clear-css-state-preview', (event, tabId: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid CSS state preview tab')
+    return tabsManager!.clearCssStatePreview(tabId)
+  })
   handleBrowserIpc('browser:set-tab-page-lifecycle', (event, tabId: unknown, state: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || (state !== 'active' && state !== 'frozen')) throw new TypeError('Invalid tab page lifecycle state')

@@ -21,6 +21,7 @@ import { videoInspectionSchema } from '../../shared/video-inspection.js'
 import type { PendingFrameObservation } from '../browser/frame-observation.js'
 import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
 import { LIVE_REGION_LIMITS } from '../../shared/live-region.js'
+import { CSS_STATE_PREVIEW_LIMITS, CSS_STATE_PREVIEW_STATES } from '../../shared/css-state-preview.js'
 import { frameObservationResult } from './frame-observation-result.js'
 import type { ReactInspectionAuthority } from '../browser/react-inspection.js'
 import { REACT_INSPECTION_ACTIONS, type ReactInspectionCommand } from '../../shared/react-inspection.js'
@@ -400,6 +401,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_video: new Set(['get', 'inspect']),
   browser_dom_changes: new Set(['get']),
   browser_live_region: new Set(['get']),
+  browser_css_state_preview: new Set(['get']),
   browser_pwa_lifecycle: new Set(['get']),
   browser_issues: new Set(['list']),
   browser_console: new Set(['list']),
@@ -457,6 +459,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_video: 'browser-state',
   browser_dom_changes: 'browser-state',
   browser_live_region: 'browser-state',
+  browser_css_state_preview: 'browser-state',
   browser_pwa_lifecycle: 'browser-state',
   browser_visual_compare: 'browser-state',
   browser_issues: 'browser-state',
@@ -4154,7 +4157,12 @@ function createBrowserMcpServer(
       includeValidity?: boolean
       expectedValue?: string
       validateInspection?: () => void
-    }) => textResult(await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
+    }) => {
+      const previewBefore = manager.cssStatePreviewMarker(options.tabId)
+      const inspection = await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })
+      const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
+      return textResult(cssStatePreview ? { ...inspection, cssStatePreview } : inspection)
+    })
   )
   registerWorkspaceTool(
     'browser_media_state',
@@ -4719,9 +4727,12 @@ function createBrowserMcpServer(
       maxWidth?: number
       maxHeight?: number
     }) => {
+      const previewBefore = manager.cssStatePreviewMarker(options.tabId)
       const image = await manager.screenshot(options)
+      const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
       return { content: [
         ...(image.annotations ? [{ type: 'text' as const, text: JSON.stringify(image.annotations) }] : []),
+        ...(cssStatePreview ? [{ type: 'text' as const, text: JSON.stringify({ cssStatePreview, note: 'Captured while a forced CSS state was applied; this is not natural page state.' }) }] : []),
         { type: 'image' as const, data: image.data.toString('base64'), mimeType: image.mimeType }
       ] }
     })
@@ -5048,6 +5059,33 @@ function createBrowserMcpServer(
     }) => textResult(await manager.liveRegion(action, tabId, selector)))
   )
   registerWorkspaceTool(
+    'browser_css_state_preview',
+    {
+      description: toolDescription('browser_css_state_preview'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        action: z.enum(['set', 'get', 'clear']).default('get'),
+        selector: z.string().min(1).max(CSS_STATE_PREVIEW_LIMITS.maxSelectorChars).optional()
+          .describe('CSS selector for exactly one element in the top-level document; required for set'),
+        states: z.array(z.enum(CSS_STATE_PREVIEW_STATES)).min(1).max(CSS_STATE_PREVIEW_STATES.length).optional()
+          .describe('CSS states to force on that element; required for set'),
+        durationMs: z.number().int().min(CSS_STATE_PREVIEW_LIMITS.minDurationMs).max(CSS_STATE_PREVIEW_LIMITS.maxDurationMs).optional()
+          .describe(`How long the preview lasts before it clears itself; default ${CSS_STATE_PREVIEW_LIMITS.defaultDurationMs}`)
+      }
+    },
+    tabTool('browser_css_state_preview', async ({
+      tabId,
+      action,
+      ...options
+    }: {
+      tabId?: string
+      action: 'set' | 'get' | 'clear'
+      selector?: string
+      states?: Array<'hover' | 'active'>
+      durationMs?: number
+    }) => textResult(await manager.cssStatePreviewAction(action, tabId, options)))
+  )
+  registerWorkspaceTool(
     'browser_visual_compare',
     {
       description: toolDescription('browser_visual_compare'),
@@ -5077,10 +5115,12 @@ function createBrowserMcpServer(
       clip?: { x: number; y: number; width: number; height: number }
       validateCapture?: () => void
     }) => {
+      const previewBefore = action === 'get' || action === 'clear' ? undefined : manager.cssStatePreviewMarker(tabId)
       const result = await manager.visualCompare({ tabId, action, threshold, settleMs, clip }, validateCapture)
+      const cssStatePreview = action === 'get' || action === 'clear' ? undefined : previewBefore ?? manager.cssStatePreviewMarker(tabId)
       return {
         content: [
-          { type: 'text', text: JSON.stringify(result.report, null, 2) },
+          { type: 'text', text: JSON.stringify(cssStatePreview ? { ...result.report, cssStatePreview } : result.report, null, 2) },
           ...(result.diffPng ? [{ type: 'image' as const, data: result.diffPng.toString('base64'), mimeType: 'image/png' as const }] : [])
         ]
       }

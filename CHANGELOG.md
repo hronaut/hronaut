@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 - `browser_live_region` records the text of one selected status, loading or result region at each DOM mutation callback, so an agent can review transient updates that a later snapshot misses. Start it with a selector for exactly one region; form fields, editable content, frames, scripts and styles are never read, and reads, observations and duration are bounded. Selected text can be private, so it is never persisted, exported or logged, and navigation, element removal, pausing the agent or a workspace control change stops and releases it. If the region later becomes editable, recording stops before reading it. Results are DOM observations, not screen-reader announcements (#688).
 
+- `browser_css_state_preview` forces `:hover` and/or `:active` styling on one selected element for up to a minute, so an agent can inspect or capture a component's hover or pressed look without moving the pointer. No input events are sent and focus does not change. The address bar shows `Forced :hover` while it is active and lets the person end it, and it also ends on expiry, navigation, removal of the element, pausing the agent or opening Developer Tools. Screenshots, element inspection and visual comparison taken meanwhile are marked with `cssStatePreview` (#478).
+
 ## [2.43.0] - 2026-10-15
 
 ### Added

@@ -142,6 +142,10 @@ const {
   toggleVisitHistory
 } = props.collectionsController
 const { emulationController, resetActiveTabEmulation } = props.emulationController
+function clearActiveCssStatePreview(): Promise<void> | undefined {
+  const tab = activeTab.value
+  return tab?.cssStatePreview ? props.syncState(props.browser.clearCssStatePreview(tab.id)) : undefined
+}
 const {
   pageToolsPresentationController,
   areaCaptureState,
@@ -329,6 +333,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         :actions="{
           toggleSiteControls,
           resetActiveTabEmulation,
+          clearActiveCssStatePreview,
           openRequestConditions,
           setSitePermission: setSitePermissionDecision,
           resetSitePermission: removeSitePermission,

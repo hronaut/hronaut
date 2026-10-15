@@ -108,6 +108,7 @@ describe('extracted shell components', () => {
         actions: {
           toggleSiteControls: vi.fn(),
           resetActiveTabEmulation: vi.fn(),
+          clearActiveCssStatePreview: vi.fn(),
           openRequestConditions: openRoutes,
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
@@ -195,6 +196,7 @@ describe('extracted shell components', () => {
         actions: {
           toggleSiteControls: vi.fn(),
           resetActiveTabEmulation: vi.fn(),
+          clearActiveCssStatePreview: vi.fn(),
           openRequestConditions: vi.fn(),
           setSitePermission: vi.fn(async () => true),
           resetSitePermission: resetPermission,
@@ -222,6 +224,82 @@ describe('extracted shell components', () => {
     expect(view.emitted()['update:siteControlsOpen']).toBeUndefined()
     expect(document.activeElement).toBe(newerTarget)
     newerTarget.remove()
+  })
+
+  it('shows an active forced CSS state in the address bar and lets the person end it', async () => {
+    const clearPreview = vi.fn()
+    const preview = {
+      states: ['hover', 'active'] as Array<'hover' | 'active'>,
+      selector: '#card',
+      startedAt: '2026-10-15T12:00:00.000Z',
+      expiresAt: '2026-10-15T12:00:30.000Z'
+    }
+    const props = {
+      siteControlsOpen: false,
+      panelDock: 'right',
+      activeTab: tab(),
+      addressController: {
+        address: ref('https://example.test/app'),
+        input: ref<HTMLInputElement | null>(null),
+        form: ref<HTMLFormElement | null>(null),
+        selection: ref(-1),
+        suggestions: ref([]),
+        visible: ref(false),
+        selected: ref(undefined),
+        suggestionId: vi.fn(),
+        suggestionMeta: vi.fn(),
+        handleFocus: vi.fn(),
+        handleInput: vi.fn(),
+        handleFocusOut: vi.fn(),
+        handleKeydown: vi.fn(),
+        submit: vi.fn()
+      } as unknown as AddressBarController,
+      activeTabPresentation: {
+        activeWebUrl: ref('https://example.test/app'),
+        activeOrigin: ref('https://example.test'),
+        activeHostname: ref('example.test'),
+        activeSitePermissions: ref([]),
+        activeAddressKind: ref('Secure HTTPS connection'),
+        activeTabUsesDefaultProfile: ref(true)
+      } as unknown as ActiveTabPresentationController,
+      emulationController: {
+        activeEmulation: ref(undefined),
+        resetPending: ref(false),
+        label: vi.fn(),
+        describe: vi.fn()
+      } as unknown as EmulationController,
+      pageToolsPresentation: { activeNetworkRouteCount: ref(0) } as unknown as PageToolsPresentationController,
+      siteDataController: { summary: ref(null), state: ref('idle'), message: ref('') } as unknown as SiteDataSummaryController,
+      sitePermissionsController: { permissionLabel: (value: string) => value, isPending: () => false } as unknown as SitePermissionsController,
+      locale: 'en-US',
+      formatNumber: (value: number) => String(value),
+      runAction: (action: () => unknown) => action(),
+      actions: {
+        toggleSiteControls: vi.fn(),
+        resetActiveTabEmulation: vi.fn(),
+        clearActiveCssStatePreview: clearPreview,
+        openRequestConditions: vi.fn(),
+        setSitePermission: vi.fn(async () => true),
+        resetSitePermission: vi.fn(async () => true),
+        openSitePermissionSettings: vi.fn(),
+        openSitePrivacySettings: vi.fn()
+      }
+    }
+    const view = render(BrowserAddressBar, { global, props })
+    expect(screen.queryByTestId('css-state-preview-pill')).toBeNull()
+
+    await view.rerender({ activeTab: { ...tab(), cssStatePreview: preview } })
+    const pill = screen.getByRole('button', { name: 'Stop forcing :hover :active on #card' })
+    expect(pill).toHaveTextContent('Forced :hover :active')
+    expect(pill).not.toHaveClass('offline')
+    await userEvent.setup().click(pill)
+    expect(clearPreview).toHaveBeenCalledOnce()
+
+    // A removal Hronaut could not confirm stays visible with a retry, never silently disappears.
+    await view.rerender({ activeTab: { ...tab(), cssStatePreview: { ...preview, states: ['hover'], resetUncertain: true } } })
+    const retry = screen.getByRole('button', { name: 'Try again to remove forced :hover from #card' })
+    expect(retry).toHaveTextContent('Forced :hover not confirmed removed')
+    expect(retry).toHaveClass('offline')
   })
 
   it('renders page failure details and delegates a retry', async () => {
