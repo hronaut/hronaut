@@ -44,7 +44,8 @@ const typedDataWarningKeys: Record<WalletTypedDataWarning, string> = {
   'unreadable-amount': 'unreadableAmount',
   'no-expiry': 'noExpiry',
   'asset-order': 'assetOrder',
-  'safe-transaction': 'safeTransaction'
+  'safe-transaction': 'safeTransaction',
+  'forwarded-call': 'forwardedCall'
 }
 
 const transactionWarningKeys: Record<WalletTransactionWarning, string> = {

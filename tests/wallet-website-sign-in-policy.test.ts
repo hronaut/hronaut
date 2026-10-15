@@ -323,6 +323,30 @@ describe('website typed-data policy', () => {
     })).toEqual({ outcome: 'awaiting-human', reason: 'typed-data-safe-transaction-on-mainnet' })
   })
 
+  it('signs a meta-transaction on a testnet but keeps one on mainnet with a person', () => {
+    // An OpenZeppelin ERC2771Forwarder request: the forwarder calls `to` as this wallet.
+    const forwardRequest = (chainId: number, primaryType = 'ForwardRequest') => ({
+      domain: { name: 'ERC2771Forwarder', version: '1', chainId, verifyingContract: permitToken },
+      primaryType,
+      types: {
+        [primaryType]: [
+          { name: 'from', type: 'address' }, { name: 'to', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'gas', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint48' }, { name: 'data', type: 'bytes' }
+        ]
+      },
+      message: { from: permitSpender, to: permitToken, value: '0', gas: '100000', nonce: '0', deadline: '1800000000', data: '0xa9059cbb' }
+    })
+    const mainnetSign = request({ operation: 'sign-message', capability: 'sign', networkId: '1' })
+    expect(evaluate({ wallet: agentWallet, request: signRequest, policies: [typedDataPolicy], message: typedDataMessage(forwardRequest(11155111)) }))
+      .toMatchObject({ outcome: 'approved' })
+    expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [mainnetTypedDataPolicy], message: typedDataMessage(forwardRequest(1)) }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-forwarded-call-on-mainnet' })
+    // GSN's forwarder accepts a request type registered under any name, so a
+    // harmless-looking name with signed call data still needs a person.
+    expect(evaluate({ wallet: mainnetAgent, request: mainnetSign, policies: [mainnetTypedDataPolicy], message: typedDataMessage(forwardRequest(1, 'Login')) }))
+      .toEqual({ outcome: 'awaiting-human', reason: 'typed-data-forwarded-call-on-mainnet' })
+  })
+
   it('needs the separate mainnet typed-data switch on mainnet', () => {
     const mainnetSign = request({ operation: 'sign-message', capability: 'sign', networkId: '1' })
     const mainnetPermit = typedDataMessage(permit({ name: 'QA Token', version: '1', chainId: 1, verifyingContract: permitToken }))

@@ -514,7 +514,8 @@ export const enUS = {
           unreadableAmount: 'Hronaut could not read every amount in this signature. Treat it as unlimited.',
           noExpiry: 'This signature never expires, so it can still be used long after you sign it.',
           assetOrder: 'This looks like a marketplace or exchange order. Once it is signed, anyone who fills it can take the tokens or NFTs it offers from this wallet.',
-          safeTransaction: "This looks like a Safe multisig transaction or message. Once enough owners sign, it can move the Safe's assets or change its owners."
+          safeTransaction: "This looks like a Safe multisig transaction or message. Once enough owners sign, it can move the Safe's assets or change its owners.",
+          forwardedCall: 'This looks like a meta-transaction or a delegation. Signing it lets someone else make a contract call from this account, such as a token transfer, without another approval from you.'
         }
       },
       raw: 'Raw unsigned request',
