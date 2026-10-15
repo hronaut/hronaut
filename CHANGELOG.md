@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- When the network answers that it already has a transaction the person approved, for example after a hosted RPC retried the send itself, the dApp now gets the transaction hash and Hronaut waits for its receipt, as in MetaMask. Before, the request failed although the transaction could be mined, so a dApp could retry or show an error for a payment that went through. Hronaut first checks that the node still holds the transaction, since some nodes also say so for one they dropped. Two identical requests approved at the same nonce sign the same transaction, which the network runs once, so only the first counts as sent and the other fails with "Transaction was already sent by another wallet request".
+
 ## [2.48.0] - 2026-10-15
 
 ### Added
