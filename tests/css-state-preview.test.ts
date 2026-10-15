@@ -88,7 +88,10 @@ describe('forced CSS state preview', () => {
     expect(report.url).not.toContain('private')
     expect(report.caveats.join(' ')).toMatch(/No pointer, click, focus or keyboard events/)
     // The renderer projection never carries CDP node IDs.
-    expect(JSON.stringify(f.preview.summary(f.tab))).not.toContain('42')
+    // Match keys and values rather than the JSON text: timestamps can contain "42".
+    const summary = f.preview.summary(f.tab)
+    expect(Object.keys(summary ?? {}).sort()).toEqual(['expiresAt', 'selector', 'startedAt', 'states'])
+    expect(Object.values(summary ?? {})).not.toContain(42)
     expect(f.host.changed).toHaveBeenCalled()
   })
 
