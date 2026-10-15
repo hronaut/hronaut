@@ -623,6 +623,33 @@ describe('WalletBroker', () => {
     await expect(transfer).resolves.toMatchObject({ status: 'rejected' })
   })
 
+  it('does not ask the person again when an agent repeats its account request while the first is being approved', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const agent = context({ requester: { type: 'agent', id: 'agent-polling', name: 'Polling agent' } })
+    const grant = service.permissions.grant.bind(service.permissions)
+    let releaseGrant!: () => void
+    const grantRelease = new Promise<void>((resolve) => { releaseGrant = resolve })
+    onTestFinished(() => releaseGrant())
+    vi.spyOn(service.permissions, 'grant').mockImplementationOnce(async (...args) => {
+      await grantRelease
+      return grant(...args)
+    })
+
+    const first = await broker.agentBalance(agent, wallet.id)
+    const requestId = (first.request as { id: string }).id
+    const approval = broker.approve(requestId)
+    await vi.waitFor(() => expect(service.approvals.get(requestId)?.status).toBe('approved'))
+
+    // An agent polling for its balance asks again before the permission is saved.
+    expect(await broker.agentBalance(agent, wallet.id)).toMatchObject({ status: 'permission-required', request: { id: requestId, status: 'approved' } })
+    releaseGrant()
+    await approval
+    expect(await broker.agentBalance(agent, wallet.id)).toMatchObject({ status: 'ready' })
+    expect(service.approvals.list().filter((record) => record.request.operation === 'connect-account')).toHaveLength(1)
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+  })
+
   it('isolates agent address permissions and request status by requester, workspace, tab, and navigation', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
