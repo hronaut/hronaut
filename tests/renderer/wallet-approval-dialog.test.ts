@@ -294,6 +294,37 @@ describe('WalletApprovalDialog', () => {
     ])
   })
 
+  it('shows why the transaction simulation reverted, when the contract says', () => {
+    const shown = (simulationRevert?: NonNullable<WalletRequestSummary['details']>['simulationRevert']) => {
+      const pending = request()
+      pending.operation = 'sign-and-send-transaction'
+      pending.details = {
+        ...pending.details!, capability: 'send', method: 'erc20.transferFrom', simulationAttempted: true, simulationSuccess: false,
+        ...(simulationRevert ? { simulationRevert } : {})
+      }
+      const view = render(WalletApprovalDialog, {
+        props: { controller: { ...controller(), awaitingApproval: ref([pending]) } as unknown as WalletsController, workspaces: [] },
+        global: { plugins: [createHronautI18n('en-US')] }
+      })
+      const dialog = screen.getByRole('alertdialog')
+      const row = (label: string) => [...dialog.querySelectorAll('dt')].find((term) => term.textContent === label)?.nextElementSibling?.textContent
+      const result = { simulation: row('Simulation'), reason: row('Revert reason') }
+      view.unmount()
+      return result
+    }
+    expect(shown({ kind: 'message', message: 'ERC20: insufficient allowance' })).toEqual({ simulation: 'Failed', reason: '“ERC20: insufficient allowance”' })
+    expect(shown({ kind: 'message', message: 'x'.repeat(200), truncated: true })).toEqual({ simulation: 'Failed', reason: `“${'x'.repeat(200)}…”` })
+    expect(shown({ kind: 'panic', code: '0x11', meaning: 'arithmetic overflow or underflow' }).reason).toBe('Solidity panic 0x11: arithmetic overflow or underflow')
+    expect(shown({ kind: 'panic', code: '0x99' }).reason).toBe('Solidity panic 0x99')
+    expect(shown({ kind: 'custom-error', selector: '0xfb8f41b2', name: 'ERC20InsufficientAllowance' }).reason)
+      .toBe('Custom error ERC20InsufficientAllowance (0xfb8f41b2)')
+    expect(shown({ kind: 'custom-error', selector: '0x12345678' }).reason).toBe('Custom error 0x12345678')
+    expect(shown({ kind: 'no-reason' }).reason).toBe('The contract reverted without a reason')
+    // A page's message is shown as text, even when it looks like a translation placeholder.
+    expect(shown({ kind: 'message', message: '{message} @:wallets.approval.failed | x' }).reason).toBe('“{message} @:wallets.approval.failed | x”')
+    expect(shown()).toEqual({ simulation: 'Failed', reason: undefined })
+  })
+
   it('falls back to the immutable workspace ID when the workspace no longer exists', () => {
     const wallets = controller()
     render(WalletApprovalDialog, {

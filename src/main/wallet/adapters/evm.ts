@@ -20,6 +20,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 import { EVM_FILTER_RPC_METHODS, EVM_READ_RPC_METHODS, type WalletDescriptor } from '../../../shared/wallet.js'
 import { deriveWalletAccount } from '../accounts.js'
+import { evmRevertFromError } from '../evm-revert.js'
 import type { WalletSecret } from '../vault.js'
 import type {
   WalletChainAdapter,
@@ -276,7 +277,13 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       transaction.decoded.estimatedFee = estimatedFee
       return { attempted: true, success: true, estimatedFee }
     } catch (error) {
-      return { attempted: true, success: false, error: error instanceof Error ? error.message.slice(0, 512) : 'EVM simulation failed' }
+      const revert = evmRevertFromError(error)
+      return {
+        attempted: true,
+        success: false,
+        error: error instanceof Error ? error.message.slice(0, 512) : 'EVM simulation failed',
+        ...(revert ? { revert } : {})
+      }
     }
   }
 

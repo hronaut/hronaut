@@ -38,6 +38,7 @@ import {
   parseSendCalls,
   type EvmCallReceipt
 } from './evm-call-bundles.js'
+import { simulationRevertFromStored, storedSimulationRevert } from './evm-revert.js'
 import { EvmFilterRegistry, isEvmFilterCreateMethod, isEvmFilterId, MAX_EVM_FILTERS_PER_PAGE, type EvmFilterOwner } from './evm-filters.js'
 import {
   EvmAssetSuggestionLog,
@@ -157,14 +158,34 @@ function walletChainName(family: WalletChainFamily): string {
   return family === 'solana' ? 'Solana' : 'Tron'
 }
 
+const SIMULATION_FAILED = 'Wallet transaction simulation failed'
+
+/**
+ * The simulation as approval records keep it: adapter error text, which can
+ * name the RPC endpoint, becomes a fixed message, or a revert reason read
+ * from the revert data, stored in the error text older versions accept.
+ */
 function sanitizedSimulation(simulation: WalletTransactionSimulation): WalletTransactionSimulation {
+  const revert = !simulation.success && simulation.revert ? storedSimulationRevert(simulation.revert) : undefined
   return {
     attempted: simulation.attempted,
     success: simulation.success,
     ...(simulation.estimatedFee && /^\d+(?:\.\d+)?$/.test(simulation.estimatedFee)
       ? { estimatedFee: simulation.estimatedFee }
       : {}),
-    ...(simulation.error ? { error: 'Wallet transaction simulation failed' } : {})
+    ...(revert ? { error: revert } : simulation.error ? { error: SIMULATION_FAILED } : {})
+  }
+}
+
+/** A recorded simulation for an agent, with its revert reason read back. */
+function agentSimulation(simulation: WalletTransactionSimulation): Record<string, unknown> {
+  const revert = simulation.success ? undefined : simulationRevertFromStored(simulation.error)
+  return {
+    attempted: simulation.attempted,
+    success: simulation.success,
+    ...(simulation.estimatedFee ? { estimatedFee: simulation.estimatedFee } : {}),
+    ...(simulation.error ? { error: SIMULATION_FAILED } : {}),
+    ...(revert ? { revert } : {})
   }
 }
 
@@ -192,6 +213,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
     ? restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
     : undefined
   const warnings = normalized ? transactionWarnings(normalized.decoded) : []
+  const simulationRevert = record.simulation && !record.simulation.success ? simulationRevertFromStored(record.simulation.error) : undefined
   return {
     id: record.id,
     walletId: record.request.walletId,
@@ -215,6 +237,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
         understood: normalized?.decoded.understood ?? record.request.operation === 'connect-account',
         simulationAttempted: record.simulation?.attempted ?? false,
         simulationSuccess: record.simulation?.success ?? false,
+        ...(simulationRevert ? { simulationRevert } : {}),
         ...(normalized?.decoded.contract ? { contract: normalized.decoded.contract } : {}),
         ...(normalized?.decoded.source ? { source: normalized.decoded.source } : {}),
         ...(normalized?.decoded.destination ? { destination: normalized.decoded.destination } : {}),
@@ -245,6 +268,11 @@ function agentSummary(
     // A request can name the wallet itself, such as a transfer to its own address.
     for (const field of ['contract', 'source', 'destination'] as const) {
       if (walletPolicyDestinationMatches(details.chainFamily, [publicAddress], details[field])) details[field] = HIDDEN_WALLET_ADDRESS
+    }
+    // A contract can put the calling account in its revert message.
+    if (details.simulationRevert?.kind === 'message' && /^0x[0-9a-fA-F]{40}$/.test(publicAddress)) {
+      const account = new RegExp(`(?:0x)?${publicAddress.slice(2)}`, 'gi')
+      details.simulationRevert = { ...details.simulationRevert, message: details.simulationRevert.message.replace(account, HIDDEN_WALLET_ADDRESS) }
     }
   }
   return {
@@ -512,7 +540,7 @@ export class WalletBroker {
         networkId: wallet.network.id,
         publicAddress: wallet.publicAddress,
         decoded: structuredClone(normalized.decoded),
-        simulation: structuredClone(simulation)
+        simulation: agentSimulation(simulation)
       }
     })
   }

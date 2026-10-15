@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  encodeErrorResult,
   encodeFunctionData,
   getAddress,
   maxUint256,
@@ -182,6 +183,25 @@ describe('EvmWalletAdapter', () => {
     })
     expect(client.getTransactionReceipt).toHaveBeenCalledOnce()
     expect(client.waitForTransactionReceipt).not.toHaveBeenCalled()
+  })
+
+  it('reports why a simulated transaction reverted, read from the revert data', async () => {
+    const client = rpc()
+    const adapter = new EvmWalletAdapter(() => client as never)
+    const transaction = await adapter.normalizeTransaction(wallet(), { to: '0x0000000000000000000000000000000000000002', value: '1' })
+    // What viem's http transport throws: the node's message (which can name the RPC) and the revert data in the cause.
+    const revert = (data: unknown, details = 'execution reverted') => Object.assign(new Error(`RPC https://rpc.example.invalid/?apiKey=secret: ${details}`), {
+      name: 'CallExecutionError', details,
+      cause: Object.assign(new Error(details), { name: 'ExecutionRevertedError', details, cause: Object.assign(new Error(details), { name: 'RpcRequestError', data }) })
+    })
+    client.call.mockRejectedValueOnce(revert(encodeErrorResult({ abi: parseAbi(['error Error(string)']), errorName: 'Error', args: ['Too little received'] })))
+    await expect(adapter.simulate(wallet(), transaction)).resolves.toMatchObject({
+      attempted: true, success: false, revert: { kind: 'message', message: 'Too little received' }
+    })
+    client.call.mockRejectedValueOnce(revert(undefined))
+    await expect(adapter.simulate(wallet(), transaction)).resolves.toMatchObject({ success: false, revert: { kind: 'no-reason' } })
+    client.call.mockRejectedValueOnce(revert(undefined, 'insufficient funds for gas * price + value'))
+    expect(await adapter.simulate(wallet(), transaction)).not.toHaveProperty('revert')
   })
 
   it('reads ERC-20 token balances with decimals and a sanitized symbol', async () => {

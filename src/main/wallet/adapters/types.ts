@@ -1,5 +1,5 @@
 import type { WalletDecodedOperation, WalletSimulationResult } from '../policy.js'
-import type { WalletDescriptor } from '../../../shared/wallet.js'
+import type { WalletDescriptor, WalletSimulationRevert } from '../../../shared/wallet.js'
 import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
 import type { WalletSecret } from '../vault.js'
 
@@ -15,6 +15,8 @@ export interface WalletNormalizedTransaction {
 export interface WalletTransactionSimulation extends WalletSimulationResult {
   estimatedFee?: string
   logs?: string[]
+  /** Why the simulated EVM call reverted, read from its revert data. */
+  revert?: WalletSimulationRevert
 }
 
 export interface WalletConfirmation {
