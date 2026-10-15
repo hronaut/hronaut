@@ -491,6 +491,8 @@ describe('release quality gates', () => {
     expect(guide).toContain('Let this site connect and sign in without asking')
     expect(fixture).toContain("request('eth_signTypedData_v4'")
     expect(guide).toContain('Sign a token permit')
+    expect(fixture).toContain("request('wallet_watchAsset'")
+    expect(guide).toContain('Add token to wallet')
     expect(fixture).toContain("const method = 'eth_getTransactionReceipt'")
     expect(fixture).toContain("stage: 'provider-selection'")
     expect(fixture).toContain("stage: 'provider-validation'")

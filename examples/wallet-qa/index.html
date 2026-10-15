@@ -42,6 +42,14 @@
   </section>
 
   <section>
+    <h2>Add token</h2>
+    <p>Offers the same fixed test token to the wallet with <code>wallet_watchAsset</code> (EIP-747), the way a dApp's "Add token to wallet" button does. Hronaut accepts the offer without a dialog. Like MetaMask, it refuses it with code -32602 when the symbol or decimals disagree with what the token contract reports.</p>
+    <label>symbol <input id="token-symbol" value="HQA" spellcheck="false"></label>
+    <label>decimals <input id="token-decimals" value="6" inputmode="numeric" spellcheck="false"></label>
+    <button id="watch-token">Add token to wallet</button>
+  </section>
+
+  <section>
     <h2>Transaction and receipt</h2>
     <label>recipient <input id="recipient" value="0x1000000000000000000000000000000000000001" spellcheck="false"></label>
     <button id="send">Send 1 wei</button>
@@ -109,6 +117,15 @@
           account: 'first-connected-account'
         }
       }
+      if (method === 'wallet_watchAsset') {
+        const { symbol, decimals } = params.options ?? {}
+        return {
+          type: params.type,
+          token: 'fixture-test-token',
+          symbol: typeof symbol === 'string' && /^[A-Za-z0-9]{1,11}$/.test(symbol) ? symbol : 'other',
+          decimals: Number.isInteger(decimals) && decimals >= 0 && decimals <= 99 ? decimals : 'other'
+        }
+      }
       if (method === 'personal_sign') {
         return {
           message: 'eip-4361-sign-in',
@@ -133,6 +150,7 @@
         return { chainId: typeof result === 'string' && result.length <= 18 && /^0x[0-9a-f]+$/i.test(result) ? result : 'unknown' }
       }
       if (method === 'wallet_switchEthereumChain') return { accepted: result == null }
+      if (method === 'wallet_watchAsset') return { accepted: result === true }
       if (method === 'personal_sign' || method === 'eth_signTypedData_v4') {
         return {
           signatureReturned: typeof result === 'string',
@@ -321,6 +339,17 @@
         return
       }
       await request('eth_signTypedData_v4', [accounts[0], JSON.stringify(permitTypedData(accounts[0], chainId))])
+    })
+    document.querySelector('#watch-token').addEventListener('click', () => {
+      const decimals = document.querySelector('#token-decimals').value.trim()
+      return request('wallet_watchAsset', {
+        type: 'ERC20',
+        options: {
+          address: PERMIT_TOKEN,
+          symbol: document.querySelector('#token-symbol').value.trim(),
+          decimals: /^\d{1,2}$/.test(decimals) ? Number(decimals) : decimals
+        }
+      })
     })
     document.querySelector('#send').addEventListener('click', async () => {
       const accounts = await request('eth_accounts')

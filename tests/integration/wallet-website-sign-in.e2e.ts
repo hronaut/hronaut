@@ -10,6 +10,7 @@ import { expect, test, text } from './capability-fixtures.js'
 interface PageRequestList {
   origin: string
   requests: Array<{ id: string; operation: string; status: string }>
+  suggestedAssets?: Array<Record<string, unknown>>
 }
 
 // Imports Anvil's public test key for one workspace with a sign-in only policy for one origin.
@@ -190,6 +191,33 @@ test('shows the wallet QA fixture token permit to a person, who approves it', as
     const log = await fixtureLog()
     expect(log).toContain('"typedData": "eip-2612-permit"')
     expect(log.toLowerCase()).not.toContain(publicAddress.toLowerCase())
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('lets an agent offer the wallet QA fixture token without a dialog and read the offer', async ({ capabilities, appWindow, electronApp }) => {
+  const { client, workspace, tabId } = capabilities
+  const { origin, server } = await serveWalletQaFixture()
+  try {
+    const pageUrl = `${origin}/`
+    await signInWallet(appWindow, workspace.workspaceId, origin)
+    const navigated = await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: pageUrl } }) as CallToolResult
+    expect(navigated.isError, text(navigated)).not.toBe(true)
+    const readPageRequests = await pageRequestReader(client, tabId)
+    const page = pageScript(electronApp, pageUrl)
+    const fixtureLog = () => page(`document.querySelector('#log').textContent`) as Promise<string>
+
+    // No account connection is needed, and no node answers for the token here, so the offer is accepted as written.
+    await page(`document.querySelector('#watch-token').click(); 'clicked';`)
+    await expect.poll(fixtureLog).toContain('"accepted": true')
+    expect(await fixtureLog()).toContain('"token": "fixture-test-token"')
+    await expect(appWindow.getByRole('alertdialog')).toHaveCount(0)
+    expect(await readPageRequests()).toMatchObject({
+      requests: [],
+      suggestedAssets: [{ type: 'ERC20', address: '0x5FbDB2315678afecb367f032d93F642f64180aa3', symbol: 'HQA', decimals: 6, networkId: '31337' }]
+    })
+    expect((await readPageRequests()).suggestedAssets?.[0]).not.toHaveProperty('contractDecimals')
   } finally {
     await closeFixtureServer(server)
   }
