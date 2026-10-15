@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.47.0] - 2026-10-15
+
 ### Added
 
 - Wallet approvals for EIP-712 typed data warn when the request looks like a meta-transaction or a delegation: a recognized ERC-2771, GSN, Gelato, Biconomy, 0x, ERC-4337 or Safe 4337 request, a MetaMask delegation, or any type that signs call data in a `data`, `callData` or `functionSignature` field. Someone else submits the signed call and the contract treats it as coming from this account, so it can transfer tokens like a transaction. On mainnet, the typed-data switch keeps these with a person, like Safe transactions.
@@ -16,6 +18,14 @@ All notable changes to Hronaut are documented in this file.
 
 - A TRON contract call that also sends TRX now shows that TRX as its native amount in the approval dialog. Before, a TRC-20 `transfer`, `approve` or `transferFrom` that also sent TRX showed only the token amount, and its simulation left the TRX out. A call that also sends a TRC-10 token is now shown as an unknown contract call, and a TRON amount above 2^53 − 1 sun is refused instead of being signed rounded.
 - Adding a bounded wallet policy no longer erases a new draft you started typing while the previous policy was still saving. The form now clears only when it still holds the policy that was saved.
+
+### Known issues
+
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.46.0] - 2026-10-15
 
