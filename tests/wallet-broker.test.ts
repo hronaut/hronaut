@@ -689,6 +689,40 @@ describe('WalletBroker', () => {
     await expect(swap).resolves.toMatchObject({ status: 'rejected' })
   })
 
+  it('simulates the very transaction it prepared, which can carry why its gas estimate reverted', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    // The EVM adapter remembers a gas-estimate revert per prepared transaction; a copy would lose it.
+    const prepared: WalletNormalizedTransaction[] = []
+    const normalize = chain.normalizeTransaction.bind(chain)
+    chain.normalizeTransaction = async (...args) => {
+      const transaction = await normalize(...args)
+      prepared.push(transaction)
+      return transaction
+    }
+    const simulate = vi.fn(async (_wallet: WalletDescriptor, _transaction: WalletNormalizedTransaction) => ({
+      attempted: true, success: false, error: 'EVM gas estimation reverted', revert: { kind: 'no-reason' as const }
+    }))
+    chain.simulate = simulate
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const agent = context({ requester: { type: 'agent', id: 'agent-identity', name: 'Identity agent' } })
+
+    const send = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', data: '0x12345678' }]
+    }))
+    const pending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation !== 'connect-account')
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    await broker.prepareAgentTransaction(agent, wallet.id, { to: '0x00000000000000000000000000000000000000aa' })
+
+    expect(prepared).toHaveLength(2)
+    expect(simulate.mock.calls.map(([, transaction]) => transaction)).toEqual(prepared)
+    simulate.mock.calls.forEach(([, transaction], index) => expect(transaction).toBe(prepared[index]))
+    await broker.reject(pending.id)
+    await expect(send).resolves.toMatchObject({ status: 'rejected' })
+  })
+
   it('does not ask the person again when an agent repeats its account request while the first is being approved', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
