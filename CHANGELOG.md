@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.43.0] - 2026-10-15
+
 ### Added
 
 - `wallet_balance` takes an optional `token` and returns that ERC-20 (EVM) or SPL mint (Solana) balance with its decimals and symbol, so an agent testing a dApp can check that a swap, mint or faucet credited the wallet. It uses the same human-approved account permission as the native balance; RPC details stay out of errors.
@@ -17,6 +19,13 @@ All notable changes to Hronaut are documented in this file.
 - dApp pages can read chain state through Hronaut's EVM wallet provider: block number, balances, `eth_call`, gas estimates, receipts, blocks and logs are forwarded to the active wallet network's RPC, so wagmi, viem and ethers reads work without a separate RPC. Reads need no account permission and never sign; revert codes and data reach the page, the RPC URL does not.
 
 - `wallet_page_requests` lets an agent that is testing a dApp see which wallet requests the page made (connect, sign message or typed data, sign or send transaction), with status and transaction hash, for the same tab and page only. It is read-only, and approval stays with a person in Hronaut.
+
+### Known issues
+
+- Websites still need a person to approve every account connection and message signature, including Sign-In with Ethereum and Sign-In with Solana, even on testnets and local chains.
+- Token balances cover ERC-20 on EVM and SPL mints on Solana. TRON token balances are not supported yet.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.42.0] - 2026-10-15
 
