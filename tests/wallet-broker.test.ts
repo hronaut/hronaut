@@ -763,6 +763,26 @@ describe('WalletBroker', () => {
     await expect(swap).resolves.toMatchObject({ status: 'rejected' })
   })
 
+  it('tells the page why the network refused a transaction the person approved', async () => {
+    const { service } = await setup()
+    const chain = adapter()
+    const refusal = 'EVM RPC error (code -32000): the node refused the transaction: nonce too low, the account already used this nonce'
+    chain.broadcast.mockRejectedValueOnce(new Error(refusal))
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const send = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', value: '0x1' }]
+    }))
+    const pending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation !== 'connect-account')
+    await expect(broker.approve(pending.id)).rejects.toThrow(refusal)
+    const result = await send
+    expect(result.status === 'rejected' && (result.reason as Error).message).toBe(refusal)
+    expect(service.approvals.get(pending.id)?.status).toBe('failed')
+    // An agent testing the page sees the same reason.
+    expect(broker.agentPageRequests(context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })).failedCalls)
+      .toEqual([{ family: 'evm', method: 'eth_sendTransaction', error: refusal, failedAt: expect.any(String) }])
+  })
+
   it('simulates the very transaction it prepared, which can carry why its gas estimate reverted', async () => {
     const { service, wallet } = await setup()
     const chain = adapter()
