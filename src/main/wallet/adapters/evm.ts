@@ -221,6 +221,9 @@ export class EvmWalletAdapter implements WalletChainAdapter {
   private readonly estimationReverts = new WeakMap<WalletNormalizedTransaction, WalletSimulationRevert>()
 
   constructor(private readonly clientFor = (wallet: WalletDescriptor): EvmClient => createPublicClient({
+    // A contract's CCIP-Read (EIP-3668) revert names URLs that viem would fetch
+    // from the main process, outside the browser, for any page or agent.
+    ccipRead: false,
     transport: http(wallet.network.rpcUrl, { retryCount: 0, timeout: 15_000 })
   })) {}
 
