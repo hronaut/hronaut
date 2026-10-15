@@ -264,7 +264,8 @@ describe('typed data in the trusted approval', () => {
     }, wallet)).toEqual({
       primaryType: 'TransferWithAuthorization',
       domain: { name: 'USD Coin', version: '2', chainId: '11155111', verifyingContract: token },
-      tokenAccess: { kind: 'transfer', recipient: spender, allowances: [{ token, amount: '2500000' }], expiresAt: '2027-01-15T08:00:00.000Z' },
+      // validBefore is exclusive, so the last usable second is one earlier.
+      tokenAccess: { kind: 'transfer', recipient: spender, allowances: [{ token, amount: '2500000' }], expiresAt: '2027-01-15T07:59:59.000Z' },
       warnings: ['token-transfer']
     })
   })
@@ -277,9 +278,17 @@ describe('typed data in the trusted approval', () => {
     // The last second that still reads as a date, and the first that does not.
     expect(permit(253_402_300_799)?.tokenAccess).toMatchObject({ expiresAt: '9999-12-31T23:59:59.000Z' })
     expect(permit(253_402_300_800)?.tokenAccess).toMatchObject({ neverExpires: true })
-    // An unreadable deadline shows no expiry rather than a guess.
-    expect(permit('soon')?.tokenAccess).not.toHaveProperty('expiresAt')
-    expect(permit('soon')?.tokenAccess).not.toHaveProperty('neverExpires')
+    // A deadline the summary cannot read is treated as never expiring, like an
+    // unreadable amount, even when the signer reads it as an ordinary time.
+    expect(permit('soon')).toMatchObject({ tokenAccess: { neverExpires: true }, warnings: ['token-permit', 'no-expiry'] })
+    expect(permit(`0x${'0'.repeat(4_100)}1`)).toMatchObject({ tokenAccess: { neverExpires: true }, warnings: ['token-permit', 'no-expiry'] })
+    const paddedDai = { domain: usdc, primaryType: 'Permit', types: daiTypes, message: { ...daiMessage, expiry: '0'.repeat(4_097) } }
+    expect(signedHash(paddedDai)).toBe(signedHash({ ...paddedDai, message: daiMessage }))
+    expect(typedDataDisplay(paddedDai, wallet)?.warnings).toContain('no-expiry')
+    // A type that declares no deadline shows no validity row.
+    expect(typedDataDisplay({
+      domain: usdc, primaryType: 'Permit', types: { ...erc2612Types, Permit: erc2612Types.Permit.filter(field => field.name !== 'deadline') }, message: erc2612Message
+    }, wallet)?.tokenAccess).not.toHaveProperty('neverExpires')
 
     // Permit2: an allowance lasts until its expiration, and one of zero ends
     // in the block that submits it, so the signature deadline bounds it.
@@ -295,6 +304,11 @@ describe('typed data in the trusted approval', () => {
       message: { details: [{ token, amount: '1', expiration: 1_700_000_000, nonce: 0 }, { token, amount: '1', expiration: 1_800_000_000, nonce: 0 }], spender, sigDeadline: 0 }
     }, wallet)
     expect(batch?.tokenAccess?.expiresAt).toBe('2027-01-15T08:00:00.000Z')
+    const paddedBatch = typedDataDisplay({
+      domain: { chainId: 11155111, verifyingContract: permit2 }, primaryType: 'PermitBatch', types: permitBatchTypes,
+      message: { details: [{ token, amount: '1', expiration: 1_700_000_000, nonce: 0 }, { token, amount: '1', expiration: '0'.repeat(4_097), nonce: 0 }], spender, sigDeadline: 'unreadable' }
+    }, wallet)
+    expect(paddedBatch?.tokenAccess?.neverExpires).toBe(true)
   })
 
   it('warns that a marketplace or exchange order or a Safe transaction can move assets', () => {

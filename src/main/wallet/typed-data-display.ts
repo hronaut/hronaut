@@ -153,10 +153,15 @@ interface TokenAccess {
 
 type Expiry = bigint | typeof NEVER | undefined
 
-/** Seconds since the epoch in a declared integer field; undefined when unreadable. */
-function seconds(field: Field | undefined): bigint | undefined {
+/**
+ * Seconds since the epoch in a declared integer field, or undefined when the
+ * type declares no such field. A declared value that cannot be read is
+ * treated as never expiring, the same caution as an unreadable amount.
+ */
+function seconds(field: Field | undefined): Expiry {
+  if (!field) return undefined
   const value = isInteger(field) ? integer(field.value) : undefined
-  return value !== undefined && value >= 0n ? value : undefined
+  return value !== undefined && value >= 0n ? value : NEVER
 }
 
 /**
@@ -164,11 +169,12 @@ function seconds(field: Field | undefined): bigint | undefined {
  * zero ends the allowance in the block that submits it, which must happen
  * before the signature deadline; any other expiration bounds the allowance.
  */
-function permit2Expiry(entries: Array<Map<string, Field>>, signatureDeadline: bigint | undefined): Expiry {
+function permit2Expiry(entries: Array<Map<string, Field>>, signatureDeadline: Expiry): Expiry {
   let latest: bigint | undefined
   for (const entry of entries) {
     const expiration = seconds(entry.get('expiration'))
     const effective = expiration === 0n ? signatureDeadline : expiration
+    if (effective === NEVER) return NEVER
     if (effective === undefined) return undefined
     if (latest === undefined || effective > latest) latest = effective
   }
@@ -210,7 +216,9 @@ function tokenAccess(types: Types, primaryType: string, message: unknown, verify
   } else if (TRANSFER_AUTHORIZATION_TYPES.has(primaryType)) {
     allowances = [amount(verifyingContract, fields.get('value'))]
     party = { recipient: text(fields.get('to')?.value) }
-    expiry = seconds(fields.get('validBefore'))
+    // validBefore is exclusive: the last second it can be used is one earlier.
+    const validBefore = seconds(fields.get('validBefore'))
+    expiry = typeof validBefore === 'bigint' && validBefore > 0n ? validBefore - 1n : validBefore
   } else {
     return undefined
   }
