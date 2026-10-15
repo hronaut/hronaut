@@ -3,6 +3,7 @@
 import { readFile } from 'node:fs/promises'
 import { hashTypedData } from 'viem'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { parseWatchAsset } from '../src/main/wallet/evm-watch-asset.js'
 import { websiteSignInMessageIssue } from '../src/main/wallet/policy.js'
 import { typedDataDisplay } from '../src/main/wallet/typed-data-display.js'
 import type { WalletDescriptor } from '../src/shared/wallet.js'
@@ -37,6 +38,7 @@ function pageWith(provider?: { request?: ReturnType<typeof vi.fn> }): FixturePag
     <button id="discover"></button><button id="connect"></button><button id="accounts"></button>
     <button id="chain"></button><button id="switch"></button><button id="sign-in"></button><button id="sign-permit"></button><button id="send"></button>
     <button id="receipt"></button><input id="chain-id" value="0x7a6a">
+    <input id="token-symbol" value="HQA"><input id="token-decimals" value="6"><button id="watch-token"></button>
     <input id="recipient" value="0x1000000000000000000000000000000000000001">
     <input id="hash"><input id="rpc" value="http://127.0.0.1:8545">
     <p id="status"></p><pre id="log"></pre>
@@ -461,3 +463,58 @@ describe('wallet QA token permit', () => {
 function hashInput(page: FixturePage): HTMLInputElement {
   return page.document.querySelector('#hash') as HTMLInputElement
 }
+
+describe('wallet QA add token', () => {
+  it('offers the fixture token the way a dApp button does and logs only a bounded summary', async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === 'wallet_watchAsset') return true
+      throw new Error('Unexpected method')
+    })
+    const page = pageWith({ request })
+
+    await click(page, '#watch-token')
+
+    const params = request.mock.calls[0]?.[0] as unknown as { method: string; params: unknown }
+    expect(params).toEqual({
+      method: 'wallet_watchAsset',
+      params: { type: 'ERC20', options: { address: '0x5FbDB2315678afecb367f032d93F642f64180aa3', symbol: 'HQA', decimals: 6 } }
+    })
+    // Hronaut reads the offer as the fixture describes it.
+    expect(parseWatchAsset(params.params)).toEqual({ type: 'ERC20', address: '0x5FbDB2315678afecb367f032d93F642f64180aa3', symbol: 'HQA', decimals: 6 })
+    expect(events(page)).toEqual(expect.arrayContaining([
+      {
+        kind: 'request:start',
+        value: expect.objectContaining({
+          requestId: 'request-1',
+          method: 'wallet_watchAsset',
+          parameterSummary: { type: 'ERC20', token: 'fixture-test-token', symbol: 'HQA', decimals: 6 }
+        })
+      },
+      { kind: 'request:result', value: expect.objectContaining({ requestId: 'request-1', result: { accepted: true } }) }
+    ]))
+  })
+
+  it('records a refused offer by its error code only', async () => {
+    const request = vi.fn(async (_call: { method: string; params?: unknown }) => {
+      throw Object.assign(new Error('wallet_watchAsset decimals 18 do not match the token contract decimals 6'), { code: -32602 })
+    })
+    const page = pageWith({ request })
+    ;(page.document.querySelector('#token-decimals') as HTMLInputElement).value = '18'
+    ;(page.document.querySelector('#token-symbol') as HTMLInputElement).value = 'not a symbol'
+
+    await click(page, '#watch-token')
+
+    expect(request.mock.calls[0]?.[0].params).toMatchObject({ options: { decimals: 18 } })
+    expect(events(page)).toEqual(expect.arrayContaining([
+      {
+        kind: 'request:start',
+        value: expect.objectContaining({ parameterSummary: { type: 'ERC20', token: 'fixture-test-token', symbol: 'other', decimals: 18 } })
+      },
+      {
+        kind: 'request:error',
+        value: expect.objectContaining({ method: 'wallet_watchAsset', stage: 'provider-rejection', error: { category: 'provider-error', code: -32602 } })
+      }
+    ]))
+    expect(page.document.querySelector('#log')?.textContent ?? '').not.toContain('do not match')
+  })
+})

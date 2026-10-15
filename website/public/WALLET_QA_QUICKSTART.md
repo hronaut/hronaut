@@ -6,7 +6,7 @@ The test uses only a disposable local chain and Anvil's public test key. Do not 
 
 ## What this test covers
 
-The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, accepted and rejected account connections, `accountsChanged` and `chainChanged`, a Sign-In with Ethereum (EIP-4361) message signature, an EIP-2612 token permit signed as EIP-712 typed data, accepted and rejected transaction approvals, a successful receipt, a delayed receipt, and a reverted receipt. It distinguishes these stages:
+The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, accepted and rejected account connections, `accountsChanged` and `chainChanged`, a Sign-In with Ethereum (EIP-4361) message signature, an EIP-2612 token permit signed as EIP-712 typed data, an EIP-747 "Add token to wallet" offer, accepted and rejected transaction approvals, a successful receipt, a delayed receipt, and a reverted receipt. It distinguishes these stages:
 
 | Stage | Evidence |
 | --- | --- |
@@ -69,8 +69,8 @@ The fixture cannot import a key, attach a workspace, grant account permission, a
 From the release after 2.42.0, an agent connected to Hronaut's MCP server can run the dApp side of this test and keep the person in the loop:
 
 1. Call `wallet_list` with the fixture's `tabId` and an `agentName`. Keep the returned `walletSessionId`.
-2. Drive the fixture with the normal browser tools: `browser_snapshot`, then click **Request accounts**, **Sign in with Ethereum**, **Sign a token permit**, or **Send 1 wei**.
-3. Call `wallet_page_requests` with the same `tabId` and `walletSessionId` to see what the page asked the wallet for: operation, status (for example `awaiting-human`, `submitted`, `confirmed`), and the transaction hash once there is one. It covers only that tab's current page and origin. It leaves out the wallet address unless the agent itself has account permission for that wallet.
+2. Drive the fixture with the normal browser tools: `browser_snapshot`, then click **Request accounts**, **Sign in with Ethereum**, **Sign a token permit**, **Add token to wallet**, or **Send 1 wei**.
+3. Call `wallet_page_requests` with the same `tabId` and `walletSessionId` to see what the page asked the wallet for: operation, status (for example `awaiting-human`, `submitted`, `confirmed`), and the transaction hash once there is one. It covers only that tab's current page and origin. It leaves out the wallet address unless the agent itself has account permission for that wallet. From the release after 2.47.0, tokens the page offered with **Add token to wallet** are listed under `suggestedAssets`, with the token contract's own symbol and decimals when Hronaut could read them and `refused` when it refused the offer.
 4. When a request is `awaiting-human`, ask the person to review it in Hronaut, for example with `browser_request_user_attention`, and poll `wallet_page_requests` until it changes. The agent has no tool to approve, reject, connect, or create a policy.
 
 ### Let the agent sign in without a click
@@ -94,7 +94,15 @@ The page can also read chain state through the provider itself (`eth_blockNumber
 3. Request accounts again and approve. The fixture logs the disposable account count and an `accountsChanged` count without recording the address.
 4. Click **Sign in with Ethereum**. The Hronaut approval shows the sign-in text under **Message to sign**, naming `http://127.0.0.1:4173`, the account, and chain ID `31337`, with no warning. Reject it once and check for a correlated `provider-rejection` with code `4001`, then click again and approve. The fixture logs `signatureReturned: true` and `signatureBytes: 65`, never the text or signature.
 5. Click **Sign a token permit**. Without the typed-data switch, typed data goes to a person. The approval shows **Typed data to sign**: type `Permit`, app `Hronaut QA Token · version 1`, chain ID `31337`, contract `0x5FbDB2315678afecb367f032d93F642f64180aa3`, spender `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`, token allowance `1000000 (smallest token units)`, and **Valid until** about an hour from the click. Its alerts are the general notice that Hronaut could not fully decode the request, which every typed-data approval shows, and a warning that this is a token permit; there is no unlimited-amount or chain warning. Approve it. The fixture logs `typedData: "eip-2612-permit"`, `signatureReturned: true` and `signatureBytes: 65`, never the account, spender or signature. Nothing is sent on chain.
-6. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
+6. From the release after 2.47.0, click **Add token to wallet**. No Hronaut dialog opens. Nothing is deployed at the fixture token address, so Hronaut cannot read the token's symbol or decimals and accepts the offer as the page wrote it; the fixture logs `accepted: true`. To check the MetaMask-style refusal, install a stand-in token there that reports 6 decimals and no symbol:
+
+   ```bash
+   docker exec hronaut-wallet-anvil cast rpc anvil_setCode \
+     0x5FbDB2315678afecb367f032d93F642f64180aa3 0x600660005260206000f3
+   ```
+
+   Click **Add token to wallet** again with the default decimals `6`; the fixture logs `accepted: true`. Change decimals to `18` and click again; the fixture logs a `provider-rejection` with code `-32602`. An agent sees all three offers in `wallet_page_requests` under `suggestedAssets`: the first without contract values, the second with `contractDecimals: 6`, and the third with `contractDecimals: 6` and `refused: "decimals-mismatch"`.
+7. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
 
 For a real network-change event, start a second disposable node:
 
