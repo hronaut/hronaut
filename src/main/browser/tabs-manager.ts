@@ -624,6 +624,12 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   url: string
   loading: boolean
   navigationGeneration: number
+  /**
+   * The navigation generation of the current document. A dApp's own route
+   * change (a history API or fragment navigation in the same document) leaves
+   * it unchanged, so the page keeps its pending wallet requests and network.
+   */
+  walletNavigationGeneration: number
   performanceDocumentRouted?: boolean
   humanInteractionGeneration: number
   nativeInputEnvironmentGeneration: number
@@ -2272,7 +2278,7 @@ export class BrowserTabsManager {
     return {
       tabId: tab.id,
       workspaceId: tab.mcpGroupId,
-      navigationGeneration: tab.navigationGeneration,
+      navigationGeneration: tab.walletNavigationGeneration,
       topLevelOrigin: parsed.origin,
       url: parsed.href
     }
@@ -9057,6 +9063,7 @@ export class BrowserTabsManager {
       url,
       loading: true,
       navigationGeneration: options.navigationGeneration ?? 0,
+      walletNavigationGeneration: options.navigationGeneration ?? 0,
       observationGeneration: options.mcpGroupId
         ? this.workspaceObservationGeneration(options.mcpGroupId)
         : 0,
@@ -9683,9 +9690,12 @@ export class BrowserTabsManager {
       tab.navigationGeneration += 1
       retireNetworkPriorityObservations(tab)
       this.invalidateTabOverviewPreview(tab)
-      this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
-        this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
-      ))
+      if (!isSameDocument) {
+        tab.walletNavigationGeneration = tab.navigationGeneration
+        this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
+          this.options.onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
+        ))
+      }
       if (isSameDocument) {
         tab.performanceDocumentRouted = true
         return
