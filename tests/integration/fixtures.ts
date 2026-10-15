@@ -156,6 +156,19 @@ export async function launchHronaut(
   }
 }
 
+/**
+ * Tab mutations fail closed until saved workspaces finish loading, and startup reads wait for that,
+ * so one read keeps a test from racing initialization on slow runners. A failed read means startup
+ * itself failed, which the tests that cover it assert on their own. Startups that wait on a person
+ * (recovery prompts) are bounded so those tests still get the window.
+ */
+export async function waitForSavedWorkspaces(window: Page): Promise<void> {
+  await window.evaluate(`Promise.race([
+    Promise.resolve(window.hronautHistory?.list()).catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, 10000))
+  ]).then(() => undefined)`)
+}
+
 export async function collectRendererDiagnostics(app: ElectronApplication): Promise<unknown> {
   const pending = app.evaluate(({ webContents }) => {
     const scope = globalThis as typeof globalThis & {
@@ -324,14 +337,7 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
   appWindow: async ({ electronApp }, use) => {
     const window = await electronApp.firstWindow()
     await window.waitForLoadState('domcontentloaded')
-    // Tab mutations fail closed until saved workspaces finish loading, and startup reads wait for that,
-    // so one read here keeps tests from racing initialization on slow runners. A failed read means
-    // startup itself failed, which the tests that cover it assert on their own.
-    // Startups that wait on a person (recovery prompts) are bounded so those tests still get the window.
-    await window.evaluate(`Promise.race([
-      Promise.resolve(window.hronautHistory?.list()).catch(() => undefined),
-      new Promise((resolve) => setTimeout(resolve, 10000))
-    ]).then(() => undefined)`)
+    await waitForSavedWorkspaces(window)
     await use(window)
   }
 })
