@@ -6,7 +6,7 @@ The test uses only a disposable local chain and Anvil's public test key. Do not 
 
 ## What this test covers
 
-The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, accepted and rejected account connections, `accountsChanged` and `chainChanged`, a Sign-In with Ethereum (EIP-4361) message signature, accepted and rejected transaction approvals, a successful receipt, a delayed receipt, and a reverted receipt. It distinguishes these stages:
+The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, accepted and rejected account connections, `accountsChanged` and `chainChanged`, a Sign-In with Ethereum (EIP-4361) message signature, an EIP-2612 token permit signed as EIP-712 typed data, accepted and rejected transaction approvals, a successful receipt, a delayed receipt, and a reverted receipt. It distinguishes these stages:
 
 | Stage | Evidence |
 | --- | --- |
@@ -15,7 +15,7 @@ The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, acc
 | confirmed | An authoritative `eth_getTransactionReceipt` read from the local chain has `status: "0x1"`. |
 | failed | The authoritative receipt has `status: "0x0"`, or Hronaut rejects the request before submission. |
 
-The fixture gives every provider attempt and local receipt read a page-local `request-N` ID. A `request:start` entry records the method, the `provider` or `local-rpc-read` channel, and an allowlisted input summary. It does not record account addresses, transaction hashes, recipient addresses, signing payloads, signatures, RPC URLs, raw receipts, or provider error messages. Account events and results contain counts; sign-in results say whether a signature was returned and its length in bytes; transaction results say whether a hash was returned; receipt results contain only presence, bounded status, and block-number presence.
+The fixture gives every provider attempt and local receipt read a page-local `request-N` ID. A `request:start` entry records the method, the `provider` or `local-rpc-read` channel, and an allowlisted input summary. It does not record account addresses, transaction hashes, recipient addresses, signing payloads, signatures, RPC URLs, raw receipts, or provider error messages. Account events and results contain counts; sign-in and permit results say whether a signature was returned and its length in bytes; transaction results say whether a hash was returned; receipt results contain only presence, bounded status, and block-number presence.
 
 Provider evidence then records one of these stages:
 
@@ -92,7 +92,8 @@ The page can also read chain state through the provider itself (`eth_blockNumber
 2. Click **Request accounts**, then reject the trusted Hronaut dialog. The fixture must log a correlated `provider-rejection` with error code `4001`, while wallet dispatch and approval remain `unknown` and no account is exposed.
 3. Request accounts again and approve. The fixture logs the disposable account count and an `accountsChanged` count without recording the address.
 4. Click **Sign in with Ethereum**. The Hronaut approval shows the sign-in text under **Message to sign**, naming `http://127.0.0.1:4173`, the account, and chain ID `31337`, with no warning. Reject it once and check for a correlated `provider-rejection` with code `4001`, then click again and approve. The fixture logs `signatureReturned: true` and `signatureBytes: 65`, never the text or signature.
-5. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
+5. Click **Sign a token permit**. Typed data always goes to a person, even under a sign-in policy. The approval shows **Typed data to sign**: type `Permit`, app `Hronaut QA Token · version 1`, chain ID `31337`, contract `0x5FbDB2315678afecb367f032d93F642f64180aa3`, spender `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`, and token allowance `1000000 (smallest token units)`, with a warning that this is a token permit and no unlimited-amount or chain warning. Approve it. The fixture logs `typedData: "eip-2612-permit"`, `signatureReturned: true` and `signatureBytes: 65`, never the account, spender or signature. Nothing is sent on chain.
+6. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
 
 For a real network-change event, start a second disposable node:
 

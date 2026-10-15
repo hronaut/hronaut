@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { createServer } from 'node:http'
+import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -47,6 +47,16 @@ async function pageRequestReader(client: Client, tabId: string): Promise<() => P
     expect(result.isError, text(result)).not.toBe(true)
     return JSON.parse(text(result)) as PageRequestList
   }
+}
+
+// Serves the checked-in wallet QA fixture on a loopback origin.
+async function serveWalletQaFixture(): Promise<{ origin: string; server: Server }> {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+    response.end(readFileSync('examples/wallet-qa/index.html'))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  return { origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server }
 }
 
 function pageScript(electronApp: ElectronApplication, pageUrl: string) {
@@ -115,13 +125,8 @@ test('lets an opted-in local dApp connect and sign a plain-text sign-in message 
 
 test('lets an agent sign in on the local wallet QA fixture without a click', async ({ capabilities, appWindow, electronApp }) => {
   const { client, workspace, tabId } = capabilities
-  const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
-    response.end(readFileSync('examples/wallet-qa/index.html'))
-  })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { origin, server } = await serveWalletQaFixture()
   try {
-    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
     const pageUrl = `${origin}/`
     const { publicAddress } = await signInWallet(appWindow, workspace.workspaceId, origin)
     const navigated = await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: pageUrl } }) as CallToolResult
@@ -141,6 +146,46 @@ test('lets an agent sign in on the local wallet QA fixture without a click', asy
     expect(log).toContain('"signatureReturned": true')
     expect(log.toLowerCase()).not.toContain(publicAddress.toLowerCase())
     expect(log).not.toContain('wants you to sign in')
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('shows the wallet QA fixture token permit to a person, who approves it', async ({ capabilities, appWindow, electronApp }) => {
+  const { client, workspace, tabId } = capabilities
+  const { origin, server } = await serveWalletQaFixture()
+  try {
+    const pageUrl = `${origin}/`
+    const { publicAddress } = await signInWallet(appWindow, workspace.workspaceId, origin)
+    const navigated = await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: pageUrl } }) as CallToolResult
+    expect(navigated.isError, text(navigated)).not.toBe(true)
+    const readPageRequests = await pageRequestReader(client, tabId)
+    const page = pageScript(electronApp, pageUrl)
+    const fixtureLog = () => page(`document.querySelector('#log').textContent`) as Promise<string>
+
+    await page(`document.querySelector('#connect').click(); 'clicked';`)
+    await expect.poll(fixtureLog).toContain('"accountCount": 1')
+    await page(`document.querySelector('#sign-permit').click(); 'clicked';`)
+
+    // Typed data always goes to a person, who sees what the permit allows.
+    const approval = appWindow.getByRole('alertdialog', { name: /sign message/i })
+    await expect(approval).toBeVisible()
+    const summary = approval.getByRole('region', { name: 'Typed data to sign' })
+    await expect(summary).toContainText('Permit')
+    await expect(summary).toContainText('Hronaut QA Token · version 1')
+    await expect(summary).toContainText('31337')
+    await expect(summary).toContainText('0x70997970C51812dc3A010C7d01b50e0d17dc79C8')
+    await expect(summary).toContainText('0x5FbDB2315678afecb367f032d93F642f64180aa3 · 1000000 (smallest token units)')
+    await expect(approval.getByRole('alert').filter({ hasText: 'This is a token permit.' })).toBeVisible()
+    await expect(approval.getByRole('alert').filter({ hasText: /unlimited|different chain|does not name/ })).toHaveCount(0)
+    await approval.getByRole('button', { name: 'Approve exact request' }).click()
+
+    await expect.poll(fixtureLog).toContain('"signatureBytes": 65')
+    expect((await readPageRequests()).requests.map(({ operation, status }) => [operation, status]).sort())
+      .toEqual([['connect-account', 'confirmed'], ['sign-message', 'confirmed']])
+    const log = await fixtureLog()
+    expect(log).toContain('"typedData": "eip-2612-permit"')
+    expect(log.toLowerCase()).not.toContain(publicAddress.toLowerCase())
   } finally {
     await closeFixtureServer(server)
   }

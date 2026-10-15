@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url": "http://127.0.0.1:4173/"}
 import { readFile } from 'node:fs/promises'
+import { hashTypedData } from 'viem'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { websiteSignInMessageIssue } from '../src/main/wallet/policy.js'
+import { typedDataDisplay } from '../src/main/wallet/typed-data-display.js'
 import type { WalletDescriptor } from '../src/shared/wallet.js'
 
 interface FixtureEvent {
@@ -33,7 +35,7 @@ function pageWith(provider?: { request?: ReturnType<typeof vi.fn> }): FixturePag
   const page = frame.contentWindow as FixturePage
   page.document.body.innerHTML = `
     <button id="discover"></button><button id="connect"></button><button id="accounts"></button>
-    <button id="chain"></button><button id="switch"></button><button id="sign-in"></button><button id="send"></button>
+    <button id="chain"></button><button id="switch"></button><button id="sign-in"></button><button id="sign-permit"></button><button id="send"></button>
     <button id="receipt"></button><input id="chain-id" value="0x7a6a">
     <input id="recipient" value="0x1000000000000000000000000000000000000001">
     <input id="hash"><input id="rpc" value="http://127.0.0.1:8545">
@@ -340,6 +342,100 @@ describe('wallet QA sign-in', () => {
     expect(events(page).at(-1)).toEqual({
       kind: 'fixture:error',
       value: { stage: 'sign-in-account', walletBehavior: 'not-exercised', error: { category: 'fixture-error' } }
+    })
+  })
+})
+
+describe('wallet QA token permit', () => {
+  const account = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+  const signature = `0x${'d'.repeat(130)}`
+  const wallet: WalletDescriptor = {
+    id: 'wallet-1',
+    name: 'Disposable Anvil wallet',
+    kind: 'imported',
+    chainFamily: 'evm',
+    publicAddress: account,
+    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+    capabilities: ['read', 'sign', 'send'],
+    workspaceIds: ['workspace-1'],
+    policyIds: [],
+    recoveryConfirmed: true,
+    createdAt: '2026-10-15T12:00:00.000Z',
+    updatedAt: '2026-10-15T12:00:00.000Z'
+  }
+  const signer = (accounts: string[]) => vi.fn(async ({ method }: { method: string; params?: unknown[] }) => {
+    if (method === 'eth_accounts') return accounts
+    if (method === 'eth_chainId') return '0x7a69'
+    if (method === 'eth_signTypedData_v4') return signature
+    throw new Error('Unexpected method')
+  })
+
+  it('asks the wallet to sign an EIP-2612 permit that Hronaut summarizes', async () => {
+    const request = signer([account])
+    const page = pageWith({ request })
+
+    await click(page, '#sign-permit')
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts', 'eth_chainId', 'eth_signTypedData_v4'])
+    const [signingAccount, json] = request.mock.calls[2]?.[0].params as [string, string]
+    expect(signingAccount).toBe(account)
+    const typedData = JSON.parse(json) as { message: { owner: string; deadline: string } }
+    expect(typedData).toMatchObject({
+      primaryType: 'Permit',
+      domain: { name: 'Hronaut QA Token', version: '1', chainId: '31337', verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' },
+      message: { owner: account, spender: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', value: '1000000', nonce: '0' }
+    })
+    const deadline = Number(typedData.message.deadline) - Date.now() / 1000
+    expect(deadline).toBeGreaterThan(3500)
+    expect(deadline).toBeLessThanOrEqual(3600)
+    // The signer accepts it, and the approval shows what the fixture describes.
+    expect(() => hashTypedData(typedData as unknown as Parameters<typeof hashTypedData>[0])).not.toThrow()
+    expect(typedDataDisplay(typedData, wallet)).toEqual({
+      primaryType: 'Permit',
+      domain: { name: 'Hronaut QA Token', version: '1', chainId: '31337', verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' },
+      tokenAccess: {
+        kind: 'allowance',
+        spender: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+        allowances: [{ token: '0x5FbDB2315678afecb367f032d93F642f64180aa3', amount: '1000000' }]
+      },
+      warnings: ['token-permit']
+    })
+
+    expect(events(page)).toEqual(expect.arrayContaining([
+      {
+        kind: 'request:start',
+        value: expect.objectContaining({
+          requestId: 'request-3',
+          method: 'eth_signTypedData_v4',
+          parameterSummary: { typedData: 'eip-2612-permit', spender: 'fixture-test-spender', value: '1000000', account: 'first-connected-account' }
+        })
+      },
+      {
+        kind: 'request:result',
+        value: expect.objectContaining({
+          requestId: 'request-3',
+          method: 'eth_signTypedData_v4',
+          result: { signatureReturned: true, signatureBytes: 65 }
+        })
+      }
+    ]))
+    const visibleLog = page.document.querySelector('#log')?.textContent ?? ''
+    expect(visibleLog.toLowerCase()).not.toContain(account.toLowerCase())
+    expect(visibleLog.toLowerCase()).not.toContain('0x70997970c51812dc3a010c7d01b50e0d17dc79c8')
+    expect(visibleLog).not.toContain(signature)
+    expect(visibleLog).not.toContain(typedData.message.deadline)
+  })
+
+  it('asks for no signature before the page has a connected account', async () => {
+    const request = signer([])
+    const page = pageWith({ request })
+
+    await click(page, '#sign-permit')
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts'])
+    expect(events(page).at(-1)).toEqual({
+      kind: 'fixture:error',
+      value: { stage: 'permit-account', walletBehavior: 'not-exercised', error: { category: 'fixture-error' } }
     })
   })
 })
