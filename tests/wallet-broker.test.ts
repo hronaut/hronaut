@@ -4,7 +4,7 @@ import { address, getAddressEncoder } from '@solana/kit'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import { createPublicClient, custom, encodeFunctionData, getAddress, parseAbi, verifyMessage, type Hex } from 'viem'
+import { createPublicClient, custom, encodeFunctionData, getAddress, keccak256, parseAbi, verifyMessage, type Hex } from 'viem'
 import { TronWeb } from 'tronweb'
 import {
   WalletBroker as BaseWalletBroker,
@@ -781,6 +781,30 @@ describe('WalletBroker', () => {
     // An agent testing the page sees the same reason.
     expect(broker.agentPageRequests(context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })).failedCalls)
       .toEqual([{ family: 'evm', method: 'eth_sendTransaction', error: refusal, failedAt: expect.any(String) }])
+  })
+
+  it('reports one network transaction as sent for only one request when identical requests sign the same bytes', async () => {
+    const { service } = await setup()
+    // Two identical sends prepared at the same nonce sign identical bytes, so the
+    // node answers the second "already known" and the adapter returns the same hash.
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const request = { family: 'evm' as const, method: 'eth_sendTransaction', params: [{ to: '0x00000000000000000000000000000000000000aa', value: '0x1' }] }
+    const first = settle(broker.providerRequest(context(), request as never))
+    const firstPending = await broker.waitForPending((pending) => pending.status === 'awaiting-human' && pending.operation !== 'connect-account')
+    const second = settle(broker.providerRequest(context(), request as never))
+    const secondPending = await broker.waitForPending((pending) => pending.status === 'awaiting-human' && pending.operation !== 'connect-account' && pending.id !== firstPending.id)
+    await broker.approve(firstPending.id)
+    await expect(first).resolves.toEqual({ status: 'fulfilled', value: '0xtransaction' })
+    await expect(broker.approve(secondPending.id)).rejects.toThrow('Transaction was already sent by another wallet request')
+    const result = await second
+    expect(result.status === 'rejected' && (result.reason as Error).message).toBe('Transaction was already sent by another wallet request')
+    expect(chain.broadcast).toHaveBeenCalledTimes(2)
+    // The first is submitted, or already confirmed by the stub node.
+    expect(service.approvals.get(firstPending.id)).toMatchObject({ status: expect.stringMatching(/^(?:submitted|confirmed)$/), transactionHash: '0xtransaction' })
+    expect(service.approvals.get(secondPending.id)).toMatchObject({ status: 'failed' })
+    expect(service.approvals.get(secondPending.id)?.transactionHash).toBeUndefined()
   })
 
   it('simulates the very transaction it prepared, which can carry why its gas estimate reverted', async () => {
@@ -2487,7 +2511,8 @@ describe('WalletBroker', () => {
       call: vi.fn(async () => ({ data: '0x' })),
       estimateGas: vi.fn(async () => 60_000n),
       getGasPrice: vi.fn(async () => 1_000_000_000n),
-      sendRawTransaction: vi.fn(async () => `0x${'a'.repeat(64)}`),
+      // Like a node: each distinct signed transaction gets its own hash.
+      sendRawTransaction: vi.fn(async ({ serializedTransaction }: { serializedTransaction: Hex }) => keccak256(serializedTransaction)),
       getTransactionReceipt: vi.fn(async () => ({ status: 'success', blockNumber: 1n }))
     }
     const broker = new WalletBroker(service, { adapters: { evm: new EvmWalletAdapter(() => client as never) } })
@@ -2520,7 +2545,7 @@ describe('WalletBroker', () => {
     }
 
     // A bounded approval the policy covers is signed without a person.
-    await expect(send(encodeFunctionData({ abi, functionName: 'approve', args: [spender, 10n] }))).resolves.toBe(`0x${'a'.repeat(64)}`)
+    await expect(send(encodeFunctionData({ abi, functionName: 'approve', args: [spender, 10n] }))).resolves.toMatch(/^0x[0-9a-f]{64}$/)
     expect(client.sendRawTransaction).toHaveBeenCalledOnce()
 
     // The same approval on a token the policy does not name asks a person.
@@ -2566,7 +2591,7 @@ describe('WalletBroker', () => {
 
     // Revoking the operator gives nothing away, so the policy may sign it.
     await expect(send(encodeFunctionData({ abi, functionName: 'setApprovalForAll', args: [spender, false] })))
-      .resolves.toBe(`0x${'a'.repeat(64)}`)
+      .resolves.toMatch(/^0x[0-9a-f]{64}$/)
     expect(client.sendRawTransaction).toHaveBeenCalledTimes(2)
   })
 

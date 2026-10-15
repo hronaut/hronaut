@@ -255,6 +255,13 @@ export class WalletApprovalStore {
       if (!TRANSITIONS[record.status].includes('submitted')) {
         throw new Error(`Wallet request cannot transition from ${record.status} to submitted`)
       }
+      // Identical requests can sign identical bytes, which the network runs once.
+      const hash = transactionHash.toLowerCase()
+      for (const other of this.requests.values()) {
+        if (other.id !== id && other.transactionHash?.toLowerCase() === hash) {
+          throw new Error('Transaction was already sent by another wallet request')
+        }
+      }
       const updated = { ...record, status: 'submitted' as const, transactionHash, updatedAt: now.toISOString() }
       this.requests.set(id, updated)
       await this.persistWithRollback(() => this.requests.set(id, record))
