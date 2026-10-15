@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.42.0] - 2026-10-15
+
 ### Added
 
 - `wallet_page_requests` lets an agent that is testing a dApp see which wallet requests the page made (connect, sign message or typed data, sign or send transaction), with status and transaction hash, for the same tab and page only. It is read-only, and approval stays with a person in Hronaut.
@@ -25,6 +27,12 @@ All notable changes to Hronaut are documented in this file.
 - Allow Close workspace in Edit workspace while all tabs are locked, matching Home’s Clear…. The button was disabled with only a tooltip, so the same workspace could be cleared from Home but not from its editor. The confirmation still applies, and deletion protection still blocks it.
 
 - Vertically centre “MCP ready” with “Pause agents” in the MCP status pill; the status sat 4.5 px lower in the top-tab layout.
+
+### Known issues
+
+- OS text-scale emulation only affects pages that opt in with the `text-scale` meta tag or read `env(preferred-text-scale)`. Clearing was verified on Linux, where the native preference is 100%; restoring a different underlying OS preference has not been reproduced.
+- Safe-area emulation sets `env()` values only. It draws no device frame or notch, and omitted fields are 0px, so `env()` fallbacks never apply while an override is active.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.41.0] - 2026-10-15
 
