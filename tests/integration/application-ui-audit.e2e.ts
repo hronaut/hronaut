@@ -199,14 +199,19 @@ for (const theme of ['light', 'dark']) {
       id: 'ui-audit-request', walletId: 'audit-wallet', workspaceId: 'audit-workspace', status: 'awaiting-human',
       approvalHash: 'a'.repeat(64), operation: 'sign-message', requester: { type: 'website', id: 'audit-tab', name: 'Local UI fixture' },
       origin: 'https://example.test', networkId: '1', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 60_000).toISOString(),
-      details: { walletName: 'UI review wallet', publicAddress: '0x0000000000000000000000000000000000000001', chainFamily: 'evm', networkName: 'Ethereum', capability: 'sign', understood: true, simulationAttempted: false, simulationSuccess: false, method: 'personal_sign', raw: { messageUtf8Preview: 'Interface review only' } }
+      details: { walletName: 'UI review wallet', publicAddress: '0x0000000000000000000000000000000000000001', chainFamily: 'evm', networkName: 'Ethereum', capability: 'sign', understood: true, simulationAttempted: false, simulationSuccess: false, method: 'personal_sign', message: { text: 'Interface review only', warnings: ['sign-in-other-site'] }, raw: { messageUtf8Preview: 'Interface review only' } }
     }
     await electronApp.evaluate(({ BrowserWindow }, request) => BrowserWindow.getAllWindows()[0]!.webContents.send('wallets:requests-changed', [request]), request)
     try {
       const approval = appWindow.getByRole('alertdialog', { name: /sign message/i })
       await expect(approval).toBeVisible()
+      const messageText = approval.locator('.wallet-approval-message-text')
       const rawDetails = approval.locator('.wallet-approval-raw summary')
+      await expect(messageText).toHaveText('Interface review only')
+      await expect(approval.getByRole('alert')).toContainText('different website')
       await approval.focus()
+      await appWindow.keyboard.press('Tab')
+      await expect(messageText).toBeFocused()
       await appWindow.keyboard.press('Tab')
       await expect(rawDetails).toBeFocused()
       await appWindow.keyboard.press('Enter')
@@ -217,9 +222,11 @@ for (const theme of ['light', 'dark']) {
       await appWindow.keyboard.press('Shift+Tab')
       await expect(rawDetails).toBeFocused()
       await appWindow.keyboard.press('Shift+Tab')
+      await expect(messageText).toBeFocused()
+      await appWindow.keyboard.press('Shift+Tab')
       await expect(approval.locator('footer button').last()).toBeFocused()
       await appWindow.keyboard.press('Tab')
-      await expect(rawDetails).toBeFocused()
+      await expect(messageText).toBeFocused()
       await approval.locator('footer').scrollIntoViewIfNeeded()
       for (const button of await approval.locator('footer button').all()) {
         expect.soft((await button.boundingBox())!.height).toBeGreaterThanOrEqual(36)

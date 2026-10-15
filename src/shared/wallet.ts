@@ -338,6 +338,17 @@ export const WalletPolicySchema = z.object({
 }).strict()
 export type WalletPolicy = z.infer<typeof WalletPolicySchema>
 
+/** Characters of a plain-text message shown in the trusted approval dialog. */
+export const WALLET_MESSAGE_DISPLAY_MAX_LENGTH = 4_096
+export const WalletMessageWarningSchema = z.enum([
+  'hidden-characters',
+  'sign-in-other-site',
+  'sign-in-other-account',
+  'sign-in-other-chain',
+  'sign-in-unverified'
+])
+export type WalletMessageWarning = z.infer<typeof WalletMessageWarningSchema>
+
 export const WalletRequestSummarySchema = z.object({
   id: z.string().trim().min(1).max(128),
   walletId: WalletIdSchema,
@@ -367,6 +378,11 @@ export const WalletRequestSummarySchema = z.object({
     nativeAmount: z.string().max(256).optional(),
     tokenAmount: z.string().max(256).optional(),
     estimatedFee: z.string().max(256).optional(),
+    message: z.object({
+      text: z.string().max(WALLET_MESSAGE_DISPLAY_MAX_LENGTH),
+      truncated: z.literal(true).optional(),
+      warnings: z.array(WalletMessageWarningSchema).max(WalletMessageWarningSchema.options.length)
+    }).strict().optional(),
     raw: z.record(z.string(), z.unknown())
   }).strict().optional()
 }).strict()

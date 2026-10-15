@@ -141,3 +141,39 @@ test('lets an agent sign in on the local wallet QA fixture without a click', asy
     await closeFixtureServer(server)
   }
 })
+
+test('shows the sign-in text and a warning when a page asks to sign in for another site', async ({ capabilities, appWindow, electronApp }) => {
+  const { workspace, fixtureUrl, fixtureOrigin } = capabilities
+  const { publicAddress } = await signInWallet(appWindow, workspace.workspaceId, fixtureOrigin)
+  const page = pageScript(electronApp, fixtureUrl)
+  const signIn = [
+    'phishing.example wants you to sign in with your Ethereum account:', publicAddress, '', 'Sign in to another site.', '',
+    'URI: https://phishing.example', 'Version: 1', 'Chain ID: 31337', 'Nonce: 32891756', `Issued At: ${new Date().toISOString()}`
+  ].join('\n')
+  await page(`
+    window.__otherSiteSignIn = 'waiting-provider';
+    window.addEventListener('eip6963:announceProvider', async (event) => {
+      if (window.__otherSiteSignIn !== 'waiting-provider' || event.detail?.info?.rdns !== 'dev.hronaut.wallet') return;
+      const provider = event.detail.provider;
+      try {
+        window.__otherSiteSignIn = 'connecting';
+        const [account] = await provider.request({ method: 'eth_requestAccounts' });
+        window.__otherSiteSignIn = 'signing';
+        await provider.request({ method: 'personal_sign', params: [${JSON.stringify(signIn)}, account] });
+        window.__otherSiteSignIn = 'signed';
+      } catch (error) {
+        window.__otherSiteSignIn = 'failed:' + (error?.code ?? 'unknown');
+      }
+    });
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    'started';
+  `)
+
+  // The policy connects the account, but a sign-in for another site goes to a person, who sees why.
+  const approval = appWindow.getByRole('alertdialog', { name: /sign message/i })
+  await expect(approval).toBeVisible()
+  await expect(approval.getByRole('region', { name: 'Message to sign' })).toHaveText(signIn)
+  await expect(approval.getByRole('alert')).toHaveText('This sign-in message names a different website than the one asking. Signing it could log someone in to that other site as you.')
+  await approval.getByRole('button', { name: 'Reject' }).click()
+  await expect.poll(() => page('window.__otherSiteSignIn')).toBe('failed:4001')
+})

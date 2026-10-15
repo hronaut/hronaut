@@ -153,8 +153,13 @@ export const WEBSITE_SIGN_IN_MAX_MESSAGE_BYTES = 4096
 // characters. Carriage returns are excluded so a sign-in header cannot hide
 // behind CRLF line endings.
 const NON_PLAIN_TEXT = /[^\P{Cc}\t\n]|[\p{Cf}\p{Co}\p{Zl}\p{Zp}]/u
+// For display only: also default-ignorable characters (such as variation
+// selectors and Hangul fillers), noncharacters and the blank braille pattern,
+// which render as nothing or as blank space.
+const HIDDEN_DISPLAY_CHARACTER = /[^\P{Cc}\t\n]|[\p{Cf}\p{Co}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\p{Noncharacter_Code_Point}\u2800]/u
 const SIGN_IN_PHRASE = /wants you to sign in with your/i
 const EIP_4361_HEADER = /^(?:([a-zA-Z][a-zA-Z0-9+.-]*):\/\/)?([^\s/?#]+) wants you to sign in with your Ethereum account:$/
+const SOLANA_SIGN_IN_HEADER = /^(?:([a-zA-Z][a-zA-Z0-9+.-]*):\/\/)?([^\s/?#]+) wants you to sign in with your Solana account:$/
 const EVM_ADDRESS_LINE = /^0x[0-9a-fA-F]{40}$/
 const CHAIN_ID_LINE = /^Chain ID: ([1-9]\d{0,19})$/
 
@@ -176,7 +181,77 @@ export function websiteSignInMessageIssue(message: Uint8Array, wallet: WalletDes
     return 'message-not-plain-text'
   }
   if (NON_PLAIN_TEXT.test(text)) return 'message-not-plain-text'
-  if (!SIGN_IN_PHRASE.test(text)) return wallet.kind === 'agent' ? undefined : 'plain-text-requires-agent-wallet'
+  if (!isSignInText(text)) return wallet.kind === 'agent' ? undefined : 'plain-text-requires-agent-wallet'
+  return signInTextIssue(text, wallet, topLevelOrigin)
+}
+
+export type WalletSignInTextIssue =
+  | 'sign-in-message-unverified'
+  | 'sign-in-domain-mismatch'
+  | 'sign-in-address-mismatch'
+  | 'sign-in-chain-mismatch'
+
+/** Whether text uses the Sign-In with Ethereum or Solana phrase. */
+export function isSignInText(text: string): boolean {
+  return SIGN_IN_PHRASE.test(text)
+}
+
+/**
+ * Whether text holds a character that renders as nothing, as blank space or
+ * reorders text: controls other than tab and line feed, format (bidirectional
+ * and zero-width), default-ignorable, private-use, line or paragraph
+ * separator, noncharacter or blank braille characters. Display only; the
+ * automatic sign-in check keeps its own narrower rule.
+ */
+export function hasHiddenMessageCharacters(text: string): boolean {
+  return HIDDEN_DISPLAY_CHARACTER.test(text)
+}
+
+/**
+ * The first maxLength characters of text, with each hidden character shown as
+ * a visible [U+XXXX] marker. It never splits a character or a marker.
+ */
+export function revealHiddenMessageCharacters(text: string, maxLength: number): { text: string; truncated: boolean } {
+  let visible = ''
+  for (const character of text) {
+    const piece = HIDDEN_DISPLAY_CHARACTER.test(character)
+      ? `[U+${(character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}]`
+      : character
+    if (visible.length + piece.length > maxLength) return { text: visible, truncated: true }
+    visible += piece
+  }
+  return { text: visible, truncated: false }
+}
+
+/**
+ * For the approval dialog: why sign-in text does not name the requesting
+ * site and this wallet (and, on EVM, its chain). Sign-In with Solana has no
+ * required chain line, and TRON has no sign-in standard to check.
+ */
+export function signInTextWarningIssue(text: string, wallet: WalletDescriptor, topLevelOrigin: string): WalletSignInTextIssue | undefined {
+  if (wallet.chainFamily === 'evm') return signInTextIssue(text, wallet, topLevelOrigin)
+  if (wallet.chainFamily !== 'solana') return 'sign-in-message-unverified'
+  const lines = text.split('\n')
+  const header = SOLANA_SIGN_IN_HEADER.exec(lines[0] ?? '')
+  if (!header || !lines[1]) return 'sign-in-message-unverified'
+  let origin: URL
+  try {
+    origin = new URL(topLevelOrigin)
+  } catch {
+    return 'sign-in-domain-mismatch'
+  }
+  const [, scheme, domain] = header
+  if (scheme !== undefined && `${scheme.toLowerCase()}:` !== origin.protocol) return 'sign-in-domain-mismatch'
+  if (domain?.toLowerCase() !== origin.host.toLowerCase()) return 'sign-in-domain-mismatch'
+  if (lines[1] !== wallet.publicAddress) return 'sign-in-address-mismatch'
+  return undefined
+}
+
+/**
+ * Why EIP-4361 text does not name the requesting site, the wallet address and
+ * its chain, or undefined when it names all three.
+ */
+export function signInTextIssue(text: string, wallet: WalletDescriptor, topLevelOrigin: string): WalletSignInTextIssue | undefined {
   const lines = text.split('\n')
   const header = EIP_4361_HEADER.exec(lines[0] ?? '')
   const addressLine = lines[1] ?? ''
