@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Allow Close workspace in Edit workspace while all tabs are locked, matching Home’s Clear…. The button was disabled with only a tooltip, so the same workspace could be cleared from Home but not from its editor. The confirmation still applies, and deletion protection still blocks it.
+
 - Vertically centre “MCP ready” with “Pause agents” in the MCP status pill; the status sat 4.5 px lower in the top-tab layout.
 
 ## [2.41.0] - 2026-10-15

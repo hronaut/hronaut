@@ -624,14 +624,15 @@ describe('workspace editor controller', () => {
     controller.dispose()
   })
 
-  it('blocks permanent close while global human interaction is locked', async () => {
+  it('closes permanently after confirmation while global human interaction is locked', async () => {
     const { confirm, browser, controller } = createController(browserState(true))
     await controller.openExisting('agent')
     await controller.closeWorkspace()
 
-    expect(confirm).not.toHaveBeenCalled()
-    expect(browser.closeWorkspace).not.toHaveBeenCalled()
-    expect(controller.error.value).toBe('runtime.workspace.unlock')
+    // Home's Clear never required unlocking; the editor now matches it.
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(browser.closeWorkspace).toHaveBeenCalledWith('agent')
+    expect(controller.error.value).toBe('')
     controller.dispose()
   })
 
