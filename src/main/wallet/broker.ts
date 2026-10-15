@@ -437,20 +437,29 @@ export class WalletBroker {
       })
   }
 
-  async agentBalance(context: WalletBrokerContext, walletId: string, token?: string): Promise<Record<string, unknown>> {
+  async agentBalance(context: WalletBrokerContext, walletId: string, token?: string, spender?: string): Promise<Record<string, unknown>> {
     return this.withAgentOperation(context, async () => {
       const wallet = this.requireAccessibleWallet(context, walletId)
       const adapter = this.adapters[wallet.chainFamily]
+      if (spender !== undefined && token === undefined) throw new Error('Wallet token spender needs a token')
       if (token !== undefined) {
         if (!adapter.tokenBalance) throw new Error(`${walletChainName(wallet.chainFamily)} token balances are not supported`)
         if (!adapter.validateAddress(token)) throw new Error(`${walletChainName(wallet.chainFamily)} token address is invalid`)
+      }
+      if (spender !== undefined) {
+        if (!adapter.tokenAllowances) throw new Error(`${walletChainName(wallet.chainFamily)} token allowances are not supported`)
+        if (!adapter.validateAddress(spender)) throw new Error(`${walletChainName(wallet.chainFamily)} token spender address is invalid`)
       }
       const permission = await this.ensureAgentAddressPermission(context, wallet)
       if (permission) return { status: 'permission-required', request: permission }
       let balance: string
       let tokenBalance: WalletTokenBalance | undefined
       try {
-        if (token !== undefined) tokenBalance = await adapter.tokenBalance!(wallet, token)
+        if (token !== undefined) {
+          tokenBalance = spender === undefined
+            ? await adapter.tokenBalance!(wallet, token)
+            : await adapter.tokenBalance!(wallet, token, spender)
+        }
         else balance = await adapter.balance(wallet)
       } catch {
         throw new Error(`${walletChainName(wallet.chainFamily)} ${token === undefined ? '' : 'token '}balance lookup failed`)

@@ -407,6 +407,34 @@ describe('WalletBroker', () => {
     expect(JSON.stringify(failed)).not.toMatch(/rpc\.example|token-secret/)
   })
 
+  it('reads a spender allowance with a token balance, and refuses one the chain or request cannot answer before asking for permission', async () => {
+    const { service, wallet } = await setup()
+    const agent = context({ requester: { type: 'agent', id: 'agent-allowance', name: 'Allowance agent' } })
+    const token = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+    const router = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+    const allowance = { spender: router, amount: '1', rawAmount: '1000000' }
+    const chain = adapter()
+    chain.validateAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(value)
+    chain.tokenBalance = vi.fn(async () => ({ token, balance: '1.5', rawBalance: '1500000', decimals: 6, allowance }))
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+
+    await expect(broker.agentBalance(agent, wallet.id, undefined, router)).rejects.toThrow('Wallet token spender needs a token')
+    await expect(broker.agentBalance(agent, wallet.id, token, router)).rejects.toThrow('EVM token allowances are not supported')
+    ;(chain as { tokenAllowances?: boolean }).tokenAllowances = true
+    await expect(broker.agentBalance(agent, wallet.id, token, 'not-an-address')).rejects.toThrow('EVM token spender address is invalid')
+    expect(broker.listPending()).toEqual([])
+    expect(await broker.agentBalance(agent, wallet.id, token, router)).toMatchObject({ status: 'permission-required' })
+    expect(chain.tokenBalance).not.toHaveBeenCalled()
+
+    await service.permissions.grant({
+      walletId: wallet.id, workspaceId: agent.workspaceId, origin: agent.topLevelOrigin, frameOrigin: agent.topLevelOrigin,
+      account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id, capabilities: ['read'],
+      requester: agent.requester, expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    expect(await broker.agentBalance(agent, wallet.id, token, router)).toMatchObject({ status: 'ready', token: { token, allowance } })
+    expect(chain.tokenBalance).toHaveBeenCalledWith(expect.objectContaining({ id: wallet.id }), token, router)
+  })
+
   it('keeps RPC simulation details out of agent responses and durable approval state', async () => {
     const { directory, service, wallet } = await setup()
     const agent = context({ requester: { type: 'agent', id: 'agent-simulation-error', name: 'Simulation error agent' } })

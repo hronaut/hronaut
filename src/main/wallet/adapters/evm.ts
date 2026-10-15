@@ -28,7 +28,7 @@ import type {
   WalletTokenBalance,
   WalletTransactionSimulation
 } from './types.js'
-import { formatTokenUnits } from './types.js'
+import { formatTokenUnits, tokenAllowance } from './types.js'
 import { UNLIMITED_TOKEN_AMOUNT } from '../transaction-display.js'
 
 const HexSchema = z.string().regex(/^0x(?:[a-fA-F0-9]{2})*$/).max(2_000_002)
@@ -182,12 +182,14 @@ type EvmClient = Pick<PublicClient,
 >
 
 const ERC20_READ_ABI = parseAbi([
+  'function allowance(address owner, address spender) view returns (uint256)',
   'function balanceOf(address owner) view returns (uint256)',
   'function decimals() view returns (uint8)',
   'function symbol() view returns (string)'
 ])
 
 const MAX_READ_RPC_PARAMS = 4
+
 const MAX_READ_RPC_RESULT_BYTES = 4_000_000
 const MAX_READ_RPC_ERROR_DATA_CHARS = 258
 
@@ -334,15 +336,22 @@ export class EvmWalletAdapter implements WalletChainAdapter {
     return formatEther(await this.clientFor(wallet).getBalance({ address: getAddress(wallet.publicAddress) }))
   }
 
-  async tokenBalance(wallet: WalletDescriptor, token: string): Promise<WalletTokenBalance> {
+  readonly tokenAllowances = true
+
+  async tokenBalance(wallet: WalletDescriptor, token: string, spender?: string): Promise<WalletTokenBalance> {
     if (!isAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
     if (!isAddress(token)) throw new Error('EVM token must be an ERC-20 contract address')
+    if (spender !== undefined && !isAddress(spender)) throw new Error('EVM token spender must be an address')
     const client = this.clientFor(wallet)
     const contract = getAddress(token)
-    const [raw, decimals, symbol] = await Promise.all([
-      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'balanceOf', args: [getAddress(wallet.publicAddress)] }),
+    const owner = getAddress(wallet.publicAddress)
+    const [raw, decimals, symbol, allowance] = await Promise.all([
+      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'balanceOf', args: [owner] }),
       client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'decimals' }),
-      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'symbol' }).catch(() => undefined)
+      client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'symbol' }).catch(() => undefined),
+      spender === undefined
+        ? undefined
+        : client.readContract({ address: contract, abi: ERC20_READ_ABI, functionName: 'allowance', args: [owner, getAddress(spender)] })
     ])
     const safeSymbol = typeof symbol === 'string' && /^[A-Za-z0-9 ._$+-]{1,32}$/.test(symbol) ? symbol : undefined
     return {
@@ -350,7 +359,8 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       balance: formatTokenUnits(raw, decimals),
       rawBalance: raw.toString(),
       decimals,
-      ...(safeSymbol ? { symbol: safeSymbol } : {})
+      ...(safeSymbol ? { symbol: safeSymbol } : {}),
+      ...(spender === undefined || allowance === undefined ? {} : { allowance: tokenAllowance(getAddress(spender), allowance, decimals) })
     }
   }
 

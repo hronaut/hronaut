@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { encodeAbiParameters, keccak256, parseTransaction, type Hex } from 'viem'
+import { encodeAbiParameters, keccak256, maxUint256, parseTransaction, type Hex } from 'viem'
 import { expect, test, text } from './capability-fixtures.js'
 
 interface PageRequestList {
@@ -41,10 +41,12 @@ function startLocalChain(): Promise<LocalChain> {
       case 'eth_gasPrice': return '0x77359400'
       case 'eth_estimateGas': return '0x5208'
       case 'eth_call': {
-        // A 6-decimal "USDC" ERC-20 at TOKEN_ADDRESS holding 2.5 tokens for every account.
+        // A 6-decimal "USDC" ERC-20 at TOKEN_ADDRESS holding 2.5 tokens for every account, which every
+        // account has approved without limit for every spender.
         const call = params[0] as { to?: string; data?: string }
         if (call.to?.toLowerCase() !== TOKEN_ADDRESS.toLowerCase()) return '0x'
         if (call.data?.startsWith('0x70a08231')) return encodeAbiParameters([{ type: 'uint256' }], [2_500_000n])
+        if (call.data?.startsWith('0xdd62ed3e')) return encodeAbiParameters([{ type: 'uint256' }], [maxUint256])
         if (call.data === '0x313ce567') return encodeAbiParameters([{ type: 'uint8' }], [6])
         if (call.data === '0x95d89b41') return encodeAbiParameters([{ type: 'string' }], ['USDC'])
         return '0x'
@@ -193,9 +195,9 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
     expect((await pageRequests()).origin).toBe(fixtureOrigin)
 
     // After the flow the agent checks the dApp's token balance; the first read asks a human to disclose the account.
-    const tokenBalance = async () => {
+    const tokenBalance = async (spender?: string) => {
       const result = await client.callTool({
-        name: 'wallet_balance', arguments: { tabId, walletSessionId, walletId: wallets[0]!.id, token: TOKEN_ADDRESS }
+        name: 'wallet_balance', arguments: { tabId, walletSessionId, walletId: wallets[0]!.id, token: TOKEN_ADDRESS, ...(spender ? { spender } : {}) }
       }) as CallToolResult
       expect(result.isError, text(result)).not.toBe(true)
       return JSON.parse(text(result)) as Record<string, unknown>
@@ -206,6 +208,11 @@ test('runs a dApp wallet flow end to end: connect, read, send, approve, confirm,
     expect(await tokenBalance()).toMatchObject({
       publicAddress: prepared.publicAddress,
       token: { token: TOKEN_ADDRESS, balance: '2.5', rawBalance: '2500000', decimals: 6, symbol: 'USDC' }
+    })
+    // It also checks what a router may still move after the dApp's approval; an unlimited approval is marked.
+    const router = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+    expect(await tokenBalance(router.toLowerCase())).toMatchObject({
+      token: { token: TOKEN_ADDRESS, balance: '2.5', allowance: { spender: router, rawAmount: maxUint256.toString(), unlimited: true } }
     })
 
     // The dApp's "Add token to wallet" button, as viem's watchAsset sends it. A wrong decimals value is refused, as in

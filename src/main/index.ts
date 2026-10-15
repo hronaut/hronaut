@@ -4185,7 +4185,7 @@ function createRuntimeMcpServer(
     },
     wallets: {
       list: async (target) => requireWalletBroker().listAgentWallets(walletAgentContext(target)),
-      balance: async (target, walletId, token) => requireWalletBroker().agentBalance(walletAgentContext(target), walletId, token),
+      balance: async (target, walletId, token, spender) => requireWalletBroker().agentBalance(walletAgentContext(target), walletId, token, spender),
       prepareTransaction: async (target, walletId, transaction) => (
         requireWalletBroker().prepareAgentTransaction(walletAgentContext(target), walletId, transaction)
       ),

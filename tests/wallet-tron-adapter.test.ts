@@ -265,6 +265,26 @@ describe('TronWalletAdapter', () => {
     await expect(adapter.tokenBalance(wallet(), '0x5FbDB2315678afecb367f032d93F642f64180aa3')).rejects.toThrow('TRC-20 contract address')
   })
 
+  it('reads a TRC-20 allowance for a spender', async () => {
+    const client = rpc()
+    const adapter = new TronWalletAdapter(() => client)
+    const token = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+    const spender = 'TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax'
+    client.constantCall.mockImplementation(async (_owner: string, _contract: string, selector: string): Promise<Hex> => (
+      selector === 'allowance(address,address)' ? encodeAbiParameters([{ type: 'uint256' }], [(1n << 160n) - 1n])
+        : selector === 'decimals()' ? encodeAbiParameters([{ type: 'uint8' }], [6])
+          : selector === 'balanceOf(address)' ? encodeAbiParameters([{ type: 'uint256' }], [1n]) : encodeAbiParameters([{ type: 'string' }], ['USDT'])
+    ))
+
+    expect((await adapter.tokenBalance(wallet(), token, spender)).allowance).toEqual({
+      spender, amount: '1461501637330902918203684832716283019655932.542975', rawAmount: ((1n << 160n) - 1n).toString(), unlimited: true
+    })
+    expect(client.constantCall).toHaveBeenCalledWith(owner, token, 'allowance(address,address)', [
+      { type: 'address', value: owner }, { type: 'address', value: spender }
+    ])
+    await expect(adapter.tokenBalance(wallet(), token, '0x70997970C51812dc3A010C7d01b50e0d17dc79C8')).rejects.toThrow('spender must be an address')
+  })
+
   it('simulates, signs, broadcasts, reads balances, and confirms without retaining the secret buffer', async () => {
     const client = rpc()
     const adapter = new TronWalletAdapter(() => client)
