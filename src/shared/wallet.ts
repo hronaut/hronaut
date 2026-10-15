@@ -534,7 +534,12 @@ const WalletProviderParamsSchema = z.preprocess((value) => withoutUndefinedPrope
 export const EVM_READ_RPC_METHODS = [
   'eth_blockNumber', 'eth_call', 'eth_estimateGas', 'eth_gasPrice', 'eth_maxPriorityFeePerGas', 'eth_feeHistory',
   'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getTransactionCount', 'eth_getTransactionByHash',
-  'eth_getTransactionReceipt', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getLogs', 'net_version'
+  'eth_getTransactionReceipt', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getLogs', 'net_version',
+  // viem's createAccessList, getProof, getBlobBaseFee, getBlockTransactionCount,
+  // getTransaction by block and index, and simulateBlocks / simulateCalls.
+  'eth_createAccessList', 'eth_getProof', 'eth_blobBaseFee',
+  'eth_getBlockTransactionCountByNumber', 'eth_getBlockTransactionCountByHash',
+  'eth_getTransactionByBlockNumberAndIndex', 'eth_getTransactionByBlockHashAndIndex', 'eth_simulateV1'
 ] as const
 
 /** EVM JSON-RPC methods that create a log or block filter on the wallet network's node. */

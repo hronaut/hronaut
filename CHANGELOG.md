@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- dApps can now run more of viem's read actions through Hronaut's wallet provider: `createAccessList`, `getProof`, `getBlobBaseFee`, `getBlockTransactionCount`, `getTransaction` by block and index, and `simulateBlocks` or `simulateCalls`, which some dApps use to preview a swap's balance changes. Their methods (`eth_createAccessList`, `eth_getProof`, `eth_blobBaseFee`, the block transaction count and by-index methods, and `eth_simulateV1`) are forwarded to the active wallet network's RPC like the other reads, without an account permission or a prompt. Before, they failed with code 4200 in Hronaut, although MetaMask forwards them.
+
 ## [2.48.0] - 2026-10-15
 
 ### Added
