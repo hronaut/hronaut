@@ -10,6 +10,7 @@ import {
   keccak256,
   parseAbi,
   RpcRequestError,
+  TransactionNotFoundError,
   TransactionReceiptNotFoundError,
   type BaseError,
   toHex,
@@ -180,7 +181,7 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint, sign
 }
 
 type EvmClient = Pick<PublicClient,
-  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransaction' | 'getTransactionReceipt' | 'request' | 'readContract' | 'getBlock'
+  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransaction' | 'getTransactionCount' | 'getTransactionReceipt' | 'request' | 'readContract' | 'getBlock'
 >
 
 /** EIP-7825 caps a transaction's gas limit at 2^24; nodes refuse a larger one. */
@@ -251,6 +252,27 @@ function broadcastError(error: unknown): unknown {
   const refusal = BROADCAST_REFUSALS.find(([pattern]) => pattern.test(rpc.details))
   if (!refusal) return error
   return new Error(`EVM RPC error (code ${serverErrorCode(rpc.code)}): the node refused the transaction: ${refusal[1]}`)
+}
+
+/**
+ * Whether the node no longer knows this transaction while the account's mined
+ * transaction count is past its nonce, so another transaction took the nonce
+ * and this one can never be mined. Unanswerable checks count as not replaced.
+ */
+async function nonceTakenByAnother(client: EvmClient, wallet: WalletDescriptor, hash: Hash, nonce: string | undefined): Promise<boolean> {
+  if (nonce === undefined || !/^\d{1,16}$/.test(nonce) || !isAddress(wallet.publicAddress)) return false
+  try {
+    await client.getTransaction({ hash })
+    return false
+  } catch (error) {
+    if (!(error instanceof TransactionNotFoundError)) return false
+  }
+  try {
+    const mined = await client.getTransactionCount({ address: getAddress(wallet.publicAddress), blockTag: 'latest' })
+    return BigInt(mined) > BigInt(nonce)
+  } catch {
+    return false
+  }
 }
 
 function readRpcError(error: unknown): Error {
@@ -401,13 +423,15 @@ export class EvmWalletAdapter implements WalletChainAdapter {
     }
   }
 
-  async confirmation(wallet: WalletDescriptor, transactionHash: string): Promise<WalletConfirmation> {
+  async confirmation(wallet: WalletDescriptor, transactionHash: string, nonce?: string): Promise<WalletConfirmation> {
+    const client = this.clientFor(wallet)
     let receipt
     try {
-      receipt = await this.clientFor(wallet).getTransactionReceipt({ hash: transactionHash as Hash })
+      receipt = await client.getTransactionReceipt({ hash: transactionHash as Hash })
     } catch (error) {
-      if (error instanceof TransactionReceiptNotFoundError) return { confirmed: false, failed: false }
-      throw error
+      if (!(error instanceof TransactionReceiptNotFoundError)) throw error
+      const replaced = await nonceTakenByAnother(client, wallet, transactionHash as Hash, nonce)
+      return { confirmed: false, failed: false, ...(replaced ? { replaced: true } : {}) }
     }
     return {
       confirmed: receipt.status === 'success',

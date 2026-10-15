@@ -115,6 +115,21 @@ describe('EIP-5792 batch calls', () => {
     expect(callBundleStatus(bundle(2, 1), [mined('0x1')])).toBe(600)
   })
 
+  it('ends a batch whose unmined calls another transaction replaced, instead of leaving it pending', () => {
+    const mined = (status: string) => callReceipt({ status, logs: [], blockHash: '0xb', blockNumber: '0x1', gasUsed: '0x5208', transactionHash: '0xt' })
+    const bundle = (calls: number, sent: number, finished = true): EvmCallBundle => ({
+      owner, wallet, calls, hashes: Array.from({ length: sent }, (_, index) => `0x${index}`), finished
+    })
+    // Another transaction took the only sent call's nonce, so nothing reached the chain.
+    expect(callBundleStatus(bundle(2, 1), [undefined], [true])).toBe(400)
+    expect(callBundleStatus(bundle(2, 2), [undefined, undefined], [true, true])).toBe(400)
+    // The first call was mined and the second was replaced.
+    expect(callBundleStatus(bundle(2, 2), [mined('0x1'), undefined], [false, true])).toBe(600)
+    // A call that is not known to be replaced may still be mined.
+    expect(callBundleStatus(bundle(2, 2), [undefined, undefined], [true, false])).toBe(100)
+    expect(callBundleStatus(bundle(2, 1, false), [undefined], [true])).toBe(100)
+  })
+
   it('keeps only the receipt fields EIP-5792 reports', () => {
     expect(callReceipt(null)).toBeUndefined()
     expect(callReceipt({

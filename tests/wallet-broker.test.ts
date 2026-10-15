@@ -2336,6 +2336,89 @@ describe('WalletBroker', () => {
     ])))
   })
 
+  it('fails a sent transaction once another transaction has held its nonce for 30 seconds', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    let currentTime = Date.now()
+    let replaced = true
+    const confirmation = vi.spyOn(chain, 'confirmation')
+      .mockImplementation(async () => ({ confirmed: false, failed: false, ...(replaced ? { replaced: true } : {}) }))
+    const broker = new WalletBroker(service, {
+      adapters: { evm: chain }, confirmationPollIntervalMs: 5, now: () => new Date(currentTime)
+    })
+    await connect(broker)
+    // Waits for a poll that started after the last change to finish.
+    const polled = async () => {
+      const calls = confirmation.mock.calls.length
+      await vi.waitFor(() => expect(confirmation.mock.calls.length).toBeGreaterThan(calls + 1))
+    }
+    const status = () => broker.listPending().find((request) => request.operation === 'sign-and-send-transaction')?.status
+
+    const result = broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    })
+    await broker.approve((await broker.waitForPending((request) => request.status === 'awaiting-human')).id)
+    await expect(result).resolves.toBe('0xtransaction')
+    await polled()
+    // The adapter gets the nonce the transaction was signed with.
+    expect(confirmation).toHaveBeenCalledWith(expect.objectContaining({ chainFamily: 'evm' }), '0xtransaction', '7')
+    currentTime += 29_000
+    await polled()
+    expect(status()).toBe('submitted')
+
+    // A node that holds the transaction again restarts the wait, as a lagging backend could.
+    replaced = false
+    await polled()
+    replaced = true
+    await polled()
+    currentTime += 29_000
+    await polled()
+    expect(status()).toBe('submitted')
+
+    currentTime += 1_000
+    await vi.waitFor(() => expect(status()).toBe('failed'))
+    await vi.waitFor(async () => expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
+      type: 'transaction-failed',
+      payload: expect.objectContaining({ transactionHash: '0xtransaction', replaced: true })
+    })))
+    const settled = confirmation.mock.calls.length
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(confirmation.mock.calls.length).toBe(settled)
+  })
+
+  it('reports a batch whose call another transaction replaced as not included, without sending the rest', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    chain.broadcast.mockResolvedValueOnce('0xreplaced')
+    let currentTime = Date.now()
+    const confirmation = vi.spyOn(chain, 'confirmation')
+      .mockImplementation(async () => ({ confirmed: false, failed: false, replaced: true }))
+    // The node has no receipt for a replaced transaction.
+    const readRpc = vi.fn(async () => null)
+    const broker = new WalletBroker(service, {
+      adapters: { evm: { ...chain, confirmation, readRpc } }, confirmationPollIntervalMs: 5, now: () => new Date(currentTime)
+    })
+    await connect(broker)
+    const batch = broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls',
+      params: [{
+        version: '2.0.0', id: 'replaced-batch', chainId: '0xaa36a7', atomicRequired: false,
+        calls: [{ to: '0x0000000000000000000000000000000000000002' }, { to: '0x0000000000000000000000000000000000000002' }]
+      }]
+    })
+    await broker.approve((await broker.waitForPending((request) => request.status === 'awaiting-human')).id)
+    await vi.waitFor(() => expect(confirmation.mock.calls.filter(([, , nonce]) => nonce === '7').length).toBeGreaterThan(1))
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['replaced-batch'] }))
+      .resolves.toMatchObject({ status: 100, receipts: [] })
+
+    currentTime += 30_000
+    await expect(batch).resolves.toEqual({ id: 'replaced-batch' })
+    expect(chain.broadcast).toHaveBeenCalledOnce()
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['replaced-batch'] }))
+      .resolves.toMatchObject({ status: 400, atomic: false, receipts: [] })
+  })
+
   it('resumes confirmation tracking for a durable submitted transaction after restart', async () => {
     const { service, wallet } = await setup('testnet')
     const now = new Date()

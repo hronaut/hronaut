@@ -159,6 +159,9 @@ const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 // A batch waits for each call to be mined before preparing the next one.
 const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
 const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
+// A load-balanced node can briefly answer from a backend that lags behind, so
+// a transaction must look replaced for this long before it counts as failed.
+const EVM_REPLACED_TRANSACTION_MS = 30_000
 const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
@@ -225,6 +228,16 @@ function jsonBytes(value: unknown): number {
 
 function paramsArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : value === undefined ? [] : [value]
+}
+
+/** The nonce a prepared EVM transaction was signed with, if Hronaut recorded one. */
+function transactionNonce(record: WalletApprovalRecord): string | undefined {
+  if (!record.request.payload.normalized) return undefined
+  try {
+    return (restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction).nonceOrBlockhash
+  } catch {
+    return undefined
+  }
 }
 
 function isSilentSolanaConnect(value: unknown): boolean {
@@ -386,6 +399,8 @@ export class WalletBroker {
   private permissionExpiryCancellation: (() => void) | null = null
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationInFlight = new Set<string>()
+  /** When each submitted EVM transaction first looked replaced by another one with its nonce. */
+  private readonly replacedSince = new Map<string, number>()
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
@@ -2139,11 +2154,15 @@ export class WalletBroker {
     return true
   }
 
-  /** Waits until a batch call is mined; false when it reverted, the page left, or it was not mined in time. */
+  /**
+   * Waits until a batch call is mined; false when it reverted, another
+   * transaction replaced it, the page left, or it was not mined in time.
+   */
   private async evmCallSucceeded(context: WalletBrokerContext, wallet: WalletDescriptor, hash: string): Promise<boolean> {
     const interval = Math.min(this.confirmationPollIntervalMs(), EVM_BATCH_CONFIRMATION_POLL_MS)
     const deadline = this.now().getTime() + EVM_BATCH_CONFIRMATION_TIMEOUT_MS
     while (this.isRequestContextActive(context) && this.now().getTime() < deadline) {
+      if (this.failedTransactionHashes().has(hash.toLowerCase())) return false
       try {
         const confirmation = await this.adapters.evm.confirmation(wallet, hash)
         if (confirmation.failed) return false
@@ -2168,14 +2187,24 @@ export class WalletBroker {
     const receipts = await Promise.all(bundle.hashes.map(async (hash) => (
       callReceipt(await adapter.readRpc!(bundle.wallet, 'eth_getTransactionReceipt', [hash]))
     )))
+    // A sent call that never got a receipt failed only when another transaction took its nonce.
+    const failed = this.failedTransactionHashes()
+    const replaced = bundle.hashes.map((hash, index) => receipts[index] === undefined && failed.has(hash.toLowerCase()))
     return {
       version: EVM_CALL_BUNDLE_VERSION,
       id,
       chainId: `0x${BigInt(bundle.wallet.network.id).toString(16)}`,
-      status: callBundleStatus(bundle, receipts),
+      status: callBundleStatus(bundle, receipts, replaced),
       atomic: false,
       receipts: receipts.filter((receipt): receipt is EvmCallReceipt => receipt !== undefined)
     }
+  }
+
+  /** Lowercase hashes of the sent transactions that ended failed. */
+  private failedTransactionHashes(): Set<string> {
+    return new Set(this.service.approvals.list().flatMap((record) => (
+      record.status === 'failed' && record.transactionHash ? [record.transactionHash.toLowerCase()] : []
+    )))
   }
 
   /** Removes filters Hronaut no longer tracks from the node; the node expires any it misses. */
@@ -2508,11 +2537,18 @@ export class WalletBroker {
         return
       }
       const confirmation = await this.withConfirmationShutdown(
-        this.adapters[wallet.chainFamily].confirmation(wallet, record.transactionHash)
+        this.adapters[wallet.chainFamily].confirmation(
+          wallet,
+          record.transactionHash,
+          wallet.chainFamily === 'evm' ? transactionNonce(record) : undefined
+        )
       )
       const current = this.service.approvals.get(requestId)
       if (current?.status !== 'submitted') return
-      if (confirmation.confirmed || confirmation.failed) {
+      const replaced = !confirmation.confirmed && !confirmation.failed && confirmation.replaced === true && this.replacedLongEnough(requestId)
+      if (!confirmation.replaced) this.replacedSince.delete(requestId)
+      if (confirmation.confirmed || confirmation.failed || replaced) {
+        this.replacedSince.delete(requestId)
         const terminalStatus = confirmation.confirmed ? 'confirmed' : 'failed'
         try {
           await this.service.approvals.transition(requestId, terminalStatus, this.now())
@@ -2522,7 +2558,8 @@ export class WalletBroker {
               confirmation.confirmed ? 'transaction-confirmed' : 'transaction-failed',
               record,
               record.transactionHash,
-              confirmation.blockReference
+              confirmation.blockReference,
+              replaced
             )
           }
           this.publish()
@@ -2536,8 +2573,21 @@ export class WalletBroker {
       this.confirmationInFlight.delete(requestId)
       if (retry && this.service.approvals.get(requestId)?.status === 'submitted') {
         this.scheduleConfirmation(requestId, this.confirmationPollIntervalMs())
+      } else {
+        this.replacedSince.delete(requestId)
       }
     }
+  }
+
+  /** Whether a submitted transaction has looked replaced for long enough to count as failed. */
+  private replacedLongEnough(requestId: string): boolean {
+    const now = this.now().getTime()
+    const since = this.replacedSince.get(requestId)
+    if (since === undefined) {
+      this.replacedSince.set(requestId, now)
+      return false
+    }
+    return now - since >= EVM_REPLACED_TRANSACTION_MS
   }
 
   private drainConfirmationTasks(): Promise<boolean> {
@@ -2587,7 +2637,8 @@ export class WalletBroker {
     type: 'transaction-submitted' | 'transaction-confirmed' | 'transaction-failed',
     record: WalletApprovalRecord,
     transactionHash: string,
-    blockReference?: string
+    blockReference?: string,
+    replaced = false
   ): Promise<void> {
     try {
       await this.service.audit.append(type, {
@@ -2598,7 +2649,8 @@ export class WalletBroker {
         requester: record.request.requester,
         networkId: record.request.networkId,
         transactionHash,
-        ...(blockReference ? { blockReference } : {})
+        ...(blockReference ? { blockReference } : {}),
+        ...(replaced ? { replaced: true } : {})
       }, this.now().toISOString())
     } catch {
       console.error('[wallet] Failed to persist transaction lifecycle audit event')
