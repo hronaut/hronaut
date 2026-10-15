@@ -1028,6 +1028,46 @@ describe('WalletBroker', () => {
     expect(readRpc).toHaveBeenCalledTimes(2)
   })
 
+  it('forwards node filters and lets only the page document that created one poll or remove it', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const readRpc = vi.fn(async (_wallet: WalletDescriptor, method: string) => (
+      method === 'eth_newFilter' ? '0x1' : method === 'eth_newBlockFilter' ? '0x2' : method === 'eth_uninstallFilter' ? true : []
+    ))
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, readRpc } } })
+    const filter = { address: wallet.publicAddress, topics: [] }
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_newFilter', params: [filter] })).resolves.toBe('0x1')
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_getFilterChanges', params: ['0x1'] })).resolves.toEqual([])
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_getFilterLogs', params: ['0x1'] })).resolves.toEqual([])
+    expect(readRpc).toHaveBeenCalledTimes(3)
+    expect(readRpc).toHaveBeenLastCalledWith(expect.objectContaining({ id: wallet.id }), 'eth_getFilterLogs', ['0x1'])
+
+    // Local nodes number filters 0x1, 0x2..., so another tab, origin or document must not read or remove this one.
+    for (const other of [context({ tabId: 'tab-2' }), context({ topLevelOrigin: 'https://other.example' })]) {
+      await expect(broker.providerRequest(other, { family: 'evm', method: 'eth_getFilterChanges', params: ['0x1'] }))
+        .rejects.toThrow('EVM RPC error (code -32000): filter not found')
+      await expect(broker.providerRequest(other, { family: 'evm', method: 'eth_uninstallFilter', params: ['0x1'] })).resolves.toBe(false)
+    }
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_getFilterChanges', params: ['0x9'] }))
+      .rejects.toThrow('filter not found')
+    expect(readRpc).toHaveBeenCalledTimes(3)
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_uninstallFilter', params: ['0x1'] })).resolves.toBe(true)
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_getFilterChanges', params: ['0x1'] }))
+      .rejects.toThrow('filter not found')
+    expect(readRpc).toHaveBeenCalledTimes(4)
+
+    // A new document in the same tab starts without the old document's filters.
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_newBlockFilter' })).resolves.toBe('0x2')
+    await broker.cancelForNavigation('tab-1', 2)
+    await broker.resumeTab('tab-1', 2)
+    await expect(broker.providerRequest(context({ navigationGeneration: 2 }), { family: 'evm', method: 'eth_getFilterChanges', params: ['0x2'] }))
+      .rejects.toThrow('filter not found')
+    expect(readRpc).toHaveBeenCalledTimes(5)
+    expect(broker.listPending()).toEqual([])
+  })
+
   it('supports EIP-2255 account permissions and wallet_addEthereumChain only for configured networks', async () => {
     const { service, wallet } = await setup()
     const events = vi.fn()

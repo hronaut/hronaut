@@ -484,12 +484,24 @@ export const EVM_READ_RPC_METHODS = [
   'eth_getTransactionReceipt', 'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_getLogs', 'net_version'
 ] as const
 
+/** EVM JSON-RPC methods that create a log, block or pending-transaction filter on the wallet network's node. */
+export const EVM_FILTER_CREATE_RPC_METHODS = ['eth_newFilter', 'eth_newBlockFilter', 'eth_newPendingTransactionFilter'] as const
+
+/**
+ * Filter methods a page may send through the active wallet network's RPC.
+ * ethers v6 listens for contract events with them. A page can poll or remove
+ * only the filters it created.
+ */
+export const EVM_FILTER_RPC_METHODS = [
+  ...EVM_FILTER_CREATE_RPC_METHODS, 'eth_getFilterChanges', 'eth_getFilterLogs', 'eth_uninstallFilter'
+] as const
+
 export const WALLET_PROVIDER_METHODS = {
   evm: [
     'eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain',
     'eth_sendTransaction', 'eth_signTransaction', 'personal_sign', 'eth_signTypedData_v4', 'eth_sign',
     'wallet_addEthereumChain', 'wallet_getPermissions', 'wallet_requestPermissions', 'wallet_revokePermissions',
-    ...EVM_READ_RPC_METHODS
+    ...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS
   ],
   solana: [
     'connect', 'disconnect', 'signTransaction', 'signAllTransactions', 'signAndSendTransaction', 'signMessage', 'signIn',

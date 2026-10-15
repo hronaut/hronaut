@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Contract event listeners in dApps built on ethers v6, such as `contract.on('Transfer', …)`, now fire in Hronaut. ethers listens through node filters, which the wallet provider rejected, so the listener retried forever without delivering events. The provider now forwards `eth_newFilter`, `eth_newBlockFilter`, `eth_newPendingTransactionFilter`, `eth_getFilterChanges`, `eth_getFilterLogs` and `eth_uninstallFilter` to the active wallet network's RPC, and a page can poll or remove only the filters it created, so one site cannot read or remove another's filter by guessing its ID.
+
 ## [2.47.0] - 2026-10-15
 
 ### Added

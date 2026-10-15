@@ -85,7 +85,7 @@ From the release after 2.44.0, a person can let this one page connect the dispos
 
 The fixture's message names the page's `http://127.0.0.1:4173` origin, the connected account, and chain ID `31337`, which Hronaut checks before signing it. Typed data without the typed-data switch, other plain text on an imported key, other origins, and mainnet wallets still go to a person; see [WALLETS.md](WALLETS.md) for the exact rules and the separate mainnet switch.
 
-The page can also read chain state through the provider itself (`eth_blockNumber`, `eth_getBalance`, `eth_call`, `eth_getTransactionReceipt`, and the other read methods listed in [WALLETS.md](WALLETS.md#evm)), so wagmi, viem, and ethers dApps work without a separate RPC. This fixture still reads receipts directly from Anvil, because that local read is the authoritative evidence for this test.
+The page can also read chain state through the provider itself (`eth_blockNumber`, `eth_getBalance`, `eth_call`, `eth_getTransactionReceipt`, log filters, and the other read methods listed in [WALLETS.md](WALLETS.md#evm)), so wagmi, viem, and ethers dApps, including ethers contract event listeners, work without a separate RPC. This fixture still reads receipts directly from Anvil, because that local read is the authoritative evidence for this test.
 
 ## 3. Check discovery, connect, and account changes
 

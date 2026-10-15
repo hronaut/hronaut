@@ -18,7 +18,7 @@ import {
   type PublicClient
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { EVM_READ_RPC_METHODS, type WalletDescriptor } from '../../../shared/wallet.js'
+import { EVM_FILTER_RPC_METHODS, EVM_READ_RPC_METHODS, type WalletDescriptor } from '../../../shared/wallet.js'
 import { deriveWalletAccount } from '../accounts.js'
 import type { WalletSecret } from '../vault.js'
 import type {
@@ -312,7 +312,7 @@ export class EvmWalletAdapter implements WalletChainAdapter {
   }
 
   async readRpc(wallet: WalletDescriptor, method: string, params: unknown): Promise<unknown> {
-    if (!(EVM_READ_RPC_METHODS as readonly string[]).includes(method)) throw new Error(`Unsupported EVM wallet method: ${method}`)
+    if (![...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS].includes(method as never)) throw new Error(`Unsupported EVM wallet method: ${method}`)
     if (method === 'net_version') return BigInt(wallet.network.id).toString(10)
     const values = params === undefined ? [] : params
     if (!Array.isArray(values) || values.length > MAX_READ_RPC_PARAMS) {
