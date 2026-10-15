@@ -5503,7 +5503,7 @@ function createBrowserMcpServer(
         walletSessionId: walletSessionIdSchema,
         walletId: walletIdSchema,
         token: z.string().min(1).max(64).regex(/^[A-Za-z0-9]+$/).optional()
-          .describe('Optional fungible token to read instead of the native balance: an ERC-20 contract address on EVM or an SPL token mint on Solana.')
+          .describe('Optional fungible token to read instead of the native balance: an ERC-20 contract address on EVM, an SPL token mint on Solana, or a TRC-20 contract address on TRON.')
       }
     },
     tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId, token }: {

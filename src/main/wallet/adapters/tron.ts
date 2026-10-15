@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { decodeAbiParameters, type Hex } from 'viem'
 import { TronWeb, utils, type Types } from 'tronweb'
 import type { WalletDescriptor } from '../../../shared/wallet.js'
 import { deriveWalletAccount } from '../accounts.js'
@@ -7,8 +8,10 @@ import type {
   WalletChainAdapter,
   WalletConfirmation,
   WalletNormalizedTransaction,
+  WalletTokenBalance,
   WalletTransactionSimulation
 } from './types.js'
+import { formatTokenUnits } from './types.js'
 
 const TronContractSchema = z.object({
   type: z.string().min(1).max(128),
@@ -45,6 +48,8 @@ interface TronRpcClient {
   balance(address: string): Promise<bigint>
   broadcast(transaction: Record<string, unknown>): Promise<{ result: boolean; txid?: string; code?: string; message?: string }>
   transactionInfo(hash: string): Promise<{ blockNumber?: number; receipt?: { result?: string }; result?: string } | null>
+  /** Runs a read-only TRC-20 call and returns its ABI-encoded result. */
+  constantCall(owner: string, contract: string, functionSelector: string, parameters: Array<{ type: string; value: string }>): Promise<Hex>
 }
 
 function formatTrx(sun: bigint): string {
@@ -248,6 +253,14 @@ function defaultClient(wallet: WalletDescriptor): TronRpcClient {
       } catch {
         return null
       }
+    },
+    async constantCall(owner, contract, functionSelector, parameters) {
+      const response = await tron.transactionBuilder.triggerConstantContract(contract, functionSelector, {}, parameters, owner)
+      const output: unknown = response.constant_result?.[0]
+      if (response.result?.result !== true || typeof output !== 'string' || !/^(?:[0-9a-fA-F]{2}){0,2048}$/.test(output)) {
+        throw new Error('TRON constant call failed')
+      }
+      return `0x${output}`
     }
   }
 }
@@ -345,5 +358,33 @@ export class TronWalletAdapter implements WalletChainAdapter {
   async balance(wallet: WalletDescriptor): Promise<string> {
     if (!this.validateAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
     return formatTrx(await this.clientFor(wallet).balance(wallet.publicAddress))
+  }
+
+  async tokenBalance(wallet: WalletDescriptor, token: string): Promise<WalletTokenBalance> {
+    if (!this.validateAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
+    if (!this.validateAddress(token)) throw new Error('TRON token must be a TRC-20 contract address')
+    const client = this.clientFor(wallet)
+    const owner = wallet.publicAddress
+    const [rawResult, decimalsResult, symbolResult] = await Promise.all([
+      client.constantCall(owner, token, 'balanceOf(address)', [{ type: 'address', value: owner }]),
+      client.constantCall(owner, token, 'decimals()', []),
+      client.constantCall(owner, token, 'symbol()', []).catch(() => undefined)
+    ])
+    const [raw] = decodeAbiParameters([{ type: 'uint256' }], rawResult)
+    const [decimals] = decodeAbiParameters([{ type: 'uint8' }], decimalsResult)
+    let symbol: string | undefined
+    try {
+      if (symbolResult) [symbol] = decodeAbiParameters([{ type: 'string' }], symbolResult)
+    } catch {
+      symbol = undefined
+    }
+    const safeSymbol = symbol !== undefined && /^[A-Za-z0-9 ._$+-]{1,32}$/.test(symbol) ? symbol : undefined
+    return {
+      token,
+      balance: formatTokenUnits(raw, decimals),
+      rawBalance: raw.toString(),
+      decimals,
+      ...(safeSymbol ? { symbol: safeSymbol } : {})
+    }
   }
 }
