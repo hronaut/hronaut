@@ -79,7 +79,7 @@ From the release after 2.44.0, a person can let this one page connect the dispos
 
 1. In **Settings → Wallets**, select the disposable wallet and, under **Access & automation**, add a bounded policy: the test workspace, allowed origin `http://127.0.0.1:4173`, an operation count such as `5`, and an expiry later today. Turn on **Let this site connect and sign in without asking**. Leave the destination and method empty, so transactions still ask.
 2. The agent clicks **Request accounts**, then **Sign in with Ethereum**. Neither opens a Hronaut dialog. `wallet_page_requests` lists `connect-account` and `sign-message` as `confirmed`, and the fixture logs `signatureReturned: true` with `signatureBytes: 65`.
-3. The agent clicks **Send 1 wei**. The request stays `awaiting-human` because the policy has no transaction rule; reject it.
+3. The agent clicks **Send 1 wei**. The request stays `awaiting-human` because the policy has no transaction rule; the person rejects it in Hronaut.
 4. Before the approval checks below, remove the policy and revoke the site under **Website permissions**. Removing the policy alone stops new automatic approvals but does not disconnect the site.
 
 The fixture's message names the page's `http://127.0.0.1:4173` origin, the connected account, and chain ID `31337`, which Hronaut checks before signing it. Typed data, other plain text on an imported key, other origins, and mainnet wallets still go to a person; see [WALLETS.md](WALLETS.md) for the exact rules and the separate mainnet switch.
@@ -91,7 +91,7 @@ The page can also read chain state through the provider itself (`eth_blockNumber
 1. Click **Discover provider**. The log must show an EIP-6963 announcement with `rdns: "dev.hronaut.wallet"` and `isHronaut: true`.
 2. Click **Request accounts**, then reject the trusted Hronaut dialog. The fixture must log a correlated `provider-rejection` with error code `4001`, while wallet dispatch and approval remain `unknown` and no account is exposed.
 3. Request accounts again and approve. The fixture logs the disposable account count and an `accountsChanged` count without recording the address.
-4. Click **Sign in with Ethereum**. Hronaut shows the exact sign-in text naming `http://127.0.0.1:4173`, the account, and chain ID `31337`. Reject it once and check for a correlated `provider-rejection` with code `4001`, then click again and approve. The fixture logs `signatureReturned: true` and `signatureBytes: 65`, never the text or signature.
+4. Click **Sign in with Ethereum**. In the Hronaut approval, expand **Raw unsigned request**: `message.utf8Preview` holds the sign-in text naming `http://127.0.0.1:4173`, the account, and chain ID `31337`. Reject it once and check for a correlated `provider-rejection` with code `4001`, then click again and approve. The fixture logs `signatureReturned: true` and `signatureBytes: 65`, never the text or signature.
 5. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
 
 For a real network-change event, start a second disposable node:

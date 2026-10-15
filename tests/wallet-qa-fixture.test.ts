@@ -337,6 +337,10 @@ describe('wallet QA sign-in', () => {
     await click(page, '#sign-in')
 
     expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts'])
+    expect(events(page).at(-1)).toEqual({
+      kind: 'fixture:error',
+      value: { stage: 'sign-in-account', walletBehavior: 'not-exercised', error: { category: 'fixture-error' } }
+    })
   })
 })
 

@@ -17,7 +17,7 @@
 <body>
   <h1>Hronaut local wallet QA</h1>
   <p>This fixture uses the injected EIP-1193 provider for wallet operations and direct local JSON-RPC only for authoritative readback.</p>
-  <p>Its event log correlates each attempt without recording account addresses, transaction hashes, signing payloads, provider error messages, or RPC URLs. A JavaScript provider call leaves wallet dispatch, approval, broadcast, and confirmation unknown until stronger evidence exists.</p>
+  <p>Its event log correlates each attempt without recording account addresses, transaction hashes, signing payloads, signatures, provider error messages, or RPC URLs. A JavaScript provider call leaves wallet dispatch, approval, broadcast, and confirmation unknown until stronger evidence exists.</p>
 
   <section>
     <h2>Provider and session</h2>
@@ -254,9 +254,15 @@
         return
       }
       const accounts = await request('eth_accounts')
-      if (!Array.isArray(accounts) || typeof accounts[0] !== 'string') return
+      if (!Array.isArray(accounts) || typeof accounts[0] !== 'string') {
+        fixtureFailure('sign-in-account', new Error('Request accounts before signing in'))
+        return
+      }
       const chainId = await request('eth_chainId')
-      if (typeof chainId !== 'string' || !/^0x[0-9a-f]{1,16}$/i.test(chainId)) return
+      if (typeof chainId !== 'string' || !/^0x[0-9a-f]{1,16}$/i.test(chainId)) {
+        fixtureFailure('sign-in-chain', new Error('The provider returned no usable chain ID'))
+        return
+      }
       await request('personal_sign', [utf8Hex(signInMessage(origin, accounts[0], chainId)), accounts[0]])
     })
     document.querySelector('#send').addEventListener('click', async () => {
