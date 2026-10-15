@@ -14,15 +14,31 @@ afterEach(async () => {
   server = undefined
 })
 
-/** A node that refuses every transaction with this JSON-RPC error, behind an RPC URL that holds a key. */
-async function refusingNode(error: Record<string, unknown>): Promise<WalletDescriptor> {
+/** A pending transaction as a node returns it from eth_getTransactionByHash. */
+function pendingTransaction(hash: string): Record<string, unknown> {
+  return {
+    hash, nonce: '0x9', blockHash: null, blockNumber: null, transactionIndex: null,
+    from: '0x9858EfFD232B4033E47d90003D41EC34EcaEda94', to: '0x3535353535353535353535353535353535353535',
+    value: '0xde0b6b3a7640000', gas: '0x5208', gasPrice: '0x4a817c800', input: '0x', type: '0x0', chainId: '0x1',
+    v: '0x25', r: '0x28ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276',
+    s: '0x67cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83'
+  }
+}
+
+/**
+ * A node that refuses every transaction with this JSON-RPC error, behind an RPC
+ * URL that holds a key, and that holds the transactions in `held` by hash.
+ */
+async function refusingNode(error: Record<string, unknown>, held: readonly string[] = []): Promise<WalletDescriptor> {
   server = createServer((request, response) => {
     let body = ''
     request.on('data', (chunk: Buffer) => { body += chunk.toString() })
     request.on('end', () => {
-      const { id } = JSON.parse(body) as { id: number }
+      const { id, method, params } = JSON.parse(body) as { id: number; method: string; params: unknown[] }
       response.setHeader('content-type', 'application/json')
-      response.end(JSON.stringify({ jsonrpc: '2.0', id, error }))
+      if (method !== 'eth_getTransactionByHash') return response.end(JSON.stringify({ jsonrpc: '2.0', id, error }))
+      const hash = params[0] as string
+      response.end(JSON.stringify({ jsonrpc: '2.0', id, result: held.includes(hash) ? pendingTransaction(hash) : null }))
     })
   })
   await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', () => resolve()))
@@ -90,17 +106,35 @@ describe('EVM broadcast refusals', () => {
     expect(await refusal('https://rpc.example.invalid/?apiKey=rpc-query-secret is rate limited')).toContain('rate limited')
   })
 
-  it('counts a transaction the node already has as sent, under its own hash', async () => {
+  it('counts a transaction the node already has as sent, under its own hash, while the node holds it', async () => {
     const adapter = new EvmWalletAdapter()
-    // A hosted RPC that retried the send itself, Geth, OpenEthereum and older Geth wordings.
-    for (const message of ['already known', 'Transaction with the same hash was already imported.', 'known transaction: 6ba7b8']) {
-      expect(await adapter.broadcast(await refusingNode({ code: -32000, message }), SIGNED)).toBe(keccak256(SIGNED))
-      await new Promise<void>((resolve) => server!.close(() => resolve()))
-      server = undefined
+    const broadcast = async (message: string, signed: string, held: readonly string[]) => {
+      try {
+        return await adapter.broadcast(await refusingNode({ code: -32000, message }, held), signed)
+      } catch (error) {
+        return (error as Error).message
+      } finally {
+        await new Promise<void>((resolve) => server!.close(() => resolve()))
+        server = undefined
+      }
     }
+    const hash = keccak256(SIGNED)
+    // Geth, Nethermind (old and new), Erigon, Besu and Hardhat, Anvil, OpenEthereum and Cosmos EVM wordings.
+    for (const message of [
+      'already known', 'AlreadyKnown', 'ALREADY_EXISTS: already known', 'Known transaction: 6ba7b8',
+      'transaction already imported', 'Transaction with the same hash was already imported.',
+      'existing txn with same hash', 'tx already exists in cache'
+    ]) expect(await broadcast(message, SIGNED, [hash]), message).toBe(hash)
+    // The EIP-155 example transaction, whose published hash ethers computes too.
     const legacy = '0xf86c098504a817c800825208943535353535353535353535353535353535353535880de0b6b3a76400008025a028ef61340bd939bc2195fe537567866003e1a15d3c71ff63e1590620aa636276a067cbe9d8997f761aecb703304b3800ccf555c9f3dc64214b297fb1966a3b6d83'
-    // The EIP-155 example transaction, whose hash is known.
-    expect(await adapter.broadcast(await refusingNode({ code: -32000, message: 'already known' }), legacy))
-      .toBe('0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788')
+    const legacyHash = '0x33469b22e9f636356c4160a87eb19df52b7412e8eac32a4a55ffe88ea8350788'
+    expect(await broadcast('already known', legacy, [legacyHash])).toBe(legacyHash)
+
+    // Nethermind and Erigon also say so for a transaction they rejected or dropped, which the node no longer holds.
+    const refused = 'EVM RPC error (code -32000): the node refused the transaction: the node says it already has this transaction'
+    expect(await broadcast('already known', SIGNED, [])).toBe(refused)
+    // A blob transaction's hash is not the hash of the bytes sent, so it is never assumed.
+    const blob = `0x03${SIGNED.slice(4)}`
+    expect(await broadcast('already known', blob, [keccak256(blob as `0x${string}`)])).toBe(refused)
   })
 })
