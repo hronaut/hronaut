@@ -7,9 +7,18 @@ const TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 const RECIPIENT = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
 
-function startFilterJsonRpc(sender: string): Promise<{ server: Server; url: string; calls: Array<{ method: string; params: unknown[] }> }> {
-  const calls: Array<{ method: string; params: unknown[] }> = []
+interface FilterJsonRpc {
+  server: Server
+  url: string
+  calls: Array<{ method: string; params: unknown[] }>
+  /** Lets the next filter poll return the Transfer log. */
+  release(): void
+}
+
+function startFilterJsonRpc(sender: string): Promise<FilterJsonRpc> {
+  const calls: FilterJsonRpc['calls'] = []
   let block = 0x2a
+  let released = false
   let delivered = false
   const topic = (address: string) => `0x${address.slice(2).toLowerCase().padStart(64, '0')}`
   const server = createServer((request, response) => {
@@ -23,12 +32,12 @@ function startFilterJsonRpc(sender: string): Promise<{ server: Server; url: stri
       else if (call.method === 'eth_newFilter') result = '0x1'
       else if (call.method === 'eth_uninstallFilter') result = true
       else if (call.method === 'eth_getFilterChanges') {
-        result = delivered ? [] : [{
+        result = !released || delivered ? [] : [{
           address: TOKEN.toLowerCase(), topics: [TRANSFER_TOPIC, topic(sender), topic(RECIPIENT)],
           data: `0x${(1000n).toString(16).padStart(64, '0')}`, blockNumber: '0x2b', blockHash: `0x${'ab'.repeat(32)}`,
           transactionHash: `0x${'cd'.repeat(32)}`, transactionIndex: '0x0', logIndex: '0x0', removed: false
         }]
-        delivered = true
+        delivered = released
       }
       const reply = result === undefined ? { error: { code: -32601, message: 'Method not found' } } : { result }
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -36,7 +45,7 @@ function startFilterJsonRpc(sender: string): Promise<{ server: Server; url: stri
     })
   })
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
-    resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, calls })
+    resolve({ server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, calls, release: () => { released = true } })
   }))
 }
 
@@ -140,26 +149,40 @@ test('delivers an ethers v6 contract event listener through the wallet provider 
     // ethers is installed with tronweb; its browser bundle stands in for a dApp's own copy.
     const ethersBundle = readFileSync(new URL('../../node_modules/ethers/dist/ethers.umd.min.js', import.meta.url), 'utf8')
 
-    const results = await electronApp.evaluate(async ({ webContents }, { pageUrl, bundle, token }) => {
+    const pageId = await electronApp.evaluate(async ({ webContents }, { pageUrl, bundle, token }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
       if (!page) throw new Error('Wallet filter RPC fixture WebContents was not found')
       await page.executeJavaScript(bundle)
-      return page.executeJavaScript(`(async () => {
+      await page.executeJavaScript(`(() => {
         const provider = new ethers.BrowserProvider(window.ethereum, undefined, { pollingInterval: 100 });
         const contract = new ethers.Contract(${JSON.stringify(token)}, ['event Transfer(address indexed from, address indexed to, uint256 value)'], provider);
-        const transfer = await new Promise((resolve, reject) => {
+        window.hronautFilterTest = { contract, transfer: new Promise((resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('The Transfer listener did not fire')), 15000);
           contract.on('Transfer', (from, to, value) => {
             clearTimeout(timer);
             resolve({ from, to, value: value.toString() });
           });
-        });
-        await contract.removeAllListeners();
+        }) };
+      })()`)
+      return page.id
+    }, { pageUrl: fixtureUrl, bundle: ethersBundle, token: TOKEN })
+    await expect.poll(() => rpc.calls.filter((call) => call.method === 'eth_getFilterChanges').length).toBeGreaterThan(0)
+    // A dApp changes routes without loading a new document; its listener must keep working.
+    await electronApp.evaluate(({ webContents }, id) => webContents.fromId(id)?.executeJavaScript(`history.pushState({}, '', '#/route-2')`), pageId)
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    rpc.release()
+
+    const results = await electronApp.evaluate(async ({ webContents }, id) => {
+      const page = webContents.fromId(id)
+      if (!page) throw new Error('Wallet filter RPC fixture WebContents was not found')
+      return page.executeJavaScript(`(async () => {
+        const transfer = await window.hronautFilterTest.transfer;
+        await window.hronautFilterTest.contract.removeAllListeners();
         const foreign = await window.ethereum.request({ method: 'eth_getFilterChanges', params: ['0x7'] })
           .then((value) => ({ value }), (error) => ({ code: error.code, message: String(error.message) }));
         return { transfer, foreign };
       })()`)
-    }, { pageUrl: fixtureUrl, bundle: ethersBundle, token: TOKEN })
+    }, pageId)
 
     expect(results.transfer).toEqual({ from: sender, to: RECIPIENT, value: '1000' })
     // A filter this page did not create never reaches the node.

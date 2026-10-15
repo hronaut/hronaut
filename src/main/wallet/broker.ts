@@ -29,7 +29,7 @@ import { normalizeTronProviderChainId, tronProviderChainId } from '../../shared/
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
-import { EvmFilterRegistry, isEvmFilterCreateMethod, type EvmFilterOwner } from './evm-filters.js'
+import { EvmFilterRegistry, isEvmFilterCreateMethod, isEvmFilterId, MAX_EVM_FILTERS_PER_PAGE, type EvmFilterOwner } from './evm-filters.js'
 import { solanaSignInMessage } from './solana-sign-in.js'
 import { typedDataDisplay } from './typed-data-display.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
@@ -302,7 +302,7 @@ export class WalletBroker {
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
-  private readonly evmFilters = new EvmFilterRegistry()
+  private readonly evmFilters = new EvmFilterRegistry((owner, ids) => this.uninstallEvmFilters(owner.wallet, ids))
   private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
@@ -731,7 +731,6 @@ export class WalletBroker {
     this.clearEvmProviderSessions((session) => (
       session.tabId === tabId && session.navigationGeneration < generation
     ))
-    this.evmFilters.clear((owner) => owner.tabId === tabId && owner.navigationGeneration < generation)
     this.clearAccountProviderSessions((session) => (
       session.tabId === tabId && session.navigationGeneration < generation
     ))
@@ -1859,24 +1858,27 @@ export class WalletBroker {
 
   /**
    * Node filters are forwarded like reads, but a page may poll or remove only
-   * the filters this page document created on this network. Any other ID gets
-   * the node's own "filter not found" answer without reaching the node.
+   * the filters this tab and site created on this node. Any other ID gets the
+   * node's own "filter not found" answer without reaching the node.
    */
   private async evmFilterRequest(context: WalletBrokerContext, wallet: WalletDescriptor, method: string, params: unknown): Promise<unknown> {
     const adapter = this.adapters.evm
     if (!adapter.readRpc) throw new Error(`Unsupported EVM wallet method: ${method}`)
-    const owner: EvmFilterOwner = {
-      workspaceId: context.workspaceId,
-      tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration,
-      topLevelOrigin: context.topLevelOrigin,
-      networkId: wallet.network.id,
-      rpcUrl: wallet.network.rpcUrl
-    }
+    const owner: EvmFilterOwner = { workspaceId: context.workspaceId, tabId: context.tabId, topLevelOrigin: context.topLevelOrigin, wallet }
     if (isEvmFilterCreateMethod(method)) {
+      // ethers and viem read this message as "filters unsupported" and poll eth_getLogs instead.
+      const full = new Error(`EVM RPC error (code -32601): the method ${method} does not exist/is not available for this page, which already keeps ${MAX_EVM_FILTERS_PER_PAGE} filters`)
+      if (this.evmFilters.isFull(owner)) throw full
       const id = await adapter.readRpc(wallet, method, params)
-      // A page that navigated or closed meanwhile can no longer use the filter; the node expires it.
-      if (this.isRequestContextActive(context)) this.evmFilters.add(owner, id)
+      if (!isEvmFilterId(id)) throw new Error('EVM RPC read request failed')
+      if (this.closedTabs.has(context.tabId) || this.shuttingDown) {
+        this.uninstallEvmFilters(wallet, [id])
+        return id
+      }
+      if (!this.evmFilters.add(owner, id)) {
+        this.uninstallEvmFilters(wallet, [id])
+        throw full
+      }
       return id
     }
     const id = paramsArray(params)[0]
@@ -1887,6 +1889,13 @@ export class WalletBroker {
     const result = await adapter.readRpc(wallet, method, params)
     if (method === 'eth_uninstallFilter') this.evmFilters.remove(owner, id)
     return result
+  }
+
+  /** Removes filters Hronaut no longer tracks from the node; the node expires any it misses. */
+  private uninstallEvmFilters(wallet: WalletDescriptor, ids: string[]): void {
+    for (const id of ids) {
+      void this.adapters.evm.readRpc?.(wallet, 'eth_uninstallFilter', [id]).catch(() => undefined)
+    }
   }
 
   private clearEvmProviderSessions(predicate: (session: EvmProviderSession) => boolean): void {

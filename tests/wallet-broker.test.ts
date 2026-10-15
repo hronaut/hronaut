@@ -13,6 +13,7 @@ import {
 } from '../src/main/wallet/broker.js'
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
 import { EvmWalletAdapter } from '../src/main/wallet/adapters/evm.js'
+import { MAX_EVM_FILTERS_PER_PAGE } from '../src/main/wallet/evm-filters.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
 import type { WalletChainFamily, WalletDescriptor, WalletPolicy, WalletRequestSummary } from '../src/shared/wallet.js'
@@ -1028,11 +1029,12 @@ describe('WalletBroker', () => {
     expect(readRpc).toHaveBeenCalledTimes(2)
   })
 
-  it('forwards node filters and lets only the page document that created one poll or remove it', async () => {
+  it('forwards node filters and lets only the tab and site that created one poll or remove it', async () => {
     const { service, wallet } = await setup()
     const chain = adapter()
+    let next = 0
     const readRpc = vi.fn(async (_wallet: WalletDescriptor, method: string) => (
-      method === 'eth_newFilter' ? '0x1' : method === 'eth_newBlockFilter' ? '0x2' : method === 'eth_uninstallFilter' ? true : []
+      method === 'eth_newFilter' || method === 'eth_newBlockFilter' ? `0x${(++next).toString(16)}` : method === 'eth_uninstallFilter' ? true : []
     ))
     const broker = new WalletBroker(service, { adapters: { evm: { ...chain, readRpc } } })
     const filter = { address: wallet.publicAddress, topics: [] }
@@ -1043,7 +1045,7 @@ describe('WalletBroker', () => {
     expect(readRpc).toHaveBeenCalledTimes(3)
     expect(readRpc).toHaveBeenLastCalledWith(expect.objectContaining({ id: wallet.id }), 'eth_getFilterLogs', ['0x1'])
 
-    // Local nodes number filters 0x1, 0x2..., so another tab, origin or document must not read or remove this one.
+    // Some local nodes number filters 0x1, 0x2..., so another tab or site must not read or remove this one.
     for (const other of [context({ tabId: 'tab-2' }), context({ topLevelOrigin: 'https://other.example' })]) {
       await expect(broker.providerRequest(other, { family: 'evm', method: 'eth_getFilterChanges', params: ['0x1'] }))
         .rejects.toThrow('EVM RPC error (code -32000): filter not found')
@@ -1053,19 +1055,49 @@ describe('WalletBroker', () => {
       .rejects.toThrow('filter not found')
     expect(readRpc).toHaveBeenCalledTimes(3)
 
-    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_uninstallFilter', params: ['0x1'] })).resolves.toBe(true)
-    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_getFilterChanges', params: ['0x1'] }))
-      .rejects.toThrow('filter not found')
-    expect(readRpc).toHaveBeenCalledTimes(4)
-
-    // A new document in the same tab starts without the old document's filters.
-    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_newBlockFilter' })).resolves.toBe('0x2')
+    // A dApp's route change is a navigation too; its listeners keep polling the same filter.
     await broker.cancelForNavigation('tab-1', 2)
     await broker.resumeTab('tab-1', 2)
-    await expect(broker.providerRequest(context({ navigationGeneration: 2 }), { family: 'evm', method: 'eth_getFilterChanges', params: ['0x2'] }))
+    const routed = context({ navigationGeneration: 2 })
+    await expect(broker.providerRequest(routed, { family: 'evm', method: 'eth_getFilterChanges', params: ['0x1'] })).resolves.toEqual([])
+
+    await expect(broker.providerRequest(routed, { family: 'evm', method: 'eth_uninstallFilter', params: ['0x1'] })).resolves.toBe(true)
+    await expect(broker.providerRequest(routed, { family: 'evm', method: 'eth_getFilterChanges', params: ['0x1'] }))
       .rejects.toThrow('filter not found')
     expect(readRpc).toHaveBeenCalledTimes(5)
+
+    // Closing the tab removes its remaining filters from the node.
+    await expect(broker.providerRequest(routed, { family: 'evm', method: 'eth_newBlockFilter' })).resolves.toBe('0x2')
+    await broker.cancelForTab('tab-1')
+    expect(readRpc).toHaveBeenLastCalledWith(expect.objectContaining({ id: wallet.id }), 'eth_uninstallFilter', ['0x2'])
     expect(broker.listPending()).toEqual([])
+  })
+
+  it('answers a page that keeps too many filters so ethers and viem fall back to polling logs', async () => {
+    const { service } = await setup()
+    const chain = adapter()
+    let next = 0
+    const readRpc = vi.fn(async (_wallet: WalletDescriptor, method: string): Promise<unknown> => (
+      method === 'eth_newBlockFilter' ? `0x${(++next).toString(16)}` : true
+    ))
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, readRpc } } })
+    for (let index = 0; index < MAX_EVM_FILTERS_PER_PAGE; index += 1) {
+      await broker.providerRequest(context(), { family: 'evm', method: 'eth_newBlockFilter' })
+    }
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_newFilter', params: [{}] }))
+      .rejects.toThrow(/^EVM RPC error \(code -32601\): the method eth_newFilter does not exist\/is not available/)
+    expect(readRpc).toHaveBeenCalledTimes(MAX_EVM_FILTERS_PER_PAGE)
+
+    // Two requests that both pass the first check: the one over the limit is removed from the node again.
+    await broker.providerRequest(context(), { family: 'evm', method: 'eth_uninstallFilter', params: ['0x1'] })
+    const raced = await Promise.allSettled([1, 2].map(() => broker.providerRequest(context(), { family: 'evm', method: 'eth_newBlockFilter' })))
+    expect(raced.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(readRpc).toHaveBeenLastCalledWith(expect.anything(), 'eth_uninstallFilter', [expect.stringMatching(/^0x2[12]$/)])
+
+    // A node answer that is not a filter ID is not handed to the page.
+    readRpc.mockResolvedValueOnce(true)
+    await expect(broker.providerRequest(context({ tabId: 'tab-2' }), { family: 'evm', method: 'eth_newBlockFilter' }))
+      .rejects.toThrow(/^EVM RPC read request failed$/)
   })
 
   it('supports EIP-2255 account permissions and wallet_addEthereumChain only for configured networks', async () => {
