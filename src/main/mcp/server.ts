@@ -6,6 +6,7 @@ import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationS
 import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure, type StorageComparisonHooks } from '../browser/storage-comparison-operation.js'
 import { nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
 import { storageInspectionFailure, type StorageInspectionHooks } from '../browser/storage-inspection-operation.js'
+import { recheckOpenedTabs, type TabsOpenedDuringClick } from '../browser/click-opened-tabs.js'
 import { WEB_STORAGE_INPUT_ERRORS, WebStorageInputError, webStorageFailure, type WebStorageHooks, type WebStorageProgress } from '../browser/web-storage-operation.js'
 import { cookieWriteFailure, type CookieWriteHooks, type CookieWriteProgress } from '../browser/cookie-write-operation.js'
 import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
@@ -862,6 +863,22 @@ function withPostWriteVerification(result: CallToolResult, verification: { statu
         const value = JSON.parse(item.text) as unknown
         if (!value || typeof value !== 'object' || Array.isArray(value)) return item
         return { ...item, text: JSON.stringify({ ...value, postWriteVerification: verification }, null, 2) }
+      } catch { return item }
+    })
+  }
+}
+
+function withCurrentOpenedTabs(result: CallToolResult, isCurrent: (tabId: string) => boolean): CallToolResult {
+  if (result.isError) return result
+  return {
+    ...result,
+    content: result.content.map(item => {
+      if (item.type !== 'text') return item
+      try {
+        const value = JSON.parse(item.text) as { tabsOpenedDuringClick?: TabsOpenedDuringClick }
+        const report = value?.tabsOpenedDuringClick
+        if (!report || !Array.isArray(report.tabIds)) return item
+        return { ...item, text: JSON.stringify({ ...value, tabsOpenedDuringClick: recheckOpenedTabs(report, isCurrent) }, null, 2) }
       } catch { return item }
     })
   }
@@ -2809,6 +2826,7 @@ function createBrowserMcpServer(
         }
         else if (verificationResult?.status === 'unknown' || finalResult.isError) await finishReviewedAttempt('unknown')
         validateLifecycleResult()
+        if (name === 'browser_click') finalResult = withCurrentOpenedTabs(finalResult, tabId => manager.tabBelongsToMcpGroup(workspaceId, tabId))
         finishActivity(finalResult, false)
         return finalResult
       })
