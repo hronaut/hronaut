@@ -14,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 - The local wallet QA fixture has a **Sign in with Ethereum** button that signs an EIP-4361 message for the page's origin, connected account and chain, logging only whether a signature came back and its length. The wallet QA quickstart shows how to approve it by hand and how to let an agent sign in without a click.
 
+- The local wallet QA fixture has a **Sign a token permit** button that asks the wallet to sign an EIP-2612 permit as typed data, so you can see the spender, amount and warnings Hronaut shows before approving. It logs only whether a signature came back and its length, and sends nothing on chain.
+
 ## [2.44.0] - 2026-10-15
 
 ### Added

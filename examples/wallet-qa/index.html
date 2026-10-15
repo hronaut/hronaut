@@ -36,6 +36,12 @@
   </section>
 
   <section>
+    <h2>Token permit</h2>
+    <p>Builds an EIP-2612 token permit as EIP-712 typed data for the first connected account and the current chain, then asks the wallet to sign it with <code>eth_signTypedData_v4</code>. The permit lets a fixed test spender move 1,000,000 of a token's smallest units from a fixed test token address for one hour. Nothing is sent on chain. Hronaut shows the spender, amount and warnings under <strong>Typed data to sign</strong>, and a person always approves typed data.</p>
+    <button id="sign-permit">Sign a token permit</button>
+  </section>
+
+  <section>
     <h2>Transaction and receipt</h2>
     <label>recipient <input id="recipient" value="0x1000000000000000000000000000000000000001" spellcheck="false"></label>
     <button id="send">Send 1 wei</button>
@@ -85,11 +91,23 @@
       broadcast: 'unknown',
       confirmation: 'unknown'
     }
+    // Anvil's first contract deployment address and its second default account.
+    const PERMIT_TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+    const PERMIT_SPENDER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+    const PERMIT_VALUE = '1000000'
     const parameterSummary = (method, params) => {
       if (!params) return 'none'
       if (method === 'wallet_switchEthereumChain') {
         const chainId = params[0]?.chainId
         return { chainId: typeof chainId === 'string' && chainId.length <= 18 && /^0x[0-9a-f]+$/i.test(chainId) ? chainId : 'invalid' }
+      }
+      if (method === 'eth_signTypedData_v4') {
+        return {
+          typedData: 'eip-2612-permit',
+          spender: 'fixture-test-spender',
+          value: PERMIT_VALUE,
+          account: 'first-connected-account'
+        }
       }
       if (method === 'personal_sign') {
         return {
@@ -115,7 +133,7 @@
         return { chainId: typeof result === 'string' && result.length <= 18 && /^0x[0-9a-f]+$/i.test(result) ? result : 'unknown' }
       }
       if (method === 'wallet_switchEthereumChain') return { accepted: result == null }
-      if (method === 'personal_sign') {
+      if (method === 'personal_sign' || method === 'eth_signTypedData_v4') {
         return {
           signatureReturned: typeof result === 'string',
           signatureBytes: typeof result === 'string' && /^0x[0-9a-f]*$/i.test(result) ? Math.floor((result.length - 2) / 2) : 0
@@ -219,6 +237,32 @@
         `Issued At: ${new Date().toISOString()}`
       ].join('\n')
     }
+    const permitTypedData = (account, chainId) => ({
+      types: {
+        EIP712Domain: [
+          { name: 'name', type: 'string' },
+          { name: 'version', type: 'string' },
+          { name: 'chainId', type: 'uint256' },
+          { name: 'verifyingContract', type: 'address' }
+        ],
+        Permit: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' }
+        ]
+      },
+      primaryType: 'Permit',
+      domain: { name: 'Hronaut QA Token', version: '1', chainId: BigInt(chainId).toString(), verifyingContract: PERMIT_TOKEN },
+      message: {
+        owner: account,
+        spender: PERMIT_SPENDER,
+        value: PERMIT_VALUE,
+        nonce: '0',
+        deadline: String(Math.floor(Date.now() / 1000) + 3600)
+      }
+    })
     const utf8Hex = text => `0x${Array.from(new TextEncoder().encode(text), byte => byte.toString(16).padStart(2, '0')).join('')}`
 
     window.addEventListener('eip6963:announceProvider', event => {
@@ -264,6 +308,19 @@
         return
       }
       await request('personal_sign', [utf8Hex(signInMessage(origin, accounts[0], chainId)), accounts[0]])
+    })
+    document.querySelector('#sign-permit').addEventListener('click', async () => {
+      const accounts = await request('eth_accounts')
+      if (!Array.isArray(accounts) || typeof accounts[0] !== 'string') {
+        fixtureFailure('permit-account', new Error('Request accounts before signing a permit'))
+        return
+      }
+      const chainId = await request('eth_chainId')
+      if (typeof chainId !== 'string' || !/^0x[0-9a-f]{1,16}$/i.test(chainId)) {
+        fixtureFailure('permit-chain', new Error('The provider returned no usable chain ID'))
+        return
+      }
+      await request('eth_signTypedData_v4', [accounts[0], JSON.stringify(permitTypedData(accounts[0], chainId))])
     })
     document.querySelector('#send').addEventListener('click', async () => {
       const accounts = await request('eth_accounts')
