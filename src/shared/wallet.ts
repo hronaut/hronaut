@@ -85,6 +85,11 @@ export function walletAllowsWorkspace(
   return wallet.availableInAllWorkspaces === true || wallet.workspaceIds.includes(workspaceId)
 }
 
+/** Whether a policy or decoded method names a token call, whose token contract a policy must list. */
+export function isWalletTokenMethod(method: string): boolean {
+  return /^(?:erc20|trc20|nft|spl)\./i.test(method.trim())
+}
+
 export const WalletAgentDescriptorSchema = z.object({
   id: WalletIdSchema,
   name: z.string().trim().min(1).max(128),
@@ -322,6 +327,10 @@ export const WalletPolicySchema = z.object({
     'Wallet policy origin must be a normalized HTTP or HTTPS origin'
   )).max(256),
   destinations: z.array(z.string().trim().min(1).max(256)).max(256),
+  /** Token contracts a recognized token call may act on; token calls ask a person without one. */
+  contracts: z.array(z.string().trim().min(1).max(256)).max(256).optional(),
+  /** Lets token calls match on any token contract, turning the contract check off. */
+  allowAnyTokenContract: z.boolean().optional(),
   methods: z.array(z.string().trim().min(1).max(256)).max(256),
   maxNativeAmount: WalletDecimalSchema.optional(),
   maxTokenAmount: WalletDecimalSchema.optional(),

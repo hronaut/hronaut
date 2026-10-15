@@ -563,7 +563,7 @@ describe('WalletsSettingsPanel', () => {
     await user.selectOptions(screen.getByLabelText('Policy workspace'), 'workspace-b')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
-    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
     await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
     await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
 
@@ -607,7 +607,7 @@ describe('WalletsSettingsPanel', () => {
     })
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('Allowed origin'), 'https://wallet-a.example')
-    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
     await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
     await user.type(screen.getByLabelText('Max native amount'), '1')
     await user.clear(screen.getByLabelText('Operation count'))
@@ -615,7 +615,7 @@ describe('WalletsSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: /Signing wallet B/ }))
 
     expect(screen.getByLabelText('Allowed origin')).toHaveValue('')
-    expect(screen.getByLabelText('Destination / contract')).toHaveValue('')
+    expect(screen.getByLabelText('Recipient, spender or operator')).toHaveValue('')
     expect(screen.getByLabelText('Method / instruction')).toHaveValue('')
     expect(screen.getByLabelText('Max native amount')).toHaveValue('')
     expect(screen.getByLabelText('Operation count')).toHaveValue(1)
@@ -637,15 +637,132 @@ describe('WalletsSettingsPanel', () => {
     })
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
-    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
     await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
     await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
 
     expect(setPolicy).toHaveBeenCalledOnce()
     expect(screen.getByLabelText('Allowed origin')).toHaveValue('')
-    expect(screen.getByLabelText('Destination / contract')).toHaveValue('')
+    expect(screen.getByLabelText('Recipient, spender or operator')).toHaveValue('')
     expect(screen.getByLabelText('Method / instruction')).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
+  })
+
+  it('saves the token contract a token-call policy names, and clears it with the draft', async () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
+    const setPolicy = vi.fn(async (policy: WalletPolicy) => policy)
+    const wallets = controller({ wallets: ref([signingWallet]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+    expect(screen.getByLabelText('Token contract')).toHaveAccessibleDescription(
+      'A token call, such as erc20.transfer, erc20.approve or nft.setApprovalForAll, runs without approval only on the token contract named here, so one is required for those methods unless you allow any token contract. Leave it empty for native transfers.'
+    )
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Method / instruction'), 'erc20.transfer')
+    // A token method needs its token contract.
+    expect(screen.getByLabelText('Token contract')).toBeRequired()
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Token contract'), ' 0x00000000000000000000000000000000000000aa ')
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+
+    expect(setPolicy).toHaveBeenCalledWith(expect.objectContaining({
+      destinations: ['0x0000000000000000000000000000000000000001'],
+      contracts: ['0x00000000000000000000000000000000000000aa'],
+      methods: ['erc20.transfer']
+    }))
+    expect(screen.getByLabelText('Token contract')).toHaveValue('')
+
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Method / instruction'), 'native-transfer')
+    expect(screen.getByLabelText('Token contract')).not.toBeRequired()
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+    expect(setPolicy.mock.calls[1][0]).not.toHaveProperty('contracts')
+  })
+
+  it('lets a token-call policy allow any token contract behind a warning', async () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
+    const setPolicy = vi.fn(async (policy: WalletPolicy) => policy)
+    const wallets = controller({ wallets: ref([signingWallet]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Token contract'), '0x00000000000000000000000000000000000000aa')
+    await user.type(screen.getByLabelText('Method / instruction'), 'erc20.transfer')
+    const anyToken = screen.getByRole('checkbox', { name: 'Allow any token contract' })
+    expect(anyToken).not.toBeChecked()
+    expect(anyToken).toHaveAccessibleDescription(expect.stringContaining('signed on any token contract'))
+    await user.click(anyToken)
+    expect(screen.getByLabelText('Token contract')).toBeDisabled()
+    expect(screen.getByLabelText('Token contract')).not.toBeRequired()
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+
+    expect(setPolicy).toHaveBeenCalledWith(expect.objectContaining({ methods: ['erc20.transfer'], allowAnyTokenContract: true }))
+    expect(setPolicy.mock.calls[0][0]).not.toHaveProperty('contracts')
+    expect(screen.getByRole('checkbox', { name: 'Allow any token contract' })).not.toBeChecked()
+  })
+
+  it('does not drop a token contract typed on a sign-in only policy', async () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
+    const wallets = controller({ wallets: ref([signingWallet]) })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.click(screen.getByLabelText('Let this site connect and sign in without asking'))
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeEnabled()
+    await user.type(screen.getByLabelText('Token contract'), '0x00000000000000000000000000000000000000aa')
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
+  })
+
+  it('lists the token contract a saved policy names', () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.policyIds = ['policy-token']
+    const tokenPolicy: WalletPolicy = {
+      id: 'policy-token', name: 'Token policy', mode: 'bounded-auto', walletId: signingWallet.id, workspaceId: 'workspace-a',
+      networkIds: [signingWallet.network.id], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000001'], contracts: ['0x00000000000000000000000000000000000000aa'],
+      methods: ['erc20.transfer'], expiresAt: '2099-01-01T00:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    }
+    render(WalletsSettingsPanel, {
+      props: { controller: controller({ wallets: ref([signingWallet]), policies: ref([tokenPolicy]) }), workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    expect(screen.getByText('Token contract: 0x00000000000000000000000000000000000000aa')).toBeInTheDocument()
+  })
+
+  it('lists a policy that allows any token contract', () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.policyIds = ['policy-any-token']
+    const tokenPolicy: WalletPolicy = {
+      id: 'policy-any-token', name: 'Any token policy', mode: 'bounded-auto', walletId: signingWallet.id, workspaceId: 'workspace-a',
+      networkIds: [signingWallet.network.id], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000001'], allowAnyTokenContract: true,
+      methods: ['erc20.transfer'], expiresAt: '2099-01-01T00:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    }
+    render(WalletsSettingsPanel, {
+      props: { controller: controller({ wallets: ref([signingWallet]), policies: ref([tokenPolicy]) }), workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    expect(screen.getByText('Any token contract')).toBeInTheDocument()
   })
 
   it('adds a testnet sign-in policy without a transaction target', async () => {
@@ -667,9 +784,9 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.queryByLabelText('Also allow on mainnet')).not.toBeInTheDocument()
     // Typed data can authorize token permits, so only a dedicated agent wallet offers it.
     expect(screen.queryByLabelText('Also sign typed data without asking')).not.toBeInTheDocument()
-    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000001')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
-    await user.clear(screen.getByLabelText('Destination / contract'))
+    await user.clear(screen.getByLabelText('Recipient, spender or operator'))
     await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
 
     expect(setPolicy).toHaveBeenCalledOnce()
@@ -704,7 +821,7 @@ describe('WalletsSettingsPanel', () => {
     const mainnetSwitch = screen.getByLabelText('Also allow on mainnet')
     expect(mainnetSwitch).not.toBeChecked()
     expect(mainnetSwitch).toHaveAccessibleDescription(/Warning: this is a real mainnet account/)
-    expect(screen.getByLabelText('Destination / contract')).toBeDisabled()
+    expect(screen.getByLabelText('Recipient, spender or operator')).toBeDisabled()
     expect(screen.getByLabelText('Max native amount')).toBeDisabled()
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
     await fireEvent.update(screen.getByLabelText('Expires'), '2026-09-05T12:00')
@@ -1127,7 +1244,7 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByText(/matching agent transactions run without a per-request approval dialog/i)).toBeVisible()
     await user.click(screen.getByLabelText('Bypass Approve mode'))
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
-    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000002')
+    await user.type(screen.getByLabelText('Recipient, spender or operator'), '0x0000000000000000000000000000000000000002')
     await user.type(screen.getByLabelText('Method / instruction'), 'native-transfer')
     await user.type(screen.getByLabelText('Max native amount'), '0.01')
     await user.type(screen.getByLabelText('Max token amount'), '1')
@@ -1138,7 +1255,7 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByLabelText('Bypass Approve mode')).toBeChecked()
     expect(screen.getByLabelText('Policy workspace')).toHaveValue('workspace-1')
     expect(screen.getByLabelText('Allowed origin')).toHaveValue('https://dapp.example')
-    expect(screen.getByLabelText('Destination / contract')).toHaveValue('0x0000000000000000000000000000000000000002')
+    expect(screen.getByLabelText('Recipient, spender or operator')).toHaveValue('0x0000000000000000000000000000000000000002')
     expect(screen.getByLabelText('Method / instruction')).toHaveValue('native-transfer')
     expect(screen.getByLabelText('Max native amount')).toHaveValue('0.01')
     expect(screen.getByLabelText('Max token amount')).toHaveValue('1')

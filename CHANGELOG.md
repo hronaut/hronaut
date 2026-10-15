@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - An ERC-20 or TRC-20 approval of at least 2^160 − 1, not only the exact uint256 maximum, now counts as unlimited, so it always needs a person even when a bounded policy lists `erc20.approve`. A `setApprovalForAll` that grants access and every `increaseAllowance` also always need a person. A bounded policy that lists `nft.setApprovalForAll` can now sign a call that revokes an operator without a click.
+- A bounded wallet policy signs a token call (`erc20.`, `trc20.` or `nft.` methods) without a click only when it also names the token contract in the new **Token contract** field. Before, a policy matched token calls by recipient or spender alone, so a policy meant for one token also covered any other token sent to the same address. A new policy for a token method must name its token contract, or turn the check off with a new default-off **Allow any token contract** switch, shown with a warning. Existing policies keep loading, but their token calls ask a person; remove such a policy and add it again with the token contract or the switch. Native transfers are unchanged. The destination field is now labelled **Recipient, spender or operator**.
 
 ## [2.45.0] - 2026-10-15
 

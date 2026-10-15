@@ -281,6 +281,12 @@ describe('website sign-in without a click', () => {
     await expect(mainnet.service.setPolicy(signInPolicy(mainnet.wallet, {
       allowMainnetWebsiteSignIn: true, destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer']
     }))).rejects.toThrow('cannot list transaction destinations')
+    await expect(mainnet.service.setPolicy(signInPolicy(mainnet.wallet, {
+      allowMainnetWebsiteSignIn: true, contracts: ['0x0000000000000000000000000000000000000003']
+    }))).rejects.toThrow('cannot list transaction destinations, contracts or methods')
+    await expect(mainnet.service.setPolicy(signInPolicy(mainnet.wallet, {
+      allowMainnetWebsiteSignIn: true, allowAnyTokenContract: true
+    }))).rejects.toThrow('cannot list transaction destinations, contracts or methods')
   })
 
   it('refuses mainnet sign-in on an ordinary mainnet wallet', async () => {

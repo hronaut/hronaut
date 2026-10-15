@@ -1856,7 +1856,7 @@ describe('WalletBroker', () => {
     await service.setPolicy({
       id: 'policy-1', name: 'Testnet approvals', mode: 'bounded-auto', walletId: wallet.id,
       workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
-      destinations: [spender], methods: ['erc20.approve', 'erc20.increaseAllowance', 'nft.setApprovalForAll'],
+      destinations: [spender], contracts: [token], methods: ['erc20.approve', 'erc20.increaseAllowance', 'nft.setApprovalForAll'],
       expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 10,
       requireSuccessfulSimulation: true, allowMessageSigning: false
     })
@@ -1881,6 +1881,15 @@ describe('WalletBroker', () => {
     // A bounded approval the policy covers is signed without a person.
     await expect(send(encodeFunctionData({ abi, functionName: 'approve', args: [spender, 10n] }))).resolves.toBe(`0x${'a'.repeat(64)}`)
     expect(client.sendRawTransaction).toHaveBeenCalledOnce()
+
+    // The same approval on a token the policy does not name asks a person.
+    const otherToken = await awaitingPerson(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction',
+      params: [{ to: '0x00000000000000000000000000000000000000bb', data: encodeFunctionData({ abi, functionName: 'approve', args: [spender, 10n] }) }]
+    }))
+    expect(otherToken.pending.details).toMatchObject({ method: 'erc20.approve', contract: getAddress('0x00000000000000000000000000000000000000bb') })
+    await broker.reject(otherToken.pending.id)
+    await expect(otherToken.result).resolves.toMatchObject({ status: 'rejected' })
 
     // An approval this large is unlimited in practice even below the uint256 maximum.
     const unlimited = await awaitingPerson(send(encodeFunctionData({ abi, functionName: 'approve', args: [spender, 2n ** 200n] })))

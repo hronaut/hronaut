@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WalletPolicyUsageEntrySchema } from '../src/main/wallet/authority-state.js'
 import { WalletPermissionStore } from '../src/main/wallet/permissions.js'
 import {
+  isMainnetAgentAutomationPolicy,
   WalletPolicyEngine,
   walletDecimalAdd,
   walletDecimalCompare
@@ -272,6 +273,54 @@ describe('WalletPolicyEngine', () => {
       ...override
     })
     expect(decision).toEqual({ outcome: 'awaiting-human', reason })
+  })
+
+  it('signs a token call only on a token contract the policy lists', () => {
+    const token = '0x00000000000000000000000000000000000000Aa'
+    const tokenCall = { ...decoded, method: 'erc20.transfer', contract: token }
+    const evaluate = (policies: WalletPolicy[]) => new WalletPolicyEngine().evaluate({
+      request: request(), wallet, policies: policies.map((entry) => ({ ...entry, methods: ['erc20.transfer'] })),
+      decoded: tokenCall, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })
+    expect(evaluate([policy])).toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    expect(evaluate([{ ...policy, contracts: ['0x00000000000000000000000000000000000000bb'] }]))
+      .toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    // The recipient is not the token, so listing it as a contract does not cover other tokens.
+    expect(evaluate([{ ...policy, contracts: [decoded.destination] }])).toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    expect(evaluate([{ ...policy, contracts: [token.toLowerCase()] }]))
+      .toEqual({ outcome: 'approved', reason: 'bounded-policy', policyId: 'policy-1' })
+    // A token method whose contract was not decoded never matches, even a policy listing contracts.
+    expect(new WalletPolicyEngine().evaluate({
+      request: request(), wallet, policies: [{ ...policy, methods: ['erc20.transfer'], contracts: [token] }],
+      decoded: { ...decoded, method: 'erc20.transfer' }, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })).toEqual({ outcome: 'awaiting-human', reason: 'no-matching-policy' })
+    // Allowing any token contract turns the check off, including for an undecoded contract.
+    expect(evaluate([{ ...policy, allowAnyTokenContract: true }]))
+      .toEqual({ outcome: 'approved', reason: 'bounded-policy', policyId: 'policy-1' })
+    expect(new WalletPolicyEngine().evaluate({
+      request: request(), wallet, policies: [{ ...policy, methods: ['erc20.transfer'], allowAnyTokenContract: true }],
+      decoded: { ...decoded, method: 'erc20.transfer' }, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })).toEqual({ outcome: 'approved', reason: 'bounded-policy', policyId: 'policy-1' })
+    // A native transfer carries no token contract, so a policy without one still covers it.
+    expect(new WalletPolicyEngine().evaluate({
+      request: request(), wallet, policies: [policy], decoded, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })).toEqual({ outcome: 'approved', reason: 'bounded-policy', policyId: 'policy-1' })
+  })
+
+  it('keeps a mainnet Bypass Approve policy to at most one token contract', () => {
+    const mainnet = {
+      ...policy, networkIds: ['1'], allowMainnetAgentAutomation: true, maxTokenAmount: '10', maxFee: '0.01',
+      sessionSpendLimit: '1', dailySpendLimit: '1', maximumOperationCount: 5, expiresAt: '2026-08-29T12:00:00.000Z'
+    }
+    const now = new Date('2026-08-28T12:10:00.000Z')
+    expect(isMainnetAgentAutomationPolicy({ ...mainnet, contracts: ['0x00000000000000000000000000000000000000aa'] }, now)).toBe(true)
+    expect(isMainnetAgentAutomationPolicy({
+      ...mainnet, contracts: ['0x00000000000000000000000000000000000000aa', '0x00000000000000000000000000000000000000bb']
+    }, now)).toBe(false)
   })
 
   it('always requires a human for blind message signing', () => {
