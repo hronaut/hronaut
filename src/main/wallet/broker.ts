@@ -62,6 +62,7 @@ import type {
 import { hasHiddenMessageCharacters, revealHiddenMessageCharacters } from './hidden-characters.js'
 import { transactionWarnings } from './transaction-display.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
+import { recoverPersonalSigner } from './evm-ec-recover.js'
 import {
   isMainnetAgentAutomationPolicy,
   isSignInText,
@@ -963,6 +964,10 @@ export class WalletBroker {
   }
 
   private async evmRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
+    if (method === 'personal_ecRecover') {
+      const values = paramsArray(params)
+      return recoverPersonalSigner(this.messageBytes(values[0], 'hex-or-utf8'), values[1])
+    }
     if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') {
       const chainId = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
       if (method === 'wallet_addEthereumChain') return this.addEvmChain(context, wallets, chainId)

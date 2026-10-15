@@ -4103,6 +4103,31 @@ describe('WalletBroker', () => {
     }
   })
 
+  it('recovers the signer of a personal_sign signature with personal_ecRecover, without a connection or a prompt', async () => {
+    const { service, wallet } = await setup('testnet')
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await connect(broker)
+    const message = 'Example `personal_sign` message'
+    const signing = broker.providerRequest(context(), { family: 'evm', method: 'personal_sign', params: [message, wallet.publicAddress] })
+    await broker.approve((await broker.waitForPending((request) => request.operation === 'sign-message' && request.status === 'awaiting-human')).id)
+    const signature = await signing
+
+    // A site that never connected reads the same signer, as with MetaMask's test dapp verify button.
+    const other = context({ topLevelOrigin: 'https://other.example', requester: { type: 'website', id: 'https://other.example' } })
+    await expect(broker.providerRequest(other, { family: 'evm', method: 'personal_ecRecover', params: [message, signature] }))
+      .resolves.toBe(wallet.publicAddress)
+    // personal_sign's hex form of the same bytes recovers the same account.
+    await expect(broker.providerRequest(other, {
+      family: 'evm', method: 'personal_ecRecover', params: [`0x${Buffer.from(message, 'utf8').toString('hex')}`, signature]
+    })).resolves.toBe(wallet.publicAddress)
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+
+    await expect(broker.providerRequest(other, { family: 'evm', method: 'personal_ecRecover', params: [message, '0x1234'] }))
+      .rejects.toThrow('EVM RPC error (code -32602): personal_ecRecover needs the signed message and a 65-byte signature')
+    await expect(broker.providerRequest(other, { family: 'evm', method: 'personal_ecRecover', params: ['', signature] }))
+      .rejects.toThrow('Wallet message is invalid')
+  })
+
   it('always routes message signing through trusted human approval and validates the requested account', async () => {
     const { service, wallet } = await setup('testnet')
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })

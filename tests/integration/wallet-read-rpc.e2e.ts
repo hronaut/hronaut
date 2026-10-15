@@ -77,6 +77,9 @@ function startJsonRpc(): Promise<{ server: Server; url: string; methods: string[
   }))
 }
 
+// The imported key's personal_sign signature of 'Verify this Hronaut message'.
+const VERIFY_SIGNATURE = '0xa9b9ddf2b02169182565f1d824ad4c685af5055981fd1cbae4b0fa046ffc9c406eb723e28a0e2405e527cae5a5f619d14aa5ac0abb9ec5437fc2419eadf0d51f1b'
+
 test('lets a dApp page read chain state through the wallet provider without a connection prompt', async ({ capabilities, appWindow, electronApp }) => {
   const { workspace, fixtureUrl } = capabilities
   const rpc = await startJsonRpc()
@@ -97,7 +100,7 @@ test('lets a dApp page read chain state through the wallet provider without a co
       dedicatedAgent: false
     })`)
 
-    const results = await electronApp.evaluate(async ({ webContents }, { pageUrl, address }) => {
+    const results = await electronApp.evaluate(async ({ webContents }, { pageUrl, address, signature }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
       if (!page) throw new Error('Wallet read RPC fixture WebContents was not found')
       return page.executeJavaScript(`(async () => {
@@ -119,10 +122,12 @@ test('lets a dApp page read chain state through the wallet provider without a co
             calls: [{ to: '0x0000000000000000000000000000000000000002', value: '0x1' }, { to: '0x0000000000000000000000000000000000000003', value: '0x1' }]
           }] })),
           unknownBatch: await settle(provider.request({ method: 'wallet_getCallsStatus', params: ['0x01'] })),
-          capabilities: await settle(provider.request({ method: 'wallet_getCapabilities', params: [${JSON.stringify(address)}] }))
+          capabilities: await settle(provider.request({ method: 'wallet_getCapabilities', params: [${JSON.stringify(address)}] })),
+          recovered: await settle(provider.request({ method: 'personal_ecRecover', params: ['Verify this Hronaut message', ${JSON.stringify(signature)}] })),
+          unrecoverable: await settle(provider.request({ method: 'personal_ecRecover', params: ['Verify this Hronaut message', '0x1234'] }))
         };
       })()`)
-    }, { pageUrl: fixtureUrl, address: prepared.publicAddress })
+    }, { pageUrl: fixtureUrl, address: prepared.publicAddress, signature: VERIFY_SIGNATURE })
 
     expect(results.blockNumber).toEqual({ value: '0x2a' })
     expect(results.balance).toEqual({ value: '0xde0b6b3a7640000' })
@@ -137,6 +142,9 @@ test('lets a dApp page read chain state through the wallet provider without a co
     expect(results.atomicBatch).toMatchObject({ code: 5760 })
     expect(results.unknownBatch).toMatchObject({ code: 5730 })
     expect(results.capabilities).toMatchObject({ code: 4100 })
+    // personal_ecRecover needs no connection or prompt and never reaches the node.
+    expect(results.recovered).toEqual({ value: prepared.publicAddress })
+    expect(results.unrecoverable).toMatchObject({ code: -32602 })
     expect(rpc.methods).toEqual(['eth_blockNumber', 'eth_getBalance', 'eth_call', 'eth_blobBaseFee', 'eth_createAccessList'])
     expect(await appWindow.evaluate('window.hronautWallets.listRequests()')).toEqual([])
   } finally {
