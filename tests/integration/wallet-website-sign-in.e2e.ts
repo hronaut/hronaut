@@ -176,8 +176,10 @@ test('shows the wallet QA fixture token permit to a person, who approves it', as
     await expect(summary).toContainText('31337')
     await expect(summary).toContainText('0x70997970C51812dc3A010C7d01b50e0d17dc79C8')
     await expect(summary).toContainText('0x5FbDB2315678afecb367f032d93F642f64180aa3 · 1000000 (smallest token units)')
-    await expect(approval.getByRole('alert').filter({ hasText: 'This is a token permit.' })).toBeVisible()
-    await expect(approval.getByRole('alert').filter({ hasText: /unlimited|different chain|does not name/ })).toHaveCount(0)
+    await expect(approval.getByRole('alert')).toHaveText([
+      'Hronaut could not fully decode this request. Approval requires extra care.',
+      'This is a token permit. Signing it lets the spender move your tokens without another approval from you.'
+    ])
     await approval.getByRole('button', { name: 'Approve exact request' }).click()
 
     await expect.poll(fixtureLog).toContain('"signatureBytes": 65')

@@ -254,29 +254,34 @@ describe('wallet QA request evidence', () => {
   })
 })
 
-describe('wallet QA sign-in', () => {
-  const account = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
-  const signature = `0x${'c'.repeat(130)}`
-  const importedWallet: WalletDescriptor = {
-    id: 'wallet-1',
-    name: 'Disposable Anvil wallet',
-    kind: 'imported',
-    chainFamily: 'evm',
-    publicAddress: account,
-    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
-    capabilities: ['read', 'sign', 'send'],
-    workspaceIds: ['workspace-1'],
-    policyIds: [],
-    recoveryConfirmed: true,
-    createdAt: '2026-10-15T12:00:00.000Z',
-    updatedAt: '2026-10-15T12:00:00.000Z'
-  }
-  const signer = (accounts: string[]) => vi.fn(async ({ method }: { method: string; params?: unknown[] }) => {
+const account = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+const signature = `0x${'c'.repeat(130)}`
+const importedWallet: WalletDescriptor = {
+  id: 'wallet-1',
+  name: 'Disposable Anvil wallet',
+  kind: 'imported',
+  chainFamily: 'evm',
+  publicAddress: account,
+  network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+  capabilities: ['read', 'sign', 'send'],
+  workspaceIds: ['workspace-1'],
+  policyIds: [],
+  recoveryConfirmed: true,
+  createdAt: '2026-10-15T12:00:00.000Z',
+  updatedAt: '2026-10-15T12:00:00.000Z'
+}
+
+// A stub provider on Anvil's chain that signs messages and typed data.
+function signer(accounts: string[], chainId = '0x7a69') {
+  return vi.fn(async ({ method }: { method: string; params?: unknown[] }) => {
     if (method === 'eth_accounts') return accounts
-    if (method === 'eth_chainId') return '0x7a69'
-    if (method === 'personal_sign') return signature
+    if (method === 'eth_chainId') return chainId
+    if (method === 'personal_sign' || method === 'eth_signTypedData_v4') return signature
     throw new Error('Unexpected method')
   })
+}
+
+describe('wallet QA sign-in', () => {
 
   it('signs Sign-In with Ethereum text that the website sign-in policy accepts for this page', async () => {
     const request = signer([account])
@@ -347,29 +352,6 @@ describe('wallet QA sign-in', () => {
 })
 
 describe('wallet QA token permit', () => {
-  const account = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
-  const signature = `0x${'d'.repeat(130)}`
-  const wallet: WalletDescriptor = {
-    id: 'wallet-1',
-    name: 'Disposable Anvil wallet',
-    kind: 'imported',
-    chainFamily: 'evm',
-    publicAddress: account,
-    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
-    capabilities: ['read', 'sign', 'send'],
-    workspaceIds: ['workspace-1'],
-    policyIds: [],
-    recoveryConfirmed: true,
-    createdAt: '2026-10-15T12:00:00.000Z',
-    updatedAt: '2026-10-15T12:00:00.000Z'
-  }
-  const signer = (accounts: string[]) => vi.fn(async ({ method }: { method: string; params?: unknown[] }) => {
-    if (method === 'eth_accounts') return accounts
-    if (method === 'eth_chainId') return '0x7a69'
-    if (method === 'eth_signTypedData_v4') return signature
-    throw new Error('Unexpected method')
-  })
-
   it('asks the wallet to sign an EIP-2612 permit that Hronaut summarizes', async () => {
     const request = signer([account])
     const page = pageWith({ request })
@@ -390,7 +372,7 @@ describe('wallet QA token permit', () => {
     expect(deadline).toBeLessThanOrEqual(3600)
     // The signer accepts it, and the approval shows what the fixture describes.
     expect(() => hashTypedData(typedData as unknown as Parameters<typeof hashTypedData>[0])).not.toThrow()
-    expect(typedDataDisplay(typedData, wallet)).toEqual({
+    expect(typedDataDisplay(typedData, importedWallet)).toEqual({
       primaryType: 'Permit',
       domain: { name: 'Hronaut QA Token', version: '1', chainId: '31337', verifyingContract: '0x5FbDB2315678afecb367f032d93F642f64180aa3' },
       tokenAccess: {
@@ -437,6 +419,41 @@ describe('wallet QA token permit', () => {
       kind: 'fixture:error',
       value: { stage: 'permit-account', walletBehavior: 'not-exercised', error: { category: 'fixture-error' } }
     })
+  })
+
+  it('asks for no signature when the provider returns no usable chain ID', async () => {
+    const request = signer([account], 'mainnet')
+    const page = pageWith({ request })
+
+    await click(page, '#sign-permit')
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts', 'eth_chainId'])
+    expect(events(page).at(-1)).toEqual({
+      kind: 'fixture:error',
+      value: { stage: 'permit-chain', walletBehavior: 'not-exercised', error: { category: 'fixture-error' } }
+    })
+  })
+
+  it('records a rejected permit by its error code only', async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === 'eth_accounts') return [account]
+      if (method === 'eth_chainId') return '0x7a69'
+      throw Object.assign(new Error(`User rejected ${account}`), { code: 4001 })
+    })
+    const page = pageWith({ request })
+
+    await click(page, '#sign-permit')
+
+    expect(events(page).at(-1)).toEqual({
+      kind: 'request:error',
+      value: expect.objectContaining({
+        requestId: 'request-3',
+        method: 'eth_signTypedData_v4',
+        stage: 'provider-rejection',
+        error: { category: 'provider-error', code: 4001 }
+      })
+    })
+    expect((page.document.querySelector('#log')?.textContent ?? '').toLowerCase()).not.toContain(account.toLowerCase())
   })
 })
 

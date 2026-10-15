@@ -91,6 +91,10 @@
       broadcast: 'unknown',
       confirmation: 'unknown'
     }
+    // Anvil's first contract deployment address and its second default account.
+    const PERMIT_TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
+    const PERMIT_SPENDER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+    const PERMIT_VALUE = '1000000'
     const parameterSummary = (method, params) => {
       if (!params) return 'none'
       if (method === 'wallet_switchEthereumChain') {
@@ -233,10 +237,6 @@
         `Issued At: ${new Date().toISOString()}`
       ].join('\n')
     }
-    // Anvil's first contract deployment address and its second default account.
-    const PERMIT_TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
-    const PERMIT_SPENDER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
-    const PERMIT_VALUE = '1000000'
     const permitTypedData = (account, chainId) => ({
       types: {
         EIP712Domain: [
