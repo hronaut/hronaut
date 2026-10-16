@@ -9,8 +9,8 @@ import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
  * user's choices to the shell, which carries them out with the shell's own browser API.
  */
 export const AGENT_CARD_ACTIONS = [
-  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'hand-back', 'dismiss', 'review-decision',
-  'answer-check', 'answer-resolve', 'answer-reject'
+  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'pin-on', 'pin-off', 'hand-back', 'dismiss',
+  'review-decision', 'answer-check', 'answer-resolve', 'answer-reject'
 ] as const
 export type AgentCardAction = typeof AGENT_CARD_ACTIONS[number]
 /** Answers to an agent's decision; only these carry the person's note. */
@@ -106,6 +106,8 @@ export interface AgentCardModel {
   follow: AgentCardSwitch
   /** Whether agents' cursors are drawn on the page. */
   cursor: AgentCardSwitch
+  /** Whether the live status strip is pinned below the toolbar. */
+  pin: AgentCardSwitch
   buttons: AgentCardButton[]
   closeLabel: string
 }
@@ -296,6 +298,7 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
     },
     follow: cardSwitch(source.follow, 'follow'),
     cursor: cardSwitch(source.cursor, 'cursor'),
+    pin: cardSwitch(source.pin, 'pin'),
     buttons: buttons(source.buttons, BUTTON_LIMIT),
     closeLabel: text(source.closeLabel)
   }

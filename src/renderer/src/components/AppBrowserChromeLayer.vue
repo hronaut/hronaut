@@ -22,6 +22,7 @@ import type { AppSiteManagementFeatureController } from '../composables/useAppSi
 import type { AppTabRuntimeFeatureController } from '../composables/useAppTabRuntimeFeatureController.js'
 import type { BrowserTabActionsController } from '../composables/useBrowserTabActionsController.js'
 import type { SiteDataSummaryController } from '../composables/useSiteDataSummaryController.js'
+import AgentLiveStrip from './AgentLiveStrip.vue'
 import AgentPresenceAvatars from './AgentPresenceAvatars.vue'
 import AppTopbarActions from './AppTopbarActions.vue'
 import BrowserAddressBar from './BrowserAddressBar.vue'
@@ -123,7 +124,8 @@ const {
   settings,
   toggleFollowAgentActivity,
   setFollowAgentActivity: setFollowAgentActivitySetting,
-  setShowAgentCursor: setShowAgentCursorSetting
+  setShowAgentCursor: setShowAgentCursorSetting,
+  setPinAgentLiveStatus: setPinAgentLiveStatusSetting
 } = props.settingsController
 const { state: updateState } = updateSettingsController
 const websiteTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
@@ -201,7 +203,7 @@ function selectTab(tabId: string): void {
   void props.runAction(() => selectBrowserTab(tabId))
 }
 
-const agentPresenceAvatars = ref<{ openCard: () => boolean } | null>(null)
+const agentPresenceAvatars = ref<{ openCard: (options?: { reopen?: boolean }) => boolean; focus: () => boolean } | null>(null)
 const activeWorkspaceName = computed(() => {
   const workspaceId = activeTab.value?.mcpGroupId
   return workspaceId ? props.state.mcpTabGroups.find((group) => group.id === workspaceId)?.name : undefined
@@ -235,6 +237,10 @@ function setShowAgentCursor(show: boolean): void {
   void props.runAction(() => setShowAgentCursorSetting(show))
 }
 
+function setPinAgentLiveStatus(pin: boolean): void {
+  void props.runAction(() => setPinAgentLiveStatusSetting(pin))
+}
+
 // Main answers only the request still open with this id; an answer from an older card changes nothing.
 function answerAttention(id: string, answer: 'resolved' | 'dismissed'): void {
   void props.runAction(() => props.browser.answerUserAttention(id, answer))
@@ -243,6 +249,22 @@ function answerAttention(id: string, answer: 'resolved' | 'dismissed'): void {
 /** Opens an agent card for the workspace in view; false when it has no agents. */
 function openAgentCard(): boolean {
   return agentPresenceAvatars.value?.openCard() ?? false
+}
+
+// The strip's Answer shows the card even when it was open, since pressing Answer closes it.
+function answerInAgentCard(): void {
+  agentPresenceAvatars.value?.openCard({ reopen: true })
+}
+
+// Unpinning removes the strip with its focused chevron; focus moves to the agent's avatar, or the
+// address field, unless you have put it somewhere else meanwhile.
+function unpinLiveStrip(): void {
+  void props.runAction(async () => {
+    await setPinAgentLiveStatusSetting(false)
+    await nextTick()
+    if (document.activeElement && document.activeElement !== document.body) return
+    if (!agentPresenceAvatars.value?.focus()) document.querySelector<HTMLElement>('.toolbar .address-form input')?.focus({ preventScroll: true })
+  })
 }
 
 function startTabDrag(): void {
@@ -408,12 +430,14 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
         :tabs="state.tabs"
         :follow="settings.followAgentActivity"
         :show-cursor="settings.showAgentCursor"
+        :pin-live-status="settings.pinAgentLiveStatus"
         :agent-control-locked="state.agentControlLocked === true"
         @select="selectTab"
         @set-paused="setAgentPaused"
         @take-over="takeOverTab"
         @set-follow="setFollowAgentActivity"
         @set-show-cursor="setShowAgentCursor"
+        @set-pin-live-status="setPinAgentLiveStatus"
         @answer-attention="answerAttention"
         @review-decision="actions.reviewDecisions"
       />
@@ -450,4 +474,21 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
       </template>
     </BrowserNavigationControls>
   </div>
+  <!-- Pinned, it holds its place on every page of a workspace, so pages do not move as agents come and go. -->
+  <AgentLiveStrip
+    v-if="settings.pinAgentLiveStatus && !activeIsHome && !settingsOpen && activeTab?.mcpGroupId"
+    :workspace-id="activeTab.mcpGroupId"
+    :attention-reason="userAttention?.reason"
+    :attention-id="userAttention?.id"
+    :attention-decision="userAttention?.humanWaitingDecisionId !== undefined"
+    :attention-workspace-id="userAttention?.workspaceId"
+    :attention-tab-id="userAttention?.tabId"
+    :tabs="state.tabs"
+    :agent-control-locked="state.agentControlLocked === true"
+    @set-paused="setAgentPaused"
+    @take-over="takeOverTab"
+    @hand-back="answerAttention($event, 'resolved')"
+    @open-card="answerInAgentCard"
+    @unpin="unpinLiveStrip"
+  />
 </template>

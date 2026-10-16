@@ -289,6 +289,10 @@ export const esES = {
       "label": "Mostrar cursores de agentes",
       "description": "Mostrar el cursor de cada agente, con su nombre, donde hace clic, señala o arrastra en una página."
     },
+    "agentStrip": {
+      "label": "Fijar el estado en vivo bajo la barra de herramientas",
+      "description": "Muestra en una franja bajo la barra de herramientas lo que hace el agente del espacio que estás viendo, con Pausar, Tomar el control y, cuando te necesita, su motivo. Las páginas bajan para dejar sitio."
+    },
     "attentionSound": {
       "label": "Sonido de atención",
       "description": "Elige el aviso que suena cuando Hronaut te necesita.",
@@ -1405,6 +1409,7 @@ export const esES = {
       "stepFailed": "{step}, falló",
       "follow": "Seguir a los agentes en todos los espacios",
       "cursor": "Mostrar los cursores de los agentes en la página",
+      "pin": "Fijar el estado en vivo bajo la barra de herramientas",
       "showTab": "Mostrar su pestaña",
       "pause": "Pausar en esta pestaña",
       "resume": "Reanudar en esta pestaña",
@@ -1475,6 +1480,18 @@ export const esES = {
         "navigate": "Abrió {target}",
         "openTab": "Abrió {target} en una pestaña nueva"
       }
+    },
+    "agentStrip": {
+      "label": "Estado en vivo de los agentes de este espacio",
+      "empty": "Ningún agente trabaja en este espacio",
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "handBack": "Devolver",
+      "handBackDescription": "Decirle al agente que terminaste lo que pidió",
+      "answer": "Responder",
+      "answerDescription": "Abrir la tarjeta del agente para responder a su decisión",
+      "decision": "Espera tu decisión",
+      "unpin": "Dejar de fijar el estado en vivo"
     },
     "siteControls": {
       "close": "Cerrar los controles del sitio",

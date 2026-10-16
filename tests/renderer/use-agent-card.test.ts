@@ -15,7 +15,7 @@ function agent(overrides: Partial<AgentPresence> = {}): AgentPresence {
 }
 
 function context(overrides: Partial<AgentCardContext> = {}): AgentCardContext {
-  return { workspaceName: 'Checkout', follow: false, showCursor: true, tab: { id: 'tab-2', agentPaused: false }, tabInView: false, agentControlLocked: false, color: '#2aa198', name: 'Claude Code', ...overrides }
+  return { workspaceName: 'Checkout', follow: false, showCursor: true, pinLiveStatus: false, tab: { id: 'tab-2', agentPaused: false }, tabInView: false, agentControlLocked: false, color: '#2aa198', name: 'Claude Code', ...overrides }
 }
 
 describe('agent card content', () => {
@@ -35,6 +35,7 @@ describe('agent card content', () => {
       recent: { heading: 'Recent steps', empty: 'No finished steps yet', steps: [{ text: 'Clicked on the page, failed', failed: true }, { text: 'Opened a page' }] },
       follow: { label: 'Follow agents in all workspaces', checked: false },
       cursor: { label: 'Show agent cursors on the page', checked: true },
+      pin: { label: 'Pin live status below the toolbar', checked: false },
       buttons: [
         { action: 'show-tab', label: 'Show its tab' },
         { action: 'pause', label: 'Pause on this tab' },

@@ -52,6 +52,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       challengeDetectionEnabled: false,
       followAgentActivity: false,
       showAgentCursor: true,
+      pinAgentLiveStatus: false,
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,

@@ -65,6 +65,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       followAgentActivity: true,
       showAgentCursor: false,
+      pinAgentLiveStatus: true,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
@@ -90,6 +91,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       followAgentActivity: true,
       showAgentCursor: false,
+      pinAgentLiveStatus: true,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
@@ -115,6 +117,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       followAgentActivity: true,
       showAgentCursor: false,
+      pinAgentLiveStatus: true,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
@@ -180,6 +183,7 @@ describe('SettingsStore', () => {
       challengeDetectionEnabled: false,
       followAgentActivity: false,
       showAgentCursor: true,
+      pinAgentLiveStatus: false,
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
@@ -191,6 +195,16 @@ describe('SettingsStore', () => {
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })
+  })
+
+  it('keeps the live status strip unpinned unless the settings file pins it with a boolean', async () => {
+    const { path, store } = await createStore()
+    expect((await store.load()).pinAgentLiveStatus).toBe(false)
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"pinAgentLiveStatus":"yes"}\n', 'utf8')
+    expect((await store.load()).pinAgentLiveStatus).toBe(false)
+    await writeFile(path, '{"pinAgentLiveStatus":true}\n', 'utf8')
+    expect((await store.load()).pinAgentLiveStatus).toBe(true)
   })
 
   it('draws agent cursors unless the settings file turns them off with a boolean', async () => {

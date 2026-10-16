@@ -39,6 +39,7 @@ interface AppSettingsFeatureStore {
   resetAppearance(): Promise<RendererSettingsState>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
+  setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
@@ -395,6 +396,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     toggleFollowAgentActivity,
     setFollowAgentActivity,
     setShowAgentCursor: (show: boolean) => options.settingsStore.setShowAgentCursor(show),
+    setPinAgentLiveStatus: (pin: boolean) => options.settingsStore.setPinAgentLiveStatus(pin),
     bootstrapTasks,
     dispose
   }

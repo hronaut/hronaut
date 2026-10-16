@@ -51,6 +51,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
       resetAppearance: vi.fn(async () => rendererState()),
       setFollowAgentActivity: vi.fn(async (followAgentActivity: boolean) => applySettings({ ...settings.value, followAgentActivity })),
       setShowAgentCursor: vi.fn(async (showAgentCursor: boolean) => applySettings({ ...settings.value, showAgentCursor })),
+      setPinAgentLiveStatus: vi.fn(async (pinAgentLiveStatus: boolean) => applySettings({ ...settings.value, pinAgentLiveStatus })),
       setSearchEngine: vi.fn(async (searchEngine: SearchEngineName) => applySettings({ ...settings.value, searchEngine })),
       setMcpRemoteAccess: vi.fn(),
     setMcpAuthentication: vi.fn(async (mcpAuthentication: boolean) => applySettings({ ...settings.value, mcpAuthentication })),

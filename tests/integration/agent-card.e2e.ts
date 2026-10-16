@@ -60,6 +60,7 @@ type CardView = {
   focusedControl: string | null
   follow: string | null
   cursor: string | null
+  pin: string | null
 }
 
 /** The native view that draws the agent card, while main has it in the window. */
@@ -80,9 +81,10 @@ async function cardView(electronApp: ElectronApplication): Promise<CardView | nu
         answers: [...document.querySelectorAll('.agent-card-answers button:not(:disabled)')].map((button) => button.dataset.action),
         focusedControl: active?.dataset.action ?? (active?.classList.contains('agent-card-close') ? 'close' : active === card ? 'card' : null),
         follow: document.querySelector('[data-action^="follow-"]')?.getAttribute('aria-checked') ?? null,
-        cursor: document.querySelector('[data-action^="cursor-"]')?.getAttribute('aria-checked') ?? null
+        cursor: document.querySelector('[data-action^="cursor-"]')?.getAttribute('aria-checked') ?? null,
+        pin: document.querySelector('[data-action^="pin-"]')?.getAttribute('aria-checked') ?? null
       }
-    })()`) as Pick<CardView, 'label' | 'text' | 'actions' | 'answers' | 'focusedControl' | 'follow' | 'cursor'>
+    })()`) as Pick<CardView, 'label' | 'text' | 'actions' | 'answers' | 'focusedControl' | 'follow' | 'cursor' | 'pin'>
     return {
       visible: view.getVisible(),
       topmost: children.at(-1) === view,
@@ -201,6 +203,15 @@ test('opens an agent card under its avatar to pause, take over and follow, and r
     await expect.poll(async () => (await cardView(electronApp))?.cursor).toBe('false')
     await clickInCard(electronApp, '[data-action^="cursor-"]')
     await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.showAgentCursor)')).toBe(true)
+    // Its pin switch keeps the agent's live status in a strip below the toolbar (agent-live-strip.e2e.ts).
+    expect((await cardView(electronApp))?.pin).toBe('false')
+    await clickInCard(electronApp, '[data-action^="pin-"]')
+    await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.pinAgentLiveStatus)')).toBe(true)
+    await expect(appWindow.getByTestId('agent-live-strip')).toBeVisible()
+    await expect.poll(async () => (await cardView(electronApp))?.pin).toBe('true')
+    await clickInCard(electronApp, '[data-action^="pin-"]')
+    await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.pinAgentLiveStatus)')).toBe(false)
+    await expect(appWindow.getByTestId('agent-live-strip')).toHaveCount(0)
     await clickInCard(electronApp, '[data-action^="follow-"]')
     await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.followAgentActivity)')).toBe(false)
 

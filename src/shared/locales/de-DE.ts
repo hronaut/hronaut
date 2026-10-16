@@ -289,6 +289,10 @@ export const deDE = {
       "label": "Agenten-Cursor zeigen",
       "description": "Den Cursor jedes Agenten mit seinem Namen dort zeigen, wo er auf einer Seite klickt, zeigt oder zieht."
     },
+    "agentStrip": {
+      "label": "Live-Status unter der Symbolleiste anheften",
+      "description": "Zeigt in einer Leiste unter der Symbolleiste, was der Agent im angezeigten Arbeitsbereich tut, mit Pausieren, Übernehmen und, wenn er Sie braucht, seinem Grund. Seiten rücken dafür nach unten."
+    },
     "attentionSound": {
       "label": "Hinweiston",
       "description": "Wähle den Ton, den Hronaut bei Bedarf abspielt.",
@@ -1405,6 +1409,7 @@ export const deDE = {
       "stepFailed": "{step}, fehlgeschlagen",
       "follow": "Agenten in allen Arbeitsbereichen folgen",
       "cursor": "Agenten-Cursor auf der Seite zeigen",
+      "pin": "Live-Status unter der Symbolleiste anheften",
       "showTab": "Seinen Tab zeigen",
       "pause": "Auf diesem Tab pausieren",
       "resume": "Auf diesem Tab fortsetzen",
@@ -1475,6 +1480,18 @@ export const deDE = {
         "navigate": "Hat {target} geöffnet",
         "openTab": "Hat {target} in einem neuen Tab geöffnet"
       }
+    },
+    "agentStrip": {
+      "label": "Live-Status der Agenten in diesem Arbeitsbereich",
+      "empty": "In diesem Arbeitsbereich arbeitet kein Agent",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "handBack": "Zurückgeben",
+      "handBackDescription": "Dem Agenten mitteilen, dass Sie erledigt haben, worum er gebeten hat",
+      "answer": "Antworten",
+      "answerDescription": "Die Karte des Agenten öffnen, um seine Entscheidung zu beantworten",
+      "decision": "Wartet auf Ihre Entscheidung",
+      "unpin": "Live-Status lösen"
     },
     "siteControls": {
       "close": "Website-Steuerung schließen",

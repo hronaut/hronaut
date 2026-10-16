@@ -25,6 +25,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       challengeDetectionEnabled: false,
       followAgentActivity: false,
       showAgentCursor: true,
+      pinAgentLiveStatus: false,
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
@@ -243,6 +244,28 @@ describe('AppearanceSettings', () => {
     await user.click(cursors)
     expect(setShowAgentCursor).toHaveBeenLastCalledWith(true)
     expect(cursors).toBeChecked()
+  })
+
+  it('pins the live status strip and unpins it, off until you choose it', async () => {
+    const setPinAgentLiveStatus = vi.fn(async (pinAgentLiveStatus: boolean) => ({ ...snapshot('en-US').settings, pinAgentLiveStatus }))
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { setPinAgentLiveStatus } })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    render(AppearanceSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+
+    const pin = screen.getByRole('checkbox', { name: /^Pin live status below the toolbar/ })
+    expect(pin).not.toBeChecked()
+    expect(pin).toHaveAccessibleName(/Pages move down to make room/)
+    const user = userEvent.setup()
+    await user.click(pin)
+    expect(setPinAgentLiveStatus).toHaveBeenLastCalledWith(true)
+    expect(pin).toBeChecked()
+    await user.click(pin)
+    expect(setPinAgentLiveStatus).toHaveBeenLastCalledWith(false)
+    expect(pin).not.toBeChecked()
   })
 
   it('has the agent cursor setting in every language', () => {

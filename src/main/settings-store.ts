@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   challengeDetectionEnabled: false,
   followAgentActivity: false,
   showAgentCursor: true,
+  // Off by default for now; the default for everyone is still to be decided.
+  pinAgentLiveStatus: false,
   mcpRemoteAccess: false,
   mcpAuthentication: false,
   mcpPort: DEFAULT_MCP_PORT,
@@ -91,6 +93,8 @@ export class SettingsStore {
             : DEFAULT_SETTINGS.followAgentActivity,
         showAgentCursor:
           typeof value.showAgentCursor === 'boolean' ? value.showAgentCursor : DEFAULT_SETTINGS.showAgentCursor,
+        pinAgentLiveStatus:
+          typeof value.pinAgentLiveStatus === 'boolean' ? value.pinAgentLiveStatus : DEFAULT_SETTINGS.pinAgentLiveStatus,
         challengeDetectionEnabled: value.challengeDetectionEnabled === true,
         mcpRemoteAccess: value.mcpRemoteAccess === true,
         mcpAuthentication:

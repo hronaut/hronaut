@@ -21,6 +21,7 @@ function model(overrides: Partial<AgentCardModel> = {}): AgentCardModel {
     recent: { heading: 'Recent steps', empty: 'No finished steps yet', steps: [{ text: 'Opened a page' }, { text: 'Clicked, failed', failed: true }] },
     follow: { label: 'Follow agents in all workspaces', checked: false },
     cursor: { label: 'Show agent cursors on the page', checked: true },
+    pin: { label: 'Pin live status below the toolbar', checked: false },
     buttons: [{ action: 'pause', label: 'Pause on this tab' }, { action: 'take-over', label: 'Take over', disabled: true }],
     closeLabel: 'Close',
     ...overrides
@@ -45,9 +46,11 @@ describe('agent card contracts', () => {
       { ...request(), model: { ...model(), buttons: [{ action: 'eval', label: 'Run' }] } },
       { ...request(), model: model({ buttons: Array.from({ length: 5 }, () => ({ action: 'pause' as const, label: 'Pause' })) }) },
       { ...request(), model: model({ recent: { heading: 'Recent', empty: 'None', steps: Array.from({ length: 4 }, () => ({ text: 'Step' })) } }) },
-      // The cursor switch is part of every card.
+      // The cursor and pin switches are part of every card.
       { ...request(), model: { ...model(), cursor: undefined } },
-      { ...request(), model: model({ cursor: { label: 'Show agent cursors on the page', checked: 'yes' as never } }) }
+      { ...request(), model: model({ cursor: { label: 'Show agent cursors on the page', checked: 'yes' as never } }) },
+      { ...request(), model: { ...model(), pin: undefined } },
+      { ...request(), model: model({ pin: { label: 'Pin live status below the toolbar', checked: 1 as never } }) }
     ]
     for (const value of bad) expect(() => parseAgentCardShowRequest(value)).toThrow(TypeError)
     // A long reason is allowed, within its own limit.
