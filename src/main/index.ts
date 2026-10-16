@@ -608,6 +608,8 @@ let agentPresenceRevision = 0
 let agentPresenceSerialized = '{}'
 let agentPresenceSentRevision = 0
 let agentPresencePublishScheduled = false
+/** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
+let followAgentActivityIntent = 0
 
 /** The agents in each open workspace; the revision increases only when the list changes. */
 function agentPresenceSnapshot(): AgentPresenceSnapshot {
@@ -632,6 +634,7 @@ function scheduleAgentPresencePublish(): void {
   setImmediate(() => {
     agentPresencePublishScheduled = false
     const snapshot = agentPresenceSnapshot()
+    tabsManager?.retainAgentFollow(new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
     // A seen request whose avatar went away, such as when the MCP server stopped or agent access was
     // turned off, has no card left to answer it, so it ends.
     if (attentionQuiet && !userAttentionShown(snapshot.workspaces)) endUserAttention({ keepPending: true })
@@ -3608,8 +3611,16 @@ function registerIpc(): void {
   ipcMain.handle('settings:set-follow-agent-activity', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Follow agent activity must be a boolean')
-    await updateSettings({ followAgentActivity: enabled })
+    // Applied at once, in the order asked, so following cannot move the view after the person
+    // turned it off, such as with Stay here, while the setting is still being saved.
+    const intent = ++followAgentActivityIntent
     tabsManager?.setFollowAgentActivity(enabled)
+    try {
+      await updateSettings({ followAgentActivity: enabled })
+    } catch (error) {
+      if (intent === followAgentActivityIntent) tabsManager?.setFollowAgentActivity(settings.followAgentActivity)
+      throw error
+    }
     publishSettings()
     return { ...settings }
   })
@@ -4558,10 +4569,10 @@ function createRuntimeMcpServer(
       ),
       cancelRequester: async (requesterId) => requireWalletBroker().cancelForRequester(requesterId)
     },
-    onTabActivity: (activity) => {
+    onTabActivity: (activity, agent) => {
       if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
       else activeMcpActivities.delete(activity.activityId)
-      tabsManager?.handleMcpTabActivity(activity)
+      tabsManager?.handleMcpTabActivity(activity, agent)
       if (mainWindow && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send('browser:mcp-tab-activity', activity)
       }

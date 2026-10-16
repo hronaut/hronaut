@@ -103,7 +103,7 @@ import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
-import { AgentPresenceRegistry, agentCursorIdentity, type AgentCall } from './agent-presence.js'
+import { AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type AgentCall } from './agent-presence.js'
 import type { AgentPresence } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
 import { webAddress } from '../browser/url.js'
@@ -335,7 +335,8 @@ export interface McpHttpServerOptions {
   history: HistoryOperations
   siteData: SiteDataOperations
   wallets?: WalletAgentOperations
-  onTabActivity?: (activity: McpTabActivity) => void
+  /** The agent is the calling session's opaque presence key and cleaned name, for following it. */
+  onTabActivity?: (activity: McpTabActivity, agent: { id: string; name: string }) => void
   /** Agent presence may have changed; read it with getAgentPresence(). Called often and synchronously. */
   onAgentPresenceChanged?: () => void
 }
@@ -6181,7 +6182,7 @@ export class McpHttpServer {
   }
 
   private trackTabActivity(activity: McpTabActivity, client: McpClientActivity, workspaceId: string): void {
-    this.options.onTabActivity?.(activity)
+    this.options.onTabActivity?.(activity, { id: this.agentPresence.clientKey(client.id), name: sanitizeAgentName(client.name) })
     this.actionTracker.activityHistory.track(activity)
     this.trackAgentCall(activity, client, workspaceId)
   }

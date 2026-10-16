@@ -528,6 +528,8 @@ export interface BrowserState {
   profilePath: string
   mcpTabGroups: BrowserTabGroupState[]
   savedTabGroups: BrowserSavedTabGroupState[]
+  /** While Follow is on and the tab in view is the one following brought there: the agent it follows, by its cleaned name. */
+  agentFollow?: { tabId: string; agentName: string }
 }
 
 export interface UserAttentionInput {

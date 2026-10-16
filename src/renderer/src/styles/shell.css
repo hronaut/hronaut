@@ -321,6 +321,27 @@
 .browser-tabs-bar.horizontal .tab-group-needs-you {
   @apply [width:8px] [height:8px] p-0 overflow-hidden [color:transparent] [background:var(--needs-you)] [box-shadow:0_0_0_2px_color-mix(in_srgb,_var(--needs-you)_30%,_transparent)] [font-size:0];
 }
+/* "Following <agent>" under the header of the group following brought into view, with Stay here on a 32 px target. */
+.tab-group-following {
+  @apply flex items-center [gap:6px] [min-height:32px] [padding:0_4px_0_10px] text-muted [font-size:var(--type-small-size)] [grid-column:1_/_-1];
+}
+.tab-group-following-icon {
+  @apply [width:14px] [height:14px] flex-none [color:var(--tab-group-color)];
+}
+.tab-group-following-name {
+  @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap;
+}
+.tab-group-stay {
+  @apply flex-none [min-height:32px] [padding:0_10px] [border-radius:var(--corner-pill)] [color:var(--text)] [font-size:var(--type-small-size)] [font-weight:var(--weight-medium)];
+}
+.tab-group-stay:hover,
+.tab-group-stay:focus-visible {
+  @apply [background:color-mix(in_srgb,_var(--tab-group-color)_var(--group-tint-hover),_var(--shell-bottom))];
+}
+.tab-group-stay:focus-visible {
+  @apply [outline:2px_solid_color-mix(in_srgb,_var(--tab-group-color)_72%,_white)] [outline-offset:1px];
+}
+.browser-tabs-bar.vertical.rail-collapsed .tab-group-following { @apply hidden; }
 .browser-tabs-bar.vertical.rail-collapsed .workspace-tab-section.needs-you .tab-group-label::after {
   @apply absolute [top:2px] [right:2px] [width:8px] [height:8px] [border-radius:var(--corner-pill)] [background:var(--needs-you)] [box-shadow:0_0_0_2px_var(--toolbar)] pointer-events-none;
   content: "";

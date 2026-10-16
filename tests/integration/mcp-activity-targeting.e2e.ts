@@ -259,6 +259,120 @@ test('follows an agent-created background tab whose activity finishes immediatel
   }
 })
 
+test('follows agents across workspaces, stays with one agent and waits while the person types', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  const fixture = await startPageServer('Cross-workspace follow', `Cross-workspace follow ready
+    <script>addEventListener('keydown', () => { document.title = 'Typed' })</script>`)
+  const claude = await connectMcpClient(mcpPort, mcpToken, 'Claude Code')
+  const codex = await connectMcpClient(mcpPort, mcpToken, 'Codex')
+  const activeTabId = () => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)') as Promise<string>
+  async function openTab(client: Client, workspaceId: string, page: string, active: boolean): Promise<string> {
+    const url = `${fixture.url}${page}`
+    const opened = await client.callTool({ name: 'browser_new_tab', arguments: { workspaceId, url, active } }) as CallToolResult
+    expect(opened.isError, text(opened)).not.toBe(true)
+    const tabId = (JSON.parse(text(opened)) as { tabs: Array<{ id: string; url: string }> }).tabs.find((tab) => tab.url === url)?.id
+    expect(tabId).toBeTruthy()
+    const ready = await client.callTool({
+      name: 'browser_wait', arguments: { workspaceId, tabId, text: 'Cross-workspace follow ready' }
+    }) as CallToolResult
+    expect(ready.isError, text(ready)).not.toBe(true)
+    return tabId!
+  }
+  async function snapshot(client: Client, workspaceId: string, tabId: string): Promise<void> {
+    const result = await client.callTool({ name: 'browser_snapshot', arguments: { workspaceId, tabId } }) as CallToolResult
+    expect(result.isError, text(result)).not.toBe(true)
+  }
+  try {
+    const checkout = await createWorkspace(claude, 'Checkout')
+    const billing = await createWorkspace(codex, 'Billing')
+    const checkoutTab = await openTab(claude, checkout, 'checkout', true)
+    const invoiceTab = await openTab(codex, billing, 'invoice', true)
+    const receiptTab = await openTab(codex, billing, 'receipt', false)
+    const shownBefore = await activeTabId()
+    expect([checkoutTab, invoiceTab, receiptTab]).not.toContain(shownBefore)
+
+    // The followed workspace is marked in the rail, the default tab position; the test profile starts with tabs on top.
+    await appWindow.evaluate("window.hronautSettings.setTabPosition('left')")
+    await expect(appWindow.getByRole('navigation', { name: 'Tab navigation' })).toHaveClass(/vertical/)
+    await appWindow.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' }).click()
+    await expect(appWindow.getByRole('button', { name: 'Stop following agent activity' })).toHaveAttribute('aria-pressed', 'true')
+    const checkoutRail = appWindow.getByRole('group', { name: 'Checkout' })
+    const billingRail = appWindow.getByRole('group', { name: 'Billing' })
+    const following = (rail: typeof checkoutRail) => rail.getByTestId('workspace-following')
+
+    // Following moves into the workspace of the agent that is working.
+    await snapshot(claude, checkout, checkoutTab)
+    await expect.poll(activeTabId).toBe(checkoutTab)
+    // Another agent's call right after does not take the view from the agent being followed.
+    await snapshot(codex, billing, invoiceTab)
+    expect(await activeTabId()).toBe(checkoutTab)
+    await expect(following(checkoutRail)).toContainText('Following Claude Code')
+
+    // An agent that disconnects is no longer named.
+    await (claude.transport as StreamableHTTPClientTransport).terminateSession()
+    await expect(following(checkoutRail)).toHaveCount(0)
+
+    // Once Claude Code has been quiet for a few seconds, Codex's next call brings Billing into view.
+    const codexMovesTo = (tabId: string) => expect.poll(async () => {
+      await snapshot(codex, billing, tabId)
+      return activeTabId()
+    }, { timeout: 20_000, intervals: [500] }).toBe(tabId)
+    await codexMovesTo(invoiceTab)
+    await expect(following(billingRail)).toContainText('Following Codex')
+    await expect(following(checkoutRail)).toHaveCount(0)
+
+    // The agent's own scrolling is not the person's, so its next call still moves the view.
+    const wheel = await codex.callTool({
+      name: 'browser_wheel', arguments: { workspaceId: billing, tabId: invoiceTab, x: 100, y: 100, deltaX: 0, deltaY: 120 }
+    }) as CallToolResult
+    expect(wheel.isError, text(wheel)).not.toBe(true)
+    await snapshot(codex, billing, receiptTab)
+    expect(await activeTabId()).toBe(receiptTab)
+
+    // The person types in the page in view: even the followed agent's own next call waits.
+    await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+      if (!page) throw new Error('The followed page was not found')
+      page.focus()
+      page.sendInputEvent({ type: 'keyDown', keyCode: 'a' })
+      page.sendInputEvent({ type: 'keyUp', keyCode: 'a' })
+    }, `${fixture.url}receipt`)
+    // Main sees a key before the page does, so once the page has it the pause has begun.
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs
+      .find((tab) => tab.id === ${JSON.stringify(receiptTab)})?.title)`)).toBe('Typed')
+    await snapshot(codex, billing, invoiceTab)
+    expect(await activeTabId()).toBe(receiptTab)
+    // After the pause, the agent's calls move the view again.
+    await codexMovesTo(invoiceTab)
+
+    // A tab the person picks is not being followed, even when they come back to it.
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(receiptTab)})`)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(invoiceTab)})`)
+    expect(await activeTabId()).toBe(invoiceTab)
+    await expect(appWindow.getByTestId('workspace-following')).toHaveCount(0)
+    await snapshot(codex, billing, invoiceTab)
+    await expect(following(billingRail)).toContainText('Following Codex')
+
+    // Stay here turns following off at once, so the agent's next call leaves the view alone.
+    await following(billingRail).getByRole('button', { name: 'Stay here' }).click()
+    await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then((value) => value.followAgentActivity)')).toBe(false)
+    await expect(appWindow.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' }))
+      .toHaveAttribute('aria-pressed', 'false')
+    await expect(appWindow.getByTestId('workspace-following')).toHaveCount(0)
+    await snapshot(codex, billing, receiptTab)
+    expect(await activeTabId()).toBe(invoiceTab)
+  } finally {
+    await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)').catch(() => undefined)
+    await claude.close().catch(() => undefined)
+    await codex.close().catch(() => undefined)
+    await closeFixtureServer(fixture.server)
+  }
+})
+
 test('attributes omitted-tab activity only to the validated workspace target', async ({
   appWindow,
   electronApp,

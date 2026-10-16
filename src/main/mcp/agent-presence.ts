@@ -344,12 +344,17 @@ export class AgentPresenceRegistry {
     }
   }
 
+  /** The opaque key the shell knows a session by: an HMAC of its id, never the id itself. */
+  clientKey(sessionId: string): string {
+    return createHmac('sha256', this.secret).update(sessionId, 'utf8').digest('base64url').slice(0, 22)
+  }
+
   private client(client: AgentPresenceClient, now: number): ClientRecord {
     const name = sanitizeAgentName(client.name)
     let record = this.clients.get(client.id)
     if (!record) {
       record = {
-        key: createHmac('sha256', this.secret).update(client.id, 'utf8').digest('base64url').slice(0, 22),
+        key: this.clientKey(client.id),
         name,
         initial: agentInitial(name),
         colorIndex: agentColorIndex(name),

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
+import { AGENT_FOLLOW_HOLD_MS, AGENT_FOLLOW_HUMAN_PAUSE_MS, McpActivityFollowController } from '../src/main/browser/mcp-activity-follow-controller.js'
 import type { McpTabActivity } from '../src/shared/types.js'
 
 function activity(
@@ -21,7 +21,7 @@ function createHarness() {
   let enabled = false
   let occluded = false
   let selectionGeneration = 0
-  const tabs = new Set(['tab-a', 'tab-b'])
+  const tabs = new Set(['tab-a', 'tab-b', 'tab-c'])
   const readyTabs = new Set(tabs)
   const wakeTab = vi.fn<(tabId: string) => Promise<void>>(async () => undefined)
   const selectTabPassively = vi.fn((tabId: string) => {
@@ -29,6 +29,7 @@ function createHarness() {
     return tabId
   })
   const onError = vi.fn()
+  const onFollow = vi.fn()
   const controller = new McpActivityFollowController({
     isEnabled: () => enabled,
     isOccluded: () => occluded,
@@ -37,10 +38,12 @@ function createHarness() {
     canSelectWithoutWake: (tabId) => readyTabs.has(tabId),
     wakeTab,
     selectTabPassively,
+    onFollow,
     onError
   })
   return {
     controller,
+    onFollow,
     wakeTab,
     selectTabPassively,
     onError,
@@ -206,4 +209,107 @@ it('never wakes or follows video controls, including after toggling Follow agent
   expect(harness.selectTabPassively).not.toHaveBeenCalled()
   harness.controller.accept(activity('normal', 'tab-b'))
   expect(harness.selectTabPassively).toHaveBeenCalledWith('tab-b')
+})
+
+describe('following agents across workspaces', () => {
+  const claude = { id: 'session-1', name: 'Claude Code' }
+  const codex = { id: 'session-2', name: 'Codex' }
+  /** The tab in view: following selects the tab of the call it shows, again on each call. */
+  const shown = (harness: ReturnType<typeof createHarness>) => harness.selectTabPassively.mock.calls.at(-1)?.[0]
+
+  it('stays with the agent it shows while it works, then moves to another agent still running', () => {
+    vi.useFakeTimers()
+    try {
+      const harness = createHarness()
+      harness.enable()
+      // tab-a and tab-b stand for tabs in two workspaces; following does not look at workspaces.
+      harness.controller.accept(activity('claude-1', 'tab-a'), claude)
+      expect(harness.selectTabPassively).toHaveBeenLastCalledWith('tab-a')
+      expect(harness.onFollow).toHaveBeenLastCalledWith({ tabId: 'tab-a', agent: claude })
+      vi.advanceTimersByTime(1_000)
+      // Another agent's call does not take the view while the first keeps working.
+      harness.controller.accept(activity('codex-1', 'tab-b'), codex)
+      expect(shown(harness)).toBe('tab-a')
+      harness.controller.accept(activity('claude-1', 'tab-a', 'finished'), claude)
+      vi.advanceTimersByTime(AGENT_FOLLOW_HOLD_MS - 1_000)
+      harness.controller.accept(activity('claude-2', 'tab-c'), claude)
+      expect(harness.selectTabPassively).toHaveBeenLastCalledWith('tab-c')
+      harness.controller.accept(activity('claude-2', 'tab-c', 'finished'), claude)
+      vi.advanceTimersByTime(AGENT_FOLLOW_HOLD_MS - 1)
+      expect(shown(harness)).toBe('tab-c')
+      // Quiet for the hold: the other agent's running call takes the view, and following holds on it.
+      vi.advanceTimersByTime(2)
+      expect(harness.selectTabPassively).toHaveBeenLastCalledWith('tab-b')
+      expect(harness.onFollow).toHaveBeenLastCalledWith({ tabId: 'tab-b', agent: codex })
+      harness.controller.accept(activity('claude-3', 'tab-a'), claude)
+      expect(harness.selectTabPassively).toHaveBeenLastCalledWith('tab-b')
+      harness.controller.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits while the person types, clicks or scrolls, and moves only with the next call after that', () => {
+    vi.useFakeTimers()
+    try {
+      const harness = createHarness()
+      harness.enable()
+      harness.controller.accept(activity('claude-1', 'tab-a'), claude)
+      harness.controller.accept(activity('claude-1', 'tab-a', 'finished'), claude)
+      expect(shown(harness)).toBe('tab-a')
+      harness.controller.noteHumanInput()
+      harness.controller.accept(activity('claude-2', 'tab-b'), claude)
+      vi.advanceTimersByTime(AGENT_FOLLOW_HUMAN_PAUSE_MS - 1)
+      harness.controller.accept(activity('claude-3', 'tab-b'), claude)
+      expect(shown(harness)).toBe('tab-a')
+      // The pause ending does not move the view by itself.
+      vi.advanceTimersByTime(AGENT_FOLLOW_HOLD_MS + 1)
+      expect(shown(harness)).toBe('tab-a')
+      harness.controller.accept(activity('claude-4', 'tab-b'), claude)
+      expect(harness.selectTabPassively).toHaveBeenLastCalledWith('tab-b')
+      harness.controller.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('lets another agent in when the call it shows never finishes', () => {
+    vi.useFakeTimers()
+    try {
+      const harness = createHarness()
+      harness.enable()
+      harness.controller.accept(activity('claude-wait', 'tab-a'), claude)
+      expect(shown(harness)).toBe('tab-a')
+      // Codex's quick calls re-select the call still running, which must not renew Claude Code's hold.
+      for (let call = 0; call < 3; call += 1) {
+        vi.advanceTimersByTime(2_000)
+        harness.controller.accept(activity(`codex-${call}`, 'tab-b'), codex)
+        harness.controller.accept(activity(`codex-${call}`, 'tab-b', 'finished'), codex)
+      }
+      expect(harness.onFollow).toHaveBeenCalledWith({ tabId: 'tab-b', agent: codex })
+      // Once Codex is quiet, the call still running is shown again, but holds the view no longer.
+      vi.advanceTimersByTime(AGENT_FOLLOW_HOLD_MS + 1)
+      expect(shown(harness)).toBe('tab-a')
+      harness.controller.accept(activity('codex-next', 'tab-b'), codex)
+      expect(shown(harness)).toBe('tab-b')
+      harness.controller.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a wake under way when the person starts typing', async () => {
+    const harness = createHarness()
+    const wake = deferred()
+    harness.wakeTab.mockImplementationOnce(() => wake.promise)
+    harness.requireWake('tab-a')
+    harness.enable()
+    harness.controller.accept(activity('slow', 'tab-a'), claude)
+    await vi.waitFor(() => expect(harness.wakeTab).toHaveBeenCalledWith('tab-a'))
+    harness.controller.noteHumanInput()
+    wake.resolve()
+    await Promise.resolve()
+    expect(harness.selectTabPassively).not.toHaveBeenCalled()
+    expect(harness.onFollow).not.toHaveBeenCalled()
+  })
 })
