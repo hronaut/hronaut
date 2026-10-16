@@ -90,15 +90,15 @@
 }
 
 .shell-title-bar-surface {
-  @apply relative [z-index:2] flex box-border min-w-0 items-center [gap:8px] [padding:0_14px] overflow-hidden text-muted [background:var(--toolbar)] [font-size:13px] whitespace-nowrap;
+  @apply relative [z-index:2] flex box-border min-w-0 items-center [gap:8px] [padding:0_14px] overflow-hidden text-muted [background:var(--toolbar)] [font-size:var(--type-body-size)] whitespace-nowrap;
 }
 
 .shell-title-bar-surface strong {
-  @apply overflow-hidden text-copy [font-size:13px] [font-weight:800] text-ellipsis;
+  @apply overflow-hidden text-copy [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)] text-ellipsis;
 }
 
 .shell-title-bar-mark {
-  @apply grid [width:24px] [height:24px] [flex:0_0_24px] place-items-center [border-radius:7px] text-accent-copy bg-accent-soft;
+  @apply grid [width:24px] [height:24px] [flex:0_0_24px] place-items-center [border-radius:var(--corner-1)] text-accent-copy bg-accent-soft;
 }
 
 .shell-title-bar-mark.app-brand { @apply bg-transparent; }

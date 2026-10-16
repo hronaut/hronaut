@@ -21,9 +21,9 @@ function label(value: BrowserNetworkPriority | null | undefined): string {
 </template>
 
 <style scoped>
-.network-priority { margin-block: 12px; font-size: 12px; }
+.network-priority { margin-block: 12px; font-size: var(--type-small-size); }
 .network-priority dl { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-block: 8px; }
 .network-priority dl > div { display: flex; gap: 8px; }
-.network-priority dd { margin: 0; font-weight: 600; }
+.network-priority dd { margin: 0; font-weight: var(--weight-strong); }
 .network-priority p { margin: 0; color: var(--text-muted); }
 </style>

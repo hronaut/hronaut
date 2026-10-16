@@ -78,13 +78,13 @@ onBeforeUnmount(() => { generation += 1 })
 <style scoped>
 .workspace-continuity { display: grid; gap: 0.65rem; margin-top: 18px; padding: 14px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 0.75rem; }
 h3, p, ul { margin: 0; }
-h3 { font-size: 14px; font-weight: 750; }
+h3 { font-size: var(--type-body-size); font-weight: var(--weight-strong); }
 p, small { color: var(--muted); }
 [role="alert"] { color: var(--danger, #b42318); }
 p, small, li { line-height: 1.5; }
 label { display: grid; gap: 0.4rem; }
 .continuity-ack { display: flex; align-items: flex-start; gap: 0.6rem; }
 .continuity-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-input[type="text"] { width: 100%; box-sizing: border-box; padding: 10px 11px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+input[type="text"] { width: 100%; box-sizing: border-box; padding: 10px 11px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--corner-2); }
 input[type="text"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>

@@ -203,14 +203,14 @@ onBeforeUnmount(reset)
 </template>
 
 <style scoped>
-.incident-review { min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 12px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 8px; }
-.incident-review fieldset { display: grid; gap: 8px; margin-block: 12px; border: 1px solid var(--border-soft); border-radius: 8px; }
+.incident-review { min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 12px; padding: 12px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
+.incident-review fieldset { display: grid; gap: 8px; margin-block: 12px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
 .incident-review label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .incident-review input { min-width: 0; max-width: 100%; }
 .incident-omissions { display: grid; gap: 8px; }
 .incident-omission-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .incident-replacements, .incident-replacement-row, .incident-paths, .incident-path-row { display: grid; gap: 8px; }
-.incident-replacement-row { padding: 8px; border: 1px solid var(--border-soft); border-radius: 8px; }
+.incident-replacement-row { padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
 .incident-preview { width: 100%; min-height: 280px; background: white; }
 .incident-hash { overflow-wrap: anywhere; }
 </style>

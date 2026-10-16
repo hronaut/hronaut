@@ -5,7 +5,7 @@ import { CYBERPUNK_TURBO_COLORS } from '../shared/theme.js'
 export const HOME_PAGE_STYLES = `
 :root {
   color-scheme: light dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --bg: #f7f7f8; --panel: #fff; --panel-solid: #fff; --text: #25262b;
   --muted: #62646d; --border: #e0e0e6; --soft: #f0f0f3;
   --danger: #b33343; --accent: #6250d8; --accent-2: #178354; --code: #202026; --code-text: #f2f2f6;

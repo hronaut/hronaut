@@ -125,7 +125,7 @@ const placements = computed(() => Object.fromEntries(frames.value.map((frame) =>
   margin: -1px 0 0 -1px;
   border: 1px solid var(--border-strong);
   border-radius: 2px;
-  box-shadow: 0 8px 28px color-mix(in srgb, var(--text) 16%, transparent);
+  box-shadow: var(--elevation-2);
 }
 .emulation-frame-bar {
   position: absolute;
@@ -137,10 +137,10 @@ const placements = computed(() => Object.fromEntries(frames.value.map((frame) =>
   padding: 0 4px 0 12px;
   transform: translateX(-50%);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--corner-pill);
   background: var(--surface-raised);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--type-small-size);
   white-space: nowrap;
 }
 .emulation-frame-caption { margin-right: 6px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
@@ -154,7 +154,7 @@ const placements = computed(() => Object.fromEntries(frames.value.map((frame) =>
   height: auto;
   padding: 8px 6px 6px 10px;
   transform: none;
-  border-radius: 10px;
+  border-radius: var(--corner-2);
   white-space: normal;
 }
 .emulation-frame-bar-side .emulation-frame-caption,

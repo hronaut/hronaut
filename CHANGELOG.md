@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - A tab emulating a viewport smaller than the window now shows that viewport at its exact size, centered on a dotted backdrop with a thin frame, instead of the page sitting in the corner of an empty background. A caption above the page names the size, Desktop or Mobile, and the pixel ratio when it is not 1×, with buttons to rotate the viewport, fit it to the window and return the tab to the window size. When the window is only a little taller than the viewport, the page moves down just enough for the caption; without room above, the caption goes below the page, or into a card beside it when only the sides have room. In split view each pane frames its own tab. The page still gets the emulated viewport, and an agent's screenshots keep the emulated size. Removing the viewport, from the frame, Responsive preview or an agent, gives the page the whole space at once.
 
+### Changed
+
+- Hronaut's interface now uses one type scale, one set of corners and three shadow levels across the shell, dialogs, panels, Settings, Home and the address suggestions, and bundles the Geist Sans and Geist Mono fonts instead of relying on whichever system font was installed. Text uses six sizes and three weights instead of thirteen sizes and ten weights, corners use four radii instead of fifteen, and floating surfaces use three consistent shadows. Colors and layouts are unchanged. This is the foundation of the redesign that follows; the fonts are licensed under the SIL Open Font License and listed in the third-party notices.
+
 ### Fixed
 
 - Opening Commands, Search tabs, a workspace editor, Settings or another Hronaut dialog no longer flashes the page area white. Before, Hronaut hid the website the moment a dialog opened, and the empty window showed for several frames until the dialog was drawn. Now a still picture of the page stays under the dialog, and the page is hidden only once that picture is on screen. The page also stays visible behind an open dialog, dimmed and softly blurred, instead of leaving an empty area.
