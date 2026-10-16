@@ -239,7 +239,7 @@ import {
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
-import { PAGE_CARD_RADIUS } from '../../shared/page-card.js'
+import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -1294,7 +1294,7 @@ export class BrowserTabsManager {
   private readonly pageCornerRadii = new WeakMap<WebContentsView, number>()
   private browserContentOccluded = false
   private occludedEmulationFrames: EmulationFrameGeometry[] = []
-  private occludedPageCards: Rectangle[] = []
+  private occludedPageCards: PageCardGeometry[] = []
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
   private focusAfterTrustedChrome: { tab: BrowserTab; cancel: () => void } | undefined
   private followAgentActivitySuspended = false
@@ -9014,10 +9014,13 @@ export class BrowserTabsManager {
    * each page's card under it. An emulated page's card is its whole space,
    * which its frame fills.
    */
-  getPageCards(): Rectangle[] {
+  getPageCards(): PageCardGeometry[] {
     if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
       || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
-    if (this.browserContentOccluded) return this.occlusionSnapshot.active ? this.occludedPageCards : []
+    // While a picture stands in for the pages, their cards name no tab: the edge light waits for the live page.
+    if (this.browserContentOccluded) {
+      return this.occlusionSnapshot.active ? this.occludedPageCards.map(({ x, y, width, height }) => ({ x, y, width, height })) : []
+    }
     const area = this.browserViewBounds()
     const scale = this.window.webContents.getZoomFactor?.() ?? 1
     const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
@@ -9025,9 +9028,13 @@ export class BrowserTabsManager {
     const split = this.splitView && first && second
       ? splitViewBounds(area, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * scale))
       : undefined
-    const panes = split ? [split.first, split.second] : [area]
-    return panes.filter((pane) => pane.width > 0 && pane.height > 0).map((pane) => ({
-      x: pane.x / scale, y: pane.y / scale, width: pane.width / scale, height: pane.height / scale
+    const panes = split && first && second
+      ? [{ tab: first, space: split.first }, { tab: second, space: split.second }]
+      : [{ tab: this.tabs.get(this.activeTabId), space: area }]
+    return panes.filter(({ space }) => space.width > 0 && space.height > 0).map(({ tab, space }) => ({
+      x: space.x / scale, y: space.y / scale, width: space.width / scale, height: space.height / scale,
+      // A page out of the window, such as one closing behind its beforeunload check, is not the one in its card.
+      ...(tab && this.window.contentView.children.includes(tab.view) ? { tabId: tab.id } : {})
     }))
   }
 

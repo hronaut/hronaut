@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { ElectronApplication } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { expect, test } from './fixtures.js'
 
@@ -15,6 +15,36 @@ function succeeded(result: CallToolResult): string {
 
 function parsed(result: CallToolResult): Record<string, unknown> {
   return JSON.parse(succeeded(result))
+}
+
+/**
+ * The shell's colors one pixel outside the lit page's top and left edges, where the toolbar and the rail hold
+ * the gutter, with the needs-you color they should show. The light's swell is finished for the capture.
+ */
+async function edgeLightPixels(appWindow: Page): Promise<{ top: number[]; left: number[]; needsYou: number[] }> {
+  const light = appWindow.getByTestId('page-card-light')
+  const box = (await light.boundingBox())!
+  const pixel = async (x: number, y: number): Promise<number[]> => {
+    const png = await appWindow.screenshot({ clip: { x, y, width: 1, height: 1 }, scale: 'css', animations: 'disabled' })
+    return appWindow.evaluate(async (base64) => {
+      const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${base64}`)).blob())
+      const context = new OffscreenCanvas(1, 1).getContext('2d')!
+      context.drawImage(bitmap, 0, 0)
+      bitmap.close()
+      return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3))
+    }, png.toString('base64'))
+  }
+  const needsYou = await light.evaluate((element) => {
+    const context = new OffscreenCanvas(1, 1).getContext('2d')!
+    context.fillStyle = getComputedStyle(element).getPropertyValue('--needs-you').trim()
+    context.fillRect(0, 0, 1, 1)
+    return Array.from(context.getImageData(0, 0, 1, 1).data.slice(0, 3))
+  })
+  return { top: await pixel(box.x + box.width / 2, box.y - 1), left: await pixel(box.x - 1, box.y + box.height / 2), needsYou }
+}
+
+function nearColor(actual: number[], expected: number[]): boolean {
+  return actual.every((channel, index) => Math.abs(channel - expected[index]!) <= 12)
 }
 
 type CardView = {
@@ -216,6 +246,13 @@ test('keeps needs you after a click until the agent that asked acts again', asyn
     const group = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true })
     const asking = group.getByRole('button', { name: 'Claude Code, needs you', exact: true })
     await expect(asking).toBeVisible()
+    // The handoff edge light rings the page that needs you, drawn by the shell around the page card: on every side,
+    // including the top and left, where the toolbar and the rail paint over the card.
+    const lit = appWindow.getByTestId('page-card-light')
+    await expect(lit).toHaveCount(1)
+    const edges = await edgeLightPixels(appWindow)
+    expect(nearColor(edges.top, edges.needsYou), `top edge ${edges.top} vs ${edges.needsYou}`).toBe(true)
+    expect(nearColor(edges.left, edges.needsYou), `left edge ${edges.left} vs ${edges.needsYou}`).toBe(true)
     const navigate = async (title: string) => succeeded(await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: `data:text/html,<title>${title}</title>` } }) as CallToolResult)
 
     // Before you respond, even an action of the agent leaves its request open.
@@ -226,20 +263,25 @@ test('keeps needs you after a click until the agent that asked acts again', asyn
     await expect.poll(async () => parsed(await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult).userAttention).toBeNull()
     succeeded(await client.callTool({ name: 'browser_tabs', arguments: {} }) as CallToolResult)
     await expect(asking).toBeVisible()
+    await expect(lit).toHaveCount(1)
     // Acting again on the page means the agent moved on: needs you ends, while a waiting call still sees it pending.
     await navigate('Carried on')
     await expect(group.getByRole('button', { name: /^Claude Code, (working|idle)$/ })).toBeVisible()
+    await expect(lit).toHaveCount(0)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
     expect(parsed(await client.callTool({ name: 'browser_user_attention', arguments: { workspaceId: workspace.workspaceId, requestId: request.id, action: 'status' } }) as CallToolResult).state).toBe('acknowledged')
 
     // A seen request whose avatar goes away, here because agent access was turned off, has no card left to answer it, so it ends.
     succeeded(await client.callTool({ name: 'browser_request_user_attention', arguments: { reason: 'Check the receipt.' } }) as CallToolResult)
     await expect(asking).toBeVisible()
+    // A request for the whole workspace lights its page in view.
+    await expect(lit).toHaveCount(1)
     await appWindow.locator('.address-form input').click()
     await expect.poll(async () => parsed(await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult).userAttention).toBeNull()
     await expect(asking).toBeVisible()
     await appWindow.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(workspace.workspaceId)}, { agentAccess: false })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
+    await expect(lit).toHaveCount(0)
   } finally {
     await client.close()
   }
