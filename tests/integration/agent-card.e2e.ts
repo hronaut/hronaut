@@ -112,6 +112,16 @@ async function pressInCard(electronApp: ElectronApplication, keyCode: string): P
   }, keyCode)
 }
 
+/**
+ * Waits until main reports the tab an agent last used, and the shell has that report too: main publishes
+ * presence on its next turn, so one more round trip arrives after it.
+ */
+async function agentTabReported(appWindow: Page, name: string, tabId: string): Promise<void> {
+  await expect.poll(() => appWindow.evaluate(`window.hronautAgentPresence.get().then(snapshot => Object.values(snapshot.workspaces).flat()
+    .find(agent => agent.name === ${JSON.stringify(name)})?.lastTabId)`)).toBe(tabId)
+  await appWindow.evaluate('window.hronautAgentPresence.get()')
+}
+
 /** Ctrl/Cmd+. pressed while the page with this URL has focus; resolves with whether the page saw it. */
 async function pressShortcutInPage(electronApp: ElectronApplication, url: string): Promise<void> {
   await electronApp.evaluate(({ webContents }, url) => {
@@ -202,6 +212,8 @@ test('opens an agent card under its avatar to pause, take over and follow, and r
     const secondUrl = 'data:text/html,<title>Card two</title><main>Two</main>'
     const second = parsed(await claude.client.callTool({ name: 'browser_new_tab', arguments: { url: secondUrl, active: false } }) as CallToolResult)
     const secondTabId = (second.tabs as Array<{ id: string }>).find(tab => tab.id !== firstTabId)!.id
+    // The card acts on the tab the avatar shows when it opens, which follows the agent's call once it settles.
+    await agentTabReported(appWindow, 'Claude Code', secondTabId)
     // Ctrl/Cmd+. pressed in the page opens the card while the workspace in view has agents.
     await pressShortcutInPage(electronApp, firstUrl)
     await expect.poll(async () => (await cardView(electronApp))?.actions).toEqual(['show-tab', 'pause', 'take-over'])
@@ -343,6 +355,137 @@ test('answers a decision from its agent\'s card: Review the decision shows it, a
     await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
   } finally {
     await client.close()
+  }
+})
+
+/** Runs a script in the agent card's view and returns its result. */
+async function inCard<T>(electronApp: ElectronApplication, script: string): Promise<T> {
+  return electronApp.evaluate(async ({ BrowserWindow }, script) => {
+    const view = BrowserWindow.getAllWindows()[0]!.contentView.children.find((child) => (
+      'webContents' in child && (child as Electron.WebContentsView).webContents.getURL().endsWith('agent-card.html')
+    )) as Electron.WebContentsView | undefined
+    if (!view) throw new Error('The agent card view is not open')
+    return view.webContents.executeJavaScript(script)
+  }, script) as Promise<T>
+}
+
+/** Types into the card's answer field as a person would, then optionally sends it with Ctrl or Cmd and Enter. */
+async function typeInCard(electronApp: ElectronApplication, text: string, send = false): Promise<void> {
+  await inCard(electronApp, 'document.querySelector(\'[data-focus="answer-note"]\').focus()')
+  const typing = async (action: 'insert' | 'send') => electronApp.evaluate(async ({ BrowserWindow }, { text, action }) => {
+    const view = BrowserWindow.getAllWindows()[0]!.contentView.children.find((child) => (
+      'webContents' in child && (child as Electron.WebContentsView).webContents.getURL().endsWith('agent-card.html')
+    )) as Electron.WebContentsView
+    if (action === 'insert') return view.webContents.insertText(text)
+    const modifiers = process.platform === 'darwin' ? ['meta'] as const : ['control'] as const
+    view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return', modifiers: [...modifiers] })
+    view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return', modifiers: [...modifiers] })
+  }, { text, action })
+  await typing('insert')
+  if (!send) return
+  // Inserted text and key events reach the page on separate routes; send only once the text is in the field.
+  await expect.poll(() => inCard<string>(electronApp, 'document.querySelector(\'[data-focus="answer-note"]\').value')).toMatch(new RegExp(`${text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`, 'u'))
+  await typing('send')
+}
+
+type DecisionCard = { reason: string; check: string | null; confirm: boolean; enabled: string[]; field: boolean; plan: string[]; status: string | null }
+
+async function decisionCard(electronApp: ElectronApplication): Promise<DecisionCard | null> {
+  try {
+    return await inCard<DecisionCard>(electronApp, `(() => ({
+      reason: document.querySelector('.agent-card-reason')?.textContent ?? '',
+      check: document.querySelector('.agent-card-check-text')?.textContent ?? null,
+      confirm: document.querySelector('[data-focus="answer-check"]')?.checked === true,
+      enabled: [...document.querySelectorAll('.agent-card-section button:not(:disabled)')].filter((button) => !button.closest('[hidden]'))
+        .map((button) => button.dataset.focus ?? button.dataset.action),
+      field: !!document.querySelector('.agent-card-field:not([hidden])'),
+      plan: [...document.querySelectorAll('.agent-card-plan li')].map((item) => item.textContent),
+      status: document.querySelector('.agent-card-status')?.textContent ?? null
+    }))()`)
+  } catch {
+    return null
+  }
+}
+
+test('answers a page review, an input request and an approval in the agent\'s card', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end('<!doctype html><title>Checkout</title><h1>Order</h1><button>Place order</button>')
+  })
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('The checkout fixture did not expose a port')
+  await expect.poll(async () => {
+    try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+  }).toBe(true)
+  const client = new Client({ name: 'Claude Code', version: '1.0.0' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+  try {
+    const { workspaceId } = await connectMcpWorkspace(client, 'Card answers', false)
+    const opened = parsed(await client.callTool({ name: 'browser_new_tab', arguments: { url: `http://127.0.0.1:${address.port}/checkout`, active: true } }) as CallToolResult)
+    const tabId = (opened.tabs as Array<{ id: string }>)[0]!.id
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    const list = async () => JSON.parse(succeeded(await client.callTool({ name: 'browser_human_waiting', arguments: { workspaceId, action: 'list' } }) as CallToolResult)) as Array<Record<string, unknown>>
+    const decisionState = async (id: string) => (await list()).find((record) => record.id === id)
+    const request = async (decision: string, extra: Record<string, unknown> = {}) => parsed(await client.callTool({ name: 'browser_human_waiting', arguments: {
+      workspaceId, action: 'request', runId: randomUUID(), decision, timeoutMs: 120_000, ...extra
+    } }) as CallToolResult)
+    const avatar = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true }).getByRole('button', { name: /^Claude Code, / })
+
+    // A page review: the card checks the page, waits for the tick, and hands back.
+    const review = await request('review-page')
+    await expect(avatar).toHaveAccessibleName('Claude Code, needs you')
+    await avatar.click()
+    await expect.poll(async () => (await decisionCard(electronApp))?.check ?? null).toContain('Hronaut checked this page')
+    let card = (await decisionCard(electronApp))!
+    expect(card.reason).toContain('Look at the page, then hand it back or tell the agent what to fix.')
+    expect(card.enabled).toEqual(['review-decision', 'answer-toggle'])
+    await clickInCard(electronApp, '[data-focus="answer-check"]')
+    await expect.poll(async () => (await decisionCard(electronApp))?.enabled).toEqual(['answer-resolve', 'review-decision', 'answer-toggle'])
+    await clickInCard(electronApp, '[data-action="answer-resolve"]')
+    await expect.poll(async () => (await decisionState(review.id as string))?.state).toBe('RESOLVED')
+    expect(typeof (await decisionState(review.id as string))?.answeredAt).toBe('number')
+    await expect(avatar).not.toHaveAccessibleName('Claude Code, needs you')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
+
+    // Input: what you type goes to the agent with Ctrl or Cmd and Enter, once the page is confirmed.
+    const input = await request('provide-input')
+    await expect(avatar).toHaveAccessibleName('Claude Code, needs you')
+    if (!await cardView(electronApp)) await avatar.click()
+    await expect.poll(async () => (await decisionCard(electronApp))?.reason).toContain('The agent needs your answer to carry on.')
+    await expect.poll(async () => (await decisionCard(electronApp))?.check ?? null).toContain('Hronaut checked this page')
+    await typeInCard(electronApp, 'Ship to the office')
+    await clickInCard(electronApp, '[data-focus="answer-check"]')
+    await expect.poll(async () => (await decisionCard(electronApp))?.enabled).toContain('answer-send')
+    await typeInCard(electronApp, ', please', true)
+    await expect.poll(async () => (await decisionState(input.id as string))?.state).toBe('RESOLVED')
+    expect((await decisionState(input.id as string))?.note).toBe('Ship to the office, please')
+
+    // An approval: the card shows what it would do and can reject it, but approving stays in the workspace.
+    succeeded(await client.callTool({ name: 'browser_continuity', arguments: { workspaceId, action: 'checkpoint' } }) as CallToolResult)
+    const approval = await request('approve-action', { review: {
+      toolName: 'browser_click', arguments: { workspaceId, tabId, selector: 'button' }, reversibility: 'irreversible',
+      representation: 'bounded-description', description: 'Place the order for 2 items'
+    } })
+    await expect(avatar).toHaveAccessibleName('Claude Code, needs you')
+    if (!await cardView(electronApp)) await avatar.click()
+    await expect.poll(async () => (await decisionCard(electronApp))?.plan ?? []).toEqual([expect.stringContaining('Place the order for 2 items')])
+    card = (await decisionCard(electronApp))!
+    expect(card.plan[0]).toContain('Irreversible')
+    expect(card.enabled).toEqual(['review-decision', 'answer-toggle'])
+    // A forged completion from the card's view does not approve it.
+    const key = `${approval.id as string}_${approval.revision as string}`
+    await inCard(electronApp, `(() => { for (let cardId = 1; cardId <= 200; cardId += 1) window.hronautAgentCardView.send({ cardId, kind: 'action', action: 'answer-resolve', key: ${JSON.stringify(key)} }) })()`)
+    await clickInCard(electronApp, '[data-focus="answer-toggle"]')
+    await expect.poll(async () => (await decisionCard(electronApp))?.field).toBe(true)
+    await typeInCard(electronApp, 'Wrong shipping address')
+    await clickInCard(electronApp, '[data-focus="answer-send"]')
+    await expect.poll(async () => (await decisionState(approval.id as string))?.state).toBe('REJECTED')
+    expect((await decisionState(approval.id as string))?.note).toBe('Wrong shipping address')
+    await expect(avatar).not.toHaveAccessibleName('Claude Code, needs you')
+  } finally {
+    await client.close()
+    await closeFixtureServer(server)
   }
 })
 

@@ -1,17 +1,20 @@
 import { onScopeDispose, ref, watchEffect, type Ref } from 'vue'
 import {
   AGENT_CARD_INITIAL_LIMIT,
+  AGENT_CARD_PLAN_TEXT_LIMIT,
   AGENT_CARD_REASON_LIMIT,
   AGENT_CARD_TEXT_LIMIT,
   type AgentCardAction,
   type AgentCardButton,
   type AgentCardCloseReason,
+  type AgentCardDecision,
   type AgentCardModel,
   type HronautAgentCardApi
 } from '../../../shared/agent-card.js'
 import type { AgentPresence } from '../../../shared/agent-presence.js'
 import { isResolvedThemeName } from '../../../shared/theme.js'
 import { agentStepText } from './agent-step-text.js'
+import { agentCardCompletes, type AgentDecisionAnswerState } from './useAgentDecisionAnswers.js'
 
 type Translate = (key: string, values?: Record<string, unknown>) => string
 
@@ -35,6 +38,8 @@ export interface AgentCardContext {
   attentionId?: string
   /** The request is a human-waiting decision, answered where decisions are reviewed. */
   attentionDecision?: boolean
+  /** That decision as the shell last read it, when you can answer it in the card. */
+  decision?: AgentDecisionAnswerState
   follow: boolean
   /** Agents' cursors are drawn on the page. */
   showCursor: boolean
@@ -77,13 +82,11 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
       ? {
           reason: {
             heading: t('shell.agentCard.reason'),
-            text: fitAgentCardText(context.attentionReason, AGENT_CARD_REASON_LIMIT),
-            ...(context.attentionId ? { answers: context.attentionDecision
-              ? [{ action: 'review-decision', label: t('shell.agentCard.reviewDecision'), key: context.attentionId }]
-              : [
-                  { action: 'hand-back', label: t('shell.agentCard.handBack'), key: context.attentionId },
-                  { action: 'dismiss', label: t('shell.agentCard.dismiss'), key: context.attentionId }
-                ] } : {})
+            // A decision's request carries a fixed English line; once read, the card says it in your language.
+            text: context.attentionDecision && context.decision
+              ? t(`shell.agentCard.decisionReasons.${context.decision.decision}`)
+              : fitAgentCardText(context.attentionReason, AGENT_CARD_REASON_LIMIT),
+            ...(context.attentionId ? reasonAnswers(context.attentionId, context, t) : {})
           }
         }
       : {}),
@@ -108,6 +111,121 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
   }
 }
 
+// An approval's steps the card shows; the workspace shows them all.
+const PLAN_SHOWN = 4
+
+/** How you answer the request in the card: plain requests directly; decisions as their kind allows. */
+function reasonAnswers(requestId: string, context: AgentCardContext, t: Translate): { answers: AgentCardButton[]; decision?: AgentCardDecision } {
+  if (!context.attentionDecision) {
+    return {
+      answers: [
+        { action: 'hand-back', label: t('shell.agentCard.handBack'), key: requestId },
+        { action: 'dismiss', label: t('shell.agentCard.dismiss'), key: requestId }
+      ]
+    }
+  }
+  const decision = context.decision
+  if (!decision || decision.decision === 'resolve-unknown') {
+    return { answers: [{ action: 'review-decision', label: t('shell.agentCard.reviewDecision'), key: requestId }] }
+  }
+  const key = decision.key
+  const busy = decision.phase === 'sending' || decision.phase === 'sent'
+  const check = decision.check
+  // Completing needs a page you can confirm or one with nothing to confirm.
+  const completes = agentCardCompletes(decision.decision) && (check?.status === 'confirm' || check?.status === 'clear')
+  const needsCheck = check?.status === 'confirm'
+  const status = decision.phase === 'sending' ? { text: t('shell.agentCard.answerSending') }
+    : decision.phase === 'sent' ? { text: t('shell.agentCard.answerSent') }
+      : decision.phase === 'failed' ? { text: t('shell.agentCard.answerFailed'), alert: true }
+        // Nothing was sent because the page changed: confirm it again, open it in the workspace, or try again.
+        : decision.phase === 'changed' ? {
+          text: t(check?.status === 'confirm' ? 'shell.agentCard.answerChanged'
+            : check?.status === 'unavailable' ? 'shell.agentCard.checkUnavailable' : 'shell.agentCard.answerFailed'),
+          alert: true
+        }
+          : check?.status === 'checking' ? { text: t('shell.agentCard.checking') }
+            : check?.status === 'unavailable' ? { text: t('shell.agentCard.checkUnavailable') }
+              : undefined
+  const result: AgentCardDecision = {
+    id: decision.id,
+    key,
+    ...(check?.status === 'confirm' ? {
+      check: {
+        id: check.token,
+        text: fitAgentCardText(check.reasons.length
+          ? t('shell.agentCard.checked', { reasons: check.reasons.map((reason) => t(`workspaceContinuity.reasons.${reason}`)).join(' · ') })
+          : t('shell.agentCard.checkedPage')),
+        confirm: t(check.unknownOutcome ? 'workspaceContinuity.ack' : 'shell.agentCard.confirmPage')
+      }
+    } : {}),
+    ...(status ? { status } : {}),
+    ...(busy ? { busy: true } : {})
+  }
+  const inWorkspace: AgentCardButton = { action: 'review-decision', label: t('shell.agentCard.openDecision'), key: requestId }
+  if (decision.decision === 'review-page') {
+    return {
+      answers: [
+        ...(completes ? [{ action: 'answer-resolve' as const, label: t('shell.agentCard.looksGood'), key, ...(needsCheck ? { needsCheck: true } : {}) }] : []),
+        inWorkspace
+      ],
+      decision: {
+        ...result,
+        field: {
+          label: t('shell.agentCard.whatToFix'),
+          required: false,
+          toggle: t('shell.agentCard.somethingWrong'),
+          send: { action: 'answer-reject', label: t('shell.agentCard.sendBack'), key }
+        }
+      }
+    }
+  }
+  if (decision.decision === 'provide-input') {
+    // While the page is read again the field stays, so what you typed stays in view; Send waits for the reading.
+    const checking = check?.status === 'checking'
+    return {
+      answers: [inWorkspace],
+      decision: {
+        ...result,
+        ...(completes || checking ? {
+          field: {
+            label: t('humanWaiting.answerLabel'),
+            required: true,
+            send: { action: 'answer-resolve', label: t('shell.agentCard.send'), key, ...(needsCheck ? { needsCheck: true } : {}), ...(checking ? { disabled: true } : {}) }
+          }
+        } : {})
+      }
+    }
+  }
+  // An approval is made in the workspace, where its exact details are; the card shows what it would do and can reject it.
+  const planned = decision.steps ?? []
+  const steps = planned.slice(0, PLAN_SHOWN).map((step) => {
+    const reversibility = t(`humanWaiting.review.reversibilities.${step.reversibility}`)
+    return {
+      text: fitAgentCardText(step.representation === 'bounded-description' && step.description ? step.description : t('humanWaiting.review.visibleOnly'), AGENT_CARD_PLAN_TEXT_LIMIT),
+      detail: fitAgentCardText(step.origin ? t('shell.agentCard.stepDetail', { reversibility, origin: step.origin }) : reversibility)
+    }
+  })
+  return {
+    answers: [{ action: 'review-decision', label: t('shell.agentCard.reviewAndApprove'), key: requestId }],
+    decision: {
+      ...result,
+      ...(steps.length ? {
+        plan: {
+          heading: t('shell.agentCard.whatItWillDo'),
+          steps,
+          ...(planned.length > PLAN_SHOWN ? { more: t('shell.agentCard.moreSteps', { count: planned.length - PLAN_SHOWN }) } : {})
+        }
+      } : {}),
+      field: {
+        label: t('shell.agentCard.rejectReason'),
+        required: false,
+        toggle: t('shell.agentCard.rejectToggle'),
+        send: { action: 'answer-reject', label: t('shell.agentCard.reject'), key }
+      }
+    }
+  }
+}
+
 // One counter for every card, so a card opened after a remount never reuses the id of one still open.
 let lastCardId = 0
 
@@ -117,8 +235,8 @@ export interface AgentCardOptions {
   model: (clientKey: string) => AgentCardModel | undefined
   /** The avatar the card opens under. */
   anchor: (clientKey: string) => HTMLElement | null
-  /** A choice made on the card; an answer carries the key of what it answers, as the card showed it. */
-  onAction: (clientKey: string, action: AgentCardAction, key?: string) => void
+  /** A choice made on the card; an answer carries the key of what it answers, as the card showed it, and any note you wrote. */
+  onAction: (clientKey: string, action: AgentCardAction, key?: string, note?: string) => void
   onClosed?: (clientKey: string, reason: AgentCardCloseReason) => void
 }
 
@@ -181,7 +299,7 @@ export function useAgentCard(options: AgentCardOptions): AgentCardController {
     // Events of a card that has since closed or been replaced are stale.
     if (!key || event.cardId !== cardId) return
     if (event.kind === 'action') {
-      options.onAction(key, event.action, event.key)
+      options.onAction(key, event.action, event.key, event.note)
       return
     }
     openKey.value = null

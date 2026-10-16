@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconSmartToy from '~icons/material-symbols/smart-toy-outline-rounded'
@@ -12,6 +12,7 @@ import {
 } from '../../../shared/agent-presence.js'
 import { agentStepText } from '../composables/agent-step-text.js'
 import { agentCardModel, useAgentCard } from '../composables/useAgentCard.js'
+import { useAgentDecisionAnswers, type AgentDecisionBrowser } from '../composables/useAgentDecisionAnswers.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
@@ -27,6 +28,11 @@ const props = withDefaults(defineProps<{
   attentionId?: string
   /** That request is a human-waiting decision. */
   attentionDecision?: boolean
+  /** The decision it asks about and its workspace, for answering it in the card. */
+  attentionDecisionId?: string
+  attentionWorkspaceId?: string
+  /** Reads and answers decisions; without it, decisions are answered in the workspace. */
+  browser?: AgentDecisionBrowser
   /** The open tabs, to find the one an agent acts on and whether agents are paused there. */
   tabs?: readonly { id: string; agentPaused?: boolean }[]
   follow?: boolean
@@ -149,6 +155,16 @@ function avatarElement(clientKey: string): HTMLElement | null {
   return [...(root.value?.querySelectorAll<HTMLElement>('.agent-avatar') ?? [])].find((avatar) => avatar.dataset.clientKey === clientKey) ?? null
 }
 
+// Hronaut reads the decision and checks the page only while a card for an agent that needs you is open.
+const decisionCardOpen = ref(false)
+const decisionAnswers = useAgentDecisionAnswers({
+  browser: () => props.browser,
+  target: () => props.attentionDecisionId && props.attentionId && props.workspaceId && props.attentionWorkspaceId === props.workspaceId
+    ? { workspaceId: props.workspaceId, decisionId: props.attentionDecisionId, requestId: props.attentionId }
+    : undefined,
+  active: () => decisionCardOpen.value
+})
+
 const card = useAgentCard({
   ...(props.cardApi ? { api: props.cardApi } : {}),
   model(clientKey) {
@@ -160,6 +176,7 @@ const card = useAgentCard({
       ...(props.attentionReason ? { attentionReason: props.attentionReason } : {}),
       ...(props.attentionId ? { attentionId: props.attentionId } : {}),
       ...(props.attentionDecision ? { attentionDecision: true } : {}),
+      ...(props.attentionDecision && decisionAnswers.state.value ? { decision: decisionAnswers.state.value } : {}),
       follow: props.follow === true,
       showCursor: props.showCursor,
       ...(tab ? { tab } : {}),
@@ -171,8 +188,8 @@ const card = useAgentCard({
     }, t)
   },
   anchor: avatarElement,
-  onAction(clientKey, action, key) {
-    run(clientKey, action, key)
+  onAction(clientKey, action, key, note) {
+    run(clientKey, action, key, note)
   },
   onClosed(clientKey, reason) {
     if (reason === 'blur') blurClosed = { clientKey, at: performance.now() }
@@ -198,12 +215,24 @@ watch(card.openKey, (key) => {
   cardAgent.value = undefined
   cardTabId = undefined
 })
+watchEffect(() => {
+  const key = card.openKey.value
+  const agent = key ? agentByKey(key) : undefined
+  decisionCardOpen.value = agent?.state === 'needs-you' && !gone(agent)
+})
 // The card belongs to the workspace in view.
 watch(() => props.workspaceId, () => card.close())
 
-function run(clientKey: string, action: AgentCardAction, key?: string): void {
+function run(clientKey: string, action: AgentCardAction, key?: string, note?: string): void {
   const agent = agentByKey(clientKey)
   const tab = agent && (openTab(cardTabId) ?? openTab(target(agent)))
+  if (action === 'answer-check' || action === 'answer-resolve' || action === 'answer-reject') {
+    // The decision checks the key against the revision the card showed; a tick names the reading it confirms.
+    if (!key || !props.attentionDecision || agent?.state !== 'needs-you' || gone(agent)) return
+    if (action === 'answer-check') decisionAnswers.confirm(key)
+    else void decisionAnswers.answer(key, action === 'answer-resolve' ? 'resolve' : 'reject', note)
+    return
+  }
   if (action === 'follow-on' || action === 'follow-off') {
     emit('setFollow', action === 'follow-on')
     return

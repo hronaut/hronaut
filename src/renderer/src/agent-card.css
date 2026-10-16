@@ -94,6 +94,32 @@
   .agent-card:has(.agent-card-answers) .agent-card-button[data-action="take-over"] { border-color: var(--border); color: var(--text); background: var(--surface); }
   .agent-card:has(.agent-card-answers) .agent-card-button[data-action="take-over"]:hover:not(:disabled) { background: var(--hover); }
   .agent-card-button:disabled, .agent-card-switch:disabled { cursor: default; opacity: 0.5; }
+
+  /* A decision you can answer here: what it would do, the page check, your note, and how sending went. */
+  .agent-card-plan-section { display: grid; gap: 4px; margin-top: 8px; }
+  .agent-card-plan-heading { margin: 0; font-weight: var(--weight-medium); }
+  .agent-card-plan { display: grid; gap: 6px; margin: 0; padding-inline-start: 20px; }
+  .agent-card-plan li { display: grid; gap: 1px; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+  .agent-card-plan-detail, .agent-card-plan-more { color: var(--muted); }
+  .agent-card-plan-more { margin: 0; }
+  .agent-card-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .agent-card-check { display: grid; gap: 6px; margin-top: 8px; }
+  .agent-card-check-text { margin: 0; color: var(--muted); }
+  .agent-card-check-label { display: flex; align-items: flex-start; gap: 8px; min-height: 32px; cursor: pointer; }
+  .agent-card-check-label input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); }
+  .agent-card-field { display: grid; gap: 8px; margin-top: 8px; }
+  .agent-card-field[hidden] { display: none; }
+  .agent-card-field-label { display: grid; gap: 4px; font-weight: var(--weight-medium); }
+  .agent-card-note {
+    width: 100%; min-height: 64px; max-height: 160px; padding: 8px 10px; resize: vertical;
+    border: 1px solid var(--border); border-radius: var(--corner-2);
+    color: var(--text); background: var(--surface); font: inherit; font-weight: var(--weight-regular); line-height: inherit;
+  }
+  .agent-card-note:focus-visible { outline-offset: 0; }
+  .agent-card-note[readonly] { opacity: 0.7; }
+  .agent-card-field-send { justify-self: start; }
+  .agent-card-status { margin: 8px 0 0; color: var(--muted); }
+  .agent-card-status[data-alert="true"] { color: var(--danger-text); }
   .agent-card-close { display: grid; place-items: center; width: 32px; padding: 0; border-color: transparent; background: transparent; color: var(--muted); }
   .agent-card-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

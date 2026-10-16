@@ -173,6 +173,106 @@ describe('agent avatars in the toolbar', () => {
     expect(card.api.hide).toHaveBeenCalledWith(cardId)
   })
 
+  it('answers a waiting decision in the card once it has read it and checked the page', async () => {
+    const card = fakeCardApi()
+    const waiting = {
+      id: 'decision-1', revision: 'revision-1', workspaceId: 'workspace-a', runId: 'run-1', decision: 'review-page' as const, owner: 'local-user', fallbackOwner: 'local-user',
+      priorOutcome: 'OUTCOME_UNKNOWN' as const, state: 'WAITING_FOR_HUMAN' as const, createdAt: 1, deadlineAt: 2, notificationAttempts: 1,
+      notificationStatus: 'delivered' as const, nextAction: 'REVIEW_CURRENT_STATE' as const
+    }
+    const browser = {
+      listHumanWaiting: vi.fn(async () => [waiting]),
+      reviewWorkspaceContinuity: vi.fn(async () => ({
+        status: 'BLOCKED' as const, reasons: ['PRIOR_WRITE_OUTCOME_UNKNOWN' as const], priorOutcome: 'OUTCOME_UNKNOWN' as const, nextAction: 'INSPECT_AND_RECONCILE' as const,
+        checkpointId: 'checkpoint-1', reviewId: 'review-1', suspended: true, priorOutcomeAcknowledged: false
+      })),
+      reconcileWorkspaceContinuity: vi.fn(),
+      changeHumanWaiting: vi.fn(async () => ({ ...waiting, state: 'REJECTED' as const }))
+    }
+    const decisionProps = {
+      cardApi: card.api, browser, attentionReason: 'Human decision required: review-page', attentionId: 'attention-3', attentionDecision: true,
+      attentionDecisionId: 'decision-1', attentionWorkspaceId: 'workspace-a'
+    }
+    const { view, change } = renderAvatars([agent('Windsurf', { state: 'needs-you' }), agent('Claude Code')], decisionProps)
+    const group = await screen.findByRole('group', { name: 'Agents in this workspace' })
+    // Nothing is read before a card for the agent that needs you opens.
+    await fireEvent.click(within(group).getByRole('button', { name: 'Claude Code, working' }))
+    await flushPromises()
+    expect(browser.listHumanWaiting).not.toHaveBeenCalled()
+    await fireEvent.click(within(group).getByRole('button', { name: 'Windsurf, needs you' }))
+    await flushPromises()
+    await nextTick()
+    expect(browser.listHumanWaiting).toHaveBeenCalledWith('workspace-a')
+    const { cardId, model } = card.last()
+    expect(model.reason?.decision).toMatchObject({ id: 'decision-1', key: 'decision-1_revision-1', check: { text: 'Hronaut checked this page: Earlier action outcome remains unknown.' } })
+    expect(model.reason?.answers?.map((answer) => [answer.action, answer.key])).toEqual([['answer-resolve', 'decision-1_revision-1'], ['review-decision', 'attention-3']])
+
+    // An answer for another revision changes nothing; the one the card showed goes with its note.
+    card.emit({ cardId, kind: 'action', action: 'answer-reject', key: 'decision-1_revision-0', note: 'Old' })
+    card.emit({ cardId, kind: 'action', action: 'answer-reject', key: 'decision-1_revision-1', note: 'The total is wrong.' })
+    await flushPromises()
+    expect(browser.changeHumanWaiting.mock.calls).toEqual([['workspace-a', 'decision-1', 'revision-1', 'reject', undefined, 'The total is wrong.']])
+    await nextTick()
+    expect(card.last().model.reason?.decision).toMatchObject({ status: { text: 'Sent to the agent' }, busy: true })
+
+    // Nor does one for an agent that no longer asks, or a decision in another workspace.
+    change({ revision: 2, workspaces: { 'workspace-a': [agent('Windsurf', { state: 'working' }), agent('Claude Code')] } })
+    await nextTick()
+    card.emit({ cardId, kind: 'action', action: 'answer-resolve', key: 'decision-1_revision-1' })
+    await view.rerender({ ...decisionProps, attentionWorkspaceId: 'workspace-b' })
+    change({ revision: 3, workspaces: { 'workspace-a': [agent('Windsurf', { state: 'needs-you' }), agent('Claude Code')] } })
+    await flushPromises()
+    card.emit({ cardId, kind: 'action', action: 'answer-reject', key: 'decision-1_revision-1' })
+    await flushPromises()
+    expect(browser.changeHumanWaiting).toHaveBeenCalledTimes(1)
+    expect(browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
+  })
+
+  it('completes a page review from the card only after the tick, confirming the page read at the tick', async () => {
+    const card = fakeCardApi()
+    const waiting = {
+      id: 'decision-1', revision: 'revision-1', workspaceId: 'workspace-a', runId: 'run-1', decision: 'review-page' as const, owner: 'local-user', fallbackOwner: 'local-user',
+      priorOutcome: 'OUTCOME_UNKNOWN' as const, state: 'WAITING_FOR_HUMAN' as const, createdAt: 1, deadlineAt: 2, notificationAttempts: 1,
+      notificationStatus: 'delivered' as const, nextAction: 'REVIEW_CURRENT_STATE' as const
+    }
+    let review = 0
+    const browser = {
+      listHumanWaiting: vi.fn(async () => [waiting]),
+      reviewWorkspaceContinuity: vi.fn(async () => ({
+        status: 'BLOCKED' as const, reasons: ['PRIOR_WRITE_OUTCOME_UNKNOWN' as const], priorOutcome: 'OUTCOME_UNKNOWN' as const, nextAction: 'INSPECT_AND_RECONCILE' as const,
+        checkpointId: 'checkpoint-1', reviewId: `review-${++review}`, suspended: true, priorOutcomeAcknowledged: false
+      })),
+      reconcileWorkspaceContinuity: vi.fn(async () => undefined),
+      changeHumanWaiting: vi.fn(async () => ({ ...waiting, state: 'RESOLVED' as const }))
+    }
+    renderAvatars([agent('Windsurf', { state: 'needs-you' })], {
+      cardApi: card.api, browser, attentionReason: 'Human decision required: review-page', attentionId: 'attention-3', attentionDecision: true,
+      attentionDecisionId: 'decision-1', attentionWorkspaceId: 'workspace-a'
+    })
+    await fireEvent.click(await screen.findByRole('button', { name: 'Windsurf, needs you' }))
+    await flushPromises()
+    await nextTick()
+    const { cardId } = card.last()
+    // Without the tick, handing back sends nothing.
+    card.emit({ cardId, kind: 'action', action: 'answer-resolve', key: 'decision-1_revision-1' })
+    await flushPromises()
+    expect(browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
+    expect(browser.changeHumanWaiting).not.toHaveBeenCalled()
+
+    // The tick names the reading it confirms; one for a reading the card does not show confirms nothing.
+    card.emit({ cardId, kind: 'action', action: 'answer-check', key: 'check-0' })
+    await flushPromises()
+    expect(browser.reviewWorkspaceContinuity).toHaveBeenCalledTimes(1)
+    await nextTick()
+    card.emit({ cardId, kind: 'action', action: 'answer-check', key: card.last().model.reason!.decision!.check!.id })
+    await flushPromises()
+    card.emit({ cardId, kind: 'action', action: 'answer-resolve', key: 'decision-1_revision-1' })
+    await flushPromises()
+    expect(browser.reviewWorkspaceContinuity).toHaveBeenCalledTimes(2)
+    expect(browser.reconcileWorkspaceContinuity.mock.calls).toEqual([['workspace-a', 'review-2', true]])
+    expect(browser.changeHumanWaiting.mock.calls).toEqual([['workspace-a', 'decision-1', 'revision-1', 'resolve', undefined, undefined]])
+  })
+
   it('pauses, resumes, takes over and follows from the card, and disables pause while agent control is locked', async () => {
     const card = fakeCardApi()
     const { view } = renderAvatars([agent('Claude Code', { lastTabId: 'tab-2' })], { cardApi: card.api, tabs: [{ id: 'tab-1' }, { id: 'tab-2', agentPaused: true }] })
