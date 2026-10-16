@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.49.0] - 2026-10-16
+
 ### Added
 
 - dApps can now run more of viem's read actions through Hronaut's wallet provider: `createAccessList`, `getProof`, `getBlobBaseFee`, `getBlockTransactionCount`, `getTransaction` by block and index, and `simulateBlocks` or `simulateCalls`, which some dApps use to preview a swap's balance changes. Their methods (`eth_createAccessList`, `eth_getProof`, `eth_blobBaseFee`, the block transaction count and by-index methods, and `eth_simulateV1`) are forwarded to the active wallet network's RPC like the other reads, without an account permission or a prompt. Before, they failed with code 4200 in Hronaut, although MetaMask forwards them.
@@ -19,6 +21,18 @@ All notable changes to Hronaut are documented in this file.
 - An EVM transaction that another transaction replaced, for example after a wallet elsewhere sped it up or cancelled it with the same key, now ends as failed instead of staying submitted forever. Hronaut counts it as replaced when the node no longer holds it and the account has already mined a transaction with its nonce, on at least three checks over a minute. A `wallet_sendCalls` batch stops at such a call instead of waiting 10 minutes, and `wallet_getCallsStatus` reports 400 (not included) when none of its calls reached the chain, or 600 when some did. Before, the batch stayed at 100 (pending). A dropped transaction whose nonce is still unused stays pending, since another node may still mine it.
 - A dApp that changes its own route while a wallet request is open, such as a client-side router adding `?from=ETH` to the address while the approval dialog shows, no longer loses that request. Before, any route change in the same page, through `history.pushState`, `replaceState` or a fragment, cancelled the page's pending wallet approvals, so the dApp got "Wallet request was cancelled", and reset the network it had switched to with `wallet_switchEthereumChain` back to the default without a `chainChanged` event. Now only navigating to another document does that. An agent's `wallet_page_requests` also keeps listing the page's requests across such route changes.
 - A dApp tab waiting on a wallet approval no longer goes to sleep under it. Before, Memory Saver or **Sleep eligible tabs now** could unload an inactive tab while its page waited on a connection, signature or transaction request, or while its `wallet_sendCalls` batch waited to send the next call; the request stayed open, so a person could still approve and send it although the page that should get the result was gone. Such a tab now stays awake from the moment its page asks, while Hronaut is still preparing the request, until the request is answered or the batch is done, like a tab with an open dialog. An agent's open wallet request for the tab keeps it awake the same way until it is answered or expires.
+
+### Known issues
+
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.48.0] - 2026-10-15
 
