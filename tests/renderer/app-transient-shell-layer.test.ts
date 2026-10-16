@@ -29,7 +29,8 @@ function createHarness() {
     zoom: { openForTab: vi.fn(async () => undefined), close: vi.fn(), setZoom: vi.fn(async () => undefined) },
     workspace: { openExisting: vi.fn(async () => undefined), openNew: vi.fn(async () => undefined), close: vi.fn() },
     credential: { openPanel: vi.fn(async () => undefined), close: vi.fn() },
-    command: { openPanel: vi.fn(async () => undefined), close: vi.fn() }
+    command: { openPanel: vi.fn(async () => undefined), close: vi.fn() },
+    switcher: { openPanel: vi.fn(async () => undefined), close: vi.fn() }
   }
   const state = {
     tabs: [],
@@ -51,6 +52,9 @@ function createHarness() {
   const reportCommandError = vi.fn()
   const reportZoomError = vi.fn()
   const newTab = vi.fn()
+  const searchTabs = vi.fn()
+  const createWorkspace = vi.fn()
+  const userAttention = { id: 'attention-1', workspaceId: 'workspace-1', reason: 'Sign in', requestedAt: '2026-10-16T00:00:00.000Z' }
   const wrapper = mount(AppTransientShellLayer, {
     props: {
       tabSearchOpen: true,
@@ -62,6 +66,7 @@ function createHarness() {
       dock: 'right',
       state: state as never,
       activeTab: undefined,
+      userAttention: userAttention as never,
       mcpActivityByTab: {},
       credentials: [],
       collectionsController: { id: 'collections' } as never,
@@ -87,7 +92,9 @@ function createHarness() {
       runCommand,
       reportCommandError,
       reportZoomError,
-      onNewTab: newTab
+      onNewTab: newTab,
+      onSearchTabs: searchTabs,
+      onCreateWorkspace: createWorkspace
     },
     global: {
       stubs: {
@@ -103,7 +110,16 @@ function createHarness() {
         ], {}),
         WorkspaceEditor: exposedStub('WorkspaceEditor', ['open', 'state', 'syncState', 'formatNumber', 'canPresent'], handles.workspace),
         CredentialPicker: exposedStub('CredentialPicker', ['open', 'credentials', 'origin', 'fillCredential'], handles.credential),
-        CommandPalette: exposedStub('CommandPalette', ['open', 'websiteAvailable', 'formatNumber', 'runCommand', 'reportCommandError'], handles.command)
+        CommandPalette: exposedStub('CommandPalette', ['open', 'websiteAvailable', 'formatNumber', 'runCommand', 'reportCommandError'], handles.command),
+        WorkspaceSwitcher: defineComponent({
+          name: 'WorkspaceSwitcher',
+          props: ['open', 'state', 'userAttention', 'browser', 'syncState', 'selectTab', 'expandTabGroup', 'formatNumber', 'formatError', 'showError'],
+          emits: ['update:open', 'search-tabs', 'create-workspace'],
+          setup(_props, { expose }) {
+            expose(handles.switcher)
+            return () => h('div', { 'data-testid': 'WorkspaceSwitcher' })
+          }
+        })
       }
     }
   })
@@ -125,7 +141,10 @@ function createHarness() {
       runCommand,
       reportCommandError,
       reportZoomError,
-      newTab
+      newTab,
+      searchTabs,
+      createWorkspace,
+      userAttention
     }
   }
 }
@@ -165,6 +184,55 @@ describe('AppTransientShellLayer', () => {
     expect(wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])
     expect(forwarded.newTab).toHaveBeenCalledOnce()
     expect(forwarded.reportZoomError).toHaveBeenCalledOnce()
+  })
+
+  it('shows the palette as commands or as the workspace switcher, one at a time, on one open state', async () => {
+    const { wrapper, handles, forwarded } = createHarness()
+    // The two lists the palette shows, as the layer sees them: their props and what they emit.
+    type List = { props: (key?: string) => unknown; vm: { $emit: (event: string, ...args: unknown[]) => void } }
+    const commands = () => wrapper.findComponent({ name: 'CommandPalette' }) as unknown as List
+    const switcher = () => wrapper.findComponent({ name: 'WorkspaceSwitcher' }) as unknown as List
+    expect(commands().props('open')).toBe(true)
+    expect(switcher().props()).toMatchObject({
+      open: false,
+      state: forwarded.state,
+      userAttention: forwarded.userAttention,
+      syncState: forwarded.syncState,
+      selectTab: forwarded.selectTab,
+      expandTabGroup: forwarded.expandTabGroup,
+      showError: forwarded.showError
+    })
+
+    await wrapper.setProps({ commandPaletteView: 'workspaces' })
+    expect(commands().props('open')).toBe(false)
+    expect(switcher().props('open')).toBe(true)
+
+    // A late close from the list not shown leaves the palette open.
+    commands().vm.$emit('update:open', false)
+    expect(wrapper.emitted('update:commandPaletteOpen')).toBeUndefined()
+    switcher().vm.$emit('update:open', false)
+    expect(wrapper.emitted('update:commandPaletteOpen')?.at(-1)).toEqual([false])
+
+    // Opening one list shows it, from either list.
+    commands().vm.$emit('update:open', true)
+    expect(wrapper.emitted('update:commandPaletteView')?.at(-1)).toEqual(['commands'])
+    expect(wrapper.emitted('update:commandPaletteOpen')?.at(-1)).toEqual([true])
+
+    const surface = wrapper.vm as unknown as {
+      openCommandPalette: (view?: 'commands' | 'workspaces') => Promise<void>
+      closeCommandPalette: () => void
+    }
+    await surface.openCommandPalette('workspaces')
+    expect(handles.switcher.openPanel).toHaveBeenCalledOnce()
+    expect(handles.command.openPanel).not.toHaveBeenCalled()
+    surface.closeCommandPalette()
+    expect(handles.switcher.close).toHaveBeenCalledOnce()
+    expect(handles.command.close).not.toHaveBeenCalled()
+
+    switcher().vm.$emit('search-tabs')
+    switcher().vm.$emit('create-workspace')
+    expect(forwarded.searchTabs).toHaveBeenCalledOnce()
+    expect(forwarded.createWorkspace).toHaveBeenCalledOnce()
   })
 
   it('exposes one stable imperative surface for all child handles', async () => {

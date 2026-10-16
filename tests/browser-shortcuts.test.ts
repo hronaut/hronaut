@@ -101,6 +101,15 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'O', control: true, shift: true, repeat: true }))).toBeNull()
   })
 
+  it('switches workspace with the primary modifier plus K, and nothing else on K', () => {
+    expect(browserShortcutAction(input({ key: 'k', control: true }))).toBe('switch-workspace')
+    expect(browserShortcutAction(input({ key: 'K', meta: true }))).toBe('switch-workspace')
+    expect(browserShortcutAction(input({ key: 'k' }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'k', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'k', control: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'k', control: true, repeat: true }))).toBeNull()
+  })
+
   it('toggles the full-page view with the primary modifier plus Shift+F, leaving Find on F', () => {
     expect(browserShortcutAction(input({ key: 'F', control: true, shift: true }))).toBe('toggle-full-page')
     expect(browserShortcutAction(input({ key: 'F', meta: true, shift: true }))).toBe('toggle-full-page')

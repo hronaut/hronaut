@@ -44,6 +44,7 @@ export interface AppBrowserChromeLayerActions {
   /** Opens a workspace's settings, where its waiting decisions are reviewed. */
   reviewDecisions: (groupId: string) => unknown
   toggleCommandPalette: () => unknown
+  toggleWorkspaceSwitcher: () => unknown
   toggleTabSearch: () => unknown
   openFind: () => unknown
   toggleZoom: () => unknown
@@ -57,6 +58,8 @@ const { t } = useI18n({ useScope: 'global' })
 const props = defineProps<{
   state: BrowserState
   userAttention?: UserAttentionRequest | null
+  /** The palette is open on its workspace list. */
+  workspaceSwitcherOpen?: boolean
   /** Hides this chrome so a website fills the window, and shows it again at the window's edge. */
   fullPage: FullPageView
   hydrated: boolean
@@ -359,7 +362,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         :state="state"
         :settings-active="settingsOpen"
         :user-attention="userAttention"
-        :tab-search-open="tabSearchOpen"
+        :workspace-switcher-open="workspaceSwitcherOpen"
         :hydrated="hydrated"
         :orientation="tabOrientation"
         :rail-pinned="verticalTabRailPinned"
@@ -382,11 +385,11 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
         @close-tab="runAction(() => closeTab($event))"
         @drag-start="startTabDrag"
         @toggle-rail-pinned="toggleVerticalTabRailPinned"
-        @search-tabs="runAction(actions.toggleTabSearch)"
+        @switch-workspace="runAction(actions.toggleWorkspaceSwitcher)"
       />
       <AppTopbarActions
         :inert="verticalTabRailCollapsing"
-        :command-palette-open="commandPaletteOpen"
+        :command-palette-open="commandPaletteOpen && !workspaceSwitcherOpen"
         :tab-search-open="tabSearchOpen"
         :downloads-open="downloadsOpen"
         :history-open="historyOpen"

@@ -4,6 +4,7 @@ export type CommandPaletteCommandId =
   | 'home'
   | 'new-tab'
   | 'search-tabs'
+  | 'switch-workspace'
   | 'downloads'
   | 'bookmarks'
   | 'history'
@@ -61,6 +62,7 @@ export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
   { id: 'home', label: 'Open Hronaut Home', description: 'Show the application dashboard', category: 'Navigation', keywords: ['dashboard'] },
   { id: 'new-tab', label: 'New tab', description: 'Open a blank tab in the Default workspace', category: 'Navigation', shortcut: 'Ctrl/Cmd+T' },
   { id: 'search-tabs', label: 'Search tabs', description: 'Find open, saved, and recently closed websites', category: 'Navigation', keywords: ['switch', 'restore', 'groups', 'workspace'], shortcut: 'Ctrl/Cmd+Shift+A' },
+  { id: 'switch-workspace', label: 'Switch workspace', description: 'Go to a workspace by its name, agents, or sites', category: 'Navigation', keywords: ['workspace', 'project', 'client', 'jump', 'go to', 'agent', 'archived'], shortcut: 'Ctrl/Cmd+K' },
   { id: 'downloads', label: 'Show downloads', description: 'Review current and completed downloads', category: 'Navigation', keywords: ['files'] },
   { id: 'bookmarks', label: 'Show bookmarks', description: 'Open locally saved pages', category: 'Navigation', keywords: ['favorites', 'star'] },
   { id: 'history', label: 'Show browsing history', description: 'Search locally visited pages', category: 'Navigation', keywords: ['visits'], shortcut: 'Ctrl+H / Cmd+Y' },

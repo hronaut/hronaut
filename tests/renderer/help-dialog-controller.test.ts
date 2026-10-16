@@ -58,7 +58,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.takeOver',
       keys: ['Ctrl/Cmd', 'Shift', 'O']
     })
-    expect(controller.shortcuts.value).toHaveLength(21)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.switchWorkspace',
+      keys: ['Ctrl/Cmd', 'K']
+    })
+    expect(controller.shortcuts.value).toHaveLength(22)
     controller.dispose()
   })
 })

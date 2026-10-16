@@ -625,6 +625,7 @@ export const plPL = {
     "select": "Wybierz",
     "fill": "Wypełnij"
   },
+  "workspaceSwitcher": { "kicker": "Obszary robocze", "heading": "Przełącz obszar", "close": "Zamknij przełącznik obszarów", "search": "Szukaj obszarów roboczych", "placeholder": "Szukaj po nazwie, agencie lub witrynie", "results": "Obszary robocze", "openGroup": "Otwarte obszary", "archived": "Zarchiwizowane", "current": "Bieżący", "needsYou": "Czeka na Ciebie", "working": "{names} przy pracy", "tabs": "{count} karta | {count} karty | {count} kart", "matches": "{count} pasujący obszar. | {count} pasujące obszary. | {count} pasujących obszarów.", "selected": "Wybrano {name}.", "empty": "Brak pasujących obszarów", "emptyDescription": "Spróbuj nazwy, agenta, np. „Claude Code”, lub witryny.", "none": "Nie ma jeszcze obszarów roboczych", "noneDescription": "Utwórz obszar roboczy, aby trzymać razem karty i logowania projektu.", "navigate": "Nawigacja", "choose": "Przełącz", "searchTabs": "Szukaj kart", "newWorkspace": "Nowy obszar", "switchFailed": "Nie udało się przełączyć obszaru", "switchDescription": "Nie udało się otworzyć {name}." },
   "commandPalette": {
     "kicker": "Szybkie działania",
     "heading": "Polecenia",
@@ -654,6 +655,7 @@ export const plPL = {
         "label": "Nowa karta",
         "description": "Otwórz pustą kartę w bieżącym obszarze roboczym"
       },
+      "switch-workspace": { "label": "Przełącz obszar roboczy", "description": "Przejdź do obszaru roboczego po nazwie, agentach lub witrynach" },
       "search-tabs": {
         "label": "Szukaj kart",
         "description": "Znajdź otwarte, zapisane i ostatnio zamknięte witryny"
@@ -864,7 +866,8 @@ export const plPL = {
       "lastTab": "Przejdź do ostatniej karty internetowej",
       "resetZoom": "Zresetuj powiększenie strony",
       "fullPage": "Przełącz widok pełnej strony",
-      "takeOver": "Przejmij kontrolę od agenta pracującego na stronie"
+      "takeOver": "Przejmij kontrolę od agenta pracującego na stronie",
+      "switchWorkspace": "Przełącz obszar roboczy"
     },
     "responsive": {
       "preview": "Testuj telefony, tablety i komputery",
@@ -1312,6 +1315,8 @@ export const plPL = {
       "stackedVisible": "Widoczna w pionowym widoku dzielonym",
       "sideVisible": "Widoczna w widoku dzielonym obok siebie",
       "inputLocked": "Wprowadzanie danych na stronie zablokowane",
+      "switchWorkspace": "Przełącz obszar",
+      "switchWorkspaceTitle": "Przełącz obszar (Ctrl/Cmd+K)",
       "createWorkspaceTitle": "Utwórz nowy odizolowany obszar roboczy",
       "createWorkspace": "Utwórz obszar roboczy",
       "workspace": "Obszar roboczy",

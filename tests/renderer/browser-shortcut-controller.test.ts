@@ -77,6 +77,7 @@ function createController(canRunAction = (_action: string) => true) {
     openAgentCard: vi.fn(async () => undefined),
     toggleFullPageView: vi.fn(async () => undefined),
     takeOverFromAgent: vi.fn(async () => undefined),
+    toggleWorkspaceSwitcher: vi.fn(async () => undefined),
     onError: vi.fn()
   }
   const controller = useBrowserShortcutController({
@@ -163,6 +164,15 @@ describe('browser shortcut controller', () => {
     harness.settingsOpen.value = true
     await expect(harness.controller.run('take-over')).resolves.toBe(false)
     expect(harness.callbacks.takeOverFromAgent).toHaveBeenCalledOnce()
+  })
+
+  it('opens the workspace switcher from its shortcut, even from Settings, which the switcher closes', async () => {
+    const harness = createController()
+    await expect(harness.controller.run('switch-workspace')).resolves.toBe(true)
+    harness.settingsOpen.value = true
+    await expect(harness.controller.run('switch-workspace')).resolves.toBe(true)
+    expect(harness.callbacks.toggleWorkspaceSwitcher).toHaveBeenCalledTimes(2)
+    expect(harness.callbacks.toggleCommandPalette).not.toHaveBeenCalled()
   })
 
   it('reports rejected browser operations instead of leaking an unhandled shortcut failure', async () => {

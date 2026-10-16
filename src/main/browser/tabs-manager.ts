@@ -2595,6 +2595,12 @@ export class BrowserTabsManager {
     return this.getTab()
   }
 
+  /** Whether the tab shows Hronaut Home. */
+  isHomeTab(tabId: string): boolean {
+    const tab = this.tabs.get(tabId)
+    return tab !== undefined && isHronautHomeUrl(tab.url)
+  }
+
   getTab(tabId?: string): BrowserTab {
     const resolvedId = tabId ?? this.activeTabId
     const tab = resolvedId ? this.tabs.get(resolvedId) : undefined

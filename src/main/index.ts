@@ -4122,6 +4122,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     },
     // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
     shortcutAvailable: (action, workspaceId, tabId) => action === 'take-over' ? takeOvers.available(tabId, workspaceId) !== undefined
+      // Ctrl/Cmd+K is a common website key, such as for a site's own search, so websites keep it; Home does not use it.
+      : action === 'switch-workspace' ? tabsManager?.isHomeTab(tabId) === true
       : action !== 'agent-card' || (workspaceId !== undefined && (agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0),
     onShortcutRequested: (action, page) => {
       // From a page, the key takes over that page's tab, which may not be the one the shell shows.

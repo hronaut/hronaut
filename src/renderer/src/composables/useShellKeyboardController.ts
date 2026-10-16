@@ -49,7 +49,8 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     })
     guardInteraction(event)
     if (event.defaultPrevented || composing) return
-    if (options.commandPalette.isOpen() && shortcut !== 'command-palette') {
+    // Its own two shortcuts reach the open palette: each closes its list or turns to the other one.
+    if (options.commandPalette.isOpen() && shortcut !== 'command-palette' && shortcut !== 'switch-workspace') {
       if (event.key === 'Escape') options.commandPalette.close()
       return
     }

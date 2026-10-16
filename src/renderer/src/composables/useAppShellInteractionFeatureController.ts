@@ -49,6 +49,7 @@ type TransientShell = Pick<
   | 'zoomOpen'
   | 'tabSearchOpen'
   | 'commandPaletteOpen'
+  | 'commandPaletteView'
   | 'tabSearchPanel'
   | 'zoomBar'
   | 'commandPalettePanel'
@@ -278,6 +279,7 @@ export function useAppShellInteractionFeatureController(
   let runShortcutFromPalette = async (_action: BrowserShortcutAction): Promise<boolean> => false
   const commandPalette = useAppCommandPaletteFeatureController({
     open: transient.commandPaletteOpen,
+    view: transient.commandPaletteView,
     panel: transient.commandPalettePanel,
     canOpen: () => !transient.workspaceEditorOpen.value && !transient.credentialPickerOpen.value,
     beforeOpen: () => {
@@ -329,7 +331,8 @@ export function useAppShellInteractionFeatureController(
     toggleVisitHistory: features.collections.toggleVisitHistory,
     toggleTabSearch: tabSearch.toggle,
     openPrivacySettings: features.site.openPrivacySettings,
-    toggleCommandPalette: commandPalette.toggle,
+    toggleCommandPalette: () => commandPalette.toggle('commands'),
+    toggleWorkspaceSwitcher: () => commandPalette.toggle('workspaces'),
     toggleElementPicker: () => features.pageTools.toggleElementPicker('context'),
     toggleDeveloperTools: navigation.toggleDeveloperTools,
     ...(navigation.openAgentCard ? { openAgentCard: async () => { await navigation.openAgentCard?.() } } : {}),
@@ -390,7 +393,8 @@ export function useAppShellInteractionFeatureController(
     openApplicationHome: home.openHome,
     rememberWebsiteTab: home.rememberWebsiteTab,
     newTabInWorkspace: tabNavigation.newTabInWorkspace,
-    toggleCommandPalette: commandPalette.toggle,
+    toggleCommandPalette: () => commandPalette.toggle('commands'),
+    toggleWorkspaceSwitcher: () => commandPalette.toggle('workspaces'),
     runCommandPaletteCommand: (commandId: CommandPaletteCommandId) => commandPalette.run(commandId),
     runBrowserShortcut: browserShortcuts.run,
     guardShellInteraction: keyboard.guardInteraction,

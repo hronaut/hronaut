@@ -625,6 +625,7 @@ export const frFR = {
     "select": "Sélectionner",
     "fill": "Remplir"
   },
+  "workspaceSwitcher": { "kicker": "Espaces de travail", "heading": "Changer d’espace", "close": "Fermer le sélecteur d’espaces", "search": "Rechercher des espaces de travail", "placeholder": "Rechercher par nom, agent ou site", "results": "Espaces de travail", "openGroup": "Espaces ouverts", "archived": "Archivés", "current": "Actuel", "needsYou": "Vous attend", "working": "{names} au travail", "tabs": "{count} onglet | {count} onglets", "matches": "{count} espace correspondant. | {count} espaces correspondants.", "selected": "{name} sélectionné.", "empty": "Aucun espace correspondant", "emptyDescription": "Essayez un nom, un agent comme « Claude Code » ou un site.", "none": "Aucun espace de travail pour l’instant", "noneDescription": "Créez un espace de travail pour garder ensemble les onglets et connexions d’un projet.", "navigate": "Naviguer", "choose": "Changer", "searchTabs": "Rechercher des onglets", "newWorkspace": "Nouvel espace", "switchFailed": "Impossible de changer d’espace", "switchDescription": "Impossible d’ouvrir {name}." },
   "commandPalette": {
     "kicker": "Actions rapides",
     "heading": "Commandes",
@@ -654,6 +655,7 @@ export const frFR = {
         "label": "Nouvel onglet",
         "description": "Ouvrir un onglet vide dans l’espace de travail actuel"
       },
+      "switch-workspace": { "label": "Changer d’espace de travail", "description": "Aller à un espace de travail par son nom, ses agents ou ses sites" },
       "search-tabs": {
         "label": "Rechercher des onglets",
         "description": "Trouver les sites ouverts, enregistrés et récemment fermés"
@@ -864,7 +866,8 @@ export const frFR = {
       "lastTab": "Passer au dernier onglet web",
       "resetZoom": "Réinitialiser le zoom de la page",
       "fullPage": "Activer ou désactiver la vue pleine page",
-      "takeOver": "Prendre la main sur l’agent qui travaille sur la page"
+      "takeOver": "Prendre la main sur l’agent qui travaille sur la page",
+      "switchWorkspace": "Changer d’espace de travail"
     },
     "responsive": {
       "preview": "Tester les téléphones, tablettes et ordinateurs",
@@ -1312,6 +1315,8 @@ export const frFR = {
       "stackedVisible": "Visible dans la vue fractionnée empilée",
       "sideVisible": "Visible dans la vue fractionnée côte à côte",
       "inputLocked": "Saisie sur la page verrouillée",
+      "switchWorkspace": "Changer d’espace",
+      "switchWorkspaceTitle": "Changer d’espace (Ctrl/Cmd+K)",
       "createWorkspaceTitle": "Créer un nouvel espace de travail isolé",
       "createWorkspace": "Créer un espace de travail",
       "workspace": "Espace de travail",
