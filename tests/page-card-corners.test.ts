@@ -13,7 +13,12 @@ function fixture(zoom: number, split = false) {
   const shell = { getZoomFactor: () => zoom, isDestroyed: () => false }
   const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
     destroyed: false,
-    window: { isDestroyed: () => false, getContentBounds: () => ({ x: 0, y: 0, width: 1440, height: 900 }), webContents: shell },
+    window: {
+      isDestroyed: () => false,
+      getContentBounds: () => ({ x: 0, y: 0, width: 1440, height: 900 }),
+      webContents: shell,
+      contentView: { children: [first.view, second.view] }
+    },
     tabs: new Map([[first.id, first], [second.id, second]]),
     activeTabId: first.id,
     splitView: split ? { firstTabId: first.id, secondTabId: second.id, orientation: 'vertical', ratio: 0.5 } : null,
@@ -66,12 +71,20 @@ it('places a card under each pane in shell pixels, keeps it under a dialog only 
   expect(right!.x - (left!.x + left!.width)).toBe(12)
   expect(right!.x + right!.width).toBe(1430)
 
-  const internals = split as unknown as { browserContentOccluded: boolean; occludedPageCards: unknown[]; occlusionSnapshot: { active: boolean }; toolbarHeight: number; activeTabId?: string }
+  const internals = split as unknown as {
+    browserContentOccluded: boolean; occludedPageCards: unknown[]; occlusionSnapshot: { active: boolean }; toolbarHeight: number; activeTabId?: string
+    window: { contentView: { children: unknown[] } }; tabs: Map<string, { view: unknown }>
+  }
+  // A page out of the window, such as one closing behind its beforeunload check, leaves its card without a tab.
+  internals.window.contentView.children = [internals.tabs.get('first')!.view]
+  expect(split.getPageCards().map((card) => card.tabId)).toEqual(['first', undefined])
+  internals.window.contentView.children = [internals.tabs.get('first')!.view, internals.tabs.get('second')!.view]
   internals.browserContentOccluded = true
   internals.occludedPageCards = [left]
   expect(split.getPageCards()).toEqual([])
+  // Under a dialog's picture of the page the card stays, naming no tab, so the edge light waits for the live page.
   internals.occlusionSnapshot.active = true
-  expect(split.getPageCards()).toEqual([left])
+  expect(split.getPageCards()).toEqual([{ x: left!.x, y: left!.y, width: left!.width, height: left!.height }])
 
   internals.browserContentOccluded = false
   internals.toolbarHeight = 899

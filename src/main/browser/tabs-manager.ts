@@ -9017,7 +9017,10 @@ export class BrowserTabsManager {
   getPageCards(): PageCardGeometry[] {
     if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
       || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
-    if (this.browserContentOccluded) return this.occlusionSnapshot.active ? this.occludedPageCards : []
+    // While a picture stands in for the pages, their cards name no tab: the edge light waits for the live page.
+    if (this.browserContentOccluded) {
+      return this.occlusionSnapshot.active ? this.occludedPageCards.map(({ x, y, width, height }) => ({ x, y, width, height })) : []
+    }
     const area = this.browserViewBounds()
     const scale = this.window.webContents.getZoomFactor?.() ?? 1
     const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
@@ -9026,10 +9029,12 @@ export class BrowserTabsManager {
       ? splitViewBounds(area, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * scale))
       : undefined
     const panes = split && first && second
-      ? [{ tabId: first.id, space: split.first }, { tabId: second.id, space: split.second }]
-      : [{ tabId: this.activeTabId, space: area }]
-    return panes.filter(({ space }) => space.width > 0 && space.height > 0).map(({ tabId, space }) => ({
-      x: space.x / scale, y: space.y / scale, width: space.width / scale, height: space.height / scale, tabId
+      ? [{ tab: first, space: split.first }, { tab: second, space: split.second }]
+      : [{ tab: this.tabs.get(this.activeTabId), space: area }]
+    return panes.filter(({ space }) => space.width > 0 && space.height > 0).map(({ tab, space }) => ({
+      x: space.x / scale, y: space.y / scale, width: space.width / scale, height: space.height / scale,
+      // A page out of the window, such as one closing behind its beforeunload check, is not the one in its card.
+      ...(tab && this.window.contentView.children.includes(tab.view) ? { tabId: tab.id } : {})
     }))
   }
 

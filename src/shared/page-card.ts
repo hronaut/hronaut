@@ -42,9 +42,10 @@ export function pageCardInsets(options: PageCardInsetOptions): PageCardInsets {
   }
 }
 
-/** Where a page in view sits, in shell CSS pixels, and which tab it shows. */
+/** Where a page in view sits, in shell CSS pixels. */
 export interface PageCardGeometry extends Rectangle {
-  tabId: string
+  /** The tab whose live page the card holds; absent while a picture or another page stands in for it. */
+  tabId?: string
 }
 
 /** The page cards, one per pane, which the main process publishes as it places the pages. */
