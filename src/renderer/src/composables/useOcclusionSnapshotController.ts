@@ -1,7 +1,9 @@
 import { nextTick, onScopeDispose, shallowRef } from 'vue'
 import type { BrowserOcclusionSnapshot, HronautShellApi } from '../../../shared/types.js'
+import { releaseOverlayEntrance, setPageSnapshotOnScreen } from './overlay-motion.js'
 
 type OcclusionSnapshotApi = Pick<HronautShellApi, 'onOcclusionSnapshot' | 'presentOcclusionSnapshot'>
+  & Partial<Pick<HronautShellApi, 'onOcclusionPagesHidden'>>
 
 interface OcclusionSnapshotOptions {
   /** Resolves once the image can be painted without a decode delay. */
@@ -42,14 +44,21 @@ export function useOcclusionSnapshotController(api: OcclusionSnapshotApi | undef
       await Promise.all(next.panes.map((pane) => decode(pane.image)))
     } catch {
       // An image that cannot be shown leaves the old behavior: main hides the pages at once.
-      if (current === generation && !disposed) api?.presentOcclusionSnapshot(next.id)
+      if (current === generation && !disposed) present(next.id)
       return
     }
     if (current !== generation || disposed) return
     snapshot.value = next
+    setPageSnapshotOnScreen(true)
     await nextTick()
     await afterPaint()
-    if (current === generation && !disposed) api?.presentOcclusionSnapshot(next.id)
+    if (current === generation && !disposed) present(next.id)
+  }
+
+  function present(id: number): void {
+    api?.presentOcclusionSnapshot(id)
+    // Main hides the page views on this confirmation, so overlays can start their entrance.
+    releaseOverlayEntrance()
   }
 
   async function clear(current: number): Promise<void> {
@@ -68,14 +77,20 @@ export function useOcclusionSnapshotController(api: OcclusionSnapshotApi | undef
       clearTimeout(clearTimer)
       clearTimer = undefined
     }
+    // A newer snapshot is not on screen until it is decoded and painted.
+    setPageSnapshotOnScreen(false)
     if (next) void show(next, current)
     else void clear(current)
   })
+  // Main also hides the pages without a snapshot, such as for a sleeping page or after its deadline.
+  const unsubscribePagesHidden = api?.onOcclusionPagesHidden?.(releaseOverlayEntrance)
 
   onScopeDispose(() => {
     disposed = true
     if (clearTimer !== undefined) clearTimeout(clearTimer)
+    setPageSnapshotOnScreen(false)
     unsubscribe?.()
+    unsubscribePagesHidden?.()
   })
 
   return { snapshot }

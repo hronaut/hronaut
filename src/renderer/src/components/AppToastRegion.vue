@@ -109,10 +109,10 @@ const { t } = useI18n({ useScope: 'global' })
 .app-toast > button:hover { color: var(--text); background: var(--hover); }
 .app-toast > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .app-toast > button svg { width: 14px; height: 14px; }
-.app-toast-enter-active,
-.app-toast-leave-active { transition: opacity 140ms ease, transform 140ms ease; }
+.app-toast-enter-active { transition: opacity var(--motion-base) var(--motion-ease-out), transform var(--motion-base) var(--motion-ease-spring); }
+.app-toast-leave-active { transition: opacity var(--motion-fast) var(--motion-ease-out), transform var(--motion-fast) var(--motion-ease-out); }
 .app-toast-enter-from,
-.app-toast-leave-to { opacity: 0; transform: translateY(-6px); }
+.app-toast-leave-to { opacity: 0; transform: translateY(var(--motion-enter-y)) scale(var(--motion-enter-scale)); }
 
 @media (max-width: 760px) {
   .app-toast-region { width: calc(100vw - 16px); }

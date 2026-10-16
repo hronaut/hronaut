@@ -561,6 +561,11 @@ const shellApi: HronautShellApi = {
   },
   presentOcclusionSnapshot: (id: number) => ipcRenderer.send('browser:occlusion-snapshot-presented', id),
   setWindowControlsScrim: (color: string | null) => ipcRenderer.send('shell:window-controls-scrim', color),
+  onOcclusionPagesHidden: (listener: () => void) => {
+    const handler = (): void => listener()
+    ipcRenderer.on('browser:occlusion-pages-hidden', handler)
+    return () => ipcRenderer.removeListener('browser:occlusion-pages-hidden', handler)
+  },
   setFollowAgentActivitySuspended: (suspended: boolean) =>
     ipcRenderer.send('browser:follow-agent-activity-suspended', suspended),
   onHelpRequested: (listener: (action: HelpMenuAction) => void) => {

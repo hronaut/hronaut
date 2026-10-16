@@ -9,6 +9,8 @@
 
 .wallet-approval-overlay { @apply fixed [z-index:130] inset-0 grid [padding:24px] place-items-center [background:rgba(4,_5,_10,_.76)] [backdrop-filter:blur(8px)] [-webkit-app-region:no-drag]; }
 .wallet-approval-dialog { @apply grid [width:min(760px,_100%)] [max-height:calc(100vh_-_48px)] [gap:16px] [padding:22px] overflow-y-auto [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--elevation-3)]; }
+/* A nearly transparent approval must not take a click aimed at the page; see WalletApprovalDialog.vue. */
+.wallet-approval-dialog--entering { pointer-events: none; }
 .wallet-approval-dialog header h2 { @apply [margin:5px_0_0] capitalize; }
 .wallet-approval-dialog header p { @apply [margin:7px_0_0] text-muted [line-height:1.5]; }
 .wallet-approval-grid { @apply grid [grid-template-columns:repeat(2,_minmax(0,_1fr))] [gap:9px] m-0; }

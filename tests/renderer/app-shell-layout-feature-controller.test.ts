@@ -2,6 +2,7 @@ import { computed, defineComponent, h, nextTick, ref, type Ref } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DetachablePanelId, PanelDock } from '../../src/shared/types.js'
+import { overlayTransitionHooks, resetOverlayMotion, setPageSnapshotOnScreen } from '../../src/renderer/src/composables/overlay-motion.js'
 import {
   useAppShellLayoutFeatureController,
   type AppShellLayoutFeatureController
@@ -127,6 +128,7 @@ function createHarness(detachedWindow = false): Harness {
 
 afterEach(() => {
   for (const wrapper of mountedWrappers.splice(0)) wrapper.unmount()
+  resetOverlayMotion()
 })
 
 describe('useAppShellLayoutFeatureController', () => {
@@ -218,6 +220,62 @@ describe('useAppShellLayoutFeatureController', () => {
     await nextTick()
 
     expect(harness.setBrowserContentOccluded).not.toHaveBeenCalled()
+    expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(false)
+  })
+
+  it('holds overlay entrances while the page is still on screen, and the page hidden through an exit', async () => {
+    const harness = createHarness()
+    const exiting = document.createElement('div')
+    try {
+      harness.modals.commandPalette.value = true
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(true)
+      setPageSnapshotOnScreen(true)
+
+      harness.modals.commandPalette.value = false
+      overlayTransitionHooks.onBeforeLeave(exiting)
+      await nextTick()
+      await nextTick()
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      overlayTransitionHooks.onAfterLeave(exiting)
+      await nextTick()
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
+      // Once the page is back, no entrance waits for it.
+      expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(false)
+    } finally {
+      overlayTransitionHooks.onAfterLeave(exiting)
+    }
+  })
+
+  it('returns the page at once when its snapshot is withdrawn or missing during an exit', async () => {
+    const harness = createHarness()
+    const exiting = document.createElement('div')
+    try {
+      harness.modals.commandPalette.value = true
+      setPageSnapshotOnScreen(true)
+      harness.modals.commandPalette.value = false
+      overlayTransitionHooks.onBeforeLeave(exiting)
+      await nextTick()
+      await nextTick()
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      // Picking a tab in Search tabs withdraws the snapshot; holding the page back would leave an empty window.
+      setPageSnapshotOnScreen(false)
+      await nextTick()
+      await nextTick()
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
+      overlayTransitionHooks.onAfterLeave(exiting)
+
+      // A dialog that never had a snapshot, such as over a sleeping page, also returns the page at once.
+      harness.modals.commandPalette.value = true
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+      harness.modals.commandPalette.value = false
+      overlayTransitionHooks.onBeforeLeave(exiting)
+      await nextTick()
+      await nextTick()
+      expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
+    } finally {
+      overlayTransitionHooks.onAfterLeave(exiting)
+    }
   })
 
   it('reports policy-owned layout changes and stops overlay reactions on disposal', async () => {

@@ -156,6 +156,14 @@ export async function launchHronaut(
   }
 }
 
+/** Waits for shell entrances and exits to finish, so checks see final opacity and size. */
+export async function settleShellMotion(window: Page): Promise<void> {
+  await window.evaluate(() => Promise.all(document.getAnimations()
+    // Spinners and other endless animations never finish.
+    .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+    .map((animation) => animation.finished.catch(() => undefined))))
+}
+
 /**
  * Tab mutations fail closed until saved workspaces finish loading, and startup reads wait for that,
  * so one read keeps a test from racing initialization on slow runners. A failed read means startup

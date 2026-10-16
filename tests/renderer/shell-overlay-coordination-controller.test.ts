@@ -1,5 +1,5 @@
 import type { DetachablePanelId } from '../../src/shared/types.js'
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
 
@@ -168,5 +168,41 @@ describe('shell overlay coordination controller', () => {
     await nextTick()
     expect(transitions).toEqual(['layout', 'show'])
     harness.controller.dispose()
+  })
+
+  it('keeps the page hidden through an exit that starts as the modal closes, without reporting the flip', async () => {
+    const leaving = ref(false)
+    const fullModalOpen = ref(false)
+    const setBrowserContentOccluded = vi.fn()
+    const reportLayout = vi.fn()
+    const controller = useShellOverlayCoordinationController({
+      activePanel: ref(null),
+      splitMenu: ref(false),
+      layoutSources: [],
+      competingOverlayStates: [],
+      preservedPanels: [],
+      fullModalOpen,
+      browserContentOccluded: computed(() => fullModalOpen.value || leaving.value),
+      keepsSeparatePanelOpen: () => false,
+      closePanelsExcept: vi.fn(),
+      closeAddressSuggestions: vi.fn(),
+      setBrowserContentOccluded,
+      reportLayout
+    })
+    fullModalOpen.value = true
+    expect(setBrowserContentOccluded.mock.calls).toEqual([[true]])
+
+    // The modal closes, and its exit begins in the render that follows.
+    fullModalOpen.value = false
+    leaving.value = true
+    await nextTick()
+    expect(setBrowserContentOccluded.mock.calls).toEqual([[true]])
+    expect(reportLayout).not.toHaveBeenCalled()
+
+    leaving.value = false
+    await nextTick()
+    expect(reportLayout).toHaveBeenCalledOnce()
+    expect(setBrowserContentOccluded.mock.calls).toEqual([[true], [false]])
+    controller.dispose()
   })
 })

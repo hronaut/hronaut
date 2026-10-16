@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import UiOverlayTransition from "../ui/UiOverlayTransition.vue"
 import { onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -79,74 +80,76 @@ onBeforeUnmount(disposeComponent)
 </script>
 
 <template>
-  <div v-if="open" class="settings-overlay command-palette-overlay" @click.self="close">
-    <section
-      ref="panel"
-      class="command-palette"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="command-palette-title"
-    >
-      <header class="command-palette-header">
-        <IconKeyboardCommandKey aria-hidden="true" />
-        <div>
-          <span class="eyebrow">{{ t('commandPalette.kicker') }}</span>
-          <h2 id="command-palette-title">{{ t('commandPalette.heading') }}</h2>
+  <UiOverlayTransition>
+    <div v-if="open" class="settings-overlay command-palette-overlay" @click.self="close">
+      <section
+        ref="panel"
+        class="command-palette"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="command-palette-title"
+      >
+        <header class="command-palette-header">
+          <IconKeyboardCommandKey aria-hidden="true" />
+          <div>
+            <span class="eyebrow">{{ t('commandPalette.kicker') }}</span>
+            <h2 id="command-palette-title">{{ t('commandPalette.heading') }}</h2>
+          </div>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('commandPalette.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        </header>
+        <div class="command-palette-field">
+          <IconSearch aria-hidden="true" />
+          <input
+            ref="input"
+            v-model="query"
+            type="search"
+            role="combobox"
+            :aria-label="t('commandPalette.search')"
+            aria-autocomplete="list"
+            aria-controls="command-palette-results"
+            :aria-expanded="commands.length > 0"
+            :aria-activedescendant="selectedCommand ? commandElementId(selectedCommand) : undefined"
+            autocomplete="off"
+            spellcheck="false"
+            :placeholder="t('commandPalette.placeholder')"
+            @keydown="handleKeydown"
+          />
+          <kbd>⌃/⌘ ⇧ P</kbd>
         </div>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('commandPalette.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
-      </header>
-      <div class="command-palette-field">
-        <IconSearch aria-hidden="true" />
-        <input
-          ref="input"
-          v-model="query"
-          type="search"
-          role="combobox"
-          :aria-label="t('commandPalette.search')"
-          aria-autocomplete="list"
-          aria-controls="command-palette-results"
-          :aria-expanded="commands.length > 0"
-          :aria-activedescendant="selectedCommand ? commandElementId(selectedCommand) : undefined"
-          autocomplete="off"
-          spellcheck="false"
-          :placeholder="t('commandPalette.placeholder')"
-          @keydown="handleKeydown"
-        />
-        <kbd>⌃/⌘ ⇧ P</kbd>
-      </div>
-      <span class="sr-only" role="status" aria-live="polite">
-        {{ t('commandPalette.matches', { count: formatNumber(commands.length) }, commands.length) }}<template v-if="selectedCommand"> {{ t('commandPalette.selected', { label: selectedCommand.label }) }}</template>
-      </span>
-      <div v-if="commands.length" id="command-palette-results" class="command-palette-results" role="listbox" :aria-label="t('commandPalette.available')">
-        <UiButton appearance="application"
-          v-for="(command, index) in commands"
-          :id="commandElementId(command)"
-          :key="command.id"
-          class="command-palette-item"
-          :class="{ selected: index === selection }"
-          type="button"
-          role="option"
-          :aria-selected="index === selection"
-          @pointermove="selectFromPointer($event, index)"
-          @click="run(command.id)"
-        >
-          <span class="command-palette-mark" aria-hidden="true">›</span>
-          <span class="command-palette-copy">
-            <strong>{{ command.label }}</strong>
-            <small>{{ command.description }}</small>
-          </span>
-          <span class="command-palette-meta">
-            <kbd v-if="command.shortcut">{{ command.shortcut }}</kbd>
-            <small>{{ command.category }}</small>
-          </span>
-        </UiButton>
-      </div>
-      <div v-else class="command-palette-empty">
-        <IconSearch aria-hidden="true" />
-        <strong>{{ t('commandPalette.empty') }}</strong>
-        <span>{{ t('commandPalette.emptyDescription') }}</span>
-      </div>
-      <footer><span><kbd>↑</kbd><kbd>↓</kbd> {{ t('commandPalette.navigate') }}</span><span><kbd>Enter</kbd> {{ t('commandPalette.run') }}</span><span><kbd>Esc</kbd> {{ t('common.close') }}</span></footer>
-    </section>
-  </div>
+        <span class="sr-only" role="status" aria-live="polite">
+          {{ t('commandPalette.matches', { count: formatNumber(commands.length) }, commands.length) }}<template v-if="selectedCommand"> {{ t('commandPalette.selected', { label: selectedCommand.label }) }}</template>
+        </span>
+        <div v-if="commands.length" id="command-palette-results" class="command-palette-results" role="listbox" :aria-label="t('commandPalette.available')">
+          <UiButton appearance="application"
+            v-for="(command, index) in commands"
+            :id="commandElementId(command)"
+            :key="command.id"
+            class="command-palette-item"
+            :class="{ selected: index === selection }"
+            type="button"
+            role="option"
+            :aria-selected="index === selection"
+            @pointermove="selectFromPointer($event, index)"
+            @click="run(command.id)"
+          >
+            <span class="command-palette-mark" aria-hidden="true">›</span>
+            <span class="command-palette-copy">
+              <strong>{{ command.label }}</strong>
+              <small>{{ command.description }}</small>
+            </span>
+            <span class="command-palette-meta">
+              <kbd v-if="command.shortcut">{{ command.shortcut }}</kbd>
+              <small>{{ command.category }}</small>
+            </span>
+          </UiButton>
+        </div>
+        <div v-else class="command-palette-empty">
+          <IconSearch aria-hidden="true" />
+          <strong>{{ t('commandPalette.empty') }}</strong>
+          <span>{{ t('commandPalette.emptyDescription') }}</span>
+        </div>
+        <footer><span><kbd>↑</kbd><kbd>↓</kbd> {{ t('commandPalette.navigate') }}</span><span><kbd>Enter</kbd> {{ t('commandPalette.run') }}</span><span><kbd>Esc</kbd> {{ t('common.close') }}</span></footer>
+      </section>
+    </div>
+  </UiOverlayTransition>
 </template>

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { blockFileDestination, closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
 
 test('offers regular and cinematic themes in Settings', async ({ appWindow, electronApp }) => {
   const initialNativeTheme = await electronApp.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
@@ -14,6 +14,7 @@ test('offers regular and cinematic themes in Settings', async ({ appWindow, elec
   const initialWebsiteView = await readWebsiteView()
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await expect(appWindow.getByRole('tabpanel', { name: 'Settings' })).toBeVisible()
+  await settleShellMotion(appWindow)
   const panelBounds = await appWindow.getByRole('tabpanel', { name: 'Settings' }).boundingBox()
   expect(panelBounds).not.toBeNull()
   await expect.poll(readWebsiteView).toEqual({ ...initialWebsiteView, visible: false })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { inertLeavingSurface } from '../composables/overlay-motion.js'
 import UiButton from './UiButton.vue'
 
 const props = withDefaults(defineProps<{
@@ -67,6 +68,6 @@ defineExpose({ close, focus: () => trigger.value?.focus() })
       :aria-controls="panelId"
       @click="toggle"
     ><slot name="trigger" :open="open" /></UiButton>
-    <span v-if="open" :id="panelId" ref="panel" class="ui-popover__panel"><slot :close="close" /></span>
+    <Transition name="ui-surface" @before-leave="inertLeavingSurface"><span v-if="open" :id="panelId" ref="panel" class="ui-popover__panel"><slot :close="close" /></span></Transition>
   </span>
 </template>

@@ -31,6 +31,8 @@ export interface OcclusionSnapshotPorts {
   send(snapshot: BrowserOcclusionSnapshot | null): void
   /** Lay the page views out again, which hides them once nothing holds them on screen. */
   relayout(): void
+  /** The page views are off the screen under trusted chrome, with or without a snapshot. */
+  pagesHidden(): void
   timeoutMs?: number
 }
 
@@ -58,7 +60,11 @@ export class OcclusionSnapshot {
   begin(): void {
     this.end()
     const panes = this.ports.panes().filter((pane) => !this.capturing.has(pane.contents))
-    if (!panes.length) return
+    if (!panes.length) {
+      // Nothing to capture, such as a sleeping or minimized page: the views leave the screen at once.
+      this.ports.pagesHidden()
+      return
+    }
     const id = ++this.sequence
     const timer = setTimeout(() => this.finish(id), this.ports.timeoutMs ?? OCCLUSION_SNAPSHOT_TIMEOUT_MS)
     this.pending = { id, layout: this.ports.layout(), timer }
@@ -94,6 +100,7 @@ export class OcclusionSnapshot {
     clearTimeout(this.pending.timer)
     this.pending = null
     this.ports.relayout()
+    this.ports.pagesHidden()
   }
 
   private async capture(id: number, panes: OcclusionSnapshotPane[]): Promise<void> {

@@ -8,6 +8,7 @@ import UiButton from "../ui/UiButton.vue"
 import UiField from '../ui/UiField.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
+import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
 import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -205,166 +206,168 @@ onBeforeUnmount(dispose)
 </script>
 
 <template>
-  <div v-if="open" class="tab-group-editor-overlay">
-    <form ref="panel" class="tab-group-editor workspace-editor" :class="{ 'workspace-editor--import': importTarget }" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && (mode === 'transfer' ? transferStorage() : save())">
-      <header>
-        <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ importTarget ? t('browserImport.action') : templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
-        <div class="workspace-editor-header-actions">
-          <span v-if="pendingMessage" class="workspace-editor-pending" role="status"><IconProgress class="state-spinner" aria-hidden="true" />{{ pendingMessage }}</span>
-          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked || templateBusy || importBusy" @click="close"><IconClose aria-hidden="true" /></UiButton>
-        </div>
-      </header>
-      <div class="workspace-editor-breadcrumb"><UiButton variant="ghost" size="small" :disabled="dismissBlocked || templateBusy || importBusy" @click="openLibrary"><IconArrowBack aria-hidden="true" />{{ t('workspaceLibrary.back') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" size="small" variant="ghost" :disabled="dismissBlocked" @click="openTemplates">{{ t('workspaceTemplates.title') }}</UiButton></div>
-      <BrowserImportPanel v-if="importTarget" :key="importTarget" :workspace-id="importTarget" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="importBusy = $event" @close="close" />
-      <WorkspaceTemplatePanel v-else-if="templateView" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="templateBusy = $event" />
-      <div v-else class="workspace-editor-body">
-        <p v-if="mode !== 'transfer'" class="workspace-editor-intro">{{ t(mode === 'create' ? 'workspaceLibrary.createHelp' : 'workspaceLibrary.basicsHelp') }}</p>
-        <template v-if="mode !== 'transfer'">
-        <div class="workspace-editor-basics">
-          <UiField for-id="tab-group-name" :label="t('workspaceEditor.name')" :disabled="dismissBlocked">
-            <UiInput v-model="name" maxlength="80" autocomplete="off" autofocus />
-          </UiField>
-          <UiField for-id="workspace-description" :label="t('workspaceEditor.description')" :hint="t('workspaceEditor.descriptionHelp')" :disabled="dismissBlocked">
-            <UiTextarea v-model="description" maxlength="1000" rows="4" :placeholder="t('workspaceEditor.descriptionPlaceholder')" />
-          </UiField>
-          <div class="ui-field">
-            <span id="tab-group-color-label" class="ui-field__label">{{ t('workspaceEditor.color') }}</span>
-            <div class="tab-group-color-options" role="radiogroup" aria-labelledby="tab-group-color-label">
-              <UiButton appearance="application"
-                v-for="option in BROWSER_TAB_GROUP_COLORS"
-                :key="option"
-                class="tab-group-color-option"
-                :class="{ selected: color === option }"
-                :style="colorStyle(option)"
-                type="button"
-                role="radio"
-                :aria-label="tabGroupColorLabel(option)"
-                :aria-checked="color === option"
-                :tabindex="color === option ? 0 : -1"
-                :data-color="option"
-                @keydown="navigateColor"
-                :title="tabGroupColorLabel(option)"
-                :disabled="dismissBlocked"
-                @click="color = option"
-              ><IconCheck v-if="color === option" aria-hidden="true" /></UiButton>
+  <UiOverlayTransition>
+    <div v-if="open" class="tab-group-editor-overlay">
+      <form ref="panel" class="tab-group-editor workspace-editor" :class="{ 'workspace-editor--import': importTarget }" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && (mode === 'transfer' ? transferStorage() : save())">
+        <header>
+          <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ importTarget ? t('browserImport.action') : templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
+          <div class="workspace-editor-header-actions">
+            <span v-if="pendingMessage" class="workspace-editor-pending" role="status"><IconProgress class="state-spinner" aria-hidden="true" />{{ pendingMessage }}</span>
+            <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked || templateBusy || importBusy" @click="close"><IconClose aria-hidden="true" /></UiButton>
+          </div>
+        </header>
+        <div class="workspace-editor-breadcrumb"><UiButton variant="ghost" size="small" :disabled="dismissBlocked || templateBusy || importBusy" @click="openLibrary"><IconArrowBack aria-hidden="true" />{{ t('workspaceLibrary.back') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" size="small" variant="ghost" :disabled="dismissBlocked" @click="openTemplates">{{ t('workspaceTemplates.title') }}</UiButton></div>
+        <BrowserImportPanel v-if="importTarget" :key="importTarget" :workspace-id="importTarget" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="importBusy = $event" @close="close" />
+        <WorkspaceTemplatePanel v-else-if="templateView" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="templateBusy = $event" />
+        <div v-else class="workspace-editor-body">
+          <p v-if="mode !== 'transfer'" class="workspace-editor-intro">{{ t(mode === 'create' ? 'workspaceLibrary.createHelp' : 'workspaceLibrary.basicsHelp') }}</p>
+          <template v-if="mode !== 'transfer'">
+          <div class="workspace-editor-basics">
+            <UiField for-id="tab-group-name" :label="t('workspaceEditor.name')" :disabled="dismissBlocked">
+              <UiInput v-model="name" maxlength="80" autocomplete="off" autofocus />
+            </UiField>
+            <UiField for-id="workspace-description" :label="t('workspaceEditor.description')" :hint="t('workspaceEditor.descriptionHelp')" :disabled="dismissBlocked">
+              <UiTextarea v-model="description" maxlength="1000" rows="4" :placeholder="t('workspaceEditor.descriptionPlaceholder')" />
+            </UiField>
+            <div class="ui-field">
+              <span id="tab-group-color-label" class="ui-field__label">{{ t('workspaceEditor.color') }}</span>
+              <div class="tab-group-color-options" role="radiogroup" aria-labelledby="tab-group-color-label">
+                <UiButton appearance="application"
+                  v-for="option in BROWSER_TAB_GROUP_COLORS"
+                  :key="option"
+                  class="tab-group-color-option"
+                  :class="{ selected: color === option }"
+                  :style="colorStyle(option)"
+                  type="button"
+                  role="radio"
+                  :aria-label="tabGroupColorLabel(option)"
+                  :aria-checked="color === option"
+                  :tabindex="color === option ? 0 : -1"
+                  :data-color="option"
+                  @keydown="navigateColor"
+                  :title="tabGroupColorLabel(option)"
+                  :disabled="dismissBlocked"
+                  @click="color = option"
+                ><IconCheck v-if="color === option" aria-hidden="true" /></UiButton>
+              </div>
             </div>
           </div>
-        </div>
-        <section v-if="mode === 'create'" class="workspace-storage-section workspace-starting-data">
-          <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.startingData') }}</strong><span>{{ t('workspaceEditor.startingDescription') }}</span></div></div>
-          <label class="workspace-storage-choice">
-            <input v-model="storageMode" type="radio" name="workspace-storage-mode" value="scratch" :disabled="dismissBlocked" />
-            <span><strong>{{ t('workspaceEditor.scratch') }}</strong><small>{{ t('workspaceEditor.scratchDescription') }}</small></span>
-          </label>
-          <label class="workspace-storage-choice">
-            <input v-model="storageMode" type="radio" name="workspace-storage-mode" value="fork-workspace" :disabled="dismissBlocked" />
-            <span><strong>{{ t('workspaceEditor.forkWorkspace') }}</strong><small>{{ t('workspaceEditor.forkDescription') }}</small></span>
-          </label>
-          <div v-if="storageMode !== 'scratch'" class="workspace-transfer-fields">
-            <label for="workspace-fork-source">{{ t('workspaceEditor.sourceWorkspace') }}</label>
-            <select id="workspace-fork-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
-              <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
-            </select>
-            <small>{{ t('workspaceEditor.forkBlankTab') }}</small>
-          </div>
-          <div v-if="storageMode !== 'scratch'" class="workspace-origin-picker">
-            <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton size="small" variant="ghost" type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
-            <p v-if="storageState === 'loading'">{{ t('workspaceEditor.loading') }}</p>
-            <p v-else-if="storageState === 'error'" class="error" role="alert">{{ storageMessage }}</p>
-            <p v-else-if="!originOptions.length">{{ t('workspaceEditor.noOrigins') }}</p>
-            <label v-for="origin in originOptions" :key="origin"><input v-model="selectedOrigins" type="checkbox" :value="origin" :disabled="dismissBlocked" /><span>{{ origin }}</span></label>
-          </div>
-        </section>
-        <section class="workspace-site-access-section workspace-direct-access">
-          <label class="workspace-storage-choice">
-            <input v-model="agentAccess" type="checkbox" :disabled="dismissBlocked" />
-            <span><strong>{{ t('workspaceEditor.agentAccess') }}</strong><small>{{ t('workspaceEditor.agentAccessDescription') }}</small><small>{{ t('workspaceEditor.agentForkAllowed') }}</small></span>
-          </label>
-        </section>
-        <section class="workspace-preferences">
-          <label class="workspace-storage-choice"><input v-model="hiddenFromSidebar" type="checkbox" :disabled="dismissBlocked" /><span><strong>{{ t('workspaceLibrary.hideFromSidebar') }}</strong><small>{{ t('workspaceLibrary.hideDescription') }}</small></span></label>
-          <label class="workspace-storage-choice"><input v-model="deletionProtected" type="checkbox" :disabled="dismissBlocked" /><span><strong>{{ t('workspaceLibrary.protectDeletion') }}</strong><small>{{ t('workspaceLibrary.protectionDescription') }}</small></span></label>
-        </section>
-        <details class="workspace-editor-section workspace-access-disclosure" :open="navigationMode === 'restricted'">
-          <summary><IconShield aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.accessSummary') }}</strong><small>{{ t(navigationMode === 'restricted' ? 'workspaceLibrary.restricted' : 'workspaceEditor.unrestricted') }}</small></span></summary>
-        <section class="workspace-site-access-section">
-          <div class="workspace-storage-heading"><IconShield aria-hidden="true" /><div><strong>{{ t('workspaceEditor.siteAccess') }}</strong><span>{{ t('workspaceEditor.siteAccessDescription') }}</span></div></div>
-          <label class="workspace-storage-choice">
-            <input v-model="navigationMode" type="radio" name="workspace-navigation-mode" value="unrestricted" :disabled="dismissBlocked" />
-            <span><strong>{{ t('workspaceEditor.unrestricted') }}</strong><small>{{ t('workspaceEditor.unrestrictedDescription') }}</small></span>
-          </label>
-          <label class="workspace-storage-choice">
-            <input v-model="navigationMode" type="radio" name="workspace-navigation-mode" value="restricted" :disabled="dismissBlocked" />
-            <span><strong>{{ t('workspaceEditor.restricted') }}</strong><small>{{ t('workspaceEditor.restrictedDescription') }}</small></span>
-          </label>
-          <div v-if="navigationMode === 'restricted'" class="workspace-navigation-rules">
-            <label for="workspace-navigation-rules">{{ t('workspaceEditor.allowedSites') }}</label>
-            <textarea id="workspace-navigation-rules" v-model="navigationRulesText" rows="5" spellcheck="false" autocomplete="off" :placeholder="t('workspaceEditor.allowedSitesPlaceholder')" :disabled="dismissBlocked" />
-            <small>{{ t('workspaceEditor.allowedSitesHelp') }}</small>
-          </div>
-          <details v-if="mode === 'edit'" class="workspace-navigation-audit">
-            <summary>{{ t('workspaceEditor.blockedAttempts', { count: navigationAudit.length }) }}</summary>
-            <p v-if="navigationAuditState === 'loading'">{{ t('workspaceEditor.auditLoading') }}</p>
-            <p v-else-if="navigationAuditState === 'error'" class="error">{{ t('workspaceEditor.auditError') }}</p>
-            <p v-else-if="!navigationAudit.length">{{ t('workspaceEditor.auditEmpty') }}</p>
-            <ol v-else>
-              <li v-for="entry in navigationAudit" :key="entry.id"><strong>{{ entry.targetOrigin }}</strong><span>{{ formatAuditTime(entry.timestamp) }} · {{ auditReasonLabel(entry.reason) }} · {{ auditSourceLabel(entry.source) }}</span></li>
-            </ol>
+          <section v-if="mode === 'create'" class="workspace-storage-section workspace-starting-data">
+            <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.startingData') }}</strong><span>{{ t('workspaceEditor.startingDescription') }}</span></div></div>
+            <label class="workspace-storage-choice">
+              <input v-model="storageMode" type="radio" name="workspace-storage-mode" value="scratch" :disabled="dismissBlocked" />
+              <span><strong>{{ t('workspaceEditor.scratch') }}</strong><small>{{ t('workspaceEditor.scratchDescription') }}</small></span>
+            </label>
+            <label class="workspace-storage-choice">
+              <input v-model="storageMode" type="radio" name="workspace-storage-mode" value="fork-workspace" :disabled="dismissBlocked" />
+              <span><strong>{{ t('workspaceEditor.forkWorkspace') }}</strong><small>{{ t('workspaceEditor.forkDescription') }}</small></span>
+            </label>
+            <div v-if="storageMode !== 'scratch'" class="workspace-transfer-fields">
+              <label for="workspace-fork-source">{{ t('workspaceEditor.sourceWorkspace') }}</label>
+              <select id="workspace-fork-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
+                <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
+              </select>
+              <small>{{ t('workspaceEditor.forkBlankTab') }}</small>
+            </div>
+            <div v-if="storageMode !== 'scratch'" class="workspace-origin-picker">
+              <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton size="small" variant="ghost" type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
+              <p v-if="storageState === 'loading'">{{ t('workspaceEditor.loading') }}</p>
+              <p v-else-if="storageState === 'error'" class="error" role="alert">{{ storageMessage }}</p>
+              <p v-else-if="!originOptions.length">{{ t('workspaceEditor.noOrigins') }}</p>
+              <label v-for="origin in originOptions" :key="origin"><input v-model="selectedOrigins" type="checkbox" :value="origin" :disabled="dismissBlocked" /><span>{{ origin }}</span></label>
+            </div>
+          </section>
+          <section class="workspace-site-access-section workspace-direct-access">
+            <label class="workspace-storage-choice">
+              <input v-model="agentAccess" type="checkbox" :disabled="dismissBlocked" />
+              <span><strong>{{ t('workspaceEditor.agentAccess') }}</strong><small>{{ t('workspaceEditor.agentAccessDescription') }}</small><small>{{ t('workspaceEditor.agentForkAllowed') }}</small></span>
+            </label>
+          </section>
+          <section class="workspace-preferences">
+            <label class="workspace-storage-choice"><input v-model="hiddenFromSidebar" type="checkbox" :disabled="dismissBlocked" /><span><strong>{{ t('workspaceLibrary.hideFromSidebar') }}</strong><small>{{ t('workspaceLibrary.hideDescription') }}</small></span></label>
+            <label class="workspace-storage-choice"><input v-model="deletionProtected" type="checkbox" :disabled="dismissBlocked" /><span><strong>{{ t('workspaceLibrary.protectDeletion') }}</strong><small>{{ t('workspaceLibrary.protectionDescription') }}</small></span></label>
+          </section>
+          <details class="workspace-editor-section workspace-access-disclosure" :open="navigationMode === 'restricted'">
+            <summary><IconShield aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.accessSummary') }}</strong><small>{{ t(navigationMode === 'restricted' ? 'workspaceLibrary.restricted' : 'workspaceEditor.unrestricted') }}</small></span></summary>
+          <section class="workspace-site-access-section">
+            <div class="workspace-storage-heading"><IconShield aria-hidden="true" /><div><strong>{{ t('workspaceEditor.siteAccess') }}</strong><span>{{ t('workspaceEditor.siteAccessDescription') }}</span></div></div>
+            <label class="workspace-storage-choice">
+              <input v-model="navigationMode" type="radio" name="workspace-navigation-mode" value="unrestricted" :disabled="dismissBlocked" />
+              <span><strong>{{ t('workspaceEditor.unrestricted') }}</strong><small>{{ t('workspaceEditor.unrestrictedDescription') }}</small></span>
+            </label>
+            <label class="workspace-storage-choice">
+              <input v-model="navigationMode" type="radio" name="workspace-navigation-mode" value="restricted" :disabled="dismissBlocked" />
+              <span><strong>{{ t('workspaceEditor.restricted') }}</strong><small>{{ t('workspaceEditor.restrictedDescription') }}</small></span>
+            </label>
+            <div v-if="navigationMode === 'restricted'" class="workspace-navigation-rules">
+              <label for="workspace-navigation-rules">{{ t('workspaceEditor.allowedSites') }}</label>
+              <textarea id="workspace-navigation-rules" v-model="navigationRulesText" rows="5" spellcheck="false" autocomplete="off" :placeholder="t('workspaceEditor.allowedSitesPlaceholder')" :disabled="dismissBlocked" />
+              <small>{{ t('workspaceEditor.allowedSitesHelp') }}</small>
+            </div>
+            <details v-if="mode === 'edit'" class="workspace-navigation-audit">
+              <summary>{{ t('workspaceEditor.blockedAttempts', { count: navigationAudit.length }) }}</summary>
+              <p v-if="navigationAuditState === 'loading'">{{ t('workspaceEditor.auditLoading') }}</p>
+              <p v-else-if="navigationAuditState === 'error'" class="error">{{ t('workspaceEditor.auditError') }}</p>
+              <p v-else-if="!navigationAudit.length">{{ t('workspaceEditor.auditEmpty') }}</p>
+              <ol v-else>
+                <li v-for="entry in navigationAudit" :key="entry.id"><strong>{{ entry.targetOrigin }}</strong><span>{{ formatAuditTime(entry.timestamp) }} · {{ auditReasonLabel(entry.reason) }} · {{ auditSourceLabel(entry.source) }}</span></li>
+              </ol>
+            </details>
+          </section>
           </details>
-        </section>
-        </details>
-        </template>
-        <details v-if="mode === 'edit' && workspaceId" class="workspace-editor-section workspace-activity-disclosure">
-          <summary><IconShield aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.activitySummary') }}</strong><small>{{ t('workspaceLibrary.activityHelp') }}</small></span></summary>
-        <WorkspaceContinuityPanel v-if="mode === 'edit' && workspaceId" :key="workspaceId" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
-        <HumanWaitingPanel v-if="mode === 'edit' && workspaceId" :key="`waiting-${workspaceId}`" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
-        </details>
-        <details v-if="mode !== 'create'" class="workspace-editor-section workspace-data-disclosure" :open="mode === 'transfer'">
-          <summary><IconDatabase aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.dataSummary') }}</strong><small>{{ t('workspaceLibrary.dataHelp') }}</small></span></summary>
-        <section class="workspace-storage-section">
-          <div class="workspace-transfer-fields">
-            <label for="browser-import-destination">{{ t('browserImport.destination') }}</label>
-            <select id="browser-import-destination" v-model="importDestination" :disabled="dismissBlocked">
-              <option value="" disabled>{{ t('workspaceEditor.chooseWorkspace') }}</option>
-              <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}</option>
-            </select>
-            <UiButton :disabled="dismissBlocked || !importDestination" @click="openImport(importDestination)">{{ t('browserImport.action') }}</UiButton>
-          </div>
-          <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.browserData') }}</strong><span>{{ t('workspaceEditor.browserDataDescription') }}</span></div></div>
-          <div class="workspace-transfer-fields">
-            <label for="workspace-transfer-source">{{ t('workspaceEditor.sourceWorkspace') }}</label>
-            <select id="workspace-transfer-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
-              <option value="" disabled>{{ t('workspaceEditor.chooseWorkspace') }}</option>
-              <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
-            </select>
-            <label for="workspace-transfer-target">{{ t('workspaceEditor.targetWorkspace') }}</label>
-            <select id="workspace-transfer-target" v-model="targetWorkspaceId" :disabled="dismissBlocked">
-              <option v-for="group in targetWorkspaces" :key="group.id" :value="group.id" :disabled="group.id === sourceWorkspaceId">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
-            </select>
-          </div>
-          <div class="workspace-transfer-direction" role="radiogroup" :aria-label="t('workspaceEditor.transferMode')">
-            <label><input v-model="transferMode" type="radio" name="workspace-transfer-mode" value="copy" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.copy') }}</span></label>
-            <label><input v-model="transferMode" type="radio" name="workspace-transfer-mode" value="move" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.move') }}</span></label>
-          </div>
-          <p class="workspace-transfer-help">{{ t(transferMode === 'move' ? 'workspaceEditor.moveDescription' : 'workspaceEditor.copyDescription') }}</p>
-          <p v-if="transferMode === 'move' && (!sourceArchived || !targetArchived)" class="workspace-transfer-help" role="status">{{ t('workspaceEditor.archiveBeforeMove') }}</p>
-          <p class="workspace-transfer-help">{{ t('workspaceEditor.overwriteDescription') }}</p>
-          <div class="workspace-origin-picker">
-            <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton size="small" variant="ghost" type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
-            <p v-if="storageState === 'loading'">{{ t('workspaceEditor.loading') }}</p>
-            <p v-else-if="!originOptions.length">{{ t('workspaceEditor.noSourceOrigins') }}</p>
-            <label v-for="origin in originOptions" :key="origin"><input v-model="selectedOrigins" type="checkbox" :value="origin" :disabled="dismissBlocked" /><span>{{ origin }}</span></label>
-          </div>
-          <UiButton class="workspace-transfer-button" type="button" :disabled="transferDisabled" @click="transferStorage"><IconSwapHoriz aria-hidden="true" /> {{ storageState === 'saving' ? pendingMessage : t(transferMode === 'move' ? 'workspaceEditor.moveSelected' : 'workspaceEditor.copySelected') }}</UiButton>
-          <UiButton v-if="storageState === 'error'" type="button" :disabled="dismissBlocked" @click="loadOrigins()">{{ t('workspaceEditor.reloadOrigins') }}</UiButton>
-          <output v-if="storageMessage" :class="{ error: storageState === 'error', warning: storageState === 'warning' }" role="status">{{ storageMessage }}</output>
+          </template>
+          <details v-if="mode === 'edit' && workspaceId" class="workspace-editor-section workspace-activity-disclosure">
+            <summary><IconShield aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.activitySummary') }}</strong><small>{{ t('workspaceLibrary.activityHelp') }}</small></span></summary>
+          <WorkspaceContinuityPanel v-if="mode === 'edit' && workspaceId" :key="workspaceId" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
+          <HumanWaitingPanel v-if="mode === 'edit' && workspaceId" :key="`waiting-${workspaceId}`" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
+          </details>
+          <details v-if="mode !== 'create'" class="workspace-editor-section workspace-data-disclosure" :open="mode === 'transfer'">
+            <summary><IconDatabase aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.dataSummary') }}</strong><small>{{ t('workspaceLibrary.dataHelp') }}</small></span></summary>
+          <section class="workspace-storage-section">
+            <div class="workspace-transfer-fields">
+              <label for="browser-import-destination">{{ t('browserImport.destination') }}</label>
+              <select id="browser-import-destination" v-model="importDestination" :disabled="dismissBlocked">
+                <option value="" disabled>{{ t('workspaceEditor.chooseWorkspace') }}</option>
+                <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}</option>
+              </select>
+              <UiButton :disabled="dismissBlocked || !importDestination" @click="openImport(importDestination)">{{ t('browserImport.action') }}</UiButton>
+            </div>
+            <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.browserData') }}</strong><span>{{ t('workspaceEditor.browserDataDescription') }}</span></div></div>
+            <div class="workspace-transfer-fields">
+              <label for="workspace-transfer-source">{{ t('workspaceEditor.sourceWorkspace') }}</label>
+              <select id="workspace-transfer-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
+                <option value="" disabled>{{ t('workspaceEditor.chooseWorkspace') }}</option>
+                <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
+              </select>
+              <label for="workspace-transfer-target">{{ t('workspaceEditor.targetWorkspace') }}</label>
+              <select id="workspace-transfer-target" v-model="targetWorkspaceId" :disabled="dismissBlocked">
+                <option v-for="group in targetWorkspaces" :key="group.id" :value="group.id" :disabled="group.id === sourceWorkspaceId">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
+              </select>
+            </div>
+            <div class="workspace-transfer-direction" role="radiogroup" :aria-label="t('workspaceEditor.transferMode')">
+              <label><input v-model="transferMode" type="radio" name="workspace-transfer-mode" value="copy" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.copy') }}</span></label>
+              <label><input v-model="transferMode" type="radio" name="workspace-transfer-mode" value="move" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.move') }}</span></label>
+            </div>
+            <p class="workspace-transfer-help">{{ t(transferMode === 'move' ? 'workspaceEditor.moveDescription' : 'workspaceEditor.copyDescription') }}</p>
+            <p v-if="transferMode === 'move' && (!sourceArchived || !targetArchived)" class="workspace-transfer-help" role="status">{{ t('workspaceEditor.archiveBeforeMove') }}</p>
+            <p class="workspace-transfer-help">{{ t('workspaceEditor.overwriteDescription') }}</p>
+            <div class="workspace-origin-picker">
+              <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton size="small" variant="ghost" type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
+              <p v-if="storageState === 'loading'">{{ t('workspaceEditor.loading') }}</p>
+              <p v-else-if="!originOptions.length">{{ t('workspaceEditor.noSourceOrigins') }}</p>
+              <label v-for="origin in originOptions" :key="origin"><input v-model="selectedOrigins" type="checkbox" :value="origin" :disabled="dismissBlocked" /><span>{{ origin }}</span></label>
+            </div>
+            <UiButton class="workspace-transfer-button" type="button" :disabled="transferDisabled" @click="transferStorage"><IconSwapHoriz aria-hidden="true" /> {{ storageState === 'saving' ? pendingMessage : t(transferMode === 'move' ? 'workspaceEditor.moveSelected' : 'workspaceEditor.copySelected') }}</UiButton>
+            <UiButton v-if="storageState === 'error'" type="button" :disabled="dismissBlocked" @click="loadOrigins()">{{ t('workspaceEditor.reloadOrigins') }}</UiButton>
+            <output v-if="storageMessage" :class="{ error: storageState === 'error', warning: storageState === 'warning' }" role="status">{{ storageMessage }}</output>
 
-        </section>
-        </details>
-          <div v-if="mode === 'edit'" class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton variant="danger" type="button" :disabled="dismissBlocked || deletionBlocked" @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
-        <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
-      </div>
-      <footer v-if="!importTarget"><UiButton type="button" :disabled="dismissBlocked || templateBusy || importBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
-    </form>
-  </div>
+          </section>
+          </details>
+            <div v-if="mode === 'edit'" class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton variant="danger" type="button" :disabled="dismissBlocked || deletionBlocked" @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
+          <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
+        </div>
+        <footer v-if="!importTarget"><UiButton type="button" :disabled="dismissBlocked || templateBusy || importBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
+      </form>
+    </div>
+  </UiOverlayTransition>
 </template>

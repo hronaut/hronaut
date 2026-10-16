@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { inertLeavingSurface } from '../composables/overlay-motion.js'
 import UiButton from './UiButton.vue'
 
 export interface UiMenuItem {
@@ -68,28 +69,30 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
       @click="setOpen(!open)"
       @keydown.down.prevent="setOpen(true)"
     ><slot name="trigger">{{ label }}</slot></UiButton>
-    <span
-      v-if="open"
-      ref="menu"
-      class="ui-menu__panel"
-      role="menu"
-      :aria-label="label"
-      @keydown.down="move($event, 1)"
-      @keydown.up="move($event, -1)"
-      @keydown.home.prevent="focusAt(0)"
-      @keydown.end.prevent="focusAt(-1)"
-      @keydown.esc.prevent="setOpen(false); trigger?.focus()"
-    >
-      <UiButton
-        v-for="item in items"
-        :key="item.id"
-        role="menuitem"
-        variant="ghost"
-        size="small"
-        :class="{ 'ui-menu__item--danger': item.danger }"
-        :disabled="item.disabled"
-        @click="select(item)"
-      >{{ item.label }}</UiButton>
-    </span>
+    <Transition name="ui-surface" @before-leave="inertLeavingSurface">
+      <span
+        v-if="open"
+        ref="menu"
+        class="ui-menu__panel"
+        role="menu"
+        :aria-label="label"
+        @keydown.down="move($event, 1)"
+        @keydown.up="move($event, -1)"
+        @keydown.home.prevent="focusAt(0)"
+        @keydown.end.prevent="focusAt(-1)"
+        @keydown.esc.prevent="setOpen(false); trigger?.focus()"
+      >
+        <UiButton
+          v-for="item in items"
+          :key="item.id"
+          role="menuitem"
+          variant="ghost"
+          size="small"
+          :class="{ 'ui-menu__item--danger': item.danger }"
+          :disabled="item.disabled"
+          @click="select(item)"
+        >{{ item.label }}</UiButton>
+      </span>
+    </Transition>
   </span>
 </template>

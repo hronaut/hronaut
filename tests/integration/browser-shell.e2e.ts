@@ -10,7 +10,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
 import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, BrowserViewportEmulation, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
-import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
 
 const execFileAsync = promisify(execFile)
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -4300,6 +4300,7 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     await expect(search).toBeEnabled()
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus())
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFocused())).toBe(true)
+    await settleShellMotion(appWindow)
     const desktopBounds = await overview.boundingBox()
     const desktopViewport = await appWindow.evaluate('({ width: innerWidth, height: innerHeight })') as { width: number; height: number }
     expect(desktopBounds).not.toBeNull()

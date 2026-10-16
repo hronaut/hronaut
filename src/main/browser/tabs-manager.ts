@@ -1288,6 +1288,8 @@ export class BrowserTabsManager {
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   private browserContentOccluded = false
   private occludedEmulationFrames: EmulationFrameGeometry[] = []
+  /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
+  private focusAfterTrustedChrome: { tab: BrowserTab; cancel: () => void } | undefined
   private followAgentActivitySuspended = false
   private readonly downloadController = new BrowserDownloadsController({
     getSettings: () => ({
@@ -1411,6 +1413,9 @@ export class BrowserTabsManager {
       if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-snapshot', snapshot)
     },
     relayout: () => this.layout(),
+    pagesHidden: () => {
+      if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-pages-hidden')
+    },
     timeoutMs: occlusionSnapshotTimeoutMs()
   })
   private readonly tabOverviewPreviewableTabs = new Set<string>()
@@ -8804,6 +8809,7 @@ export class BrowserTabsManager {
       for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
     }
     const enteringTrustedChrome = occluded && !this.browserContentOccluded
+    const leavingTrustedChrome = !occluded && this.browserContentOccluded
     if (enteringTrustedChrome) {
       for (const tab of this.tabs.values()) {
         if (
@@ -8835,6 +8841,38 @@ export class BrowserTabsManager {
       this.occlusionSnapshot.end()
     }
     this.layout()
+    if (leavingTrustedChrome) {
+      const tab = this.cancelFocusAfterTrustedChrome()
+      if (tab && this.tabs.get(tab.id) === tab && this.activeTabId === tab.id && !tab.webContents.isDestroyed()) this.focusTabOrTrustedChrome(tab)
+    }
+  }
+
+  /**
+   * Trusted chrome keeps the page under it while its exit plays, so a page
+   * focused then would take keys typed into the shell. The page takes focus
+   * when trusted chrome closes instead, unless the human clicks or presses a
+   * key in the shell first.
+   */
+  private focusTabAfterTrustedChrome(tab: BrowserTab): void {
+    this.cancelFocusAfterTrustedChrome()
+    const shell = this.window.webContents
+    const onInput = (_event: Electron.Event, input: Electron.InputEvent): void => {
+      if (input.type === 'mouseDown' || input.type === 'rawKeyDown' || input.type === 'keyDown') this.cancelFocusAfterTrustedChrome()
+    }
+    shell.on('input-event', onInput)
+    this.focusAfterTrustedChrome = {
+      tab,
+      cancel: () => {
+        if (!shell.isDestroyed()) shell.removeListener('input-event', onInput)
+      }
+    }
+  }
+
+  private cancelFocusAfterTrustedChrome(): BrowserTab | undefined {
+    const pending = this.focusAfterTrustedChrome
+    this.focusAfterTrustedChrome = undefined
+    pending?.cancel()
+    return pending?.tab
   }
 
   /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
@@ -9123,6 +9161,7 @@ export class BrowserTabsManager {
     this.videoRecorder.destroy()
     if (this.destroyed) return
     this.splitDivider.cancel()
+    this.cancelFocusAfterTrustedChrome()
     this.destroyed = true
     this.pwaLifecycleRecorder.dispose()
     this.mcpActivityFollower.dispose()
@@ -10913,6 +10952,10 @@ export class BrowserTabsManager {
     if (this.window.isDestroyed() || !this.window.isFocused()) return
     if (this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)) {
       this.window.webContents.focus()
+      return
+    }
+    if (this.browserContentOccluded && !this.agentInputWebContents.has(tab.webContents.id)) {
+      this.focusTabAfterTrustedChrome(tab)
       return
     }
     tab.webContents.focus()

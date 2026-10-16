@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import UiOverlayTransition from "../ui/UiOverlayTransition.vue"
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
@@ -112,98 +113,100 @@ watch(open, async (active, _previous, onCleanup) => {
 </script>
 
 <template>
-  <div v-if="open" class="settings-overlay settings-page-overlay">
-    <section
-      ref="panel"
-      id="settings-page"
-      class="settings-dialog"
-      role="tabpanel"
-      :aria-label="t('settings.heading')"
-      tabindex="-1"
-    >
-      <div class="settings-header">
-        <label class="settings-search">
-          <IconSearch aria-hidden="true" />
-          <input v-model="query" type="search" :disabled="resetBusy" :aria-label="t('settings.searchSections')" :placeholder="t('settings.searchSections')" autocomplete="off" aria-controls="settings-sections" @keydown="searchKeydown">
-        </label>
-        <div class="settings-header-actions">
-          <UiButton
-            v-if="resetVisible"
-            class="secondary-button"
-            type="button"
-            :disabled="resetDisabled"
-            @click="resetCurrent"
-          >{{ t('settings.reset') }}</UiButton>
-          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
-        </div>
-      </div>
-
-      <div
-        class="settings-layout"
-        :aria-busy="resetBusy"
-        :inert="resetBusy ? true : undefined"
+  <UiOverlayTransition>
+    <div v-if="open" class="settings-overlay settings-page-overlay">
+      <section
+        ref="panel"
+        id="settings-page"
+        class="settings-dialog"
+        role="tabpanel"
+        :aria-label="t('settings.heading')"
+        tabindex="-1"
       >
-        <SettingsNavigation v-model="section" :items="matches" />
+        <div class="settings-header">
+          <label class="settings-search">
+            <IconSearch aria-hidden="true" />
+            <input v-model="query" type="search" :disabled="resetBusy" :aria-label="t('settings.searchSections')" :placeholder="t('settings.searchSections')" autocomplete="off" aria-controls="settings-sections" @keydown="searchKeydown">
+          </label>
+          <div class="settings-header-actions">
+            <UiButton
+              v-if="resetVisible"
+              class="secondary-button"
+              type="button"
+              :disabled="resetDisabled"
+              @click="resetCurrent"
+            >{{ t('settings.reset') }}</UiButton>
+            <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+          </div>
+        </div>
 
-        <AppearanceSettings
-          v-if="section === 'appearance'"
-          @test-sound="testSound"
-          @setting-error="reportSettingError"
-        />
-        <SearchSettingsPanel
-          v-else-if="section === 'search'"
-          :controller="searchController"
-        />
-        <DownloadSettingsPanel
-          v-else-if="section === 'downloads'"
-          :controller="downloadController"
-        />
-        <PerformanceSettingsPanel
-          v-else-if="section === 'performance'"
-          :controller="performanceController"
-          :format-number="formatNumber"
-        />
-        <McpSettingsPanel
-          v-else-if="section === 'mcp'"
-          :controller="mcpController"
-        />
-        <PrivacySettingsPanel
-          v-else-if="section === 'privacy'"
-          :controller="privacyController"
-          :workspaces="dataWorkspaces"
-          :format-bytes="formatBytes"
-          :format-number="formatNumber"
-          @manage-workspace="emit('manageWorkspace', $event)"
-          @create-workspace="emit('createWorkspace')"
-          @transfer-workspace-data="emit('transferWorkspaceData', $event)"
-        />
-        <SitePermissionsSettingsPanel
-          v-else-if="section === 'permissions'"
-          :controller="permissionsController"
-        />
-        <CredentialsSettingsPanel
-          v-else-if="section === 'credentials'"
-          :controller="credentialsController"
-        />
-        <WalletsSettingsPanel
-          v-else-if="section === 'wallets'"
-          :controller="walletsController"
-          :workspaces="workspaces"
-        />
-        <UpdateSettingsPanel
-          v-else-if="section === 'updates'"
-          :controller="updateController"
-          :release-history-controller="releaseHistoryController"
-        />
-        <SupportSettingsPanel
-          v-else
-          :controller="supportController"
-          :format-number="formatNumber"
-          :format-date-time="formatDateTime"
-          @open-url="openUrl"
-          @purchase="purchaseCommercialLicense"
-        />
-      </div>
-    </section>
-  </div>
+        <div
+          class="settings-layout"
+          :aria-busy="resetBusy"
+          :inert="resetBusy ? true : undefined"
+        >
+          <SettingsNavigation v-model="section" :items="matches" />
+
+          <AppearanceSettings
+            v-if="section === 'appearance'"
+            @test-sound="testSound"
+            @setting-error="reportSettingError"
+          />
+          <SearchSettingsPanel
+            v-else-if="section === 'search'"
+            :controller="searchController"
+          />
+          <DownloadSettingsPanel
+            v-else-if="section === 'downloads'"
+            :controller="downloadController"
+          />
+          <PerformanceSettingsPanel
+            v-else-if="section === 'performance'"
+            :controller="performanceController"
+            :format-number="formatNumber"
+          />
+          <McpSettingsPanel
+            v-else-if="section === 'mcp'"
+            :controller="mcpController"
+          />
+          <PrivacySettingsPanel
+            v-else-if="section === 'privacy'"
+            :controller="privacyController"
+            :workspaces="dataWorkspaces"
+            :format-bytes="formatBytes"
+            :format-number="formatNumber"
+            @manage-workspace="emit('manageWorkspace', $event)"
+            @create-workspace="emit('createWorkspace')"
+            @transfer-workspace-data="emit('transferWorkspaceData', $event)"
+          />
+          <SitePermissionsSettingsPanel
+            v-else-if="section === 'permissions'"
+            :controller="permissionsController"
+          />
+          <CredentialsSettingsPanel
+            v-else-if="section === 'credentials'"
+            :controller="credentialsController"
+          />
+          <WalletsSettingsPanel
+            v-else-if="section === 'wallets'"
+            :controller="walletsController"
+            :workspaces="workspaces"
+          />
+          <UpdateSettingsPanel
+            v-else-if="section === 'updates'"
+            :controller="updateController"
+            :release-history-controller="releaseHistoryController"
+          />
+          <SupportSettingsPanel
+            v-else
+            :controller="supportController"
+            :format-number="formatNumber"
+            :format-date-time="formatDateTime"
+            @open-url="openUrl"
+            @purchase="purchaseCommercialLicense"
+          />
+        </div>
+      </section>
+    </div>
+  </UiOverlayTransition>
 </template>
