@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 import AgentTakeOverPrompt from '../../src/renderer/src/components/AgentTakeOverPrompt.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { AgentPresence, AgentTakeOverOffer, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
+import type { AgentPresence, AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); document.body.replaceChildren() })
 
@@ -54,15 +54,15 @@ function layout(options: { wrapped?: boolean; row?: number; address?: number; ma
   })
 }
 
-
 const settle = async () => { for (let turn = 0; turn < 4; turn += 1) await nextTick() }
 
 async function renderPrompt(agents: AgentPresence[], props: { tabs?: readonly Tab[]; activeTabId?: string; agentControlLocked?: boolean } = {}) {
   let offerListener: ((offer: AgentTakeOverOffer) => void) | undefined
+  let changeListener: ((snapshot: AgentPresenceSnapshot) => void) | undefined
   const stopOffers = vi.fn(() => { offerListener = undefined })
   const api: HronautAgentPresenceApi = {
     get: vi.fn(async () => ({ revision: 1, workspaces: { 'workspace-a': agents } })),
-    onChanged: () => () => undefined,
+    onChanged: (listener) => { changeListener = listener; return () => undefined },
     onTakeOverOffer: (listener) => { offerListener = listener; return stopOffers }
   }
   const host = mount(Toolbar, {
@@ -85,7 +85,8 @@ async function renderPrompt(agents: AgentPresence[], props: { tabs?: readonly Ta
   return {
     view,
     stopOffers,
-    offer: async (offer: AgentTakeOverOffer) => { offerListener?.(offer); await settle() }
+    offer: async (offer: AgentTakeOverOffer) => { offerListener?.(offer); await settle() },
+    presenceChanged: async (revision: number, next: AgentPresence[]) => { changeListener?.({ revision, workspaces: { 'workspace-a': next } }); await settle() }
   }
 }
 
@@ -132,6 +133,26 @@ describe('take over from an agent in the toolbar', () => {
     await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
     await fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(prompt()).toBeNull()
+  })
+
+  it('keeps a dismissed offer away while that agent goes on working on the tab', async () => {
+    const { offer, presenceChanged, view } = await renderPrompt([agent('Claude Code'), agent('Cursor')])
+    await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
+    await fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    // You keep typing in the page.
+    await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
+    expect(prompt()).toBeNull()
+    // The shortcut still takes over.
+    expect(view.vm.takeOver()).toBe(true)
+    // Another agent's offer shows.
+    await offer({ tabId: 'tab-1', clientKey: 'key-Cursor' })
+    expect(screen.getByRole('group', { name: 'Take over from Cursor?' })).toBeTruthy()
+    await fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    // Once the agent stops working there, its next turn on the tab offers again.
+    await presenceChanged(2, [agent('Claude Code', { state: 'idle' }), agent('Cursor')])
+    await presenceChanged(3, [agent('Claude Code'), agent('Cursor')])
+    await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
+    expect(screen.getByRole('group', { name: 'Take over from Claude Code?' })).toBeTruthy()
   })
 
   it('takes over from the button, or by shortcut whenever the agent is working on the page', async () => {
@@ -198,7 +219,7 @@ describe('room for the take-over prompt', () => {
   })
 
   it('keeps only its buttons in less room, and in none leaves a badge on the avatar', async () => {
-    const { offer, view } = await renderPrompt([agent('Claude Code')])
+    const { offer, view } = await renderPrompt([agent('Claude Code'), agent('Cursor')])
     layout({ margins: 150, commands: 430, full: 300, compact: 120 })
     await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
     expect(prompt()?.dataset.fit).toBe('compact')
@@ -210,10 +231,9 @@ describe('room for the take-over prompt', () => {
 
     // A field already narrower than its widest leaves no room: nothing may narrow it further.
     layout({ address: 400, margins: 0, commands: 430, full: 300, compact: 120 })
-    await fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
-    await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
+    await offer({ tabId: 'tab-1', clientKey: 'key-Cursor' })
     expect(prompt()).toBeNull()
-    expect(view.vm.badge).toEqual({ clientKey: 'key-Claude Code', kind: 'offer' })
+    expect(view.vm.badge).toEqual({ clientKey: 'key-Cursor', kind: 'offer' })
   })
 
   it('takes the room before the commands when they have a row of their own, and keeps its size once shown', async () => {

@@ -1,3 +1,22 @@
+import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
+import { redactNetworkUrl } from '../../shared/network-details.js'
+
+/** Keys that ask something of an agent's person; when an agent sends one itself, the page keeps it. */
+const PERSON_ONLY_SHORTCUTS: ReadonlySet<BrowserShortcutAction> = new Set(['agent-card', 'take-over'])
+
+/**
+ * The browser shortcut a key pressed in a page runs, or null when the page keeps the key: the shortcut is not
+ * available there now, or an agent sent a key that only a person uses, such as Ctrl/Cmd+Shift+O for a web
+ * app's own command, which would otherwise take the page over from that agent.
+ */
+export function pageShortcut(
+  requested: BrowserShortcutAction | null,
+  input: { available: boolean; expectedAgentInput: boolean }
+): BrowserShortcutAction | null {
+  if (!requested || !input.available) return null
+  return input.expectedAgentInput && PERSON_ONLY_SHORTCUTS.has(requested) ? null : requested
+}
+
 /** A tab as it was when, and as it is after, the person had it instead of its agent. */
 export interface TakeOverMark {
   /** Epoch milliseconds. */
@@ -9,8 +28,10 @@ export interface TakeOverMark {
 
 const URL_LIMIT = 200
 
+/** Without sign-in details, secret-looking query values or the fragment, and cut short. */
 function shownUrl(url: string): string {
-  return url.length > URL_LIMIT ? `${url.slice(0, URL_LIMIT - 1)}…` : url
+  const shown = redactNetworkUrl(url)
+  return shown.length > URL_LIMIT ? `${shown.slice(0, URL_LIMIT - 1)}…` : shown
 }
 
 function shownDuration(milliseconds: number): string {
@@ -22,8 +43,8 @@ function shownDuration(milliseconds: number): string {
 }
 
 /**
- * A plain note for the agent of what changed while the person had the tab. It names the tab's address,
- * which the agent can read anyway, and whether the person clicked or typed, never what they typed or read.
+ * A plain note for the agent of what changed while the person had the tab. It names the tab's addresses, redacted
+ * as in network details, and whether the person clicked or typed, never what they typed or read.
  */
 export function handBackNote(start: TakeOverMark, end: TakeOverMark): string {
   const parts = [`The person had this tab for ${shownDuration(end.at - start.at)} and handed it back.`]

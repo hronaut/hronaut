@@ -21,7 +21,8 @@ import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-o
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import type { AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
@@ -611,41 +612,18 @@ let agentPresencePublishScheduled = false
 /** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
 let followAgentActivityIntent = 0
 
-/** The latest take-over offer the shell heard of, so a person typing in a page sends it at most once a second. */
-let takeOverOffer: { tabId: string; clientKey: string; sentAt: number } | undefined
-
-function agentWorkingOnTab(tabId: string, workspaceId: string): AgentPresence | undefined {
-  try {
-    return mcpServer?.getAgentPresence()[workspaceId]?.find((agent) => agent.state === 'working' && agent.lastTabId === tabId)
-  } catch {
-    return undefined
-  }
-}
-
-/** An agent is working on this tab and the person can take it over from them. */
-function takeOverAvailable(tabId: string, workspaceId: string | undefined): AgentPresence | undefined {
-  if (!workspaceId || !tabsManager || tabsManager.isTabAgentPaused(tabId)) return undefined
-  return agentWorkingOnTab(tabId, workspaceId)
-}
-
-/** The person clicked or typed in a page an agent is working on, so the shell offers a take over. */
-function offerTakeOver(tabId: string, workspaceId: string | undefined): void {
-  const agent = takeOverAvailable(tabId, workspaceId)
-  if (!agent) return
-  const now = Date.now()
-  // The shell's offer lasts from the latest touch; while the person keeps typing, it hears of it once a second.
-  if (takeOverOffer?.tabId === tabId && takeOverOffer.clientKey === agent.clientKey && now - takeOverOffer.sentAt < 1_000) return
-  takeOverOffer = { tabId, clientKey: agent.clientKey, sentAt: now }
-  sendToMainWindow('agent-presence:take-over-offer', { tabId, clientKey: agent.clientKey })
-}
-
-function tabAgentPauseOptions(value: unknown): { takeOver: boolean } {
-  if (value === undefined) return { takeOver: false }
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid tab agent pause options')
-  const { takeOver, ...rest } = value as { takeOver?: unknown }
-  if (Object.keys(rest).length > 0 || (takeOver !== undefined && typeof takeOver !== 'boolean')) throw new TypeError('Invalid tab agent pause options')
-  return { takeOver: takeOver === true }
-}
+/** Offers a take over when the person touches a page an agent is working on, and takes it from the page's key. */
+const takeOvers = new TakeOverOffers({
+  agents: (workspaceId) => mcpServer?.getAgentPresence()[workspaceId],
+  isTabAgentPaused: (tabId) => !tabsManager || tabsManager.isTabAgentPaused(tabId),
+  isTabTakenOver: (tabId) => tabsManager?.isTabTakenOver(tabId) === true,
+  setTabAgentPaused: (tabId, paused, options) => {
+    if (!mcpServer) throw new Error('Agent service is unavailable')
+    mcpServer.setTabAgentPaused(tabId, paused, options)
+  },
+  sendOffer: (offer) => sendToMainWindow('agent-presence:take-over-offer', offer),
+  onError: () => console.error('[take-over] Failed to change agent control for a tab.')
+})
 
 /** The agents in each open workspace; the revision increases only when the list changes. */
 function agentPresenceSnapshot(): AgentPresenceSnapshot {
@@ -2602,8 +2580,11 @@ function registerIpc(): void {
     }
     // A card that was open for an earlier request answers nothing. A decision is answered as a decision.
     if (userAttention?.id !== id || attentionDecisionId) return false
+    const tabId = userAttention.tabId
     userAttentionLifecycle.answer(id, answer)
     endUserAttention({ disposition: answer === 'dismissed' ? 'dismissed' : 'acknowledged', keepPending: true })
+    // Done, hand back on a tab the person took over also hands the tab back to its agents.
+    if (answer === 'resolved') takeOvers.resolvedOn(tabId)
     return true
   })
   ipcMain.handle('agent-presence:get', (event): AgentPresenceSnapshot => {
@@ -2749,7 +2730,7 @@ function registerIpc(): void {
     const pauseOptions = tabAgentPauseOptions(options)
     if (!mcpServer) throw new Error('Agent service is unavailable')
     const state = mcpServer.setTabAgentPaused(tabId, paused, pauseOptions)
-    if (paused && takeOverOffer?.tabId === tabId) takeOverOffer = undefined
+    if (paused) takeOvers.paused(tabId)
     return state
   })
   handleBrowserIpc('browser:clear-css-state-preview', (event, tabId: unknown) => {
@@ -4121,12 +4102,13 @@ async function createWindow(startMinimized = false): Promise<void> {
       // A key press in a page hides a shell tooltip, as it hides a native one.
       shellTooltips.hide()
       acknowledgeUserAttention()
-      if (touched) offerTakeOver(touched.tabId, touched.workspaceId)
+      if (touched) takeOvers.touched(touched.tabId, touched.workspaceId)
     },
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
       if (userAttention?.id === id) endUserAttention({ keepPending: true })
+      takeOvers.resolvedOn(tabId)
     },
     onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
       auditReceipts?.recordSiteAccess(workspaceId, decision, source)
@@ -4139,9 +4121,14 @@ async function createWindow(startMinimized = false): Promise<void> {
       })
     },
     // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
-    shortcutAvailable: (action, workspaceId, tabId) => action === 'take-over' ? takeOverAvailable(tabId, workspaceId) !== undefined
+    shortcutAvailable: (action, workspaceId, tabId) => action === 'take-over' ? takeOvers.available(tabId, workspaceId) !== undefined
       : action !== 'agent-card' || (workspaceId !== undefined && (agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0),
-    onShortcutRequested: (action) => {
+    onShortcutRequested: (action, page) => {
+      // From a page, the key takes over that page's tab, which may not be the one the shell shows.
+      if (action === 'take-over' && page) {
+        takeOvers.takeOverFromPage(page.tabId, page.workspaceId)
+        return
+      }
       if (mainWindow && !mainWindow.webContents.isDestroyed()) {
         // The page WebContentsView owns native focus when a website shortcut is
         // pressed. Move it to trusted chrome before the renderer focuses a

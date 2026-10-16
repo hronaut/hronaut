@@ -53,7 +53,21 @@ function endOffer(): void {
   offerTimer = undefined
   offer.value = undefined
 }
+// Dismissing keeps that agent's offers for that tab away while it goes on working there, so you can keep typing.
+const dismissed = shallowRef<AgentTakeOverOffer>()
+function workingOn(target: AgentTakeOverOffer): boolean {
+  return Object.values(presence.snapshot.value.workspaces).some((workspace) => workspace.some((agent) => (
+    agent.clientKey === target.clientKey && agent.state === 'working' && agent.lastTabId === target.tabId
+  )))
+}
+watch(() => dismissed.value && !workingOn(dismissed.value), (ended) => { if (ended) dismissed.value = undefined })
+function dismiss(): void {
+  dismissed.value = offer.value
+  endOffer()
+}
 const stopOffers = api.onTakeOverOffer?.((next) => {
+  const ignored = dismissed.value
+  if (ignored?.tabId === next.tabId && ignored.clientKey === next.clientKey && workingOn(ignored)) return
   window.clearTimeout(offerTimer)
   offer.value = { tabId: next.tabId, clientKey: next.clientKey }
   offerTimer = window.setTimeout(endOffer, AGENT_TAKE_OVER_OFFER_MS)
@@ -210,7 +224,7 @@ defineExpose({ takeOver, offerText, badge })
         type="button"
         :aria-label="t('shell.takeOver.dismiss')"
         v-tooltip="t('shell.takeOver.dismiss')"
-        @click="endOffer"
+        @click="dismiss"
       ><IconClose aria-hidden="true" /></UiButton>
     </div>
     <div

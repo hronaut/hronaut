@@ -85,6 +85,12 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
     succeeded(await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult)
     await expect(appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true }).getByRole('button', { name: 'Claude Code, working' })).toBeVisible()
 
+    // The agent's own Ctrl+Shift+O, for a web app's command, reaches the page and neither offers nor takes over.
+    succeeded(await client.callTool({ name: 'browser_press', arguments: { tabId, key: 'Control+Shift+O' } }) as CallToolResult)
+    await expect.poll(() => pageKeys(electronApp, url)).toEqual(['O', 'O'])
+    await expect(prompt).toHaveCount(0)
+    expect(await appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.agentPaused)`)).toBe(false)
+
     // Clicking the page the agent is working on offers a take over in the toolbar's free room: the toolbar keeps
     // its height and the address field its width.
     await inPage(electronApp, url, { type: 'click' })
@@ -102,7 +108,7 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
     await expect(control).toBeVisible()
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)}))`))
       .toMatchObject({ agentPaused: true, takenOverAt: expect.any(Number) })
-    expect(await pageKeys(electronApp, url)).toEqual(['O'])
+    expect(await pageKeys(electronApp, url)).toEqual(['O', 'O'])
 
     // The agent hears that the person has the tab.
     const refused = await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult
@@ -135,6 +141,16 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
       + `The page moved from ${escaped(url)} to ${escaped(next)}\\. `
       + 'They clicked or typed in the page\\. Read the page again before you continue\\.$'
     ))
+    succeeded(await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult)
+
+    // Done, hand back on the agent's request for you also hands back a tab you took over, as from the live strip.
+    succeeded(await client.callTool({ name: 'browser_request_user_attention', arguments: { tabId, reason: 'Sign in, please.' } }) as CallToolResult)
+    await appWindow.evaluate(`window.hronaut.setTabAgentPaused(${JSON.stringify(tabId)}, true, { takeOver: true })`)
+    await expect(control).toBeVisible()
+    await appWindow.evaluate('window.hronaut.getUserAttention().then((request) => window.hronaut.answerUserAttention(request.id, "resolved"))')
+    await expect(prompt).toHaveCount(0)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)}))`))
+      .toMatchObject({ agentPaused: false, handedBack: { note: expect.stringContaining('handed it back') } })
     succeeded(await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult)
 
     // With the tab rail in a narrower window the address field has no room to spare, so the agent's avatar

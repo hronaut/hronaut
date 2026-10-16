@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { handBackNote, type TakeOverMark } from '../src/main/browser/take-over.js'
+import { handBackNote, pageShortcut, type TakeOverMark } from '../src/main/browser/take-over.js'
 
 const start: TakeOverMark = { at: 1_000_000, url: 'https://shop.example/cart', navigationGeneration: 4, humanInteractionGeneration: 10 }
 
@@ -28,5 +28,31 @@ describe('hand-back note', () => {
     expect(note).toContain('for 0 s')
     expect(note).toContain(`to ${long.slice(0, 199)}….`)
     expect(note).not.toContain(long.slice(0, 201))
+  })
+})
+
+describe('hand-back note privacy', () => {
+  it('names addresses without sign-in details, secret query values or the fragment', () => {
+    const note = handBackNote(
+      { ...start, url: 'https://user:pass@shop.example/login?token=abc123&step=2#secret' },
+      { ...start, at: start.at + 1_000, url: 'https://shop.example/account?session=xyz' }
+    )
+    expect(note).toContain('from https://%5BREDACTED%5D:%5BREDACTED%5D@shop.example/login?step=2&token=%5BREDACTED%5D to https://shop.example/account?session=%5BREDACTED%5D.')
+    expect(note).not.toMatch(/user:pass|abc123|xyz|#secret/)
+  })
+})
+
+describe('keys pressed in a page', () => {
+  it('runs a shortcut that is available there', () => {
+    expect(pageShortcut('take-over', { available: true, expectedAgentInput: false })).toBe('take-over')
+    expect(pageShortcut('reload', { available: true, expectedAgentInput: true })).toBe('reload')
+    expect(pageShortcut(null, { available: true, expectedAgentInput: false })).toBeNull()
+    expect(pageShortcut('take-over', { available: false, expectedAgentInput: false })).toBeNull()
+  })
+
+  it('leaves keys only a person uses to the page when an agent sends them', () => {
+    // An agent pressing Ctrl+Shift+O for a web app's own command must not take the page over from itself.
+    expect(pageShortcut('take-over', { available: true, expectedAgentInput: true })).toBeNull()
+    expect(pageShortcut('agent-card', { available: true, expectedAgentInput: true })).toBeNull()
   })
 })

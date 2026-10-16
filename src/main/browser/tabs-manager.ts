@@ -401,7 +401,7 @@ import {
 } from './workspace-storage.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
-import { handBackNote, type TakeOverMark } from './take-over.js'
+import { handBackNote, pageShortcut, type TakeOverMark } from './take-over.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 type BrowserClickTarget = {
@@ -931,7 +931,8 @@ export interface TabsManagerOptions {
   /** The person used the browser; with the tab, when they clicked or typed in its page. */
   onUserInteraction?: (touched?: { tabId: string; workspaceId: string | undefined }) => void
   onCredentialSubmitted?: (candidate: BrowserCredentialCandidate) => void
-  onShortcutRequested?: (action: BrowserShortcutAction) => void
+  /** A browser shortcut pressed in the shell's stead; from a page, with that page's tab. */
+  onShortcutRequested?: (action: BrowserShortcutAction, page?: { tabId: string; workspaceId: string | undefined }) => void
   /** A shortcut the browser takes from this tab's page only while true; the page keeps the key otherwise. */
   shortcutAvailable?: (action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string) => boolean
   copyText: (text: string) => Promise<void>
@@ -9945,24 +9946,26 @@ export class BrowserTabsManager {
       // operation does not establish the origin of every arriving key event.
       const expectedAgentInput = this.consumeExpectedAgentKeyboardInput(webContents.id, input)
       // Ctrl+. is also a page's own key, such as an editor's quick fix. It opens the agent card only
-      // when a person presses it while there are agents to show. An agent's debugger keys usually skip
-      // this handler; one that arrives here as expected agent input still reaches the page.
-      const shortcut = requested && (
-        this.options.shortcutAvailable?.(requested, tab.mcpGroupId, tab.id) === false
-        || (requested === 'agent-card' && expectedAgentInput)
-      ) ? null : requested
+      // when a person presses it while there are agents to show; Ctrl+Shift+O likewise takes the page
+      // over only from a person. An agent's debugger keys usually skip this handler; one that arrives
+      // here as expected agent input still reaches the page (pageShortcut).
+      const shortcut = pageShortcut(requested, {
+        available: requested ? this.options.shortcutAvailable?.(requested, tab.mcpGroupId, tab.id) !== false : false,
+        expectedAgentInput
+      })
+      const page = { tabId: tab.id, workspaceId: tab.mcpGroupId }
       if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
         event.preventDefault()
         if (shortcut) {
           this.options.onUserInteraction?.()
-          this.options.onShortcutRequested?.(shortcut)
+          this.options.onShortcutRequested?.(shortcut, page)
         }
         return
       }
       if (shortcut) {
         event.preventDefault()
         this.options.onUserInteraction?.()
-        this.options.onShortcutRequested?.(shortcut)
+        this.options.onShortcutRequested?.(shortcut, page)
         return
       }
       this.reproRecorder.observeReproKeyboard(tab, input)
