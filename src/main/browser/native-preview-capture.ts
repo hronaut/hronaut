@@ -1,12 +1,18 @@
 /** A caller deadline releases the shared queue, but not a pending native capture. */
 export class NativePreviewCapture {
-  private readonly pending = new WeakSet<object>()
+  // Settles when the native capture of these contents does, success or not.
+  private readonly pending = new WeakMap<object, Promise<void>>()
 
   constructor(private readonly timeoutMs: number) {}
 
   /** Another capture of these contents must not start while a native one is still pending. */
   isPending(contents: object): boolean {
     return this.pending.has(contents)
+  }
+
+  /** Resolves once the pending native capture of these contents settles; undefined when none is pending. */
+  settled(contents: object): Promise<void> | undefined {
+    return this.pending.get(contents)
   }
 
   async run<T>(
@@ -16,22 +22,27 @@ export class NativePreviewCapture {
     onLateSettlement: () => void
   ): Promise<T | undefined> {
     if (this.pending.has(contents)) return undefined
-    this.pending.add(contents)
+    let settle!: () => void
+    this.pending.set(contents, new Promise<void>((resolve) => { settle = resolve }))
+    const release = (): void => {
+      this.pending.delete(contents)
+      settle()
+    }
     let timedOut = false
     let timer: NodeJS.Timeout | undefined
     let native: Promise<T>
     try {
       native = capture()
     } catch (error) {
-      this.pending.delete(contents)
+      release()
       throw error
     }
     const completion = native.then(value => {
-      this.pending.delete(contents)
+      release()
       if (timedOut) onLateSettlement()
       return value
     }, (error: unknown) => {
-      this.pending.delete(contents)
+      release()
       if (timedOut) onLateSettlement()
       throw error
     })

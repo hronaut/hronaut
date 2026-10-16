@@ -14,7 +14,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Opening Commands, Search tabs, a workspace editor, Settings or another Hronaut dialog no longer flashes the page area white. Before, Hronaut hid the website the moment a dialog opened, and the empty window showed for several frames until the dialog was drawn. Now a still picture of the page stays under the dialog, and the page is hidden only once that picture is on screen. The page also stays visible behind an open dialog, dimmed and softly blurred, instead of leaving an empty area.
+- Opening Commands, Search tabs, a workspace editor, Settings or another Hronaut dialog no longer flashes the page area white. Before, Hronaut hid the website the moment a dialog opened, and the empty window showed for several frames until the dialog was drawn. Now a still picture of the page stays under the dialog, and the page is hidden only once that picture is on screen. The page also stays visible behind an open dialog, dimmed and softly blurred, instead of leaving an empty area. This also holds when a dialog opens just as Hronaut updates the page's preview for the tab overview, such as right after the page loads or the window is resized.
 - On Windows and Linux, the minimize, maximize and close buttons in the top-right corner now dim with the rest of the window when Search tabs, Create workspace, Commands or another dialog with a backdrop opens, and return to their colors when it closes. Before, they stayed at full brightness above the backdrop, because they are drawn above the window's own content. A dialog opened over another dims them by both backdrops.
 
 ## [2.49.0] - 2026-10-16

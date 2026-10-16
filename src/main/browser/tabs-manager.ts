@@ -8843,14 +8843,13 @@ export class BrowserTabsManager {
   }
 
   /** Pages on screen now, at their current view bounds, that can be captured for the occlusion snapshot. */
-  private occlusionSnapshotPanes(): Array<{ contents: Electron.WebContents; bounds: Rectangle }> {
+  private occlusionSnapshotPanes(): Array<{ contents: Electron.WebContents; bounds: Rectangle; busy?: Promise<void> }> {
     if (!this.window.isVisible() || this.window.isMinimized() || this.window.webContents.isDestroyed()) return []
     return this.presentedTabs().flatMap((tab) => (
       !tab.webContents.isDestroyed()
       && tab.view.getVisible()
       && this.window.contentView.children.includes(tab.view)
-      && !this.nativePreviewCapture.isPending(tab.webContents)
-        ? [{ contents: tab.webContents, bounds: tab.view.getBounds() }]
+        ? [{ contents: tab.webContents, bounds: tab.view.getBounds(), busy: this.nativePreviewCapture.settled(tab.webContents) }]
         : []
     ))
   }
