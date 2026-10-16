@@ -209,14 +209,14 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
 .video-recorder p { margin: 0; }
 .video-recorder fieldset { display: grid; gap: 10px; min-width: 0; border: 1px solid var(--border-soft); border-radius: var(--corner-2); padding: 10px; }
 .video-recorder label { display: grid; gap: 4px; min-width: 0; }
-.video-recorder input, .video-recorder select, .video-recorder textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px; color: inherit; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 4px; }
+.video-recorder input:not([type="checkbox"], [type="radio"]), .video-recorder select, .video-recorder textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px; color: inherit; background-color: var(--surface); border: 1px solid var(--border-soft); border-radius: 4px; }
+.video-recorder select { padding-right: 28px; }
 .video-recorder textarea { resize: vertical; font: inherit; }
 .video-recorder input[type="color"] { height: 32px; padding: 3px; }
 .video-recorder .video-help { color: var(--text-muted); font-size: var(--type-small-size); line-height: 1.5; }
 .video-recorder .video-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .video-recorder .video-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .video-recorder .video-check { display: flex; align-items: center; gap: 8px; }
-.video-recorder .video-check input { width: auto; }
 .video-recorder .video-section { border: 1px solid var(--border-soft); border-radius: var(--corner-2); padding: 10px; }
 .video-recorder .video-section summary { cursor: pointer; font-weight: var(--weight-strong); }
 .video-recorder .video-section summary span { color: var(--text-muted); font-weight: var(--weight-regular); }
