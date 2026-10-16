@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Hronaut's interface now uses one type scale, one set of corners and three shadow levels across the shell, dialogs, panels, Settings, Home and the address suggestions, and bundles the Geist Sans and Geist Mono fonts instead of relying on whichever system font was installed. Text uses six sizes and three weights instead of thirteen sizes and ten weights, corners use four radii instead of fifteen, and floating surfaces use three consistent shadows. Colors and layouts are unchanged. This is the foundation of the redesign that follows; the fonts are licensed under the SIL Open Font License and listed in the third-party notices.
+- Hronaut's interface now uses one type scale, one set of corners and three shadow levels across the shell, dialogs, panels, Settings and the address suggestions, and bundles the Geist Sans and Geist Mono fonts instead of relying on whichever system font was installed. Home uses Geist too. Text uses six sizes and three weights instead of thirteen sizes and ten weights, corners from 6 px up use four radii instead of fifteen, and floating surfaces use three neutral shadows. Some text moves by one step on the new scale, for example 18 to 24 px headings now share 20 px and the address bar text is 13 px, and lines are slightly taller in Geist. Theme colors are unchanged. This is the foundation of the redesign that follows; the fonts are licensed under the SIL Open Font License and listed in the third-party notices.
 
 ### Fixed
 

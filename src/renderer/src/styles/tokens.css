@@ -3,7 +3,7 @@
  * motion below; themes only change color. Use these instead of new literal
  * sizes, radii, shadows or durations.
  */
-/* Geist Sans and Geist Mono 1.7.2, SIL Open Font License 1.1; see THIRD_PARTY_NOTICES.md. */
+/* Geist Sans 1.800 and Geist Mono 1.700 (geist npm package 1.7.2), SIL Open Font License 1.1; see THIRD_PARTY_NOTICES.md. */
 @font-face {
   font-family: "Geist";
   src: url("../assets/fonts/Geist-Variable.woff2") format("woff2");
@@ -57,11 +57,15 @@
   --corner-4: 16px;
   --corner-pill: 999px;
 
-  /* Elevation: a 1px top highlight plus a soft shadow, from resting controls to floating overlays. */
+  /*
+   * Elevation: a 1px top highlight plus a neutral shadow, from resting controls
+   * to floating overlays. The shadows stay neutral in every theme, as the
+   * literal shadows they replace were, rather than taking a theme's tinted --shadow.
+   */
   --elevation-highlight: rgba(255, 255, 255, 0.65);
-  --elevation-1: inset 0 1px 0 var(--elevation-highlight), 0 1px 2px var(--shadow);
-  --elevation-2: inset 0 1px 0 var(--elevation-highlight), 0 8px 24px var(--shadow);
-  --elevation-3: inset 0 1px 0 var(--elevation-highlight), 0 8px 24px var(--shadow), 0 24px 80px var(--shadow);
+  --elevation-1: inset 0 1px 0 var(--elevation-highlight), 0 1px 3px rgba(0, 0, 0, 0.14);
+  --elevation-2: inset 0 1px 0 var(--elevation-highlight), 0 14px 40px rgba(16, 13, 36, 0.24);
+  --elevation-3: inset 0 1px 0 var(--elevation-highlight), 0 8px 24px rgba(0, 0, 0, 0.18), 0 24px 80px rgba(0, 0, 0, 0.48);
   --elevation-3-backdrop: blur(18px) saturate(1.3);
 
   /* Motion. */
@@ -75,7 +79,7 @@
   --motion-enter-scale: 0.97;
 
   /* States that need the person are amber; nothing else is. */
-  --needs-you: #a54b08;
+  --needs-you: #8f4006;
   --needs-you-soft: color-mix(in srgb, var(--needs-you) 14%, transparent);
   --connected: var(--success);
   --connected-soft: color-mix(in srgb, var(--connected) 14%, transparent);
@@ -105,7 +109,7 @@
 
 :root[data-theme="sepia"],
 .ui-theme-scope[data-theme="sepia"] {
-  --needs-you: #95480a;
+  --needs-you: #7f3d09;
 }
 
 :root,

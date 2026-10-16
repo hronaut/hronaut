@@ -6,7 +6,7 @@ Notable code and assets compiled into the desktop application include:
 
 - **axe-core 4.13.0**, Copyright Deque Systems, Inc. and contributors, licensed under the Mozilla Public License 2.0. Source: <https://github.com/dequelabs/axe-core/tree/v4.13.0>. The complete license and upstream third-party notices are distributed in `node_modules/axe-core/LICENSE` and `node_modules/axe-core/LICENSE-3RD-PARTY.txt`.
 - **Mediabunny 1.42.0**, licensed under the Mozilla Public License 2.0, used to encode and mux local WebM video exports. Source: <https://github.com/Vanilagy/mediabunny/tree/v1.42.0>. The complete license is distributed in `node_modules/mediabunny/LICENSE`.
-- **Geist Sans and Geist Mono 1.7.2** (variable fonts), Copyright (c) 2023 Vercel, in collaboration with basement.studio, licensed under the SIL Open Font License 1.1, used for Hronaut's interface and code text. Source: <https://github.com/vercel/geist-font>. The complete license follows at the end of this file.
+- **Geist Sans 1.800 and Geist Mono 1.700** (variable fonts, from the `geist` npm package 1.7.2), Copyright 2024 The Geist Project Authors; the package's license file reads Copyright (c) 2023 Vercel, in collaboration with basement.studio. Licensed under the SIL Open Font License 1.1, used for Hronaut's interface and code text. Source: <https://github.com/vercel/geist-font>. The complete license follows at the end of this file.
 - **Material Symbols**, provided through `@iconify-json/material-symbols`, licensed under the Apache License 2.0. Project information: <https://icon-sets.iconify.design/material-symbols/>.
 - **@noble/ciphers 2.4.0**, licensed under the MIT License. Source: <https://github.com/paulmillr/noble-ciphers>.
 - **@node-rs/argon2 2.1.0**, an MIT-licensed Node-API binding to the RustCrypto Argon2 implementation, used for the Linux vault passphrase fallback. Source: <https://github.com/napi-rs/node-rs>.
@@ -24,6 +24,7 @@ Other bundled dependencies retain the licenses declared by their packages, inclu
 ## Geist font license
 
 ```text
+Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
 Copyright (c) 2023 Vercel, in collaboration with basement.studio
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.

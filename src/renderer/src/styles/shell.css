@@ -20,7 +20,7 @@
   @apply [background:var(--turbo-highlight)];
 }
 :root[data-theme="cyberpunk-turbo"] :is(.tab-group, .tab, .address-form, .ui-button, .ui-input, .ui-select, .settings-dialog, .theme-option, .global-lock-controls) {
-  @apply [border-radius:var(--corner-1)];
+  @apply [border-radius:4px];
 }
 :root[data-theme="cyberpunk-turbo"] .settings-dialog {
   @apply [border-color:color-mix(in_srgb,_var(--accent)_45%,_var(--border))] [box-shadow:0_0_16px_rgba(255,_77,_227,_.1)];
@@ -102,7 +102,7 @@
 .browser-tabs-bar.vertical .workspace-tab-section.collapsed .workspace-new-tab,
 .browser-tabs-bar.vertical .workspace-tab-section.empty .workspace-new-tab { @apply [grid-column:2] [grid-row:1]; }
 .browser-tabs-bar.vertical .tab {
-  @apply w-full min-w-0 [height:34px] [flex:0_0_34px] [border-radius:var(--corner-1)];
+  @apply w-full min-w-0 [height:34px] [flex:0_0_34px] [border-radius:5px];
 }
 .browser-tabs-bar.vertical .tab.active {
   @apply [background:var(--toolbar)] [box-shadow:none];
@@ -236,7 +236,7 @@
 .tabs-scroll-button:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
 .tabs-scroll-button:disabled { @apply invisible opacity-0 pointer-events-none; }
 .tab-group-label {
-  @apply flex items-center [gap:4px] overflow-hidden [max-width:150px] flex-none [height:29px] m-0 [padding:0_6px] [border:1px_solid_transparent] [border-radius:var(--corner-1)] [background:transparent] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1.2] text-ellipsis whitespace-nowrap cursor-pointer;
+  @apply flex items-center [gap:4px] overflow-hidden [max-width:150px] flex-none [height:29px] m-0 [padding:0_6px] [border:1px_solid_transparent] [border-radius:5px] [background:transparent] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1.2] text-ellipsis whitespace-nowrap cursor-pointer;
 }
 .tab-group-label > svg {
   @apply [width:14px] [height:14px] flex-none;
@@ -370,10 +370,10 @@
   @apply absolute [top:3px] [right:2px] [width:10px] [height:10px];
 }
 .tab.pinned .tab-emulation-mark {
-  @apply absolute [right:2px] [bottom:2px] [width:11px] [height:11px] [padding:1px] [border-radius:var(--corner-1)] [background:var(--toolbar)];
+  @apply absolute [right:2px] [bottom:2px] [width:11px] [height:11px] [padding:1px] [border-radius:4px] [background:var(--toolbar)];
 }
 .tab.pinned .tab-network-route-mark {
-  @apply absolute [left:2px] [bottom:2px] [width:11px] [height:11px] [padding:1px] [border-radius:var(--corner-1)] [background:var(--toolbar)];
+  @apply absolute [left:2px] [bottom:2px] [width:11px] [height:11px] [padding:1px] [border-radius:4px] [background:var(--toolbar)];
 }
 .tab.pinned .tab-audio {
   @apply absolute [right:1px] [bottom:1px] [width:16px] [height:16px] [background:var(--toolbar)];
@@ -384,10 +384,10 @@
 .favicon-fallback { @apply [width:16px] [height:16px] [flex:0_0_16px] object-contain; }
 .favicon-fallback { @apply grid place-items-center text-accent [font-size:var(--type-small-size)]; }
 .tab-problem-icon { @apply [color:#d9534f]; }
-.tab-close { @apply grid place-items-center [width:20px] [height:20px] [border-radius:var(--corner-1)] [line-height:1] cursor-pointer; }
+.tab-close { @apply grid place-items-center [width:20px] [height:20px] [border-radius:5px] [line-height:1] cursor-pointer; }
 .tab-close svg { @apply [width:15px] [height:15px]; }
 .tab-close:hover { @apply bg-hover; }
-.tab-audio { @apply grid [width:20px] [height:20px] [flex:0_0_20px] place-items-center [border-radius:var(--corner-1)] text-accent-copy; }
+.tab-audio { @apply grid [width:20px] [height:20px] [flex:0_0_20px] place-items-center [border-radius:5px] text-accent-copy; }
 .tab-audio:hover { @apply bg-hover; }
 .tab-audio.muted { @apply text-muted; }
 .tab-audio svg { @apply [width:15px] [height:15px]; }
@@ -423,7 +423,7 @@
 .new-tab, .new-workspace { @apply grid [width:28px] [height:28px] [flex:0_0_28px] [margin-bottom:5px] place-items-center; }
 .new-tab svg { @apply [width:21px] [height:21px]; }
 .workspace-new-tab {
-  @apply [width:28px] [height:28px] m-0 [border:1px_solid_transparent] [border-radius:var(--corner-1)] text-muted bg-transparent;
+  @apply [width:28px] [height:28px] m-0 [border:1px_solid_transparent] [border-radius:5px] text-muted bg-transparent;
 }
 .workspace-new-tab svg { @apply [width:18px] [height:18px]; }
 .workspace-new-tab:hover,

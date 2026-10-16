@@ -149,7 +149,7 @@ async function cleanup(): Promise<void> {
 .template-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 fieldset { display: grid; gap: 10px; min-width: 0; border: 1px solid var(--border-color, #8886); border-radius: var(--corner-2); padding: 12px; }
 label { display: grid; gap: 6px; }
-input:not([type=checkbox]), textarea, select { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: transparent; border: 1px solid var(--border-color, #8886); border-radius: var(--corner-1); padding: 8px; }
+input:not([type=checkbox]), textarea, select { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: transparent; border: 1px solid var(--border-color, #8886); border-radius: 5px; padding: 8px; }
 .template-review { display: flex; align-items: start; gap: 8px; }
 textarea { resize: vertical; }
 </style>

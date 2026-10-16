@@ -34,6 +34,14 @@ function luminance(hex: string): number {
   return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!
 }
 
+/** `top` at `alpha` over an opaque `bottom`, as color-mix with transparent composites. */
+function mix(top: string, bottom: string, alpha: number): string {
+  const channels = [1, 3, 5].map((index) => Math.round(
+    Number.parseInt(top.slice(index, index + 2), 16) * alpha + Number.parseInt(bottom.slice(index, index + 2), 16) * (1 - alpha)
+  ))
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
 function contrast(first: string, second: string): number {
   const [lighter, darker] = [luminance(first), luminance(second)].sort((a, b) => b - a)
   return (lighter! + 0.05) / (darker! + 0.05)
@@ -64,17 +72,31 @@ describe('design tokens v2', () => {
     expect(reduced).toContain('--motion-ease-spring: var(--motion-ease-out);')
   })
 
-  it('keeps the amber needs-you color readable as text on every theme surface', () => {
+  it('keeps the amber needs-you color readable as text on every theme surface and on its own soft fill', () => {
+    expect(themeTokens('light').get('--needs-you-soft')).toBe('color-mix(in srgb, var(--needs-you) 14%, transparent)')
     for (const theme of RESOLVED_THEME_NAMES) {
       const values = themeTokens(theme)
       const amber = values.get('--needs-you')
       expect(amber, theme).toMatch(/^#[0-9a-f]{6}$/u)
       for (const surface of ['--surface', '--surface-raised', '--surface-muted', '--toolbar', '--shell-top', '--hover']) {
         const background = values.get(surface)
-        if (!background?.startsWith('#')) continue
-        expect(contrast(amber!, background), `${theme} ${surface}`).toBeGreaterThanOrEqual(4.5)
+        expect(background, `${theme} ${surface}`).toMatch(/^#[0-9a-f]{6}$/u)
+        expect(contrast(amber!, background!), `${theme} ${surface}`).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(amber!, mix(amber!, background!, 0.14)), `${theme} soft fill on ${surface}`).toBeGreaterThanOrEqual(4.5)
       }
       expect(values.get('--connected')).toBe('var(--success)')
+    }
+  })
+
+  it('keeps elevation shadows neutral in every theme', () => {
+    for (const theme of RESOLVED_THEME_NAMES) {
+      const values = themeTokens(theme)
+      for (const level of [1, 2, 3]) {
+        const elevation = values.get(`--elevation-${level}`) ?? ''
+        // A theme's tinted --shadow would turn dialog shadows pink, green or red.
+        expect(elevation, `${theme} ${level}`).not.toContain('var(--shadow)')
+        expect(elevation.replace(/^inset 0 1px 0 var\(--elevation-highlight\), /u, '')).toMatch(/^(?:\d+ \d+px \d+px rgba\((?:0, 0, 0|16, 13, 36), 0\.\d+\)(?:, |$))+$/u)
+      }
     }
   })
 
@@ -94,18 +116,21 @@ describe('design tokens v2', () => {
     // The overlay's own CSP must let it load the bundled font; Home's protocol already serves woff2 under font-src.
     expect(readFileSync(join(repository, 'src/renderer/address-overlay.html'), 'utf8')).toContain("font-src 'self'")
     const notices = readFileSync(join(repository, 'THIRD_PARTY_NOTICES.md'), 'utf8')
-    expect(notices).toContain('**Geist Sans and Geist Mono 1.7.2**')
+    expect(notices).toContain('**Geist Sans 1.800 and Geist Mono 1.700** (variable fonts, from the `geist` npm package 1.7.2)')
+    expect(notices).toContain('Copyright 2024 The Geist Project Authors')
     expect(notices).toContain('SIL OPEN FONT LICENSE Version 1.1')
   })
 
-  it('leaves no literal font size or family, off-scale weight or large literal corner in renderer styles', () => {
+  it('leaves no literal font size or family, off-scale weight or literal corner from 6 px up in renderer styles', () => {
     const offenders = stylesheets().flatMap((path) => {
       const source = readFileSync(path, 'utf8')
       const found = [
-        ...source.matchAll(/font-size:\s*\d+(?:\.\d+)?px|\[font-size:\d+(?:\.\d+)?px\]|(?<![\w-])text-\[\d+(?:\.\d+)?px\]|\[font:[^\]]*\d+px[^\]]*\]/gu),
+        // Relative em sizes, such as code inside a sentence, follow their text and may stay.
+        ...source.matchAll(/font-size:\s*\d*\.?\d+(?:px|rem)|\[font-size:\d*\.?\d+(?:px|rem)\]|(?<![\w-])text-\[\d*\.?\d+(?:px|rem)\]|(?<![\w-])text-(?:xs|sm|base|lg|xl|[2-9]xl)(?![\w-])|\[font:[^\]]*\d+(?:px|rem)[^\]]*\]|(?<![\w[-])font:\s*[^;}\]]*?\d(?:px|rem)/gu),
         ...source.matchAll(/SFMono-Regular|Consolas|(?:font-family|--font-sans):\s*Inter\b/gu),
         ...source.matchAll(/font-weight:\s*(?!400\b|500\b|600\b)\d{3}|\[font-weight:\d{3}\]|(?<![\w-])font-\[\d{3}\]|(?<![\w-])font-(?:bold|semibold|extrabold|black)(?![\w-])/gu),
-        ...source.matchAll(/border-radius:\s*(?:[4-9]|\d{2,})px|\[border-radius:[^\]]*(?<![\d.])(?:[4-9]|\d{2,})px|(?<![\w-])rounded(?:-[tblr]{1,2})?-\[(?:[4-9]|\d{2,})px\]|(?<![\w-])rounded-(?:sm|md|lg|xl|2xl|3xl)(?![\w-])/gu)
+        // The corner scale starts at 6 px; small marks may keep a literal corner of 5 px or less.
+        ...source.matchAll(/border-(?:(?:top|bottom)-(?:left|right)-)?radius:\s*(?:\d*\.?\d+px\s+)*(?:[6-9]|\d{2,})(?:\.\d+)?px|border-(?:(?:top|bottom)-(?:left|right)-)?radius:\s*[^;}\]]*?\d(?:r?em)\b|\[border-(?:(?:top|bottom)-(?:left|right)-)?radius:[^\]]*(?<![\d.])(?:[6-9]|\d{2,})px|(?<![\w-])rounded(?:-[tblr]{1,2})?-\[(?:[6-9]|\d{2,})px\]|(?<![\w-])rounded-(?:sm|md|lg|xl|2xl|3xl)(?![\w-])/gu)
       ]
       return found.map((match) => `${path.slice(rendererRoot.length)}: ${match[0]}`)
     })

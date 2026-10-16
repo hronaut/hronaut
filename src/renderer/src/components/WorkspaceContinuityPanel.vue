@@ -76,7 +76,7 @@ onBeforeUnmount(() => { generation += 1 })
 </template>
 
 <style scoped>
-.workspace-continuity { display: grid; gap: 0.65rem; margin-top: 18px; padding: 14px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 0.75rem; }
+.workspace-continuity { display: grid; gap: 0.65rem; margin-top: 18px; padding: 14px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--corner-3); }
 h3, p, ul { margin: 0; }
 h3 { font-size: var(--type-body-size); font-weight: var(--weight-strong); }
 p, small { color: var(--muted); }

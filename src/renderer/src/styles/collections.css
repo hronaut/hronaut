@@ -70,7 +70,7 @@
 .tab-search-empty button:hover { @apply bg-hover; }
 .tab-search-panel > footer { @apply flex [min-height:38px] flex-none items-center [gap:16px] [padding:7px_14px] [border-top:1px_solid_var(--border-soft)] text-muted bg-surface [font-size:var(--type-small-size)]; }
 .tab-search-panel > footer span { @apply flex items-center [gap:4px]; }
-.tab-search-panel > footer kbd { @apply [padding:3px_5px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] text-copy bg-surface-muted [font:var(--weight-strong)_var(--type-micro-size)/1_var(--font-code)] [box-shadow:0_1px_0_var(--border-soft)]; }
+.tab-search-panel > footer kbd { @apply [padding:3px_5px] [border:1px_solid_var(--border-soft)] [border-radius:5px] text-copy bg-surface-muted [font:var(--weight-strong)_var(--type-micro-size)/1_var(--font-code)] [box-shadow:0_1px_0_var(--border-soft)]; }
 
 .tab-overview-workspaces { @apply flex items-start [gap:12px] flex-wrap; }
 .tab-overview-workspace {
@@ -400,7 +400,7 @@
 .storage-changes-list { @apply [min-height:100px] overflow-y-auto [border-top:1px_solid_var(--border-soft)]; }
 .storage-change { @apply grid w-full [min-height:60px] [grid-template-columns:68px_minmax(0,_1fr)_auto] items-center [gap:10px] [padding:8px_12px] border-0 [border-bottom:1px_solid_var(--border-soft)] text-copy bg-transparent text-left cursor-pointer; }
 .storage-change:hover { @apply bg-hover; }
-.storage-change-type { @apply [justify-self:start] [padding:3px_6px] [border-radius:var(--corner-1)] text-muted bg-surface-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }
+.storage-change-type { @apply [justify-self:start] [padding:3px_6px] [border-radius:5px] text-muted bg-surface-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }
 .storage-change.added .storage-change-type { @apply [color:var(--success)] [background:color-mix(in_srgb,_var(--success)_10%,_var(--surface))]; }
 .storage-change.updated .storage-change-type { @apply text-accent-copy bg-accent-soft; }
 .storage-change.removed .storage-change-type { @apply text-danger [background:color-mix(in_srgb,_var(--danger)_10%,_var(--surface))]; }
@@ -458,13 +458,13 @@
 .indexeddb-tools > button:disabled { @apply [opacity:.45] cursor-default; }
 .indexeddb-tools > button svg { @apply [width:16px] [height:16px]; }
 .indexeddb-schema { @apply flex flex-wrap [gap:7px] [padding:7px_12px] [border-top:1px_solid_var(--border-soft)] [border-bottom:1px_solid_var(--border-soft)] text-muted bg-surface-muted [font-size:var(--type-micro-size)]; }
-.indexeddb-schema span { @apply [padding:3px_6px] [border-radius:var(--corner-1)] bg-surface; }
+.indexeddb-schema span { @apply [padding:3px_6px] [border-radius:5px] bg-surface; }
 .indexeddb-schema code { @apply text-copy [font:inherit]; }
 .indexeddb-records { @apply [min-height:110px] overflow-y-auto [flex:1]; }
 .indexeddb-record { @apply [padding:9px_12px] [border-bottom:1px_solid_var(--border-soft)]; }
 .indexeddb-record header { @apply flex items-center justify-between [gap:10px]; }
 .indexeddb-record header strong { @apply min-w-0 overflow-hidden [font:var(--weight-strong)_var(--type-small-size)/1.35_var(--font-code)] text-ellipsis whitespace-nowrap; }
-.indexeddb-record header span { @apply flex-none [padding:2px_5px] [border-radius:var(--corner-1)] text-accent-copy bg-accent-soft [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }
+.indexeddb-record header span { @apply flex-none [padding:2px_5px] [border-radius:4px] text-accent-copy bg-accent-soft [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }
 .indexeddb-record > code { @apply block [max-height:74px] [margin-top:6px] overflow-auto text-copy [font:var(--type-small-size)/1.45_var(--font-code)] whitespace-pre-wrap [overflow-wrap:anywhere]; }
 .indexeddb-record > small { @apply block [margin-top:5px] overflow-hidden text-muted [font-size:var(--type-micro-size)] text-ellipsis whitespace-nowrap; }
 .indexeddb-caveats { @apply [max-height:150px] overflow-y-auto; }

@@ -209,7 +209,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
 .video-recorder p { margin: 0; }
 .video-recorder fieldset { display: grid; gap: 10px; min-width: 0; border: 1px solid var(--border-soft); border-radius: var(--corner-2); padding: 10px; }
 .video-recorder label { display: grid; gap: 4px; min-width: 0; }
-.video-recorder input, .video-recorder select, .video-recorder textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px; color: inherit; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--corner-1); }
+.video-recorder input, .video-recorder select, .video-recorder textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px; color: inherit; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 4px; }
 .video-recorder textarea { resize: vertical; font: inherit; }
 .video-recorder input[type="color"] { height: 32px; padding: 3px; }
 .video-recorder .video-help { color: var(--text-muted); font-size: var(--type-small-size); line-height: 1.5; }

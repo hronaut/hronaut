@@ -143,16 +143,16 @@ onBeforeUnmount(() => { generation += 1 })
 </template>
 
 <style scoped>
-.human-waiting { display: grid; gap: 0.65rem; margin-top: 18px; padding: 14px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 0.75rem; }
+.human-waiting { display: grid; gap: 0.65rem; margin-top: 18px; padding: 14px; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--corner-3); }
 .human-waiting h3, .human-waiting h4, .human-waiting p { margin: 0; }
 .waiting-records { display: grid; gap: 12px; max-height: 380px; overflow: auto; }
-.waiting-record { display: grid; gap: 0.6rem; padding: 10px; border: 1px solid var(--border-soft); border-radius: 0.5rem; }
-.waiting-artifact { display: grid; gap: 0.55rem; padding: 10px; background: var(--surface-raised, var(--surface)); border: 1px solid var(--border-soft); border-radius: 0.5rem; }
+.waiting-record { display: grid; gap: 0.6rem; padding: 10px; border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
+.waiting-artifact { display: grid; gap: 0.55rem; padding: 10px; background: var(--surface-raised, var(--surface)); border: 1px solid var(--border-soft); border-radius: var(--corner-2); }
 .waiting-record dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.35rem 0.7rem; margin: 0; }
 .waiting-record dd { margin: 0; overflow-wrap: anywhere; }
 .waiting-receipts { margin: 0; padding-inline-start: 1.4rem; }
 .waiting-steps { display: grid; gap: 0.55rem; margin: 0; padding-inline-start: 1.6rem; }
-.waiting-steps > li { padding: 8px; border: 1px solid var(--border-soft); border-radius: 0.4rem; }
+.waiting-steps > li { padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--corner-1); }
 .waiting-steps > li.current { border-color: var(--accent); }
 .waiting-review { display: flex; align-items: flex-start; gap: 0.6rem; }
 .waiting-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }

@@ -8,8 +8,8 @@ button { @apply [color:inherit]; }
 .startup-failure {
   @apply [width:min(560px,_calc(100%_-_40px))] [margin:clamp(40px,_12vh,_120px)_auto_0] [padding:28px] [border:1px_solid_var(--border)] [border-radius:var(--corner-4)] bg-surface [box-shadow:var(--elevation-3)];
 }
-.startup-failure-brand { @apply flex items-center [gap:10px] text-muted [font-size:0.78rem] [font-weight:var(--weight-strong)] [letter-spacing:0.16em]; }
-.startup-failure-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:var(--corner-2)] text-button-copy bg-accent [box-shadow:var(--elevation-1)] [letter-spacing:0]; }
+.startup-failure-brand { @apply flex items-center [gap:10px] text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [letter-spacing:0.16em]; }
+.startup-failure-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:var(--corner-2)] text-button-copy bg-accent [box-shadow:0_5px_16px_var(--shadow)] [letter-spacing:0]; }
 .startup-failure-copy { @apply [margin:24px_0]; }
 .startup-failure-copy h1 { @apply m-0 [font-size:clamp(1.8rem,_6vw,_2.8rem)] [line-height:1.06]; }
 .startup-failure-copy p { @apply [margin:12px_0] text-muted [line-height:1.55]; }
