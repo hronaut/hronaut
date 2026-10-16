@@ -136,6 +136,19 @@ const BrowserAddressBarStub = defineComponent({
   }
 })
 
+const AgentPresenceAvatarsStub = defineComponent({
+  name: 'AgentPresenceAvatars',
+  props: {
+    workspaceId: String,
+    activeTabId: String,
+    attentionReason: String
+  },
+  emits: ['select'],
+  setup() {
+    return () => h('div', { 'data-testid': 'agent-presence' })
+  }
+})
+
 const BrowserNavigationControlsStub = defineComponent({
   name: 'BrowserNavigationControls',
   props: {
@@ -193,7 +206,7 @@ const ShellTitleBarSurfaceStub = defineComponent({
 })
 
 function createHarness(home = false) {
-  const activeTab = tab()
+  const activeTab = tab({ mcpGroupId: 'workspace-1' })
   const browserState = state(activeTab)
   const customTitleBar = ref(false)
   const orientation = ref<'horizontal' | 'vertical'>('horizontal')
@@ -367,6 +380,7 @@ function createHarness(home = false) {
         BrowserTabsBar: BrowserTabsBarStub,
         AppTopbarActions: AppTopbarActionsStub,
         BrowserAddressBar: BrowserAddressBarStub,
+        AgentPresenceAvatars: AgentPresenceAvatarsStub,
         BrowserNavigationControls: BrowserNavigationControlsStub,
         BrowserPageActions: BrowserPageActionsStub,
         ShellTitleBarSurface: ShellTitleBarSurfaceStub
@@ -551,6 +565,7 @@ describe('AppBrowserChromeLayer', () => {
     const navigation = harness.wrapper.getComponent(BrowserNavigationControlsStub)
     const address = harness.wrapper.getComponent(BrowserAddressBarStub)
     const page = harness.wrapper.getComponent(BrowserPageActionsStub)
+    const avatars = harness.wrapper.getComponent(AgentPresenceAvatarsStub)
     const reorder = { tabId: 'tab-1', targetTabId: 'tab-2', placement: 'after' as const }
 
     tabs.vm.$emit('openHome')
@@ -635,6 +650,15 @@ describe('AppBrowserChromeLayer', () => {
     await nextTick()
     expect(harness.wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])
     expect(harness.tabActions.selectBrowserTab).toHaveBeenCalledWith('tab-1')
+
+    // The agent avatars follow the workspace of the page in view and select a tab like the tab bar.
+    expect(avatars.props()).toMatchObject({ workspaceId: 'workspace-1', activeTabId: 'tab-1' })
+    await harness.wrapper.setProps({ tabSearchOpen: true, userAttention: { id: 'attention-1', reason: 'Check the total.', requestedAt: '2026-10-16T00:00:00.000Z' } })
+    expect(avatars.props('attentionReason')).toBe('Check the total.')
+    avatars.vm.$emit('select', 'tab-2')
+    await nextTick()
+    expect(harness.wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])
+    expect(harness.tabActions.selectBrowserTab).toHaveBeenCalledWith('tab-2')
 
     await harness.wrapper.setProps({ tabSearchOpen: true })
     tabs.vm.$emit('dragStart')

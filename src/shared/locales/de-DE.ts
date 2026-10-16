@@ -1325,6 +1325,44 @@ export const deDE = {
       "zoom": "Steuerung des Seitenzooms, {percent}",
       "bookmarks": "Lesezeichen"
     },
+    "agents": {
+      "group": "Agenten in diesem Arbeitsbereich",
+      "unnamed": "Agent",
+      "avatarLabel": "{name}, {state}",
+      "states": {
+        "idle": "inaktiv",
+        "working": "arbeitet",
+        "needsYou": "wartet auf Sie"
+      },
+      "tooltip": "{name} · {step}",
+      "idle": "{name} · Inaktiv",
+      "needsYou": "{name} · Wartet auf Sie",
+      "needsYouReason": "{name} · Wartet auf Sie: {reason}",
+      "more": "Weitere Agenten: {names}",
+      "steps": {
+        "click": "Klickt auf die Seite",
+        "type": "Tippt",
+        "fillForm": "Füllt ein Formular aus",
+        "choose": "Wählt eine Option",
+        "pressKey": "Drückt eine Taste",
+        "hover": "Zeigt auf die Seite",
+        "scroll": "Scrollt die Seite",
+        "drag": "Zieht ein Element",
+        "navigate": "Öffnet eine Seite",
+        "history": "Geht zurück oder vor",
+        "openTab": "Öffnet einen neuen Tab",
+        "switchTab": "Wechselt den Tab",
+        "closeTab": "Schließt einen Tab",
+        "read": "Liest die Seite",
+        "screenshot": "Erstellt einen Screenshot",
+        "wait": "Wartet auf die Seite",
+        "script": "Führt ein Skript auf der Seite aus",
+        "upload": "Lädt eine Datei hoch",
+        "askYou": "Bittet Sie um Hilfe",
+        "inspect": "Untersucht die Seite",
+        "working": "Arbeitet"
+      }
+    },
     "siteControls": {
       "close": "Website-Steuerung schließen",
       "cookie": "Cookie",

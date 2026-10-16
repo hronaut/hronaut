@@ -22,6 +22,7 @@ import type { AppSiteManagementFeatureController } from '../composables/useAppSi
 import type { AppTabRuntimeFeatureController } from '../composables/useAppTabRuntimeFeatureController.js'
 import type { BrowserTabActionsController } from '../composables/useBrowserTabActionsController.js'
 import type { SiteDataSummaryController } from '../composables/useSiteDataSummaryController.js'
+import AgentPresenceAvatars from './AgentPresenceAvatars.vue'
 import AppTopbarActions from './AppTopbarActions.vue'
 import BrowserAddressBar from './BrowserAddressBar.vue'
 import BrowserNavigationControls from './BrowserNavigationControls.vue'
@@ -342,6 +343,12 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           openSitePermissionSettings,
           openSitePrivacySettings
         }"
+      />
+      <AgentPresenceAvatars
+        :workspace-id="activeTab?.mcpGroupId"
+        :active-tab-id="activeTab?.id"
+        :attention-reason="userAttention?.reason"
+        @select="selectTab"
       />
       <template #commands>
         <BrowserPageActions

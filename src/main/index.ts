@@ -10,6 +10,7 @@ import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-o
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
+import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
@@ -550,6 +551,40 @@ function sendToMainWindow(channel: string, ...args: unknown[]): void {
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
     mainWindow.webContents.send(channel, ...args)
   }
+}
+
+let agentPresenceRevision = 0
+let agentPresenceSerialized = '{}'
+let agentPresenceSentRevision = 0
+let agentPresencePublishScheduled = false
+
+/** The agents in each open workspace; the revision increases only when the list changes. */
+function agentPresenceSnapshot(): AgentPresenceSnapshot {
+  let workspaces: AgentPresenceSnapshot['workspaces'] = {}
+  try {
+    workspaces = mcpServer?.getAgentPresence() ?? {}
+  } catch (error) {
+    console.error('[mcp] Failed to read agent presence:', error)
+  }
+  const serialized = JSON.stringify(workspaces)
+  if (serialized !== agentPresenceSerialized) {
+    agentPresenceSerialized = serialized
+    agentPresenceRevision += 1
+  }
+  return { revision: agentPresenceRevision, workspaces }
+}
+
+/** Sends at most one presence update per event-loop turn, and only a changed one. */
+function scheduleAgentPresencePublish(): void {
+  if (agentPresencePublishScheduled) return
+  agentPresencePublishScheduled = true
+  setImmediate(() => {
+    agentPresencePublishScheduled = false
+    const snapshot = agentPresenceSnapshot()
+    if (snapshot.revision === agentPresenceSentRevision) return
+    agentPresenceSentRevision = snapshot.revision
+    sendToMainWindow('agent-presence:changed', snapshot)
+  })
 }
 
 function sendToPanelWindow(channel: string, ...args: unknown[]): void {
@@ -1421,6 +1456,7 @@ function clearUserAttention(disposition: 'acknowledged' | 'dismissed' = 'acknowl
   if (!userAttention && !attentionPulseTimer) return
   userAttention = null
   if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', null)
+  scheduleAgentPresencePublish()
   if (attentionPulseTimer) clearInterval(attentionPulseTimer)
   attentionPulseTimer = null
   attentionPulseOn = false
@@ -1471,6 +1507,7 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   attentionNotification?.close()
   attentionNotification = null
   if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', request)
+  scheduleAgentPresencePublish()
   attentionDecisionId = input.humanWaitingDecisionId
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
   attentionExpiryTimer = null
@@ -2417,6 +2454,10 @@ function registerIpc(): void {
   ipcMain.handle('attention:get', (event) => {
     assertMainShellSender(event)
     return userAttention ? { ...userAttention } : null
+  })
+  ipcMain.handle('agent-presence:get', (event): AgentPresenceSnapshot => {
+    assertMainShellSender(event)
+    return agentPresenceSnapshot()
   })
   handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
     assertTrustedShellSender(event)
@@ -3919,6 +3960,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     onStateChanged: (state) => {
       reconcileUserAttention(state)
       sendToPanelWindow('browser:state-changed', state)
+      scheduleAgentPresencePublish()
     },
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
     confirmBeforeUnloadClose: async () => {
@@ -4382,7 +4424,8 @@ function createRuntimeMcpServer(
       if (mainWindow && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.send('browser:mcp-tab-activity', activity)
       }
-    }
+    },
+    onAgentPresenceChanged: scheduleAgentPresencePublish
   })
 }
 

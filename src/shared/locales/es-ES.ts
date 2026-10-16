@@ -1325,6 +1325,44 @@ export const esES = {
       "zoom": "Controles de zoom de la página, {percent}",
       "bookmarks": "Marcadores"
     },
+    "agents": {
+      "group": "Agentes en este espacio",
+      "unnamed": "Agente",
+      "avatarLabel": "{name}, {state}",
+      "states": {
+        "idle": "inactivo",
+        "working": "trabajando",
+        "needsYou": "te necesita"
+      },
+      "tooltip": "{name} · {step}",
+      "idle": "{name} · Inactivo",
+      "needsYou": "{name} · Te necesita",
+      "needsYouReason": "{name} · Te necesita: {reason}",
+      "more": "Más agentes: {names}",
+      "steps": {
+        "click": "Haciendo clic en la página",
+        "type": "Escribiendo",
+        "fillForm": "Rellenando un formulario",
+        "choose": "Eligiendo una opción",
+        "pressKey": "Pulsando una tecla",
+        "hover": "Señalando la página",
+        "scroll": "Desplazando la página",
+        "drag": "Arrastrando",
+        "navigate": "Abriendo una página",
+        "history": "Yendo atrás o adelante",
+        "openTab": "Abriendo una pestaña nueva",
+        "switchTab": "Cambiando de pestaña",
+        "closeTab": "Cerrando una pestaña",
+        "read": "Leyendo la página",
+        "screenshot": "Haciendo una captura",
+        "wait": "Esperando a la página",
+        "script": "Ejecutando un script en la página",
+        "upload": "Subiendo un archivo",
+        "askYou": "Pidiéndote ayuda",
+        "inspect": "Inspeccionando la página",
+        "working": "Trabajando"
+      }
+    },
     "siteControls": {
       "close": "Cerrar los controles del sitio",
       "cookie": "cookie",
