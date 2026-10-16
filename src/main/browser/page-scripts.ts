@@ -69,6 +69,32 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
     if (identity.next > ${SNAPSHOT_REF_LIMIT} - 500) { identity.next = 0; identity.refs = new WeakMap(); }
     for (const element of document.querySelectorAll('[data-hronaut-ref]')) element.removeAttribute('data-hronaut-ref');
     const lines = [];
+    // The name of each control the agent was shown, for the shell's plain-words steps such as Clicking "Review order".
+    // A form field is named only by its label, never by its value, its text or its options.
+    const targetNames = [];
+    const stepLabelText = (node) => {
+      let text = '';
+      let visits = 200;
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      while (text.length < 240 && --visits > 0 && walker.nextNode()) {
+        const parent = walker.currentNode.parentElement;
+        if (!parent || parent.closest('input,textarea,select,option,script,style,[contenteditable]')) continue;
+        text += walker.currentNode.textContent + ' ';
+      }
+      return text;
+    };
+    const stepTargetName = (element, label) => {
+      if (!element.matches('input,textarea,select,[contenteditable]')) return label;
+      if (element.matches('input[type="submit" i],input[type="button" i],input[type="reset" i]')) return element.value || label;
+      const aria = element.getAttribute('aria-label');
+      if (aria && aria.trim()) return aria;
+      const labelledBy = String(element.getAttribute('aria-labelledby') || '').split(/\\s+/).filter(Boolean).slice(0, 5)
+        .map((id) => document.getElementById(id)).filter(Boolean).map(stepLabelText).join(' ');
+      if (labelledBy.trim()) return labelledBy;
+      const labels = element.labels ? [...element.labels].slice(0, 2).map(stepLabelText).join(' ') : '';
+      if (labels.trim()) return labels;
+      return element.getAttribute('title') || element.getAttribute('placeholder') || '';
+    };
     const omitted = { headings: false, controls: false, bodyText: false, characters: false };
     const add = (line) => {
       if (lines.join('\\n').length + (lines.length ? 1 : 0) + line.length > MAX_CHARS) omitted.characters = true;
@@ -97,7 +123,12 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
       if (String(label).replace(/\\s+/g, ' ').trim().length > 300) omitted.controls = true;
       const href = element instanceof HTMLAnchorElement ? ' href=' + JSON.stringify(safeUrl(element.href)) : '';
       const state = (element.matches(':disabled') ? ' disabled' : '') + (element.checked ? ' checked' : '');
+      const shown = lines.length;
       add('[' + ref + '] ' + role + ' ' + JSON.stringify(String(label).replace(/\\s+/g, ' ').trim().slice(0, 300)) + href + state);
+      if (lines.length > shown) {
+        const name = String(stepTargetName(element, label) || '').replace(/\\s+/g, ' ').trim().slice(0, 120);
+        if (name) targetNames.push([ref, name]);
+      }
     }
     const bodyText = snapshotSafeText(root === document ? document.body : root).replace(/\\s+/g, ' ').trim();
     omitted.bodyText = bodyText.length > Math.max(0, MAX_CHARS - lines.join('\\n').length - (lines.length ? 1 : 0) - 6);
@@ -106,7 +137,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
     const text = lines.join('\\n').slice(0, MAX_CHARS);
     if (root !== document && !root.isConnected) return { scopeError: 'detached-root' };
     return ${includeMetadata} ? { ...(rootSelector === null ? {} : { scope: { kind: 'component', rootTag: root.localName, outsideScopeOmitted: true } }), formatVersion: ${BROWSER_SNAPSHOT_FORMAT_VERSION}, text, maxChars: MAX_CHARS, returnedChars: text.length,
-      truncated: Object.values(omitted).some(Boolean), omitted } : text;
+      truncated: Object.values(omitted).some(Boolean), omitted, targetNames } : text;
   })()`
 }
 

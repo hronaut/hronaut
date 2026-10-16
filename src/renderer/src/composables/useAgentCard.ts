@@ -11,6 +11,7 @@ import {
 } from '../../../shared/agent-card.js'
 import type { AgentPresence } from '../../../shared/agent-presence.js'
 import { isResolvedThemeName } from '../../../shared/theme.js'
+import { agentStepText } from './agent-step-text.js'
 
 type Translate = (key: string, values?: Record<string, unknown>) => string
 
@@ -88,13 +89,13 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
       heading: t('shell.agentCard.now'),
       text: context.gone
         ? t('shell.agentCard.gone')
-        : agent.state === 'idle' ? t('shell.agentCard.nowIdle') : t(`shell.agents.steps.${agent.step}`)
+        : agent.state === 'idle' ? t('shell.agentCard.nowIdle') : fitAgentCardText(agentStepText(t, agent.step, agent.target, 'now'))
     },
     recent: {
       heading: t('shell.agentCard.recent'),
       empty: t('shell.agentCard.noSteps'),
       steps: agent.recentSteps.map((step) => {
-        const text = t(`shell.agentCard.steps.${step.step}`)
+        const text = fitAgentCardText(agentStepText(t, step.step, step.target, 'done'))
         return step.outcome === 'failed' ? { text: t('shell.agentCard.stepFailed', { step: text }), failed: true } : { text }
       })
     },

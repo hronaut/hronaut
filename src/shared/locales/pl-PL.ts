@@ -1363,6 +1363,17 @@ export const plPL = {
         "askYou": "Prosi Cię o pomoc",
         "inspect": "Sprawdza stronę",
         "working": "Pracuje"
+      },
+      "targetSteps": {
+        "click": "Klika „{target}”",
+        "type": "Pisze w polu {target}",
+        "fillForm": "Wypełnia {target}",
+        "choose": "Wybiera opcję w polu {target}",
+        "hover": "Wskazuje „{target}”",
+        "drag": "Przeciąga „{target}”",
+        "upload": "Przesyła plik do {target}",
+        "navigate": "Otwiera {target}",
+        "openTab": "Otwiera {target} w nowej karcie"
       }
     },
     "agentCard": {
@@ -1412,6 +1423,17 @@ export const plPL = {
         "askYou": "Poprosił Cię o pomoc",
         "inspect": "Sprawdził stronę",
         "working": "Ukończył krok"
+      },
+      "targetSteps": {
+        "click": "Kliknął „{target}”",
+        "type": "Wpisał tekst w polu {target}",
+        "fillForm": "Wypełnił {target}",
+        "choose": "Wybrał opcję w polu {target}",
+        "hover": "Wskazał „{target}”",
+        "drag": "Przeciągnął „{target}”",
+        "upload": "Przesłał plik do {target}",
+        "navigate": "Otworzył {target}",
+        "openTab": "Otworzył {target} w nowej karcie"
       }
     },
     "siteControls": {

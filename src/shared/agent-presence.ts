@@ -10,9 +10,11 @@ export type AgentPresenceState = 'idle' | 'working' | 'needs-you'
 /** Each agent publishes at most this many finished steps, newest first. */
 export const AGENT_RECENT_STEPS_LIMIT = 3
 
-/** A finished call: its general kind, whether it worked, and when it ended. */
+/** A finished call: its general kind, what it acted on when known, whether it worked, and when it ended. */
 export interface AgentRecentStep {
   step: AgentStepKind
+  /** A control's name from Hronaut's own snapshot of the page, or a host and path; sanitized and bounded in main. Render as text only. */
+  target?: string
   outcome: 'done' | 'failed'
   /** Epoch milliseconds. */
   at: number
@@ -20,8 +22,9 @@ export interface AgentRecentStep {
 
 /**
  * One MCP client seen in a workspace recently. Main derives it from the
- * client's own tool calls and attention requests; it carries no session id,
- * arguments, addresses or page content.
+ * client's own tool calls and attention requests; it carries no session id or
+ * arguments. A step's target is the only page-derived text: a control's name
+ * or a host and path, never a typed value, query or page text. Shell only.
  */
 export interface AgentPresence {
   /** Opaque, stable for the client's session; not the MCP session id. */
@@ -35,6 +38,8 @@ export interface AgentPresence {
   state: AgentPresenceState
   /** What its latest call does, in general terms. */
   step: AgentStepKind
+  /** What that call acts on, when known: see AgentRecentStep.target. */
+  target?: string
   /** Its last finished calls in this workspace, newest first, at most AGENT_RECENT_STEPS_LIMIT. */
   recentSteps: AgentRecentStep[]
   /** A tab of this workspace its latest call used, while that tab is still in the workspace. */

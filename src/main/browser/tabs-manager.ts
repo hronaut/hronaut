@@ -501,6 +501,8 @@ const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
 const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
 const SNAPSHOT_WORLD_ID = ISOLATED_WORLDS.snapshot
+/** Control names kept per page for the shell's plain-words agent steps. */
+const AGENT_STEP_NAMES_LIMIT = 1_000
 const MAX_AUTH_CHALLENGES = 8
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
@@ -635,6 +637,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   url: string
   loading: boolean
   navigationGeneration: number
+  /** Names of the controls this page's snapshots showed agents, by ref, for the shell's plain-words steps. */
+  agentStepNames?: { navigationGeneration: number; names: Map<string, string> }
   /**
    * The navigation generation wallet requests are bound to. It advances when a
    * navigation to another document starts, even one that never commits, such
@@ -5309,7 +5313,7 @@ export class BrowserTabsManager {
       SNAPSHOT_WORLD_ID,
       [{ code: snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true, rootSelector) }],
       false
-    ) as BrowserSnapshot & { scopeError?: string }
+    ) as BrowserSnapshot & { scopeError?: string; targetNames?: unknown }
     if (snapshot.scopeError) {
       const messages: Record<string, string> = {
         'invalid-selector': 'Snapshot root selector is not valid CSS',
@@ -5333,7 +5337,42 @@ export class BrowserTabsManager {
     if (invalidation) {
       throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
     }
-    return rootSelector === undefined ? snapshot : { ...snapshot, captureId: randomUUID() }
+    const { targetNames, ...published } = snapshot
+    this.rememberAgentStepNames(current, targetNames, rootSelector === undefined)
+    return rootSelector === undefined ? published : { ...published, captureId: randomUUID() }
+  }
+
+  /**
+   * Keeps the names of the controls a snapshot showed the agent, for this page only, so the shell can say
+   * Clicking "Review order" for a later click on that ref. They never go back to agents.
+   */
+  private rememberAgentStepNames(tab: BrowserTab, targetNames: unknown, wholePage: boolean): void {
+    const kept = tab.agentStepNames?.navigationGeneration === tab.navigationGeneration && !wholePage
+      ? tab.agentStepNames.names : new Map<string, string>()
+    if (Array.isArray(targetNames)) {
+      for (const entry of targetNames.slice(0, AGENT_STEP_NAMES_LIMIT)) {
+        if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'string' || !/^e\d{1,7}$/.test(entry[0])) continue
+        kept.delete(entry[0])
+        kept.set(entry[0], entry[1].slice(0, 120))
+      }
+    }
+    while (kept.size > AGENT_STEP_NAMES_LIMIT) kept.delete(kept.keys().next().value!)
+    tab.agentStepNames = { navigationGeneration: tab.navigationGeneration, names: kept }
+  }
+
+  /**
+   * The name a snapshot of this page showed for a control ref, for the shell's plain-words steps. The tab
+   * defaults to the one a workspace tool would use; any navigation since that snapshot forgets the names.
+   */
+  agentStepName(workspaceId: string, tabId: string | undefined, ref: string): string | undefined {
+    const group = this.mcpTabGroups.get(workspaceId)
+    if (!group) return undefined
+    const tab = this.tabs.get(tabId
+      ?? (group.activeTabId && this.tabs.get(group.activeTabId)?.mcpGroupId === workspaceId ? group.activeTabId : undefined)
+      ?? [...this.tabs.values()].find((candidate) => candidate.mcpGroupId === workspaceId)?.id
+      ?? '')
+    const names = tab?.mcpGroupId === workspaceId ? tab.agentStepNames : undefined
+    return names?.navigationGeneration === tab!.navigationGeneration ? names.names.get(ref) : undefined
   }
 
   async observationQuality(options: {

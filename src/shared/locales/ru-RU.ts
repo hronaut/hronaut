@@ -1363,6 +1363,17 @@ export const ruRU = {
         "askYou": "Просит вас о помощи",
         "inspect": "Исследует страницу",
         "working": "Работает"
+      },
+      "targetSteps": {
+        "click": "Нажимает «{target}»",
+        "type": "Вводит текст в поле {target}",
+        "fillForm": "Заполняет {target}",
+        "choose": "Выбирает вариант в поле {target}",
+        "hover": "Наводит указатель на «{target}»",
+        "drag": "Перетаскивает «{target}»",
+        "upload": "Загружает файл в {target}",
+        "navigate": "Открывает {target}",
+        "openTab": "Открывает {target} в новой вкладке"
       }
     },
     "agentCard": {
@@ -1412,6 +1423,17 @@ export const ruRU = {
         "askYou": "Попросил вас о помощи",
         "inspect": "Исследовал страницу",
         "working": "Завершил шаг"
+      },
+      "targetSteps": {
+        "click": "Нажал «{target}»",
+        "type": "Ввёл текст в поле {target}",
+        "fillForm": "Заполнил {target}",
+        "choose": "Выбрал вариант в поле {target}",
+        "hover": "Навёл указатель на «{target}»",
+        "drag": "Перетащил «{target}»",
+        "upload": "Загрузил файл в {target}",
+        "navigate": "Открыл {target}",
+        "openTab": "Открыл {target} в новой вкладке"
       }
     },
     "siteControls": {
