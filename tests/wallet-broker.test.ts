@@ -1692,6 +1692,8 @@ describe('WalletBroker', () => {
     const sent = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x0000000000000000000000000000000000000002', value: '0x1' }]
     }))
+    // Counted before the call's first await, so there is no moment a sleep could slip in.
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
     await vi.waitFor(() => expect(evm.normalizeTransaction).toHaveBeenCalled())
     expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
     expect(broker.keepsTabAwake('tab-1')).toBe(true)

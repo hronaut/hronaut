@@ -640,6 +640,11 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   navigationPolicyDenialSequence: number
   pinned: boolean
   sleeping: boolean
+  /**
+   * Set while going to sleep replaces the page: the discarded page may still
+   * run until the sleeping page loads, and it cannot start a wallet call.
+   */
+  walletPageUnloading?: boolean
   pageLifecycleState: BrowserPageLifecycleState
   pageLifecycleUnknownRequest?: Exclude<BrowserPageLifecycleState, 'unknown'>
   pageLifecycleOperation?: {
@@ -2262,11 +2267,9 @@ export class BrowserTabsManager {
     }))
   }
 
-  walletPageContext(webContentsId: number): BrowserWalletPageContext {
+  walletPageContext(webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
     const context = this.walletContextForWebContents(webContentsId)
-    // Going to sleep discards the page, which may still be unloading: it cannot start a wallet call.
-    if (this.tabs.get(context.tabId)?.sleeping) throw new Error('Wallet requests are unavailable while the tab is asleep')
-    return context
+    return { ...context, pageUnloading: this.tabs.get(context.tabId)?.walletPageUnloading === true }
   }
 
   private walletContextForWebContents(webContentsId: number): BrowserWalletPageContext {
@@ -10304,12 +10307,18 @@ export class BrowserTabsManager {
     }
     tab.sleepNavigationHistory = this.navigationHistorySnapshot(tab)
     tab.sleeping = true
+    tab.walletPageUnloading = true
     tab.loading = false
     tab.pendingHistoryUrl = null
     this.changed(false)
     let sleepingPageLoaded = false
     try {
-      await tab.webContents.loadURL(SLEEPING_PAGE_URL)
+      try {
+        await tab.webContents.loadURL(SLEEPING_PAGE_URL)
+      } finally {
+        // The page is gone now, or the navigation failed and it stays in use.
+        tab.walletPageUnloading = false
+      }
       sleepingPageLoaded = true
       await this.withDebugger(tab.webContents, () =>
         tab.webContents.debugger.sendCommand('HeapProfiler.collectGarbage')

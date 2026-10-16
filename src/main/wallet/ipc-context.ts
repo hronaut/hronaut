@@ -6,6 +6,8 @@ export interface WalletIpcPageContext {
   navigationGeneration: number
   topLevelOrigin: string
   url: string
+  /** Going to sleep is replacing the page, which may still run but must not start a wallet call. */
+  pageUnloading: boolean
 }
 
 export interface WalletIpcContextSource {
@@ -30,6 +32,7 @@ export function walletBrokerContextFromIpc(
     throw new Error('Wallet requests are allowed only from the top-level website frame')
   }
   const context = source.walletPageContext(event.sender.id)
+  if (context.pageUnloading) throw new Error('Wallet requests are unavailable while the tab goes to sleep')
   let senderOrigin: string
   try {
     const url = new URL(event.senderFrame.url)
