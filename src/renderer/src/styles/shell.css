@@ -246,7 +246,7 @@
   content: "";
 }
 .tab-group-label > .tab-group-default-badge { @apply [width:13px] [height:13px] [opacity:.84]; }
-.tab-group-label > span:not(.tab-group-count) {
+.tab-group-label > span:not(.tab-group-count, .tab-group-needs-you) {
   @apply overflow-hidden text-ellipsis;
 }
 .tab-group-label:hover,
@@ -273,6 +273,26 @@
 }
 .tab-group-count {
   @apply [min-width:14px] [padding:0_2px] text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-medium)] text-center;
+}
+/* A workspace an agent is waiting in stays amber while it is folded or the person works elsewhere. */
+.workspace-tab-section {
+  transition: border-color var(--motion-base) var(--motion-ease-out), box-shadow var(--motion-base) var(--motion-ease-out);
+}
+/* The glow is inset: the tab strip and rail clip anything drawn outside a group. */
+:root .workspace-tab-section.needs-you {
+  @apply [border-color:var(--needs-you)] [box-shadow:inset_0_0_0_1px_var(--needs-you),_inset_0_0_14px_color-mix(in_srgb,_var(--needs-you)_30%,_transparent)];
+}
+/* An opaque fill keeps the amber text readable over any workspace tint, including an active dark header. */
+.tab-group-needs-you {
+  @apply flex-none [padding:1px_6px] [border-radius:var(--corner-pill)] [color:var(--needs-you)] [background:color-mix(in_srgb,_var(--needs-you)_14%,_var(--toolbar))] [box-shadow:inset_0_0_0_1px_color-mix(in_srgb,_var(--needs-you)_45%,_transparent)] [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [line-height:1.4] whitespace-nowrap;
+}
+/* A horizontal header is at most 150 px wide, so the label becomes a dot there and the workspace name keeps the room. */
+.browser-tabs-bar.horizontal .tab-group-needs-you {
+  @apply [width:8px] [height:8px] p-0 overflow-hidden [color:transparent] [background:var(--needs-you)] [box-shadow:0_0_0_2px_color-mix(in_srgb,_var(--needs-you)_30%,_transparent)] [font-size:0];
+}
+.browser-tabs-bar.vertical.rail-collapsed .workspace-tab-section.needs-you .tab-group-label::after {
+  @apply absolute [top:2px] [right:2px] [width:8px] [height:8px] [border-radius:var(--corner-pill)] [background:var(--needs-you)] [box-shadow:0_0_0_2px_var(--toolbar)] pointer-events-none;
+  content: "";
 }
 .topbar-actions {
   @apply flex flex-none [align-items:end] [margin-left:6px];

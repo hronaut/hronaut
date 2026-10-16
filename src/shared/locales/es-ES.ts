@@ -1284,6 +1284,7 @@ export const esES = {
       "scrollForward": "Mostrar pestañas siguientes",
       "pageAttention": "La página requiere atención",
       "agentAttention": "El agente necesita tu atención",
+      "needsYou": "Te necesita",
       "sleeping": "Suspendida para ahorrar recursos",
       "frozen": "Página congelada para revisión",
       "freezeUnknown": "Resultado de la pausa desconocido",

@@ -15,6 +15,19 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
+// The group's border is the theme's own amber, with a glow around it.
+function hasNeedsYouBorder(section: import('@playwright/test').Locator): Promise<boolean> {
+  return section.evaluate((element) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--needs-you)'
+    document.body.append(probe)
+    const amber = getComputedStyle(probe).color
+    probe.remove()
+    const style = getComputedStyle(element)
+    return style.borderTopColor === amber && style.boxShadow !== 'none'
+  })
+}
+
 test('does not publish attention when its sleeping target closes during wake', async ({ appWindow, mcpPort, mcpToken }) => {
   let holdWake = false
   let held: ServerResponse | undefined
@@ -165,12 +178,25 @@ test('uses the agent notification message and marks the requested tab until it c
     await expect(tab).toHaveClass(/needs-attention/)
     await expect(tab.locator('.tab-attention-badge')).toBeVisible()
     await expect(tab).toHaveAttribute('aria-description', /Agent needs your attention: Review the browser step\./)
+    // The workspace header says it too, in the theme's amber.
+    const workspaceGroup = appWindow.getByRole('group', { name: 'Attention notification', exact: true })
+    const groupHeader = workspaceGroup.locator('.tab-group-label')
+    await expect(workspaceGroup).toHaveClass(/needs-you/)
+    await expect(groupHeader).toHaveAccessibleName(/^Collapse workspace Attention notification, \d+ tabs?, Needs you$/)
+    await expect(groupHeader).toHaveAttribute('aria-description', /Agent needs your attention: Review the browser step\./)
+    // In the top strip the header is at most 150 px wide, so the mark is a dot and the name keeps its room.
+    const needsYouMark = groupHeader.locator('.tab-group-needs-you')
+    await expect(needsYouMark).toBeVisible()
+    expect(await needsYouMark.evaluate((element) => element.getBoundingClientRect().width)).toBe(8)
+    expect(await groupHeader.locator('span').first().evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(60)
+    await expect.poll(() => hasNeedsYouBorder(workspaceGroup)).toBe(true)
     await client.callTool({ name: 'browser_close_tab', arguments: { tabId } })
     await expect(tab).toHaveCount(0)
     await expect.poll(async () => {
       const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
       return JSON.parse(text(status)).userAttention
     }).toBeNull()
+    await expect(appWindow.locator('.workspace-tab-section.needs-you')).toHaveCount(0)
     await expect.poll(() => electronApp.evaluate(() => (
       globalThis as typeof globalThis & { __hronautAttentionNotification?: { closed: number } }
     ).__hronautAttentionNotification?.closed)).toBe(1)
@@ -188,6 +214,48 @@ test('uses the agent notification message and marks the requested tab until it c
       }
       delete scope.__hronautAttentionNotification
     }).catch(() => undefined)
+  }
+})
+
+test('marks a folded workspace that needs the user until the user answers in Hronaut', async ({ appWindow, mcpPort, mcpToken }) => {
+  const client = new Client({ name: 'attention-workspace-test', version: '1' })
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+    }))
+    await appWindow.evaluate("window.hronautSettings.setTabPosition('left')")
+    await expect(appWindow.locator('.browser-tabs-bar.vertical')).toBeVisible()
+    await useMcpWorkspace(client, 'Folded attention')
+    const opened = await client.callTool({ name: 'browser_new_tab', arguments: { url: 'about:blank', active: false } }) as CallToolResult
+    expect(opened.isError, text(opened)).not.toBe(true)
+    const workspaceGroup = appWindow.getByRole('group', { name: 'Folded attention', exact: true })
+    const groupHeader = workspaceGroup.locator('.tab-group-label')
+    await groupHeader.click()
+    await expect(groupHeader).toHaveAttribute('aria-expanded', 'false')
+    await expect(workspaceGroup).not.toHaveClass(/needs-you/)
+
+    // Without a tab the request selects nothing, so the folded workspace is the only place it shows in the rail.
+    const requested = await client.callTool({
+      name: 'browser_request_user_attention',
+      arguments: { reason: 'Choose a shipping address.' }
+    }) as CallToolResult
+    expect(requested.isError, text(requested)).not.toBe(true)
+    await expect(workspaceGroup).toHaveClass(/needs-you/)
+    await expect(groupHeader).toHaveAttribute('aria-expanded', 'false')
+    await expect(groupHeader).toHaveAccessibleName(/^Expand workspace Folded attention, \d+ tabs?, Needs you$/)
+    await expect(groupHeader).toHaveAttribute('aria-description', /Agent needs your attention: Choose a shipping address\./)
+    await expect(groupHeader.locator('.tab-group-needs-you')).toHaveText('Needs you')
+    await expect(groupHeader.locator('.tab-group-needs-you')).toBeVisible()
+    await expect.poll(() => hasNeedsYouBorder(workspaceGroup)).toBe(true)
+    await expect(appWindow.locator('.workspace-tab-section.needs-you')).toHaveCount(1)
+
+    // Opening the workspace is a click in Hronaut, which answers the request as it does for a marked tab.
+    await groupHeader.click()
+    await expect(groupHeader).toHaveAttribute('aria-expanded', 'true')
+    await expect(workspaceGroup).not.toHaveClass(/needs-you/)
+    await expect(groupHeader).toHaveAccessibleName(/^Collapse workspace Folded attention, \d+ tabs?$/)
+  } finally {
+    await client.close()
   }
 })
 

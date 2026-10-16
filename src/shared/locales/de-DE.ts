@@ -1284,6 +1284,7 @@ export const deDE = {
       "scrollForward": "Weitere Tabs anzeigen",
       "pageAttention": "Seite erfordert Aufmerksamkeit",
       "agentAttention": "Agent benötigt Ihre Aufmerksamkeit",
+      "needsYou": "Wartet auf Sie",
       "sleeping": "Ruhezustand zum Sparen von Ressourcen",
       "frozen": "Seite zur Prüfung eingefroren",
       "freezeUnknown": "Ergebnis des Seitenhalts unbekannt",
