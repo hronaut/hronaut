@@ -27,7 +27,7 @@ function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
   }
 }
 
-function renderControls(activeTab: BrowserTabState | null = tab(), currentBookmark = false) {
+function renderControls(activeTab: BrowserTabState | null = tab(), currentBookmark = false, commands?: string) {
   return render(BrowserNavigationControls, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
@@ -37,7 +37,7 @@ function renderControls(activeTab: BrowserTabState | null = tab(), currentBookma
       currentBookmark,
       formatPercent: (value: number) => `${value}%`
     },
-    slots: { default: '<div data-testid="address-slot">Address</div>' }
+    slots: { default: '<div data-testid="address-slot">Address</div>', ...(commands ? { commands } : {}) }
   })
 }
 
@@ -59,6 +59,22 @@ describe('BrowserNavigationControls', () => {
     expect(view.emitted().toggleBookmarks).toHaveLength(1)
     expect(screen.getByTestId('address-slot')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Forward' })).toBeDisabled()
+  })
+
+  it('keeps find, zoom, bookmarks and the page commands in one group after the address', () => {
+    const view = renderControls(tab(), false, '<button type="button" data-testid="page-command">Page tools</button>')
+    const commands = view.container.querySelector('.toolbar-commands')!
+    const children = [...view.container.children]
+
+    // The group wraps as one band, so no command is left beside the address on a narrow toolbar.
+    expect(children.map((child) => child.getAttribute('aria-label') ?? child.className)).toEqual([
+      'Back', 'Forward', 'Reload', '', 'toolbar-commands'
+    ])
+    expect(children[3]).toBe(screen.getByTestId('address-slot'))
+    expect([...commands.children].map((child) => child.getAttribute('aria-label') ?? child.textContent)).toEqual([
+      'Find in page', 'Page zoom controls, 125%', 'Bookmarks', 'Page tools'
+    ])
+    expect(screen.getByRole('button', { name: 'Reload' })).toHaveClass('reload-button')
   })
 
   it('switches reload to stop while loading and exposes bookmark state', async () => {

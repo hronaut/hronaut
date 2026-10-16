@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { useResizeObserver } from '@vueuse/core'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
@@ -35,50 +37,69 @@ function refreshOrStop(): void {
   if (props.activeTab?.loading) emit('stop')
   else emit('reload')
 }
+
+const commands = ref<HTMLElement>()
+// True while the commands sit in their own band below the address. The address field then
+// fills its row (shell.css), so both rows end at the same edge.
+const commandsWrapped = ref(false)
+
+function syncCommandsWrapped(): void {
+  const reload = commands.value?.parentElement?.querySelector<HTMLElement>('.reload-button')
+  if (!reload || !commands.value) return
+  commandsWrapped.value = commands.value.getBoundingClientRect().top >= reload.getBoundingClientRect().bottom
+}
+
+useResizeObserver(
+  () => [commands.value, commands.value?.parentElement].filter((element): element is HTMLElement => Boolean(element)),
+  syncCommandsWrapped
+)
 </script>
 
 <template>
   <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
   <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
-  <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
+  <UiButton appearance="application" class="icon-button reload-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
     <IconStop v-if="activeTab?.loading" aria-hidden="true" />
     <IconRefresh v-else aria-hidden="true" />
   </UiButton>
   <slot />
-  <UiButton appearance="application"
-    class="icon-button find-button"
-    type="button"
-    v-tooltip="t('shell.toolbar.findTitle')"
-    :aria-label="t('shell.toolbar.find')"
-    aria-keyshortcuts="Control+F Meta+F"
-    :disabled="!activeTab"
-    @click="emit('find')"
-  >
-    <IconSearch aria-hidden="true" />
-  </UiButton>
-  <UiButton appearance="application"
-    class="zoom-button"
-    type="button"
-    v-tooltip="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
-    :aria-label="t('shell.toolbar.zoom', { percent: `${activeTab?.zoomPercent ?? 100}%` })"
-    :aria-expanded="zoomOpen"
-    :disabled="!activeTab"
-    @click="emit('toggleZoom')"
-  >
-    {{ activeTab?.zoomPercent ?? 100 }}%
-  </UiButton>
-  <UiButton appearance="application"
-    class="icon-button bookmarks-button"
-    :class="{ bookmarked: currentBookmark }"
-    type="button"
-    v-tooltip="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
-    :aria-label="t('shell.toolbar.bookmarks')"
-    aria-keyshortcuts="Control+D Meta+D"
-    :aria-expanded="bookmarksOpen"
-    :disabled="!activeTab"
-    @click="emit('toggleBookmarks')"
-  >
-    <IconStar v-if="currentBookmark" aria-hidden="true" />
-    <IconStarOutline v-else aria-hidden="true" />
-  </UiButton>
+  <div ref="commands" class="toolbar-commands" :class="{ wrapped: commandsWrapped }">
+    <UiButton appearance="application"
+      class="icon-button find-button"
+      type="button"
+      v-tooltip="t('shell.toolbar.findTitle')"
+      :aria-label="t('shell.toolbar.find')"
+      aria-keyshortcuts="Control+F Meta+F"
+      :disabled="!activeTab"
+      @click="emit('find')"
+    >
+      <IconSearch aria-hidden="true" />
+    </UiButton>
+    <UiButton appearance="application"
+      class="zoom-button"
+      type="button"
+      v-tooltip="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
+      :aria-label="t('shell.toolbar.zoom', { percent: `${activeTab?.zoomPercent ?? 100}%` })"
+      :aria-expanded="zoomOpen"
+      :disabled="!activeTab"
+      @click="emit('toggleZoom')"
+    >
+      {{ activeTab?.zoomPercent ?? 100 }}%
+    </UiButton>
+    <UiButton appearance="application"
+      class="icon-button bookmarks-button"
+      :class="{ bookmarked: currentBookmark }"
+      type="button"
+      v-tooltip="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
+      :aria-label="t('shell.toolbar.bookmarks')"
+      aria-keyshortcuts="Control+D Meta+D"
+      :aria-expanded="bookmarksOpen"
+      :disabled="!activeTab"
+      @click="emit('toggleBookmarks')"
+    >
+      <IconStar v-if="currentBookmark" aria-hidden="true" />
+      <IconStarOutline v-else aria-hidden="true" />
+    </UiButton>
+    <slot name="commands" />
+  </div>
 </template>

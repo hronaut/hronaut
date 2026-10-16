@@ -7,6 +7,9 @@ import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../.
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
+/** The toolbar's address field is centered and never wider than this (shell.css), unless status pills or a wrapped command row lift the cap. */
+export const ADDRESS_FIELD_MAX_WIDTH = 520
+
 interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
   hide(): void
@@ -248,7 +251,9 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const formBounds = form.value.getBoundingClientRect()
     const viewportMargin = 12
     const availableWidth = Math.max(1, window.innerWidth - viewportMargin * 2)
-    const width = Math.min(availableWidth, Math.max(formBounds.width + 2, Math.min(560, availableWidth)))
+    // At least as wide as the address field at its widest centered size, so a capped field and
+    // its suggestions share both edges.
+    const width = Math.min(availableWidth, Math.max(formBounds.width + 2, Math.min(ADDRESS_FIELD_MAX_WIDTH + 2, availableWidth)))
     const x = Math.max(viewportMargin, Math.min(formBounds.left - 1, window.innerWidth - width - viewportMargin))
     const y = Math.ceil(formBounds.bottom + 7)
     const maxHeight = Math.max(1, Math.min(440, window.innerHeight - y - viewportMargin))
@@ -272,8 +277,14 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   const registrations: Array<() => () => void> = [
-    // A compact rail can reflow the address row without resizing the window.
-    () => useResizeObserver(form, syncOverlay).stop,
+    // A compact rail can reflow the address row without resizing the window, and the
+    // centered field moves without changing size when the toolbar or its commands do.
+    () => useResizeObserver(() => {
+      const field = form.value
+      const toolbar = field?.closest<HTMLElement>('.toolbar')
+      return [field, toolbar, toolbar?.querySelector<HTMLElement>('.toolbar-commands')]
+        .filter((element): element is HTMLElement => Boolean(element))
+    }, syncOverlay).stop,
     () => watch(suggestions, async (next, previous) => {
       if (disposed) return
       const selectedSuggestion = previous[selection.value]

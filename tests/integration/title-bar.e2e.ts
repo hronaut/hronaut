@@ -199,7 +199,7 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   await expect.poll(() => electronApp.evaluate(() => (
     (globalThis as typeof globalThis & { __hronautTitleBarOverlay?: Electron.TitleBarOverlay })
       .__hronautTitleBarOverlay
-  ))).toMatchObject({ color: '#030d06', symbolColor: '#d9ffe0', height: 44 })
+  ))).toMatchObject({ color: '#020b05', symbolColor: '#d9ffe0', height: 44 })
 
   await electronApp.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')?.setSize(760, 520)

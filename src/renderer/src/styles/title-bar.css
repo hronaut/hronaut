@@ -24,6 +24,7 @@
 .custom-title-bar :where(
   a,
   button,
+  .tab-controls,
   input,
   select,
   textarea,
@@ -42,6 +43,7 @@
 .custom-title-bar :where(
   a,
   button,
+  .tab-controls,
   input,
   select,
   textarea,
