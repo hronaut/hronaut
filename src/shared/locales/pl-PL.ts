@@ -1332,9 +1332,11 @@ export const plPL = {
       "states": {
         "idle": "bezczynny",
         "working": "pracuje",
-        "needsYou": "czeka na Ciebie"
+        "needsYou": "czeka na Ciebie",
+        "gone": "rozłączony"
       },
       "tooltip": "{name} · {step}",
+      "gone": "{name} · Rozłączony",
       "idle": "{name} · Bezczynny",
       "needsYou": "{name} · Czeka na Ciebie",
       "needsYouReason": "{name} · Czeka na Ciebie: {reason}",
@@ -1361,6 +1363,52 @@ export const plPL = {
         "askYou": "Prosi Cię o pomoc",
         "inspect": "Sprawdza stronę",
         "working": "Pracuje"
+      }
+    },
+    "agentCard": {
+      "label": "{name}, szczegóły agenta",
+      "connected": "Połączono przez MCP · {workspace}",
+      "states": {
+        "idle": "Bezczynny",
+        "working": "Pracuje",
+        "needsYou": "Czeka na Ciebie",
+        "gone": "Rozłączony"
+      },
+      "reason": "Dlaczego Cię potrzebuje",
+      "now": "Teraz",
+      "nowIdle": "Czeka na następny krok",
+      "gone": "Nie jest już połączony z tym obszarem roboczym",
+      "recent": "Ostatnie kroki",
+      "noSteps": "Brak ukończonych kroków",
+      "stepFailed": "{step}, nie udało się",
+      "follow": "Śledź agentów we wszystkich obszarach",
+      "showTab": "Pokaż jego kartę",
+      "pause": "Wstrzymaj na tej karcie",
+      "resume": "Wznów na tej karcie",
+      "takeOver": "Przejmij",
+      "close": "Zamknij",
+      "steps": {
+        "click": "Kliknął na stronie",
+        "type": "Wpisał tekst",
+        "fillForm": "Wypełnił formularz",
+        "choose": "Wybrał opcję",
+        "pressKey": "Nacisnął klawisz",
+        "hover": "Wskazał na stronie",
+        "scroll": "Przewinął stronę",
+        "drag": "Przeciągnął element",
+        "navigate": "Otworzył stronę",
+        "history": "Cofnął się lub przeszedł dalej",
+        "openTab": "Otworzył nową kartę",
+        "switchTab": "Przełączył karty",
+        "closeTab": "Zamknął kartę",
+        "read": "Przeczytał stronę",
+        "screenshot": "Zrobił zrzut ekranu",
+        "wait": "Poczekał na stronę",
+        "script": "Uruchomił skrypt na stronie",
+        "upload": "Przesłał plik",
+        "askYou": "Poprosił Cię o pomoc",
+        "inspect": "Sprawdził stronę",
+        "working": "Ukończył krok"
       }
     },
     "siteControls": {

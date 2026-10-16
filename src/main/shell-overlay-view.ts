@@ -52,7 +52,8 @@ export class ShellOverlayView {
     const loaded = this.current
     const window = this.options.window()
     if (!loaded || loaded.webContents.isDestroyed() || !window || window.isDestroyed()) return
-    window.contentView.addChildView(loaded.view)
+    // Adding a child view again moves it to the top; a view already there keeps its focus.
+    if (window.contentView.children.at(-1) !== loaded.view) window.contentView.addChildView(loaded.view)
     loaded.view.setVisible(true)
   }
 

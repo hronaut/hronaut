@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import AgentPresenceAvatars from '../../src/renderer/src/components/AgentPresenceAvatars.vue'
 import { useAgentPresence } from '../../src/renderer/src/composables/useAgentPresence.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { AgentCardEvent, AgentCardShowRequest, HronautAgentCardApi } from '../../src/shared/agent-card.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 import { AGENT_STEP_KINDS } from '../../src/shared/agent-steps.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
@@ -20,11 +22,28 @@ function fakeApi(initial: Promise<AgentPresenceSnapshot>) {
   return { api, unsubscribe, change: (snapshot: AgentPresenceSnapshot) => listener(snapshot) }
 }
 
+function fakeCardApi() {
+  let listener: ((event: AgentCardEvent) => void) | undefined
+  const shows: AgentCardShowRequest[] = []
+  const api = {
+    show: vi.fn((request: AgentCardShowRequest) => { shows.push(request) }),
+    hide: vi.fn(),
+    onEvent: vi.fn((next: (event: AgentCardEvent) => void) => { listener = next; return () => { listener = undefined } })
+  } satisfies HronautAgentCardApi
+  return {
+    api,
+    last: () => shows.at(-1)!,
+    emit: (event: AgentCardEvent) => listener?.(event)
+  }
+}
+
+const TABS = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }]
+
 function renderAvatars(agents: AgentPresence[], props: Record<string, unknown> = {}) {
   const { api, unsubscribe, change } = fakeApi(Promise.resolve({ revision: 1, workspaces: { 'workspace-a': agents } }))
   const view = render(AgentPresenceAvatars, {
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { workspaceId: 'workspace-a', activeTabId: 'tab-1', api, ...props }
+    props: { workspaceId: 'workspace-a', workspaceName: 'Checkout', activeTabId: 'tab-1', tabs: TABS, cardApi: fakeCardApi().api, api, ...props }
   })
   return { view, unsubscribe, change }
 }
@@ -66,30 +85,79 @@ describe('agent avatars in the toolbar', () => {
     expect(nameless?.querySelector('svg')).not.toBeNull()
   })
 
-  it('shows the tab an agent asked about or last used, unless it is already in view', async () => {
+  it('opens a card for an agent, acting on the tab it asked about or last used', async () => {
+    const card = fakeCardApi()
     const { view } = renderAvatars([
       agent('Windsurf', { state: 'needs-you', attentionTabId: 'tab-3', lastTabId: 'tab-2' }),
-      agent('Claude Code', { lastTabId: 'tab-2' }),
-      agent('Cursor', { lastTabId: 'tab-1' }),
-      agent('Zed', { lastTabId: undefined })
-    ])
+      agent('Claude Code', { lastTabId: 'tab-1' })
+    ], { cardApi: card.api, attentionReason: 'Approve the order.', workspaceName: 'Checkout' })
     const user = userEvent.setup()
-    await user.click(await screen.findByRole('button', { name: 'Windsurf, needs you' }))
+    const windsurf = await screen.findByRole('button', { name: 'Windsurf, needs you' })
+    expect(windsurf.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(windsurf.getAttribute('aria-expanded')).toBe('false')
+    await user.click(windsurf)
+    await nextTick()
+    expect(windsurf.getAttribute('aria-expanded')).toBe('true')
+    const shown = card.last()
+    expect(shown.model).toMatchObject({
+      name: 'Windsurf',
+      state: 'needs-you',
+      subtitle: 'Connected over MCP · Checkout',
+      reason: { text: 'Approve the order.' },
+      buttons: [{ action: 'show-tab' }, { action: 'pause' }, { action: 'take-over' }]
+    })
+    expect(view.emitted('select')).toBeUndefined()
+    card.emit({ cardId: shown.cardId, kind: 'action', action: 'show-tab' })
+    expect(view.emitted('select')).toEqual([['tab-3']])
+    expect(card.api.hide).toHaveBeenCalledWith(shown.cardId)
+    await nextTick()
+    expect(windsurf.getAttribute('aria-expanded')).toBe('false')
+
+    // The tab already in view needs no Show its tab.
     await user.click(screen.getByRole('button', { name: 'Claude Code, working' }))
-    await user.click(screen.getByRole('button', { name: 'Cursor, working' }))
-    expect(view.emitted('select')).toEqual([['tab-3'], ['tab-2']])
+    await nextTick()
+    expect(card.last().model.buttons.map((button) => button.action)).toEqual(['pause', 'take-over'])
+  })
+
+  it('pauses, resumes, takes over and follows from the card, and disables pause while agent control is locked', async () => {
+    const card = fakeCardApi()
+    const { view } = renderAvatars([agent('Claude Code', { lastTabId: 'tab-2' })], { cardApi: card.api, tabs: [{ id: 'tab-1' }, { id: 'tab-2', agentPaused: true }] })
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Claude Code, working' }))
+    await nextTick()
+    const { cardId, model } = card.last()
+    expect(model.buttons.map((button) => button.action)).toEqual(['show-tab', 'resume', 'take-over'])
+    card.emit({ cardId, kind: 'action', action: 'resume' })
+    card.emit({ cardId, kind: 'action', action: 'follow-on' })
+    card.emit({ cardId, kind: 'action', action: 'take-over' })
+    expect(view.emitted('setPaused')).toEqual([['tab-2', false]])
+    expect(view.emitted('setFollow')).toEqual([[true]])
+    expect(view.emitted('takeOver')).toEqual([['tab-2']])
+    expect(card.api.hide).toHaveBeenCalledWith(cardId)
+
+    await view.rerender({ agentControlLocked: true })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Claude Code, working' }))
+    await nextTick()
+    const locked = card.last()
+    expect(locked.model.buttons.filter((button) => button.disabled).map((button) => button.action)).toEqual(['resume', 'take-over'])
+    card.emit({ cardId: locked.cardId, kind: 'action', action: 'pause' })
+    card.emit({ cardId: locked.cardId, kind: 'action', action: 'take-over' })
+    expect(view.emitted('setPaused')).toHaveLength(1)
+    expect(view.emitted('takeOver')).toHaveLength(1)
   })
 
   it('keeps the tab a needs-you avatar showed when pressed, even if pressing answered the request first', async () => {
+    const card = fakeCardApi()
     const asking = agent('Windsurf', { state: 'needs-you', attentionTabId: 'tab-3', lastTabId: 'tab-2' })
     const answered = agent('Windsurf', { lastTabId: 'tab-2' })
-    const { view, change } = renderAvatars([asking])
+    const { view, change } = renderAvatars([asking], { cardApi: card.api })
     const button = await screen.findByRole('button', { name: 'Windsurf, needs you' })
     // Main answers the request on the shell's mousedown, before the click lands.
     await fireEvent.pointerDown(button)
     change({ revision: 2, workspaces: { 'workspace-a': [answered] } })
     await nextTick()
     await fireEvent.click(button)
+    await nextTick()
+    card.emit({ cardId: card.last().cardId, kind: 'action', action: 'show-tab' })
     // The same with the keyboard.
     change({ revision: 3, workspaces: { 'workspace-a': [asking] } })
     await nextTick()
@@ -97,6 +165,8 @@ describe('agent avatars in the toolbar', () => {
     change({ revision: 4, workspaces: { 'workspace-a': [answered] } })
     await nextTick()
     await fireEvent.click(button)
+    await nextTick()
+    card.emit({ cardId: card.last().cardId, kind: 'action', action: 'show-tab' })
     // A press that leaves the avatar does not count for a later click.
     change({ revision: 5, workspaces: { 'workspace-a': [asking] } })
     await nextTick()
@@ -105,7 +175,120 @@ describe('agent avatars in the toolbar', () => {
     change({ revision: 6, workspaces: { 'workspace-a': [answered] } })
     await nextTick()
     await fireEvent.click(button)
+    await nextTick()
+    card.emit({ cardId: card.last().cardId, kind: 'action', action: 'show-tab' })
     expect(view.emitted('select')).toEqual([['tab-3'], ['tab-3'], ['tab-2']])
+  })
+
+  it('closes the open card when its avatar is pressed again, whichever arrives first', async () => {
+    const card = fakeCardApi()
+    renderAvatars([agent('Claude Code', { lastTabId: 'tab-2' })], { cardApi: card.api })
+    const button = await screen.findByRole('button', { name: 'Claude Code, working' })
+    const pressAt = async (timeStamp: number) => {
+      const event = new Event('pointerdown', { bubbles: true })
+      Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+      button.dispatchEvent(event)
+      await nextTick()
+    }
+    await fireEvent.click(button)
+    await nextTick()
+    // The press moves focus out of the card, which closes it after the press arrives...
+    await pressAt(performance.now())
+    card.emit({ cardId: card.last().cardId, kind: 'closed', reason: 'blur' })
+    await fireEvent.click(button)
+    await nextTick()
+    // ...or before it: the press happened before the shell heard the card closed.
+    await fireEvent.click(button)
+    await nextTick()
+    const pressed = performance.now()
+    card.emit({ cardId: card.last().cardId, kind: 'closed', reason: 'blur' })
+    await pressAt(pressed)
+    await fireEvent.click(button)
+    await nextTick()
+    expect(card.api.show).toHaveBeenCalledTimes(2)
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    // A click after a card closed by a click on the page opens it again, however soon.
+    await fireEvent.click(button)
+    await nextTick()
+    card.emit({ cardId: card.last().cardId, kind: 'closed', reason: 'blur' })
+    await pressAt(performance.now() + 1)
+    await fireEvent.click(button)
+    await nextTick()
+    expect(card.api.show).toHaveBeenCalledTimes(4)
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('returns focus to the avatar when Esc closes the card', async () => {
+    const card = fakeCardApi()
+    renderAvatars([agent('Claude Code')], { cardApi: card.api })
+    const button = await screen.findByRole('button', { name: 'Claude Code, working' })
+    await fireEvent.click(button)
+    await nextTick()
+    button.blur()
+    card.emit({ cardId: card.last().cardId, kind: 'closed', reason: 'escape' })
+    await nextTick()
+    await nextTick()
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('keeps the avatar of an agent that disconnects while its card is open, until the card closes', async () => {
+    const card = fakeCardApi()
+    const { change } = renderAvatars([agent('Windsurf', { state: 'needs-you', attentionTabId: 'tab-3' }), agent('Claude Code')], { cardApi: card.api })
+    await fireEvent.click(await screen.findByRole('button', { name: 'Windsurf, needs you' }))
+    await nextTick()
+    change({ revision: 2, workspaces: { 'workspace-a': [agent('Claude Code')] } })
+    await nextTick()
+    await nextTick()
+    const departed = screen.getByRole('button', { name: 'Windsurf, disconnected' })
+    expect(departed.dataset.state).toBe('gone')
+    expect(departed.querySelector('.agent-avatar-badge')).toBeNull()
+    const { cardId, model } = card.last()
+    expect(model).toMatchObject({ state: 'idle', stateLabel: 'Disconnected', now: { text: 'No longer connected to this workspace' } })
+    expect(model.reason).toBeUndefined()
+    expect(model.buttons.map((button) => button.action)).toEqual(['show-tab', 'pause', 'take-over'])
+    card.emit({ cardId, kind: 'closed', reason: 'blur' })
+    await nextTick()
+    expect(screen.queryByRole('button', { name: /^Windsurf/ })).toBeNull()
+  })
+
+  it('closes the card when the workspace in view changes', async () => {
+    const card = fakeCardApi()
+    const { view } = renderAvatars([agent('Claude Code')], { cardApi: card.api })
+    await fireEvent.click(await screen.findByRole('button', { name: 'Claude Code, working' }))
+    await nextTick()
+    const { cardId } = card.last()
+    await view.rerender({ workspaceId: 'workspace-b' })
+    await nextTick()
+    expect(card.api.hide).toHaveBeenCalledWith(cardId)
+  })
+
+  it('opens the card of the agent that needs you from the shortcut, or else the first one', async () => {
+    const card = fakeCardApi()
+    const { api, change } = fakeApi(Promise.resolve({ revision: 1, workspaces: { 'workspace-a': [agent('Claude Code'), agent('Windsurf', { state: 'needs-you' })] } }))
+    const wrapper = mount(AgentPresenceAvatars, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { workspaceId: 'workspace-a', activeTabId: 'tab-1', tabs: TABS, api, cardApi: card.api }
+    })
+    await flushPromises()
+    const avatars = wrapper.vm as unknown as { openCard: () => boolean }
+    try {
+      expect(avatars.openCard()).toBe(true)
+      await nextTick()
+      expect(card.last().model.name).toBe('Windsurf')
+      card.emit({ cardId: card.last().cardId, kind: 'closed', reason: 'escape' })
+      change({ revision: 2, workspaces: { 'workspace-a': [agent('Claude Code')] } })
+      await nextTick()
+      expect(avatars.openCard()).toBe(true)
+      await nextTick()
+      expect(card.last().model.name).toBe('Claude Code')
+      card.emit({ cardId: card.last().cardId, kind: 'closed', reason: 'escape' })
+      change({ revision: 3, workspaces: {} })
+      await nextTick()
+      expect(avatars.openCard()).toBe(false)
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('shows nothing without agents or outside a workspace', async () => {

@@ -119,7 +119,8 @@ const {
   sitePermissionsController,
   showUpdateStatusPill,
   settings,
-  toggleFollowAgentActivity
+  toggleFollowAgentActivity,
+  setFollowAgentActivity: setFollowAgentActivitySetting
 } = props.settingsController
 const { state: updateState } = updateSettingsController
 const websiteTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
@@ -172,6 +173,7 @@ const {
   closeTab,
   toggleTabMuted,
   toggleTabAgentPaused,
+  setTabAgentPaused,
   togglePageLifecycle,
   toggleAllTabsMuted,
   toggleTabHumanInteraction,
@@ -196,11 +198,41 @@ function selectTab(tabId: string): void {
   void props.runAction(() => selectBrowserTab(tabId))
 }
 
+const agentPresenceAvatars = ref<{ openCard: () => boolean } | null>(null)
+const activeWorkspaceName = computed(() => {
+  const workspaceId = activeTab.value?.mcpGroupId
+  return workspaceId ? props.state.mcpTabGroups.find((group) => group.id === workspaceId)?.name : undefined
+})
+
+function setAgentPaused(tabId: string, paused: boolean): void {
+  void props.runAction(() => setTabAgentPaused(tabId, paused))
+}
+
+// Taking over pauses agents on the tab first, so none of their steps lands after you start.
+function takeOverTab(tabId: string): void {
+  void props.runAction(async () => {
+    await setTabAgentPaused(tabId, true)
+    if (props.state.tabs.find((candidate) => candidate.id === tabId)?.agentPaused !== true) return
+    settingsDialogController.close()
+    tabSearchOpen.value = false
+    await selectBrowserTab(tabId)
+  })
+}
+
+function setFollowAgentActivity(follow: boolean): void {
+  void props.runAction(() => setFollowAgentActivitySetting(follow))
+}
+
+/** Opens an agent card for the workspace in view; false when it has no agents. */
+function openAgentCard(): boolean {
+  return agentPresenceAvatars.value?.openCard() ?? false
+}
+
 function startTabDrag(): void {
   tabSearchOpen.value = false
 }
 
-defineExpose({ expandTabGroup, expandTabGroupForTab })
+defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
 </script>
 
 <template>
@@ -345,10 +377,18 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         }"
       />
       <AgentPresenceAvatars
+        ref="agentPresenceAvatars"
         :workspace-id="activeTab?.mcpGroupId"
+        :workspace-name="activeWorkspaceName"
         :active-tab-id="activeTab?.id"
         :attention-reason="userAttention?.reason"
+        :tabs="state.tabs"
+        :follow="settings.followAgentActivity"
+        :agent-control-locked="state.agentControlLocked === true"
         @select="selectTab"
+        @set-paused="setAgentPaused"
+        @take-over="takeOverTab"
+        @set-follow="setFollowAgentActivity"
       />
       <template #commands>
         <BrowserPageActions

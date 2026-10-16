@@ -74,6 +74,7 @@ function createController(canRunAction = (_action: string) => true) {
     toggleCommandPalette: vi.fn(async () => undefined),
     toggleElementPicker: vi.fn(async () => undefined),
     toggleDeveloperTools: vi.fn(async () => undefined),
+    openAgentCard: vi.fn(async () => undefined),
     onError: vi.fn()
   }
   const controller = useBrowserShortcutController({
@@ -133,6 +134,15 @@ describe('browser shortcut controller', () => {
     expect(harness.callbacks.openNewTab).toHaveBeenCalledOnce()
     expect(harness.callbacks.onError).not.toHaveBeenCalled()
     harness.controller.dispose()
+  })
+
+  it('opens the agent card from its shortcut, but not over Settings', async () => {
+    const harness = createController()
+    await expect(harness.controller.run('agent-card')).resolves.toBe(true)
+    expect(harness.callbacks.openAgentCard).toHaveBeenCalledOnce()
+    harness.settingsOpen.value = true
+    await expect(harness.controller.run('agent-card')).resolves.toBe(false)
+    expect(harness.callbacks.openAgentCard).toHaveBeenCalledOnce()
   })
 
   it('reports rejected browser operations instead of leaking an unhandled shortcut failure', async () => {

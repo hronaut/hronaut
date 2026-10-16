@@ -1332,9 +1332,11 @@ export const esES = {
       "states": {
         "idle": "inactivo",
         "working": "trabajando",
-        "needsYou": "te necesita"
+        "needsYou": "te necesita",
+        "gone": "desconectado"
       },
       "tooltip": "{name} · {step}",
+      "gone": "{name} · Desconectado",
       "idle": "{name} · Inactivo",
       "needsYou": "{name} · Te necesita",
       "needsYouReason": "{name} · Te necesita: {reason}",
@@ -1361,6 +1363,52 @@ export const esES = {
         "askYou": "Pidiéndote ayuda",
         "inspect": "Inspeccionando la página",
         "working": "Trabajando"
+      }
+    },
+    "agentCard": {
+      "label": "{name}, detalles del agente",
+      "connected": "Conectado por MCP · {workspace}",
+      "states": {
+        "idle": "Inactivo",
+        "working": "Trabajando",
+        "needsYou": "Te necesita",
+        "gone": "Desconectado"
+      },
+      "reason": "Por qué te necesita",
+      "now": "Ahora",
+      "nowIdle": "Esperando su siguiente paso",
+      "gone": "Ya no está conectado a este espacio de trabajo",
+      "recent": "Pasos recientes",
+      "noSteps": "Aún no hay pasos terminados",
+      "stepFailed": "{step}, falló",
+      "follow": "Seguir a los agentes en todos los espacios",
+      "showTab": "Mostrar su pestaña",
+      "pause": "Pausar en esta pestaña",
+      "resume": "Reanudar en esta pestaña",
+      "takeOver": "Tomar el control",
+      "close": "Cerrar",
+      "steps": {
+        "click": "Hizo clic en la página",
+        "type": "Escribió",
+        "fillForm": "Rellenó un formulario",
+        "choose": "Eligió una opción",
+        "pressKey": "Pulsó una tecla",
+        "hover": "Señaló la página",
+        "scroll": "Desplazó la página",
+        "drag": "Arrastró un elemento",
+        "navigate": "Abrió una página",
+        "history": "Fue atrás o adelante",
+        "openTab": "Abrió una pestaña nueva",
+        "switchTab": "Cambió de pestaña",
+        "closeTab": "Cerró una pestaña",
+        "read": "Leyó la página",
+        "screenshot": "Hizo una captura",
+        "wait": "Esperó a la página",
+        "script": "Ejecutó un script en la página",
+        "upload": "Subió un archivo",
+        "askYou": "Te pidió ayuda",
+        "inspect": "Inspeccionó la página",
+        "working": "Terminó un paso"
       }
     },
     "siteControls": {

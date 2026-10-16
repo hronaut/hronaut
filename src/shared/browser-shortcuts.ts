@@ -20,6 +20,7 @@ export type BrowserShortcutAction =
   | 'command-palette'
   | 'pick-element'
   | 'toggle-devtools'
+  | 'agent-card'
 
 export interface BrowserShortcutInput {
   key: string
@@ -64,5 +65,6 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (key === 'w') return 'close-tab'
   if (key === 'f') return 'find'
   if (key === 'd') return 'bookmark'
+  if (key === '.') return 'agent-card'
   return null
 }
