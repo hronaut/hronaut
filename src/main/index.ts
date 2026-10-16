@@ -16,6 +16,7 @@ import {
   type AgentCardEvent,
   type AgentCardShowRequest
 } from '../shared/agent-card.js'
+import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -364,7 +365,10 @@ let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
 let mcpTokenConfiguration: McpTokenConfiguration | null = null
 const userAttentionLifecycle = new UserAttentionLifecycle()
+// The request still open for the user. It shows as needs you until it is answered or ends;
+// a click or key only quiets it, which agents see as answered in status and preflight.
 let userAttention: UserAttentionRequest | null = null
+let attentionQuiet = false
 let attentionDecisionId: string | undefined
 let attentionRequestGeneration = 0
 let attentionPulseTimer: NodeJS.Timeout | null = null
@@ -628,6 +632,9 @@ function scheduleAgentPresencePublish(): void {
   setImmediate(() => {
     agentPresencePublishScheduled = false
     const snapshot = agentPresenceSnapshot()
+    // A seen request whose avatar went away, such as when the MCP server stopped or agent access was
+    // turned off, has no card left to answer it, so it ends.
+    if (attentionQuiet && !userAttentionShown(snapshot.workspaces)) endUserAttention({ keepPending: true })
     if (snapshot.revision === agentPresenceSentRevision) return
     agentPresenceSentRevision = snapshot.revision
     sendToMainWindow('agent-presence:changed', snapshot)
@@ -1453,15 +1460,15 @@ function setTrayContextMenu(): void {
                   await tabsManager?.selectTabAndWait(requestedTabId)
                   if (userAttention?.id !== requestedAttention.id) return
                   showWindow()
-                  clearUserAttention()
+                  quietUserAttention()
                 })
                 return
               }
               showWindow()
-              clearUserAttention()
+              quietUserAttention()
             }
           },
-          { label: text('native.tray.dismissAttention'), click: () => clearUserAttention('dismissed') },
+          { label: text('native.tray.dismissAttention'), click: () => endUserAttention({ disposition: 'dismissed' }) },
           { type: 'separator' as const }
         ]
       : []),
@@ -1492,10 +1499,54 @@ function renderAttentionPulse(): void {
   tray.setImage(attentionPulseOn ? trayAttentionIcon : trayIcon)
 }
 
-function clearUserAttention(disposition: 'acknowledged' | 'dismissed' = 'acknowledged'): void {
-  if (userAttention) userAttentionLifecycle.acknowledge(userAttention.id, disposition)
-  attentionRequestGeneration += 1
+/** The open request as the shell shows it, marked when it belongs to a human-waiting decision. */
+function shellUserAttention(): UserAttentionRequest | null {
+  if (!userAttention) return null
+  return { ...userAttention, ...(attentionDecisionId ? { humanWaitingDecisionId: attentionDecisionId } : {}) }
+}
+
+function stopAttentionSignals(): void {
+  attentionNotification?.close()
+  attentionNotification = null
+  if (attentionPulseTimer) clearInterval(attentionPulseTimer)
+  attentionPulseTimer = null
+  attentionPulseOn = false
+  mainWindow?.flashFrame(false)
+  if (tray && !tray.isDestroyed() && trayIcon) tray.setImage(trayIcon)
+}
+
+/** Whether an agent's avatar shows the open request, so that its card can answer it. */
+function userAttentionShown(workspaces: AgentPresenceSnapshot['workspaces']): boolean {
+  const workspaceId = userAttention?.workspaceId
+  return Boolean(workspaceId && workspaces[workspaceId]?.some((agent) => agent.state === 'needs-you'))
+}
+
+/**
+ * The user responded with a click or key: stop the pulse, flash and notification, and let agents
+ * see the request as answered. It still shows as needs you until it is answered or ends; without an
+ * avatar whose card can answer it, the response ends it, as it always did.
+ */
+function quietUserAttention(): void {
+  if (!userAttention || attentionQuiet) return
+  if (!userAttentionShown(agentPresenceSnapshot().workspaces)) {
+    endUserAttention()
+    return
+  }
+  attentionQuiet = true
+  userAttentionLifecycle.acknowledge(userAttention.id, 'acknowledged')
+  stopAttentionSignals()
+}
+
+/**
+ * The request ended: answered, dismissed, expired, replaced, or its tab, workspace or decision is gone.
+ * keepPending leaves another agent's request that is still waiting for its tab to wake to arrive,
+ * for an end that is about this request alone.
+ */
+function endUserAttention(options: { disposition?: 'acknowledged' | 'dismissed'; keepPending?: boolean } = {}): void {
+  if (userAttention) userAttentionLifecycle.acknowledge(userAttention.id, options.disposition ?? 'acknowledged')
+  if (!options.keepPending) attentionRequestGeneration += 1
   attentionDecisionId = undefined
+  attentionQuiet = false
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
   attentionExpiryTimer = null
   attentionNotification?.close()
@@ -1504,12 +1555,8 @@ function clearUserAttention(disposition: 'acknowledged' | 'dismissed' = 'acknowl
   userAttention = null
   if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', null)
   scheduleAgentPresencePublish()
-  if (attentionPulseTimer) clearInterval(attentionPulseTimer)
-  attentionPulseTimer = null
-  attentionPulseOn = false
-  mainWindow?.flashFrame(false)
-  if (tray && !tray.isDestroyed() && trayIcon) {
-    tray.setImage(trayIcon)
+  stopAttentionSignals()
+  if (tray && !tray.isDestroyed()) {
     tray.setToolTip('Hronaut')
     setTrayContextMenu()
   }
@@ -1526,11 +1573,11 @@ function reconcileUserAttention(state: BrowserState): void {
     : undefined
   const tabExistsInTargetWorkspace = !request.tabId
     || Boolean(requestedTab && (!request.workspaceId || requestedTab.mcpGroupId === request.workspaceId))
-  if (!workspaceExists || !tabExistsInTargetWorkspace) clearUserAttention()
+  if (!workspaceExists || !tabExistsInTargetWorkspace) endUserAttention()
 }
 
 function acknowledgeUserAttention(): void {
-  if (activeMcpActivities.size === 0) clearUserAttention()
+  if (activeMcpActivities.size === 0) quietUserAttention()
 }
 
 async function requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest> {
@@ -1551,17 +1598,18 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   if (input.workspaceId && !input.humanWaitingDecisionId) userAttentionLifecycle.request(request)
   else userAttentionLifecycle.supersede()
   userAttention = request
+  attentionQuiet = false
+  attentionDecisionId = input.humanWaitingDecisionId
   attentionNotification?.close()
   attentionNotification = null
-  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', request)
+  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', shellUserAttention())
   scheduleAgentPresencePublish()
-  attentionDecisionId = input.humanWaitingDecisionId
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
   attentionExpiryTimer = null
   const attentionExpiresAt = input.expiresAt ?? (input.workspaceId && !input.humanWaitingDecisionId ? Date.now() + 86_400_000 : undefined)
   if (attentionExpiresAt !== undefined) {
     attentionExpiryTimer = setTimeout(() => {
-      if (userAttention?.id === request.id) clearUserAttention()
+      if (userAttention?.id === request.id) endUserAttention()
     }, Math.min(86_400_000, Math.max(1, attentionExpiresAt - Date.now())))
     attentionExpiryTimer.unref()
   }
@@ -1588,7 +1636,7 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
           if (request.tabId) await tabsManager?.selectTabAndWait(request.tabId)
           if (userAttention?.id !== request.id) return
           showWindow()
-          clearUserAttention()
+          quietUserAttention()
         })
       })
       notification.show()
@@ -2498,7 +2546,18 @@ function registerIpc(): void {
   })
   ipcMain.handle('attention:get', (event) => {
     assertMainShellSender(event)
-    return userAttention ? { ...userAttention } : null
+    return shellUserAttention()
+  })
+  ipcMain.handle('attention:answer', (event, id: unknown, answer: unknown) => {
+    assertMainShellSender(event)
+    if (typeof id !== 'string' || id.length > 128 || (answer !== 'resolved' && answer !== 'dismissed')) {
+      throw new TypeError('Invalid attention answer')
+    }
+    // A card that was open for an earlier request answers nothing. A decision is answered as a decision.
+    if (userAttention?.id !== id || attentionDecisionId) return false
+    userAttentionLifecycle.answer(id, answer)
+    endUserAttention({ disposition: answer === 'dismissed' ? 'dismissed' : 'acknowledged', keepPending: true })
+    return true
   })
   ipcMain.handle('agent-presence:get', (event): AgentPresenceSnapshot => {
     assertMainShellSender(event)
@@ -2735,7 +2794,10 @@ function registerIpc(): void {
     }
     const attentionId = userAttention?.workspaceId === workspaceId && attentionDecisionId === id ? userAttention.id : undefined
     const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh, trustedConfirmation)
-    if (attentionId && userAttention?.id === attentionId) clearUserAttention()
+    if (attentionId && userAttention?.id === attentionId) {
+      if (humanWaitingDecisionOpen(record.state)) quietUserAttention()
+      else endUserAttention()
+    }
     return record
   })
   handleBrowserIpc('browser:checkpoint-workspace-continuity', async (event, workspaceId: unknown, markerSelector: unknown) => {
@@ -3942,6 +4004,13 @@ async function createWindow(startMinimized = false): Promise<void> {
     const { HumanWaitingService } = await import('./mcp/human-waiting-service.js')
     const { HumanWaitingPersistence } = await import('./mcp/human-waiting-persistence.js')
     humanWaiting = new HumanWaitingService(new HumanWaitingPersistence(join(app.getPath('userData'), 'human-waiting.json')))
+    humanWaiting.onSaved((records) => {
+      // A decision's request ends with the decision, however it ends.
+      const decisionId = attentionDecisionId
+      if (!decisionId || !userAttention) return
+      const record = records.find((candidate) => candidate.id === decisionId)
+      if (!record || !humanWaitingDecisionOpen(record.state)) endUserAttention({ keepPending: true })
+    })
   }
   if (!taskRuns) {
     const { TaskRunService } = await import('./mcp/task-run-service.js')
@@ -3977,7 +4046,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
-      if (userAttention?.id === id) clearUserAttention()
+      if (userAttention?.id === id) endUserAttention()
     },
     onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
       auditReceipts?.recordSiteAccess(workspaceId, decision, source)
@@ -4413,7 +4482,12 @@ function createRuntimeMcpServer(
     toolSet: settings.mcpToolSet,
     showWindowInactive,
     userAttentionLifecycle,
-    getUserAttention: () => (userAttention ? { ...userAttention } : null),
+    getUserAttention: () => (userAttention && !attentionQuiet ? { ...userAttention } : null),
+    getOpenUserAttentionId: () => userAttention?.id ?? null,
+    onAgentMovedOn: (attentionId) => {
+      // After the user responded, the agent acting again on a page ends its own request.
+      if (userAttention?.id === attentionId && attentionQuiet && !attentionDecisionId) endUserAttention({ keepPending: true })
+    },
     requestUserAttention,
     bookmarks: {
       list: () => bookmarkStore?.list() ?? [],

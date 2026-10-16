@@ -2,10 +2,12 @@ import { HumanWaitingStore, currentHumanWaitingReviewStep } from './human-waitin
 import type { HumanWaitingPersistence } from './human-waiting-persistence.js'
 import {
   requiresHumanWaitingAccountAndTargetConfirmation,
+  type HumanWaitingState,
   type HumanWaitingTrustedConfirmation
 } from '../../shared/human-waiting.js'
 
 type Authorization = () => void
+export interface HumanWaitingSavedState { id: string; workspaceId: string; state: HumanWaitingState }
 type WaitingInput = Parameters<HumanWaitingStore['create']>[0]
 export interface HumanWaitingReviewBinding {
   id: string
@@ -44,6 +46,9 @@ export class HumanWaitingService {
   private persistedRecords = '[]'
   private requestEpoch = 0
   private pendingRequests = 0
+  private readonly savedListeners = new Set<(records: readonly HumanWaitingSavedState[]) => void>()
+  /** What the running operation saved last, reported once it settles. */
+  private unreportedRecords: readonly HumanWaitingSavedState[] | undefined
 
   constructor(
     private readonly persistence: Pick<HumanWaitingPersistence, 'load' | 'save'>,
@@ -73,7 +78,10 @@ export class HumanWaitingService {
       await this.initialize()
       if (this.unavailable) throw new Error('Human waiting history is unavailable')
       return operation()
-    }).finally(() => { this.pendingRequests-- })
+    }).finally(() => {
+      this.pendingRequests--
+      this.notifySaved()
+    })
     this.queue = pending.catch(() => undefined)
     return pending
   }
@@ -83,10 +91,28 @@ export class HumanWaitingService {
       const snapshot = this.store.snapshot()
       await this.persistence.save(snapshot)
       this.persistedRecords = JSON.stringify(snapshot.records)
+      this.unreportedRecords = snapshot.records.map(({ id, workspaceId, state }) => ({ id, workspaceId, state }))
     } catch {
       this.unavailable = true
       throw new Error('Human waiting change could not be saved; inspect recovery before retrying')
     }
+  }
+
+  // An operation can save a step it then undoes, such as a resolution whose fresh check fails, so
+  // listeners hear only where it ended.
+  private notifySaved(): void {
+    const records = this.unreportedRecords
+    if (!records) return
+    this.unreportedRecords = undefined
+    for (const listener of [...this.savedListeners]) {
+      try { listener(records) } catch (error) { console.error('[human-waiting] A saved-state listener failed:', error) }
+    }
+  }
+
+  /** Called once each operation that saved settles, with every decision's id, workspace and state. */
+  onSaved(listener: (records: readonly HumanWaitingSavedState[]) => void): () => void {
+    this.savedListeners.add(listener)
+    return () => { this.savedListeners.delete(listener) }
   }
 
   create(input: WaitingInput, authorize: Authorization) {

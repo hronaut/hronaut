@@ -1386,6 +1386,9 @@ export const frFR = {
       "pause": "Mettre en pause sur cet onglet",
       "resume": "Reprendre sur cet onglet",
       "takeOver": "Prendre la main",
+      "handBack": "Terminé, rendre la main",
+      "dismiss": "Ignorer la demande",
+      "reviewDecision": "Examiner la décision",
       "close": "Fermer",
       "steps": {
         "click": "A cliqué sur la page",

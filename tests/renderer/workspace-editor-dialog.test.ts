@@ -318,3 +318,39 @@ it('keeps native arrow-key navigation within each workspace radio group', async 
     expect(copy.element).toHaveFocus()
   } finally { wrapper.unmount() }
 })
+
+describe('workspace editor decisions', () => {
+  it('opens a workspace with its activity and decisions shown and focused, as Review the decision does', async () => {
+    const state: BrowserState = {
+      tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+      mcpUrl: '', profilePath: '', savedTabGroups: [],
+      mcpTabGroups: [{ id: 'checkout', name: 'Checkout', description: '', color: 'blue', createdAt: '', lastUsedAt: '',
+        tabCount: 0, activeTabId: null, storageOriginCount: 0,
+        navigationPolicy: { mode: 'unrestricted', rules: [] } }]
+    }
+    Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+      getState: vi.fn(async () => state),
+      listWorkspaceStorageOrigins: vi.fn(async () => []),
+      listWorkspaceNavigationAudit: vi.fn(async () => [])
+    } })
+    const wrapper = mount(WorkspaceEditor, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+        'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+    })
+    const editor = wrapper.vm as unknown as { openExisting: (id: string) => Promise<void>; openDecisions: (id: string) => Promise<void> }
+    try {
+      // Editing the workspace keeps its activity folded, as before.
+      await editor.openExisting('checkout')
+      await flushPromises()
+      expect(wrapper.get<HTMLDetailsElement>('.workspace-activity-disclosure').element.open).toBe(false)
+      await wrapper.get('.panel-close').trigger('click')
+      await editor.openDecisions('checkout')
+      await flushPromises()
+      const activity = wrapper.get<HTMLDetailsElement>('.workspace-activity-disclosure').element
+      expect(activity.open).toBe(true)
+      expect(document.activeElement).toBe(activity.querySelector('summary'))
+    } finally { wrapper.unmount() }
+  })
+})

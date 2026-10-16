@@ -35,6 +35,8 @@ export interface AppBrowserChromeLayerActions {
   openHome: () => unknown
   newTabInWorkspace: (groupId?: string) => unknown
   openNewWorkspaceEditor: () => unknown
+  /** Opens a workspace's settings, where its waiting decisions are reviewed. */
+  reviewDecisions: (groupId: string) => unknown
   toggleCommandPalette: () => unknown
   toggleTabSearch: () => unknown
   openFind: () => unknown
@@ -229,6 +231,11 @@ function setFollowAgentActivity(follow: boolean): void {
   void props.runAction(() => setFollowAgentActivitySetting(follow))
 }
 
+// Main answers only the request still open with this id; an answer from an older card changes nothing.
+function answerAttention(id: string, answer: 'resolved' | 'dismissed'): void {
+  void props.runAction(() => props.browser.answerUserAttention(id, answer))
+}
+
 /** Opens an agent card for the workspace in view; false when it has no agents. */
 function openAgentCard(): boolean {
   return agentPresenceAvatars.value?.openCard() ?? false
@@ -388,6 +395,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
         :workspace-name="activeWorkspaceName"
         :active-tab-id="activeTab?.id"
         :attention-reason="userAttention?.reason"
+        :attention-id="userAttention?.id"
+        :attention-decision="userAttention?.humanWaitingDecisionId !== undefined"
         :tabs="state.tabs"
         :follow="settings.followAgentActivity"
         :agent-control-locked="state.agentControlLocked === true"
@@ -395,6 +404,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
         @set-paused="setAgentPaused"
         @take-over="takeOverTab"
         @set-follow="setFollowAgentActivity"
+        @answer-attention="answerAttention"
+        @review-decision="actions.reviewDecisions"
       />
       <template #commands>
         <BrowserPageActions

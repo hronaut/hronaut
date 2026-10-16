@@ -19,6 +19,22 @@ describe('explicit human attention resolution', () => {
     expect(owner.resolve(request.id, 'tab-1', 'workspace-1')).toBe(false)
     expect(owner.forTab('tab-1', 'workspace-1')).toBeUndefined()
   })
+  it('answers a request from its card, by id and only while it is pending', async () => {
+    const owner = new UserAttentionLifecycle()
+    owner.request({ ...request, tabId: undefined })
+    const waiting = owner.wait(request.id, 'workspace-1', 1000, authorize)
+    // A request without a tab has no tab menu; its card can still resolve it.
+    expect(owner.answer('request-unknown', 'resolved')).toBe(false)
+    expect(owner.answer(request.id, 'resolved')).toBe(true)
+    expect((await waiting).outcome).toBe('resolved')
+    expect(owner.answer(request.id, 'dismissed')).toBe(false)
+    owner.request({ ...request, id: 'request-2' })
+    // Dismissed stays pending for a waiting agent, as from the tray.
+    expect(owner.answer('request-2', 'dismissed')).toBe(true)
+    expect(owner.status('request-2', 'workspace-1').state).toBe('dismissed')
+    owner.request({ ...request, id: 'request-3' })
+    expect(owner.answer('request-2', 'resolved')).toBe(false)
+  })
   it('does not let a stale menu resolve a newer request or another workspace', async () => {
     const owner = new UserAttentionLifecycle()
     owner.request(request)

@@ -13,7 +13,7 @@ import {
   sanitizeAgentName,
   type AgentPresenceContext
 } from '../src/main/mcp/agent-presence.js'
-import { McpHttpServer, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
+import { McpHttpServer, type McpHttpServerOptions, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
 import { AGENT_AVATAR_COLORS } from '../src/shared/agent-presence.js'
 import type { McpTabActivity } from '../src/shared/types.js'
 
@@ -158,6 +158,36 @@ describe('agent presence registry', () => {
     expect(registry.derive(1_200, context())[workspace]?.[0]).toEqual(expect.objectContaining({ state: 'working', step: 'working', lastTabId: 'tab-4' }))
   })
 
+  it('reports that the agent that asked moved on when it finishes an action in that workspace', () => {
+    const registry = new AgentPresenceRegistry()
+    let calls = 0
+    const call = (client: typeof claude, toolName: string, phase: McpTabActivity['phase'], options: { workspace?: string; source?: 'call' | 'tab'; startedAt?: number; tabId?: string } = {}) => {
+      const activityId = `call-${calls += 1}`
+      const base = { activityId, toolName, source: options.source ?? 'call', ...(options.tabId ? { tabId: options.tabId } : {}) }
+      const started = registry.track(client, options.workspace ?? workspace, { ...base, phase: 'started', occurredAt: options.startedAt ?? 1_500 })
+      return phase === 'started' ? started : registry.track(client, options.workspace ?? workspace, { ...base, phase, occurredAt: 1_600 })
+    }
+    registry.recordAttention(claude, workspace, 'attention-1', 'tab-1', 1_000)
+    // Reading, waiting, scrolling, scripts or showing a tab: still waiting for you.
+    for (const toolName of ['browser_snapshot', 'browser_wait', 'browser_scroll', 'browser_select_tab', 'browser_evaluate', 'browser_user_attention', 'browser_status']) {
+      expect(call(claude, toolName, 'finished'), toolName).toBeUndefined()
+    }
+    // An action that only started or failed, the tab activity it caused, another workspace or another agent: not yet.
+    expect(call(claude, 'browser_click', 'started')).toBeUndefined()
+    expect(call(claude, 'browser_click', 'failed')).toBeUndefined()
+    expect(call(claude, 'browser_click', 'finished', { source: 'tab' })).toBeUndefined()
+    expect(call(claude, 'browser_click', 'finished', { workspace: otherWorkspace })).toBeUndefined()
+    expect(call(cursor, 'browser_click', 'finished')).toBeUndefined()
+    // An action that started before it asked, running alongside the request, or on another tab than the one it asked about.
+    expect(call(claude, 'browser_click', 'finished', { startedAt: 900 })).toBeUndefined()
+    expect(call(claude, 'browser_navigate', 'finished', { tabId: 'tab-2' })).toBeUndefined()
+    expect(call(claude, 'browser_click', 'finished')).toBe('attention-1')
+    expect(call(claude, 'browser_navigate', 'finished', { tabId: 'tab-1' })).toBe('attention-1')
+    // A human-waiting decision ends only with the decision.
+    registry.recordAttention(claude, workspace, 'attention-2', undefined, 2_000, true)
+    expect(call(claude, 'browser_click', 'finished', { startedAt: 2_100 })).toBeUndefined()
+  })
+
   it('stops showing needs you once another request replaces it', () => {
     const registry = new AgentPresenceRegistry()
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 1_000)
@@ -283,7 +313,7 @@ describe('agent presence over MCP', () => {
     vi.useRealTimers()
   })
 
-  async function startServer(requestUserAttention?: (input: UserAttentionInput) => Promise<UserAttentionRequest>) {
+  async function startServer(requestUserAttention?: (input: UserAttentionInput) => Promise<UserAttentionRequest>, options: Partial<McpHttpServerOptions> = {}) {
     const state = { attention: null as UserAttentionRequest | null, count: 0 }
     const request = vi.fn(requestUserAttention ?? (async (input: UserAttentionInput) => {
       state.count += 1
@@ -300,14 +330,16 @@ describe('agent presence over MCP', () => {
       listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]), listSavedTabGroups: vi.fn(() => []),
       mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
       getState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] })),
-      getMcpGroupState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] }))
+      getMcpGroupState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] })),
+      stop: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] }))
     }
     const onAgentPresenceChanged = vi.fn()
     const started = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test',
       showWindowInactive: vi.fn(), getUserAttention: () => state.attention, requestUserAttention: request,
       bookmarks: {} as never, history: {} as never, siteData: {} as never,
-      onAgentPresenceChanged
+      onAgentPresenceChanged,
+      ...options
     })
     server = started
     const endpoint = new URL(await started.start())
@@ -378,6 +410,24 @@ describe('agent presence over MCP', () => {
     const refused = await stranger.client.callTool({ name: 'browser_tabs', arguments: { workspaceId: '01912345-6789-7abc-8def-0123456789ac' } }) as CallToolResult
     expect(refused.isError).toBe(true)
     expect(server.getAgentPresence()[workspaceId]?.map((agent) => agent.name)).toEqual(['Cursor'])
+  })
+
+  it('keeps needs you while the request is open after a click, and reports an action of the agent that asked', async () => {
+    let openId: string | null = null
+    const onAgentMovedOn = vi.fn()
+    const { server, state, connect } = await startServer(undefined, { getOpenUserAttentionId: () => openId, onAgentMovedOn })
+    const claudeClient = await connect('Claude Code')
+    expect((await ask(claudeClient.client, 'Log in, then hand back.')).isError).not.toBe(true)
+    openId = state.attention!.id
+    // A click quiets the request: agents see it answered, while it still shows as needs you.
+    state.attention = null
+    expect(server.getAgentPresence()[workspaceId]?.map((agent) => [agent.name, agent.state])).toEqual([['Claude Code', 'needs-you']])
+    // Reading does not count; an action it finished does.
+    expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
+    expect(onAgentMovedOn).not.toHaveBeenCalled()
+    const stopped = await claudeClient.client.callTool({ name: 'browser_history', arguments: { workspaceId, tabId, action: 'stop' } }) as CallToolResult
+    expect(stopped.isError, text(stopped)).not.toBe(true)
+    expect(onAgentMovedOn).toHaveBeenCalledExactlyOnceWith(openId)
   })
 
   it('records no request for you when asking fails', async () => {

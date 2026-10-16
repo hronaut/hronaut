@@ -1386,6 +1386,9 @@ export const esES = {
       "pause": "Pausar en esta pestaña",
       "resume": "Reanudar en esta pestaña",
       "takeOver": "Tomar el control",
+      "handBack": "Listo, devolver al agente",
+      "dismiss": "Descartar aviso",
+      "reviewDecision": "Revisar la decisión",
       "close": "Cerrar",
       "steps": {
         "click": "Hizo clic en la página",

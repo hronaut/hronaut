@@ -322,7 +322,12 @@ export interface McpHttpServerOptions {
   version: string
   toolSet?: McpToolSet
   showWindowInactive: () => void
+  /** The request agents see in status and preflight: open and not yet answered by a click or key. */
   getUserAttention: () => UserAttentionRequest | null
+  /** The id of the request still open for the user, shown as needs you. Defaults to getUserAttention. */
+  getOpenUserAttentionId?: () => string | null
+  /** The agent that asked for this plain request has since acted on a page in its workspace. */
+  onAgentMovedOn?: (attentionId: string) => void
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>
   bookmarks: BookmarkOperations
   history: HistoryOperations
@@ -6063,7 +6068,7 @@ export class McpHttpServer {
   getAgentPresence(now = Date.now()): Record<string, AgentPresence[]> {
     return this.agentPresence.derive(now, {
       workspaceOpen: (workspaceId) => this.manager.isOpenAgentWorkspace(workspaceId),
-      currentAttentionId: this.options.getUserAttention()?.id ?? null,
+      currentAttentionId: this.options.getOpenUserAttentionId ? this.options.getOpenUserAttentionId() : this.options.getUserAttention()?.id ?? null,
       tabInWorkspace: (workspaceId, tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
     })
   }
@@ -6160,10 +6165,18 @@ export class McpHttpServer {
   }
 
   private trackAgentCall(call: AgentCall, client: McpClientActivity, workspaceId: string): void {
+    let movedOn: string | undefined
     try {
-      this.agentPresence.track({ id: client.id, name: client.name }, workspaceId, call)
+      movedOn = this.agentPresence.track({ id: client.id, name: client.name }, workspaceId, call)
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
+    }
+    if (movedOn) {
+      try {
+        this.options.onAgentMovedOn?.(movedOn)
+      } catch (error) {
+        console.error('[mcp] Failed to end an answered attention request:', error)
+      }
     }
     this.agentPresenceChanged()
   }
@@ -6172,7 +6185,7 @@ export class McpHttpServer {
     const workspaceId = input.workspaceId ?? attention.workspaceId
     if (!workspaceId) return
     try {
-      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now())
+      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now(), input.humanWaitingDecisionId !== undefined)
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
     }

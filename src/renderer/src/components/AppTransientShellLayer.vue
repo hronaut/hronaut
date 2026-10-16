@@ -82,6 +82,7 @@ interface WorkspaceEditorSurface {
   openTemplates: () => void
   openTransfer: (sourceWorkspaceId?: string) => Promise<void>
   openExisting: (groupId: string) => Promise<void>
+  openDecisions: (groupId: string) => Promise<void>
   openNew: () => Promise<void>
   close: () => void
 }
@@ -150,6 +151,10 @@ async function openWorkspace(groupId: string): Promise<void> {
   await workspaceEditor.value?.openExisting(groupId)
 }
 
+async function openWorkspaceDecisions(groupId: string): Promise<void> {
+  await workspaceEditor.value?.openDecisions(groupId)
+}
+
 async function openNewWorkspace(): Promise<void> {
   await workspaceEditor.value?.openNew()
 }
@@ -183,6 +188,7 @@ defineExpose({
   closeZoom,
   setZoom,
   openWorkspace,
+  openWorkspaceDecisions,
   openWorkspaceTransfer,
   openNewWorkspace,
   closeWorkspace,

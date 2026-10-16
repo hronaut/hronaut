@@ -89,8 +89,18 @@ test('shows the agents working in the workspace in view, who needs you, and forg
     // Closing a session that waits for you keeps it until you answer; then it leaves.
     await windsurf.transport.terminateSession()
     await expect(asking).toBeVisible()
-    // Pressing anywhere in the shell answers the request.
+    const statusAttention = async () => (parsed(await claude.client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult).userAttention as { id: string } | null)
+    const request = await statusAttention()
+    expect(request?.id).toBeTruthy()
+    // Pressing anywhere in the shell only quiets the request: agents see it answered, as before,
+    // while it still shows as needs you until you answer it.
     await appWindow.locator('.address-form input').click()
+    await expect.poll(statusAttention).toBeNull()
+    await expect(asking).toBeVisible()
+    expect(await appWindow.evaluate('window.hronaut.getUserAttention().then(request => request?.id)')).toBe(request!.id)
+    // An answer for another request changes nothing; answering this one ends it.
+    expect(await appWindow.evaluate('window.hronaut.answerUserAttention("00000000-0000-4000-8000-000000000000", "dismissed")')).toBe(false)
+    expect(await appWindow.evaluate(`window.hronaut.answerUserAttention(${JSON.stringify(request!.id)}, "dismissed")`)).toBe(true)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
     await expect(group.getByRole('button', { name: /^Windsurf/ })).toHaveCount(0)
     await expect(group.getByRole('button', { name: /^Claude Code, / })).toBeVisible()

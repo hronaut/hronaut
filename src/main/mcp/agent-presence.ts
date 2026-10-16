@@ -6,7 +6,7 @@ import {
   type AgentPresenceState,
   type AgentRecentStep
 } from '../../shared/agent-presence.js'
-import { agentStepKind, type AgentStepKind } from '../../shared/agent-steps.js'
+import { agentStepActs, agentStepKind, type AgentStepKind } from '../../shared/agent-steps.js'
 import type { McpTabActivity } from '../../shared/types.js'
 import { ACTIVITY_HISTORY_LIMIT } from './activity-history.js'
 import { WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
@@ -95,6 +95,8 @@ interface AttentionRecord {
   workspaceId: string
   tabId?: string
   requestedAt: number
+  /** A human-waiting decision, which ends only with the decision. */
+  decision: boolean
 }
 
 interface ClientRecord {
@@ -134,9 +136,14 @@ export class AgentPresenceRegistry {
 
   constructor(private readonly secret: Buffer = randomBytes(32)) {}
 
-  /** Records a call; calls of a closed session are ignored. */
-  track(client: AgentPresenceClient, workspaceId: string, call: AgentCall): void {
-    if (this.closedSessions.has(client.id)) return
+  /**
+   * Records a call; calls of a closed session are ignored. Returns the id of the agent's own plain
+   * request for you in this workspace when the call finishes a step, started after the request, that
+   * acted on the page or tabs, and not on another tab than the one it asked about: the agent has then
+   * moved on from it.
+   */
+  track(client: AgentPresenceClient, workspaceId: string, call: AgentCall): string | undefined {
+    if (this.closedSessions.has(client.id)) return undefined
     const record = this.client(client, call.occurredAt)
     let workspace = record.workspaces.get(workspaceId)
     if (!workspace) {
@@ -146,10 +153,12 @@ export class AgentPresenceRegistry {
     workspace.lastActivityAt = Math.max(workspace.lastActivityAt, call.occurredAt)
     workspace.step = agentStepKind(call.toolName)
     if (call.tabId) workspace.lastTabId = call.tabId
+    let startedAt: number | undefined
     if (call.phase === 'started') {
       workspace.inFlight.set(call.activityId, { startedAt: call.occurredAt, step: workspace.step })
       while (workspace.inFlight.size > ACTIVITY_HISTORY_LIMIT) workspace.inFlight.delete(workspace.inFlight.keys().next().value!)
     } else {
+      startedAt = workspace.inFlight.get(call.activityId)?.startedAt
       workspace.inFlight.delete(call.activityId)
       workspace.settledAt = call.occurredAt
       if (call.source === 'call') {
@@ -158,11 +167,16 @@ export class AgentPresenceRegistry {
       }
     }
     this.trim()
+    const asking = record.attention
+    return call.source === 'call' && call.phase === 'finished' && asking && !asking.decision
+      && asking.workspaceId === workspaceId && agentStepActs(workspace.step)
+      && startedAt !== undefined && startedAt >= asking.requestedAt
+      && (!asking.tabId || !call.tabId || call.tabId === asking.tabId) ? asking.attentionId : undefined
   }
 
   /** Records a request for you. One that arrives after its session closed still
    * shows until it is answered, but brings back none of the session's activity. */
-  recordAttention(client: AgentPresenceClient, workspaceId: string, attentionId: string, tabId: string | undefined, now: number): void {
+  recordAttention(client: AgentPresenceClient, workspaceId: string, attentionId: string, tabId: string | undefined, now: number, decision = false): void {
     const closed = this.closedSessions.has(client.id)
     const record = this.client(client, now)
     if (closed) {
@@ -173,7 +187,7 @@ export class AgentPresenceRegistry {
       if (workspace) workspace.lastActivityAt = Math.max(workspace.lastActivityAt, now)
       else record.workspaces.set(workspaceId, { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map(), steps: [] })
     }
-    record.attention = { attentionId, workspaceId, ...(tabId ? { tabId } : {}), requestedAt: now }
+    record.attention = { attentionId, workspaceId, ...(tabId ? { tabId } : {}), requestedAt: now, decision }
     this.trim()
   }
 

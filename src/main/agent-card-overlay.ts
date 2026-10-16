@@ -190,7 +190,9 @@ export class AgentCardOverlay {
   received(message: AgentCardViewMessage): void {
     const card = this.card
     if (this.disposed || !card?.presented || message.cardId !== card.cardId) return
-    if (message.kind === 'action') this.ports.emit({ cardId: card.cardId, kind: 'action', action: message.action })
+    if (message.kind === 'action') {
+      this.ports.emit({ cardId: card.cardId, kind: 'action', action: message.action, ...(message.key === undefined ? {} : { key: message.key }) })
+    }
     else this.close(message.reason)
   }
 

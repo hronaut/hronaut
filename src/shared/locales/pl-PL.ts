@@ -1386,6 +1386,9 @@ export const plPL = {
       "pause": "Wstrzymaj na tej karcie",
       "resume": "Wznów na tej karcie",
       "takeOver": "Przejmij",
+      "handBack": "Gotowe, oddaj agentowi",
+      "dismiss": "Odrzuć prośbę",
+      "reviewDecision": "Przejrzyj decyzję",
       "close": "Zamknij",
       "steps": {
         "click": "Kliknął na stronie",

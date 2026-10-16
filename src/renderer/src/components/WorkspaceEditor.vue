@@ -9,7 +9,7 @@ import UiField from '../ui/UiField.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
-import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -48,6 +48,7 @@ const importBusy = ref(false)
 const templateView = ref(false)
 const templateBusy = ref(false)
 const templateBrowser = window.hronaut
+const activitySection = ref<HTMLDetailsElement | null>(null)
 watch(open, (value) => { if (!value) { templateView.value = false; importTarget.value = null } })
 function close(): void { if (!templateBusy.value && !importBusy.value) closeEditor() }
 const {
@@ -167,6 +168,18 @@ async function openExisting(id: string): Promise<void> {
   importDestination.value = id
   await openExistingEditor(id)
 }
+/** Opens the workspace with its activity and decisions shown, as an agent card's Review the decision does. */
+async function openDecisions(id: string): Promise<void> {
+  await openExisting(id)
+  // An open that finished after the editor closed or moved to another workspace changes nothing.
+  if (!open.value || workspaceId.value !== id) return
+  await nextTick()
+  const section = activitySection.value
+  if (!section) return
+  section.open = true
+  section.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
+  section.scrollIntoView?.({ block: 'nearest' })
+}
 async function openNew(): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
   importTarget.value = null
@@ -202,7 +215,7 @@ function openTemplates(): void {
   templateView.value = true
   open.value = true
 }
-defineExpose({ openImport, openExisting, openNew, openTransfer, openLibrary, openTemplates, close })
+defineExpose({ openImport, openExisting, openDecisions, openNew, openTransfer, openLibrary, openTemplates, close })
 onBeforeUnmount(dispose)
 </script>
 
@@ -317,7 +330,7 @@ onBeforeUnmount(dispose)
           </section>
           </details>
           </template>
-          <details v-if="mode === 'edit' && workspaceId" class="workspace-editor-section workspace-activity-disclosure">
+          <details v-if="mode === 'edit' && workspaceId" ref="activitySection" class="workspace-editor-section workspace-activity-disclosure">
             <summary><IconShield aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.activitySummary') }}</strong><small>{{ t('workspaceLibrary.activityHelp') }}</small></span></summary>
           <WorkspaceContinuityPanel v-if="mode === 'edit' && workspaceId" :key="workspaceId" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
           <HumanWaitingPanel v-if="mode === 'edit' && workspaceId" :key="`waiting-${workspaceId}`" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />

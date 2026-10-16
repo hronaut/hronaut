@@ -93,6 +93,7 @@ import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
   getUserAttention: () => ipcRenderer.invoke('attention:get'),
+  answerUserAttention: (id, answer) => ipcRenderer.invoke('attention:answer', id, answer),
   onUserAttentionChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, request: UserAttentionRequest | null): void => listener(request)
     ipcRenderer.on('attention:changed', handler)
