@@ -6,6 +6,7 @@ import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import { registerWalletIpc } from './wallet/ipc.js'
+import { ShellOverlayView } from './shell-overlay-view.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -242,8 +243,14 @@ let addressSuggestionOverlayGeneration = 0
 let addressSuggestionOverlayBounds: { x: number; y: number; width: number; maxHeight: number } | null = null
 let addressSuggestionOverlayVisible = false
 let addressSuggestionOverlayDismissalPending = false
-let tooltipSurface: { view: WebContentsView; webContents: WebContents } | null = null
-let tooltipSurfaceLoad: Promise<ShellTooltipSurface> | null = null
+const tooltipView = new ShellOverlayView({
+  name: 'tooltip',
+  preload: join(__dirname, '../preload/tooltipOverlay.cjs'),
+  url: () => trustedTooltipOverlayUrl(),
+  window: () => mainWindow,
+  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
+  onLost: () => shellTooltips.surfaceLost()
+})
 const shellTooltips = new ShellTooltipOverlay({
   surface: () => ensureTooltipSurface(),
   windowSize: () => {
@@ -1754,31 +1761,7 @@ function trustedTooltipOverlayUrl(): string {
 }
 
 function assertTooltipOverlaySender(event: Electron.IpcMainEvent): void {
-  if (!tooltipSurface || event.sender !== tooltipSurface.webContents || !trustedUrlMatches(event.senderFrame?.url, trustedTooltipOverlayUrl())) {
-    throw new Error('Rejected IPC from a non-tooltip renderer')
-  }
-}
-
-function tooltipSurfaceApi(view: WebContentsView, webContents: WebContents): ShellTooltipSurface {
-  return {
-    send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
-    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
-    setBounds: (bounds) => view.setBounds(bounds),
-    present: () => {
-      if (webContents.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return
-      // Adding the view again also makes it the topmost native view, above a page shown meanwhile.
-      mainWindow.contentView.addChildView(view)
-      view.setVisible(true)
-    },
-    withdraw: () => {
-      if (webContents.isDestroyed()) return
-      view.setVisible(false)
-      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.contentView.children.includes(view)) {
-        mainWindow.contentView.removeChildView(view)
-      }
-    },
-    isDestroyed: () => webContents.isDestroyed()
-  }
+  if (!tooltipView.isSender(event)) throw new Error('Rejected IPC from a non-tooltip renderer')
 }
 
 /**
@@ -1786,55 +1769,15 @@ function tooltipSurfaceApi(view: WebContentsView, webContents: WebContents): She
  * views. It is in the window only while a tooltip shows.
  */
 async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
-  if (tooltipSurfaceLoad) return tooltipSurfaceLoad
-  const opening = (async () => {
-    const expectedUrl = trustedTooltipOverlayUrl()
-    const view = new WebContentsView({
-      webPreferences: {
-        preload: join(__dirname, '../preload/tooltipOverlay.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        backgroundThrottling: false
-      }
-    })
-    const webContents = view.webContents
-    tooltipSurface = { view, webContents }
-    try {
-      view.setBackgroundColor('#00000000')
-      view.setVisible(false)
-      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-      webContents.on('will-navigate', (event, url) => {
-        if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
-      })
-      webContents.on('destroyed', () => {
-        if (tooltipSurface?.webContents !== webContents) return
-        tooltipSurface = null
-        tooltipSurfaceLoad = null
-        shellTooltips.surfaceLost()
-        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.contentView.children.includes(view)) {
-          try {
-            mainWindow.contentView.removeChildView(view)
-          } catch (error) {
-            console.error('[tooltip] Failed to detach the tooltip view:', error)
-          }
-        }
-      })
-      webContents.on('render-process-gone', () => {
-        if (!webContents.isDestroyed()) webContents.close()
-      })
-      await webContents.loadURL(expectedUrl)
-      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The main window closed before the tooltip view loaded')
-      return tooltipSurfaceApi(view, webContents)
-    } catch (error) {
-      if (!webContents.isDestroyed()) webContents.close()
-      if (tooltipSurface?.webContents === webContents) tooltipSurface = null
-      tooltipSurfaceLoad = null
-      throw error
-    }
-  })()
-  tooltipSurfaceLoad = opening
-  return opening
+  const { view, webContents } = await tooltipView.ensure()
+  return {
+    send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
+    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
+    setBounds: (bounds) => view.setBounds(bounds),
+    present: () => tooltipView.present(),
+    withdraw: () => tooltipView.withdraw(),
+    isDestroyed: () => webContents.isDestroyed()
+  }
 }
 
 function validAddressSuggestion(value: unknown): value is AddressSuggestion {
@@ -4048,9 +3991,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     addressSuggestionOverlayVisible = false
     addressSuggestionOverlayDismissalPending = false
     shellTooltips.hide()
-    if (tooltipSurface && !tooltipSurface.webContents.isDestroyed()) tooltipSurface.webContents.close()
-    tooltipSurface = null
-    tooltipSurfaceLoad = null
+    tooltipView.close()
     windowControlsScrim = null
     mainWindow = null
   })

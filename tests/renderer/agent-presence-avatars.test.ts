@@ -10,7 +10,7 @@ import { AGENT_STEP_KINDS } from '../../src/shared/agent-steps.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 
 function agent(name: string, overrides: Partial<AgentPresence> = {}): AgentPresence {
-  return { clientKey: `key-${name}`, name, initial: name.slice(0, 1).toUpperCase(), colorIndex: 1, state: 'working', step: 'click', lastTabId: 'tab-2', ...overrides }
+  return { clientKey: `key-${name}`, name, initial: name.slice(0, 1).toUpperCase(), colorIndex: 1, state: 'working', step: 'click', recentSteps: [], lastTabId: 'tab-2', ...overrides }
 }
 
 function fakeApi(initial: Promise<AgentPresenceSnapshot>) {

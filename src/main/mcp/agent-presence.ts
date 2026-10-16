@@ -1,5 +1,11 @@
 import { createHmac, randomBytes } from 'node:crypto'
-import { AGENT_AVATAR_COLORS, type AgentPresence, type AgentPresenceState } from '../../shared/agent-presence.js'
+import {
+  AGENT_AVATAR_COLORS,
+  AGENT_RECENT_STEPS_LIMIT,
+  type AgentPresence,
+  type AgentPresenceState,
+  type AgentRecentStep
+} from '../../shared/agent-presence.js'
 import { agentStepKind, type AgentStepKind } from '../../shared/agent-steps.js'
 import type { McpTabActivity } from '../../shared/types.js'
 import { ACTIVITY_HISTORY_LIMIT } from './activity-history.js'
@@ -13,6 +19,8 @@ export const AGENT_WORKING_GRACE_MS = 10_000
 export const AGENT_PRESENCE_WINDOW_MS = WorkspaceWriteLeaseRegistry.LIFETIME_MS
 export const AGENT_NAME_MAX_GRAPHEMES = 64
 const AGENT_PRESENCE_MAX_ENTRIES = 200
+/** Finished steps kept per agent and workspace, for the agent card's history. */
+export const AGENT_STEP_HISTORY_LIMIT = 20
 /** Closed sessions remembered, so a call that settles after its session closed cannot bring it back. */
 export const AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT = 1024
 
@@ -67,6 +75,8 @@ export interface AgentCall {
   tabId?: string
   phase: McpTabActivity['phase']
   occurredAt: number
+  /** 'call' for the tool call itself, which alone adds a finished step; 'tab' for the tab activity it caused. */
+  source?: 'call' | 'tab'
 }
 
 interface WorkspaceActivity {
@@ -76,6 +86,8 @@ interface WorkspaceActivity {
   step: AgentStepKind
   lastTabId?: string
   inFlight: Map<string, InFlightStep>
+  /** Finished calls, oldest first, at most AGENT_STEP_HISTORY_LIMIT. */
+  steps: AgentRecentStep[]
 }
 
 interface AttentionRecord {
@@ -128,7 +140,7 @@ export class AgentPresenceRegistry {
     const record = this.client(client, call.occurredAt)
     let workspace = record.workspaces.get(workspaceId)
     if (!workspace) {
-      workspace = { firstSeenAt: call.occurredAt, lastActivityAt: call.occurredAt, step: 'working', inFlight: new Map() }
+      workspace = { firstSeenAt: call.occurredAt, lastActivityAt: call.occurredAt, step: 'working', inFlight: new Map(), steps: [] }
       record.workspaces.set(workspaceId, workspace)
     }
     workspace.lastActivityAt = Math.max(workspace.lastActivityAt, call.occurredAt)
@@ -140,6 +152,10 @@ export class AgentPresenceRegistry {
     } else {
       workspace.inFlight.delete(call.activityId)
       workspace.settledAt = call.occurredAt
+      if (call.source === 'call') {
+        workspace.steps.push({ step: workspace.step, outcome: call.phase === 'failed' ? 'failed' : 'done', at: call.occurredAt })
+        if (workspace.steps.length > AGENT_STEP_HISTORY_LIMIT) workspace.steps.splice(0, workspace.steps.length - AGENT_STEP_HISTORY_LIMIT)
+      }
     }
     this.trim()
   }
@@ -155,7 +171,7 @@ export class AgentPresenceRegistry {
     } else {
       const workspace = record.workspaces.get(workspaceId)
       if (workspace) workspace.lastActivityAt = Math.max(workspace.lastActivityAt, now)
-      else record.workspaces.set(workspaceId, { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map() })
+      else record.workspaces.set(workspaceId, { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map(), steps: [] })
     }
     record.attention = { attentionId, workspaceId, ...(tabId ? { tabId } : {}), requestedAt: now }
     this.trim()
@@ -208,6 +224,7 @@ export class AgentPresenceRegistry {
           colorIndex: record.colorIndex,
           state,
           step: asking ? 'askYou' : this.currentStep(workspace!),
+          recentSteps: workspace ? workspace.steps.slice(-AGENT_RECENT_STEPS_LIMIT).reverse() : [],
           ...(lastTabId ? { lastTabId } : {}),
           ...(attentionTabId ? { attentionTabId } : {}),
           firstSeenAt: workspace?.firstSeenAt ?? asking!.requestedAt

@@ -123,6 +123,34 @@ describe('agent presence registry', () => {
     expect(registry.derive(1_000 + AGENT_PRESENCE_WINDOW_MS + 10, context())[workspace]?.[0]?.state).toBe('idle')
   })
 
+  it('publishes the last three finished calls, newest first, from the calls themselves only', () => {
+    const registry = new AgentPresenceRegistry()
+    const call = (activityId: string, toolName: string, phase: McpTabActivity['phase'], occurredAt: number, source?: 'call' | 'tab') =>
+      registry.track(claude, workspace, { activityId, toolName, phase, occurredAt, ...(source ? { source } : {}) })
+    call('a', 'browser_navigate', 'started', 1_000, 'call')
+    // The tab activity of the same call settles too, but adds no second step.
+    call('a-tab', 'browser_navigate', 'started', 1_000, 'tab')
+    call('a-tab', 'browser_navigate', 'finished', 1_100, 'tab')
+    call('a', 'browser_navigate', 'finished', 1_100, 'call')
+    expect(registry.derive(1_200, context())[workspace]?.[0]?.recentSteps).toEqual([{ step: 'navigate', outcome: 'done', at: 1_100 }])
+    call('b', 'browser_click', 'started', 1_300, 'call')
+    // A running call is the current step, not a finished one.
+    expect(registry.derive(1_350, context())[workspace]?.[0]).toEqual(expect.objectContaining({ step: 'click', recentSteps: [{ step: 'navigate', outcome: 'done', at: 1_100 }] }))
+    call('b', 'browser_click', 'failed', 1_400, 'call')
+    call('c', 'browser_type', 'started', 1_500, 'call')
+    call('c', 'browser_type', 'finished', 1_600, 'call')
+    call('d', 'browser_snapshot', 'started', 1_700, 'call')
+    call('d', 'browser_snapshot', 'finished', 1_800, 'call')
+    expect(registry.derive(1_900, context())[workspace]?.[0]?.recentSteps).toEqual([
+      { step: 'read', outcome: 'done', at: 1_800 },
+      { step: 'type', outcome: 'done', at: 1_600 },
+      { step: 'click', outcome: 'failed', at: 1_400 }
+    ])
+    // Steps belong to the workspace they happened in, and a request for you alone has none.
+    registry.recordAttention(cursor, otherWorkspace, 'attention-1', undefined, 2_000)
+    expect(registry.derive(2_100, context({ currentAttentionId: 'attention-1' }))[otherWorkspace]?.[0]?.recentSteps).toEqual([])
+  })
+
   it('keeps the last tab when a call names none', () => {
     const registry = new AgentPresenceRegistry()
     registry.track(claude, workspace, activity('finished', 1_000, { tabId: 'tab-4' }))
@@ -343,6 +371,8 @@ describe('agent presence over MCP', () => {
     const listed = await cursorClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult
     expect(listed.isError, text(listed)).not.toBe(true)
     expect(server.getAgentPresence()[workspaceId]).toEqual([expect.objectContaining({ name: 'Cursor', state: 'working' })])
+    // The call itself is the one finished step, without its arguments.
+    expect(server.getAgentPresence()[workspaceId]?.[0]?.recentSteps).toEqual([{ step: 'working', outcome: 'done', at: expect.any(Number) }])
 
     const stranger = await connect('Stranger')
     const refused = await stranger.client.callTool({ name: 'browser_tabs', arguments: { workspaceId: '01912345-6789-7abc-8def-0123456789ac' } }) as CallToolResult

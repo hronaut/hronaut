@@ -1212,7 +1212,7 @@ function createBrowserMcpServer(
     if (!onAgentCall || !input || typeof input !== 'object' || Array.isArray(input)) return undefined
     const { workspaceId, tabId } = input as { workspaceId?: unknown; tabId?: unknown }
     if (typeof workspaceId !== 'string' || !activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) return undefined
-    const call = { activityId: randomUUID(), toolName: name, ...(typeof tabId === 'string' ? { tabId } : {}) }
+    const call = { activityId: randomUUID(), toolName: name, source: 'call' as const, ...(typeof tabId === 'string' ? { tabId } : {}) }
     onAgentCall({ ...call, phase: 'started', occurredAt: Date.now() }, workspaceId)
     return (failed) => onAgentCall({ ...call, phase: failed ? 'failed' : 'finished', occurredAt: Date.now() }, workspaceId)
   }

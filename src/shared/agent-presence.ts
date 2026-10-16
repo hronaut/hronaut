@@ -7,6 +7,17 @@ export const AGENT_AVATAR_COLORS = ['blue', 'cyan', 'green', 'pink', 'purple', '
 
 export type AgentPresenceState = 'idle' | 'working' | 'needs-you'
 
+/** Each agent publishes at most this many finished steps, newest first. */
+export const AGENT_RECENT_STEPS_LIMIT = 3
+
+/** A finished call: its general kind, whether it worked, and when it ended. */
+export interface AgentRecentStep {
+  step: AgentStepKind
+  outcome: 'done' | 'failed'
+  /** Epoch milliseconds. */
+  at: number
+}
+
 /**
  * One MCP client seen in a workspace recently. Main derives it from the
  * client's own tool calls and attention requests; it carries no session id,
@@ -24,6 +35,8 @@ export interface AgentPresence {
   state: AgentPresenceState
   /** What its latest call does, in general terms. */
   step: AgentStepKind
+  /** Its last finished calls in this workspace, newest first, at most AGENT_RECENT_STEPS_LIMIT. */
+  recentSteps: AgentRecentStep[]
   /** A tab of this workspace its latest call used, while that tab is still in the workspace. */
   lastTabId?: string
   /** The tab its attention request named, while it needs you. */
