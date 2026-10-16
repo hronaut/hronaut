@@ -13,8 +13,11 @@ interface MotionRecord {
 }
 
 // The page snapshot must not race its deadline on a loaded test machine.
-process.env.HRONAUT_INTEGRATION_TEST_HOOKS = '1'
-process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS = '10000'
+// Set per file, not at import: every file in a worker is imported before any runs, and another file's afterAll would clear it.
+test.beforeAll(() => {
+  process.env.HRONAUT_INTEGRATION_TEST_HOOKS = '1'
+  process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS = '10000'
+})
 test.afterAll(() => {
   delete process.env.HRONAUT_INTEGRATION_TEST_HOOKS
   delete process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS

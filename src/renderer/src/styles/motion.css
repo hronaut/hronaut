@@ -77,8 +77,8 @@
   }
 }
 
-/* A surface closed before its entrance finished leaves at once; see beginSurfaceLeave. */
+/* A surface closed while its entrance still waited for the page snapshot leaves at once; see beginSurfaceLeave. */
 .ui-overlay-leave-instant,
 .ui-overlay-leave-instant > * {
-  animation-name: none !important;
+  animation: none !important;
 }

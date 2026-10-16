@@ -53,23 +53,35 @@ export function inertLeavingSurface(element: Element): void {
   element.setAttribute('aria-hidden', 'true')
 }
 
-function entranceUnfinished(element: Element): boolean {
-  if (typeof element.getAnimations !== 'function') return false
-  return element.getAnimations({ subtree: true }).some((animation) => (
+function unfinishedEntrances(element: Element): Animation[] {
+  if (typeof element.getAnimations !== 'function') return []
+  return element.getAnimations({ subtree: true }).filter((animation) => (
     'animationName' in animation && ENTRANCES.has(String(animation.animationName)) && animation.playState !== 'finished'
   ))
 }
 
 /**
- * Starts a surface's exit. A surface closed before its entrance finished, or
- * while it waited for the page snapshot, leaves at once: its exit would first
- * jump to full opacity.
+ * Starts a surface's exit. A surface closed while its entrance still waited
+ * for the page snapshot never showed, so it leaves at once. One closed during
+ * its entrance fades out from where it got to, instead of first jumping to
+ * full opacity. Returns whether the surface leaves at once.
  */
 export function beginSurfaceLeave(element: Element): boolean {
   inertLeavingSurface(element)
-  if (!entranceUnfinished(element)) return false
-  element.classList.add(LEAVE_INSTANT_CLASS)
-  return true
+  const entrances = unfinishedEntrances(element)
+  if (!entrances.length) return false
+  if (entrances.every((animation) => animation.playState === 'paused')) {
+    element.classList.add(LEAVE_INSTANT_CLASS)
+    return true
+  }
+  // The exit's keyframes start from the underlying style, so pin the entrance's current one.
+  for (const target of [element, ...element.children]) {
+    if (!(target instanceof HTMLElement)) continue
+    const { opacity, transform } = getComputedStyle(target)
+    if (opacity) target.style.opacity = opacity
+    if (transform && transform !== 'none') target.style.transform = transform
+  }
+  return false
 }
 
 /** Transition hooks for overlays that hide the page: the exit keeps the page hidden and takes no input. */

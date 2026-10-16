@@ -87,24 +87,44 @@ describe('overlay motion', () => {
     expect(overlayExitHoldsPage.value).toBe(false)
   })
 
-  it('ends at once the exit of a surface closed before its entrance finished', () => {
+  it('ends at once the exit of a surface that never showed, and fades a half-shown one from where it got to', () => {
     setPageSnapshotOnScreen(true)
+    const style = document.createElement('style')
+    style.textContent = '.entering { opacity: 0.4; transform: scale(0.98); }'
+    document.head.append(style)
     const surface = (playState: AnimationPlayState) => {
       const element = document.createElement('div')
+      element.className = 'entering'
+      element.append(Object.assign(document.createElement('section'), { className: 'entering' }))
       Object.assign(element, { getAnimations: () => [{ animationName: 'ui-surface-in', playState }] })
+      document.body.append(element)
       return element
     }
-    // Paused while it waited for the page snapshot, or still running: its exit would first jump to full opacity.
-    for (const playState of ['paused', 'running'] as const) {
-      const entering = surface(playState)
-      overlayTransitionHooks.onBeforeLeave(entering)
-      expect(entering.classList.contains('ui-overlay-leave-instant'), playState).toBe(true)
-      expect(entering.inert).toBe(true)
+    try {
+      // Paused while it waited for the page snapshot: nothing showed, so nothing fades out.
+      const held = surface('paused')
+      overlayTransitionHooks.onBeforeLeave(held)
+      expect(held.classList.contains('ui-overlay-leave-instant')).toBe(true)
+      expect(held.inert).toBe(true)
       expect(overlayExitHoldsPage.value).toBe(false)
+
+      // Half way in: the exit starts from the entrance's current look instead of full opacity.
+      const entering = surface('running')
+      overlayTransitionHooks.onBeforeLeave(entering)
+      expect(entering.classList.contains('ui-overlay-leave-instant')).toBe(false)
+      for (const element of [entering, entering.firstElementChild as HTMLElement]) {
+        expect(element.style.opacity).toBe('0.4')
+        expect(element.style.transform).toBe('scale(0.98)')
+      }
+      expect(overlayExitHoldsPage.value).toBe(true)
+
+      const shown = surface('finished')
+      expect(beginSurfaceLeave(shown)).toBe(false)
+      expect(shown.style.opacity).toBe('')
+    } finally {
+      style.remove()
+      document.querySelectorAll('.entering').forEach((element) => element.remove())
     }
-    const shown = surface('finished')
-    expect(beginSurfaceLeave(shown)).toBe(false)
-    expect(shown.classList.contains('ui-overlay-leave-instant')).toBe(false)
   })
 
   it('keeps a closed overlay in place, inert, through its exit', async () => {
@@ -157,7 +177,7 @@ describe('overlay motion', () => {
     expect(heldRules.map((match) => match[2] ?? '')).toEqual(['', ' > *'])
     expect(motion).toMatch(/:root\[data-overlay-entrance-held\] \.ui-popover__panel--holds-page:not\(\.ui-surface-leave-active\) \{\n {2}animation-play-state: paused;/u)
     // A surface closed during its entrance leaves without jumping back to full opacity first.
-    expect(motion).toMatch(/\.ui-overlay-leave-instant,\n\.ui-overlay-leave-instant > \* \{\n {2}animation-name: none !important;\n\}\n$/u)
+    expect(motion).toMatch(/\.ui-overlay-leave-instant,\n\.ui-overlay-leave-instant > \* \{\n {2}animation: none !important;\n\}\n$/u)
     for (const [, list] of heldRules) {
       for (const backdrop of ['.settings-overlay', '.tab-group-editor-overlay', '.wallet-approval-overlay']) expect(list).toContain(backdrop)
     }
