@@ -289,6 +289,10 @@ export const plPL = {
       "label": "Pokazuj kursory agentów",
       "description": "Pokazuj kursor każdego agenta z jego nazwą tam, gdzie klika, wskazuje lub przeciąga na stronie."
     },
+    "agentStrip": {
+      "label": "Przypnij stan na żywo pod paskiem narzędzi",
+      "description": "Pokazuje pod paskiem narzędzi, co robi agent w wyświetlanym obszarze, z przyciskami Wstrzymaj i Przejmij, a gdy Cię potrzebuje, także powód. Strony przesuwają się w dół, aby zrobić miejsce."
+    },
     "attentionSound": {
       "label": "Dźwięk uwagi",
       "description": "Wybierz sygnał odtwarzany, gdy Hronaut Cię potrzebuje.",
@@ -1405,6 +1409,7 @@ export const plPL = {
       "stepFailed": "{step}, nie udało się",
       "follow": "Śledź agentów we wszystkich obszarach",
       "cursor": "Pokazuj kursory agentów na stronie",
+      "pin": "Przypnij stan na żywo pod paskiem narzędzi",
       "showTab": "Pokaż jego kartę",
       "pause": "Wstrzymaj na tej karcie",
       "resume": "Wznów na tej karcie",
@@ -1475,6 +1480,18 @@ export const plPL = {
         "navigate": "Otworzył {target}",
         "openTab": "Otworzył {target} w nowej karcie"
       }
+    },
+    "agentStrip": {
+      "label": "Stan agentów w tym obszarze na żywo",
+      "empty": "W tym obszarze nie pracuje żaden agent",
+      "pause": "Wstrzymaj",
+      "resume": "Wznów",
+      "handBack": "Oddaj",
+      "handBackDescription": "Przekaż agentowi, że to, o co prosił, jest gotowe",
+      "answer": "Odpowiedz",
+      "answerDescription": "Otwórz kartę agenta, aby odpowiedzieć na jego decyzję",
+      "decision": "Czeka na Twoją decyzję",
+      "unpin": "Odepnij stan na żywo"
     },
     "siteControls": {
       "close": "Zamknij ustawienia witryny",

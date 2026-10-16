@@ -14,6 +14,7 @@ function model(overrides: Partial<AgentCardModel> = {}): AgentCardModel {
     recent: { heading: 'Recent steps', empty: 'No finished steps yet', steps: [{ text: 'Clicked on the page, failed', failed: true }] },
     follow: { label: 'Follow agents in all workspaces', checked: false },
     cursor: { label: 'Show agent cursors on the page', checked: true },
+    pin: { label: 'Pin live status below the toolbar', checked: false },
     buttons: [{ action: 'pause', label: 'Pause on this tab' }, { action: 'take-over', label: 'Take over' }],
     closeLabel: 'Close',
     ...overrides
@@ -91,6 +92,21 @@ describe('agent card view', () => {
     view.render({ cardId: 2, revision: 2, theme: 'light', model: model({ cursor: { label: 'Show agent cursors on the page', checked: false } }) })
     expect((document.activeElement as HTMLElement).dataset.action).toBe('cursor-on')
     expect(view.control('[data-action="cursor-on"]').getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('pins and unpins the live status from its switch, keeping focus on it', async () => {
+    const view = await loadView()
+    view.render({ cardId: 3, revision: 1, theme: 'light', model: model() })
+    const pin = view.control('[data-action="pin-on"]')
+    expect(pin.getAttribute('role')).toBe('switch')
+    expect(pin.getAttribute('aria-checked')).toBe('false')
+    expect(pin.textContent).toContain('Pin live status below the toolbar')
+    pin.focus()
+    pin.click()
+    expect(view.sent).toEqual([{ cardId: 3, kind: 'action', action: 'pin-on' }])
+    view.render({ cardId: 3, revision: 2, theme: 'light', model: model({ pin: { label: 'Pin live status below the toolbar', checked: true } }) })
+    expect((document.activeElement as HTMLElement).dataset.action).toBe('pin-off')
+    expect(view.control('[data-action="pin-off"]').getAttribute('aria-checked')).toBe('true')
   })
 
   it('shows the answers under the reason and sends each with the key of the request it answers', async () => {
@@ -357,10 +373,10 @@ describe('agent card view: answering a decision', () => {
     expect(document.querySelector('[data-action="answer-resolve"]')).toBeNull()
     expect([...document.querySelectorAll('.agent-card-answers button')].map((button) => button.textContent)).toEqual(['Review and approve', 'Reject…'])
     expect(view.control('.agent-card-field').hidden).toBe(true)
-    view.control('[data-action="cursor-off"]').focus()
+    view.control('[data-action="pin-on"]').focus()
     key('Tab')
     expect(document.activeElement).toBe(view.control('.agent-card-close'))
     key('Tab', true)
-    expect((document.activeElement as HTMLElement).dataset.action).toBe('cursor-off')
+    expect((document.activeElement as HTMLElement).dataset.action).toBe('pin-on')
   })
 })

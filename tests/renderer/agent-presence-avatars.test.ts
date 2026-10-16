@@ -281,13 +281,16 @@ describe('agent avatars in the toolbar', () => {
     const { cardId, model } = card.last()
     expect(model.buttons.map((button) => button.action)).toEqual(['show-tab', 'resume', 'take-over'])
     expect(model.cursor).toEqual({ label: 'Show agent cursors on the page', checked: true })
+    expect(model.pin).toEqual({ label: 'Pin live status below the toolbar', checked: false })
     card.emit({ cardId, kind: 'action', action: 'resume' })
     card.emit({ cardId, kind: 'action', action: 'follow-on' })
     card.emit({ cardId, kind: 'action', action: 'cursor-off' })
+    card.emit({ cardId, kind: 'action', action: 'pin-on' })
     card.emit({ cardId, kind: 'action', action: 'take-over' })
     expect(view.emitted('setPaused')).toEqual([['tab-2', false]])
     expect(view.emitted('setFollow')).toEqual([[true]])
     expect(view.emitted('setShowCursor')).toEqual([[false]])
+    expect(view.emitted('setPinLiveStatus')).toEqual([[true]])
     expect(view.emitted('takeOver')).toEqual([['tab-2']])
     expect(card.api.hide).toHaveBeenCalledWith(cardId)
 
@@ -463,6 +466,41 @@ describe('agent avatars in the toolbar', () => {
       change({ revision: 3, workspaces: {} })
       await nextTick()
       expect(avatars.openCard()).toBe(false)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
+  it('shows an open card again as a new card when asked to reopen, so a late close from the press does not win', async () => {
+    const card = fakeCardApi()
+    const { api } = fakeApi(Promise.resolve({ revision: 1, workspaces: { 'workspace-a': [agent('Windsurf', { state: 'needs-you' })] } }))
+    const wrapper = mount(AgentPresenceAvatars, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { workspaceId: 'workspace-a', activeTabId: 'tab-1', tabs: TABS, api, cardApi: card.api }
+    })
+    await flushPromises()
+    const avatars = wrapper.vm as unknown as { openCard: (options?: { reopen?: boolean }) => boolean; focus: () => boolean }
+    try {
+      expect(avatars.openCard()).toBe(true)
+      await nextTick()
+      const first = card.last().cardId
+      // The shortcut leaves an open card as it is.
+      expect(avatars.openCard()).toBe(true)
+      await nextTick()
+      expect(card.api.hide).not.toHaveBeenCalled()
+      expect(avatars.openCard({ reopen: true })).toBe(true)
+      await nextTick()
+      expect(card.api.hide).toHaveBeenCalledWith(first)
+      const second = card.last().cardId
+      expect(second).not.toBe(first)
+      // The close of the first card, from the press that took its focus, arrives late and changes nothing.
+      card.emit({ cardId: first, kind: 'closed', reason: 'blur' })
+      card.emit({ cardId: second, kind: 'action', action: 'pin-on' })
+      expect(wrapper.emitted('setPinLiveStatus')).toEqual([[true]])
+
+      expect(avatars.focus()).toBe(true)
+      expect(document.activeElement).toBe(wrapper.find('.agent-avatar').element)
     } finally {
       wrapper.unmount()
     }

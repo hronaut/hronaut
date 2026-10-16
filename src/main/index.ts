@@ -3453,6 +3453,7 @@ function registerIpc(): void {
       attentionSound: DEFAULT_SETTINGS.attentionSound,
       attentionSoundCue: DEFAULT_SETTINGS.attentionSoundCue,
       showAgentCursor: DEFAULT_SETTINGS.showAgentCursor,
+      pinAgentLiveStatus: DEFAULT_SETTINGS.pinAgentLiveStatus,
       languagePreference: DEFAULT_SETTINGS.languagePreference
     }, app.isPackaged
       ? (next) => startupLaunchManager!.setEnabled(next.launchAtStartup)
@@ -3605,6 +3606,13 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Show agent cursor must be a boolean')
     await updateSettings({ showAgentCursor: enabled })
+    publishSettings()
+    return { ...settings }
+  })
+  ipcMain.handle('settings:set-pin-agent-live-status', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Pin agent live status must be a boolean')
+    await updateSettings({ pinAgentLiveStatus: enabled })
     publishSettings()
     return { ...settings }
   })

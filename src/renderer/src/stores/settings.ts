@@ -29,6 +29,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   challengeDetectionEnabled: false,
   followAgentActivity: false,
   showAgentCursor: true,
+  pinAgentLiveStatus: false,
   mcpRemoteAccess: false,
   mcpAuthentication: false,
   mcpPort: 47_812,
@@ -172,6 +173,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setAttentionSoundCue = (cue: AttentionSoundCue): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSoundCue(cue))
   const setFollowAgentActivity = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setFollowAgentActivity(enabled))
   const setShowAgentCursor = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setShowAgentCursor(enabled))
+  const setPinAgentLiveStatus = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setPinAgentLiveStatus(enabled))
   const setChallengeDetectionEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setChallengeDetectionEnabled(enabled))
   const setMcpRemoteAccess = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpRemoteAccess(enabled))
   const setMcpAuthentication = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpAuthentication(enabled))
@@ -232,6 +234,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setAttentionSoundCue,
     setFollowAgentActivity,
     setShowAgentCursor,
+    setPinAgentLiveStatus,
     setChallengeDetectionEnabled,
     setMcpRemoteAccess,
     setMcpAuthentication,

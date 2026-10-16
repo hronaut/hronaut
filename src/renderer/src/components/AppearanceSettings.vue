@@ -151,6 +151,11 @@ async function setShowAgentCursor(event: Event): Promise<void> {
   if (!(await runSetting(store.setShowAgentCursor(input.checked)))) input.checked = settings.value.showAgentCursor
 }
 
+async function setPinAgentLiveStatus(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await runSetting(store.setPinAgentLiveStatus(input.checked)))) input.checked = settings.value.pinAgentLiveStatus
+}
+
 async function setAttentionSoundCue(event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   if (!(await runSetting(store.setAttentionSoundCue(input.value as AttentionSoundCue)))) {
@@ -338,6 +343,13 @@ async function setLanguagePreference(event: Event): Promise<void> {
           <small>{{ t('appearance.agentCursor.description') }}</small>
         </span>
         <input id="setting-agent-cursor" type="checkbox" :checked="settings.showAgentCursor" @change="setShowAgentCursor" />
+      </label>
+      <label class="settings-row" for="setting-agent-strip">
+        <span>
+          <strong>{{ t('appearance.agentStrip.label') }}</strong>
+          <small>{{ t('appearance.agentStrip.description') }}</small>
+        </span>
+        <input id="setting-agent-strip" type="checkbox" :checked="settings.pinAgentLiveStatus" @change="setPinAgentLiveStatus" />
       </label>
     </div>
   </div>

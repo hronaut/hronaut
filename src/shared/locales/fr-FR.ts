@@ -289,6 +289,10 @@ export const frFR = {
       "label": "Afficher les curseurs des agents",
       "description": "Afficher le curseur de chaque agent, avec son nom, là où il clique, pointe ou fait glisser sur une page."
     },
+    "agentStrip": {
+      "label": "Épingler l’état en direct sous la barre d’outils",
+      "description": "Affiche dans une bande sous la barre d’outils ce que fait l’agent de l’espace affiché, avec Pause, Prendre la main et, quand il a besoin de vous, sa raison. Les pages descendent pour lui faire de la place."
+    },
     "attentionSound": {
       "label": "Son d’attention",
       "description": "Choisissez le signal émis lorsque Hronaut a besoin de vous.",
@@ -1405,6 +1409,7 @@ export const frFR = {
       "stepFailed": "{step}, échec",
       "follow": "Suivre les agents dans tous les espaces",
       "cursor": "Afficher les curseurs des agents sur la page",
+      "pin": "Épingler l’état en direct sous la barre d’outils",
       "showTab": "Afficher son onglet",
       "pause": "Mettre en pause sur cet onglet",
       "resume": "Reprendre sur cet onglet",
@@ -1475,6 +1480,18 @@ export const frFR = {
         "navigate": "A ouvert {target}",
         "openTab": "A ouvert {target} dans un nouvel onglet"
       }
+    },
+    "agentStrip": {
+      "label": "État en direct des agents de cet espace",
+      "empty": "Aucun agent ne travaille dans cet espace",
+      "pause": "Pause",
+      "resume": "Reprendre",
+      "handBack": "Rendre la main",
+      "handBackDescription": "Dire à l’agent que vous avez fait ce qu’il demandait",
+      "answer": "Répondre",
+      "answerDescription": "Ouvrir la carte de l’agent pour répondre à sa décision",
+      "decision": "Attend votre décision",
+      "unpin": "Détacher l’état en direct"
     },
     "siteControls": {
       "close": "Fermer les contrôles du site",

@@ -404,6 +404,7 @@ const settingsApi: HronautSettingsApi = {
   setAttentionSoundCue: (cue: AttentionSoundCue) => ipcRenderer.invoke('settings:set-attention-sound-cue', cue),
   setFollowAgentActivity: (enabled: boolean) => ipcRenderer.invoke('settings:set-follow-agent-activity', enabled),
   setShowAgentCursor: (enabled: boolean) => ipcRenderer.invoke('settings:set-show-agent-cursor', enabled),
+  setPinAgentLiveStatus: (enabled: boolean) => ipcRenderer.invoke('settings:set-pin-agent-live-status', enabled),
   setChallengeDetectionEnabled: (enabled) => ipcRenderer.invoke('settings:set-challenge-detection', enabled),
   setMcpRemoteAccess: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-remote-access', enabled),
   setMcpAuthentication: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-authentication', enabled),

@@ -1,8 +1,10 @@
-import { shallowRef, type ShallowRef } from 'vue'
+import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 import { EMPTY_AGENT_PRESENCE, type AgentPresenceSnapshot, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 
 export interface AgentPresenceSubscription {
   snapshot: Readonly<ShallowRef<AgentPresenceSnapshot>>
+  /** Main's presence has arrived at least once; until then the snapshot is only the empty start. */
+  loaded: Readonly<Ref<boolean>>
   dispose: () => void
 }
 
@@ -12,14 +14,18 @@ export interface AgentPresenceSubscription {
  */
 export function useAgentPresence(api: HronautAgentPresenceApi = window.hronautAgentPresence): AgentPresenceSubscription {
   const snapshot = shallowRef<AgentPresenceSnapshot>(EMPTY_AGENT_PRESENCE)
+  const loaded = ref(false)
   let disposed = false
   const accept = (next: AgentPresenceSnapshot): void => {
-    if (!disposed && next.revision >= snapshot.value.revision) snapshot.value = next
+    if (disposed) return
+    if (next.revision >= snapshot.value.revision) snapshot.value = next
+    loaded.value = true
   }
   const unsubscribe = api.onChanged(accept)
   void api.get().then(accept, () => undefined)
   return {
     snapshot,
+    loaded,
     dispose: () => {
       if (disposed) return
       disposed = true

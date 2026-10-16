@@ -38,6 +38,8 @@ const props = withDefaults(defineProps<{
   follow?: boolean
   /** Agents' cursors are drawn on the page; on unless the shell says otherwise. */
   showCursor?: boolean
+  /** The live status strip is pinned below the toolbar. */
+  pinLiveStatus?: boolean
   agentControlLocked?: boolean
   api?: HronautAgentPresenceApi
   cardApi?: HronautAgentCardApi
@@ -52,6 +54,8 @@ const emit = defineEmits<{
   setFollow: [follow: boolean]
   /** Draw agents' cursors on the page, or stop. */
   setShowCursor: [show: boolean]
+  /** Pin the live status strip below the toolbar, or unpin it. */
+  setPinLiveStatus: [pin: boolean]
   /** Answer the open request for you: done and handed back, or dismissed. */
   answerAttention: [id: string, answer: 'resolved' | 'dismissed']
   /** Open the workspace where its waiting decisions are reviewed. */
@@ -179,6 +183,7 @@ const card = useAgentCard({
       ...(props.attentionDecision && decisionAnswers.state.value ? { decision: decisionAnswers.state.value } : {}),
       follow: props.follow === true,
       showCursor: props.showCursor,
+      pinLiveStatus: props.pinLiveStatus === true,
       ...(tab ? { tab } : {}),
       tabInView: tab?.id === props.activeTabId,
       agentControlLocked: props.agentControlLocked === true,
@@ -241,6 +246,10 @@ function run(clientKey: string, action: AgentCardAction, key?: string, note?: st
     emit('setShowCursor', action === 'cursor-on')
     return
   }
+  if (action === 'pin-on' || action === 'pin-off') {
+    emit('setPinLiveStatus', action === 'pin-on')
+    return
+  }
   if (action === 'hand-back' || action === 'dismiss' || action === 'review-decision') {
     // An answer applies only to the request the card showed, while this agent still asks it.
     if (!key || key !== props.attentionId || agent?.state !== 'needs-you' || gone(agent)) return
@@ -281,18 +290,32 @@ function toggle(agent: AgentPresence): void {
   card.open(agent.clientKey)
 }
 
-/** Opens the card of the agent that needs you, or else the first agent's; for the keyboard shortcut. */
-function openCard(): boolean {
+/**
+ * Opens the card of the agent that needs you, or else the first agent's; for the keyboard shortcut.
+ * With `reopen`, as from a button in the shell, an open card is shown again as a new card: pressing
+ * the button takes focus from the card, which main closes, and that late close must not win.
+ */
+function openCard(options: { reopen?: boolean } = {}): boolean {
   const agent = shown.value.find((candidate) => candidate.state === 'needs-you') ?? shown.value[0]
   if (!agent) return false
-  if (card.openKey.value === agent.clientKey) return true
+  if (card.openKey.value === agent.clientKey) {
+    if (!options.reopen) return true
+    card.close()
+  }
   cardTabId = target(agent)
   remember(agent)
   card.open(agent.clientKey)
   return true
 }
 
-defineExpose({ openCard })
+/** Gives keyboard focus to the first avatar; false when there is none. */
+function focus(): boolean {
+  const avatar = root.value?.querySelector<HTMLElement>('.agent-avatar')
+  avatar?.focus({ preventScroll: true })
+  return Boolean(avatar)
+}
+
+defineExpose({ openCard, focus })
 </script>
 
 <template>

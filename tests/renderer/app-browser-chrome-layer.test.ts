@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppBrowserChromeLayer from '../../src/renderer/src/components/AppBrowserChromeLayer.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
@@ -145,9 +145,31 @@ const AgentPresenceAvatarsStub = defineComponent({
     attentionId: String,
     attentionDecision: Boolean
   },
-  emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision'],
-  setup() {
+  emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision', 'setPinLiveStatus'],
+  setup(_props, { expose }) {
+    expose({ openCard: openAgentCardSpy, focus: focusAgentAvatarSpy })
     return () => h('div', { 'data-testid': 'agent-presence' })
+  }
+})
+
+const openAgentCardSpy = vi.fn((_options?: { reopen?: boolean }) => true)
+const focusAgentAvatarSpy = vi.fn(() => true)
+
+const AgentLiveStripStub = defineComponent({
+  name: 'AgentLiveStrip',
+  props: {
+    workspaceId: String,
+    attentionReason: String,
+    attentionId: String,
+    attentionDecision: Boolean,
+    attentionWorkspaceId: String,
+    attentionTabId: String,
+    tabs: Array,
+    agentControlLocked: Boolean
+  },
+  emits: ['setPaused', 'takeOver', 'handBack', 'openCard', 'unpin'],
+  setup() {
+    return () => h('button', { 'data-testid': 'agent-live-strip', type: 'button' })
   }
 })
 
@@ -290,6 +312,9 @@ function createHarness(home = false) {
     toggleAllHumanInteraction: vi.fn()
   }
   const settingsActions = { toggle: vi.fn(), toggleFollowAgentActivity: vi.fn() }
+  const settings = ref({ followAgentActivity: false, pinAgentLiveStatus: false })
+  const setPinAgentLiveStatus = vi.fn(async (pin: boolean) => { settings.value = { ...settings.value, pinAgentLiveStatus: pin } })
+  const settingsOpen = ref(false)
   const addressActions = {
     resetActiveTabEmulation: vi.fn(),
     openRequestConditions: vi.fn(),
@@ -330,8 +355,9 @@ function createHarness(home = false) {
       describeTabEmulation: vi.fn()
     } as never,
     settingsController: {
-      settings: ref({ followAgentActivity: false }),
-      settingsDialogController: { open: ref(false), tabOpen: ref(false), close: vi.fn(), closeTab: vi.fn(), ...settingsActions },
+      settings,
+      setPinAgentLiveStatus,
+      settingsDialogController: { open: settingsOpen, tabOpen: ref(false), close: vi.fn(), closeTab: vi.fn(), ...settingsActions },
       updateSettingsController: { state: ref({ status: 'idle', currentVersion: '1.9.9' }) },
       mcpStatusController: {},
       sitePermissionsController: {
@@ -387,6 +413,7 @@ function createHarness(home = false) {
         AppTopbarActions: AppTopbarActionsStub,
         BrowserAddressBar: BrowserAddressBarStub,
         AgentPresenceAvatars: AgentPresenceAvatarsStub,
+        AgentLiveStrip: AgentLiveStripStub,
         BrowserNavigationControls: BrowserNavigationControlsStub,
         BrowserPageActions: BrowserPageActionsStub,
         ShellTitleBarSurface: ShellTitleBarSurfaceStub
@@ -415,11 +442,19 @@ function createHarness(home = false) {
     siteActions,
     tabActions,
     settingsActions,
-    addressActions
+    addressActions,
+    settings,
+    setPinAgentLiveStatus,
+    settingsOpen
   }
 }
 
 describe('AppBrowserChromeLayer', () => {
+  beforeEach(() => {
+    openAgentCardSpy.mockClear()
+    focusAgentAvatarSpy.mockClear()
+  })
+
   it('takes over a tab after pausing it, unless you chose something else meanwhile', async () => {
     const harness = createHarness()
     const avatars = harness.wrapper.getComponent(AgentPresenceAvatarsStub)
@@ -462,6 +497,73 @@ describe('AppBrowserChromeLayer', () => {
     await flushPromises()
     expect(harness.tabActions.selectBrowserTab).not.toHaveBeenCalled()
     expect(harness.wrapper.props('tabSearchOpen')).toBe(true)
+  })
+
+  it('pins the live strip for the workspace in view and routes its actions like the agent card', async () => {
+    const harness = createHarness()
+    expect(harness.wrapper.findComponent(AgentLiveStripStub).exists()).toBe(false)
+    // The card's switch pins it.
+    harness.wrapper.getComponent(AgentPresenceAvatarsStub).vm.$emit('setPinLiveStatus', true)
+    await flushPromises()
+    expect(harness.setPinAgentLiveStatus).toHaveBeenCalledWith(true)
+    await harness.wrapper.setProps({ userAttention: { id: 'attention-1', reason: 'Log in.', requestedAt: '2026-10-16T00:00:00.000Z', workspaceId: 'workspace-1', tabId: 'tab-1' } })
+    const strip = harness.wrapper.getComponent(AgentLiveStripStub)
+    expect(strip.props()).toMatchObject({
+      workspaceId: 'workspace-1', attentionReason: 'Log in.', attentionId: 'attention-1', attentionDecision: false,
+      attentionWorkspaceId: 'workspace-1', attentionTabId: 'tab-1', agentControlLocked: false
+    })
+    expect(strip.props('tabs')).toEqual(harness.props.state.tabs)
+
+    strip.vm.$emit('handBack', 'attention-1')
+    strip.vm.$emit('setPaused', 'tab-1', true)
+    strip.vm.$emit('openCard')
+    await flushPromises()
+    expect(harness.browser.answerUserAttention).toHaveBeenCalledWith('attention-1', 'resolved')
+    expect(harness.tabActions.setTabAgentPaused).toHaveBeenCalledWith('tab-1', true)
+    // Pressing Answer takes focus from an open card, so the card is shown again as a new one.
+    expect(openAgentCardSpy.mock.calls).toEqual([[{ reopen: true }]])
+    strip.vm.$emit('takeOver', 'tab-1')
+    await flushPromises()
+    expect(harness.tabActions.selectBrowserTab).toHaveBeenCalledWith('tab-1')
+
+    // Not on Home, under Settings or on a page outside a workspace.
+    harness.activeIsHome.value = true
+    await nextTick()
+    expect(harness.wrapper.findComponent(AgentLiveStripStub).exists()).toBe(false)
+    harness.activeIsHome.value = false
+    harness.settingsOpen.value = true
+    await nextTick()
+    expect(harness.wrapper.findComponent(AgentLiveStripStub).exists()).toBe(false)
+    harness.settingsOpen.value = false
+    harness.runtimeActiveTab.value = tab({ id: 'tab-2' })
+    await nextTick()
+    expect(harness.wrapper.findComponent(AgentLiveStripStub).exists()).toBe(false)
+    harness.runtimeActiveTab.value = tab({ mcpGroupId: 'workspace-1' })
+    await nextTick()
+
+    // Its chevron unpins it; focus, left on nothing once the strip is gone, goes to the agent's avatar.
+    harness.wrapper.getComponent(AgentLiveStripStub).vm.$emit('unpin')
+    await flushPromises()
+    expect(harness.setPinAgentLiveStatus).toHaveBeenLastCalledWith(false)
+    expect(harness.wrapper.findComponent(AgentLiveStripStub).exists()).toBe(false)
+    expect(focusAgentAvatarSpy).toHaveBeenCalledOnce()
+
+    // Focus you moved elsewhere meanwhile stays there.
+    harness.settings.value = { ...harness.settings.value, pinAgentLiveStatus: true }
+    await nextTick()
+    const elsewhere = document.body.appendChild(document.createElement('input'))
+    let finish!: () => void
+    harness.setPinAgentLiveStatus.mockImplementationOnce(async (pin: boolean) => {
+      await new Promise<void>((resolve) => { finish = resolve })
+      harness.settings.value = { ...harness.settings.value, pinAgentLiveStatus: pin }
+    })
+    harness.wrapper.getComponent(AgentLiveStripStub).vm.$emit('unpin')
+    elsewhere.focus()
+    finish()
+    await flushPromises()
+    expect(document.activeElement).toBe(elsewhere)
+    expect(focusAgentAvatarSpy).toHaveBeenCalledOnce()
+    elsewhere.remove()
   })
 
   it('exposes the expanded vertical rail separator and forwards resize gestures', async () => {

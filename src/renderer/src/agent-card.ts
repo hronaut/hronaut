@@ -30,7 +30,8 @@ const DONE = 'M5 12.5l4.5 4.5L19 7.5'
 const FAILED = 'M7 7l10 10M17 7L7 17'
 const CLOSE = 'M6 6l12 12M18 6L6 18'
 const TOGGLED: Record<string, string> = {
-  pause: 'resume', resume: 'pause', 'follow-on': 'follow-off', 'follow-off': 'follow-on', 'cursor-on': 'cursor-off', 'cursor-off': 'cursor-on'
+  pause: 'resume', resume: 'pause', 'follow-on': 'follow-off', 'follow-off': 'follow-on', 'cursor-on': 'cursor-off', 'cursor-off': 'cursor-on',
+  'pin-on': 'pin-off', 'pin-off': 'pin-on'
 }
 
 const root = document.querySelector<HTMLElement>('#agent-card-root')
@@ -323,7 +324,8 @@ function build(cardId: number, model: AgentCardModel, measureAgain: () => void):
 
   card.append(
     toggle(cardId, model.follow, model.follow.checked ? 'follow-off' : 'follow-on'),
-    toggle(cardId, model.cursor, model.cursor.checked ? 'cursor-off' : 'cursor-on')
+    toggle(cardId, model.cursor, model.cursor.checked ? 'cursor-off' : 'cursor-on'),
+    toggle(cardId, model.pin, model.pin.checked ? 'pin-off' : 'pin-on')
   )
 
   if (model.buttons.length) card.append(actions(cardId, 'agent-card-actions', model.buttons))

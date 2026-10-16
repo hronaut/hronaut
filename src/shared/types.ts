@@ -640,6 +640,8 @@ export interface AppSettings {
   followAgentActivity: boolean
   /** Draw each agent's named cursor on the page where it clicks, points or drags. */
   showAgentCursor: boolean
+  /** Keep the live status of the workspace's agent in a strip below the toolbar. */
+  pinAgentLiveStatus: boolean
   mcpRemoteAccess: boolean
   mcpAuthentication: boolean
   mcpPort: number
@@ -2949,6 +2951,7 @@ export interface HronautSettingsApi {
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setShowAgentCursor(enabled: boolean): Promise<AppSettings>
+  setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
