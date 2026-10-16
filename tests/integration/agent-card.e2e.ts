@@ -216,6 +216,9 @@ test('keeps needs you after a click until the agent that asked acts again', asyn
     const group = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true })
     const asking = group.getByRole('button', { name: 'Claude Code, needs you', exact: true })
     await expect(asking).toBeVisible()
+    // The handoff edge light rings the page that needs you, drawn by the shell around the page card.
+    const lit = appWindow.locator('[data-testid="page-card"].needs-you')
+    await expect(lit).toHaveCount(1)
     const navigate = async (title: string) => succeeded(await client.callTool({ name: 'browser_navigate', arguments: { tabId, url: `data:text/html,<title>${title}</title>` } }) as CallToolResult)
 
     // Before you respond, even an action of the agent leaves its request open.
@@ -226,9 +229,11 @@ test('keeps needs you after a click until the agent that asked acts again', asyn
     await expect.poll(async () => parsed(await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult).userAttention).toBeNull()
     succeeded(await client.callTool({ name: 'browser_tabs', arguments: {} }) as CallToolResult)
     await expect(asking).toBeVisible()
+    await expect(lit).toHaveCount(1)
     // Acting again on the page means the agent moved on: needs you ends, while a waiting call still sees it pending.
     await navigate('Carried on')
     await expect(group.getByRole('button', { name: /^Claude Code, (working|idle)$/ })).toBeVisible()
+    await expect(lit).toHaveCount(0)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
     expect(parsed(await client.callTool({ name: 'browser_user_attention', arguments: { workspaceId: workspace.workspaceId, requestId: request.id, action: 'status' } }) as CallToolResult).state).toBe('acknowledged')
 

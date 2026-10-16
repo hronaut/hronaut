@@ -239,7 +239,7 @@ import {
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
-import { PAGE_CARD_RADIUS } from '../../shared/page-card.js'
+import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -1294,7 +1294,7 @@ export class BrowserTabsManager {
   private readonly pageCornerRadii = new WeakMap<WebContentsView, number>()
   private browserContentOccluded = false
   private occludedEmulationFrames: EmulationFrameGeometry[] = []
-  private occludedPageCards: Rectangle[] = []
+  private occludedPageCards: PageCardGeometry[] = []
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
   private focusAfterTrustedChrome: { tab: BrowserTab; cancel: () => void } | undefined
   private followAgentActivitySuspended = false
@@ -9014,7 +9014,7 @@ export class BrowserTabsManager {
    * each page's card under it. An emulated page's card is its whole space,
    * which its frame fills.
    */
-  getPageCards(): Rectangle[] {
+  getPageCards(): PageCardGeometry[] {
     if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
       || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
     if (this.browserContentOccluded) return this.occlusionSnapshot.active ? this.occludedPageCards : []
@@ -9025,9 +9025,11 @@ export class BrowserTabsManager {
     const split = this.splitView && first && second
       ? splitViewBounds(area, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * scale))
       : undefined
-    const panes = split ? [split.first, split.second] : [area]
-    return panes.filter((pane) => pane.width > 0 && pane.height > 0).map((pane) => ({
-      x: pane.x / scale, y: pane.y / scale, width: pane.width / scale, height: pane.height / scale
+    const panes = split && first && second
+      ? [{ tabId: first.id, space: split.first }, { tabId: second.id, space: split.second }]
+      : [{ tabId: this.activeTabId, space: area }]
+    return panes.filter(({ space }) => space.width > 0 && space.height > 0).map(({ tabId, space }) => ({
+      x: space.x / scale, y: space.y / scale, width: space.width / scale, height: space.height / scale, tabId
     }))
   }
 

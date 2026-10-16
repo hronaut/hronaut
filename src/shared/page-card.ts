@@ -42,8 +42,10 @@ export function pageCardInsets(options: PageCardInsetOptions): PageCardInsets {
   }
 }
 
-/** Where a page in view sits, in shell CSS pixels. */
-export type PageCardGeometry = Rectangle
+/** Where a page in view sits, in shell CSS pixels, and which tab it shows. */
+export interface PageCardGeometry extends Rectangle {
+  tabId: string
+}
 
 /** The page cards, one per pane, which the main process publishes as it places the pages. */
 export interface HronautPageCardApi {

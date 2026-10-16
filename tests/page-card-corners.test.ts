@@ -56,11 +56,13 @@ it('rounds both pages of a split view and repeats no native call while the radiu
 it('places a card under each pane in shell pixels, keeps it under a dialog only while the page picture shows, and drops it without a page', () => {
   const single = fixture(1.25)
   // 1440 x 900 window pixels at 1.25: the space below a 60 px toolbar, inside the rail and the gutters.
-  expect(single.manager.getPageCards()).toEqual([{ x: 224, y: 48, width: 920, height: 664 }])
+  expect(single.manager.getPageCards()).toEqual([{ x: 224, y: 48, width: 920, height: 664, tabId: 'first' }])
 
   const split = fixture(1, true).manager
   const [left, right] = split.getPageCards()
-  expect(left).toMatchObject({ x: 280, y: 60, height: 830 })
+  // Each card names the tab whose page it holds, so the shell can light the one that needs you.
+  expect(left).toMatchObject({ x: 280, y: 60, height: 830, tabId: 'first' })
+  expect(right).toMatchObject({ tabId: 'second' })
   expect(right!.x - (left!.x + left!.width)).toBe(12)
   expect(right!.x + right!.width).toBe(1430)
 

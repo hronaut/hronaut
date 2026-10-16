@@ -789,7 +789,7 @@ useAppLifecycleController({
 </script>
 
 <template>
-  <PageCard v-if="!isDetachedPanelWindow" />
+  <PageCard v-if="!isDetachedPanelWindow" :user-attention="userAttention" :tabs="state.tabs" />
   <SplitViewDivider v-if="!isDetachedPanelWindow" />
   <EmulationFrame
     v-if="!isDetachedPanelWindow"
