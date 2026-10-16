@@ -708,9 +708,10 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   emulationContextGeneration: number
   emulationExtraHttpHeaders: Record<string, string>
   /**
-   * The emulated viewport size the page's view is sized for, while Hronaut
-   * knows the page has it. Without one the view fills its space, since the
-   * page's real viewport is then the view itself.
+   * The emulated viewport size the page's view is sized for. It is set just
+   * before the override that gives the page that viewport, and cleared when
+   * Hronaut no longer knows the page has it. Without one the view fills its
+   * space, since the page's real viewport is then the view itself.
    */
   emulationViewSize?: { width: number; height: number }
   mcpGroupId?: string
@@ -6691,9 +6692,13 @@ export class BrowserTabsManager {
       const previousViewSize = tab.emulationViewSize
       try {
         this.changed(false)
-        // Removing the override hands the page the view's own size, so the
-        // view fills its space first, while the override still pins the page.
-        if (!next.viewport) this.setEmulationViewSize(tab, undefined)
+        // The view takes its new size before the override changes. Chromium
+        // sizes captures of an emulated page by the view it had when the
+        // override arrived, so a view resized afterwards would cut a viewport
+        // larger than the window down to the window. Removing the override
+        // hands the page the view's own size, so the view also fills its
+        // space first, while the override still pins the page.
+        this.setEmulationViewSize(tab, next.viewport)
         await this.applyEmulationState(tab, next, nextHeaders, async (method, params) => {
           admission()
           networkContext()
