@@ -28,7 +28,7 @@ import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
-import type { BrowserState, BrowserTabGroupColor, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
+import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
 import { vTooltip } from '../ui/tooltip.js'
@@ -255,6 +255,26 @@ function tabGroupTabCount(groupId: string): number {
 
 function tabGroupContainsActiveTab(groupId: string): boolean {
   return tabGroupTabs(groupId).some((tab) => tab.active)
+}
+
+// A request names its tab when it has one; that tab's workspace is the one
+// waiting, even when the person has folded it or moved to another workspace.
+function workspaceNeedsYou(groupId: string): boolean {
+  const request = props.userAttention
+  if (!request) return false
+  if (request.tabId) return props.state.tabs.some((tab) => tab.id === request.tabId && tab.mcpGroupId === groupId)
+  return request.workspaceId === groupId
+}
+
+function tabGroupLabelName(workspace: BrowserTabGroupState): string {
+  const count = tabGroupTabCount(workspace.id)
+  const name = t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expandAria' : 'runtime.tabs.collapseAria', { name: workspace.name, count: props.formatNumber(count) }, count)
+  return workspaceNeedsYou(workspace.id) ? `${name}, ${t('shell.tabs.needsYou')}` : name
+}
+
+function tabGroupLabelDescription(workspace: BrowserTabGroupState): string | undefined {
+  const reason = workspaceNeedsYou(workspace.id) && props.userAttention ? `${t('shell.tabs.agentAttention')}: ${props.userAttention.reason}` : ''
+  return [reason, workspace.description].filter(Boolean).join('\n\n') || undefined
 }
 
 function isTabGroupCollapsed(groupId: string): boolean {
@@ -576,7 +596,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       v-for="workspace in sidebarWorkspaces"
       :key="workspace.id"
       class="workspace-tab-section"
-      :class="{ collapsed: isTabGroupCollapsed(workspace.id), empty: tabGroupTabCount(workspace.id) === 0 }"
+      :class="{ collapsed: isTabGroupCollapsed(workspace.id), empty: tabGroupTabCount(workspace.id) === 0, 'needs-you': workspaceNeedsYou(workspace.id) }"
       :style="tabGroupColorStyle(workspace.color)"
       role="group"
       :aria-label="workspace.name"
@@ -585,9 +605,9 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         class="tab-group-label"
         :class="{ active: tabGroupContainsActiveTab(workspace.id) }"
         :style="tabGroupColorStyle(workspace.color)"
-        v-tooltip="[t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expand' : 'runtime.tabs.collapse', { name: workspace.name, id: workspace.id }), workspace.description].filter(Boolean).join('\n\n')"
-        :aria-label="t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expandAria' : 'runtime.tabs.collapseAria', { name: workspace.name, count: formatNumber(tabGroupTabCount(workspace.id)) }, tabGroupTabCount(workspace.id))"
-        :aria-description="workspace.description || undefined"
+        v-tooltip="[t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expand' : 'runtime.tabs.collapse', { name: workspace.name, id: workspace.id }), tabGroupLabelDescription(workspace)].filter(Boolean).join('\n\n')"
+        :aria-label="tabGroupLabelName(workspace)"
+        :aria-description="tabGroupLabelDescription(workspace)"
         :aria-expanded="!isTabGroupCollapsed(workspace.id)"
         type="button"
         @click="toggleTabGroup(workspace.id)"
@@ -596,7 +616,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         <IconKeyboardArrowRight v-if="isTabGroupCollapsed(workspace.id)" aria-hidden="true" />
         <IconKeyboardArrowDown v-else aria-hidden="true" />
         <!-- The space keeps the visible name and count apart for label-in-name checks; inline-flex does not render it. -->
-        <span>{{ workspace.name }}</span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
+        <span>{{ workspace.name }}</span> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
       <div
         class="workspace-tab-list"

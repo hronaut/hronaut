@@ -167,6 +167,54 @@ describe('BrowserTabsBar', () => {
     expect(first).not.toHaveAttribute('aria-description')
   })
 
+  it.each(['horizontal', 'vertical'] as const)('shows which workspace needs you in the %s rail while it is folded or inactive', async orientation => {
+    const waiting = { ...workspace('workspace-2'), name: 'Checkout QA', description: 'Staging checkout' }
+    const view = renderTabs(browserState({
+      tabs: [
+        tab('first', { active: true }),
+        tab('review', { mcpGroupId: waiting.id, mcpGroupName: waiting.name })
+      ],
+      activeTabId: 'first',
+      mcpTabGroups: [workspace(), waiting]
+    }), true, orientation)
+    const waitingHeader = screen.getByRole('button', { name: 'Collapse workspace Checkout QA, 1 tab' })
+    await userEvent.click(waitingHeader)
+    const folded = screen.getByRole('button', { name: 'Expand workspace Checkout QA, 1 tab' })
+    expect(screen.queryByRole('tab', { name: 'Page review' })).toBeNull()
+
+    await view.rerender({ userAttention: { id: 'attention-1', reason: 'Approve the refund.', requestedAt: '2026-10-16T07:00:00.000Z', workspaceId: waiting.id, tabId: 'review' } })
+    expect(folded).toHaveAccessibleName('Expand workspace Checkout QA, 1 tab, Needs you')
+    expect(folded).toHaveAccessibleDescription('Agent needs your attention: Approve the refund.\n\nStaging checkout')
+    expect(folded).toHaveTextContent('Checkout QA Needs you 1')
+    expect(folded.closest('.workspace-tab-section')).toHaveClass('needs-you')
+    const research = screen.getByRole('button', { name: 'Collapse workspace Research, 1 tab' })
+    expect(research.closest('.workspace-tab-section')).not.toHaveClass('needs-you')
+    expect(research.querySelector('.tab-group-needs-you')).toBeNull()
+
+    await view.rerender({ userAttention: { id: 'attention-2', reason: 'Pick a plan.', requestedAt: '2026-10-16T07:01:00.000Z', workspaceId: 'workspace-1' } })
+    expect(folded.closest('.workspace-tab-section')).not.toHaveClass('needs-you')
+    expect(research).toHaveAccessibleName('Collapse workspace Research, 1 tab, Needs you')
+    expect(research.closest('.workspace-tab-section')).toHaveClass('needs-you')
+
+    await view.rerender({ userAttention: null })
+    expect(research).toHaveAccessibleName('Collapse workspace Research, 1 tab')
+    expect(research.getAttribute('aria-description') ?? '').not.toContain('Agent needs your attention')
+    expect(document.querySelector('.workspace-tab-section.needs-you')).toBeNull()
+    expect(folded).toHaveAccessibleDescription('Staging checkout')
+  })
+
+  it('follows the requested tab rather than the reported workspace when the tab moved', async () => {
+    const other = { ...workspace('workspace-2'), name: 'Billing' }
+    const view = renderTabs(browserState({
+      tabs: [tab('first', { active: true }), tab('moved', { mcpGroupId: other.id, mcpGroupName: other.name })],
+      activeTabId: 'first',
+      mcpTabGroups: [workspace(), other]
+    }), true, 'vertical')
+    await view.rerender({ userAttention: { id: 'attention-1', reason: 'Confirm.', requestedAt: '2026-10-16T07:00:00.000Z', workspaceId: 'workspace-1', tabId: 'moved' } })
+    expect(screen.getByRole('button', { name: 'Collapse workspace Billing, 1 tab, Needs you' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse workspace Research, 1 tab' })).toBeInTheDocument()
+  })
+
   it('describes agent activity without replacing the tab name or its navigation controls', async () => {
     const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }))
     const first = screen.getByRole('tab', { name: 'Page first' })
