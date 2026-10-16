@@ -45,15 +45,19 @@ const presence = useAgentPresence(props.api)
 onBeforeUnmount(presence.dispose)
 
 const liveAgents = computed(() => (props.workspaceId && presence.snapshot.value.workspaces[props.workspaceId]) || [])
-// The agent whose card is open, as last seen. One that disconnects meanwhile keeps its avatar,
-// dimmed, in the same place until the card closes, so the card stays under it.
+// The agent whose card is open, as last seen. It keeps a visible avatar until the card closes, so
+// the card stays under it: one that disconnects stays, dimmed, and one that other agents would push
+// into +N keeps the last visible place.
 const cardAgent = shallowRef<{ agent: AgentPresence; index: number }>()
 const agents = computed(() => {
   const live = liveAgents.value
   const kept = cardAgent.value
-  if (!kept || live.some((agent) => agent.clientKey === kept.agent.clientKey)) return live
-  const index = Math.min(kept.index, live.length, AGENT_AVATAR_VISIBLE_LIMIT - 1)
-  return [...live.slice(0, index), kept.agent, ...live.slice(index)]
+  if (!kept) return live
+  const liveIndex = live.findIndex((agent) => agent.clientKey === kept.agent.clientKey)
+  if (liveIndex >= 0 && liveIndex < AGENT_AVATAR_VISIBLE_LIMIT) return live
+  const others = liveIndex >= 0 ? live.filter((_agent, index) => index !== liveIndex) : live
+  const index = Math.min(kept.index, others.length, AGENT_AVATAR_VISIBLE_LIMIT - 1)
+  return [...others.slice(0, index), liveIndex >= 0 ? live[liveIndex] : kept.agent, ...others.slice(index)]
 })
 const shown = computed(() => agents.value.slice(0, AGENT_AVATAR_VISIBLE_LIMIT))
 const more = computed(() => agents.value.slice(AGENT_AVATAR_VISIBLE_LIMIT))

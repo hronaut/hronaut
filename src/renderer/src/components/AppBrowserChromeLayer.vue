@@ -209,9 +209,15 @@ function setAgentPaused(tabId: string, paused: boolean): void {
 }
 
 // Taking over pauses agents on the tab first, so none of their steps lands after you start.
+// Whatever you chose meanwhile wins: another take over, another tab, tab search or Settings.
+let takeOverGeneration = 0
 function takeOverTab(tabId: string): void {
+  const generation = ++takeOverGeneration
+  const before = { tabId: activeTab.value?.id, tabSearch: tabSearchOpen.value, settings: settingsOpen.value }
   void props.runAction(async () => {
     await setTabAgentPaused(tabId, true)
+    if (generation !== takeOverGeneration || activeTab.value?.id !== before.tabId
+      || (tabSearchOpen.value && !before.tabSearch) || (settingsOpen.value && !before.settings)) return
     if (props.state.tabs.find((candidate) => candidate.id === tabId)?.agentPaused !== true) return
     settingsDialogController.close()
     tabSearchOpen.value = false

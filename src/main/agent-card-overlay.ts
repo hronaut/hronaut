@@ -96,6 +96,9 @@ export class AgentCardOverlay {
   private generation = 0
   private revision = 0
   private disposed = false
+  // The shell numbers cards upward. A card that closed, was hidden or was replaced never opens
+  // again: an update the shell sent before it heard of the closing must not bring it back.
+  private endedCardId = 0
 
   constructor(private readonly ports: AgentCardOverlayPorts) {}
 
@@ -105,10 +108,13 @@ export class AgentCardOverlay {
 
   /** Opens a card, or updates the open one with the same cardId. `zoom` turns the shell's CSS pixels into window coordinates. */
   show(request: AgentCardShowRequest, zoom: number): void {
-    if (this.disposed) return
+    if (this.disposed || request.cardId <= this.endedCardId) return
     const previous = this.card
     const updating = previous?.cardId === request.cardId
-    if (previous && !updating) this.withdraw(previous)
+    if (previous && !updating) {
+      this.ended(previous.cardId)
+      this.withdraw(previous)
+    }
     const generation = ++this.generation
     const revision = ++this.revision
     this.card = {
@@ -175,6 +181,7 @@ export class AgentCardOverlay {
   /** The shell could not describe this card within the contract; whatever is open closes, and the shell resets. */
   refused(cardId: number): void {
     const open = this.card
+    this.ended(cardId)
     if (open) this.close('lost')
     if (open?.cardId !== cardId) this.ports.emit({ cardId, kind: 'closed', reason: 'lost' })
   }
@@ -194,8 +201,15 @@ export class AgentCardOverlay {
     const hadFocus = this.current?.isFocused() === true
     this.card = null
     this.generation += 1
+    this.ended(card.cardId)
     this.withdraw(card)
     if (hadFocus) this.ports.focusShell()
+  }
+
+  /** A new shell document numbers its cards from the start again; any open card goes. */
+  shellReset(): void {
+    this.hide()
+    this.endedCardId = 0
   }
 
   /** The window moved, resized or went to the background: the card closes as if focus left it. */
@@ -249,9 +263,14 @@ export class AgentCardOverlay {
     if (!card) return
     this.card = null
     this.generation += 1
+    this.ended(card.cardId)
     this.withdraw(card)
     this.ports.emit({ cardId: card.cardId, kind: 'closed', reason })
     if (reason === 'escape') this.ports.focusShell()
+  }
+
+  private ended(cardId: number): void {
+    this.endedCardId = Math.max(this.endedCardId, cardId)
   }
 
   private withdraw(card: OpenCard): void {

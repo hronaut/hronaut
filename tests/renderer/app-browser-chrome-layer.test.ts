@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import AppBrowserChromeLayer from '../../src/renderer/src/components/AppBrowserChromeLayer.vue'
@@ -143,7 +143,7 @@ const AgentPresenceAvatarsStub = defineComponent({
     activeTabId: String,
     attentionReason: String
   },
-  emits: ['select'],
+  emits: ['select', 'takeOver'],
   setup() {
     return () => h('div', { 'data-testid': 'agent-presence' })
   }
@@ -213,6 +213,7 @@ function createHarness(home = false) {
   const compact = ref(false)
   const collapsed = ref(false)
   const activeIsHome = ref(home)
+  const runtimeActiveTab = ref(activeTab)
   const panelDock = ref<'right' | 'bottom' | 'left' | 'window'>('right')
   const runAction = vi.fn(async (action: () => unknown) => {
     await action()
@@ -278,6 +279,7 @@ function createHarness(home = false) {
     closeTab: vi.fn(),
     toggleTabMuted: vi.fn(),
     toggleTabAgentPaused: vi.fn(),
+    setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => undefined),
     togglePageLifecycle: vi.fn(),
     toggleAllTabsMuted: vi.fn(),
     toggleTabHumanInteraction: vi.fn(),
@@ -307,7 +309,7 @@ function createHarness(home = false) {
       ...shellActions
     } as never,
     runtimeController: {
-      activeTab: ref(activeTab),
+      activeTab: runtimeActiveTab,
       mcpActivityByTab: ref({})
     } as never,
     activeTabController: {
@@ -396,6 +398,7 @@ function createHarness(home = false) {
     compact,
     collapsed,
     activeIsHome,
+    runtimeActiveTab,
     panelDock,
     runAction,
     syncState,
@@ -413,6 +416,43 @@ function createHarness(home = false) {
 }
 
 describe('AppBrowserChromeLayer', () => {
+  it('takes over a tab after pausing it, unless you chose something else meanwhile', async () => {
+    const harness = createHarness()
+    const avatars = harness.wrapper.getComponent(AgentPresenceAvatarsStub)
+    let finishPause!: () => void
+    const pausedState = harness.wrapper.props('state') as BrowserState
+    harness.tabActions.setTabAgentPaused.mockImplementation(async () => {
+      await new Promise<void>((resolve) => { finishPause = resolve })
+      pausedState.tabs[0].agentPaused = true
+    })
+    avatars.vm.$emit('takeOver', 'tab-1')
+    await nextTick()
+    finishPause()
+    await flushPromises()
+    expect(harness.tabActions.setTabAgentPaused).toHaveBeenCalledWith('tab-1', true)
+    expect(harness.tabActions.selectBrowserTab).toHaveBeenCalledWith('tab-1')
+
+    // Another tab came into view while the pause was on its way: that choice stays.
+    harness.tabActions.selectBrowserTab.mockClear()
+    avatars.vm.$emit('takeOver', 'tab-1')
+    await nextTick()
+    harness.runtimeActiveTab.value = tab({ id: 'tab-2', mcpGroupId: 'workspace-1' })
+    finishPause()
+    await flushPromises()
+    expect(harness.tabActions.selectBrowserTab).not.toHaveBeenCalled()
+
+    // So does tab search opened meanwhile, or a newer take over.
+    harness.runtimeActiveTab.value = tab({ mcpGroupId: 'workspace-1' })
+    await harness.wrapper.setProps({ tabSearchOpen: false })
+    avatars.vm.$emit('takeOver', 'tab-1')
+    await nextTick()
+    await harness.wrapper.setProps({ tabSearchOpen: true })
+    finishPause()
+    await flushPromises()
+    expect(harness.tabActions.selectBrowserTab).not.toHaveBeenCalled()
+    expect(harness.wrapper.props('tabSearchOpen')).toBe(true)
+  })
+
   it('exposes the expanded vertical rail separator and forwards resize gestures', async () => {
     const harness = createHarness()
     const separator = () => harness.wrapper.find('[role="separator"]')

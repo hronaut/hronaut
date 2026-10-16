@@ -4055,14 +4055,14 @@ async function createWindow(startMinimized = false): Promise<void> {
     tabsManager?.cancelSplitDivider()
     clearWindowControlsScrim()
     shellTooltips.hide()
-    agentCards.hide()
+    agentCards.shellReset()
   })
   // A new shell document has no dialog open, whatever the previous one reported.
   mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) {
       clearWindowControlsScrim()
       shellTooltips.hide()
-      agentCards.hide()
+      agentCards.shellReset()
     }
   })
   // A tooltip belongs beside a control that just moved, or in a window that is no longer in front.

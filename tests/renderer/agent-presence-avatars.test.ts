@@ -251,6 +251,26 @@ describe('agent avatars in the toolbar', () => {
     expect(screen.queryByRole('button', { name: /^Windsurf/ })).toBeNull()
   })
 
+  it('keeps the open card\'s agent among the visible avatars when others would push it into +N', async () => {
+    const card = fakeCardApi()
+    const idle = (name: string) => agent(name, { state: 'idle' })
+    const { change } = renderAvatars([agent('Claude Code'), idle('Cursor'), idle('Zed'), idle('Aider')], { cardApi: card.api })
+    await fireEvent.click(await screen.findByRole('button', { name: 'Zed, idle' }))
+    await nextTick()
+    const { cardId } = card.last()
+    // Aider starts working and sorts before the idle ones; Zed would become fourth.
+    change({ revision: 2, workspaces: { 'workspace-a': [agent('Claude Code'), agent('Aider'), idle('Cursor'), idle('Zed')] } })
+    await nextTick()
+    await nextTick()
+    const group = screen.getByRole('group', { name: 'Agents in this workspace' })
+    expect(within(group).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Claude Code, working', 'Aider, working', 'Zed, idle'])
+    expect(card.api.hide).not.toHaveBeenCalled()
+    expect(card.last()).toMatchObject({ cardId, model: { name: 'Zed' } })
+    card.emit({ cardId, kind: 'closed', reason: 'blur' })
+    await nextTick()
+    expect(within(group).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Claude Code, working', 'Aider, working', 'Cursor, idle'])
+  })
+
   it('closes the card when the workspace in view changes', async () => {
     const card = fakeCardApi()
     const { view } = renderAvatars([agent('Claude Code')], { cardApi: card.api })

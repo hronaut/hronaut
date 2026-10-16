@@ -182,11 +182,14 @@ describe('agent card overlay', () => {
     const { overlay, ports, load, lastState } = harness()
     overlay.refused(4)
     expect(ports.emit).toHaveBeenLastCalledWith({ cardId: 4, kind: 'closed', reason: 'lost' })
-    overlay.show(request(1), 1)
+    overlay.show(request(5), 1)
     await load()
-    overlay.measured({ cardId: 1, revision: lastState().revision, width: 320, height: 300 })
-    overlay.refused(5)
-    expect(ports.emit.mock.calls.slice(-2)).toEqual([[{ cardId: 1, kind: 'closed', reason: 'lost' }], [{ cardId: 5, kind: 'closed', reason: 'lost' }]])
+    overlay.measured({ cardId: 5, revision: lastState().revision, width: 320, height: 300 })
+    overlay.refused(6)
+    expect(ports.emit.mock.calls.slice(-2)).toEqual([[{ cardId: 5, kind: 'closed', reason: 'lost' }], [{ cardId: 6, kind: 'closed', reason: 'lost' }]])
+    expect(overlay.openCardId).toBeUndefined()
+    // A later update of the refused card does not open it.
+    overlay.show(request(6), 1)
     expect(overlay.openCardId).toBeUndefined()
   })
 
@@ -245,6 +248,35 @@ describe('agent card overlay', () => {
     expect(ports.emit).toHaveBeenLastCalledWith({ cardId: 1, kind: 'closed', reason: 'blur' })
     // Focus moved on its own; main does not move it again.
     expect(ports.focusShell).not.toHaveBeenCalled()
+  })
+
+  it('never opens a card again once it closed, was hidden or was replaced, until the shell reloads', async () => {
+    const { overlay, surface, ports, load, lastState } = harness()
+    overlay.show(request(1), 1)
+    await load()
+    overlay.measured({ cardId: 1, revision: lastState().revision, width: 320, height: 300 })
+    surface.blur()
+    overlay.blurred()
+    await Promise.resolve()
+    expect(ports.emit).toHaveBeenLastCalledWith({ cardId: 1, kind: 'closed', reason: 'blur' })
+    // An update the shell sent before it heard of the closing arrives late.
+    overlay.show(request(1, { model: model({ stateLabel: 'Idle' }) }), 1)
+    await Promise.resolve()
+    expect(overlay.openCardId).toBeUndefined()
+    expect(surface.send).toHaveBeenCalledOnce()
+
+    overlay.show(request(2), 1)
+    overlay.show(request(3), 1)
+    overlay.show(request(2), 1)
+    expect(overlay.openCardId).toBe(3)
+    overlay.hide(3)
+    overlay.show(request(3), 1)
+    expect(overlay.openCardId).toBeUndefined()
+
+    // A new shell document numbers its cards from 1 again.
+    overlay.shellReset()
+    overlay.show(request(1), 1)
+    expect(overlay.openCardId).toBe(1)
   })
 
   it('returns focus to the shell when the shell closes a focused card, and ignores another card id', async () => {

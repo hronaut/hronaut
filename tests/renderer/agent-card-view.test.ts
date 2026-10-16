@@ -91,12 +91,22 @@ describe('agent card view', () => {
   })
 
   it('reports each card revision it laid out, and not an earlier one', async () => {
-    const view = await loadView()
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 320, bottom: 200, width: 320, height: 200, toJSON: () => ({}) })
-    view.render({ cardId: 1, revision: 1, theme: 'light', model: model() })
-    view.render({ cardId: 1, revision: 2, theme: 'light', model: model() })
-    expect(view.measured.map(({ revision }) => revision)).toEqual([1, 2])
-    expect(view.measured[1]).toMatchObject({ cardId: 1, width: 320, height: 200 })
-    vi.restoreAllMocks()
+    // The first card can lay out before the font loads; its late report must not follow a newer revision.
+    let fontsReady!: () => void
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { ready: new Promise<void>((resolve) => { fontsReady = resolve }) } })
+    try {
+      const view = await loadView()
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 320, bottom: 200, width: 320, height: 200, toJSON: () => ({}) })
+      view.render({ cardId: 1, revision: 1, theme: 'light', model: model() })
+      view.render({ cardId: 1, revision: 2, theme: 'light', model: model() })
+      fontsReady()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(view.measured.map(({ revision }) => revision)).toEqual([1, 2])
+      expect(view.measured[1]).toMatchObject({ cardId: 1, width: 320, height: 200 })
+    } finally {
+      vi.restoreAllMocks()
+      Reflect.deleteProperty(document, 'fonts')
+    }
   })
 })
