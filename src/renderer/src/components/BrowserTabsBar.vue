@@ -256,9 +256,10 @@ function tabGroupTabCount(groupId: string): number {
   return tabGroupTabs(groupId).length
 }
 
-function tabGroupContainsActiveTab(groupId: string): boolean {
-  return tabGroupTabs(groupId).some((tab) => tab.active)
-}
+// The workspace whose page is in view: none while Home or Settings is showing, as for the tabs themselves.
+const activeWorkspaceId = computed(() => (
+  props.settingsActive ? undefined : props.state.tabs.find((tab) => tab.active)?.mcpGroupId
+))
 
 // A request names its tab when it has one; that tab's workspace is the one
 // waiting, even when the person has folded it or moved to another workspace.
@@ -617,14 +618,14 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       v-for="workspace in sidebarWorkspaces"
       :key="workspace.id"
       class="workspace-tab-section"
-      :class="{ collapsed: isTabGroupCollapsed(workspace.id), empty: tabGroupTabCount(workspace.id) === 0, 'needs-you': workspaceNeedsYou(workspace.id) }"
+      :class="{ active: activeWorkspaceId === workspace.id, collapsed: isTabGroupCollapsed(workspace.id), empty: tabGroupTabCount(workspace.id) === 0, 'needs-you': workspaceNeedsYou(workspace.id) }"
       :style="tabGroupColorStyle(workspace.color)"
       role="group"
       :aria-label="workspace.name"
     >
       <UiButton appearance="application"
         class="tab-group-label"
-        :class="{ active: tabGroupContainsActiveTab(workspace.id) }"
+        :class="{ active: activeWorkspaceId === workspace.id }"
         :style="tabGroupColorStyle(workspace.color)"
         v-tooltip="[t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expand' : 'runtime.tabs.collapse', { name: workspace.name, id: workspace.id }), tabGroupLabelDescription(workspace)].filter(Boolean).join('\n\n')"
         :aria-label="tabGroupLabelName(workspace)"
