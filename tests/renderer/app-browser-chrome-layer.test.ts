@@ -283,7 +283,7 @@ function createHarness(home = false) {
     closeTab: vi.fn(),
     toggleTabMuted: vi.fn(),
     toggleTabAgentPaused: vi.fn(),
-    setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => undefined),
+    setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => true),
     togglePageLifecycle: vi.fn(),
     toggleAllTabsMuted: vi.fn(),
     toggleTabHumanInteraction: vi.fn(),
@@ -423,18 +423,25 @@ describe('AppBrowserChromeLayer', () => {
   it('takes over a tab after pausing it, unless you chose something else meanwhile', async () => {
     const harness = createHarness()
     const avatars = harness.wrapper.getComponent(AgentPresenceAvatarsStub)
-    let finishPause!: () => void
-    const pausedState = harness.wrapper.props('state') as BrowserState
-    harness.tabActions.setTabAgentPaused.mockImplementation(async () => {
-      await new Promise<void>((resolve) => { finishPause = resolve })
-      pausedState.tabs[0].agentPaused = true
-    })
+    let finishPause!: (paused?: boolean) => void
+    harness.tabActions.setTabAgentPaused.mockImplementation(() => new Promise<boolean>((resolve) => { finishPause = (paused = true) => resolve(paused) }))
     avatars.vm.$emit('takeOver', 'tab-1')
     await nextTick()
+    // Main paused the tab, though the shell's copy of the state still shows it running, as when a
+    // page update lands first: the tab is still shown.
+    expect((harness.wrapper.props('state') as BrowserState).tabs[0].agentPaused).not.toBe(true)
     finishPause()
     await flushPromises()
     expect(harness.tabActions.setTabAgentPaused).toHaveBeenCalledWith('tab-1', true)
     expect(harness.tabActions.selectBrowserTab).toHaveBeenCalledWith('tab-1')
+
+    // A pause that did not happen, such as under locked agent control, shows nothing.
+    harness.tabActions.selectBrowserTab.mockClear()
+    avatars.vm.$emit('takeOver', 'tab-1')
+    await nextTick()
+    finishPause(false)
+    await flushPromises()
+    expect(harness.tabActions.selectBrowserTab).not.toHaveBeenCalled()
 
     // Another tab came into view while the pause was on its way: that choice stays.
     harness.tabActions.selectBrowserTab.mockClear()

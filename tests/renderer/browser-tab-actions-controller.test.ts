@@ -332,6 +332,32 @@ describe('browser tab actions controller', () => {
     expect(harness.browser.setTabAgentPaused).toHaveBeenCalledTimes(2)
   })
 
+  it('tells whether a pause took effect from main\'s answer, not the shell\'s copy of the state', async () => {
+    const harness = createHarness()
+    harness.browser.setTabAgentPaused.mockImplementation(async (id, agentPaused) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map(candidate => candidate.id === id ? { ...candidate, agentPaused } : candidate)
+    }))
+    // A newer state, such as a page's title, landed meanwhile and the pause's own state was set aside.
+    harness.syncState.mockImplementation(async () => undefined)
+    expect(await harness.controller.setTabAgentPaused('active', true)).toBe(true)
+    expect(harness.state.value.tabs[0]?.agentPaused).not.toBe(true)
+    // Main's answer still shows the tab running.
+    harness.browser.setTabAgentPaused.mockImplementation(async () => harness.state.value)
+    expect(await harness.controller.setTabAgentPaused('active', true)).toBe(false)
+    // A failed call rejects, as before.
+    harness.browser.setTabAgentPaused.mockImplementation(async () => { throw new Error('Tab not found') })
+    await expect(harness.controller.setTabAgentPaused('active', true)).rejects.toThrow('Tab not found')
+    // Already in that state, or locked.
+    harness.state.value.tabs = harness.state.value.tabs.map(candidate => ({ ...candidate, agentPaused: true }))
+    expect(await harness.controller.setTabAgentPaused('active', true)).toBe(true)
+    // Main's answer no longer has the tab, so it was not resumed either.
+    harness.browser.setTabAgentPaused.mockImplementation(async () => ({ ...harness.state.value, tabs: [] }))
+    expect(await harness.controller.setTabAgentPaused('active', false)).toBe(false)
+    harness.state.value.agentControlLocked = true
+    expect(await harness.controller.setTabAgentPaused('active', false)).toBe(false)
+  })
+
   it('drops queued page and agent toggles after disposal or tab closure', async () => {
     for (const removed of ['controller', 'tab']) {
       const harness = createHarness()
