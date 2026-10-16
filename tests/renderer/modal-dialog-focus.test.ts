@@ -108,6 +108,63 @@ describe('modal dialog focus lifecycle', () => {
     view.unmount()
   })
 
+  it('returns focus to the folded tab rail Home button when the opener folded away with the rail', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const user = userEvent.setup()
+    const view = render(defineComponent({
+      setup() {
+        const open = ref(false)
+        const folded = ref(false)
+        const panel = ref<HTMLElement | null>(null)
+        useModalDialogFocus({ open, panel })
+        return { open, folded, panel }
+      },
+      // Opening a dialog moves focus out of an unpinned rail, which then folds and hides its search button.
+      template: `
+        <div class="topbar" :class="{ 'rail-collapsed': folded }">
+          <button class="app-home-button">Open Hronaut Home</button>
+          <button :style="folded ? 'display: none' : undefined" @click="open = true; folded = true">Search tabs</button>
+          <button>Workspace</button>
+        </div>
+        <section v-if="open" ref="panel" role="dialog" tabindex="-1">
+          <button @click="open = false">Close search</button>
+        </section>
+      `
+    }))
+    await user.click(screen.getByRole('button', { name: 'Search tabs' }))
+    await user.click(screen.getByRole('button', { name: 'Close search' }))
+    await nextTick()
+    expect(screen.getByRole('button', { name: 'Open Hronaut Home' })).toHaveFocus()
+    view.unmount()
+  })
+
+  it('keeps returning focus to a visible opener in the tab rail', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const user = userEvent.setup()
+    const view = render(defineComponent({
+      setup() {
+        const open = ref(false)
+        const panel = ref<HTMLElement | null>(null)
+        useModalDialogFocus({ open, panel })
+        return { open, panel }
+      },
+      template: `
+        <div class="topbar rail-collapsed">
+          <button class="app-home-button">Open Hronaut Home</button>
+          <button @click="open = true">Create workspace</button>
+        </div>
+        <section v-if="open" ref="panel" role="dialog" tabindex="-1">
+          <button @click="open = false">Close editor</button>
+        </section>
+      `
+    }))
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
+    await user.click(screen.getByRole('button', { name: 'Close editor' }))
+    await nextTick()
+    expect(screen.getByRole('button', { name: 'Create workspace' })).toHaveFocus()
+    view.unmount()
+  })
+
   it('does not claim input focus when an automatic modal opens while Hronaut is inactive', async () => {
     const background = document.createElement('button')
     background.textContent = 'External focus owner'

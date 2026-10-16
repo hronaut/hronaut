@@ -1296,6 +1296,7 @@ export const deDE = {
       "workspace": "Arbeitsbereich",
       "collapseRail": "Tableiste bei Nichtverwendung einklappen",
       "keepRailExpanded": "Tableiste ausgeklappt lassen",
+      "workspacesHeading": "Arbeitsbereiche",
       "locked": "Eingabe blockiert",
       "lock": "Eingabe blockieren"
     },

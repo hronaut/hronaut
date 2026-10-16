@@ -1296,6 +1296,7 @@ export const esES = {
       "workspace": "Espacio de trabajo",
       "collapseRail": "Contraer la barra de pestañas cuando no se use",
       "keepRailExpanded": "Mantener expandida la barra de pestañas",
+      "workspacesHeading": "Espacios de trabajo",
       "locked": "Entrada bloqueada",
       "lock": "Bloquear entrada"
     },

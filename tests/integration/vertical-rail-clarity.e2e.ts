@@ -88,7 +88,7 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
         const state = await (window as unknown as { hronaut: HronautApi }).hronaut.getState()
         return state.tabs.find(tab => tab.active)?.mcpGroupId
       })).toBe(id)
-      // The pin remains a named keyboard-operable control below Home.
+      // The pin remains a named keyboard-operable control beside Home.
       const pin = appWindow.locator('.tab-rail-pin')
       await expect(pin).toHaveAttribute('aria-label', /.+/)
       await pin.focus()

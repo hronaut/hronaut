@@ -66,9 +66,10 @@
 .browser-tabs-bar.vertical {
   @apply relative [z-index:1] flex w-full min-w-0 min-h-0 [flex:1_1_auto] flex-col [gap:8px] [padding:10px_9px_9px];
 }
-.browser-tabs-bar.vertical .tab-rail-header { @apply flex flex-col items-stretch [gap:4px] flex-none; }
+/* Home and the rail pin share one row; the pin stays one click away as an icon. A folded rail stacks them. */
+.browser-tabs-bar.vertical .tab-rail-header { @apply flex items-center [gap:4px] flex-none; }
 .browser-tabs-bar.vertical .app-home-button {
-  @apply min-w-0 flex-none [height:34px] justify-start m-0;
+  @apply min-w-0 [flex:1_1_auto] [height:34px] justify-start m-0;
 }
 .browser-tabs-bar.vertical .topbar-divider { @apply w-full [height:1px] m-0; }
 .browser-tabs-bar.vertical .tabs-strip-shell {
@@ -112,15 +113,35 @@
 }
 .browser-tabs-bar.vertical .tab.pinned { @apply [width:40px] [min-width:40px] [align-self:flex-start]; }
 .browser-tabs-bar.vertical .workspace-action-divider { @apply w-full [height:1px] [margin:5px_0_2px]; }
-.browser-tabs-bar.vertical .new-workspace { @apply w-full [height:32px] m-0; }
+.browser-tabs-bar.vertical .tabs-strip .new-workspace { @apply w-full [height:32px] m-0; }
 .browser-tabs-bar.vertical .tab-rail-pin {
-  @apply flex w-full [height:34px] [flex:0_0_34px] items-center justify-start [gap:7px] [padding:0_11px] overflow-hidden [border:1px_solid_transparent] [border-radius:var(--corner-2)] text-muted bg-transparent cursor-pointer;
+  @apply grid [width:34px] [height:34px] [flex:0_0_34px] p-0 place-items-center [border:1px_solid_transparent] [border-radius:var(--corner-2)] text-muted bg-transparent cursor-pointer;
 }
 .browser-tabs-bar.vertical .tab-rail-pin:hover { @apply text-copy bg-hover; }
 .browser-tabs-bar.vertical .tab-rail-pin:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
 .browser-tabs-bar.vertical .tab-rail-pin svg { @apply [width:18px] [height:18px] flex-none; }
-.browser-tabs-bar.vertical .tab-rail-pin span { @apply min-w-0 truncate [font-size:var(--type-small-size)]; }
+/* A quiet section label above the workspace groups, with search and create beside it. */
+.workspace-rail-header {
+  @apply flex flex-none items-center [gap:2px] [height:28px] [padding:0_2px_0_8px];
+}
+.workspace-rail-title {
+  @apply min-w-0 [flex:1_1_auto] truncate text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-medium)] [letter-spacing:0.06em] uppercase;
+}
+.browser-tabs-bar.vertical .workspace-rail-header :is(.workspace-rail-find, .new-workspace) {
+  @apply grid [width:28px] [min-width:28px] [height:28px] [flex:0_0_28px] m-0 p-0 place-items-center [border:1px_solid_transparent] [border-radius:var(--corner-1)] text-muted bg-transparent cursor-pointer;
+}
+.browser-tabs-bar.vertical .workspace-rail-header :is(.workspace-rail-find, .new-workspace):hover { @apply text-copy bg-hover; }
+.browser-tabs-bar.vertical .workspace-rail-header :is(.workspace-rail-find, .new-workspace):focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
+.browser-tabs-bar.vertical .workspace-rail-header :is(.workspace-rail-find, .new-workspace) svg { @apply [width:18px] [height:18px]; }
+.browser-tabs-bar.vertical .workspace-rail-find[aria-expanded="true"] { @apply text-accent-copy bg-accent-soft; }
 .browser-tabs-bar.vertical.rail-collapsed { @apply [padding-right:7px] [padding-left:7px]; }
+/* A folded rail keeps its earlier column: Home, the pin, the workspaces, then Create workspace at the end. The pin's row
+   is as tall as the Workspaces header plus the gap it replaces, so workspaces and tabs keep their rows when the rail opens;
+   the pin and Create workspace then move into the two header rows, and search appears, as the bottom utilities do. */
+.browser-tabs-bar.vertical.rail-collapsed .tab-rail-header { @apply flex-col; }
+.browser-tabs-bar.vertical.rail-collapsed .app-home-button { @apply [flex:none]; }
+.browser-tabs-bar.vertical.rail-collapsed .tab-rail-pin { @apply [height:32px] [flex:0_0_32px]; }
+.browser-tabs-bar.vertical.rail-collapsed .workspace-rail-header { @apply hidden; }
 .browser-tabs-bar.vertical.rail-collapsed .app-home-button,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-label,
 .browser-tabs-bar.vertical.rail-collapsed .workspace-new-tab,
@@ -159,8 +180,7 @@
 .browser-tabs-bar.vertical.rail-collapsed .tab-network-route-mark,
 .browser-tabs-bar.vertical.rail-collapsed .tab-lock-mark,
 .browser-tabs-bar.vertical.rail-collapsed .tab-audio,
-.browser-tabs-bar.vertical.rail-collapsed .new-workspace > span,
-.browser-tabs-bar.vertical.rail-collapsed .tab-rail-pin > span { @apply hidden; }
+.browser-tabs-bar.vertical.rail-collapsed .new-workspace > span { @apply hidden; }
 
 .app-home-button {
   @apply flex [height:34px] flex-none items-center [gap:7px] [margin:0_8px_3px_0] [padding:0_11px] [border:1px_solid_transparent] [border-radius:var(--corner-2)] text-muted bg-transparent [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)] cursor-pointer;
@@ -328,7 +348,11 @@
 @media (max-height: 600px) {
   .browser-tabs-bar.vertical { @apply [gap:4px] [padding:6px_9px]; }
   .browser-tabs-bar.vertical .tab-rail-header { @apply [gap:2px]; }
-  .browser-tabs-bar.vertical :is(.app-home-button, .tab-rail-pin) { @apply [height:28px] [min-height:28px] [flex-basis:28px]; }
+  .browser-tabs-bar.vertical .app-home-button { @apply [height:28px] [min-height:28px]; }
+  .browser-tabs-bar.vertical .tab-rail-pin { @apply [width:28px] [height:28px] [min-height:28px] [flex-basis:28px]; }
+  .browser-tabs-bar.vertical .workspace-rail-header { @apply [height:26px]; }
+  .browser-tabs-bar.vertical .workspace-rail-header :is(.workspace-rail-find, .new-workspace) { @apply [height:26px]; }
+  .browser-tabs-bar.vertical.rail-collapsed .tab-rail-pin { @apply [height:28px] [flex-basis:28px]; }
 }
 
 .tab {

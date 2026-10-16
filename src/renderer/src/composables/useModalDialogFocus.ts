@@ -58,6 +58,13 @@ function isFocusable(element: HTMLElement): boolean {
   return true
 }
 
+// A folded tab rail hides the controls it shows only while open, such as its search. Return to the rail's Home button
+// instead, whose focus opens the rail again around it, rather than leaving focus nowhere.
+function foldedRailReturnTarget(element: HTMLElement): HTMLElement | null {
+  const home = element.closest('.topbar.rail-collapsed')?.querySelector<HTMLElement>('.app-home-button')
+  return home && home !== element && isFocusable(home) ? home : null
+}
+
 function focusableElements(panel: HTMLElement): HTMLElement[] {
   return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isFocusable)
 }
@@ -201,9 +208,10 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
         return
       }
       options.afterLayout?.()
-      const target = returnFocus?.isConnected && (!options.returnFocusFallback || isFocusable(returnFocus))
+      let target = returnFocus?.isConnected && (!options.returnFocusFallback || isFocusable(returnFocus))
         ? returnFocus
         : options.returnFocusFallback?.()
+      if (target && target === returnFocus && !isFocusable(target)) target = foldedRailReturnTarget(target) ?? target
       returnFocus = null
       if (!applicationFocused || !target?.isConnected) return
       // Native focus checks can finish after the user has chosen another control.

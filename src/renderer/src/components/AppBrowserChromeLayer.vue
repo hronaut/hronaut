@@ -231,6 +231,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :state="state"
       :settings-active="settingsOpen"
       :user-attention="userAttention"
+      :tab-search-open="tabSearchOpen"
       :hydrated="hydrated"
       :orientation="tabOrientation"
       :rail-pinned="verticalTabRailPinned"
@@ -252,6 +253,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @close-tab="runAction(() => closeTab($event))"
       @drag-start="startTabDrag"
       @toggle-rail-pinned="toggleVerticalTabRailPinned"
+      @search-tabs="runAction(actions.toggleTabSearch)"
     />
     <AppTopbarActions
       :inert="verticalTabRailCollapsing"

@@ -77,21 +77,62 @@ test('preserves a deliberately scrolled tab list when the rail expands', async (
 
 test('revealing the rail preserves the vertical position of its tab targets', async ({ appWindow, electronApp }, testInfo) => {
   await prepareAutoRail(appWindow, electronApp)
-  const targets = appWindow.locator('.app-home-button, .tab-rail-pin, .tab-group-label, .tab, .workspace-new-tab')
+  // The pin and Create workspace move into the header rows once the rail opens; everything below keeps its row.
+  const targets = appWindow.locator('.app-home-button, .tab-group-label, .tab, .workspace-new-tab')
   const positions = () => targets.evaluateAll(elements => elements.map(element => ({
     label: element.getAttribute('aria-label'),
     y: element.getBoundingClientRect().y,
     height: element.getBoundingClientRect().height
   })))
+  const home = appWindow.locator('.app-home-button')
+  const pin = appWindow.locator('.tab-rail-pin')
+  const create = appWindow.getByRole('button', { name: 'Create workspace', exact: true })
   const collapsed = await positions()
+  // Folded, the rail keeps every command it showed before: the pin under Home and Create workspace at the end.
+  await expect(pin).toBeVisible()
+  await expect(create).toBeVisible()
+  await expect(appWindow.locator('.workspace-rail-header')).toBeHidden()
+  const foldedHome = (await home.boundingBox())!
+  expect((await pin.boundingBox())!.y).toBeGreaterThanOrEqual(foldedHome.y + foldedHome.height)
+  expect(await appWindow.locator('.tabs-strip .new-workspace').count()).toBe(1)
   await appWindow.locator('.topbar').screenshot({ path: testInfo.outputPath('rail-collapsed.png') })
-  await appWindow.locator('.app-home-button').hover()
+  await home.hover()
   await expect(appWindow.locator('.topbar')).toHaveCSS('width', '280px')
   const expanded = await positions()
   await appWindow.locator('.topbar').screenshot({ path: testInfo.outputPath('rail-expanded.png') })
+  // Open, the pin sits on Home's row, and the Workspaces header holds search and Create workspace.
+  const openHome = (await home.boundingBox())!
+  const openPin = (await pin.boundingBox())!
+  expect(Math.abs(openPin.y - openHome.y)).toBeLessThanOrEqual(1)
+  expect(openPin.x).toBeGreaterThanOrEqual(openHome.x + openHome.width)
+  const header = appWindow.locator('.workspace-rail-header')
+  await expect(header.getByRole('button', { name: 'Search tabs', exact: true })).toBeVisible()
+  await expect(header.getByRole('button', { name: 'Create workspace', exact: true })).toBeVisible()
+  expect(await appWindow.locator('.tabs-strip .new-workspace').count()).toBe(0)
   expect(expanded.map(({ label }) => label)).toEqual(collapsed.map(({ label }) => label))
   for (let index = 0; index < collapsed.length; index += 1) {
     expect(Math.abs(expanded[index]!.y - collapsed[index]!.y), collapsed[index]!.label ?? 'Rail control').toBeLessThanOrEqual(1)
     expect(expanded[index]!.height).toBe(collapsed[index]!.height)
   }
+})
+
+test('a dialog opened from the rail returns focus to Home after the rail folds behind it', async ({ appWindow, electronApp }) => {
+  await prepareAutoRail(appWindow, electronApp)
+  const topbar = appWindow.locator('.topbar')
+  const home = appWindow.locator('.app-home-button')
+  const search = appWindow.locator('.workspace-rail-header').getByRole('button', { name: 'Search tabs', exact: true })
+  // Keyboard focus opens the rail and the search in its header.
+  await home.focus()
+  await expect(topbar).toHaveCSS('width', '280px')
+  await search.focus()
+  await search.press('Enter')
+  const dialog = appWindow.getByRole('dialog', { name: 'Tabs' })
+  await expect(dialog).toBeVisible()
+  // With focus in the dialog and no pointer over the rail, the unpinned rail folds and hides that search button.
+  await expect(topbar).toHaveClass(/rail-collapsed/)
+  await expect(search).toBeHidden()
+  await appWindow.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(home).toBeFocused()
+  await expect(topbar).toHaveCSS('width', '280px')
 })
