@@ -794,6 +794,10 @@ export const esES = {
         "label": "Mostrar u ocultar herramientas de desarrollo",
         "description": "Abrir Chromium DevTools para el sitio actual"
       },
+      "full-page-view": {
+        "label": "Alternar vista de página completa",
+        "description": "Ocultar las pestañas y la barra de herramientas para que el sitio web ocupe la ventana"
+      },
       "settings": {
         "label": "Abrir ajustes",
         "description": "Cambiar preferencias de Hronaut"
@@ -858,7 +862,8 @@ export const esES = {
       "previousTab": "Ir a la pestaña anterior",
       "directTab": "Ir a la pestaña web 1–8",
       "lastTab": "Ir a la última pestaña web",
-      "resetZoom": "Restablecer el zoom de la página"
+      "resetZoom": "Restablecer el zoom de la página",
+      "fullPage": "Alternar vista de página completa"
     },
     "responsive": {
       "preview": "Probar teléfonos, tabletas y ordenadores",
@@ -1492,6 +1497,9 @@ export const esES = {
       "answerDescription": "Abrir la tarjeta del agente para responder a su decisión",
       "decision": "Espera tu decisión",
       "unpin": "Dejar de fijar el estado en vivo"
+    },
+    "fullPage": {
+      "exit": "Salir de la vista de página completa"
     },
     "siteControls": {
       "close": "Cerrar los controles del sitio",
@@ -3402,6 +3410,7 @@ export const esES = {
       "reload": "Recargar pestaña",
       "reloadWithoutCache": "Recargar pestaña sin caché",
       "developerTools": "Herramientas de desarrollo",
+      "fullPageView": "Vista de página completa",
       "actualSize": "Tamaño real",
       "zoomIn": "Ampliar",
       "zoomOut": "Reducir",

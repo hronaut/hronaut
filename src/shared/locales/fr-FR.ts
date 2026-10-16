@@ -794,6 +794,10 @@ export const frFR = {
         "label": "Afficher ou masquer les outils de développement",
         "description": "Ouvrir Chromium DevTools pour le site actuel"
       },
+      "full-page-view": {
+        "label": "Activer ou désactiver la vue pleine page",
+        "description": "Masquer les onglets et la barre d’outils pour que le site remplisse la fenêtre"
+      },
       "settings": {
         "label": "Ouvrir les paramètres",
         "description": "Modifier les préférences de Hronaut"
@@ -858,7 +862,8 @@ export const frFR = {
       "previousTab": "Passer à l’onglet précédent",
       "directTab": "Passer à l’onglet web 1–8",
       "lastTab": "Passer au dernier onglet web",
-      "resetZoom": "Réinitialiser le zoom de la page"
+      "resetZoom": "Réinitialiser le zoom de la page",
+      "fullPage": "Activer ou désactiver la vue pleine page"
     },
     "responsive": {
       "preview": "Tester les téléphones, tablettes et ordinateurs",
@@ -1492,6 +1497,9 @@ export const frFR = {
       "answerDescription": "Ouvrir la carte de l’agent pour répondre à sa décision",
       "decision": "Attend votre décision",
       "unpin": "Détacher l’état en direct"
+    },
+    "fullPage": {
+      "exit": "Quitter la vue pleine page"
     },
     "siteControls": {
       "close": "Fermer les contrôles du site",
@@ -3402,6 +3410,7 @@ export const frFR = {
       "reload": "Recharger l’onglet",
       "reloadWithoutCache": "Recharger l’onglet sans cache",
       "developerTools": "Outils de développement",
+      "fullPageView": "Vue pleine page",
       "actualSize": "Taille réelle",
       "zoomIn": "Agrandir",
       "zoomOut": "Réduire",

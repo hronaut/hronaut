@@ -112,6 +112,8 @@ describe('agent avatars in the toolbar', () => {
     await user.click(windsurf)
     await nextTick()
     expect(windsurf.getAttribute('aria-expanded')).toBe('true')
+    // The toolbar learns a card is open under it, so the full-page view keeps it in view.
+    expect(view.emitted('cardOpenChange')).toEqual([[true]])
     const shown = card.last()
     expect(shown.model).toMatchObject({
       name: 'Windsurf',
@@ -126,6 +128,7 @@ describe('agent avatars in the toolbar', () => {
     expect(card.api.hide).toHaveBeenCalledWith(shown.cardId)
     await nextTick()
     expect(windsurf.getAttribute('aria-expanded')).toBe('false')
+    expect(view.emitted('cardOpenChange')).toEqual([[true], [false]])
 
     // The tab already in view needs no Show its tab.
     await user.click(screen.getByRole('button', { name: 'Claude Code, working' }))

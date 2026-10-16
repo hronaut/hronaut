@@ -68,6 +68,14 @@ export function useTabRailInteractionController(options: {
     reconcile()
   }
 
+  /** Picks up keyboard focus that is already inside the surface, as when it becomes hideable while in use. */
+  function sync(surface: HTMLElement): void {
+    if (!options.enabled.value || disposed) return
+    rail = surface
+    focused = document.hasFocus() && surface.contains(document.activeElement)
+    reconcile()
+  }
+
   function focusOut(event: FocusEvent): void {
     if (event.currentTarget instanceof HTMLElement) rail = event.currentTarget
     if (event.relatedTarget instanceof Node && rail?.contains(event.relatedTarget)) return
@@ -142,5 +150,5 @@ export function useTabRailInteractionController(options: {
     window.removeEventListener('drop', dragEnd, true)
   })
 
-  return { revealed, reveal, conceal, focusOut, setRevealed }
+  return { revealed, reveal, conceal, focusOut, setRevealed, sync }
 }

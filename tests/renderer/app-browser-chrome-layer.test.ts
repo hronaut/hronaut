@@ -1,7 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h, nextTick, ref } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, effectScope, h, nextTick, ref, type EffectScope } from 'vue'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppBrowserChromeLayer from '../../src/renderer/src/components/AppBrowserChromeLayer.vue'
+import { useFullPageView } from '../../src/renderer/src/composables/useFullPageView.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 
@@ -145,7 +146,7 @@ const AgentPresenceAvatarsStub = defineComponent({
     attentionId: String,
     attentionDecision: Boolean
   },
-  emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision', 'setPinLiveStatus'],
+  emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision', 'setPinLiveStatus', 'cardOpenChange'],
   setup(_props, { expose }) {
     expose({ openCard: openAgentCardSpy, focus: focusAgentAvatarSpy })
     return () => h('div', { 'data-testid': 'agent-presence' })
@@ -229,7 +230,14 @@ const ShellTitleBarSurfaceStub = defineComponent({
   }
 })
 
+const scopes: EffectScope[] = []
+
 function createHarness(home = false) {
+  const fullPageAvailable = ref(!home)
+  const fullPageAttention = ref(false)
+  const scope = effectScope()
+  scopes.push(scope)
+  const fullPage = scope.run(() => useFullPageView({ available: fullPageAvailable, attention: fullPageAttention }))!
   const activeTab = tab({ mcpGroupId: 'workspace-1' })
   const browserState = state(activeTab)
   const customTitleBar = ref(false)
@@ -323,6 +331,7 @@ function createHarness(home = false) {
   }
   const props = {
     state: browserState,
+    fullPage,
     hydrated: true,
     locale: 'en-US' as const,
     browser: browser as never,
@@ -445,7 +454,10 @@ function createHarness(home = false) {
     addressActions,
     settings,
     setPinAgentLiveStatus,
-    settingsOpen
+    settingsOpen,
+    fullPage,
+    fullPageAvailable,
+    fullPageAttention
   }
 }
 
@@ -453,6 +465,79 @@ describe('AppBrowserChromeLayer', () => {
   beforeEach(() => {
     openAgentCardSpy.mockClear()
     focusAgentAvatarSpy.mockClear()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    for (const scope of scopes.splice(0)) scope.stop()
+  })
+
+  it('gives a website the window in the full-page view and brings the chrome back at its edge', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness()
+    const edge = () => harness.wrapper.find('[data-testid="full-page-edge"]')
+    const exit = () => harness.wrapper.find('button[aria-label="Exit full-page view"]')
+    expect(edge().exists()).toBe(false)
+    expect(exit().exists()).toBe(false)
+
+    expect(harness.fullPage.toggle()).toBe(true)
+    await nextTick()
+    // The bars give way to the window's top edge, which names the page in view.
+    expect(edge().text()).toBe('Example')
+    expect(edge().attributes('aria-hidden')).toBe('true')
+    expect(harness.wrapper.find('.full-page-side-edge').exists()).toBe(false)
+    harness.orientation.value = 'vertical'
+    await nextTick()
+    // With the rail, its left edge too.
+    expect(harness.wrapper.find('.full-page-side-edge').exists()).toBe(true)
+
+    // Resting the pointer anywhere on the chrome shows it after a moment, and leaving hides it again.
+    const chrome = harness.wrapper.find('.browser-chrome')
+    await chrome.trigger('mouseenter')
+    await vi.advanceTimersByTimeAsync(179)
+    expect(edge().exists()).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(edge().exists()).toBe(false)
+    expect(harness.wrapper.find('.full-page-side-edge').exists()).toBe(false)
+    await chrome.trigger('mouseleave')
+    await vi.advanceTimersByTimeAsync(260)
+    expect(edge().exists()).toBe(true)
+
+    // Keyboard focus shows it at once.
+    await chrome.trigger('focusin')
+    expect(edge().exists()).toBe(false)
+    await chrome.trigger('focusout')
+    await vi.advanceTimersByTimeAsync(260)
+    expect(edge().exists()).toBe(true)
+
+    // An agent that needs you brings it back until the request is answered.
+    harness.fullPageAttention.value = true
+    await nextTick()
+    expect(edge().exists()).toBe(false)
+    harness.fullPageAttention.value = false
+    await nextTick()
+    expect(edge().exists()).toBe(true)
+
+    // An agent card sits under its avatar, so the chrome stays while one is open.
+    const avatars = harness.wrapper.getComponent(AgentPresenceAvatarsStub)
+    avatars.vm.$emit('cardOpenChange', true)
+    await nextTick()
+    expect(edge().exists()).toBe(false)
+    avatars.vm.$emit('cardOpenChange', false)
+    await nextTick()
+    expect(edge().exists()).toBe(true)
+
+    // The revealed toolbar offers a way out.
+    await exit().trigger('click')
+    expect(harness.fullPage.enabled.value).toBe(false)
+    expect(edge().exists()).toBe(false)
+    expect(exit().exists()).toBe(false)
+  })
+
+  it('has no full-page view on Home', async () => {
+    const harness = createHarness(true)
+    expect(harness.fullPage.toggle()).toBe(false)
+    await nextTick()
+    expect(harness.wrapper.find('[data-testid="full-page-edge"]').exists()).toBe(false)
   })
 
   it('takes over a tab after pausing it, unless you chose something else meanwhile', async () => {

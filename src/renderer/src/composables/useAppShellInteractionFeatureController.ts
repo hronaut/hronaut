@@ -179,6 +179,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     toggleDeveloperTools: () => void | Promise<void>
     /** Opens the agent card for the workspace in view; nothing happens when it has no agents. */
     openAgentCard?: () => unknown
+    /** Hides or shows the tabs, rail and toolbar over a website. */
+    toggleFullPageView?: () => unknown
   }
   actions: {
     closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
@@ -329,6 +331,7 @@ export function useAppShellInteractionFeatureController(
     toggleElementPicker: () => features.pageTools.toggleElementPicker('context'),
     toggleDeveloperTools: navigation.toggleDeveloperTools,
     ...(navigation.openAgentCard ? { openAgentCard: async () => { await navigation.openAgentCard?.() } } : {}),
+    ...(navigation.toggleFullPageView ? { toggleFullPageView: () => { navigation.toggleFullPageView?.() } } : {}),
     onError: actions.reportShortcutError
   })
   runShortcutFromPalette = browserShortcuts.run

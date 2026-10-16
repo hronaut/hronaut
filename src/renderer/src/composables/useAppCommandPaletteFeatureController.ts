@@ -130,6 +130,7 @@ export function useAppCommandPaletteFeatureController<
       'cpu-profile': options.pageTools.toggleCpuProfile,
       memory: options.pageTools.toggleMemoryReport,
       'developer-tools': options.browser.toggleDeveloperTools,
+      'full-page-view': () => options.browser.runShortcut('toggle-full-page'),
       settings: () => options.settings.openSection('appearance'),
       privacy: options.site.openPrivacySettings,
       'site-permissions': () => options.settings.openSection('permissions'),

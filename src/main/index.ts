@@ -1770,6 +1770,14 @@ function installApplicationMenu(): void {
             label: text('native.menu.developerTools'),
             click: () => runNativeBrowserAction('toggle Developer Tools', () => tabsManager?.toggleDevTools())
           },
+          {
+            label: text('native.menu.fullPageView'),
+            accelerator: 'CmdOrCtrl+Shift+F',
+            click: () => {
+              showWindow()
+              mainWindow?.webContents.send('browser:shortcut-requested', 'toggle-full-page')
+            }
+          },
           { type: 'separator' },
           {
             label: text('native.menu.actualSize'),

@@ -46,6 +46,7 @@ import { useAppBrowserChromeFeatureController } from './composables/useAppBrowse
 import type { TransientPanelsCloseOptions } from './composables/useTransientPanelsController'
 import { useShellTooltips } from './composables/shell-tooltips'
 import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
+import { useFullPageView } from './composables/useFullPageView'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -261,6 +262,14 @@ const {
   close: closeSettings
 } = settingsDialogController
 useWorkspaceShellTint({ state, settingsOpen, tabOrientation, detachedWindow: isDetachedPanelWindow })
+const fullPageView = useFullPageView({
+  available: computed(() => !isDetachedPanelWindow && !settingsOpen.value
+    && Boolean(state.value.activeTabId) && isHronautHomeUrl(activeTab.value?.url) !== true),
+  attention: computed(() => userAttention.value !== null)
+})
+const { active: fullPageActive, concealed: fullPageConcealed } = fullPageView
+// A hidden rail gives the page its room; the tabs keep their vertical layout for when it shows again.
+const pageRailWidth = computed(() => fullPageConcealed.value ? 0 : tabRailWidth.value)
 const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
 const walletWorkspaces = computed(() => state.value.mcpTabGroups.map((workspace) => ({ id: workspace.id, name: workspace.name })))
 const dataWorkspaces = computed(() => [
@@ -552,7 +561,8 @@ const {
     expandTabGroup: (groupId) => browserChromeLayer.value?.expandTabGroup(groupId),
     togglePageTools,
     toggleDeveloperTools,
-    openAgentCard: () => browserChromeLayer.value?.openAgentCard()
+    openAgentCard: () => browserChromeLayer.value?.openAgentCard(),
+    toggleFullPageView: fullPageView.toggle
   },
   actions: {
     closeTransientPanels,
@@ -619,7 +629,7 @@ const {
     dock: panelDock,
     shell,
     dockedPanelOpen,
-    tabRailWidth,
+    tabRailWidth: pageRailWidth,
     detachedWindow: isDetachedPanelWindow,
     shellApi: window.hronautShell
   },
@@ -651,6 +661,11 @@ const {
   closePanelsExcept: closeDockedPanelsExcept,
   closeAddressSuggestions
 })
+// What opens from the tabs and the toolbar keeps them in view while it is open.
+fullPageView.holdWhile(() => [
+  mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen, tabSearchOpen,
+  downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen
+].some((open) => open.value === true))
 const appActiveTabFeatureController = useAppActiveTabFeatureController({
   presentation: {
     state,
@@ -812,14 +827,16 @@ useAppLifecycleController({
         'custom-title-bar': customTitleBar,
         'vertical-tabs-shell': tabOrientation === 'vertical',
         'compact-vertical-tab-rail': compactVerticalTabRail,
-        'compact-vertical-tab-rail-revealed': compactVerticalTabRail && !verticalTabRailCollapsed
+        'compact-vertical-tab-rail-revealed': compactVerticalTabRail && !verticalTabRailCollapsed,
+        'full-page-view': fullPageActive,
+        'full-page-concealed': fullPageConcealed
       },
       `panel-dock-${panelDock}`
     ]"
     :style="{
       '--panel-dock-size': `${panelDockSize}px`,
       '--shell-content-top': `${shellContentTop}px`,
-      '--tab-rail-width': `${tabRailWidth}px`,
+      '--tab-rail-width': `${pageRailWidth}px`,
       '--tab-rail-expanded-width': `${expandedTabRailWidth}px`
     }"
     @click.capture="guardShellInteraction"
@@ -838,6 +855,7 @@ useAppLifecycleController({
       v-model:page-tools-open="pageToolsOpen"
       :state="state"
       :user-attention="userAttention"
+      :full-page="fullPageView"
       :hydrated="browserStateInitialized"
       :locale="resolvedLocale"
       :browser="browser"

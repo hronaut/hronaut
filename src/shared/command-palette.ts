@@ -38,6 +38,7 @@ export type CommandPaletteCommandId =
   | 'cpu-profile'
   | 'memory'
   | 'developer-tools'
+  | 'full-page-view'
   | 'settings'
   | 'privacy'
   | 'site-permissions'
@@ -94,6 +95,7 @@ export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
   { id: 'cpu-profile', label: 'Record JavaScript CPU profile', description: 'Find hot JavaScript functions by sampled self time', category: 'Current website', keywords: ['performance', 'profiler', 'hotspot', 'slow function', 'bottom up'], websiteOnly: true },
   { id: 'memory', label: 'Measure page memory', description: 'Inspect heap and DOM counters or sample retained allocations', category: 'Current website', keywords: ['heap', 'dom', 'allocation', 'leak', 'retained'], websiteOnly: true },
   { id: 'developer-tools', label: 'Toggle Developer Tools', description: 'Open Chromium DevTools for the current website', category: 'Current website', keywords: ['inspect', 'console'], shortcut: 'F12', websiteOnly: true },
+  { id: 'full-page-view', label: 'Toggle full-page view', description: 'Hide the tabs and toolbar so the website fills the window', category: 'Current website', keywords: ['fullscreen', 'full screen', 'focus', 'distraction', 'hide toolbar', 'immersive', 'zen'], shortcut: 'Ctrl/Cmd+Shift+F', websiteOnly: true },
   { id: 'settings', label: 'Open Settings', description: 'Change Hronaut preferences', category: 'Application', keywords: ['preferences'] },
   { id: 'privacy', label: 'Open Workspaces & data', description: 'Manage profiles, transfer site data, or clear history', category: 'Application', keywords: ['workspace', 'transfer', 'copy', 'move', 'janitor', 'cookies', 'cache'], shortcut: 'Ctrl/Cmd+Shift+Delete' },
   { id: 'site-permissions', label: 'Open Site permissions', description: 'Review saved permission decisions', category: 'Application', keywords: ['camera', 'location', 'notifications'] },
