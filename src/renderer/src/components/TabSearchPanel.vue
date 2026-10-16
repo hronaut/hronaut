@@ -25,6 +25,7 @@ import type {
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
 import { useTabSearchController } from '../composables/useTabSearchController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -304,7 +305,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                     :id="resultId({ kind: 'open', tab })"
                     class="tab-overview-open"
                     type="button"
-                    :title="tab.url"
+                    v-tooltip="tab.url"
                     :disabled="actionPending"
                     @click="selectOpenTab(tab)"
                   >
@@ -335,7 +336,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                     </span>
                   </UiButton>
                   <div class="tab-overview-preview-action">
-                    <UiButton :id="`tab-page-preview-${tab.id}`" :aria-label="t('tabSearch.previewAria', { title: tab.title || t('tabSearch.newTabTitle') })" :disabled="actionPending || tab.sleeping || tab.loading" :title="tab.sleeping ? t('tabSearch.previewSleeping') : undefined" @click="showPagePreview(tab)">{{ t('tabSearch.fullPagePreview') }}</UiButton>
+                    <UiButton :id="`tab-page-preview-${tab.id}`" :aria-label="t('tabSearch.previewAria', { title: tab.title || t('tabSearch.newTabTitle') })" :disabled="actionPending || tab.sleeping || tab.loading" v-tooltip="tab.sleeping ? t('tabSearch.previewSleeping') : undefined" @click="showPagePreview(tab)">{{ t('tabSearch.fullPagePreview') }}</UiButton>
                   </div>
                   <span class="tab-overview-card-actions">
                     <UiButton appearance="application"
@@ -343,12 +344,12 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                       :class="{ active: tab.pinned }"
                       type="button"
                       :aria-label="tab.pinned ? t('tabSearch.unpinAria', { title: tab.title || t('tabSearch.newTabTitle') }) : t('tabSearch.pinAria', { title: tab.title || t('tabSearch.newTabTitle') })"
-                      :title="tab.pinned ? t('tabSearch.unpin') : t('tabSearch.pin')"
+                      v-tooltip="tab.pinned ? t('tabSearch.unpin') : t('tabSearch.pin')"
                       :aria-pressed="tab.pinned"
                       :disabled="actionPending"
                       @click="togglePinnedTab($event, tab)"
                     ><IconKeep aria-hidden="true" /></UiButton>
-                    <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
+                    <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" v-tooltip="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
                   </span>
                   <TabLabelEditor :tab="tab" />
                 </article>
@@ -367,7 +368,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                 role="listitem"
                 @pointermove="selectFromPointer($event, resultIndex('saved', group.id))"
               >
-                <UiButton appearance="application" :id="resultId({ kind: 'saved', tab: group })" class="tab-search-open" type="button" :title="group.tabs.map((tab) => tab.url).join('\n')" :disabled="actionPending" @click="restoreSavedGroup(group)">
+                <UiButton appearance="application" :id="resultId({ kind: 'saved', tab: group })" class="tab-search-open" type="button" v-tooltip="group.tabs.map((tab) => tab.url).join('\n')" :disabled="actionPending" @click="restoreSavedGroup(group)">
                   <span class="tab-search-site-icon saved" :style="tabGroupColorStyle(group.color)" aria-hidden="true"><IconFolderOpen /></span>
                   <span class="tab-search-copy">
                     <strong>{{ group.name }}</strong>
@@ -375,8 +376,8 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                     <small>{{ group.tabs.slice(0, 3).map((tab) => tab.label || tab.title || tab.url).join(' · ') }}</small>
                   </span>
                 </UiButton>
-                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" :title="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="restoreSavedGroup(group)"><IconRestore aria-hidden="true" /></UiButton>
-                <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.deleteWorkspaceAria', { name: group.name })" :title="t('tabSearch.deleteWorkspace')" :disabled="actionPending" @click="deleteSavedGroup($event, group)"><IconDelete aria-hidden="true" /></UiButton>
+                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" v-tooltip="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="restoreSavedGroup(group)"><IconRestore aria-hidden="true" /></UiButton>
+                <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.deleteWorkspaceAria', { name: group.name })" v-tooltip="t('tabSearch.deleteWorkspace')" :disabled="actionPending" @click="deleteSavedGroup($event, group)"><IconDelete aria-hidden="true" /></UiButton>
               </article>
             </div>
           </section>
@@ -391,7 +392,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                 role="listitem"
                 @pointermove="selectFromPointer($event, resultIndex('closed', tab.id))"
               >
-                <UiButton appearance="application" :id="resultId({ kind: 'closed', tab })" class="tab-search-open" type="button" :title="tab.url" :disabled="actionPending" @click="restoreClosedTab(tab)">
+                <UiButton appearance="application" :id="resultId({ kind: 'closed', tab })" class="tab-search-open" type="button" v-tooltip="tab.url" :disabled="actionPending" @click="restoreClosedTab(tab)">
                   <span class="tab-search-site-icon closed" aria-hidden="true"><IconHistory /></span>
                   <span class="tab-search-copy">
                     <strong>{{ tab.label || tab.title || t('tabSearch.newTabTitle') }}</strong>
@@ -400,7 +401,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                     <small>{{ closedTabMeta(tab) }}</small>
                   </span>
                 </UiButton>
-                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.restore')" :disabled="actionPending" @click="restoreClosedTab(tab)"><IconRestore aria-hidden="true" /></UiButton>
+                <UiButton appearance="application" class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreAria', { title: tab.title || t('tabSearch.newTabTitle') })" v-tooltip="t('tabSearch.restore')" :disabled="actionPending" @click="restoreClosedTab(tab)"><IconRestore aria-hidden="true" /></UiButton>
               </article>
             </div>
           </section>

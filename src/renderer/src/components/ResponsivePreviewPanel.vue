@@ -18,6 +18,7 @@ import type {
 import { BROWSER_VIEWPORT_PRESETS } from '../../../shared/viewport-presets.js'
 import { useResponsivePreviewController } from '../composables/useResponsivePreviewController.js'
 import PanelDockPicker from './PanelDockPicker.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -103,7 +104,7 @@ onBeforeUnmount(dispose)
       <section aria-labelledby="responsive-presets-title">
         <div class="responsive-section-heading">
           <div><h3 id="responsive-presets-title">{{ t('responsive.preset') }}</h3><p>{{ t('responsive.presetHelp') }}</p></div>
-          <UiButton appearance="application" type="button" :title="t('responsive.rotateTitle')" :aria-label="t('responsive.rotateAria')" @click="toggleOrientation"><IconScreenRotation aria-hidden="true" /> {{ t('responsive.rotate') }}</UiButton>
+          <UiButton appearance="application" type="button" v-tooltip="t('responsive.rotateTitle')" :aria-label="t('responsive.rotateAria')" @click="toggleOrientation"><IconScreenRotation aria-hidden="true" /> {{ t('responsive.rotate') }}</UiButton>
         </div>
         <div class="responsive-preset-grid" role="group" :aria-label="t('responsive.presetAria')">
           <UiButton appearance="application"

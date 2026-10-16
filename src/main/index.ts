@@ -6,6 +6,8 @@ import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import { registerWalletIpc } from './wallet/ipc.js'
+import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
+import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
@@ -239,6 +241,16 @@ let addressSuggestionOverlayGeneration = 0
 let addressSuggestionOverlayBounds: { x: number; y: number; width: number; maxHeight: number } | null = null
 let addressSuggestionOverlayVisible = false
 let addressSuggestionOverlayDismissalPending = false
+let tooltipSurface: { view: WebContentsView; webContents: WebContents } | null = null
+let tooltipSurfaceLoad: Promise<ShellTooltipSurface> | null = null
+const shellTooltips = new ShellTooltipOverlay({
+  surface: () => ensureTooltipSurface(),
+  windowSize: () => {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || mainWindow.isMinimized()) return null
+    const [width = 0, height = 0] = mainWindow.getContentSize()
+    return { width, height }
+  }
+})
 let panelWindowUrl: string | null = null
 let panelWindowPanel: DetachablePanelId | null = null
 let panelWindowRedocking = false
@@ -1697,6 +1709,97 @@ function assertAddressOverlaySender(event: Electron.IpcMainEvent): void {
   }
 }
 
+function trustedTooltipOverlayUrl(): string {
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+    return new URL('tooltip-overlay.html', trustedShellUrl()).href
+  }
+  return pathToFileURL(join(__dirname, '../renderer/tooltip-overlay.html')).href
+}
+
+function assertTooltipOverlaySender(event: Electron.IpcMainEvent): void {
+  if (!tooltipSurface || event.sender !== tooltipSurface.webContents || !trustedUrlMatches(event.senderFrame?.url, trustedTooltipOverlayUrl())) {
+    throw new Error('Rejected IPC from a non-tooltip renderer')
+  }
+}
+
+function tooltipSurfaceApi(view: WebContentsView, webContents: WebContents): ShellTooltipSurface {
+  return {
+    send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
+    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
+    setBounds: (bounds) => view.setBounds(bounds),
+    present: () => {
+      if (webContents.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return
+      // Adding the view again also makes it the topmost native view, above a page shown meanwhile.
+      mainWindow.contentView.addChildView(view)
+      view.setVisible(true)
+    },
+    withdraw: () => {
+      if (webContents.isDestroyed()) return
+      view.setVisible(false)
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.contentView.children.includes(view)) {
+        mainWindow.contentView.removeChildView(view)
+      }
+    },
+    isDestroyed: () => webContents.isDestroyed()
+  }
+}
+
+/**
+ * One transparent view, created on the first tooltip, draws the shell's tooltips above the page
+ * views. It is in the window only while a tooltip shows.
+ */
+async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
+  if (tooltipSurfaceLoad) return tooltipSurfaceLoad
+  const opening = (async () => {
+    const expectedUrl = trustedTooltipOverlayUrl()
+    const view = new WebContentsView({
+      webPreferences: {
+        preload: join(__dirname, '../preload/tooltipOverlay.cjs'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        backgroundThrottling: false
+      }
+    })
+    const webContents = view.webContents
+    tooltipSurface = { view, webContents }
+    try {
+      view.setBackgroundColor('#00000000')
+      view.setVisible(false)
+      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      webContents.on('will-navigate', (event, url) => {
+        if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
+      })
+      webContents.on('destroyed', () => {
+        if (tooltipSurface?.webContents !== webContents) return
+        tooltipSurface = null
+        tooltipSurfaceLoad = null
+        shellTooltips.surfaceLost()
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.contentView.children.includes(view)) {
+          try {
+            mainWindow.contentView.removeChildView(view)
+          } catch (error) {
+            console.error('[tooltip] Failed to detach the tooltip view:', error)
+          }
+        }
+      })
+      webContents.on('render-process-gone', () => {
+        if (!webContents.isDestroyed()) webContents.close()
+      })
+      await webContents.loadURL(expectedUrl)
+      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The main window closed before the tooltip view loaded')
+      return tooltipSurfaceApi(view, webContents)
+    } catch (error) {
+      if (!webContents.isDestroyed()) webContents.close()
+      if (tooltipSurface?.webContents === webContents) tooltipSurface = null
+      tooltipSurfaceLoad = null
+      throw error
+    }
+  })()
+  tooltipSurfaceLoad = opening
+  return opening
+}
+
 function validAddressSuggestion(value: unknown): value is AddressSuggestion {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const suggestion = value as Record<string, unknown>
@@ -2136,6 +2239,22 @@ function handleBrowserIpc(channel: string, listener: Parameters<typeof ipcMain.h
 }
 
 function registerIpc(): void {
+  ipcMain.on('shell-tooltip:show', (event, value: unknown) => {
+    if (workspaceStartupFailure) return
+    assertMainShellSender(event)
+    shellTooltips.show(parseShellTooltipRequest(value), event.sender.getZoomFactor())
+  })
+  ipcMain.on('shell-tooltip:hide', (event, id: unknown) => {
+    if (workspaceStartupFailure) return
+    assertMainShellSender(event)
+    if (id !== undefined && !(Number.isSafeInteger(id) && (id as number) > 0)) throw new TypeError('Invalid tooltip id')
+    shellTooltips.hide(id as number | undefined)
+  })
+  ipcMain.on('tooltip-overlay:measured', (event, value: unknown) => {
+    assertTooltipOverlaySender(event)
+    const measurement = parseShellTooltipMeasurement(value)
+    if (measurement) shellTooltips.measured(measurement)
+  })
   ipcMain.on('address-overlay:show', (event, value: unknown) => {
     if (workspaceStartupFailure) return
     assertMainShellSender(event)
@@ -3762,7 +3881,11 @@ async function createWindow(startMinimized = false): Promise<void> {
     getLocale: () => resolvedLocale,
     getTabPosition: () => settings.tabPosition,
     configureSession: configureBrowserSession,
-    onUserInteraction: acknowledgeUserAttention,
+    onUserInteraction: () => {
+      // A key press in a page hides a shell tooltip, as it hides a native one.
+      shellTooltips.hide()
+      acknowledgeUserAttention()
+    },
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
@@ -3838,11 +3961,19 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindow.webContents.on('render-process-gone', () => {
     tabsManager?.cancelSplitDivider()
     clearWindowControlsScrim()
+    shellTooltips.hide()
   })
   // A new shell document has no dialog open, whatever the previous one reported.
   mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
-    if (isMainFrame && !isInPlace) clearWindowControlsScrim()
+    if (isMainFrame && !isInPlace) {
+      clearWindowControlsScrim()
+      shellTooltips.hide()
+    }
   })
+  // A tooltip belongs beside a control that just moved, or in a window that is no longer in front.
+  for (const change of ['blur', 'resize', 'minimize', 'hide', 'enter-full-screen', 'leave-full-screen'] as const) {
+    mainWindow.on(change as 'blur', () => shellTooltips.hide())
+  }
   mainWindow.on('resize', () => tabsManager?.layout())
   mainWindow.on('resize', scheduleWindowStateSave)
   mainWindow.on('move', scheduleWindowStateSave)
@@ -3873,6 +4004,10 @@ async function createWindow(startMinimized = false): Promise<void> {
     addressSuggestionOverlayBounds = null
     addressSuggestionOverlayVisible = false
     addressSuggestionOverlayDismissalPending = false
+    shellTooltips.hide()
+    if (tooltipSurface && !tooltipSurface.webContents.isDestroyed()) tooltipSurface.webContents.close()
+    tooltipSurface = null
+    tooltipSurfaceLoad = null
     windowControlsScrim = null
     mainWindow = null
   })

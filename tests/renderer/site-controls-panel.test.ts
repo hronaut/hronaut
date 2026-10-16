@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import SiteControlsPanel from '../../src/renderer/src/components/SiteControlsPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { SitePermissionDecision, SitePermissionEntry } from '../../src/shared/types.js'
+import { getByTooltip } from './helpers/tooltip.js'
 
 const cameraPermission: SitePermissionEntry = {
   origin: 'https://example.test',
@@ -52,7 +53,7 @@ describe('SiteControlsPanel', () => {
     expect(screen.getByText('2')).toBeVisible()
     expect(screen.getByText('3')).toBeVisible()
     await user.selectOptions(screen.getByRole('combobox', { name: /Camera/ }), 'deny')
-    await user.click(screen.getByTitle('Reset to default'))
+    await user.click(getByTooltip('Reset to default'))
     await user.click(screen.getByRole('button', { name: 'All site settings' }))
     await user.click(screen.getByRole('button', { name: 'Site storage' }))
 

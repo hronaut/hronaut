@@ -55,7 +55,7 @@ test('opens History results in the background while retaining the working page a
       await page.getByRole('button', { name: 'Browsing history', exact: true }).click()
       await expect(search).toHaveValue('Background')
       await expect(dateRange).toHaveValue('last7Days')
-      await panel.getByTitle(`${origin}/background`, { exact: true }).click()
+      await panel.locator(`[data-tooltip="${origin}/background"]`).click()
       await expect(panel).toHaveCount(0)
       await expect.poll(async () => (await state()).activeTabId).not.toBe(before.activeTabId)
       await expect.poll(async () => (await state()).tabs.filter(tab => tab.url === `${origin}/background`).length).toBe(3)

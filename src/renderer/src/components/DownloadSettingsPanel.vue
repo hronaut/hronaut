@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import type { DownloadSettingsController } from '../composables/useDownloadSettingsController'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   controller: DownloadSettingsController
@@ -39,7 +40,7 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
       <div class="settings-row download-location-row">
         <span class="download-location-copy">
           <strong>{{ t('settings.downloads.location') }}</strong>
-          <code :title="effectiveDirectory">{{ effectiveDirectory }}</code>
+          <code v-tooltip="effectiveDirectory">{{ effectiveDirectory }}</code>
         </span>
         <div class="download-location-actions">
           <UiButton class="secondary-button" type="button" :disabled="busy" @click="chooseDirectory">

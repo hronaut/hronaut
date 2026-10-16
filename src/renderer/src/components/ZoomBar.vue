@@ -7,6 +7,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconRemove from '~icons/material-symbols/remove-rounded'
 import IconZoomIn from '~icons/material-symbols/zoom-in-rounded'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../../shared/types.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 type ZoomBrowserApi = Pick<HronautApi, 'setZoom'>
 type ZoomAction = 'in' | 'out' | 'reset'
@@ -96,7 +97,7 @@ defineExpose({ close, openForTab, setZoom })
     <span v-if="activeTab?.defaultFontSize" class="zoom-isolated" data-testid="zoom-default-font-size">{{ t('zoom.defaultFontSize', { size: activeTab.defaultFontSize }) }}</span>
     <UiButton appearance="application"
       type="button"
-      :title="t('zoom.outTitle')"
+      v-tooltip="t('zoom.outTitle')"
       :aria-label="t('zoom.out')"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) <= 50"
       @click="setZoom('out')"
@@ -104,7 +105,7 @@ defineExpose({ close, openForTab, setZoom })
     <output aria-live="polite">{{ formatPercent(activeTab?.zoomPercent ?? 100) }}</output>
     <UiButton appearance="application"
       type="button"
-      :title="t('zoom.inTitle')"
+      v-tooltip="t('zoom.inTitle')"
       :aria-label="t('zoom.in')"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) >= 400"
       @click="setZoom('in')"
@@ -115,6 +116,6 @@ defineExpose({ close, openForTab, setZoom })
       :disabled="busy || (activeTab?.zoomPercent ?? 100) === 100"
       @click="setZoom('reset')"
     >{{ t('zoom.reset') }}</UiButton>
-    <UiButton appearance="application" type="button" :title="t('zoom.closeTitle')" :aria-label="t('zoom.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+    <UiButton appearance="application" type="button" v-tooltip="t('zoom.closeTitle')" :aria-label="t('zoom.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
   </div>
 </template>

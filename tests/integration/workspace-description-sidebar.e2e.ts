@@ -16,7 +16,7 @@ test('workspace navigation keeps descriptions in hover text without showing a pe
   const header = workspace.locator('.tab-group-label')
   await expect(workspace.locator('.workspace-tab-description')).toHaveCount(0)
   await expect(header).toHaveAccessibleDescription(descriptionText)
-  await expect(header).toHaveAttribute('title', new RegExp('Investigate checkout'))
+  await expect(header).toHaveAttribute('data-tooltip', new RegExp('Investigate checkout'))
 
   await header.click()
   await expect(header).toHaveAttribute('aria-expanded', 'false')
@@ -26,11 +26,11 @@ test('workspace navigation keeps descriptions in hover text without showing a pe
   await editor.getByRole('textbox', { name: 'Description', exact: true }).fill('Review the saved cart.')
   await editor.getByRole('button', { name: 'Save changes', exact: true }).click()
   await expect(header).toHaveAccessibleDescription('Review the saved cart.')
-  await expect(header).toHaveAttribute('title', /Review the saved cart\./)
+  await expect(header).toHaveAttribute('data-tooltip', /Review the saved cart\./)
   await expect(workspace.locator('.workspace-tab-description')).toHaveCount(0)
 
   await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setTabPosition('top'))
   await expect(appWindow.locator('.workspace-tab-description')).toHaveCount(0)
   await expect(appWindow.getByRole('group', { name: 'Checkout QA', exact: true }).locator('.tab-group-label'))
-    .toHaveAttribute('title', /Review the saved cart\./)
+    .toHaveAttribute('data-tooltip', /Review the saved cart\./)
 })

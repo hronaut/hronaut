@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PanelDock } from '../../../shared/types'
+import { vTooltip } from '../ui/tooltip.js'
 
 defineProps<{
   dock: PanelDock
@@ -29,7 +30,7 @@ const emit = defineEmits<{
     :aria-valuemax="maximum"
     :aria-valuenow="value"
     tabindex="0"
-    :title="title"
+    v-tooltip="title"
     @pointerdown="emit('pointerdown', $event)"
     @keydown="emit('keydown', $event)"
     @dblclick="emit('reset')"

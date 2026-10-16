@@ -14,6 +14,7 @@ import type { SupportedLocale } from '../../../shared/locale'
 import { browserConsoleLevel, type BrowserConsoleLevelFilter } from '../../../shared/console-messages'
 import type { BrowserConsoleMessage, PanelDock } from '../../../shared/types'
 import PanelDockPicker from './PanelDockPicker.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   state: 'idle' | 'loading' | 'ready' | 'error'
@@ -110,7 +111,7 @@ function entryKey(message: BrowserConsoleMessage): string {
       </label>
       <label class="network-monitor-search">
         <IconSearch aria-hidden="true" />
-        <input v-model="excludeText" type="search" :aria-label="t('console.excludeText')" :placeholder="t('console.excludeText')" :title="t('console.excludeHint')" spellcheck="false" />
+        <input v-model="excludeText" type="search" :aria-label="t('console.excludeText')" :placeholder="t('console.excludeText')" v-tooltip="t('console.excludeHint')" spellcheck="false" />
       </label>
       <label class="console-level-filter">
         <span>{{ t('console.level') }}</span>
@@ -122,7 +123,7 @@ function entryKey(message: BrowserConsoleMessage): string {
           <option value="verbose">{{ t('console.verbose', { count: localNumber(messageCounts.verbose) }) }}</option>
         </select>
       </label>
-      <label class="preserve-logs-toggle" :title="t('console.preserveTitle')">
+      <label class="preserve-logs-toggle" v-tooltip="t('console.preserveTitle')">
         <input type="checkbox" :checked="preserveLogs" :disabled="preservationBusy" @change="emit('preserveChange', $event)" />
         {{ t('console.preserve') }}
       </label>
@@ -145,7 +146,7 @@ function entryKey(message: BrowserConsoleMessage): string {
             v-if="(message.repeatCount ?? 1) > 1"
             class="console-repeat"
             :aria-label="t('console.repeatedEvents', { count: localNumber(message.repeatCount ?? 0) }, message.repeatCount ?? 0)"
-            :title="message.firstTimestamp ? t('console.repeatedSince', { time: debugTimestamp(message.firstTimestamp) }) : undefined"
+            v-tooltip="message.firstTimestamp ? t('console.repeatedSince', { time: debugTimestamp(message.firstTimestamp) }) : undefined"
           >×{{ message.repeatCount }}</small>
           <small v-if="message.handled" class="console-handled">{{ t('console.handledLater') }}</small>
           <time :datetime="message.timestamp">{{ debugTimestamp(message.timestamp) }}</time>

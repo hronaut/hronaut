@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import HistoryPanel from '../../src/renderer/src/components/HistoryPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../src/shared/types.js'
+import { getByTooltip } from './helpers/tooltip.js'
 
 function entry(id: string, title = `Page ${id}`, visitCount = 1): BrowserHistoryEntry {
   return {
@@ -103,7 +104,7 @@ describe('HistoryPanel', () => {
     const view = renderPanel({ entries: [row] })
     try {
       await fireEvent.update(screen.getByRole('combobox', { name: 'Date range' }), 'today')
-      const button = control === 'open' ? screen.getByTitle(row.url)
+      const button = control === 'open' ? getByTooltip(row.url)
         : screen.getByRole('button', { name: control === 'origin' ? 'Filter history by origin of Alpha docs' : control === 'background' ? 'Open Alpha docs in background tab'
           : control === 'bookmark' ? 'Bookmark Alpha docs' : 'Remove Alpha docs from history' })
       button.focus()
@@ -118,7 +119,7 @@ describe('HistoryPanel', () => {
   it.each(['open', 'bookmark', 'background', 'origin', 'remove'])('moves a removed row’s %s focus to the corresponding neighboring control', async control => {
     const view = renderPanel()
     const button = (id: 'alpha' | 'beta') => control === 'open'
-      ? screen.getByTitle(entry(id).url)
+      ? getByTooltip(entry(id).url)
       : screen.getByRole('button', { name: control === 'origin' ? `Filter history by origin of ${id === 'alpha' ? 'Alpha docs' : 'Beta page'}` : control === 'background'
         ? `Open ${id === 'alpha' ? 'Alpha docs' : 'Beta page'} in background tab` : control === 'bookmark'
         ? `Bookmark ${id === 'alpha' ? 'Alpha docs' : 'Beta page'}`
@@ -331,7 +332,7 @@ describe('HistoryPanel', () => {
       .mockResolvedValueOnce(undefined)
     renderPanel({ entries: [entry('alpha', 'Alpha docs')], openHistoryEntry })
     const user = userEvent.setup()
-    const open = screen.getByTitle('https://example.test/alpha')
+    const open = getByTooltip('https://example.test/alpha')
 
     await user.click(open)
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not open the page')

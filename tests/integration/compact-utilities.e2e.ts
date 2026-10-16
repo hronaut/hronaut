@@ -26,7 +26,7 @@ test('keeps all seven named utility icons and Settings after MCP at minimum rail
       for (const selector of selectors) {
         const button = appWindow.locator(selector)
         await expect(button).toHaveAttribute('aria-label', /.+/)
-        await expect(button).toHaveAttribute('title', /.+/)
+        await expect(button).toHaveAttribute('data-tooltip', /.+/)
         await expect(button).toBeInViewport({ ratio: 1 })
         await expect(button).toHaveText('')
         await expect(button.locator('svg').first()).toBeVisible()

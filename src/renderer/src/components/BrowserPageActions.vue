@@ -23,6 +23,7 @@ import type {
   ScreenshotCaptureState
 } from '../composables/usePageCaptureController.js'
 import SplitViewControl from './SplitViewControl.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 type SplitViewBrowserApi = Pick<HronautApi, 'openSplitView' | 'updateSplitView' | 'closeSplitView'>
 
@@ -81,7 +82,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
       :class="{ locked: tabHumanInteractionLocked }"
       :aria-busy="Boolean(interactionPending)"
       type="button"
-      :title="interactionPending ? t('runtime.locks.waiting') : tabInteractionLockLabel"
+      v-tooltip="interactionPending ? t('runtime.locks.waiting') : tabInteractionLockLabel"
       :aria-label="interactionPending ? t('runtime.locks.waiting') + ': ' + (tabInteractionLockLabel) : tabInteractionLockLabel"
       :aria-pressed="tabHumanInteractionLocked"
       :disabled="interactionPending || activeTabIsInternal"
@@ -96,7 +97,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
       :class="{ locked: activeTab?.agentPaused }"
       :aria-busy="Boolean(agentPending)"
       type="button"
-      :title="agentPending ? t('runtime.locks.waiting') : t(state.agentControlLocked ? 'runtime.agentControl.protected' : activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
+      v-tooltip="agentPending ? t('runtime.locks.waiting') : t(state.agentControlLocked ? 'runtime.agentControl.protected' : activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
       :aria-label="agentPending ? t('runtime.locks.waiting') + ': ' + (t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')) : t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
       :aria-pressed="Boolean(activeTab?.agentPaused)"
       :disabled="agentPending || activeTabIsInternal || state.agentControlLocked"
@@ -111,7 +112,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
       :class="{ frozen: activeTab?.pageLifecycleState === 'frozen', unknown: activeTab?.pageLifecycleState === 'unknown' }"
       :aria-busy="Boolean(lifecyclePending)"
       type="button"
-      :title="lifecyclePending ? t('runtime.locks.waiting') : t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
+      v-tooltip="lifecyclePending ? t('runtime.locks.waiting') : t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
       :aria-label="lifecyclePending ? t('runtime.locks.waiting') + ': ' + (t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')) : t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
       :aria-pressed="activeTab?.pageLifecycleState === 'frozen'"
       :disabled="lifecyclePending || activeTabIsInternal || activeTab?.sleeping || activeTab?.loading || activeTab?.pageLifecycleState === 'unknown'"
@@ -126,7 +127,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
       :class="{ muted: activeTab?.muted }"
       :aria-busy="Boolean(audioPending)"
       type="button"
-      :title="audioPending ? t('runtime.locks.waiting') : audioLabel"
+      v-tooltip="audioPending ? t('runtime.locks.waiting') : audioLabel"
       :aria-label="audioPending ? t('runtime.locks.waiting') + ': ' + (t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')) : t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')"
       :aria-pressed="Boolean(activeTab?.muted)"
       :disabled="audioPending || activeTabIsInternal"
@@ -150,7 +151,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     class="icon-button area-capture-button"
     :class="{ active: areaCaptureState === 'picking' || areaCaptureState === 'capturing', copied: areaCaptureState === 'copied', error: areaCaptureState === 'error' }"
     type="button"
-    :title="areaCaptureLabel"
+    v-tooltip="areaCaptureLabel"
     :aria-label="areaCaptureLabel"
     :aria-pressed="areaCaptureState === 'picking'"
     :disabled="activeTabIsInternal || areaCaptureState === 'capturing'"
@@ -165,7 +166,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     class="icon-button element-picker-button"
     :class="{ active: elementPickerState === 'picking', copied: elementPickerState === 'copied', error: elementPickerState === 'error' }"
     type="button"
-    :title="elementPickerTitle"
+    v-tooltip="elementPickerTitle"
     :aria-label="elementPickerLabel"
     aria-keyshortcuts="Control+Shift+C Meta+Alt+C"
     :aria-pressed="elementPickerState === 'picking'"
@@ -180,7 +181,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     class="icon-button page-tools-button"
     :class="{ active: pageToolsOpen }"
     type="button"
-    :title="t('shell.pageTools.heading')"
+    v-tooltip="t('shell.pageTools.heading')"
     :aria-label="t('shell.pageTools.heading')"
     aria-haspopup="dialog"
     aria-controls="page-tools-panel"

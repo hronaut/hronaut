@@ -42,13 +42,13 @@ function renderControls(initial = control()) {
 describe('McpStatusControls', () => {
   it('distinguishes blocked admission from commands still settling and updates on completion', async () => {
     const { controller } = renderControls(control({ status: 'paused', paused: true, activeCommands: 2 }))
-    expect(screen.getByRole('button', { name: 'Agents paused · 2 settling' })).toHaveAttribute('title', expect.stringContaining('Pause does not undo'))
+    expect(screen.getByRole('button', { name: 'Agents paused · 2 settling' })).toHaveAttribute('data-tooltip', expect.stringContaining('Pause does not undo'))
     const resume = screen.getByRole('button', { name: 'Resume agents' })
-    expect(resume).toHaveAttribute('title', expect.stringContaining('2 settling'))
+    expect(resume).toHaveAttribute('data-tooltip', expect.stringContaining('2 settling'))
     expect(resume).toHaveAttribute('aria-description', expect.stringContaining('2 settling'))
     controller.accept(control({ status: 'paused', paused: true, activeCommands: 0 }))
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Agents paused' })).toBeVisible())
-    expect(screen.getByRole('button', { name: 'Resume agents' })).toHaveAttribute('title', expect.stringContaining('fresh snapshot'))
+    expect(screen.getByRole('button', { name: 'Resume agents' })).toHaveAttribute('data-tooltip', expect.stringContaining('fresh snapshot'))
     controller.dispose()
   })
 
@@ -56,7 +56,7 @@ describe('McpStatusControls', () => {
     const { controller, setPaused } = renderControls()
     const user = userEvent.setup()
 
-    expect(screen.getByRole('button', { name: /MCP ready/ })).toHaveAttribute('title', 'MCP: http://127.0.0.1:47812/mcp')
+    expect(screen.getByRole('button', { name: /MCP ready/ })).toHaveAttribute('data-tooltip', 'MCP: http://127.0.0.1:47812/mcp')
     const pause = screen.getByRole('button', { name: 'Pause agents' })
     await user.click(pause)
 
@@ -86,7 +86,7 @@ describe('McpStatusControls', () => {
   it('shows the error reason and keeps pause unavailable when the listener failed', () => {
     const { controller } = renderControls(control({ status: 'error', error: 'port in use' }))
 
-    expect(screen.getByRole('button', { name: 'MCP error' })).toHaveAttribute('title', 'MCP failed: port in use')
+    expect(screen.getByRole('button', { name: 'MCP error' })).toHaveAttribute('data-tooltip', 'MCP failed: port in use')
     expect(screen.getByRole('button', { name: 'Pause agents' })).toBeDisabled()
     controller.dispose()
   })

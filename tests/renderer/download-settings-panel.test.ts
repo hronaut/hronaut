@@ -7,6 +7,7 @@ import { useDownloadSettingsController } from '../../src/renderer/src/composable
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
 import type { AppSettings, DownloadDirectorySelection } from '../../src/shared/types.js'
+import { getByTooltip } from './helpers/tooltip.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -49,7 +50,7 @@ describe('DownloadSettingsPanel', () => {
     const user = userEvent.setup()
     api.chooseDownloadDirectory.mockImplementationOnce(() => selection.promise)
 
-    expect(screen.getByTitle('/home/test/Downloads')).toBeVisible()
+    expect(getByTooltip('/home/test/Downloads')).toBeVisible()
     await user.click(screen.getByRole('button', { name: /^Change/ }))
 
     expect(screen.getByRole('button', { name: /^Change/ })).toBeDisabled()
@@ -60,7 +61,7 @@ describe('DownloadSettingsPanel', () => {
       canceled: false,
       settings: { ...settings.value, downloadDirectory: '/tmp/chosen' }
     })
-    await screen.findByTitle('/tmp/chosen')
+    await vi.waitFor(() => getByTooltip('/tmp/chosen'))
     controller.dispose()
   })
 

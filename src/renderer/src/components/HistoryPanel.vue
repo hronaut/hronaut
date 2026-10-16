@@ -14,6 +14,7 @@ import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../../shared/types.js'
 import { useHistoryPanelController } from '../composables/useHistoryPanelController.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   formatDateTime: (value: Date | number | string) => string
@@ -213,7 +214,7 @@ async function clearOrigin(event: Event): Promise<void> {
     </div>
     <div v-else class="history-list">
       <article v-for="entry in filteredEntries" :key="entry.id" class="history-item">
-        <UiButton appearance="application" class="history-open" type="button" :title="entry.url" :disabled="pendingAction !== null" @click="openEntry(entry)">
+        <UiButton appearance="application" class="history-open" type="button" v-tooltip="entry.url" :disabled="pendingAction !== null" @click="openEntry(entry)">
           <span class="history-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="history-copy">
             <strong>{{ entry.title }}</strong>
@@ -224,28 +225,28 @@ async function clearOrigin(event: Event): Promise<void> {
         <UiButton appearance="application" class="history-origin history-action" type="button"
           :disabled="!entryOrigin(entry)" :aria-disabled="pendingAction !== null"
           :aria-label="t('history.filterOriginAria', { title: entry.title })"
-          :title="t('history.filterOrigin')" @click="filterOrigin(entry)"><IconLanguage aria-hidden="true" /></UiButton>
+          v-tooltip="t('history.filterOrigin')" @click="filterOrigin(entry)"><IconLanguage aria-hidden="true" /></UiButton>
         <UiButton appearance="application" class="history-copy-address history-action" type="button"
           :aria-disabled="pendingAction !== null"
           :aria-label="t('history.copyAddressAria', { title: entry.title })"
-          :title="t('history.copyAddress')"
+          v-tooltip="t('history.copyAddress')"
           @click="copyAddress(entry)"><IconCopy aria-hidden="true" /></UiButton>
         <UiButton appearance="application" class="history-background history-action" type="button"
           :aria-disabled="pendingAction !== null"
           :aria-label="t('history.backgroundAria', { title: entry.title })"
-          :title="t('history.background')"
+          v-tooltip="t('history.background')"
           @click="openInBackground(entry)">
           <IconBackground aria-hidden="true" />
         </UiButton>
         <UiButton appearance="application" class="history-bookmark history-action" type="button"
           :aria-disabled="isBookmarked(entry) || pendingAction !== null"
           :aria-label="t(isBookmarked(entry) ? 'history.bookmarkedAria' : 'history.bookmarkAria', { title: entry.title })"
-          :title="t(isBookmarked(entry) ? 'history.bookmarked' : 'history.bookmark')"
+          v-tooltip="t(isBookmarked(entry) ? 'history.bookmarked' : 'history.bookmark')"
           @click="saveBookmark(entry)">
           <IconBookmarked v-if="isBookmarked(entry)" aria-hidden="true" />
           <IconBookmark v-else aria-hidden="true" />
         </UiButton>
-        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" :title="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" v-tooltip="t('history.remove')" @click="remove(entry.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p class="history-retention"><IconPrivacy aria-hidden="true" /> {{ t('history.retention') }}</p>

@@ -105,7 +105,7 @@ watch(() => filteredEntries.value.map(entry => entry.id).join('\n'), async (_cur
             class="permission-remove credential-remove"
             type="button"
             :label="t('settings.passwords.removeAria', { username: credential.username || t('settings.passwords.unnamed'), origin: credential.origin })"
-            :title="t('settings.passwords.remove')"
+            :tooltip="t('settings.passwords.remove')"
             :aria-disabled="isPending(credential.id)"
             @click="remove(credential.id)"
           >

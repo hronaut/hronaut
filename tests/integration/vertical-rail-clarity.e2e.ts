@@ -139,7 +139,7 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
         status: 'available', currentVersion: app.getVersion(), availableVersion: '99.0.0'
       } satisfies AppUpdateState))
       await expect(appWindow.locator('.update-status-pill')).toHaveClass(/available/)
-      await expect(appWindow.locator('.update-status-pill')).toHaveAttribute('title', /99\.0\.0/)
+      await expect(appWindow.locator('.update-status-pill')).toHaveAttribute('data-tooltip', /99\.0\.0/)
       const layout = await appWindow.locator('.topbar-actions').evaluate(element => {
         const strip = document.querySelector('.tabs-strip')!.getBoundingClientRect()
         const controls = [...element.querySelectorAll('button')].filter(button => button.getBoundingClientRect().width > 0)

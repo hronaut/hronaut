@@ -31,6 +31,7 @@ import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -521,6 +522,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
     class="browser-tabs-bar"
     :class="[orientation, { 'rail-collapsed': vertical && !railExpanded }]"
     :data-shell-tab-rail="vertical ? '' : undefined"
+    :data-tooltip-placement="vertical ? 'right' : undefined"
     :aria-label="t('shell.tabs.navigation')"
   >
   <div class="tab-rail-header">
@@ -528,7 +530,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
     class="app-home-button"
     :class="{ active: homeTab?.active && !settingsActive }"
     type="button"
-    :title="t('shell.home.open')"
+    v-tooltip="t('shell.home.open')"
     :aria-label="t('shell.home.open')"
     :aria-current="homeTab?.active && !settingsActive ? 'page' : undefined"
     @click="emit('openHome')"
@@ -541,7 +543,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
     v-if="vertical"
     class="tab-rail-pin"
     type="button"
-    :title="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
+    v-tooltip="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
     :aria-label="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
     :aria-pressed="railPinned"
     @click="emit('toggleRailPinned')"
@@ -558,7 +560,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       class="tabs-scroll-button previous"
       type="button"
       :disabled="!canScrollTabsBack"
-      :title="t('shell.tabs.scrollBack')"
+      v-tooltip="t('shell.tabs.scrollBack')"
       :aria-label="t('shell.tabs.scrollBack')"
       @click="scrollTabs(-1)"
     ><IconKeyboardArrowUp v-if="vertical" aria-hidden="true" /><IconKeyboardArrowLeft v-else aria-hidden="true" /></UiButton>
@@ -583,7 +585,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         class="tab-group-label"
         :class="{ active: tabGroupContainsActiveTab(workspace.id) }"
         :style="tabGroupColorStyle(workspace.color)"
-        :title="[t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expand' : 'runtime.tabs.collapse', { name: workspace.name, id: workspace.id }), workspace.description].filter(Boolean).join('\n\n')"
+        v-tooltip="[t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expand' : 'runtime.tabs.collapse', { name: workspace.name, id: workspace.id }), workspace.description].filter(Boolean).join('\n\n')"
         :aria-label="t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expandAria' : 'runtime.tabs.collapseAria', { name: workspace.name, count: formatNumber(tabGroupTabCount(workspace.id)) }, tabGroupTabCount(workspace.id))"
         :aria-description="workspace.description || undefined"
         :aria-expanded="!isTabGroupCollapsed(workspace.id)"
@@ -620,7 +622,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
             'needs-attention': userAttention?.tabId === tab.id
           }"
           :style="tabGroupStyle(tab)"
-          :title="userAttention?.tabId === tab.id ? `${tabTooltip(tab)}\n\n${t('shell.tabs.agentAttention')}: ${userAttention.reason}` : mcpActivityByTab[tab.id] ? `${tabTooltip(tab)}\n\n${t('tabSearch.meta.agent')}` : tabTooltip(tab)"
+          v-tooltip="userAttention?.tabId === tab.id ? `${tabTooltip(tab)}\n\n${t('shell.tabs.agentAttention')}: ${userAttention.reason}` : mcpActivityByTab[tab.id] ? `${tabTooltip(tab)}\n\n${t('tabSearch.meta.agent')}` : tabTooltip(tab)"
           :data-mcp-command="mcpActivityByTab[tab.id]?.toolName"
           :aria-label="tabTooltip(tab)"
           :aria-description="userAttention?.tabId === tab.id ? `${t('shell.tabs.agentAttention')}: ${userAttention.reason}` : mcpActivityByTab[tab.id] ? t('tabSearch.meta.agent') : undefined"
@@ -672,7 +674,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
             v-if="tab.audible || tab.muted"
             class="tab-audio"
             :class="{ muted: tab.muted }"
-            :title="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tab.title || t('runtime.tabs.unnamed') })"
+            v-tooltip="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tab.title || t('runtime.tabs.unnamed') })"
             aria-hidden="true"
             @click.stop="emit('toggleTabMuted', tab)"
           >
@@ -681,19 +683,19 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
           </span>
           <span
             class="tab-close"
-            :title="t('runtime.locks.closeShortcut')"
+            v-tooltip="t('runtime.locks.closeShortcut')"
             aria-hidden="true"
             @click.stop="emit('closeTab', tab.id)"
           ><IconClose aria-hidden="true" /></span>
         </UiButton>
-        <UiButton v-if="tab.pwaLifecycleActive" variant="ghost" size="small" class="tab-pwa-stop" :aria-label="t('pwaLifecycle.stop')" :title="workerCaptureError || t('pwaLifecycle.stop')" @click="stopWorkerCapture(tab.id)"><IconStopCircle aria-hidden="true" /></UiButton>
+        <UiButton v-if="tab.pwaLifecycleActive" variant="ghost" size="small" class="tab-pwa-stop" :aria-label="t('pwaLifecycle.stop')" v-tooltip="workerCaptureError || t('pwaLifecycle.stop')" @click="stopWorkerCapture(tab.id)"><IconStopCircle aria-hidden="true" /></UiButton>
         </template>
       </div>
       <UiButton appearance="application"
         class="new-tab workspace-new-tab"
         type="button"
         :style="tabGroupColorStyle(workspace.color)"
-        :title="t('runtime.tabs.newTab', { name: workspace.name })"
+        v-tooltip="t('runtime.tabs.newTab', { name: workspace.name })"
         :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
         @click="emit('newTab', workspace.id)"
       ><IconAdd aria-hidden="true" /><span class="workspace-new-tab-label">{{ t('tabSearch.newTabTitle') }}</span></UiButton>
@@ -701,7 +703,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
     <UiButton v-if="!state.mcpTabGroups.length" appearance="application"
       class="new-tab"
       type="button"
-      :title="t('tabSearch.newTabTitle')"
+      v-tooltip="t('tabSearch.newTabTitle')"
       :aria-label="t('tabSearch.newTabTitle')"
       @click="emit('newTab')"
     ><IconAdd aria-hidden="true" /></UiButton>
@@ -709,7 +711,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
     <UiButton appearance="application"
       class="new-workspace"
       type="button"
-      :title="t('shell.tabs.createWorkspaceTitle')"
+      v-tooltip="t('shell.tabs.createWorkspaceTitle')"
       :aria-label="t('shell.tabs.createWorkspace')"
       @click="emit('createWorkspace')"
     >
@@ -722,7 +724,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       class="tabs-scroll-button next"
       type="button"
       :disabled="!canScrollTabsForward"
-      :title="t('shell.tabs.scrollForward')"
+      v-tooltip="t('shell.tabs.scrollForward')"
       :aria-label="t('shell.tabs.scrollForward')"
       @click="scrollTabs(1)"
     ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></UiButton>

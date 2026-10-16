@@ -17,6 +17,7 @@ import type { AppUpdateState, BrowserDownloadState } from '../../../shared/types
 import type { McpStatusController } from '../composables/useMcpStatusController.js'
 import McpStatusControls from './McpStatusControls.vue'
 import UpdateNotification from './UpdateNotification.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 defineProps<{
   interactionPending?: boolean
@@ -59,7 +60,7 @@ const { t } = useI18n({ useScope: 'global' })
     <UiButton appearance="application"
       class="topbar-icon-button command-palette-button"
       type="button"
-      :title="t('shell.actions.commandsTitle')"
+      v-tooltip="t('shell.actions.commandsTitle')"
       :aria-label="t('shell.actions.commands')"
       aria-keyshortcuts="Control+Shift+P Meta+Shift+P"
       :aria-expanded="commandPaletteOpen"
@@ -70,7 +71,7 @@ const { t } = useI18n({ useScope: 'global' })
     <UiButton appearance="application"
       class="topbar-icon-button tab-search-button"
       type="button"
-      :title="t('shell.actions.searchTabsTitle')"
+      v-tooltip="t('shell.actions.searchTabsTitle')"
       :aria-label="t('shell.actions.searchTabs')"
       aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
       :aria-expanded="tabSearchOpen"
@@ -82,7 +83,7 @@ const { t } = useI18n({ useScope: 'global' })
       class="topbar-icon-button downloads-button"
       :class="{ active: activeDownloads.length, complete: !activeDownloads.length && downloads[0]?.state === 'completed' }"
       type="button"
-      :title="downloadButtonLabel"
+      v-tooltip="downloadButtonLabel"
       :aria-label="downloadButtonLabel"
       :aria-expanded="downloadsOpen"
       @click="emit('toggleDownloads')"
@@ -95,7 +96,7 @@ const { t } = useI18n({ useScope: 'global' })
     <UiButton appearance="application"
       class="topbar-icon-button history-button"
       type="button"
-      :title="t('shell.actions.historyTitle')"
+      v-tooltip="t('shell.actions.historyTitle')"
       :aria-label="t('shell.actions.history')"
       aria-keyshortcuts="Control+H Meta+Y"
       :aria-expanded="historyOpen"
@@ -109,7 +110,7 @@ const { t } = useI18n({ useScope: 'global' })
       :aria-busy="Boolean(interactionPending)"
       :disabled="interactionPending"
       type="button"
-      :title="interactionPending ? t('runtime.locks.waiting') : allInteractionLockLabel"
+      v-tooltip="interactionPending ? t('runtime.locks.waiting') : allInteractionLockLabel"
       :aria-label="interactionPending ? t('runtime.locks.waiting') + ': ' + (allInteractionLockLabel) : allInteractionLockLabel"
       :aria-pressed="allInteractionLocked"
       @click="emit('toggleAllInteraction')"
@@ -124,7 +125,7 @@ const { t } = useI18n({ useScope: 'global' })
       :aria-busy="Boolean(audioPending)"
       :disabled="audioPending"
       type="button"
-      :title="audioPending ? t('runtime.locks.waiting') : t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
+      v-tooltip="audioPending ? t('runtime.locks.waiting') : t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
       :aria-label="audioPending ? t('runtime.locks.waiting') + ': ' + (t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')) : t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
       :aria-pressed="allTabsMuted"
       @click="emit('toggleAllTabsMuted')"
@@ -137,7 +138,7 @@ const { t } = useI18n({ useScope: 'global' })
       class="topbar-icon-button browser-lock-button follow-agent-button"
       :class="{ active: followAgentActivity }"
       type="button"
-      :title="t(followAgentActivity ? 'shell.actions.stopFollowingAgentActivityDescription' : 'shell.actions.followAgentActivityDescription')"
+      v-tooltip="t(followAgentActivity ? 'shell.actions.stopFollowingAgentActivityDescription' : 'shell.actions.followAgentActivityDescription')"
       :aria-label="t(followAgentActivity ? 'shell.actions.stopFollowingAgentActivityDescription' : 'shell.actions.followAgentActivityDescription')"
       :aria-pressed="followAgentActivity"
       @click="emit('toggleFollowAgentActivity')"
@@ -148,7 +149,7 @@ const { t } = useI18n({ useScope: 'global' })
     <UiButton appearance="application"
       class="topbar-icon-button settings-button"
       type="button"
-      :title="t('shell.actions.settings')"
+      v-tooltip="t('shell.actions.settings')"
       :aria-label="t('shell.actions.settings')"
       :aria-pressed="settingsOpen"
       :aria-controls="settingsOpen ? 'settings-page' : undefined"

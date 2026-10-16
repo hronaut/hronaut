@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import BookmarksPanel from '../../src/renderer/src/components/BookmarksPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserBookmark, BookmarkCollectionSnapshot } from '../../src/shared/types.js'
+import { queryByTooltip } from './helpers/tooltip.js'
 
 function bookmark(id: string, title = `Page ${id}`): BrowserBookmark {
   return {
@@ -456,7 +457,7 @@ describe('BookmarksPanel', () => {
 
     expect(editor).toHaveFocus()
     expect(editor.closest('button')).toBeNull()
-    expect(screen.queryByTitle('https://example.test/alpha')).not.toBeInTheDocument()
+    expect(queryByTooltip('https://example.test/alpha')).toBeNull()
   })
 
   it('preserves newer focus while bookmark removal is pending', async () => {

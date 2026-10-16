@@ -378,7 +378,7 @@ it('removes one filtered record by keyboard while retaining others and recoverin
   const search = screen.getByRole('searchbox')
   await user.type(search, 'target')
   const remove = screen.getByRole('button', { name: 'Remove target.bin from list' })
-  expect(remove).toHaveAttribute('title', 'Remove from list; file stays on disk')
+  expect(remove).toHaveAttribute('data-tooltip', 'Remove from list; file stays on disk')
   remove.focus()
   await user.keyboard('{Enter}')
   await flushPromises()

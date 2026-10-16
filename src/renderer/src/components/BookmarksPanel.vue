@@ -18,6 +18,7 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 import BookmarkCollectionsToolbar from './BookmarkCollectionsToolbar.vue'
 import { useBookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
 import PanelDockPicker from './PanelDockPicker.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   collectionsApi?: HronautBookmarkCollectionsApi
@@ -323,27 +324,27 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
             <span>{{ editingDestination ? bookmark.title : bookmark.url }}</span>
           </span>
         </div>
-        <UiButton appearance="application" v-else class="bookmark-open" type="button" :title="bookmark.url" :disabled="anyPending" @click="openEntry(bookmark)">
+        <UiButton appearance="application" v-else class="bookmark-open" type="button" v-tooltip="bookmark.url" :disabled="anyPending" @click="openEntry(bookmark)">
           <span class="bookmark-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="bookmark-copy">
             <strong>{{ bookmark.title }}</strong>
             <span>{{ bookmark.url }}</span>
           </span>
         </UiButton>
-        <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="anyPending" :aria-label="t(editingDestination ? 'bookmarks.saveDestinationAria' : 'bookmarks.saveAria', { title: bookmark.title })" :title="t(editingDestination ? 'bookmarks.saveDestination' : 'bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
-        <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="anyPending" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" :title="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
-        <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-destination" type="button" :disabled="anyPending" :aria-label="t('bookmarks.destinationAria', { title: bookmark.title })" :title="t('bookmarks.destination')" @click="beginRename(bookmark, true)"><IconLink aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="anyPending" :aria-label="t(editingDestination ? 'bookmarks.saveDestinationAria' : 'bookmarks.saveAria', { title: bookmark.title })" v-tooltip="t(editingDestination ? 'bookmarks.saveDestination' : 'bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="anyPending" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" v-tooltip="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-destination" type="button" :disabled="anyPending" :aria-label="t('bookmarks.destinationAria', { title: bookmark.title })" v-tooltip="t('bookmarks.destination')" @click="beginRename(bookmark, true)"><IconLink aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-background" type="button"
           :aria-disabled="anyPending"
           :aria-label="t('bookmarks.backgroundAria', { title: bookmark.title })"
-          :title="t('bookmarks.background')"
+          v-tooltip="t('bookmarks.background')"
           @click="openInBackground(bookmark)"><IconBackground aria-hidden="true" /></UiButton>
         <UiButton appearance="application" v-if="editingBookmarkId !== bookmark.id" class="bookmark-action bookmark-copy-address" type="button"
           :aria-disabled="anyPending"
           :aria-label="t('bookmarks.copyAddressAria', { title: bookmark.title })"
-          :title="t('bookmarks.copyAddress')"
+          v-tooltip="t('bookmarks.copyAddress')"
           @click="!anyPending && copyAddress(bookmark)"><IconCopy aria-hidden="true" /></UiButton>
-        <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="anyPending" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="anyPending" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" v-tooltip="t('bookmarks.remove')" @click="remove(bookmark.id, $event)"><IconDelete aria-hidden="true" /></UiButton>
         <label v-if="collectionsApi && collections.length && editingBookmarkId !== bookmark.id" class="bookmark-collection-assignment">
           <span>{{ t('bookmarks.collection') }}</span>
           <select :value="collectionController.assignment(bookmark.id)" :disabled="anyPending" :aria-label="t('bookmarks.assignCollection', { title: bookmark.title })" @change="assignCollection(bookmark.id, $event)">

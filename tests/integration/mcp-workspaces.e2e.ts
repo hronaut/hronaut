@@ -746,8 +746,8 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(crossGroupSnapshot.isError).toBe(true)
     expect(text(crossGroupSnapshot)).toContain('does not belong to workspace')
 
-    await expect(appWindow.locator(`.tab-group-label[title*="${firstGroupId}"]`)).toContainText('Checkout debugging')
-    await expect(appWindow.locator(`.tab-group-label[title*="${secondGroupId}"]`)).toContainText('checkout debugging')
+    await expect(appWindow.locator(`.tab-group-label[data-tooltip*="${firstGroupId}"]`)).toContainText('Checkout debugging')
+    await expect(appWindow.locator(`.tab-group-label[data-tooltip*="${secondGroupId}"]`)).toContainText('checkout debugging')
 
     const popup = await first.callTool({
       name: 'browser_evaluate',

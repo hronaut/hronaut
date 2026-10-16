@@ -176,7 +176,7 @@ describe('BrowserTabsBar', () => {
     } })
     expect(first).toHaveAccessibleName('Page first')
     expect(first).toHaveAccessibleDescription('Agent active')
-    expect(first).toHaveAttribute('title', 'Page first\n\nAgent active')
+    expect(first).toHaveAttribute('data-tooltip', 'Page first\n\nAgent active')
     expect(first).toHaveAttribute('aria-selected', 'false')
     expect(second).toHaveAttribute('aria-selected', 'true')
     expect(second).not.toHaveAttribute('aria-description')
@@ -184,7 +184,7 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted().selectTab).toEqual([['first']])
     await view.rerender({ mcpActivityByTab: {} })
     expect(first).not.toHaveAttribute('aria-description')
-    expect(first).toHaveAttribute('title', 'Page first')
+    expect(first).toHaveAttribute('data-tooltip', 'Page first')
   })
 
   it('keeps live workspace descriptions in workspace-header hover text without rendering a preview', async () => {
@@ -194,23 +194,25 @@ describe('BrowserTabsBar', () => {
     const header = document.querySelector('.tab-group-label')!
     expect(screen.queryByText(description)).not.toBeInTheDocument()
     expect(header).toHaveAccessibleDescription(description)
-    expect(header.getAttribute('title')).toContain(description)
+    expect(header.getAttribute('data-tooltip')).toContain(description)
     await fireEvent.click(header)
     expect(header).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText(description)).not.toBeInTheDocument()
     await view.rerender({ state: { ...state, mcpTabGroups: [{ ...workspace(), description: 'Verify the saved cart.' }] } })
     expect(header).toHaveAccessibleDescription('Verify the saved cart.')
-    expect(header.getAttribute('title')).toContain('Verify the saved cart.')
+    expect(header.getAttribute('data-tooltip')).toContain('Verify the saved cart.')
     expect(screen.queryByText('Verify the saved cart.')).not.toBeInTheDocument()
     await view.rerender({ state: { ...state, mcpTabGroups: [workspace()] } })
-    expect(header).not.toHaveAttribute('aria-description')
+    // Without a description only the expand or collapse hint describes it, as its native title did.
+    expect(header).toHaveAccessibleDescription(header.getAttribute('data-tooltip')!)
+    expect(header.getAttribute('aria-description')).not.toContain('Verify the saved cart.')
   })
 
   it('also exposes descriptions only as hover text in the horizontal tab strip', async () => {
     const description = 'Release checks and saved browser context.'
     renderTabs(browserState({ mcpTabGroups: [{ ...workspace(), description }] }))
     expect(screen.queryByText(description)).not.toBeInTheDocument()
-    expect(document.querySelector('.tab-group-label')?.getAttribute('title')).toContain(description)
+    expect(document.querySelector('.tab-group-label')?.getAttribute('data-tooltip')).toContain(description)
   })
 
   it('hides a workspace and its tabs only from left navigation without losing its state', async () => {

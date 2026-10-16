@@ -128,7 +128,7 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   await expect(storagePanel).toContainText('Shared by origin in this workspace')
   const partialEntry = storagePanel.getByRole('button', { name: /^preview-only / })
   await expect(partialEntry).toBeDisabled()
-  await expect(partialEntry).toHaveAttribute('title', 'This value is only a preview. Enter a complete replacement in the editor to update it.')
+  await expect(partialEntry).toHaveAttribute('data-tooltip', 'This value is only a preview. Enter a complete replacement in the editor to update it.')
   await storagePanel.getByRole('textbox', { name: 'Storage key', exact: true }).fill('preview-only')
   await storagePanel.getByRole('textbox', { name: 'Storage value', exact: true }).fill('complete replacement')
   await storagePanel.getByRole('button', { name: 'Update', exact: true }).click()

@@ -30,6 +30,7 @@ import {
 } from '../../../shared/tab-groups.js'
 import { useWorkspaceEditorController } from '../composables/useWorkspaceEditorController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -245,7 +246,7 @@ onBeforeUnmount(dispose)
                   :tabindex="color === option ? 0 : -1"
                   :data-color="option"
                   @keydown="navigateColor"
-                  :title="tabGroupColorLabel(option)"
+                  v-tooltip="tabGroupColorLabel(option)"
                   :disabled="dismissBlocked"
                   @click="color = option"
                 ><IconCheck v-if="color === option" aria-hidden="true" /></UiButton>
