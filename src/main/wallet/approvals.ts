@@ -269,6 +269,14 @@ export class WalletApprovalStore {
     })
   }
 
+  /** Whether a request from this tab has not been signed or sent yet, so its page still waits on it. */
+  hasUnsentForTab(tabId: string): boolean {
+    for (const record of this.requests.values()) {
+      if (record.request.tabId === tabId && (CANCELLABLE.has(record.status) || record.status === 'signing')) return true
+    }
+    return false
+  }
+
   cancelForNavigation(tabId: string, navigationGeneration: number): Promise<number> {
     return this.cancelMatching((record) => record.request.tabId === tabId && record.request.navigationGeneration < navigationGeneration)
   }

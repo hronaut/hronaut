@@ -906,6 +906,8 @@ export interface TabsManagerOptions {
   onWalletTabClosed?: (tabId: string) => void | Promise<void>
   onWalletTabRestored?: (tabId: string, navigationGeneration: number) => void | Promise<void>
   onWalletWorkspaceClosed?: (workspaceId: string) => void | Promise<void>
+  /** True while a page in the tab still waits on a wallet request, so the tab must not sleep. */
+  walletKeepsTabAwake?: (tabId: string) => boolean
   confirmBeforeUnloadClose?: () => Promise<boolean>
   configureSession?: (browserSession: Session) => void
 }
@@ -10209,6 +10211,7 @@ export class BrowserTabsManager {
     if (tab.loading) return 'A loading tab cannot sleep.'
     if (tab.audible) return 'A tab playing audio stays active.'
     if (tab.dialog) return 'A tab with an open dialog stays active.'
+    if (this.options.walletKeepsTabAwake?.(tab.id)) return 'A tab waiting on a wallet request stays active.'
     if (tab.webContents.isDevToolsOpened() || this.devToolsOpening.has(tab.webContents.id)) {
       return 'A tab with Developer Tools open stays active.'
     }

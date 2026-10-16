@@ -419,6 +419,8 @@ export class WalletBroker {
   private readonly pageCallFailures = new WalletPageLog<WalletPageCallFailure>(MAX_PAGE_CALL_FAILURES_PER_TAB, MAX_PAGE_CALL_FAILURE_TABS)
   private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
+  /** wallet_sendCalls batches still sending calls, counted per tab. */
+  private readonly tabsSendingCalls = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
   private readonly confirmationShutdown = new AbortController()
   private lifecycleQueue: Promise<void> = Promise.resolve()
@@ -897,6 +899,16 @@ export class WalletBroker {
         this.rejectCancelled()
       }
     })
+  }
+
+  /**
+   * Whether a page in this tab still waits on the wallet: a request not yet
+   * signed or sent, or a wallet_sendCalls batch still sending calls. Putting
+   * the tab to sleep would discard the page that gets the answer, while the
+   * request could still be approved and sent.
+   */
+  keepsTabAwake(tabId: string): boolean {
+    return (this.tabsSendingCalls.get(tabId) ?? 0) > 0 || this.service.approvals.hasUnsentForTab(tabId)
   }
 
   async cancelForTab(tabId: string): Promise<void> {
@@ -2110,6 +2122,7 @@ export class WalletBroker {
     const started = this.evmCallBundles.start(owner, selected, request.calls.length, request.id)
     if (started === 'duplicate') throw callBundleError(5720, 'This site already sent a batch with this ID')
     if (started === 'full') throw callBundleError(-32005, 'Too many wallet_sendCalls batches are still being sent')
+    this.tabsSendingCalls.set(context.tabId, (this.tabsSendingCalls.get(context.tabId) ?? 0) + 1)
     try {
       for (const [index, call] of request.calls.entries()) {
         const hash = String(await this.transactionRequest(context, selected, {
@@ -2128,6 +2141,9 @@ export class WalletBroker {
       }
     } finally {
       started.bundle.finished = true
+      const sending = (this.tabsSendingCalls.get(context.tabId) ?? 1) - 1
+      if (sending > 0) this.tabsSendingCalls.set(context.tabId, sending)
+      else this.tabsSendingCalls.delete(context.tabId)
     }
     return { id: started.id }
   }

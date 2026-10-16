@@ -1637,6 +1637,39 @@ describe('WalletBroker', () => {
       .resolves.toMatchObject({ status: 500, receipts: [{ status: '0x0', transactionHash: '0xreverted' }] })
   })
 
+  it('keeps a tab awake while its page waits on a wallet request or a batch is still sending calls', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    chain.broadcast.mockResolvedValueOnce('0xapprove').mockResolvedValueOnce('0xswap')
+    let approvalMined = false
+    const confirmation = vi.fn(async (_wallet: WalletDescriptor, hash: string) => (
+      hash === '0xapprove' && !approvalMined ? { confirmed: false, failed: false } : { confirmed: true, failed: false, blockReference: '1' }
+    ))
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, confirmation } }, confirmationPollIntervalMs: 5 })
+    await connect(broker)
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
+    const call = { to: '0x0000000000000000000000000000000000000002', value: '0x1' }
+    const sent = broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls', params: [{ version: '2.0.0', id: 'swap-1', chainId: '0xaa36a7', atomicRequired: false, calls: [{ ...call }, { ...call }] }]
+    })
+    const nextApproval = () => broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation === 'sign-and-send-transaction')
+
+    // Sleeping would discard the page the approval answers, while the request could still be approved and sent.
+    const first = await nextApproval()
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
+    expect(broker.keepsTabAwake('tab-2')).toBe(false)
+    await broker.approve(first.id)
+    // While the first call is mined no request is open, but the batch will still ask for the next one.
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledWith(expect.anything(), '0xapprove'))
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
+
+    approvalMined = true
+    await broker.approve((await nextApproval()).id)
+    await expect(sent).resolves.toEqual({ id: 'swap-1' })
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
+  })
+
   it('returns batch call refusals to the page with their codes intact', async () => {
     const { service } = await setup('testnet')
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
