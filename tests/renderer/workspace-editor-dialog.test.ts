@@ -353,4 +353,39 @@ describe('workspace editor decisions', () => {
       expect(document.activeElement).toBe(activity.querySelector('summary'))
     } finally { wrapper.unmount() }
   })
+
+  it('shows the decisions as the editor appears, so its late loads never take focus back', async () => {
+    const state: BrowserState = {
+      tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+      mcpUrl: '', profilePath: '', savedTabGroups: [],
+      mcpTabGroups: [{ id: 'checkout', name: 'Checkout', description: '', color: 'blue', createdAt: '', lastUsedAt: '',
+        tabCount: 0, activeTabId: null, storageOriginCount: 0,
+        navigationPolicy: { mode: 'unrestricted', rules: [] } }]
+    }
+    let finishAudit!: () => void
+    Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+      getState: vi.fn(async () => state),
+      listWorkspaceStorageOrigins: vi.fn(async () => []),
+      listWorkspaceNavigationAudit: vi.fn(() => new Promise<never[]>((resolve) => { finishAudit = () => resolve([]) }))
+    } })
+    const wrapper = mount(WorkspaceEditor, {
+      attachTo: document.body,
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+        'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+    })
+    const editor = wrapper.vm as unknown as { openDecisions: (id: string) => Promise<void> }
+    try {
+      const opening = editor.openDecisions('checkout')
+      await vi.waitFor(() => expect(wrapper.find<HTMLDetailsElement>('.workspace-activity-disclosure').element?.open).toBe(true))
+      expect(document.activeElement).toBe(wrapper.get('.workspace-activity-disclosure > summary').element)
+      // You move on while the workspace's history is still loading: its arrival leaves you there.
+      const name = wrapper.get<HTMLInputElement>('#tab-group-name').element
+      name.focus()
+      finishAudit()
+      await opening
+      await flushPromises()
+      expect(document.activeElement).toBe(name)
+    } finally { wrapper.unmount() }
+  })
 })

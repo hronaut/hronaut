@@ -256,7 +256,7 @@ test('answers a decision from its agent\'s card: Review the decision shows it, a
     const opened = parsed(await client.callTool({ name: 'browser_new_tab', arguments: { url: 'data:text/html,<title>Release</title>', active: true } }) as CallToolResult)
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify((opened.tabs as Array<{ id: string }>)[0]!.id)})`)
     const decision = parsed(await client.callTool({ name: 'browser_human_waiting', arguments: {
-      workspaceId: workspace.workspaceId, action: 'request', runId: randomUUID(), decision: 'resolve-unknown', owner: 'Release owner', timeoutMs: 60_000
+      workspaceId: workspace.workspaceId, action: 'request', runId: randomUUID(), decision: 'resolve-unknown', owner: 'Release owner'
     } }) as CallToolResult)
     expect(decision.state).toBe('WAITING_FOR_HUMAN')
     const group = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true })

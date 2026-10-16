@@ -1609,7 +1609,7 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   const attentionExpiresAt = input.expiresAt ?? (input.workspaceId && !input.humanWaitingDecisionId ? Date.now() + 86_400_000 : undefined)
   if (attentionExpiresAt !== undefined) {
     attentionExpiryTimer = setTimeout(() => {
-      if (userAttention?.id === request.id) endUserAttention()
+      if (userAttention?.id === request.id) endUserAttention({ keepPending: true })
     }, Math.min(86_400_000, Math.max(1, attentionExpiresAt - Date.now())))
     attentionExpiryTimer.unref()
   }
@@ -4046,7 +4046,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
-      if (userAttention?.id === id) endUserAttention()
+      if (userAttention?.id === id) endUserAttention({ keepPending: true })
     },
     onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
       auditReceipts?.recordSiteAccess(workspaceId, decision, source)

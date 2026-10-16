@@ -9,7 +9,7 @@ import UiField from '../ui/UiField.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
-import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -168,17 +168,26 @@ async function openExisting(id: string): Promise<void> {
   importDestination.value = id
   await openExistingEditor(id)
 }
-/** Opens the workspace with its activity and decisions shown, as an agent card's Review the decision does. */
+/**
+ * Opens the workspace with its activity and decisions shown, as an agent card's Review the decision does.
+ * They unfold as soon as this workspace's editor shows, not once its lists load, so a late load never takes
+ * focus from what you did meanwhile; an open that never showed it changes nothing.
+ */
 async function openDecisions(id: string): Promise<void> {
-  await openExisting(id)
-  // An open that finished after the editor closed or moved to another workspace changes nothing.
-  if (!open.value || workspaceId.value !== id) return
-  await nextTick()
-  const section = activitySection.value
-  if (!section) return
-  section.open = true
-  section.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
-  section.scrollIntoView?.({ block: 'nearest' })
+  const stop = watch([open, workspaceId], ([visible, shown]) => {
+    if (!visible || shown !== id) return
+    stop()
+    const section = activitySection.value
+    if (!section) return
+    section.open = true
+    if (!panel.value?.contains(document.activeElement)) section.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
+    section.scrollIntoView?.({ block: 'nearest' })
+  }, { flush: 'post' })
+  try {
+    await openExisting(id)
+  } finally {
+    stop()
+  }
 }
 async function openNew(): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
