@@ -1,5 +1,6 @@
 import type { HomeBootstrap, HronautHomeApi } from '../../../shared/home.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from '../../../shared/home-workspaces.js'
+import { pluralFormIndex } from '../../../shared/plural.js'
 import { element, interpolate } from './dom.js'
 import { renderWorkspaceCard, renderWorkspaceEmpty } from './workspace-card.js'
 
@@ -20,9 +21,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   const cards = new Map<string, { node: HTMLElement; signature: string }>()
   const count = (message: string, value: number): string => {
     const forms = message.split(' | ')
-    const category = new Intl.PluralRules(data.locale).select(value)
-    const index = forms.length === 2 ? (value === 1 ? 0 : 1) : category === 'one' ? 0 : category === 'few' ? 1 : forms.length - 1
-    return interpolate(forms[index] || forms[0]!, { count: new Intl.NumberFormat(data.locale).format(value) })
+    return interpolate(forms[pluralFormIndex(data.locale, value, forms.length)] || forms[0]!, { count: new Intl.NumberFormat(data.locale).format(value) })
   }
   function render(): void {
     const groups = [
