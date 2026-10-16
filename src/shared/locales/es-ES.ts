@@ -625,6 +625,7 @@ export const esES = {
     "select": "Seleccionar",
     "fill": "Rellenar"
   },
+  "workspaceSwitcher": { "kicker": "Espacios de trabajo", "heading": "Cambiar de espacio", "close": "Cerrar el selector de espacios", "search": "Buscar espacios de trabajo", "placeholder": "Buscar por nombre, agente o sitio", "results": "Espacios de trabajo", "openGroup": "Espacios abiertos", "archived": "Archivados", "current": "Actual", "needsYou": "Te necesita", "working": "{names} trabajando", "tabs": "{count} pestaña | {count} pestañas", "matches": "{count} espacio coincidente. | {count} espacios coincidentes.", "selected": "{name} seleccionado.", "empty": "Ningún espacio coincide", "emptyDescription": "Prueba con un nombre, un agente como «Claude Code» o un sitio.", "none": "Aún no hay espacios de trabajo", "noneDescription": "Crea un espacio de trabajo para mantener juntas las pestañas y sesiones de un proyecto.", "navigate": "Navegar", "choose": "Cambiar", "searchTabs": "Buscar pestañas", "newWorkspace": "Nuevo espacio", "switchFailed": "No se pudo cambiar de espacio", "switchDescription": "No se pudo abrir {name}." },
   "commandPalette": {
     "kicker": "Acciones rápidas",
     "heading": "Comandos",
@@ -654,6 +655,7 @@ export const esES = {
         "label": "Nueva pestaña",
         "description": "Abrir una pestaña vacía en el espacio de trabajo actual"
       },
+      "switch-workspace": { "label": "Cambiar de espacio de trabajo", "description": "Ir a un espacio de trabajo por su nombre, sus agentes o sus sitios" },
       "search-tabs": {
         "label": "Buscar pestañas",
         "description": "Encontrar sitios abiertos, guardados y cerrados recientemente"
@@ -864,7 +866,8 @@ export const esES = {
       "lastTab": "Ir a la última pestaña web",
       "resetZoom": "Restablecer el zoom de la página",
       "fullPage": "Alternar vista de página completa",
-      "takeOver": "Tomar el control del agente que trabaja en la página"
+      "takeOver": "Tomar el control del agente que trabaja en la página",
+      "switchWorkspace": "Cambiar de espacio de trabajo"
     },
     "responsive": {
       "preview": "Probar teléfonos, tabletas y ordenadores",
@@ -1312,6 +1315,8 @@ export const esES = {
       "stackedVisible": "Visible en vista dividida apilada",
       "sideVisible": "Visible en vista dividida lado a lado",
       "inputLocked": "Entrada de la página bloqueada",
+      "switchWorkspace": "Cambiar de espacio",
+      "switchWorkspaceTitle": "Cambiar de espacio (Ctrl/Cmd+K)",
       "createWorkspaceTitle": "Crear un nuevo espacio de trabajo aislado",
       "createWorkspace": "Crear espacio de trabajo",
       "workspace": "Espacio de trabajo",

@@ -23,6 +23,7 @@ export type BrowserShortcutAction =
   | 'agent-card'
   | 'toggle-full-page'
   | 'take-over'
+  | 'switch-workspace'
 
 export interface BrowserShortcutInput {
   key: string
@@ -70,5 +71,6 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (key === 'f') return 'find'
   if (key === 'd') return 'bookmark'
   if (key === '.') return 'agent-card'
+  if (key === 'k') return 'switch-workspace'
   return null
 }

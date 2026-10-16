@@ -39,7 +39,8 @@ const props = defineProps<{
   state: BrowserState
   settingsActive?: boolean
   userAttention?: UserAttentionRequest | null
-  tabSearchOpen?: boolean
+  /** The workspace switcher is open. */
+  workspaceSwitcherOpen?: boolean
   hydrated: boolean
   orientation: 'horizontal' | 'vertical'
   railPinned: boolean
@@ -63,7 +64,8 @@ const emit = defineEmits<{
   closeTab: [tabId: string]
   dragStart: []
   toggleRailPinned: []
-  searchTabs: []
+  /** Open the workspace switcher, which finds a workspace by its name, agents or sites. */
+  switchWorkspace: []
   /** Stop following agents and stay on the tab in view. */
   stayHere: []
 }>()
@@ -597,11 +599,12 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
     <UiButton appearance="application"
       class="workspace-rail-find"
       type="button"
-      v-tooltip="t('shell.actions.searchTabsTitle')"
-      :aria-label="t('shell.actions.searchTabs')"
-      aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
-      :aria-expanded="tabSearchOpen"
-      @click="emit('searchTabs')"
+      v-tooltip="t('shell.tabs.switchWorkspaceTitle')"
+      :aria-label="t('shell.tabs.switchWorkspace')"
+      aria-keyshortcuts="Control+K Meta+K"
+      aria-haspopup="dialog"
+      :aria-expanded="workspaceSwitcherOpen === true"
+      @click="emit('switchWorkspace')"
     ><IconSearch aria-hidden="true" /></UiButton>
     <UiButton appearance="application"
       class="new-workspace"

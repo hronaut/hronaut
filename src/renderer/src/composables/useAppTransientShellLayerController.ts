@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import type { BrowserTabState } from '../../../shared/types.js'
+import type { CommandPaletteView } from './useCommandPaletteShellController.js'
 import { useWorkspaceEditorShellController } from './useWorkspaceEditorShellController.js'
 
 type ZoomAction = 'in' | 'out' | 'reset'
@@ -19,7 +20,7 @@ export interface AppTransientShellSurface {
   closeWorkspace: () => void
   openCredentialPicker: () => Promise<void>
   closeCredentialPicker: () => void
-  openCommandPalette: () => Promise<void>
+  openCommandPalette: (view?: CommandPaletteView) => Promise<void>
   closeCommandPalette: () => void
 }
 
@@ -30,6 +31,7 @@ export function useAppTransientShellLayerController() {
   const zoomOpen = ref(false)
   const tabSearchOpen = ref(false)
   const commandPaletteOpen = ref(false)
+  const commandPaletteView = ref<CommandPaletteView>('commands')
 
   const tabSearchPanel = computed(() => {
     const surface = layer.value
@@ -80,6 +82,7 @@ export function useAppTransientShellLayerController() {
     zoomOpen,
     tabSearchOpen,
     commandPaletteOpen,
+    commandPaletteView,
     tabSearchPanel,
     zoomBar,
     commandPalettePanel,

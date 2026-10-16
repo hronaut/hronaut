@@ -47,7 +47,7 @@ const BrowserTabsBarStub = defineComponent({
   name: 'BrowserTabsBar',
   props: {
     state: Object,
-    tabSearchOpen: Boolean,
+    workspaceSwitcherOpen: Boolean,
     hydrated: Boolean,
     orientation: String,
     railPinned: Boolean,
@@ -70,7 +70,7 @@ const BrowserTabsBarStub = defineComponent({
     'closeTab',
     'dragStart',
     'toggleRailPinned',
-    'searchTabs'
+    'switchWorkspace'
   ],
   setup(_props, { expose }) {
     expose({ expandTabGroup, expandTabGroupForTab })
@@ -293,6 +293,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
     openNewWorkspaceEditor: vi.fn(),
     reviewDecisions: vi.fn(),
     toggleCommandPalette: vi.fn(),
+    toggleWorkspaceSwitcher: vi.fn(),
     toggleTabSearch: vi.fn(),
     openFind: vi.fn(),
     toggleZoom: vi.fn(),
@@ -875,7 +876,7 @@ describe('AppBrowserChromeLayer', () => {
     const page = harness.wrapper.getComponent(BrowserPageActionsStub)
 
     expect(topbar.props()).toMatchObject({ commandPaletteOpen: true, tabSearchOpen: true })
-    expect(harness.wrapper.getComponent(BrowserTabsBarStub).props('tabSearchOpen')).toBe(true)
+    expect(harness.wrapper.getComponent(BrowserTabsBarStub).props('workspaceSwitcherOpen')).toBe(false)
     expect(navigation.props('zoomOpen')).toBe(true)
     expect(address.props('siteControlsOpen')).toBe(true)
     expect(address.props('panelDock')).toBe('right')
@@ -891,7 +892,12 @@ describe('AppBrowserChromeLayer', () => {
       pageToolsOpen: false
     })
     expect(topbar.props()).toMatchObject({ commandPaletteOpen: false, tabSearchOpen: false })
-    expect(harness.wrapper.getComponent(BrowserTabsBarStub).props('tabSearchOpen')).toBe(false)
+
+    // The palette open on its workspace list marks the rail's switcher button, not the toolbar's Commands.
+    await harness.wrapper.setProps({ commandPaletteOpen: true, workspaceSwitcherOpen: true })
+    expect(topbar.props('commandPaletteOpen')).toBe(false)
+    expect(harness.wrapper.getComponent(BrowserTabsBarStub).props('workspaceSwitcherOpen')).toBe(true)
+    await harness.wrapper.setProps({ commandPaletteOpen: false, workspaceSwitcherOpen: false })
     expect(navigation.props('zoomOpen')).toBe(false)
     expect(address.props('siteControlsOpen')).toBe(false)
     expect(page.props()).toMatchObject({ splitMenuOpen: false, pageToolsOpen: false })
@@ -953,7 +959,7 @@ describe('AppBrowserChromeLayer', () => {
     tabs.vm.$emit('toggleTabMuted', harness.props.state.tabs[0])
     tabs.vm.$emit('closeTab', 'tab-1')
     tabs.vm.$emit('toggleRailPinned')
-    tabs.vm.$emit('searchTabs')
+    tabs.vm.$emit('switchWorkspace')
 
     topbar.vm.$emit('toggleCommandPalette')
     topbar.vm.$emit('toggleTabSearch')
@@ -987,8 +993,9 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.tabActions.closeTab).toHaveBeenCalledWith('tab-1')
     expect(harness.shellActions.toggleVerticalTabRailPinned).toHaveBeenCalledOnce()
     expect(harness.actions.toggleCommandPalette).toHaveBeenCalledOnce()
-    // The rail's Find a workspace or tab button and the Search tabs icon open the same panel.
-    expect(harness.actions.toggleTabSearch).toHaveBeenCalledTimes(2)
+    // The rail's search icon opens the workspace switcher; the toolbar's Search tabs icon opens tab search.
+    expect(harness.actions.toggleWorkspaceSwitcher).toHaveBeenCalledOnce()
+    expect(harness.actions.toggleTabSearch).toHaveBeenCalledOnce()
     expect(harness.collectionActions.toggleDownloads).toHaveBeenCalledOnce()
     expect(harness.collectionActions.toggleVisitHistory).toHaveBeenCalledOnce()
     expect(harness.tabActions.toggleAllTabsMuted).toHaveBeenCalledOnce()

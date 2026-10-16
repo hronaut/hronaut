@@ -67,6 +67,19 @@
 .command-palette-empty span { @apply [max-width:440px] [margin-top:6px] [font-size:var(--type-body-size)] [line-height:1.45]; }
 .command-palette > footer { @apply flex [min-height:40px] flex-none items-center [gap:18px] [padding:7px_14px] [border-top:1px_solid_var(--border-soft)] text-muted bg-surface [font-size:var(--type-small-size)]; }
 .command-palette > footer span { @apply flex items-center [gap:4px]; }
+/* The workspace switcher shares the palette's frame; each workspace keeps its color. */
+.workspace-switcher-section + .workspace-switcher-section { @apply [margin-top:6px]; }
+.workspace-switcher-heading { @apply [margin:8px_10px_4px] text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [letter-spacing:.04em] uppercase; }
+.workspace-switcher-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:var(--corner-2)] [color:var(--workspace-color)] [background:color-mix(in_srgb,_var(--workspace-color)_14%,_transparent)]; }
+.workspace-switcher-mark:empty::before { @apply [content:""] [width:10px] [height:10px] [border-radius:var(--corner-pill)] [background:var(--workspace-color)]; }
+.workspace-switcher-mark > svg { @apply [width:18px] [height:18px]; }
+.workspace-switcher-item.archived strong { @apply text-muted; }
+.workspace-switcher-status { @apply text-copy [font-weight:var(--weight-strong)]; }
+/* An opaque fill keeps the amber text readable on the raised surface and on the selected row. */
+.workspace-switcher-item[data-status="needs-you"] .workspace-switcher-status {
+  @apply [padding:0_6px] [border-radius:var(--corner-pill)] [color:var(--needs-you)] [background:color-mix(in_srgb,_var(--needs-you)_14%,_var(--surface-raised))] [box-shadow:inset_0_0_0_1px_color-mix(in_srgb,_var(--needs-you)_45%,_transparent)];
+}
+.workspace-switcher-footer .workspace-switcher-actions { @apply [margin-left:auto] [gap:6px]; }
 
 .credential-picker-overlay { @apply items-start [padding-top:max(72px,_11vh)]; }
 .credential-picker {

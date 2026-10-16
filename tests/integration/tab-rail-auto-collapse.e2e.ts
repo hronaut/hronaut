@@ -100,13 +100,13 @@ test('revealing the rail preserves the vertical position of its tab targets', as
   await expect(appWindow.locator('.topbar')).toHaveCSS('width', '280px')
   const expanded = await positions()
   await appWindow.locator('.topbar').screenshot({ path: testInfo.outputPath('rail-expanded.png') })
-  // Open, the pin sits on Home's row, and the Workspaces header holds search and Create workspace.
+  // Open, the pin sits on Home's row, and the Workspaces header holds the workspace switcher and Create workspace.
   const openHome = (await home.boundingBox())!
   const openPin = (await pin.boundingBox())!
   expect(Math.abs(openPin.y - openHome.y)).toBeLessThanOrEqual(1)
   expect(openPin.x).toBeGreaterThanOrEqual(openHome.x + openHome.width)
   const header = appWindow.locator('.workspace-rail-header')
-  await expect(header.getByRole('button', { name: 'Search tabs', exact: true })).toBeVisible()
+  await expect(header.getByRole('button', { name: 'Switch workspace', exact: true })).toBeVisible()
   await expect(header.getByRole('button', { name: 'Create workspace', exact: true })).toBeVisible()
   expect(await appWindow.locator('.tabs-strip .new-workspace').count()).toBe(0)
   expect(expanded.map(({ label }) => label)).toEqual(collapsed.map(({ label }) => label))
@@ -120,15 +120,15 @@ test('a dialog opened from the rail returns focus to Home after the rail folds b
   await prepareAutoRail(appWindow, electronApp)
   const topbar = appWindow.locator('.topbar')
   const home = appWindow.locator('.app-home-button')
-  const search = appWindow.locator('.workspace-rail-header').getByRole('button', { name: 'Search tabs', exact: true })
-  // Keyboard focus opens the rail and the search in its header.
+  const search = appWindow.locator('.workspace-rail-header').getByRole('button', { name: 'Switch workspace', exact: true })
+  // Keyboard focus opens the rail and the workspace switcher button in its header.
   await home.focus()
   await expect(topbar).toHaveCSS('width', '280px')
   await search.focus()
   await search.press('Enter')
-  const dialog = appWindow.getByRole('dialog', { name: 'Tabs' })
+  const dialog = appWindow.getByRole('dialog', { name: 'Switch workspace' })
   await expect(dialog).toBeVisible()
-  // With focus in the dialog and no pointer over the rail, the unpinned rail folds and hides that search button.
+  // With focus in the dialog and no pointer over the rail, the unpinned rail folds and hides that button.
   await expect(topbar).toHaveClass(/rail-collapsed/)
   await expect(search).toBeHidden()
   await appWindow.keyboard.press('Escape')

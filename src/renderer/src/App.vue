@@ -146,6 +146,7 @@ const {
   zoomOpen,
   tabSearchOpen,
   commandPaletteOpen,
+  commandPaletteView,
   tabSearchPanel,
   zoomBar,
   commandPalettePanel,
@@ -498,6 +499,7 @@ const {
   rememberWebsiteTab,
   newTabInWorkspace,
   toggleCommandPalette,
+  toggleWorkspaceSwitcher,
   runCommandPaletteCommand,
   runBrowserShortcut,
   guardShellInteraction,
@@ -516,6 +518,7 @@ const {
     zoomOpen,
     tabSearchOpen,
     commandPaletteOpen,
+    commandPaletteView,
     tabSearchPanel,
     zoomBar,
     commandPalettePanel,
@@ -749,6 +752,7 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     openNewWorkspaceEditor,
     reviewDecisions: openWorkspaceDecisions,
     toggleCommandPalette,
+    toggleWorkspaceSwitcher,
     toggleTabSearch,
     openFind,
     toggleZoom,
@@ -859,6 +863,7 @@ useAppLifecycleController({
       v-model:page-tools-open="pageToolsOpen"
       :state="state"
       :user-attention="userAttention"
+      :workspace-switcher-open="commandPaletteOpen && commandPaletteView === 'workspaces'"
       :full-page="fullPageView"
       :hydrated="browserStateInitialized"
       :locale="resolvedLocale"
@@ -928,8 +933,10 @@ useAppLifecycleController({
       v-model:workspace-editor-open="workspaceEditorOpen"
       v-model:credential-picker-open="credentialPickerOpen"
       v-model:command-palette-open="commandPaletteOpen"
+      v-model:command-palette-view="commandPaletteView"
       :state="state"
       :active-tab="activeTab"
+      :user-attention="userAttention"
       :mcp-activity-by-tab="mcpActivityByTab"
       :credentials="credentials"
       :collections-controller="browserCollectionsFeatureController"
@@ -957,6 +964,8 @@ useAppLifecycleController({
       :report-command-error="reportShellActionError"
       :report-zoom-error="reportShellActionError"
       @new-tab="runBrowserShortcut('new-tab')"
+      @search-tabs="runBrowserShortcut('search-tabs')"
+      @create-workspace="openNewWorkspaceEditor"
     />
     <AppTrustedDialogsLayer
       :settings-controller="appSettingsFeatureController"

@@ -150,6 +150,7 @@ describe('useAppCommandPaletteFeatureController', () => {
 
     expect(methods.runShortcut.mock.calls).toEqual([
       ['new-tab'],
+      ['switch-workspace'],
       ['reload'],
       ['reload-ignoring-cache'],
       ['toggle-full-page']

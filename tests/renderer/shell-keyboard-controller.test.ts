@@ -69,6 +69,17 @@ describe('useShellKeyboardController', () => {
     expect(runShortcut).toHaveBeenCalledWith('command-palette')
   })
 
+  it('lets Ctrl/Cmd+K through the open palette, which closes the switcher or turns to it', () => {
+    const commandPalette = surface(true)
+    const { controller, runShortcut } = setup({ commandPalette })
+
+    const toggle = new KeyboardEvent('keydown', { key: 'k', metaKey: true, cancelable: true })
+    controller.handleKeyDown(toggle)
+    expect(toggle.defaultPrevented).toBe(true)
+    expect(runShortcut).toHaveBeenCalledWith('switch-workspace')
+    expect(commandPalette.close).not.toHaveBeenCalled()
+  })
+
   it('closes only the highest-priority modal or Escape surface', () => {
     const firstModal = surface(true)
     const secondModal = surface(true)

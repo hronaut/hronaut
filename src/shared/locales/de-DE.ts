@@ -625,6 +625,7 @@ export const deDE = {
     "select": "Auswählen",
     "fill": "Ausfüllen"
   },
+  "workspaceSwitcher": { "kicker": "Arbeitsbereiche", "heading": "Arbeitsbereich wechseln", "close": "Arbeitsbereichswechsel schließen", "search": "Arbeitsbereiche suchen", "placeholder": "Nach Name, Agent oder Website suchen", "results": "Arbeitsbereiche", "openGroup": "Geöffnete Arbeitsbereiche", "archived": "Archiviert", "current": "Aktuell", "needsYou": "Wartet auf Sie", "working": "{names} bei der Arbeit", "tabs": "{count} Tab | {count} Tabs", "matches": "{count} passender Arbeitsbereich. | {count} passende Arbeitsbereiche.", "selected": "{name} ausgewählt.", "empty": "Keine passenden Arbeitsbereiche", "emptyDescription": "Versuchen Sie einen Namen, einen Agenten wie „Claude Code“ oder eine Website.", "none": "Noch keine Arbeitsbereiche", "noneDescription": "Erstellen Sie einen Arbeitsbereich, um die Tabs und Anmeldungen eines Projekts zusammenzuhalten.", "navigate": "Navigieren", "choose": "Wechseln", "searchTabs": "Tabs suchen", "newWorkspace": "Neuer Arbeitsbereich", "switchFailed": "Arbeitsbereich konnte nicht gewechselt werden", "switchDescription": "{name} konnte nicht geöffnet werden." },
   "commandPalette": {
     "kicker": "Schnellaktionen",
     "heading": "Befehle",
@@ -654,6 +655,7 @@ export const deDE = {
         "label": "Neuer Tab",
         "description": "Leeren Tab im aktuellen Arbeitsbereich öffnen"
       },
+      "switch-workspace": { "label": "Arbeitsbereich wechseln", "description": "Einen Arbeitsbereich über Namen, Agenten oder Websites öffnen" },
       "search-tabs": {
         "label": "Tabs durchsuchen",
         "description": "Offene, gespeicherte und zuletzt geschlossene Websites finden"
@@ -864,7 +866,8 @@ export const deDE = {
       "lastTab": "Zum letzten Website-Tab wechseln",
       "resetZoom": "Seitenzoom zurücksetzen",
       "fullPage": "Ganzseitenansicht umschalten",
-      "takeOver": "Vom Agenten auf der Seite übernehmen"
+      "takeOver": "Vom Agenten auf der Seite übernehmen",
+      "switchWorkspace": "Arbeitsbereich wechseln"
     },
     "responsive": {
       "preview": "Telefone, Tablets und Desktops testen",
@@ -1312,6 +1315,8 @@ export const deDE = {
       "stackedVisible": "In gestapelter geteilter Ansicht sichtbar",
       "sideVisible": "In nebeneinander geteilter Ansicht sichtbar",
       "inputLocked": "Seiteneingabe gesperrt",
+      "switchWorkspace": "Arbeitsbereich wechseln",
+      "switchWorkspaceTitle": "Arbeitsbereich wechseln (Ctrl/Cmd+K)",
       "createWorkspaceTitle": "Neuen isolierten Arbeitsbereich erstellen",
       "createWorkspace": "Arbeitsbereich erstellen",
       "workspace": "Arbeitsbereich",

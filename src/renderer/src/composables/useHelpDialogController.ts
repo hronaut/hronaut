@@ -23,6 +23,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.closeTab'), keys: ['Ctrl/Cmd', 'W'] },
     { label: options.translate('runtime.shortcuts.reopenTab'), keys: ['Ctrl/Cmd', 'Shift', 'T'] },
     { label: options.translate('runtime.shortcuts.searchTabs'), keys: ['Ctrl/Cmd', 'Shift', 'A'] },
+    { label: options.translate('runtime.shortcuts.switchWorkspace'), keys: ['Ctrl/Cmd', 'K'] },
     { label: options.translate('runtime.shortcuts.commands'), keys: ['Ctrl/Cmd', 'Shift', 'P'] },
     { label: options.translate('runtime.shortcuts.pick'), keys: ['Ctrl+Shift+C', 'Cmd+Option+C'] },
     { label: options.translate('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },

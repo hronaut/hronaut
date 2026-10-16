@@ -151,6 +151,7 @@ function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = 
       zoomOpen: refs.zoom,
       tabSearchOpen: refs.tabSearch,
       commandPaletteOpen: refs.commandPalette,
+      commandPaletteView: ref<'commands' | 'workspaces'>('commands'),
       tabSearchPanel: computed(() => null),
       zoomBar: computed(() => null),
       commandPalettePanel: computed(() => null),

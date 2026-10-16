@@ -38,6 +38,7 @@ export interface BrowserShortcutControllerOptions {
   openAgentCard?: ShortcutCallback
   toggleFullPageView?: ShortcutCallback
   takeOverFromAgent?: ShortcutCallback
+  toggleWorkspaceSwitcher?: ShortcutCallback
   onError: (action: BrowserShortcutAction, error: unknown) => void
 }
 
@@ -173,6 +174,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
         return
       case 'take-over':
         await options.takeOverFromAgent?.()
+        return
+      case 'switch-workspace':
+        await options.toggleWorkspaceSwitcher?.()
     }
   }
 

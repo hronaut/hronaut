@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import type { CommandPaletteCommandId } from '../../../shared/command-palette.js'
 import type {
   BrowserState,
@@ -8,15 +8,18 @@ import type {
   CredentialSummary,
   HronautApi,
   McpTabActivity,
-  PanelDock
+  PanelDock,
+  UserAttentionRequest
 } from '../../../shared/types.js'
 import type { AppBrowserCollectionsFeatureController } from '../composables/useAppBrowserCollectionsFeatureController.js'
+import type { CommandPaletteView } from '../composables/useCommandPaletteShellController.js'
 import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
 import CommandPalette from './CommandPalette.vue'
 import CredentialPicker from './CredentialPicker.vue'
 import FindInPageBar from './FindInPageBar.vue'
 import TabSearchPanel from './TabSearchPanel.vue'
 import WorkspaceEditor from './WorkspaceEditor.vue'
+import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
 import ZoomBar from './ZoomBar.vue'
 
 type ZoomAction = 'in' | 'out' | 'reset'
@@ -24,6 +27,7 @@ type ZoomAction = 'in' | 'out' | 'reset'
 const props = defineProps<{
   state: BrowserState
   activeTab?: BrowserTabState
+  userAttention?: UserAttentionRequest | null
   mcpActivityByTab: Record<string, McpTabActivity>
   credentials: CredentialSummary[]
   collectionsController: AppBrowserCollectionsFeatureController
@@ -52,13 +56,31 @@ const props = defineProps<{
   reportZoomError: (error: unknown) => void
 }>()
 
-const emit = defineEmits<{ newTab: [] }>()
+const emit = defineEmits<{ newTab: []; searchTabs: []; createWorkspace: [] }>()
 const tabSearchOpen = defineModel<boolean>('tabSearchOpen', { required: true })
 const findOpen = defineModel<boolean>('findOpen', { required: true })
 const zoomOpen = defineModel<boolean>('zoomOpen', { required: true })
 const workspaceEditorOpen = defineModel<boolean>('workspaceEditorOpen', { required: true })
 const credentialPickerOpen = defineModel<boolean>('credentialPickerOpen', { required: true })
 const commandPaletteOpen = defineModel<boolean>('commandPaletteOpen', { required: true })
+const commandPaletteView = defineModel<CommandPaletteView>('commandPaletteView', { default: 'commands' })
+// The palette shows one list at a time: commands, or the workspace switcher. Each list opens the palette on
+// itself and only closes it while it is the one shown, so a late close from the other list changes nothing.
+function paletteList(view: CommandPaletteView) {
+  return computed({
+    get: () => commandPaletteOpen.value && commandPaletteView.value === view,
+    set: (open: boolean) => {
+      if (open) {
+        commandPaletteView.value = view
+        commandPaletteOpen.value = true
+      } else if (commandPaletteView.value === view) {
+        commandPaletteOpen.value = false
+      }
+    }
+  })
+}
+const commandsOpen = paletteList('commands')
+const workspaceSwitcherOpen = paletteList('workspaces')
 const dock = defineModel<PanelDock>('dock', { required: true })
 
 interface TabSearchSurface {
@@ -98,6 +120,7 @@ const zoomBar = ref<ZoomSurface | null>(null)
 const workspaceEditor = ref<WorkspaceEditorSurface | null>(null)
 const credentialPicker = ref<PickerSurface | null>(null)
 const commandPalette = ref<PickerSurface | null>(null)
+const workspaceSwitcher = ref<PickerSurface | null>(null)
 
 let unsubscribeHomeEditor: (() => void) | undefined
 onMounted(() => {
@@ -171,12 +194,13 @@ function closeCredentialPicker(): void {
   credentialPicker.value?.close()
 }
 
-async function openCommandPalette(): Promise<void> {
-  await commandPalette.value?.openPanel()
+async function openCommandPalette(view: CommandPaletteView = 'commands'): Promise<void> {
+  commandPaletteView.value = view
+  await (view === 'workspaces' ? workspaceSwitcher : commandPalette).value?.openPanel()
 }
 
 function closeCommandPalette(): void {
-  commandPalette.value?.close()
+  ;(commandPaletteView.value === 'workspaces' ? workspaceSwitcher : commandPalette).value?.close()
 }
 
 defineExpose({
@@ -254,10 +278,25 @@ defineExpose({
   />
   <CommandPalette
     ref="commandPalette"
-    v-model:open="commandPaletteOpen"
+    v-model:open="commandsOpen"
     :website-available="websiteAvailable"
     :format-number="formatNumber"
     :run-command="runCommand"
     :report-command-error="reportCommandError"
+  />
+  <WorkspaceSwitcher
+    ref="workspaceSwitcher"
+    v-model:open="workspaceSwitcherOpen"
+    :state="state"
+    :user-attention="userAttention"
+    :browser="browser"
+    :sync-state="syncState"
+    :select-tab="selectTab"
+    :expand-tab-group="expandTabGroup"
+    :format-number="formatNumber"
+    :format-error="formatError"
+    :show-error="showError"
+    @search-tabs="emit('searchTabs')"
+    @create-workspace="emit('createWorkspace')"
   />
 </template>

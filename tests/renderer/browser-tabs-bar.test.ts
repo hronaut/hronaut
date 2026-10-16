@@ -375,21 +375,22 @@ describe('BrowserTabsBar', () => {
     const workspaces = document.querySelector<HTMLElement>('.workspace-rail-header')!
     expect(workspaces).toHaveTextContent('Workspaces')
     const create = screen.getByRole('button', { name: 'Create workspace' })
-    // The same command, name and shortcut as Search tabs at the bottom of the rail.
-    const find = screen.getByRole('button', { name: 'Search tabs' })
+    // The search icon finds a workspace; tab search stays on the toolbar's own Search tabs icon.
+    const find = screen.getByRole('button', { name: 'Switch workspace' })
     expect(workspaces).toContainElement(create)
     expect(workspaces).toContainElement(find)
     // Moved, not copied: the open rail's strip no longer ends with its own Create workspace row.
     expect(screen.getAllByRole('button', { name: 'Create workspace' })).toHaveLength(1)
     expect(document.querySelector('.tabs-strip')).not.toContainElement(create)
     expect(document.querySelector('.workspace-action-divider')).toBeNull()
-    expect(find).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+A Meta+Shift+A')
+    expect(find).toHaveAttribute('aria-keyshortcuts', 'Control+K Meta+K')
+    expect(find).toHaveAttribute('aria-haspopup', 'dialog')
     expect(find).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(find)
     await userEvent.click(create)
-    expect(view.emitted('searchTabs')).toHaveLength(1)
+    expect(view.emitted('switchWorkspace')).toHaveLength(1)
     expect(view.emitted('createWorkspace')).toHaveLength(1)
-    await view.rerender({ tabSearchOpen: true })
+    await view.rerender({ workspaceSwitcherOpen: true })
     expect(find).toHaveAttribute('aria-expanded', 'true')
   })
 
@@ -444,7 +445,7 @@ describe('BrowserTabsBar', () => {
   it('keeps the horizontal strip layout without a Workspaces header', () => {
     renderTabs(browserState(), true, 'horizontal')
     expect(document.querySelector('.workspace-rail-header')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Search tabs' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Switch workspace' })).toBeNull()
     expect(screen.queryByRole('button', { name: /tab rail/ })).toBeNull()
     const create = screen.getByRole('button', { name: 'Create workspace' })
     expect(document.querySelector('.tabs-strip')).toContainElement(create)

@@ -2,7 +2,8 @@ import type { Ref } from 'vue'
 import type { BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import {
   useCommandPaletteShellController,
-  type CommandPalettePanel
+  type CommandPalettePanel,
+  type CommandPaletteView
 } from './useCommandPaletteShellController.js'
 import type { SettingsSection } from './useSettingsDialogController.js'
 import type { AppBrowserCollectionsFeatureController } from './useAppBrowserCollectionsFeatureController.js'
@@ -72,6 +73,7 @@ export interface AppCommandPaletteFeatureControllerOptions<
   TPanel extends CommandPalettePanel
 > {
   open: Ref<boolean>
+  view?: Readonly<Ref<CommandPaletteView>>
   panel: Readonly<Ref<TPanel | null>>
   canOpen: () => boolean
   beforeOpen: () => void
@@ -89,6 +91,7 @@ export function useAppCommandPaletteFeatureController<
 >(options: AppCommandPaletteFeatureControllerOptions<TPanel>) {
   return useCommandPaletteShellController({
     open: options.open,
+    ...(options.view ? { view: options.view } : {}),
     panel: options.panel,
     canOpen: options.canOpen,
     beforeOpen: options.beforeOpen,
@@ -96,6 +99,7 @@ export function useAppCommandPaletteFeatureController<
       home: options.browser.openHome,
       'new-tab': () => options.browser.runShortcut('new-tab'),
       'search-tabs': options.browser.toggleTabSearch,
+      'switch-workspace': () => options.browser.runShortcut('switch-workspace'),
       downloads: options.collections.toggleDownloads,
       bookmarks: options.collections.toggleBookmarks,
       history: options.collections.toggleVisitHistory,

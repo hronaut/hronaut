@@ -59,6 +59,33 @@ describe('useCommandPaletteShellController', () => {
     expect(open.value).toBe(false)
   })
 
+  it('opens on the workspace list, turns between lists while open, and closes on the list it shows', async () => {
+    const open = ref(false)
+    const view = ref<'commands' | 'workspaces'>('commands')
+    const beforeOpen = vi.fn()
+    const panel = ref({
+      openPanel: vi.fn(async (next: 'commands' | 'workspaces' = 'commands') => { view.value = next; open.value = true }),
+      close: vi.fn()
+    })
+    const controller = useCommandPaletteShellController({ open, view, panel, canOpen: () => true, beforeOpen, actions: actions() })
+
+    await controller.toggle('workspaces')
+    expect(panel.value.openPanel).toHaveBeenLastCalledWith('workspaces')
+    expect(view.value).toBe('workspaces')
+
+    // Ctrl/Cmd+Shift+P over the switcher shows the commands instead of closing.
+    await controller.toggle('commands')
+    expect(panel.value.openPanel).toHaveBeenLastCalledWith('commands')
+    expect(panel.value.close).not.toHaveBeenCalled()
+    expect(open.value).toBe(true)
+    expect(beforeOpen).toHaveBeenCalledOnce()
+
+    // An event passed along by a click handler means the commands, which are shown, so the palette closes.
+    await controller.toggle(new MouseEvent('click') as never)
+    expect(panel.value.close).toHaveBeenCalledOnce()
+    expect(open.value).toBe(false)
+  })
+
   it('closes the palette and dispatches the requested command', async () => {
     const open = ref(true)
     const runHistory = vi.fn()
