@@ -3594,6 +3594,12 @@ function registerIpc(): void {
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
     tabsManager?.setBrowserContentOccluded(occluded)
   })
+  ipcMain.on('browser:occlusion-snapshot-presented', (event, id: unknown) => {
+    if (workspaceStartupFailure) return
+    assertMainShellSender(event)
+    if (!Number.isSafeInteger(id) || (id as number) < 1) throw new TypeError('Invalid occlusion snapshot')
+    tabsManager?.presentOcclusionSnapshot(id as number)
+  })
   ipcMain.on('browser:follow-agent-activity-suspended', (event, suspended: unknown) => {
     if (workspaceStartupFailure) return
     assertMainShellSender(event)

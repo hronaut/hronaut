@@ -4,6 +4,11 @@ export class NativePreviewCapture {
 
   constructor(private readonly timeoutMs: number) {}
 
+  /** Another capture of these contents must not start while a native one is still pending. */
+  isPending(contents: object): boolean {
+    return this.pending.has(contents)
+  }
+
   async run<T>(
     contents: object,
     capture: () => Promise<T>,

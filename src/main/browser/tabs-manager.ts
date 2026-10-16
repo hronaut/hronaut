@@ -49,6 +49,7 @@ import { createElementPickerSession, createNativeSelectionSession, type BrowserN
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
+import { OCCLUSION_SNAPSHOT_TIMEOUT_MS, OcclusionSnapshot } from './occlusion-snapshot.js'
 import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
@@ -431,6 +432,14 @@ const HOLD_PAGE_ANIMATIONS_SCRIPT = `(() => {
   } catch { return []; }
 })()`
 const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
+
+/** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
+function occlusionSnapshotTimeoutMs(): number {
+  const override = Number(process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS)
+  return process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1' && Number.isSafeInteger(override) && override > 0
+    ? override
+    : OCCLUSION_SNAPSHOT_TIMEOUT_MS
+}
 const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
 
 function normalizedWorkspaceName(name: string): string {
@@ -1277,6 +1286,7 @@ export class BrowserTabsManager {
   private toolbarHeight: number
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   private browserContentOccluded = false
+  private occludedEmulationFrames: EmulationFrameGeometry[] = []
   private followAgentActivitySuspended = false
   private readonly downloadController = new BrowserDownloadsController({
     getSettings: () => ({
@@ -1391,6 +1401,17 @@ export class BrowserTabsManager {
     request => this.performTabOverviewPreviewCapture(request.tab, request.sequence, request.mode)
   )
   private readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
+  private readonly occlusionSnapshot = new OcclusionSnapshot({
+    panes: () => this.occlusionSnapshotPanes(),
+    layout: () => this.occlusionLayout(),
+    cssScale: () => this.window.webContents.getZoomFactor?.() ?? 1,
+    deviceScale: () => screen.getDisplayMatching(this.window.getBounds()).scaleFactor,
+    send: (snapshot) => {
+      if (!this.window.isDestroyed() && !this.window.webContents.isDestroyed()) this.window.webContents.send('browser:occlusion-snapshot', snapshot)
+    },
+    relayout: () => this.layout(),
+    timeoutMs: occlusionSnapshotTimeoutMs()
+  })
   private readonly tabOverviewPreviewableTabs = new Set<string>()
   private tabOverviewLiveCaptureCursor = 0
   private readonly closedTabs: BrowserClosedTabState[] = []
@@ -8794,14 +8815,60 @@ export class BrowserTabsManager {
         }
       }
     }
+    // The frames around emulated pages stay where the snapshot shows those pages.
+    if (enteringTrustedChrome) this.occludedEmulationFrames = this.getEmulationFrames()
     this.browserContentOccluded = occluded
     this.mcpActivityFollower.setOccluded(occluded || this.followAgentActivitySuspended)
     if (enteringTrustedChrome) {
       for (const tab of this.tabs.values()) {
         if (tab.dialog) void this.dismissWebsiteDialogForTrustedChrome(tab)
       }
+      // Keys typed into trusted chrome must not reach the page while it stays on screen for its snapshot.
+      if (this.window.isFocused()) this.window.webContents.focus()
+      this.occlusionSnapshot.begin()
+    } else if (!occluded) {
+      this.occlusionSnapshot.end()
     }
     this.layout()
+  }
+
+  /** The shell shows the snapshot with this ID under trusted chrome, so the pages can leave the screen. */
+  presentOcclusionSnapshot(id: number): void {
+    this.occlusionSnapshot.present(id)
+  }
+
+  /** Pages on screen now, at their current view bounds, that can be captured for the occlusion snapshot. */
+  private occlusionSnapshotPanes(): Array<{ contents: Electron.WebContents; bounds: Rectangle }> {
+    if (!this.window.isVisible() || this.window.isMinimized() || this.window.webContents.isDestroyed()) return []
+    return this.presentedTabs().flatMap((tab) => (
+      !tab.webContents.isDestroyed()
+      && tab.view.getVisible()
+      && this.window.contentView.children.includes(tab.view)
+      && !this.nativePreviewCapture.isPending(tab.webContents)
+        ? [{ contents: tab.webContents, bounds: tab.view.getBounds() }]
+        : []
+    ))
+  }
+
+  /** The tabs shown in the page area. */
+  private presentedTabs(): BrowserTab[] {
+    const tab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
+    if (!tab) return []
+    const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
+    const second = this.splitView ? this.tabs.get(this.splitView.secondTabId) : undefined
+    return this.splitView && first && second ? [first, second] : [tab]
+  }
+
+  /**
+   * What decides where the occluded pages are. Page views keep their bounds
+   * while trusted chrome is open, so shell insets that change under a modal do
+   * not move them; the window size, zoom and the tabs shown do.
+   */
+  private occlusionLayout(): string {
+    const { width, height } = this.window.getContentBounds()
+    const zoom = this.window.webContents.isDestroyed() ? 1 : this.window.webContents.getZoomFactor?.() ?? 1
+    return JSON.stringify([width, height, zoom, this.splitView?.orientation ?? null, this.splitView?.ratio ?? null,
+      ...this.presentedTabs().map((tab) => [tab.id, tab.emulationViewSize?.width ?? null, tab.emulationViewSize?.height ?? null])])
   }
 
   setFollowAgentActivitySuspended(suspended: boolean): void {
@@ -8853,7 +8920,8 @@ export class BrowserTabsManager {
    */
   getEmulationFrames(): EmulationFrameGeometry[] {
     if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
-      || this.browserContentOccluded || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
+      || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
+    if (this.browserContentOccluded) return this.occlusionSnapshot.active ? this.occludedEmulationFrames : []
     const area = this.browserViewBounds()
     const scale = this.window.webContents.getZoomFactor?.() ?? 1
     const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
@@ -8943,6 +9011,7 @@ export class BrowserTabsManager {
 
   layout(): void {
     if (this.destroyed || this.window.isDestroyed()) return
+    this.occlusionSnapshot.reconcile()
     if (!this.activeTabId) {
       // A frame must not outlive the last tab.
       this.publishEmulationFrames()
@@ -8956,14 +9025,16 @@ export class BrowserTabsManager {
     // WebContentsView. Hiding the page is more reliable than collapsing it to
     // a one-pixel bound, which may not repaint until the BrowserWindow resizes.
     // Preserve hidden view bounds, then restore geometry before showing them.
-    const browserContentVisible = !this.browserContentOccluded && this.toolbarHeight < bounds.height - 1
+    const browserContentVisible = (!this.browserContentOccluded || this.occlusionSnapshot.holdingPages) && this.toolbarHeight < bounds.height - 1
+    // Views held on screen under trusted chrome keep their place; they get new bounds before they are shown again.
+    const placeViews = browserContentVisible && !this.browserContentOccluded
     const viewBounds = this.browserViewBounds()
     if (this.splitView) {
       const firstTab = this.tabs.get(this.splitView.firstTabId)
       const secondTab = this.tabs.get(this.splitView.secondTabId)
       if (firstTab && secondTab) {
         const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * (this.window.webContents.getZoomFactor?.() ?? 1)))
-        if (browserContentVisible) {
+        if (placeViews) {
           firstTab.view.setBounds(this.tabViewBounds(firstTab, splitBounds.first))
           secondTab.view.setBounds(this.tabViewBounds(secondTab, splitBounds.second))
         }
@@ -8979,7 +9050,7 @@ export class BrowserTabsManager {
       }
       this.splitView = null
     }
-    if (browserContentVisible) tab.view.setBounds(this.tabViewBounds(tab, viewBounds))
+    if (placeViews) tab.view.setBounds(this.tabViewBounds(tab, viewBounds))
     tab.view.setVisible(browserContentVisible)
     this.reconcileTabPresentation(tab)
     this.scheduleTabOverviewPreview(tab)
@@ -9096,6 +9167,7 @@ export class BrowserTabsManager {
     this.networkRouteRefreshTimers.clear()
     this.defaultExecutionContexts.clear()
     this.renderQueues.clear()
+    this.occlusionSnapshot.dispose()
     for (const releaseFocusGuard of this.agentInputFocusGuardReleases.values()) releaseFocusGuard()
     this.agentInputFocusGuardReleases.clear()
     this.agentInputWebContents.clear()
@@ -9502,6 +9574,20 @@ export class BrowserTabsManager {
     })
     webContents.on('focus', () => {
       if (this.restoringLayout) return
+      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
+        // A page kept on screen for its snapshot must not take keyboard focus from trusted chrome.
+        // Chromium can ignore a re-entrant transfer from this callback, so restore on the next turn.
+        setImmediate(() => {
+          if (
+            this.browserContentOccluded
+            && !this.window.isDestroyed()
+            && this.window.isFocused()
+            && !webContents.isDestroyed()
+            && electronWebContents.getFocusedWebContents()?.id === webContents.id
+          ) this.window.webContents.focus()
+        })
+        return
+      }
       tab.lastActiveAt = Date.now()
       if (tab.sleeping) void this.wakeTab(tab.id).catch((error) => console.error('[browser] Could not wake focused tab:', error))
       // A WebContentsView can receive a delayed programmatic focus while its
@@ -9513,6 +9599,21 @@ export class BrowserTabsManager {
       this.changed()
     })
     webContents.on('before-input-event', (event, input) => {
+      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
+        // Trusted chrome is open; the page is only on screen until its snapshot is shown.
+        event.preventDefault()
+        const shortcut = input.type === 'keyDown' ? browserShortcutAction({
+          key: input.key,
+          control: input.control,
+          meta: input.meta,
+          alt: input.alt,
+          shift: input.shift,
+          repeat: input.isAutoRepeat,
+          composing: input.isComposing
+        }) : null
+        if (shortcut) this.options.onShortcutRequested?.(shortcut)
+        return
+      }
       const screenshotSession = this.screenshotAreaSessions.get(webContents.id)
       if (screenshotSession && !screenshotSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
         event.preventDefault()
@@ -9582,6 +9683,11 @@ export class BrowserTabsManager {
       }
     })
     webContents.on('before-mouse-event', (event, mouse) => {
+      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
+        // Trusted chrome is open; a click must not give the page focus, activation or the active split pane.
+        event.preventDefault()
+        return
+      }
       const screenshotSession = this.screenshotAreaSessions.get(webContents.id)
       if (screenshotSession && !screenshotSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
         event.preventDefault()
