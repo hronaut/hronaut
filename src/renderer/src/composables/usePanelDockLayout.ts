@@ -1,5 +1,6 @@
 import { nextTick, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { shellHeightForBrowserContent } from '../../../shared/update-presentation.js'
+import { PAGE_CARD_GUTTER, pageCardInsets } from '../../../shared/page-card.js'
 import type { PanelDock } from '../../../shared/types.js'
 import {
   readLocalPreference,
@@ -65,10 +66,12 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
       return Math.max(1, Math.min(840, window.innerWidth - options.tabRailWidth.value - 360))
     }
     const availableHeight = Math.max(0, window.innerHeight - shellHeight)
-    // Keep the usual 220px website reserve when both surfaces fit. In a short
-    // viewport, recover up to the panel's 240px minimum while leaving at least
-    // one third of the available space for the native website view.
-    const compactMaximum = Math.min(240, Math.floor(availableHeight * 2 / 3))
+    // Keep the usual 220px reserve for the page card and its gutters when both
+    // surfaces fit. In a short viewport, recover up to the panel's 240px minimum
+    // while leaving the native website view at least one third of the space the
+    // gutters leave.
+    const pageCardSpace = Math.max(0, availableHeight - 2 * PAGE_CARD_GUTTER)
+    const compactMaximum = Math.min(240, Math.floor(pageCardSpace * 2 / 3))
     return Math.max(1, Math.min(700, Math.max(availableHeight - 220, compactMaximum)))
   }
 
@@ -93,22 +96,27 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     // its space only when it is true application chrome or a full modal. Any
     // transient popover that overlaps a website must use a topmost native view.
     const modalOpen = options.fullModalOpen.value
-    const tabRailWidth = modalOpen ? 0 : options.tabRailWidth.value
-    const sidePanelInset = modalOpen ? 0 : Array.from(
-      options.shell.value.querySelectorAll<HTMLElement>('[data-shell-side-panel]')
-    ).reduce((inset, panel) => Math.max(inset, window.innerWidth - panel.getBoundingClientRect().left), 0)
-    options.shellApi.setToolbarHeight(shellHeightForBrowserContent({
+    const toolbarHeight = shellHeightForBrowserContent({
       shellHeight,
       viewportHeight: window.innerHeight,
       modalOpen
-    }))
-    const dockSize = options.dockedPanelOpen.value && !modalOpen ? size.value : 0
-    options.shellApi.setContentInsets({
-      top: dock === 'top' ? dockSize : 0,
-      right: Math.max(dock === 'right' ? dockSize : 0, Math.ceil(sidePanelInset)),
-      bottom: dock === 'bottom' ? dockSize : 0,
-      left: tabRailWidth + (dock === 'left' ? dockSize : 0)
     })
+    options.shellApi.setToolbarHeight(toolbarHeight)
+    if (modalOpen) {
+      // Pages keep their place under a full modal.
+      options.shellApi.setContentInsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      return
+    }
+    const sidePanelInset = Array.from(
+      options.shell.value.querySelectorAll<HTMLElement>('[data-shell-side-panel]')
+    ).reduce((inset, panel) => Math.max(inset, window.innerWidth - panel.getBoundingClientRect().left), 0)
+    const insets = pageCardInsets({
+      railWidth: options.tabRailWidth.value,
+      dock,
+      dockSize: options.dockedPanelOpen.value ? size.value : 0,
+      sidePanelInset: Math.ceil(sidePanelInset)
+    })
+    options.shellApi.setContentInsets(insets)
   }
 
   function setSize(nextSize: number, persist: boolean, dock: DockedPanelPosition): void {

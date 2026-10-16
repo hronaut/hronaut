@@ -10,6 +10,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
 import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, BrowserViewportEmulation, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
 
 const execFileAsync = promisify(execFile)
@@ -1070,14 +1071,14 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   })()`) as Promise<Record<string, { x: number; y: number }>>
   await expect(appWindow.getByRole('tab')).toHaveCount(0)
   await expect(appWindow.locator('.toolbar')).toBeHidden()
-  await expect.poll(browserViewY).toBe(45)
+  await expect.poll(browserViewY).toBe(44)
   const homeGlobalPositions = await globalControlPositions()
   const homeButton = appWindow.getByRole('button', { name: 'Open Hronaut Home' })
   await expect(homeButton).toHaveAttribute('aria-current', 'page')
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   await expect(appWindow.getByRole('tab')).toHaveCount(1)
   await expect(appWindow.locator('.toolbar')).toBeVisible()
-  await expect.poll(browserViewY).toBe(105)
+  await expect.poll(browserViewY).toBe(104)
   expect(await globalControlPositions()).toEqual(homeGlobalPositions)
   for (const label of ['Downloads', 'Browsing history', 'Settings']) {
     await expect(appWindow.locator('.toolbar').getByRole('button', { name: label, exact: true })).toHaveCount(0)
@@ -1092,7 +1093,7 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   await homeButton.click()
   await expect(appWindow.getByRole('tab')).toHaveCount(1)
   await expect(appWindow.locator('.toolbar')).toBeHidden()
-  await expect.poll(browserViewY).toBe(45)
+  await expect.poll(browserViewY).toBe(44)
   expect(await globalControlPositions()).toEqual(homeGlobalPositions)
   await expect(homeButton).toHaveAttribute('aria-current', 'page')
 
@@ -1129,10 +1130,11 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   await expect(pageTools).toBeVisible()
   const pageToolsBounds = await pageTools.boundingBox()
   expect(pageToolsBounds).not.toBeNull()
+  // The page is a card with a gutter on each side.
   await expect.poll(browserViewBounds).toMatchObject({
-    x: 0,
+    x: PAGE_CARD_GUTTER,
     y: compactContentTop,
-    width: Math.round(pageToolsBounds!.x)
+    width: Math.round(pageToolsBounds!.x) - 2 * PAGE_CARD_GUTTER
   })
   for (const label of ['Site storage is unavailable', 'Responsive preview: Test phones, tablets, and desktops', 'Environment: Network, cache, service workers, CPU, animations, rendering, runtime, region, identity, and location', 'Open Console', 'Open network monitor', 'Request conditions: none active', 'Quality audit: Accessibility, speed, SEO, security, PWA, and browser issues', 'Run accessibility audit', 'Measure page performance', 'Design overview: Colors, typography, and contrast', 'Page metadata: Search, social, and structured data', 'Security: TLS, certificate, and connection details', 'Code coverage: Find unused JavaScript and CSS', 'JavaScript CPU profile: Find hot JavaScript functions', 'Page memory: Heap, DOM, and allocation diagnostics', 'DOM changes: See what changed after an action', 'Visual compare: Compare the page before and after', 'Select an element to copy for agent', 'Select an element and copy its screenshot', 'Save page as PDF', 'No saved password for this site']) {
     await expect(pageTools.getByRole('button', { name: label })).toBeVisible()
@@ -1156,9 +1158,9 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   const networkPanelBounds = await networkPanel.boundingBox()
   expect(networkPanelBounds).not.toBeNull()
   await expect.poll(browserViewBounds).toMatchObject({
-    x: 0,
+    x: PAGE_CARD_GUTTER,
     y: compactContentTop,
-    width: Math.round(networkPanelBounds!.x)
+    width: Math.round(networkPanelBounds!.x) - 2 * PAGE_CARD_GUTTER
   })
   await networkPanel.getByRole('button', { name: 'Close network monitor' }).click()
   await expect.poll(browserViewY).toBe(compactContentTop)
@@ -1168,16 +1170,16 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   await dockPicker.selectOption('left')
   await expect.poll(browserViewBounds).toMatchObject({ x: expect.any(Number), y: compactContentTop })
   const leftPanelBounds = await pageTools.boundingBox()
-  expect((await browserViewBounds())?.x).toBe(Math.round(leftPanelBounds!.width))
+  expect((await browserViewBounds())?.x).toBe(Math.round(leftPanelBounds!.width) + PAGE_CARD_GUTTER)
   await dockPicker.selectOption('bottom')
   const bottomPanelBounds = await pageTools.boundingBox()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: compactContentTop })
-  expect((await browserViewBounds())?.height).toBe(Math.round(bottomPanelBounds!.y - compactContentTop))
+  await expect.poll(browserViewBounds).toMatchObject({ x: PAGE_CARD_GUTTER, y: compactContentTop })
+  expect((await browserViewBounds())?.height).toBe(Math.round(bottomPanelBounds!.y - compactContentTop) - PAGE_CARD_GUTTER)
   await dockPicker.selectOption('top')
   const topPanelBounds = await pageTools.boundingBox()
   await expect.poll(browserViewBounds).toMatchObject({
-    x: 0,
-    y: Math.round(topPanelBounds!.y + topPanelBounds!.height)
+    x: PAGE_CARD_GUTTER,
+    y: Math.round(topPanelBounds!.y + topPanelBounds!.height) + PAGE_CARD_GUTTER
   })
   await dockPicker.selectOption('right')
   await pageTools.getByRole('button', { name: 'Close page tools' }).click()
@@ -1187,12 +1189,12 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   const bookmarksPanelBounds = await bookmarksPanel.boundingBox()
   expect(bookmarksPanelBounds).not.toBeNull()
   await expect.poll(browserViewBounds).toMatchObject({
-    x: 0,
+    x: PAGE_CARD_GUTTER,
     y: compactContentTop,
-    width: Math.round(bookmarksPanelBounds!.x)
+    width: Math.round(bookmarksPanelBounds!.x) - 2 * PAGE_CARD_GUTTER
   })
   await bookmarksPanel.getByRole('button', { name: 'Close bookmarks' }).click()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: compactContentTop, width: 760 })
+  await expect.poll(browserViewBounds).toMatchObject({ x: PAGE_CARD_GUTTER, y: compactContentTop, width: 760 - 2 * PAGE_CARD_GUTTER })
   await homeButton.click()
   await expect(appWindow.locator('.toolbar')).toBeHidden()
   expect(await globalControlPositions()).toEqual(compactHomeGlobalPositions)
@@ -1579,7 +1581,7 @@ test('detaches tool panels into a hardened window and redocks them', async ({ ap
   await expect(dockedPageTools).toBeVisible()
   const dockedBounds = await dockedPageTools.boundingBox()
   expect(dockedBounds).not.toBeNull()
-  await expect.poll(browserViewBounds).toMatchObject({ width: Math.round(dockedBounds!.x) })
+  await expect.poll(browserViewBounds).toMatchObject({ width: Math.round(dockedBounds!.x) - 2 * PAGE_CARD_GUTTER })
 
   const detachedPagePromise = electronApp.waitForEvent('window')
   await dockedPageTools.getByRole('combobox', { name: 'Dock page tools' }).selectOption('window')
@@ -1592,7 +1594,7 @@ test('detaches tool panels into a hardened window and redocks them', async ({ ap
   await expect(detachedPage.locator('[data-titlebar-drag-surface]')).toHaveCount(0)
   await expect(detachedPage.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
   await expect(dockedPageTools).toBeHidden()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: await appWindow.evaluate('window.innerWidth') })
+  await expect.poll(browserViewBounds).toMatchObject({ x: PAGE_CARD_GUTTER, y: 104, width: await appWindow.evaluate('window.innerWidth') as number - 2 * PAGE_CARD_GUTTER })
   await expect(detachedPage.getByRole('combobox', { name: 'Dock page tools' })).toHaveValue('window')
 
   const detachedSecurity = await electronApp.evaluate(({ BrowserWindow }) => {
@@ -1662,7 +1664,7 @@ test('detaches tool panels into a hardened window and redocks them', async ({ ap
   await expect(dockedPageTools).toBeVisible()
   await expect(dockedPageTools.getByRole('combobox', { name: 'Dock page tools' })).toHaveValue('left')
   const leftBounds = await dockedPageTools.boundingBox()
-  await expect.poll(browserViewBounds).toMatchObject({ x: Math.round(leftBounds!.width), y: 105 })
+  await expect.poll(browserViewBounds).toMatchObject({ x: Math.round(leftBounds!.width) + PAGE_CARD_GUTTER, y: 104 })
 
   await dockedPageTools.getByRole('combobox', { name: 'Dock page tools' }).selectOption('right')
   await dockedPageTools.getByRole('button', { name: 'Close page tools' }).click()
@@ -1714,7 +1716,7 @@ test('detaches tool panels into a hardened window and redocks them', async ({ ap
   }, 0)`)
   await expect.poll(() => detachedBookmarks.isClosed()).toBe(true)
   await expect(dockedBookmarks).toBeHidden()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: await appWindow.evaluate('window.innerWidth') })
+  await expect.poll(browserViewBounds).toMatchObject({ x: PAGE_CARD_GUTTER, y: 104, width: await appWindow.evaluate('window.innerWidth') as number - 2 * PAGE_CARD_GUTTER })
 })
 
 test('resizes docked panels by pointer and keyboard while preserving page space', async ({ appWindow, electronApp }) => {
@@ -1777,7 +1779,8 @@ test('resizes docked panels by pointer and keyboard while preserving page space'
   const maximumBottomSize = Number(await handle.getAttribute('aria-valuemax'))
   await expect.poll(async () => Math.round((await panel.boundingBox())!.height)).toBe(maximumBottomSize)
   const pageBoundsAtMaximum = await browserViewBounds()
-  expect(pageBoundsAtMaximum!.height).toBeGreaterThanOrEqual(220)
+  // The 220 px reserve holds the page card and the gutter between it and the panel.
+  expect(pageBoundsAtMaximum!.height).toBeGreaterThanOrEqual(220 - PAGE_CARD_GUTTER)
   await handle.dblclick()
   expect(await appWindow.evaluate("localStorage.getItem('hronaut:panel-dock-size-vertical')")).toBeNull()
   await expect.poll(async () => Math.round((await panel.boundingBox())!.height)).toBe(Math.round(800 * 0.45))
@@ -1852,7 +1855,7 @@ test('keeps per-site controls above the website view', async ({ appWindow, elect
       BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
     ))
     const browserViewY = async (): Promise<number | undefined> => (await browserViewBounds())?.y
-    await expect.poll(browserViewY).toBe(105)
+    await expect.poll(browserViewY).toBe(104)
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     await appWindow.getByRole('dialog', { name: 'Page tools' })
@@ -1867,10 +1870,10 @@ test('keeps per-site controls above the website view', async ({ appWindow, elect
     await expect(responsivePreview).toBeHidden()
     const panelBounds = await siteControls.boundingBox()
     expect(panelBounds).not.toBeNull()
-    await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: Math.round(panelBounds!.x) })
+    await expect.poll(browserViewBounds).toMatchObject({ x: PAGE_CARD_GUTTER, y: 104, width: Math.round(panelBounds!.x) - 2 * PAGE_CARD_GUTTER })
 
     await siteControls.getByRole('button', { name: 'Close site controls' }).click()
-    await expect.poll(browserViewY).toBe(105)
+    await expect.poll(browserViewY).toBe(104)
   } finally {
     await closeFixtureServer(server)
   }
@@ -2158,7 +2161,7 @@ test('shows a recoverable site error and retries the failed address', async ({ a
     await expect(recovery).toContainText('The website refused the connection.')
     await expect(recovery).toContainText('ERR_CONNECTION_REFUSED')
     await expect(appWindow.getByRole('tab')).toHaveAttribute('aria-label', /This site could not be reached/)
-    await expect.poll(browserViewY).toBeGreaterThan(105)
+    await expect.poll(browserViewY).toBeGreaterThan(104)
 
     await listen(port)
     await recovery.getByRole('button', { name: 'Try again' }).click()
@@ -2168,7 +2171,7 @@ test('shows a recoverable site error and retries the failed address', async ({ a
     })
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.pageProblem ?? null)')).toBeNull()
     await expect(recovery).toBeHidden()
-    await expect.poll(browserViewY).toBe(105)
+    await expect.poll(browserViewY).toBe(104)
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
       return page?.executeJavaScript('document.body.innerText')
@@ -3961,7 +3964,7 @@ test('searches open and recently closed tabs, then restores any selected page', 
   await expect(panel.locator('.tab-overview-card.selected')).toContainText('Tab search alpha')
   await search.press('Enter')
   await expect(panel).toBeHidden()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: await appWindow.evaluate('window.innerWidth'), visible: true })
+  await expect.poll(browserViewBounds).toMatchObject({ x: PAGE_CARD_GUTTER, y: 104, width: await appWindow.evaluate('window.innerWidth') as number - 2 * PAGE_CARD_GUTTER, visible: true })
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Tab search alpha')
 
   const searchTabsButton = appWindow.getByRole('button', { name: 'Search tabs' })
@@ -6648,9 +6651,9 @@ test('records, searches, removes, and clears local browsing history', async ({ a
     const panelBounds = await panel.boundingBox()
     expect(panelBounds).not.toBeNull()
     await expect.poll(browserViewBounds).toMatchObject({
-      x: 0,
-      y: 105,
-      width: Math.round(panelBounds!.x)
+      x: PAGE_CARD_GUTTER,
+      y: 104,
+      width: Math.round(panelBounds!.x) - 2 * PAGE_CARD_GUTTER
     })
     await expect(panel).toContainText('2 visits')
     await panel.getByRole('searchbox', { name: 'Search browsing history' }).fill('does not match')
@@ -7460,9 +7463,9 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => (
       BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
     ))).toMatchObject({
-      x: 0,
-      y: 105,
-      width: Math.round(panelBounds!.x)
+      x: PAGE_CARD_GUTTER,
+      y: 104,
+      width: Math.round(panelBounds!.x) - 2 * PAGE_CARD_GUTTER
     })
     await expect(panel.getByText('slow.bin', { exact: true })).toBeVisible()
     await expect(panel.getByRole('progressbar', { name: 'Downloading slow.bin' })).toBeVisible()

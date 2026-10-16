@@ -4,6 +4,7 @@ import { promisify } from 'node:util'
 import { writeFile } from 'node:fs/promises'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { translate } from '../../src/shared/i18n.js'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 for (const dock of ['top', 'bottom'] as const) {
@@ -55,13 +56,17 @@ for (const dock of ['top', 'bottom'] as const) {
       const nativeBounds = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.contentView.children.map(child => child.getBounds()))
       await writeFile(info.outputPath('geometry.json'), JSON.stringify({ geometry, nativeBounds }, null, 2))
       const toolbarHeight = Math.ceil(geometry.shellTop * 1.25)
-      const dockHeight = Math.ceil(geometry.panel.height * 1.25)
+      // The page is a card: a gutter at the window edges and between it and the dock.
+      const gutter = Math.ceil(PAGE_CARD_GUTTER * 1.25)
+      const dockInset = Math.ceil((geometry.panel.height + PAGE_CARD_GUTTER) * 1.25)
+      const pageHeight = height - toolbarHeight - dockInset - (dock === 'top' ? gutter : 0)
       await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.contentView.children[0]!.getBounds())).toEqual({
-        x: 0, y: toolbarHeight + (dock === 'top' ? dockHeight : 0),
-        width: 760, height: height - toolbarHeight - dockHeight
+        x: gutter, y: toolbarHeight + (dock === 'top' ? dockInset : 0),
+        width: 760 - 2 * gutter, height: pageHeight
       })
-      expect(height - toolbarHeight - dockHeight).toBeGreaterThanOrEqual(90)
-      if (height === 520) expect(geometry.panel.height).toBe(155)
+      // A short window leaves the page a third of the space beside the dock and the gutters.
+      expect(pageHeight).toBeGreaterThanOrEqual(85)
+      if (height === 520) expect(geometry.panel.height).toBe(142)
       // A real native click must still reach the website beside the trusted dock.
       await call('browser_evaluate', { script: "(() => { const button = document.createElement('button'); button.id='dock-web-probe'; button.textContent='Website'; button.style.cssText='position:fixed;z-index:999999;left:8px;top:8px;width:80px;height:32px'; button.onclick=()=>button.dataset.clicked='yes'; document.body.append(button); return true })()" })
       const websitePoint = await electronApp.evaluate(({ BrowserWindow }) => {

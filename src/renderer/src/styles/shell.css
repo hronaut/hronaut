@@ -2,6 +2,14 @@
   @apply fixed [inset:0_0_auto_0] [min-height:104px] [z-index:10] [background:var(--shell-top)] [border-bottom:1px_solid_var(--border-soft)] [box-shadow:none] select-none [transition:background_180ms_ease,_border-color_180ms_ease];
 }
 .shell.home-shell { @apply [min-height:44px]; }
+/* The page is a card on the shell's surface, so no line runs where the shell meets it. */
+.shell:not(.detached-panel-window) { @apply [border-bottom:0]; }
+/* The toolbar and the bars under it. With the rail, they and the space around the page share the rail's surface. */
+.shell { --shell-bar: var(--toolbar); }
+.shell.vertical-tabs-shell:not(.detached-panel-window) {
+  --shell-bar: var(--shell-bottom);
+  @apply [background:var(--shell-bottom)];
+}
 .shell.vertical-tabs-shell { @apply [min-height:60px]; }
 .shell.vertical-tabs-shell.home-shell {
   @apply min-h-0 [border-bottom:0] [box-shadow:none];
@@ -13,9 +21,6 @@
   @apply [opacity:0.12] [background-image:linear-gradient(rgba(0,_245,_255,_0.22)_1px,_transparent_1px),_linear-gradient(90deg,_rgba(255,_46,_224,_0.2)_1px,_transparent_1px)] [background-size:24px_24px];
 }
 
-:root[data-theme="cyberpunk-turbo"] .shell {
-  @apply [border-bottom-color:#796b95] [box-shadow:0_1px_8px_rgba(255,_77,_227,_.1)];
-}
 :root[data-theme="cyberpunk-turbo"] .tab.active .tab-active-indicator {
   @apply [background:var(--turbo-highlight)];
 }
@@ -57,7 +62,7 @@
 }
 .browser-tabs-bar.horizontal, .tab-rail-header { @apply [display:contents]; }
 .vertical-tabs-shell .topbar {
-  @apply fixed [z-index:47] [top:0] [bottom:0] [left:0] flex [width:var(--tab-rail-width)] [height:auto] min-w-0 flex-col items-stretch p-0 [border-top:1px_solid_var(--border-soft)] [border-right:1px_solid_var(--border)] [background:var(--shell-bottom)] [box-shadow:none];
+  @apply fixed [z-index:47] [top:0] [bottom:0] [left:0] flex [width:var(--tab-rail-width)] [height:auto] min-w-0 flex-col items-stretch p-0 [background:var(--shell-bottom)] [box-shadow:none];
 }
 .custom-title-bar.vertical-tabs-shell .topbar { @apply [padding-top:var(--vertical-titlebar-height)]; }
 .vertical-tabs-shell .topbar.compact-vertical-tab-rail:not(.rail-collapsed) {
@@ -535,7 +540,7 @@
 @keyframes mcp-status-pulse { 50% { opacity: .45; } }
 
 .toolbar {
-  @apply relative [z-index:1] flex flex-wrap items-center [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--toolbar)];
+  @apply relative [z-index:1] flex flex-wrap items-center [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--shell-bar)];
 }
 .vertical-tabs-shell .toolbar {
   @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)];

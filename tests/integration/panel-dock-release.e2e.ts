@@ -1,3 +1,7 @@
+import { execFile } from 'node:child_process'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { expect, test } from './fixtures.js'
 
 for (const dock of ['right', 'bottom'] as const) {
@@ -12,12 +16,21 @@ for (const dock of ['right', 'bottom'] as const) {
     const horizontal = dock === 'right'
     const key = `hronaut:panel-dock-size-${horizontal ? 'horizontal' : 'vertical'}`
     const initial = horizontal ? 480 : 360
+    // The page card has a gutter at each window edge and before the dock; the toolbar ends at 104 px.
+    const pageSpace = horizontal ? 1200 - 2 * PAGE_CARD_GUTTER : 800 - 104 - PAGE_CARD_GUTTER
     await expect(handle).toHaveAttribute('aria-valuenow', String(initial))
     await expect(handle).toHaveAttribute('aria-orientation', horizontal ? 'vertical' : 'horizontal')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, horizontal) => {
       const bounds = BrowserWindow.getAllWindows()[0]!.contentView.children[0]!.getBounds()
       return horizontal ? bounds.width : bounds.height
-    }, horizontal)).toBe(horizontal ? 1200 - initial : 800 - 105 - initial)
+    }, horizontal)).toBe(pageSpace - initial)
+    if (process.platform === 'linux') {
+      // The real X pointer stays where it is while synthetic input drags the handle. A page edge
+      // moving across it would end the shell's gesture, so park it deep in the panel first.
+      const origin = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getContentBounds())
+      const parked = (await panel.boundingBox())!
+      await promisify(execFile)('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(Math.round(origin.x + parked.x + parked.width - 40)), String(Math.round(origin.y + parked.y + parked.height - 40)), '--move'])
+    }
     const bounds = (await handle.boundingBox())!
     const x = Math.round(bounds.x + (horizontal ? bounds.width / 2 : 140))
     const y = Math.round(bounds.y + (horizontal ? 140 : bounds.height / 2))
@@ -48,7 +61,7 @@ for (const dock of ['right', 'bottom'] as const) {
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, horizontal) => {
       const bounds = BrowserWindow.getAllWindows()[0]!.contentView.children[0]!.getBounds()
       return horizontal ? bounds.width : bounds.height
-    }, horizontal)).toBe(horizontal ? 1200 - initial + 80 : 800 - 105 - initial + 80)
+    }, horizontal)).toBe(pageSpace - initial + 80)
     await panel.getByRole('button', { name: 'Close page tools' }).click()
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     await expect(handle).toHaveAttribute('aria-valuenow', String(initial - 80))

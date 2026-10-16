@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import type { ElectronApplication, Page } from '@playwright/test'
 import type { BrowserState } from '../../src/shared/types.js'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 const fixtureUrl = (name: string) => `data:text/html,${encodeURIComponent(`<!doctype html><title>${name}</title><style>body{margin:0}main{height:2400px;background:linear-gradient(#15803d,#4338ca)}</style><main>${name}</main>`)}`
@@ -262,13 +263,14 @@ for (const resize of [false, true]) {
         return { focused: webContents.getFocusedWebContents()?.id, viewport: await page.executeJavaScript('({width:innerWidth,height:innerHeight,x:scrollX,y:scrollY})') }
       }, target.url)
       if (resize) {
-        await expect.poll(async () => (await targetState()).viewport.width).toBe(1040)
+        // The page card keeps a gutter at both window edges and the bottom.
+        await expect.poll(async () => (await targetState()).viewport.width).toBe(1040 - 2 * PAGE_CARD_GUTTER)
         // Native width can update before the responsive shell reports its new height.
         // Capture the selected state only after both dimensions reflect the resized chrome.
-        const expectedViewport = await appWindow.evaluate(() => ({
-          width: innerWidth,
-          height: innerHeight - Math.ceil(document.querySelector('.shell')!.getBoundingClientRect().bottom)
-        }))
+        const expectedViewport = await appWindow.evaluate((gutter) => ({
+          width: innerWidth - 2 * gutter,
+          height: innerHeight - Math.ceil(document.querySelector('.shell')!.getBoundingClientRect().bottom) - gutter
+        }), PAGE_CARD_GUTTER)
         await expect.poll(async () => (await targetState()).viewport).toMatchObject(expectedViewport)
       }
       const selectedState = await targetState()

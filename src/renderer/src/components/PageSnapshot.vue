@@ -21,5 +21,5 @@ const { snapshot } = useOcclusionSnapshotController(window.hronautShell)
 <style scoped>
 /* Sits where the hidden page views were, under every trusted overlay. */
 .page-snapshot { position: fixed; inset: 0; z-index: 0; pointer-events: none; user-select: none; }
-.page-snapshot-pane { position: absolute; display: block; max-width: none; object-fit: fill; }
+.page-snapshot-pane { position: absolute; display: block; max-width: none; object-fit: fill; border-radius: var(--page-card-radius); }
 </style>

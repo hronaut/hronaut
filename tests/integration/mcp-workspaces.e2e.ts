@@ -4,6 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../src/shared/types.js'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 import { launchRejected, quitNotice, type Scope } from './workspace-metadata-fixtures.js'
@@ -333,6 +334,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   await appWindow.getByRole('combobox', { name: 'Address' }).hover()
   await appWindow.getByRole('combobox', { name: 'Address' }).focus()
   await expect(verticalNavigation).toHaveClass(/rail-collapsed/)
+  // The folded rail is 56 px; the page card keeps its gutter at the right edge.
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]
@@ -341,7 +343,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
       width: websiteView?.getBounds().width,
       contentWidth: window?.getContentBounds().width
     }
-  })).toEqual({ x: 56, width: 704, contentWidth: 760 })
+  })).toEqual({ x: 56, width: 760 - 56 - PAGE_CARD_GUTTER, contentWidth: 760 })
 
   const unpinRail = appWindow.getByRole('button', { name: 'Collapse tab rail when not in use' })
   await expect(unpinRail).toHaveAttribute('aria-pressed', 'true')
@@ -359,7 +361,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
       width: websiteView?.getBounds().width,
       contentWidth: window?.getContentBounds().width
     }
-  })).toEqual({ x: 56, width: 704, contentWidth: 760 })
+  })).toEqual({ x: 56, width: 760 - 56 - PAGE_CARD_GUTTER, contentWidth: 760 })
   expect(await appWindow.evaluate("localStorage.getItem('hronaut:vertical-tab-rail-pinned')")).toBe('false')
   const selectedRailTab = appWindow.locator('[data-active-tab="true"]')
   await expect(selectedRailTab).toHaveAttribute('aria-selected', 'true')

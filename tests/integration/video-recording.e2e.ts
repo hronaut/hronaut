@@ -6,6 +6,7 @@ import { copyFile, readFile } from 'node:fs/promises'
 import { CallToolResultSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { Input, BufferSource, WEBM } from 'mediabunny'
 import type { BrowserVideoState } from '../../src/shared/video.js'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 // Exercises the real capture, sandboxed WebCodecs encoder, WebM muxer and browser decoder.
@@ -21,15 +22,17 @@ test('records, annotates, trims and decodes a WebM tutorial through MCP and the 
   await expect(appWindow.getByRole('combobox', { name: 'Address', exact: true })).toHaveValue(capabilities.fixtureUrl)
   await expect.poll(async () => {
     const shellBottom = await appWindow.locator('.shell').evaluate(element => element.getBoundingClientRect().bottom)
-    return electronApp.evaluate(({ BrowserWindow, webContents }, { url, shellBottom }) => {
+    return electronApp.evaluate(({ BrowserWindow, webContents }, { url, shellBottom, gutter }) => {
       const window = BrowserWindow.getAllWindows()[0]!
       const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
       const view = window.contentView.children.find(candidate => 'webContents' in candidate && candidate.webContents === page)
       const bounds = view?.getBounds()
       const content = window.getContentBounds()
+      // The page is a card inside a gutter at the window's left, right and bottom edges.
+      const edge = Math.ceil(gutter * window.webContents.getZoomFactor())
       return bounds?.y === Math.ceil(Math.ceil(shellBottom) * window.webContents.getZoomFactor())
-        && bounds.height === content.height - bounds.y && bounds.width === content.width
-    }, { url: capabilities.fixtureUrl, shellBottom })
+        && bounds.x === edge && bounds.height === content.height - bounds.y - edge && bounds.width === content.width - 2 * edge
+    }, { url: capabilities.fixtureUrl, shellBottom, gutter: PAGE_CARD_GUTTER })
   }, 'Native recording viewport matches the rendered fixture shell').toBe(true)
   await video('start')
   await expect(appWindow.getByLabel('Recording video', { exact: true })).toBeVisible()

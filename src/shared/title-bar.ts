@@ -40,16 +40,21 @@ interface TitleBarThemeColors {
   symbols: string
 }
 
+/**
+ * The window controls sit on the tab strip's surface (`--shell-top`) with tabs
+ * above the page, and on the rail's surface (`--shell-bottom`), which the
+ * toolbar shares, beside the tab rail.
+ */
 const TITLE_BAR_THEME_COLORS: Record<ResolvedThemeName, TitleBarThemeColors> = {
-  light: { horizontal: '#ededef', vertical: '#ffffff', symbols: '#25262b' },
-  dark: { horizontal: '#202023', vertical: '#19191c', symbols: '#ededf0' },
-  midnight: { horizontal: '#111f32', vertical: '#0a1320', symbols: '#edf4ff' },
-  sepia: { horizontal: '#e8dcc8', vertical: '#faf4e9', symbols: '#3c3025' },
-  'cyberpunk-turbo': { horizontal: CYBERPUNK_TURBO_COLORS.shellTop, vertical: CYBERPUNK_TURBO_COLORS.toolbar, symbols: CYBERPUNK_TURBO_COLORS.text },
-  cyberpunk: { horizontal: '#1d0a32', vertical: '#130922', symbols: '#f5f0ff' },
-  matrix: { horizontal: '#07160b', vertical: '#030d06', symbols: '#d9ffe0' },
-  machine: { horizontal: '#251012', vertical: '#16090b', symbols: '#fff0ee' },
-  galactic: { horizontal: '#111b3a', vertical: '#080e23', symbols: '#f3f5ff' }
+  light: { horizontal: '#ededef', vertical: '#f7f7f8', symbols: '#25262b' },
+  dark: { horizontal: '#202023', vertical: '#1c1c1f', symbols: '#ededf0' },
+  midnight: { horizontal: '#111f32', vertical: '#0b1422', symbols: '#edf4ff' },
+  sepia: { horizontal: '#e8dcc8', vertical: '#f4ecdf', symbols: '#3c3025' },
+  'cyberpunk-turbo': { horizontal: CYBERPUNK_TURBO_COLORS.shellTop, vertical: CYBERPUNK_TURBO_COLORS.background, symbols: CYBERPUNK_TURBO_COLORS.text },
+  cyberpunk: { horizontal: '#1d0a32', vertical: '#10071c', symbols: '#f5f0ff' },
+  matrix: { horizontal: '#07160b', vertical: '#020b05', symbols: '#d9ffe0' },
+  machine: { horizontal: '#251012', vertical: '#13080a', symbols: '#fff0ee' },
+  galactic: { horizontal: '#111b3a', vertical: '#070d20', symbols: '#f3f5ff' }
 }
 
 export function titleBarOverlayStyle(

@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { VERTICAL_TAB_RAIL_WIDTH } from '../../src/shared/tab-position.js'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
@@ -145,13 +146,14 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
       expect(await appWindow.evaluate('document.documentElement.scrollWidth <= window.innerWidth')).toBe(true)
       await captureChrome(appWindow, testInfo.outputPath(`${orientation}-${theme}-narrow.png`))
       const toolbar = await appWindow.locator('.toolbar').boundingBox()
+      // The page card starts at the rail, or after the gutter at the window edge with tabs above it.
       await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, expected) => {
         const window = BrowserWindow.getAllWindows()[0]!
         return window.contentView.children.some(view => {
           const bounds = view.getBounds()
           return bounds.width > 0 && bounds.height > 0 && bounds.x === expected.x && bounds.y >= expected.y && bounds.y <= expected.y + 1
         })
-      }, { x: orientation === 'vertical' ? VERTICAL_TAB_RAIL_WIDTH : 0, y: Math.ceil(toolbar!.y + toolbar!.height) })).toBe(true)
+      }, { x: orientation === 'vertical' ? VERTICAL_TAB_RAIL_WIDTH : PAGE_CARD_GUTTER, y: Math.ceil(toolbar!.y + toolbar!.height) })).toBe(true)
       if (orientation === 'vertical') {
         await appWindow.locator('input.address').focus()
         await appWindow.mouse.move(600, 450)

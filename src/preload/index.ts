@@ -1,5 +1,6 @@
 import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
 import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
+import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
 import type {
@@ -612,3 +613,13 @@ const emulationFrameApi: HronautEmulationFrameApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautEmulationFrame', emulationFrameApi)
+
+const pageCardApi: HronautPageCardApi = {
+  get: () => ipcRenderer.invoke('page-card:get'),
+  onChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, cards: PageCardGeometry[]): void => listener(cards)
+    ipcRenderer.on('page-card:changed', handler)
+    return () => ipcRenderer.removeListener('page-card:changed', handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautPageCard', pageCardApi)
