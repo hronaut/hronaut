@@ -178,7 +178,7 @@ type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
   {
     name: 'browser_human_waiting', category: 'Session',
-    description: 'Request, list, or cancel a bounded human decision in your workspace, including when no tab is open. An approve-action review may describe one exact mutation or 2–4 ordered browser_click steps with declarative postconditions. Acknowledgment and resolution require the trusted local UI. Waiting blocks consequential dispatch; cancellation does not clear continuity review or replay an action. IDs are correlation handles, never capabilities.'
+    description: 'Request, list, or cancel a bounded human decision in your workspace, including when no tab is open. An approve-action review may describe one exact mutation or 2–4 ordered browser_click steps with declarative postconditions. Acknowledgment and resolution require the trusted local UI; list shows when the person answered and any note they wrote (kept until Hronaut quits). Waiting blocks consequential dispatch; cancellation does not clear continuity review or replay an action. IDs are correlation handles, never capabilities.'
   },
   {
     name: 'browser_continuity', category: 'Session',

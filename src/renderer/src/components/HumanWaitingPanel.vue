@@ -3,6 +3,8 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { HronautApi } from '../../../shared/types.js'
 import {
+  HUMAN_WAITING_NOTE_LIMIT,
+  normalizeHumanWaitingNote,
   requiresHumanWaitingAccountAndTargetConfirmation,
   type HumanWaitingRecord
 } from '../../../shared/human-waiting.js'
@@ -17,6 +19,8 @@ const { t, locale } = useI18n({ useScope: 'global' })
 const records = ref<HumanWaitingRecord[]>([])
 const reviewed = ref<Record<string, boolean>>({})
 const accountAndTargetReviewed = ref<Record<string, boolean>>({})
+// What the person writes to the agent, by decision. A failed answer keeps it, so nothing typed is lost.
+const notes = ref<Record<string, string>>({})
 const busy = ref(false)
 const error = ref(false)
 let generation = 0
@@ -45,20 +49,31 @@ async function change(record: HumanWaitingRecord, action: 'acknowledge' | 'cance
   const workspaceId = props.workspaceId
   const current = ++generation
   busy.value = true; error.value = false
+  const confirmation = action === 'resolve' && requiresHumanWaitingAccountAndTargetConfirmation(record)
+    ? { accountAndTargetVerified: true as const }
+    : undefined
+  const note = action === 'acknowledge' ? undefined : normalizeHumanWaitingNote(notes.value[record.id] ?? '')
+  // A note main would refuse is not dropped from the answer: the person sees the error and keeps the text.
+  if (note === null) { error.value = true; busy.value = false; return }
   try {
-    const next = action === 'resolve' && requiresHumanWaitingAccountAndTargetConfirmation(record)
-      ? await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action, { accountAndTargetVerified: true })
-      : await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action)
+    const next = note !== undefined
+      ? await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action, confirmation, note)
+      : confirmation
+        ? await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action, confirmation)
+        : await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action)
     if (current === generation) {
       records.value = records.value.map(candidate => candidate.id === next.id ? next : candidate)
       reviewed.value = {}; accountAndTargetReviewed.value = {}
+      if (action !== 'acknowledge') notes.value = Object.fromEntries(Object.entries(notes.value).filter(([id]) => id !== record.id))
     }
   } catch {
     if (current === generation) { error.value = true; reviewed.value = {}; accountAndTargetReviewed.value = {} }
   } finally { if (current === generation) busy.value = false }
 }
 
-watch(() => [props.workspaceId, props.disabled] as const, () => {
+watch(() => [props.workspaceId, props.disabled] as const, ([workspaceId], previous) => {
+  // Notes belong to their workspace; the editor turning its controls off and on again keeps them.
+  if (workspaceId !== previous?.[0]) notes.value = {}
   generation += 1; records.value = []; reviewed.value = {}; accountAndTargetReviewed.value = {}; busy.value = false
   void refresh()
 }, { immediate: true })
@@ -127,7 +142,13 @@ onBeforeUnmount(() => { generation += 1 })
           <dt>{{ t('humanWaiting.handle') }}</dt><dd>{{ record.id }}</dd>
         </dl>
         <p v-if="record.priorOutcome === 'OUTCOME_UNKNOWN'">{{ t('humanWaiting.unknown') }}</p>
+        <p v-if="record.answeredAt !== undefined" data-testid="human-waiting-answered">{{ t('humanWaiting.answered', { time: deadline(record.answeredAt) }) }}</p>
+        <p v-if="record.note" class="waiting-sent-note" data-testid="human-waiting-note"><strong>{{ t('humanWaiting.yourNote') }}</strong> {{ record.note }}</p>
         <template v-if="active(record)">
+          <label class="waiting-note">
+            <span>{{ t(record.decision === 'provide-input' ? 'humanWaiting.answerLabel' : 'humanWaiting.noteLabel') }}</span>
+            <textarea v-model="notes[record.id]" rows="3" :maxlength="HUMAN_WAITING_NOTE_LIMIT" spellcheck="true" :disabled="busy || disabled" data-testid="human-waiting-note-field" />
+          </label>
           <label class="waiting-review"><input v-model="reviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t(isGroup(record) ? 'humanWaiting.reviewedGroup' : record.review ? 'humanWaiting.reviewedExact' : 'humanWaiting.reviewed') }}</label>
           <label v-if="requiresHumanWaitingAccountAndTargetConfirmation(record)" class="waiting-review"><input v-model="accountAndTargetReviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t('humanWaiting.reviewedAccountAndTarget') }}</label>
           <div class="waiting-actions">
@@ -155,5 +176,9 @@ onBeforeUnmount(() => { generation += 1 })
 .waiting-steps > li { padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--corner-1); }
 .waiting-steps > li.current { border-color: var(--accent); }
 .waiting-review { display: flex; align-items: flex-start; gap: 0.6rem; }
+.waiting-note { display: grid; gap: 0.4rem; }
+.waiting-note textarea { box-sizing: border-box; width: 100%; padding: 8px 10px; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--corner-2); resize: vertical; }
+.waiting-note textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.waiting-sent-note { white-space: pre-wrap; overflow-wrap: anywhere; }
 .waiting-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 </style>

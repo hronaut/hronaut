@@ -66,6 +66,46 @@ test('keeps tabless human decisions discoverable after reconnect and reserves ac
   }
 })
 
+test('gives the agent what the person wrote with an answer, without saving it', async ({ appWindow, mcpPort, mcpToken, profileDirectory }) => {
+  const client = new Client({ name: 'human-answer-qa', version: '1' })
+  const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+  const decode = <T>(result: CallToolResult): T => {
+    const value = result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    if (result.isError) throw new Error(value)
+    return JSON.parse(value) as T
+  }
+  const change = (record: HumanWaitingRecord, action: 'acknowledge' | 'reject', note: unknown) => appWindow.evaluate(async ({ record, action, note }) => {
+    try {
+      return await (window as unknown as { hronaut: HronautApi }).hronaut.changeHumanWaiting(record.workspaceId, record.id, record.revision, action, undefined, note as string)
+    } catch { return 'refused' as const }
+  }, { record, action, note })
+  try {
+    await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Human answer QA' }))
+    const args = { workspaceId: workspace.id }
+    const waiting = decode<HumanWaitingRecord>(await call('browser_human_waiting', { ...args, action: 'request', runId: randomUUID(), decision: 'review-page' }))
+    // A note goes only with a resolution or rejection, cleaned and bounded by main.
+    expect(await change(waiting, 'acknowledge', 'seen it')).toBe('refused')
+    expect(await change(waiting, 'reject', 'x'.repeat(1_001))).toBe('refused')
+    expect(await change(waiting, 'reject', 42)).toBe('refused')
+    expect(decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]).toMatchObject({ state: 'WAITING_FOR_HUMAN' })
+    const rejected = await change(waiting, 'reject', '  The total is wrong:\r\nit misses the discount-canary\u0007  ')
+    expect(rejected).toMatchObject({ state: 'REJECTED', note: 'The total is wrong:\nit misses the discount-canary', answeredAt: expect.any(Number) })
+    const listed = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
+    expect(listed).toMatchObject({ state: 'REJECTED', note: 'The total is wrong:\nit misses the discount-canary' })
+    // The rejection is saved; the note is not.
+    const saved = async () => {
+      const history = JSON.parse(await readFile(join(profileDirectory, 'human-waiting.json'), 'utf8').catch(() => '{}')) as { records?: HumanWaitingRecord[] }
+      return history.records?.find(candidate => candidate.id === waiting.id)?.state
+    }
+    await expect.poll(saved).toBe('REJECTED')
+    expect(await readFile(join(profileDirectory, 'human-waiting.json'), 'utf8')).not.toContain('discount-canary')
+  } finally {
+    await client.close()
+  }
+})
+
 test('restores unresolved decisions with a fresh review handle and persists unattended expiry', async ({ profileDirectory, mcpPort }) => {
   let instance = await launchHronaut(profileDirectory, mcpPort)
   const token = (await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()

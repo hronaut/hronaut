@@ -80,6 +80,7 @@ export const enUS = {
     refresh: 'Refresh decisions', empty: 'No human decisions in this workspace.', error: 'Could not update the decision. Refresh and review current state.',
     owner: 'Owner', fallback: 'Fallback owner', deadline: 'Deadline', notification: 'Notification', attempts: 'Attempts', handle: 'Decision handle',
     unknown: 'The earlier action outcome remains unknown.', reviewed: 'I reviewed this decision and the current workspace state.',
+    noteLabel: 'Note for the agent (optional)', answerLabel: 'Your answer for the agent', answered: 'Answered in Hronaut {time}', yourNote: 'You wrote:',
     reviewedExact: 'I reviewed this exact action and the bound workspace state.',
     reviewedGroup: 'I reviewed every action in this exact ordered group and the bound workspace state.',
     reviewedAccountAndTarget: 'I verified the signed-in account and visible target in the bound browser tab.',
