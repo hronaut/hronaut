@@ -63,9 +63,26 @@ function color(agent: AgentPresence): string {
   return BROWSER_TAB_GROUP_COLOR_HEX[AGENT_AVATAR_COLORS[agent.colorIndex] ?? 'gray']
 }
 
+function target(agent: AgentPresence): string | undefined {
+  return agent.attentionTabId ?? agent.lastTabId
+}
+
+// Pressing anywhere in the shell answers a request for you, and that answer can
+// arrive before the click. The click keeps the tab the avatar showed when pressed.
+let pressed: { clientKey: string; tabId?: string } | undefined
+
+function press(agent: AgentPresence): void {
+  pressed = { clientKey: agent.clientKey, tabId: target(agent) }
+}
+
+function release(): void {
+  pressed = undefined
+}
+
 // Shows the tab the agent asked about or last used, when it is not the one in view already.
 function select(agent: AgentPresence): void {
-  const tabId = agent.attentionTabId ?? agent.lastTabId
+  const tabId = pressed?.clientKey === agent.clientKey ? pressed.tabId : target(agent)
+  pressed = undefined
   if (tabId && tabId !== props.activeTabId) emit('select', tabId)
 }
 </script>
@@ -88,6 +105,11 @@ function select(agent: AgentPresence): void {
       :style="{ '--agent-color': color(agent) }"
       :aria-label="label(agent)"
       v-tooltip="tooltip(agent)"
+      @pointerdown="press(agent)"
+      @keydown.enter="press(agent)"
+      @keydown.space="press(agent)"
+      @pointerleave="release"
+      @blur="release"
       @click="select(agent)"
     >
       <span class="agent-avatar-face" aria-hidden="true">

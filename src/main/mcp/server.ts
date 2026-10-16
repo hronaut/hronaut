@@ -103,7 +103,7 @@ import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
-import { AgentPresenceRegistry } from './agent-presence.js'
+import { AgentPresenceRegistry, type AgentCall } from './agent-presence.js'
 import type { AgentPresence } from '../../shared/agent-presence.js'
 export {
   WorkspaceWriteLeaseError,
@@ -1055,7 +1055,8 @@ function createBrowserMcpServer(
   taskRuns?: TaskRunService,
   workspaceLeases = new WorkspaceWriteLeaseRegistry(),
   assertAutomationAccess?: () => void,
-  userAttentionLifecycle?: UserAttentionLifecycle
+  userAttentionLifecycle?: UserAttentionLifecycle,
+  onAgentCall?: (call: AgentCall, workspaceId: string) => void
 ): { server: McpServer } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -1205,6 +1206,28 @@ function createBrowserMcpServer(
       request.keyHoldPolicy = { permission: 'denied', policyDecision: error.decision }
     }
   }
+  // Each call in a workspace this client may use shows it in that workspace's
+  // toolbar, whatever the tool; a refused call shows no one.
+  const startAgentCall = (name: string, input: unknown): ((failed: boolean) => void) | undefined => {
+    if (!onAgentCall || !input || typeof input !== 'object' || Array.isArray(input)) return undefined
+    const { workspaceId, tabId } = input as { workspaceId?: unknown; tabId?: unknown }
+    if (typeof workspaceId !== 'string' || !activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) return undefined
+    const call = { activityId: randomUUID(), toolName: name, ...(typeof tabId === 'string' ? { tabId } : {}) }
+    onAgentCall({ ...call, phase: 'started', occurredAt: Date.now() }, workspaceId)
+    return (failed) => onAgentCall({ ...call, phase: failed ? 'failed' : 'finished', occurredAt: Date.now() }, workspaceId)
+  }
+  const trackAgentCall = async <R>(name: string, input: unknown, run: () => Promise<R>): Promise<R> => {
+    const finish = startAgentCall(name, input)
+    if (!finish) return run()
+    let failed = true
+    try {
+      const result = await run()
+      failed = (result as { isError?: unknown } | undefined)?.isError === true
+      return result
+    } finally {
+      finish(failed)
+    }
+  }
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -1212,7 +1235,7 @@ function createBrowserMcpServer(
       ...(config as Record<string, unknown>),
       title: definition.title,
       annotations: definition.annotations
-    } as never, (async (...args: unknown[]) => frameRequests.run({}, async () => {
+    } as never, (async (...args: unknown[]) => trackAgentCall(name, args[0], () => frameRequests.run({}, async () => {
       const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
         ? args[0] as Record<string, unknown> : {}
       const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
@@ -1613,7 +1636,7 @@ function createBrowserMcpServer(
           void frameRequest.fileEvaluationCompletion.then(finishWorkspaceMutation, finishWorkspaceMutation)
         } else finishWorkspaceMutation?.()
       }
-    })) as never)
+    }))) as never)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
     return registered
@@ -5748,6 +5771,12 @@ export class McpHttpServer {
     this.fullAccessAuthorityGeneration = randomUUID()
     this.actionTracker.invalidatePendingDispatches()
     this.workspaceLeases.clear()
+    // Sessions on the old token can no longer act, so they leave the toolbar
+    // (a request for you still shows until it is answered).
+    for (const [sessionId, session] of this.transportSessions) {
+      if (session.authorization.kind === 'full-access') this.agentPresence.removeClient(sessionId)
+    }
+    this.agentPresenceChanged()
   }
 
   setToolSet(toolSet: McpToolSet): void {
@@ -5975,7 +6004,8 @@ export class McpHttpServer {
             this.options.taskRuns,
             this.workspaceLeases,
             this.options.assertAutomationAccess,
-            this.options.userAttentionLifecycle
+            this.options.userAttentionLifecycle,
+            (call, workspaceId) => this.trackAgentCall(call, client, workspaceId)
           )
           session.server = mcp.server
           session.transport = transport
@@ -6126,8 +6156,12 @@ export class McpHttpServer {
   private trackTabActivity(activity: McpTabActivity, client: McpClientActivity, workspaceId: string): void {
     this.options.onTabActivity?.(activity)
     this.actionTracker.activityHistory.track(activity)
+    this.trackAgentCall(activity, client, workspaceId)
+  }
+
+  private trackAgentCall(call: AgentCall, client: McpClientActivity, workspaceId: string): void {
     try {
-      this.agentPresence.track({ id: client.id, name: client.name }, workspaceId, activity)
+      this.agentPresence.track({ id: client.id, name: client.name }, workspaceId, call)
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
     }

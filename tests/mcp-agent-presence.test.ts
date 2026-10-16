@@ -4,6 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AGENT_NAME_MAX_GRAPHEMES,
+  AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT,
   AGENT_PRESENCE_WINDOW_MS,
   AGENT_WORKING_GRACE_MS,
   AgentPresenceRegistry,
@@ -82,6 +83,51 @@ describe('agent presence registry', () => {
     // Answered (or replaced): the closed session leaves for good.
     expect(registry.derive(1_400, context())).toEqual({})
     expect(registry.derive(1_500, asking)).toEqual({})
+  })
+
+  it('brings back nothing from a session after it closed, except a request for you until answered', () => {
+    const registry = new AgentPresenceRegistry()
+    const asking = context({ currentAttentionId: 'attention-1' })
+    registry.track(claude, workspace, activity('started', 1_000))
+    registry.removeClient(claude.id)
+    // A call that settles after its session closed shows no one.
+    registry.track(claude, workspace, activity('finished', 1_100))
+    expect(registry.derive(1_200, context())).toEqual({})
+    // A request for you that lands after the close still shows, alone.
+    registry.recordAttention(claude, workspace, 'attention-1', 'tab-2', 1_300)
+    registry.track(claude, workspace, activity('started', 1_350, { activityId: 'call-2' }))
+    expect(registry.derive(1_400, asking)[workspace]?.map((agent) => [agent.name, agent.state, agent.attentionTabId])).toEqual([['Claude Code', 'needs-you', 'tab-2']])
+    expect(registry.derive(1_500, context())).toEqual({})
+    registry.track(claude, workspace, activity('started', 1_600, { activityId: 'call-3' }))
+    expect(registry.derive(1_700, context())).toEqual({})
+    expect(registry.nextTransitionAt(1_700)).toBeUndefined()
+
+    // Clearing (the server stopped) closes every session it knew.
+    registry.track(cursor, workspace, activity('started', 2_000))
+    registry.clear()
+    registry.track(cursor, workspace, activity('finished', 2_100))
+    expect(registry.derive(2_200, context())).toEqual({})
+
+    // Only a bounded number of closed sessions is remembered.
+    const bounded = new AgentPresenceRegistry()
+    for (let index = 0; index <= AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT; index += 1) bounded.removeClient(`session-${index}`)
+    bounded.track({ id: 'session-0', name: 'Reused' }, workspace, activity('finished', 1_000))
+    bounded.track({ id: `session-${AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT}`, name: 'Closed' }, workspace, activity('finished', 1_000))
+    expect(bounded.derive(1_100, context())[workspace]?.map((agent) => agent.name)).toEqual(['Reused'])
+  })
+
+  it('counts a request for you as activity, so the agent stays after it is answered', () => {
+    const registry = new AgentPresenceRegistry()
+    registry.track(claude, workspace, activity('finished', 1_000))
+    registry.recordAttention(claude, workspace, 'attention-1', undefined, 1_000 + AGENT_PRESENCE_WINDOW_MS - 10)
+    expect(registry.derive(1_000 + AGENT_PRESENCE_WINDOW_MS + 10, context())[workspace]?.[0]?.state).toBe('idle')
+  })
+
+  it('keeps the last tab when a call names none', () => {
+    const registry = new AgentPresenceRegistry()
+    registry.track(claude, workspace, activity('finished', 1_000, { tabId: 'tab-4' }))
+    registry.track(claude, workspace, { activityId: 'call-2', toolName: 'browser_tabs', phase: 'started', occurredAt: 1_100 })
+    expect(registry.derive(1_200, context())[workspace]?.[0]).toEqual(expect.objectContaining({ state: 'working', step: 'working', lastTabId: 'tab-4' }))
   })
 
   it('stops showing needs you once another request replaces it', () => {
@@ -166,6 +212,11 @@ describe('agent names', () => {
     const long = sanitizeAgentName('👩‍💻'.repeat(100))
     expect([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(long)]).toHaveLength(AGENT_NAME_MAX_GRAPHEMES)
     expect(sanitizeAgentName('éclair')).toBe('éclair')
+    // Private-use, unassigned and blank filler characters do not count as a name.
+    expect(sanitizeAgentName('Agent\uE000 One\u{10FFFD}')).toBe('Agent One')
+    expect(sanitizeAgentName('\u115F\u1160Claude\u3164\uFFA0')).toBe('Claude')
+    expect(sanitizeAgentName('\u3164\u200B\uFEFF\u2028')).toBe('')
+    expect(agentInitial(sanitizeAgentName('\u3164'))).toBe('')
   })
 
   it('takes the first letter or number as the initial', () => {
@@ -201,16 +252,16 @@ describe('agent presence over MCP', () => {
     await Promise.allSettled(clients.splice(0).map((client) => client.close()))
     await server?.stop()
     server = undefined
+    vi.useRealTimers()
   })
 
-  it('attributes each client to the workspace it used, shows who needs you and forgets closed sessions', async () => {
-    let attention: UserAttentionRequest | null = null
-    let attentionCount = 0
-    const requestUserAttention = vi.fn(async (input: UserAttentionInput) => {
-      attentionCount += 1
-      attention = { ...input, id: `attention-${attentionCount}`, requestedAt: new Date().toISOString() }
-      return attention
-    })
+  async function startServer(requestUserAttention?: (input: UserAttentionInput) => Promise<UserAttentionRequest>) {
+    const state = { attention: null as UserAttentionRequest | null, count: 0 }
+    const request = vi.fn(requestUserAttention ?? (async (input: UserAttentionInput) => {
+      state.count += 1
+      state.attention = { ...input, id: `attention-${state.count}`, requestedAt: new Date().toISOString() }
+      return state.attention
+    }))
     const manager = {
       suspendWorkspaceContinuity: vi.fn(), requireWorkspaceContinuityDispatch: vi.fn(),
       beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
@@ -224,13 +275,14 @@ describe('agent presence over MCP', () => {
       getMcpGroupState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] }))
     }
     const onAgentPresenceChanged = vi.fn()
-    server = new McpHttpServer(manager as never, {
+    const started = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test',
-      showWindowInactive: vi.fn(), getUserAttention: () => attention, requestUserAttention,
+      showWindowInactive: vi.fn(), getUserAttention: () => state.attention, requestUserAttention: request,
       bookmarks: {} as never, history: {} as never, siteData: {} as never,
       onAgentPresenceChanged
     })
-    const endpoint = new URL(await server.start())
+    server = started
+    const endpoint = new URL(await started.start())
     const connect = async (name: string) => {
       const client = new Client({ name, version: '1.0.0' })
       const transport = new StreamableHTTPClientTransport(endpoint)
@@ -240,15 +292,19 @@ describe('agent presence over MCP', () => {
       expect(resumed.isError, text(resumed)).not.toBe(true)
       return { client, transport }
     }
+    return { server: started, state, requestUserAttention: request, onAgentPresenceChanged, connect }
+  }
+
+  const ask = async (client: Client, reason: string) => client.callTool({ name: 'browser_request_user_attention', arguments: { workspaceId, tabId, reason } }) as Promise<CallToolResult>
+
+  it('attributes each client to the workspace it used, shows who needs you and forgets closed sessions', async () => {
+    const { server, state, requestUserAttention, onAgentPresenceChanged, connect } = await startServer()
     const claudeClient = await connect('Claude Code')
     const cursorClient = await connect('Cursor')
     expect(server.getAgentPresence()).toEqual({})
 
-    const ask = async (client: Client, reason: string) => {
-      const result = await client.callTool({ name: 'browser_request_user_attention', arguments: { workspaceId, tabId, reason } }) as CallToolResult
-      expect(result.isError, text(result)).not.toBe(true)
-    }
-    await ask(claudeClient.client, 'Approve the order.')
+    let asked = await ask(claudeClient.client, 'Approve the order.')
+    expect(asked.isError, text(asked)).not.toBe(true)
     // The attention call reaches main unchanged.
     expect(requestUserAttention).toHaveBeenLastCalledWith({ reason: 'Approve the order.', tabId, workspaceId })
     expect(onAgentPresenceChanged).toHaveBeenCalled()
@@ -256,7 +312,8 @@ describe('agent presence over MCP', () => {
       name: 'Claude Code', initial: 'C', state: 'needs-you', step: 'askYou', attentionTabId: tabId
     })])
 
-    await ask(cursorClient.client, 'Check the total.')
+    asked = await ask(cursorClient.client, 'Check the total.')
+    expect(asked.isError, text(asked)).not.toBe(true)
     expect(server.getAgentPresence()[workspaceId]?.map((agent) => [agent.name, agent.state])).toEqual([
       ['Cursor', 'needs-you'],
       ['Claude Code', 'working']
@@ -270,13 +327,64 @@ describe('agent presence over MCP', () => {
     // Closing the session that waits for you keeps it until you answer; the other leaves at once.
     await cursorClient.transport.terminateSession()
     await claudeClient.transport.terminateSession()
-    await vi.waitFor(() => expect(server!.getAgentPresence()[workspaceId]?.map((agent) => [agent.name, agent.state])).toEqual([['Cursor', 'needs-you']]))
-    attention = null
+    await vi.waitFor(() => expect(server.getAgentPresence()[workspaceId]?.map((agent) => [agent.name, agent.state])).toEqual([['Cursor', 'needs-you']]))
+    state.attention = null
     expect(server.getAgentPresence()).toEqual({})
 
     onAgentPresenceChanged.mockClear()
     await server.stop()
     expect(onAgentPresenceChanged).toHaveBeenCalled()
     expect(server.getAgentPresence()).toEqual({})
+  })
+
+  it('shows a client for any call in a workspace it may use, and for none it may not', async () => {
+    const { server, connect } = await startServer()
+    const cursorClient = await connect('Cursor')
+    const listed = await cursorClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult
+    expect(listed.isError, text(listed)).not.toBe(true)
+    expect(server.getAgentPresence()[workspaceId]).toEqual([expect.objectContaining({ name: 'Cursor', state: 'working' })])
+
+    const stranger = await connect('Stranger')
+    const refused = await stranger.client.callTool({ name: 'browser_tabs', arguments: { workspaceId: '01912345-6789-7abc-8def-0123456789ac' } }) as CallToolResult
+    expect(refused.isError).toBe(true)
+    expect(server.getAgentPresence()[workspaceId]?.map((agent) => agent.name)).toEqual(['Cursor'])
+  })
+
+  it('records no request for you when asking fails', async () => {
+    const { server, connect } = await startServer(async () => { throw new Error('Attention is unavailable') })
+    const claudeClient = await connect('Claude Code')
+    const asked = await ask(claudeClient.client, 'Approve the order.')
+    expect(asked.isError).toBe(true)
+    expect(server.getAgentPresence()[workspaceId]?.some((agent) => agent.state === 'needs-you')).not.toBe(true)
+  })
+
+  it('removes clients on a replaced token, keeping only a request for you until it is answered', async () => {
+    const { server, state, connect } = await startServer()
+    const claudeClient = await connect('Claude Code')
+    const cursorClient = await connect('Cursor')
+    expect((await ask(cursorClient.client, 'Check the total.')).isError).not.toBe(true)
+    expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
+    expect(server.getAgentPresence()[workspaceId]).toHaveLength(2)
+    server.setAuthenticationToken('replaced-token')
+    expect(server.getAgentPresence()[workspaceId]?.map((agent) => [agent.name, agent.state])).toEqual([['Cursor', 'needs-you']])
+    state.attention = null
+    expect(server.getAgentPresence()).toEqual({})
+  })
+
+  it('publishes the change from working to idle without a new call, and stops waking after stop', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const { server, onAgentPresenceChanged, connect } = await startServer()
+    const claudeClient = await connect('Claude Code')
+    expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
+    expect(server.getAgentPresence()[workspaceId]?.[0]?.state).toBe('working')
+    onAgentPresenceChanged.mockClear()
+    await vi.advanceTimersByTimeAsync(AGENT_WORKING_GRACE_MS + 50)
+    expect(onAgentPresenceChanged).toHaveBeenCalled()
+    expect(server.getAgentPresence()[workspaceId]?.[0]?.state).toBe('idle')
+
+    await server.stop()
+    onAgentPresenceChanged.mockClear()
+    await vi.advanceTimersByTimeAsync(AGENT_PRESENCE_WINDOW_MS)
+    expect(onAgentPresenceChanged).not.toHaveBeenCalled()
   })
 })

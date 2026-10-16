@@ -13,13 +13,19 @@ export const AGENT_WORKING_GRACE_MS = 10_000
 export const AGENT_PRESENCE_WINDOW_MS = WorkspaceWriteLeaseRegistry.LIFETIME_MS
 export const AGENT_NAME_MAX_GRAPHEMES = 64
 const AGENT_PRESENCE_MAX_ENTRIES = 200
+/** Closed sessions remembered, so a call that settles after its session closed cannot bring it back. */
+export const AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT = 1024
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
-/** A client-supplied name, safe to show as text: no control, format or line
- * separator characters, collapsed spaces, at most 64 graphemes. */
+/** A client-supplied name, safe to show as text: no control, format, private,
+ * unassigned or line separator characters and no blank fillers, collapsed
+ * spaces, at most 64 graphemes. A name with nothing visible left is empty. */
 export function sanitizeAgentName(value: string): string {
-  const cleaned = value.normalize('NFC').replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ').replace(/\s+/gu, ' ').trim()
+  const cleaned = value.normalize('NFC')
+    .replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0]/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
   let result = ''
   let count = 0
   for (const { segment } of graphemes.segment(cleaned)) {
@@ -51,7 +57,16 @@ export function agentColorIndex(name: string): number {
 interface InFlightStep {
   startedAt: number
   step: AgentStepKind
-  tabId: string
+}
+
+/** One authorized tool call in a workspace, or the tab activity it caused. */
+export interface AgentCall {
+  activityId: string
+  toolName: string
+  /** The tab the call acted on, when known. */
+  tabId?: string
+  phase: McpTabActivity['phase']
+  occurredAt: number
 }
 
 interface WorkspaceActivity {
@@ -103,33 +118,44 @@ const STATE_ORDER: Record<AgentPresenceState, number> = { 'needs-you': 0, workin
  */
 export class AgentPresenceRegistry {
   private readonly clients = new Map<string, ClientRecord>()
+  private readonly closedSessions = new Set<string>()
 
   constructor(private readonly secret: Buffer = randomBytes(32)) {}
 
-  track(client: AgentPresenceClient, workspaceId: string, activity: McpTabActivity): void {
-    const record = this.client(client, activity.occurredAt)
+  /** Records a call; calls of a closed session are ignored. */
+  track(client: AgentPresenceClient, workspaceId: string, call: AgentCall): void {
+    if (this.closedSessions.has(client.id)) return
+    const record = this.client(client, call.occurredAt)
     let workspace = record.workspaces.get(workspaceId)
     if (!workspace) {
-      workspace = { firstSeenAt: activity.occurredAt, lastActivityAt: activity.occurredAt, step: 'working', inFlight: new Map() }
+      workspace = { firstSeenAt: call.occurredAt, lastActivityAt: call.occurredAt, step: 'working', inFlight: new Map() }
       record.workspaces.set(workspaceId, workspace)
     }
-    workspace.lastActivityAt = Math.max(workspace.lastActivityAt, activity.occurredAt)
-    workspace.step = agentStepKind(activity.toolName)
-    workspace.lastTabId = activity.tabId
-    if (activity.phase === 'started') {
-      workspace.inFlight.set(activity.activityId, { startedAt: activity.occurredAt, step: workspace.step, tabId: activity.tabId })
+    workspace.lastActivityAt = Math.max(workspace.lastActivityAt, call.occurredAt)
+    workspace.step = agentStepKind(call.toolName)
+    if (call.tabId) workspace.lastTabId = call.tabId
+    if (call.phase === 'started') {
+      workspace.inFlight.set(call.activityId, { startedAt: call.occurredAt, step: workspace.step })
       while (workspace.inFlight.size > ACTIVITY_HISTORY_LIMIT) workspace.inFlight.delete(workspace.inFlight.keys().next().value!)
     } else {
-      workspace.inFlight.delete(activity.activityId)
-      workspace.settledAt = activity.occurredAt
+      workspace.inFlight.delete(call.activityId)
+      workspace.settledAt = call.occurredAt
     }
     this.trim()
   }
 
+  /** Records a request for you. One that arrives after its session closed still
+   * shows until it is answered, but brings back none of the session's activity. */
   recordAttention(client: AgentPresenceClient, workspaceId: string, attentionId: string, tabId: string | undefined, now: number): void {
+    const closed = this.closedSessions.has(client.id)
     const record = this.client(client, now)
-    if (!record.workspaces.has(workspaceId)) {
-      record.workspaces.set(workspaceId, { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map() })
+    if (closed) {
+      record.closed = true
+      record.workspaces.clear()
+    } else {
+      const workspace = record.workspaces.get(workspaceId)
+      if (workspace) workspace.lastActivityAt = Math.max(workspace.lastActivityAt, now)
+      else record.workspaces.set(workspaceId, { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map() })
     }
     record.attention = { attentionId, workspaceId, ...(tabId ? { tabId } : {}), requestedAt: now }
     this.trim()
@@ -137,6 +163,7 @@ export class AgentPresenceRegistry {
 
   /** The session closed: its activity ends, but a request for you stays until it is answered. */
   removeClient(sessionId: string): void {
+    this.markClosed(sessionId)
     const record = this.clients.get(sessionId)
     if (!record) return
     if (record.attention) {
@@ -147,7 +174,9 @@ export class AgentPresenceRegistry {
     }
   }
 
+  /** Forgets everything shown; every session seen so far counts as closed. */
   clear(): void {
+    for (const sessionId of this.clients.keys()) this.markClosed(sessionId)
     this.clients.clear()
   }
 
@@ -222,6 +251,14 @@ export class AgentPresenceRegistry {
     let latest: InFlightStep | undefined
     for (const step of workspace.inFlight.values()) if (!latest || step.startedAt >= latest.startedAt) latest = step
     return latest?.step ?? workspace.step
+  }
+
+  private markClosed(sessionId: string): void {
+    this.closedSessions.delete(sessionId)
+    this.closedSessions.add(sessionId)
+    while (this.closedSessions.size > AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT) {
+      this.closedSessions.delete(this.closedSessions.values().next().value!)
+    }
   }
 
   private client(client: AgentPresenceClient, now: number): ClientRecord {

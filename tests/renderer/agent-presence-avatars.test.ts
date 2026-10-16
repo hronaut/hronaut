@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/vue'
+import { fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
@@ -43,9 +43,9 @@ describe('agent avatars in the toolbar', () => {
       ['Claude Code, working', 'working', 'Claude Code · Opening a page'],
       ['Cursor, idle', 'idle', 'Cursor · Idle']
     ])
-    expect(buttons[0]!.querySelector('.agent-avatar-badge')).not.toBeNull()
-    expect(buttons[1]!.querySelector('.agent-avatar-badge')).toBeNull()
-    expect(buttons[1]!.textContent?.trim()).toBe('C')
+    expect(buttons[0]?.querySelector('.agent-avatar-badge')).not.toBeNull()
+    expect(buttons[1]?.querySelector('.agent-avatar-badge')).toBeNull()
+    expect(buttons[1]?.textContent?.trim()).toBe('C')
   })
 
   it('shows three avatars, then the rest as +N with their names', async () => {
@@ -60,10 +60,10 @@ describe('agent avatars in the toolbar', () => {
     renderAvatars([agent('<img src=x onerror=alert(1)>', { initial: '' }), agent('', { initial: '', clientKey: 'key-empty' })])
     const group = await screen.findByRole('group', { name: 'Agents in this workspace' })
     const [html, nameless] = within(group).getAllByRole('button')
-    expect(html!.getAttribute('aria-label')).toBe('<img src=x onerror=alert(1)>, working')
+    expect(html?.getAttribute('aria-label')).toBe('<img src=x onerror=alert(1)>, working')
     expect(group.querySelector('img')).toBeNull()
-    expect(nameless!.getAttribute('aria-label')).toBe('Agent, working')
-    expect(nameless!.querySelector('svg')).not.toBeNull()
+    expect(nameless?.getAttribute('aria-label')).toBe('Agent, working')
+    expect(nameless?.querySelector('svg')).not.toBeNull()
   })
 
   it('shows the tab an agent asked about or last used, unless it is already in view', async () => {
@@ -78,6 +78,34 @@ describe('agent avatars in the toolbar', () => {
     await user.click(screen.getByRole('button', { name: 'Claude Code, working' }))
     await user.click(screen.getByRole('button', { name: 'Cursor, working' }))
     expect(view.emitted('select')).toEqual([['tab-3'], ['tab-2']])
+  })
+
+  it('keeps the tab a needs-you avatar showed when pressed, even if pressing answered the request first', async () => {
+    const asking = agent('Windsurf', { state: 'needs-you', attentionTabId: 'tab-3', lastTabId: 'tab-2' })
+    const answered = agent('Windsurf', { lastTabId: 'tab-2' })
+    const { view, change } = renderAvatars([asking])
+    const button = await screen.findByRole('button', { name: 'Windsurf, needs you' })
+    // Main answers the request on the shell's mousedown, before the click lands.
+    await fireEvent.pointerDown(button)
+    change({ revision: 2, workspaces: { 'workspace-a': [answered] } })
+    await nextTick()
+    await fireEvent.click(button)
+    // The same with the keyboard.
+    change({ revision: 3, workspaces: { 'workspace-a': [asking] } })
+    await nextTick()
+    await fireEvent.keyDown(button, { key: 'Enter' })
+    change({ revision: 4, workspaces: { 'workspace-a': [answered] } })
+    await nextTick()
+    await fireEvent.click(button)
+    // A press that leaves the avatar does not count for a later click.
+    change({ revision: 5, workspaces: { 'workspace-a': [asking] } })
+    await nextTick()
+    await fireEvent.pointerDown(button)
+    await fireEvent.pointerLeave(button)
+    change({ revision: 6, workspaces: { 'workspace-a': [answered] } })
+    await nextTick()
+    await fireEvent.click(button)
+    expect(view.emitted('select')).toEqual([['tab-3'], ['tab-3'], ['tab-2']])
   })
 
   it('shows nothing without agents or outside a workspace', async () => {
@@ -124,10 +152,10 @@ describe('agent presence mirror', () => {
 describe('agent step words', () => {
   it('has a phrase for every step and state in every language', () => {
     for (const locale of SUPPORTED_LOCALES) {
-      const { t, te } = createHronautI18n(locale).global
+      const i18n = createHronautI18n(locale).global
       for (const key of [...AGENT_STEP_KINDS.map((kind) => `shell.agents.steps.${kind}`), 'shell.agents.states.idle', 'shell.agents.states.working', 'shell.agents.states.needsYou', 'shell.agents.group', 'shell.agents.more', 'shell.agents.needsYouReason']) {
-        expect(te(key, locale), `${locale} ${key}`).toBe(true)
-        expect(t(key, { name: 'N', state: 'S', step: 'P', reason: 'R', names: 'A, B' }), `${locale} ${key}`).not.toBe(key)
+        expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
+        expect(i18n.t(key, { name: 'N', state: 'S', step: 'P', reason: 'R', names: 'A, B' }), `${locale} ${key}`).not.toBe(key)
       }
     }
   })
