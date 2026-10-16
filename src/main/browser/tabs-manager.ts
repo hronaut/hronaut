@@ -2263,6 +2263,13 @@ export class BrowserTabsManager {
   }
 
   walletPageContext(webContentsId: number): BrowserWalletPageContext {
+    const context = this.walletContextForWebContents(webContentsId)
+    // Going to sleep discards the page, which may still be unloading: it cannot start a wallet call.
+    if (this.tabs.get(context.tabId)?.sleeping) throw new Error('Wallet requests are unavailable while the tab is asleep')
+    return context
+  }
+
+  private walletContextForWebContents(webContentsId: number): BrowserWalletPageContext {
     const tabId = this.webContentsToTab.get(webContentsId)
     const tab = tabId ? this.tabs.get(tabId) : undefined
     if (!tab || tab.webContents.isDestroyed() || tab.webContents.id !== webContentsId) {
@@ -2292,7 +2299,7 @@ export class BrowserTabsManager {
     const resolvedTabId = this.requireTabInMcpGroup(workspaceId, tabId)
     const tab = this.tabs.get(resolvedTabId)
     if (!tab || tab.webContents.isDestroyed()) throw new Error('Wallet request target tab is unavailable')
-    return this.walletPageContext(tab.webContents.id)
+    return this.walletContextForWebContents(tab.webContents.id)
   }
 
   sendWalletProviderEvent(tabId: string, event: import('../../shared/wallet.js').WalletProviderEvent): void {

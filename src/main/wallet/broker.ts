@@ -30,7 +30,9 @@ import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
 import {
+  agentCallBundleId,
   callBundleError,
+  callBundleState,
   callBundleStatus,
   callReceipt,
   EVM_CALL_BUNDLE_VERSION,
@@ -133,6 +135,8 @@ export interface WalletBrokerOptions {
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const MAX_AGENT_PAGE_REQUESTS = 50
+/** wallet_sendCalls batches `wallet_page_requests` lists for a site, newest kept. */
+const MAX_AGENT_CALL_BATCHES = 20
 /** Failed wallet calls remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
 const MAX_PAGE_CALL_FAILURES_PER_TAB = 20
 /** Tabs whose failed wallet calls are remembered at once; closing a tab forgets them sooner. */
@@ -177,6 +181,13 @@ const EXPIRABLE_REQUEST_STATUSES = new Set([
 const TERMINAL_REQUEST_STATUSES = new Set([
   'confirmed', 'rejected', 'expired', 'cancelled', 'failed'
 ])
+
+/** A read or filter call Hronaut forwards to the EVM node; it never prompts, signs or sends. */
+function isEvmNodeRead(input: unknown): boolean {
+  const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
+  return family === 'evm' && typeof method === 'string'
+    && ([...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS] as readonly string[]).includes(method)
+}
 
 function sanitizedError(error: unknown): Error {
   const message = error instanceof Error ? error.message : 'Wallet request failed'
@@ -419,8 +430,8 @@ export class WalletBroker {
   private readonly pageCallFailures = new WalletPageLog<WalletPageCallFailure>(MAX_PAGE_CALL_FAILURES_PER_TAB, MAX_PAGE_CALL_FAILURE_TABS)
   private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
-  /** wallet_sendCalls batches still sending calls, counted per tab. */
-  private readonly tabsSendingCalls = new Map<string, number>()
+  /** Website wallet calls still in progress, other than node reads, counted per tab. */
+  private readonly pageCallsInProgress = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
   private readonly confirmationShutdown = new AbortController()
   private lifecycleQueue: Promise<void> = Promise.resolve()
@@ -684,13 +695,45 @@ export class WalletBroker {
       method: withoutWalletAddresses(failure.method, hiddenAccounts, HIDDEN_WALLET_ADDRESS),
       error: withoutWalletAddresses(failure.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS)
     }))
+    const callBatches = this.agentCallBatches(context, hiddenAccounts)
     return {
       origin: context.topLevelOrigin,
       requests,
       ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {}),
       ...(suggestedAssets.length ? { suggestedAssets } : {}),
-      ...(failedCalls.length ? { failedCalls } : {})
+      ...(failedCalls.length ? { failedCalls } : {}),
+      ...(callBatches.length ? { callBatches } : {})
     }
+  }
+
+  /**
+   * The site's wallet_sendCalls batches in this workspace, newest 20, so an
+   * agent can see that a batch stopped, at which call and, when the next
+   * call could not be sent, why. Each sent call shows its transaction hash
+   * and its request's status.
+   */
+  private agentCallBatches(context: WalletBrokerContext, hiddenAccounts: string[]): Array<Record<string, unknown>> {
+    const batches = this.evmCallBundles.forSite(context).slice(-MAX_AGENT_CALL_BATCHES)
+    if (!batches.length) return []
+    const statuses = new Map(this.service.approvals.list().flatMap((record) => (
+      record.transactionHash
+      && record.request.workspaceId === context.workspaceId
+      && record.request.topLevelOrigin === context.topLevelOrigin
+        ? [[record.transactionHash.toLowerCase(), record.status] as const]
+        : []
+    )))
+    return batches.map(({ id, bundle }) => ({
+      id: withoutWalletAddresses(agentCallBundleId(id), hiddenAccounts, HIDDEN_WALLET_ADDRESS),
+      networkId: bundle.wallet.network.id,
+      calls: bundle.calls,
+      state: callBundleState(bundle),
+      transactions: bundle.hashes.map((hash) => ({
+        transactionHash: hash,
+        status: statuses.get(hash.toLowerCase()) ?? 'unknown',
+        ...(this.replacedTransactionHashes.has(hash.toLowerCase()) ? { replaced: true } : {})
+      })),
+      ...(bundle.error ? { error: withoutWalletAddresses(bundle.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS) } : {})
+    }))
   }
 
   async cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
@@ -771,6 +814,9 @@ export class WalletBroker {
   }
 
   async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
+    // Counted before any await, so the tab stays awake while the request is still being prepared.
+    const holdsTab = context.requester.type === 'website' && !isEvmNodeRead(input)
+    if (holdsTab) this.pageCallsInProgress.set(context.tabId, (this.pageCallsInProgress.get(context.tabId) ?? 0) + 1)
     try {
       if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
       this.assertRequestContextActive(context)
@@ -784,6 +830,12 @@ export class WalletBroker {
       const sanitized = sanitizedError(error)
       this.recordPageCallFailure(context, input, sanitized)
       throw sanitized
+    } finally {
+      if (holdsTab) {
+        const inProgress = (this.pageCallsInProgress.get(context.tabId) ?? 1) - 1
+        if (inProgress > 0) this.pageCallsInProgress.set(context.tabId, inProgress)
+        else this.pageCallsInProgress.delete(context.tabId)
+      }
     }
   }
 
@@ -798,7 +850,7 @@ export class WalletBroker {
     const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
     if (family !== 'evm' && family !== 'solana' && family !== 'tron') return
     const name = typeof method === 'string' && /^[A-Za-z0-9_]{1,128}$/.test(method) ? method : 'invalid'
-    if (family === 'evm' && ([...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS] as readonly string[]).includes(name)) return
+    if (isEvmNodeRead(input)) return
     this.pageCallFailures.add(context, { family, method: name, error: error.message, failedAt: this.now().toISOString() })
   }
 
@@ -902,13 +954,15 @@ export class WalletBroker {
   }
 
   /**
-   * Whether a page in this tab still waits on the wallet: a request not yet
-   * signed or sent, or a wallet_sendCalls batch still sending calls. Putting
-   * the tab to sleep would discard the page that gets the answer, while the
-   * request could still be approved and sent.
+   * Whether a page in this tab still waits on the wallet: a wallet call it
+   * made that has not returned yet, from the moment it reaches the broker and
+   * including a wallet_sendCalls batch still sending calls, or a request not
+   * yet signed or sent, such as one an agent made for the tab. Putting the tab
+   * to sleep would discard the page that gets the answer, while the request
+   * could still be approved and sent.
    */
   keepsTabAwake(tabId: string): boolean {
-    return (this.tabsSendingCalls.get(tabId) ?? 0) > 0 || this.service.approvals.hasUnsentForTab(tabId)
+    return (this.pageCallsInProgress.get(tabId) ?? 0) > 0 || this.service.approvals.hasUnsentForTab(tabId, this.now())
   }
 
   async cancelForTab(tabId: string): Promise<void> {
@@ -2122,7 +2176,6 @@ export class WalletBroker {
     const started = this.evmCallBundles.start(owner, selected, request.calls.length, request.id)
     if (started === 'duplicate') throw callBundleError(5720, 'This site already sent a batch with this ID')
     if (started === 'full') throw callBundleError(-32005, 'Too many wallet_sendCalls batches are still being sent')
-    this.tabsSendingCalls.set(context.tabId, (this.tabsSendingCalls.get(context.tabId) ?? 0) + 1)
     try {
       for (const [index, call] of request.calls.entries()) {
         const hash = String(await this.transactionRequest(context, selected, {
@@ -2139,11 +2192,10 @@ export class WalletBroker {
         this.evmCallBundles.delete(owner, started.id)
         throw error
       }
+      // The page already has its batch ID, so only an agent reading the batch learns why it stopped.
+      started.bundle.error = sanitizedError(error).message
     } finally {
       started.bundle.finished = true
-      const sending = (this.tabsSendingCalls.get(context.tabId) ?? 1) - 1
-      if (sending > 0) this.tabsSendingCalls.set(context.tabId, sending)
-      else this.tabsSendingCalls.delete(context.tabId)
     }
     return { id: started.id }
   }

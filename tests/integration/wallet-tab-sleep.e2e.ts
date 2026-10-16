@@ -31,6 +31,9 @@ test('keeps a dApp tab awake while its wallet approval is open, then lets it sle
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.activeTabId !== ${JSON.stringify(tabId)})`)).toBe(true)
   await appWindow.evaluate('window.hronaut.sleepInactiveTabs()')
   expect(await sleeping()).toBe(false)
+  await expect(appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`))
+    .rejects.toThrow('A tab waiting on a wallet request stays active.')
+  expect(await sleeping()).toBe(false)
   expect((await requests()).map(({ status }) => status)).toEqual(['awaiting-human'])
 
   // Once the person answers, the page has its result and the tab may sleep.
