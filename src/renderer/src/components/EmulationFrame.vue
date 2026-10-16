@@ -113,6 +113,7 @@ const placements = computed(() => Object.fromEntries(frames.value.map((frame) =>
   position: fixed;
   z-index: 0;
   overflow: hidden;
+  border-radius: var(--page-card-radius);
   -webkit-app-region: no-drag;
   background-color: var(--surface-muted);
   background-image: radial-gradient(color-mix(in srgb, var(--muted) 34%, transparent) 1px, transparent 1.4px);
@@ -124,7 +125,8 @@ const placements = computed(() => Object.fromEntries(frames.value.map((frame) =>
   box-sizing: content-box;
   margin: -1px 0 0 -1px;
   border: 1px solid var(--border-strong);
-  border-radius: 2px;
+  /* Around the page's rounded corners. */
+  border-radius: calc(var(--page-card-radius) + 1px);
   box-shadow: var(--elevation-2);
 }
 .emulation-frame-bar {

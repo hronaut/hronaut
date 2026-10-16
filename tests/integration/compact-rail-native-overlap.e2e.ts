@@ -85,7 +85,8 @@ for (const scale of [1, 1.25]) {
       const bounds = view.getBounds()
       return { x: bounds.x + bounds.width - 50, y: bounds.y + 80, width: bounds.width }
     })
-    expect(pagePoint.width / scale).toBeGreaterThanOrEqual(320)
+    // Beside the 280 px rail and the page card's gutter, the page keeps room for a click.
+    expect(pagePoint.width / scale).toBeGreaterThanOrEqual(300)
     await execFileAsync('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(before.origin.x + pagePoint.x), String(before.origin.y + pagePoint.y), '--click'])
     await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find(page => page.getTitle() === 'Target Alpha')!

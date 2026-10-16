@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { INTERFACE_SCALE_OPTIONS } from '../src/shared/interface-scale.js'
 import { RESOLVED_THEME_NAMES } from '../src/shared/theme.js'
@@ -106,6 +107,23 @@ describe('hybrid title bar configuration', () => {
       expect(contrastRatio(vertical.color, vertical.symbolColor)).toBeGreaterThanOrEqual(3)
       expect(horizontal.height).toBe(TITLE_BAR_BASE_HEIGHT)
       expect(vertical.height).toBe(TITLE_BAR_BASE_HEIGHT)
+    }
+  })
+
+  it('paints the window controls in the surface they sit on, beside the rail as with tabs above the page', () => {
+    const tokens = readFileSync(new URL('../src/renderer/src/styles/tokens.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//gu, '')
+    const themeColor = (theme: string, name: string): string | undefined => {
+      for (const [, selector, body] of tokens.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+        if (!selector!.split(',').map((entry) => entry.trim()).includes(`:root[data-theme="${theme}"]`)) continue
+        const value = new RegExp(`${name}:\\s*(#[0-9a-f]{6});`, 'u').exec(body!)?.[1]
+        if (value) return value
+      }
+      return undefined
+    }
+    for (const theme of RESOLVED_THEME_NAMES) {
+      expect(titleBarOverlayStyle(theme, 'top', 1).color, theme).toBe(themeColor(theme, '--shell-top'))
+      // The toolbar beside the rail shares the rail's surface around the page card.
+      expect(titleBarOverlayStyle(theme, 'left', 1).color, theme).toBe(themeColor(theme, '--shell-bottom'))
     }
   })
 

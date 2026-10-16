@@ -49,7 +49,8 @@ injectedUpdateTest('shows update status beside MCP ready and opens update detail
   const browserViewY = async (): Promise<number | undefined> => electronApp.evaluate(({ BrowserWindow }) => {
     return BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds().y
   })
-  await expect.poll(browserViewY).toBe(45)
+  // Home has no toolbar: the page starts under the 44 px tab strip.
+  await expect.poll(browserViewY).toBe(44)
   const initialBrowserViewY = await browserViewY()
 
   await electronApp.evaluate(({ BrowserWindow }) => {

@@ -238,7 +238,7 @@ test('scales Hronaut without zooming the active website and persists the choice'
       websiteZoom: websiteView?.webContents.getZoomFactor(),
       websiteY: websiteView?.getBounds().y
     }
-  })).toEqual({ shellZoom: 1.25, websiteZoom: 1, websiteY: 132 })
+  })).toEqual({ shellZoom: 1.25, websiteZoom: 1, websiteY: 130 })
 
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   const detachedPromise = electronApp.waitForEvent('window')

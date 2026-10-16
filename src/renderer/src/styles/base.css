@@ -2,6 +2,10 @@
 .sr-only { @apply absolute; width: 1px !important; height: 1px !important; @apply p-0; margin: -1px !important; @apply overflow-hidden; clip: rect(0, 0, 0, 0) !important; @apply whitespace-nowrap border-0; }
 html, body, #app { @apply w-full h-full m-0 overflow-hidden; }
 body { @apply [background:var(--toolbar)] text-copy; }
+/* Around the page card, the shell's surface continues from the toolbar or, with the tab rail, from the rail. */
+body:has(.shell.vertical-tabs-shell:not(.detached-panel-window)) { @apply [background:var(--shell-bottom)]; }
+/* Home and Settings have no toolbar, so with tabs above the page the space continues from the tab strip. */
+body:has(.shell.home-shell:not(.vertical-tabs-shell):not(.detached-panel-window)) { @apply [background:var(--shell-top)]; }
 button, input { @apply [font:inherit]; }
 button { @apply [color:inherit]; }
 

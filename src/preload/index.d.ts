@@ -1,5 +1,6 @@
 import type { HronautSplitDividerApi } from '../shared/split-view'
 import type { HronautEmulationFrameApi } from '../shared/emulation-frame'
+import type { HronautPageCardApi } from '../shared/page-card'
 import type { HronautHomeApi } from '../shared/home'
 import type { HronautApi, HronautBookmarksApi, HronautBrowsingDataApi, HronautCredentialsApi, HronautDownloadsApi, HronautHistoryApi, HronautLicenseApi, HronautMcpApi, HronautPanelWindowApi, HronautPermissionsApi, HronautSettingsApi, HronautShellApi, HronautUpdatesApi, HronautWalletsApi } from '../shared/types'
 import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions'
@@ -10,6 +11,7 @@ declare global {
     hronaut: HronautApi
     hronautSplitDivider: HronautSplitDividerApi
     hronautEmulationFrame: HronautEmulationFrameApi
+    hronautPageCard: HronautPageCardApi
     hronautBookmarks: HronautBookmarksApi
     hronautHistory: HronautHistoryApi
     hronautBrowsingData: HronautBrowsingDataApi

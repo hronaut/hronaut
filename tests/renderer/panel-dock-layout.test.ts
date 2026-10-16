@@ -3,6 +3,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PanelDock } from '../../src/shared/types.js'
 import { usePanelDockLayout } from '../../src/renderer/src/composables/usePanelDockLayout.js'
+import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 
 type Controller = ReturnType<typeof usePanelDockLayout>
 
@@ -118,8 +119,9 @@ describe('usePanelDockLayout', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 338 })
     try {
       harness.controller.reportShellHeight()
-      expect(harness.controller.size.value).toBe(155)
-      expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: dock === 'top' ? 155 : 0, right: 0, bottom: dock === 'bottom' ? 155 : 0, left: 0 })
+      // 338 - 105 leaves 233 px; after 20 px of page card gutters the page keeps a third of the rest.
+      expect(harness.controller.size.value).toBe(142)
+      expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: dock === 'top' ? 152 : 0, right: 10, bottom: dock === 'bottom' ? 152 : 10, left: 10 })
       expect(window.localStorage.getItem('hronaut:panel-dock-size-vertical')).toBe('290')
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
       harness.controller.reportShellHeight()
@@ -128,12 +130,14 @@ describe('usePanelDockLayout', () => {
   })
 
   it.each([
-    [0, 1], [1, 1], [233, 155], [359, 239], [360, 240],
-    [361, 240], [459, 240], [460, 240], [461, 241], [695, 475], [1000, 700]
-  ])('bounds the vertical dock at %s available CSS pixels', (available, maximum) => {
+    [0, 1], [1, 1], [20, 1], [233, 142], [359, 226], [360, 226],
+    [361, 227], [459, 240], [460, 240], [461, 241], [695, 475], [1000, 700]
+  ])('bounds the vertical dock at %s available CSS pixels, a third of them after the page card gutters left to the page', (available, maximum) => {
     const harness = mountHarness('bottom')
     try {
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 105 + available })
+      // Short of the 220 px reserve, the page itself keeps a third of the space the gutters leave.
+      if (available > 2 * PAGE_CARD_GUTTER && available - 220 < maximum) expect(available - 2 * PAGE_CARD_GUTTER - maximum).toBeGreaterThanOrEqual(Math.floor((available - 2 * PAGE_CARD_GUTTER) / 3))
       expect(harness.controller.maximumSize()).toBe(maximum)
     } finally { harness.wrapper.unmount() }
   })
@@ -145,21 +149,37 @@ describe('usePanelDockLayout', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 608 })
       expect(harness.controller.maximumSize('right', 183.5)).toBe(208)
       expect(harness.controller.maximumSize('left', 183.5)).toBe(208)
-      expect(harness.controller.maximumSize('top', 183.5)).toBe(155)
-      expect(harness.controller.maximumSize('bottom', 183.5)).toBe(155)
+      expect(harness.controller.maximumSize('top', 183.5)).toBe(141)
+      expect(harness.controller.maximumSize('bottom', 183.5)).toBe(141)
     } finally { harness.wrapper.unmount() }
   })
 
   it('composes a vertical tab rail with docked panel insets', async () => {
     const right = mountHarness('right', 280)
     right.controller.reportShellHeight()
-    expect(right.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 480, bottom: 0, left: 280 })
+    expect(right.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 490, bottom: 10, left: 280 })
     right.wrapper.unmount()
 
     const left = mountHarness('left', 280)
     left.controller.reportShellHeight()
-    expect(left.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 0, bottom: 0, left: 760 })
+    expect(left.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 10, bottom: 10, left: 770 })
     left.wrapper.unmount()
+  })
+
+  it('insets the page as a card: a gutter at the window edges and beside panels, none beside the rail or under the toolbar', () => {
+    const rail = mountHarness('bottom', 280)
+    try {
+      rail.panelOpen.value = false
+      rail.controller.reportShellHeight()
+      expect(rail.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 10, bottom: 10, left: 280 })
+    } finally { rail.wrapper.unmount() }
+
+    const top = mountHarness('top')
+    try {
+      top.controller.reportShellHeight()
+      // The gutter sits between the docked panel and the page.
+      expect(top.setContentInsets).toHaveBeenLastCalledWith({ top: top.controller.size.value + 10, right: 10, bottom: 10, left: 10 })
+    } finally { top.wrapper.unmount() }
   })
 
   it('restores independent dock sizes and removes page insets while a full modal is open', async () => {
@@ -170,13 +190,13 @@ describe('usePanelDockLayout', () => {
     harness.controller.reportShellHeight()
     expect(harness.controller.size.value).toBe(530)
     expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
-    expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 530, bottom: 0, left: 0 })
+    expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 540, bottom: 10, left: 10 })
 
     harness.dock.value = 'bottom'
     await nextTick()
     await nextTick()
     expect(harness.controller.size.value).toBe(290)
-    expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 0, bottom: 290, left: 0 })
+    expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 10, bottom: 300, left: 10 })
 
     harness.modalOpen.value = true
     harness.controller.reportShellHeight()

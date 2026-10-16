@@ -239,6 +239,7 @@ import {
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
+import { PAGE_CARD_RADIUS } from '../../shared/page-card.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -1237,6 +1238,7 @@ export class BrowserTabsManager {
   private splitViewGeneration = 0
   private lastSplitDividerGeometry = ''
   private lastEmulationFrames = '[]'
+  private lastPageCards = '[]'
   private readonly splitDivider = new SplitDividerController({
     read: () => this.getSplitDivider(),
     owns: (geometry) => this.splitViewGeneration === geometry.revision
@@ -1286,8 +1288,11 @@ export class BrowserTabsManager {
   private followAgentActivity: boolean
   private toolbarHeight: number
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
+  /** The corner radius each page view has now, so layout does not repeat the native call. */
+  private readonly pageCornerRadii = new WeakMap<WebContentsView, number>()
   private browserContentOccluded = false
   private occludedEmulationFrames: EmulationFrameGeometry[] = []
+  private occludedPageCards: Rectangle[] = []
   /** A tab that should take keyboard focus once trusted chrome closes, such as one picked in the tab overview. */
   private focusAfterTrustedChrome: { tab: BrowserTab; cancel: () => void } | undefined
   private followAgentActivitySuspended = false
@@ -4541,6 +4546,7 @@ export class BrowserTabsManager {
         replacementWasAttached = true
         // The closing tab's bounds can be sized for its own emulated viewport.
         replacement.view.setBounds(this.tabViewBounds(replacement, this.browserViewBounds()))
+        this.roundPageCorners(replacement.view)
         replacement.view.setVisible(visible)
       }
     } catch (error) {
@@ -4555,7 +4561,7 @@ export class BrowserTabsManager {
       throw error
     }
     // The closing tab's frame and caption leave with its page.
-    this.publishEmulationFrames()
+    this.publishPageGeometry()
 
     const cleanup = (): void => {
       // A user can select another page while Chromium runs beforeunload.
@@ -8826,8 +8832,11 @@ export class BrowserTabsManager {
         }
       }
     }
-    // The frames around emulated pages stay where the snapshot shows those pages.
-    if (enteringTrustedChrome) this.occludedEmulationFrames = this.getEmulationFrames()
+    // The frames around emulated pages, and the cards under all pages, stay where the snapshot shows those pages.
+    if (enteringTrustedChrome) {
+      this.occludedEmulationFrames = this.getEmulationFrames()
+      this.occludedPageCards = this.getPageCards()
+    }
     this.browserContentOccluded = occluded
     this.mcpActivityFollower.setOccluded(occluded || this.followAgentActivitySuspended)
     if (enteringTrustedChrome) {
@@ -8992,12 +9001,51 @@ export class BrowserTabsManager {
     return frames
   }
 
-  private publishEmulationFrames(): void {
+  /**
+   * The pages' spaces in shell CSS pixels, one per pane, for the shell to draw
+   * each page's card under it. An emulated page's card is its whole space,
+   * which its frame fills.
+   */
+  getPageCards(): Rectangle[] {
+    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
+      || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
+    if (this.browserContentOccluded) return this.occlusionSnapshot.active ? this.occludedPageCards : []
+    const area = this.browserViewBounds()
+    const scale = this.window.webContents.getZoomFactor?.() ?? 1
+    const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
+    const second = this.splitView ? this.tabs.get(this.splitView.secondTabId) : undefined
+    const split = this.splitView && first && second
+      ? splitViewBounds(area, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * scale))
+      : undefined
+    const panes = split ? [split.first, split.second] : [area]
+    return panes.filter((pane) => pane.width > 0 && pane.height > 0).map((pane) => ({
+      x: pane.x / scale, y: pane.y / scale, width: pane.width / scale, height: pane.height / scale
+    }))
+  }
+
+  /** Tells the shell where the page cards and the frames around emulated pages are now. */
+  private publishPageGeometry(): void {
+    if (this.window.webContents.isDestroyed()) return
     const frames = this.getEmulationFrames()
-    const serialized = JSON.stringify(frames)
-    if (serialized === this.lastEmulationFrames) return
-    this.lastEmulationFrames = serialized
-    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('emulation-frame:changed', frames)
+    const serializedFrames = JSON.stringify(frames)
+    if (serializedFrames !== this.lastEmulationFrames) {
+      this.lastEmulationFrames = serializedFrames
+      this.window.webContents.send('emulation-frame:changed', frames)
+    }
+    const cards = this.getPageCards()
+    const serializedCards = JSON.stringify(cards)
+    if (serializedCards !== this.lastPageCards) {
+      this.lastPageCards = serializedCards
+      this.window.webContents.send('page-card:changed', cards)
+    }
+  }
+
+  /** Rounds a page view's corners to the shell's page card, which scales with the shell's zoom. */
+  private roundPageCorners(view: WebContentsView): void {
+    const radius = Math.round(PAGE_CARD_RADIUS * (this.window.webContents.getZoomFactor?.() ?? 1))
+    if (this.pageCornerRadii.get(view) === radius) return
+    view.setBorderRadius(radius)
+    this.pageCornerRadii.set(view, radius)
   }
 
   /** Where a tab's page goes in its space: see `emulationViewSize`. */
@@ -9023,7 +9071,7 @@ export class BrowserTabsManager {
       if (attached && (this.activeTabId === tab.id || this.splitViewContains(tab.id))) {
         if (resized) this.layout()
         // The caption can change without the size, such as the pixel ratio.
-        else this.publishEmulationFrames()
+        else this.publishPageGeometry()
       } else if (resized && !attached) {
         tab.view.setBounds(this.tabViewBounds(tab, this.browserViewBounds()))
       }
@@ -9056,7 +9104,7 @@ export class BrowserTabsManager {
     this.occlusionSnapshot.reconcile()
     if (!this.activeTabId) {
       // A frame must not outlive the last tab.
-      this.publishEmulationFrames()
+      this.publishPageGeometry()
       return
     }
     this.splitDivider.reconcile()
@@ -9079,6 +9127,8 @@ export class BrowserTabsManager {
         if (placeViews) {
           firstTab.view.setBounds(this.tabViewBounds(firstTab, splitBounds.first))
           secondTab.view.setBounds(this.tabViewBounds(secondTab, splitBounds.second))
+          this.roundPageCorners(firstTab.view)
+          this.roundPageCorners(secondTab.view)
         }
         firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
         secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
@@ -9087,17 +9137,20 @@ export class BrowserTabsManager {
         this.scheduleTabOverviewPreview(firstTab)
         this.scheduleTabOverviewPreview(secondTab)
         this.publishSplitDivider()
-        this.publishEmulationFrames()
+        this.publishPageGeometry()
         return
       }
       this.splitView = null
     }
-    if (placeViews) tab.view.setBounds(this.tabViewBounds(tab, viewBounds))
+    if (placeViews) {
+      tab.view.setBounds(this.tabViewBounds(tab, viewBounds))
+      this.roundPageCorners(tab.view)
+    }
     tab.view.setVisible(browserContentVisible)
     this.reconcileTabPresentation(tab)
     this.scheduleTabOverviewPreview(tab)
     this.publishSplitDivider()
-    this.publishEmulationFrames()
+    this.publishPageGeometry()
   }
 
   async flushPersist(): Promise<void> {
@@ -9280,6 +9333,7 @@ export class BrowserTabsManager {
       // Background tabs need a real initial layout even before their first selection.
       // A zero-sized viewport cannot paint a meaningful explicit page preview.
       view.setBounds(this.browserViewBounds())
+      this.roundPageCorners(view)
     } catch (error) {
       // This view has no registered tab or owner yet, so normal tab rollback
       // cannot find and close its WebContents after initialization fails.
@@ -9608,7 +9662,7 @@ export class BrowserTabsManager {
       }
       this.activeTabId = null
       this.changed(false)
-      this.publishEmulationFrames()
+      this.publishPageGeometry()
       void this.createTab({ url: HRONAUT_HOME_URL, active: true })
         .catch((error) => {
           console.error('[browser] Could not create a replacement tab after renderer teardown:', error)

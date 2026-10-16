@@ -23,7 +23,7 @@ defineEmits<{ manage: []; purchase: [] }>()
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--toolbar);
+  background: var(--shell-bar, var(--toolbar));
   border-top: 1px solid var(--border-soft);
 }
 .vertical-tabs-shell .license-expiry-notice { margin-left: var(--tab-rail-width); }

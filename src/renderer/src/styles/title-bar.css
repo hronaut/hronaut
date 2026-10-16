@@ -107,7 +107,7 @@
 .shell-title-bar-mark svg { @apply [width:16px] [height:16px]; }
 
 .vertical-tabs-shell .shell-title-bar-surface.surface-rail {
-  @apply fixed [z-index:49] [top:0] [left:0] [width:var(--tab-rail-width)] [height:var(--vertical-titlebar-height)] justify-start [padding-right:14px] [padding-left:14px] [border-right:1px_solid_var(--border)] [border-bottom:1px_solid_var(--border-soft)] [background:var(--toolbar)];
+  @apply fixed [z-index:49] [top:0] [left:0] [width:var(--tab-rail-width)] [height:var(--vertical-titlebar-height)] justify-start [padding-right:14px] [padding-left:14px] [background:var(--shell-bottom)];
 }
 .custom-title-bar.vertical-tabs-shell:not(.compact-vertical-tab-rail) .shell-title-bar-surface.surface-rail,
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail-revealed .shell-title-bar-surface.surface-rail {
@@ -125,7 +125,7 @@
 
 .vertical-tabs-shell .shell-title-bar-surface.surface-home,
 .vertical-tabs-shell .shell-title-bar-surface.surface-settings {
-  @apply [width:calc(100%_-_var(--tab-rail-width))] [height:var(--vertical-titlebar-height)] [margin-left:var(--tab-rail-width)] [border-bottom:1px_solid_var(--border-soft)];
+  @apply [width:calc(100%_-_var(--tab-rail-width))] [height:var(--vertical-titlebar-height)] [margin-left:var(--tab-rail-width)] [background:var(--shell-bottom)];
   padding-left: max(
     14px,
     calc(var(--titlebar-controls-left-safe) - var(--tab-rail-width) + 8px)
@@ -137,13 +137,9 @@
   );
 }
 
-/* Both columns include their divider inside the same header height. An outer
-   shell border adds a pixel below navigation and leaves the rail out of line. */
-.custom-title-bar.vertical-tabs-shell {
-  @apply [border-bottom:0];
-}
+/* Both columns share the same header height, so the rail's title lines up with navigation. */
 .custom-title-bar.vertical-tabs-shell .toolbar {
-  @apply [min-height:var(--vertical-titlebar-height)] [border-bottom:1px_solid_var(--border-soft)];
+  @apply [min-height:var(--vertical-titlebar-height)];
 }
 .custom-title-bar.vertical-tabs-shell.home-shell {
   @apply [min-height:var(--vertical-titlebar-height)] [border-bottom:0] [box-shadow:none];

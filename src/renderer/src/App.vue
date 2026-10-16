@@ -15,6 +15,7 @@ import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
 import EmulationFrame from './components/EmulationFrame.vue'
 import PageSnapshot from './components/PageSnapshot.vue'
+import PageCard from './components/PageCard.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
 import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
@@ -783,6 +784,7 @@ useAppLifecycleController({
 </script>
 
 <template>
+  <PageCard v-if="!isDetachedPanelWindow" />
   <SplitViewDivider v-if="!isDetachedPanelWindow" />
   <EmulationFrame
     v-if="!isDetachedPanelWindow"

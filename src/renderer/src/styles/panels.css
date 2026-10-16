@@ -75,6 +75,10 @@
 .shell.panel-dock-bottom [data-shell-docked-panel] {
   @apply [top:auto] [bottom:0] [border-width:1px_0_0] [box-shadow:0_-8px_34px_rgba(16,_13,_36,_.2)];
 }
+/* The rail has no edge line of its own, so a panel docked against it draws one. */
+.shell.vertical-tabs-shell:is(.panel-dock-left, .panel-dock-top, .panel-dock-bottom) [data-shell-docked-panel] {
+  @apply [border-left-width:1px];
+}
 .shell.panel-dock-window:not(.detached-panel-window) [data-shell-docked-panel] {
   @apply hidden;
 }

@@ -173,12 +173,13 @@ test('keeps the workspace separator on the rail boundary for every panel dock', 
   const handle = appWindow.getByRole('separator', { name: 'Resize workspace panel', exact: true })
   for (const dock of ['right', 'bottom', 'left', 'top']) {
     await panel.getByRole('combobox', { name: 'Dock page tools' }).selectOption(dock)
+    // The rail has no edge line, so the handle ends exactly where the page card begins.
     await expect.poll(() => handle.evaluate(element => {
       const rail = element.closest('.topbar')!.getBoundingClientRect()
       const bounds = element.getBoundingClientRect()
       return { x: Math.round(bounds.right - rail.right), width: bounds.width, height: bounds.height > 300,
         hit: element.contains(document.elementFromPoint(bounds.x + 4, bounds.y + 80)), cursor: getComputedStyle(element).cursor }
-    })).toEqual({ x: -1, width: 8, height: true, hit: true, cursor: 'col-resize' })
+    })).toEqual({ x: 0, width: 8, height: true, hit: true, cursor: 'col-resize' })
     const before = Number(await handle.getAttribute('aria-valuenow'))
     await handle.focus()
     await handle.press('ArrowRight')
