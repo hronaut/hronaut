@@ -203,6 +203,102 @@ describe('BrowserTabsBar', () => {
     expect(folded).toHaveAccessibleDescription('Staging checkout')
   })
 
+  it('folds workspaces past the first ten into an All N workspaces row that opens the switcher', async () => {
+    const groups = Array.from({ length: 14 }, (_, index) => ({ ...workspace(`w${index + 1}`), name: `Client ${index + 1}` }))
+    const tabs = groups.map((group, index) => tab(`t${index + 1}`, { mcpGroupId: group.id, mcpGroupName: group.name, active: index === 12 }))
+    const headers = () => [...document.querySelectorAll('.tab-group-label')].map((label) => label.querySelector('span')?.textContent)
+    const view = renderTabs(browserState({ tabs, activeTabId: 't13', mcpTabGroups: groups }), true, 'vertical')
+
+    // The first ten, then the workspace in view in its place in the order.
+    expect(headers()).toEqual([...groups.slice(0, 10), groups[12]].map((group) => group.name))
+    expect(screen.queryByRole('tab', { name: 'Page t12' })).toBeNull()
+    const row = screen.getByRole('button', { name: 'All 14 workspaces' })
+    expect(row).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    expect(row).toHaveAttribute('aria-keyshortcuts', 'Control+K Meta+K')
+    expect(row).toHaveAccessibleDescription('Show all workspaces (Ctrl/Cmd+K)')
+    expect(row.querySelector('.all-workspaces-needs-you')).toBeNull()
+    await userEvent.click(row)
+    expect(view.emitted('switchWorkspace')).toHaveLength(1)
+    await view.rerender({ workspaceSwitcherOpen: true })
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+
+    // A workspace that needs you stays listed too, even under Settings.
+    await view.rerender({ settingsActive: true, userAttention: { id: 'attention-1', reason: 'Approve the refund.', requestedAt: '2026-10-16T07:00:00.000Z', workspaceId: 'w12', tabId: 't12' } })
+    expect(headers()).toEqual([...groups.slice(0, 10), groups[11], groups[12]].map((group) => group.name))
+    expect(screen.getByRole('button', { name: 'Collapse workspace Client 12, 1 tab, Needs you' }).closest('.workspace-tab-section')).toHaveClass('needs-you')
+    expect(screen.getByRole('button', { name: 'All 14 workspaces' })).not.toHaveClass('needs-you')
+
+    // Keyboard navigation skips folded tabs: from the tenth workspace's tab the next is the one in view.
+    await view.rerender({ settingsActive: false, userAttention: null })
+    screen.getByRole('tab', { name: 'Page t1' }).focus()
+    await userEvent.keyboard('{End}')
+    expect(screen.getByRole('tab', { name: 'Page t13' })).toHaveFocus()
+    screen.getByRole('tab', { name: 'Page t10' }).focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('tab', { name: 'Page t13' })).toHaveFocus()
+
+    // Home has no workspace of its own, so the one last worked in stays listed under it.
+    await view.rerender({ state: browserState({ tabs: [tab('home', { url: 'hronaut://home', active: true, mcpGroupId: undefined, mcpGroupName: undefined }), ...tabs.map((value) => ({ ...value, active: false }))], activeTabId: 'home', mcpTabGroups: groups }) })
+    expect(headers()).toEqual([...groups.slice(0, 10), groups[12]].map((group) => group.name))
+
+    // The tab strip above the page lists every workspace and has no row.
+    await view.rerender({ orientation: 'horizontal' })
+    expect(headers()).toHaveLength(14)
+    expect(screen.queryByRole('button', { name: 'All 14 workspaces' })).toBeNull()
+  })
+
+  it('recomputes the rail\'s overflow when a workspace folds away or comes back', async () => {
+    const groups = Array.from({ length: 14 }, (_, index) => ({ ...workspace(`w${index + 1}`), name: `Client ${index + 1}` }))
+    const tabs = groups.map((group, index) => tab(`t${index + 1}`, { mcpGroupId: group.id, mcpGroupName: group.name, active: index === 12 }))
+    const view = renderTabs(browserState({ tabs, activeTabId: 't13', mcpTabGroups: groups }), true, 'vertical')
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    // Content follows the sections drawn: about 110 px each against a 1,200 px strip.
+    const contentHeight = () => strip.querySelectorAll('.workspace-tab-section').length * 110
+    Object.defineProperties(strip, {
+      clientHeight: { configurable: true, value: 1_200 },
+      scrollHeight: { configurable: true, get: contentHeight },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    })
+    await fireEvent.scroll(strip)
+    expect(screen.getByRole('button', { name: 'Show more tabs' })).toBeVisible()
+
+    // Working in the second workspace folds the thirteenth away, and the rest fits.
+    await view.rerender({ state: browserState({ tabs: tabs.map((value, index) => ({ ...value, active: index === 1 })), activeTabId: 't2', mcpTabGroups: groups }) })
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Show more tabs' })).not.toBeInTheDocument())
+
+    // A request in a folded workspace lists it again, and the rail overflows again.
+    await view.rerender({ userAttention: { id: 'attention-1', reason: 'Approve the refund.', requestedAt: '2026-10-16T07:00:00.000Z', workspaceId: 'w14', tabId: 't14' } })
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Show more tabs' })).toBeVisible())
+  })
+
+  it('lists eleven workspaces without the row, since folding one would only swap it for the row', () => {
+    const groups = Array.from({ length: 11 }, (_, index) => ({ ...workspace(`w${index + 1}`), name: `Client ${index + 1}` }))
+    renderTabs(browserState({ mcpTabGroups: groups }), true, 'vertical')
+    expect(document.querySelectorAll('.tab-group-label')).toHaveLength(11)
+    expect(document.querySelector('[data-testid="all-workspaces"]')).toBeNull()
+  })
+
+  it('shows the row with an amber dot while a workspace the rail does not list needs you', async () => {
+    const hidden = { ...workspace('workspace-2'), name: 'Checkout QA', hiddenFromSidebar: true }
+    const view = renderTabs(browserState({ mcpTabGroups: [workspace(), hidden] }), true, 'vertical')
+    expect(document.querySelector('[data-testid="all-workspaces"]')).toBeNull()
+
+    await view.rerender({ userAttention: { id: 'attention-1', reason: 'Approve the refund.', requestedAt: '2026-10-16T07:00:00.000Z', workspaceId: hidden.id } })
+    const row = screen.getByRole('button', { name: 'All 2 workspaces' })
+    expect(row).toHaveAccessibleDescription('A workspace not listed here needs you')
+    expect(row).toHaveClass('needs-you')
+    expect(row.querySelector('.all-workspaces-needs-you')).not.toBeNull()
+    // The hidden workspace stays out of the rail, as its setting says.
+    expect(document.querySelectorAll('.tab-group-label')).toHaveLength(1)
+
+    // A request in a listed workspace leaves the row out.
+    await view.rerender({ userAttention: { id: 'attention-2', reason: 'Pick a plan.', requestedAt: '2026-10-16T07:01:00.000Z', workspaceId: 'workspace-1' } })
+    expect(document.querySelector('[data-testid="all-workspaces"]')).toBeNull()
+    await view.rerender({ userAttention: null })
+    expect(document.querySelector('[data-testid="all-workspaces"]')).toBeNull()
+  })
+
   it('follows the requested tab rather than the reported workspace when the tab moved', async () => {
     const other = { ...workspace('workspace-2'), name: 'Billing' }
     const view = renderTabs(browserState({

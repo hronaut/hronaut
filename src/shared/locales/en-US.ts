@@ -633,6 +633,9 @@ export const enUS = {
       navigation: 'Tab navigation', list: 'Browser tabs and workspaces', scrollBack: 'Show previous tabs', scrollForward: 'Show more tabs', pageAttention: 'Page needs attention', agentAttention: 'Agent needs your attention', needsYou: 'Needs you', followingAgent: 'Following {name}', stayHere: 'Stay here', stayHereDescription: 'Stop following agents and stay on this tab', sleeping: 'Sleeping to save resources', frozen: 'Page frozen for review', freezeUnknown: 'Page hold outcome unknown', stackedVisible: 'Visible in stacked split view', sideVisible: 'Visible in side-by-side split view', inputLocked: 'Page input locked',
       switchWorkspace: "Switch workspace",
       switchWorkspaceTitle: "Switch workspace (Ctrl/Cmd+K)",
+      allWorkspaces: "{count} workspace | All {count} workspaces",
+      allWorkspacesTitle: "Show all workspaces (Ctrl/Cmd+K)",
+      unlistedWorkspaceNeedsYou: "A workspace not listed here needs you",
       createWorkspaceTitle: 'Create a new isolated workspace', createWorkspace: 'Create workspace', workspace: 'Workspace', collapseRail: 'Collapse tab rail when not in use', keepRailExpanded: 'Keep tab rail expanded', workspacesHeading: 'Workspaces', locked: 'Input blocked', lock: 'Block input'
     },
     actions: {

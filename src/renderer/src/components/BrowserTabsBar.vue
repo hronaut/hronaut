@@ -27,11 +27,13 @@ import IconVisibility from '~icons/material-symbols/visibility-rounded'
 import IconHelp from '~icons/material-symbols/help-outline-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
+import IconStacks from '~icons/material-symbols/stacks-rounded'
 import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
+import { foldRailWorkspaces } from '../../../shared/workspace-rail.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
 import { vTooltip } from '../ui/tooltip.js'
 
@@ -303,7 +305,30 @@ function isTabGroupCollapsed(groupId: string): boolean {
 }
 
 const sidebarWorkspaces = computed(() => props.state.mcpTabGroups.filter(group => !vertical.value || !group.hiddenFromSidebar))
-const visibleTabs = computed(() => sidebarWorkspaces.value.flatMap((group) => (
+// The workspace of the last active website tab, which Home, having none of its own, leaves in place.
+const lastActiveWorkspaceId = ref<string | undefined>()
+watch(() => props.state.tabs.find((tab) => tab.active)?.mcpGroupId, (groupId) => {
+  if (groupId) lastActiveWorkspaceId.value = groupId
+}, { immediate: true })
+
+// A long rail folds workspaces past the first ten into its "All N workspaces" row. The workspace you were last
+// working in stays listed, under Home or Settings too, and so does one that needs you.
+const railFold = computed(() => {
+  if (!vertical.value) return { listed: sidebarWorkspaces.value, folded: [] }
+  const keep = new Set(sidebarWorkspaces.value.filter((group) => group.id === lastActiveWorkspaceId.value || workspaceNeedsYou(group.id)).map((group) => group.id))
+  return foldRailWorkspaces(sidebarWorkspaces.value, keep)
+})
+const railWorkspaces = computed(() => railFold.value.listed)
+// A workspace hidden from the rail can still need you; the row then appears with an amber dot.
+const unlistedWorkspaceNeedsYou = computed(() => vertical.value && props.state.mcpTabGroups.some((group) => (
+  !railWorkspaces.value.includes(group) && workspaceNeedsYou(group.id)
+)))
+const allWorkspacesRow = computed(() => vertical.value && (railFold.value.folded.length > 0 || unlistedWorkspaceNeedsYou.value))
+const allWorkspacesLabel = computed(() => {
+  const count = props.state.mcpTabGroups.length
+  return t('shell.tabs.allWorkspaces', { count: props.formatNumber(count) }, count)
+})
+const visibleTabs = computed(() => railWorkspaces.value.flatMap((group) => (
   isTabGroupCollapsed(group.id) ? [] : tabGroupTabs(group.id)
 )))
 const keyboardTabId = computed(() => {
@@ -477,7 +502,9 @@ watch(
   [
     () => props.state.tabs.map((tab) => `${tab.id}:${tab.label ?? ''}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
     () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.description}`).join('|'),
-    () => [...collapsedTabGroupIds.value].sort().join('|')
+    () => [...collapsedTabGroupIds.value].sort().join('|'),
+    // Workspaces fold in and out of a long rail as the active tab or a request moves, and the row comes and goes.
+    () => `${railWorkspaces.value.map((group) => group.id).join('|')}:${allWorkspacesRow.value}`
   ],
   async () => {
     const activeWasVisible = activeTabIntersectsVisibleStrip()
@@ -633,7 +660,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       @wheel="scrollTabsWithWheel"
     >
     <div
-      v-for="workspace in sidebarWorkspaces"
+      v-for="workspace in railWorkspaces"
       :key="workspace.id"
       class="workspace-tab-section"
       :class="{ active: activeWorkspaceId === workspace.id, collapsed: isTabGroupCollapsed(workspace.id), empty: tabGroupTabCount(workspace.id) === 0, 'needs-you': workspaceNeedsYou(workspace.id) }"
@@ -773,6 +800,20 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         @click="emit('newTab', workspace.id)"
       ><IconAdd aria-hidden="true" /><span class="workspace-new-tab-label">{{ t('tabSearch.newTabTitle') }}</span></UiButton>
     </div>
+    <UiButton appearance="application"
+      v-if="allWorkspacesRow"
+      class="all-workspaces"
+      :class="{ 'needs-you': unlistedWorkspaceNeedsYou }"
+      type="button"
+      v-tooltip="[t('shell.tabs.allWorkspacesTitle'), unlistedWorkspaceNeedsYou ? t('shell.tabs.unlistedWorkspaceNeedsYou') : ''].filter(Boolean).join('\n\n')"
+      :aria-label="allWorkspacesLabel"
+      :aria-description="unlistedWorkspaceNeedsYou ? t('shell.tabs.unlistedWorkspaceNeedsYou') : undefined"
+      aria-keyshortcuts="Control+K Meta+K"
+      aria-haspopup="dialog"
+      :aria-expanded="workspaceSwitcherOpen === true"
+      data-testid="all-workspaces"
+      @click="emit('switchWorkspace')"
+    ><IconStacks aria-hidden="true" /><span class="all-workspaces-label">{{ allWorkspacesLabel }}</span><span v-if="unlistedWorkspaceNeedsYou" class="all-workspaces-needs-you" aria-hidden="true" /></UiButton>
     <UiButton v-if="!state.mcpTabGroups.length" appearance="application"
       class="new-tab"
       type="button"
