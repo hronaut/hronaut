@@ -130,7 +130,7 @@ import {
   type BrowserSnapshotDeltaContext
 } from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
-import { McpActivityFollowController } from './mcp-activity-follow-controller.js'
+import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard.js'
 import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
@@ -422,6 +422,8 @@ const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
 const PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS = 5_000
+/** How long wheel events after an agent's wheel call still count as the agent's. */
+const AGENT_WHEEL_SETTLE_MS = 250
 const HOLD_PAGE_ANIMATIONS_SCRIPT = `(() => {
   try {
     return Array.from(document.getAnimations()).slice(0, 10000).map(animation => {
@@ -1297,6 +1299,16 @@ export class BrowserTabsManager {
   private readonly mcpActivitiesByTab = new Map<string, Set<string>>()
   private readonly mcpActivityFollower: McpActivityFollowController
   private followAgentActivity: boolean
+  /**
+   * The tab following last showed, the agent it followed there (its opaque presence key and cleaned
+   * name) and the tab selection that showed it: any later selection means the person moved on.
+   */
+  private agentFollow: { tabId: string; agentId: string; agentName: string; selectionGeneration: number } | undefined
+  /**
+   * Pages receiving an agent's wheel input, which is not the person scrolling: calls under way, and
+   * until when the wheel events Chromium adds after the call count as the agent's.
+   */
+  private readonly agentWheel = new Map<number, { pending: number; until: number }>()
   private toolbarHeight: number
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   /** The corner radius each page view has now, so layout does not repeat the native call. */
@@ -1468,6 +1480,13 @@ export class BrowserTabsManager {
       selectTabPassively: (tabId) => {
         if (this.activeTabId !== tabId) this.selectTabPassively(tabId)
       },
+      onFollow: ({ tabId, agent }) => {
+        const before = this.publishedAgentFollow()
+        this.agentFollow = agent
+          ? { tabId, agentId: agent.id, agentName: agent.name, selectionGeneration: this.tabSelectionGeneration }
+          : undefined
+        this.publishAgentFollowChange(before)
+      },
       onError: (error) => console.error('[browser] Could not follow MCP activity:', error)
     })
   }
@@ -1590,6 +1609,7 @@ export class BrowserTabsManager {
   }
 
   getState(): BrowserState {
+    const agentFollow = this.publishedAgentFollow()
     return {
       tabs: this.orderedTabs().map((tab) => this.toState(tab)),
       closedTabs: [...this.closedTabs].reverse().map((tab) => ({ ...tab })),
@@ -1601,8 +1621,44 @@ export class BrowserTabsManager {
       mcpUrl: this.mcpUrl,
       profilePath: this.options.profilePath,
       mcpTabGroups: this.listMcpTabGroups(),
-      savedTabGroups: this.listSavedTabGroups()
+      savedTabGroups: this.listSavedTabGroups(),
+      ...(agentFollow ? { agentFollow } : {})
     }
+  }
+
+  /** What the shell shows of following: only while the tab it showed is still the one in view. */
+  private publishedAgentFollow(): { tabId: string; agentName: string } | undefined {
+    const follow = this.agentFollow
+    if (
+      !follow
+      || !this.followAgentActivity
+      || follow.tabId !== this.activeTabId
+      // A tab the person picked, even the same one again, is not being followed.
+      || follow.selectionGeneration !== this.tabSelectionGeneration
+      || !this.tabs.has(follow.tabId)
+    ) return undefined
+    return { tabId: follow.tabId, agentName: follow.agentName }
+  }
+
+  private publishAgentFollowChange(before: { tabId: string; agentName: string } | undefined): void {
+    const after = this.publishedAgentFollow()
+    if (before?.tabId !== after?.tabId || before?.agentName !== after?.agentName) this.changed(false)
+  }
+
+  private agentWheelUnderWay(webContentsId: number): boolean {
+    const marker = this.agentWheel.get(webContentsId)
+    if (!marker) return false
+    if (marker.pending > 0 || performance.now() < marker.until) return true
+    this.agentWheel.delete(webContentsId)
+    return false
+  }
+
+  /** Forgets the followed agent once its session has left presence, so the rail does not name an agent that is gone. */
+  retainAgentFollow(agentIds: ReadonlySet<string>): void {
+    if (!this.agentFollow || agentIds.has(this.agentFollow.agentId)) return
+    const before = this.publishedAgentFollow()
+    this.agentFollow = undefined
+    this.publishAgentFollowChange(before)
   }
 
   getTabOverviewPreviews(tabIds: readonly string[]): BrowserTabOverviewPreview[] {
@@ -3625,11 +3681,15 @@ export class BrowserTabsManager {
   }
 
   setFollowAgentActivity(enabled: boolean): void {
+    const before = this.publishedAgentFollow()
     this.followAgentActivity = enabled
+    if (!enabled) this.agentFollow = undefined
+    this.publishAgentFollowChange(before)
     this.mcpActivityFollower.refresh()
   }
 
-  handleMcpTabActivity(activity: McpTabActivity): void {
+  /** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
+  handleMcpTabActivity(activity: McpTabActivity, agent?: FollowAgent): void {
     const tab = this.tabs.get(activity.tabId)
     if (!tab) return
     const activities = this.mcpActivitiesByTab.get(tab.id) ?? new Set<string>()
@@ -3642,7 +3702,7 @@ export class BrowserTabsManager {
       else this.mcpActivitiesByTab.delete(tab.id)
       tab.lastActiveAt = activity.occurredAt
     }
-    this.mcpActivityFollower.accept(activity)
+    this.mcpActivityFollower.accept(activity, agent)
   }
 
   async wakeTab(tabId: string): Promise<BrowserState> {
@@ -6891,10 +6951,20 @@ export class BrowserTabsManager {
         validate()
         markAttempted()
         attempted = true
-        await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-          type: 'mouseWheel', x: options.x, y: options.y,
-          deltaX: options.deltaX, deltaY: options.deltaY, buttons: 0, modifiers: 0
-        })
+        // The agent's own wheel input is not the person scrolling. Chromium sends the wheel's
+        // phase end after the command returns, so the mark outlives the call briefly.
+        const marker = this.agentWheel.get(webContents.id) ?? { pending: 0, until: 0 }
+        marker.pending += 1
+        this.agentWheel.set(webContents.id, marker)
+        try {
+          await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+            type: 'mouseWheel', x: options.x, y: options.y,
+            deltaX: options.deltaX, deltaY: options.deltaY, buttons: 0, modifiers: 0
+          })
+        } finally {
+          marker.pending -= 1
+          marker.until = performance.now() + AGENT_WHEEL_SETTLE_MS
+        }
         validate()
         return { status: 'DISPATCH_ACKNOWLEDGED', x: options.x, y: options.y, deltaX: options.deltaX, deltaY: options.deltaY }
       })
@@ -9867,9 +9937,19 @@ export class BrowserTabsManager {
         tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
+        this.mcpActivityFollower.noteHumanInput()
         this.options.onUserInteraction?.()
       }
     })
+    // Wheel and touch input never reach before-mouse-event; while the person scrolls or touches
+    // the page, following waits.
+    const webContentsId = webContents.id
+    webContents.on('input-event', (_event, input) => {
+      if (input.type !== 'mouseWheel' && input.type !== 'touchStart') return
+      if (this.agentInputWebContents.has(webContentsId) || this.agentWheelUnderWay(webContentsId)) return
+      this.mcpActivityFollower.noteHumanInput()
+    })
+    webContents.once('destroyed', () => this.agentWheel.delete(webContentsId))
     webContents.on('before-mouse-event', (event, mouse) => {
       if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
         // Trusted chrome is open; a click must not give the page focus, activation or the active split pane.
@@ -9909,7 +9989,10 @@ export class BrowserTabsManager {
         tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
+        this.mcpActivityFollower.noteHumanInput()
         if (this.splitViewContains(tab.id) && this.activeTabId !== tab.id) {
+          // The person picked the other pane, which following did not show.
+          this.agentFollow = undefined
           this.activeTabId = tab.id
           this.markTabActiveInGroup(tab)
           this.changed()

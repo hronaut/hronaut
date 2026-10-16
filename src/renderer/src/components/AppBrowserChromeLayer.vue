@@ -293,6 +293,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
       :tab-tooltip="tabTooltip"
       :describe-emulation="describeTabEmulation"
       @open-home="runAction(actions.openHome)"
+      @stay-here="setFollowAgentActivity(false)"
       @show-workspace-context-menu="runAction(() => showWorkspaceContextMenu($event))"
       @new-tab="runAction(() => actions.newTabInWorkspace($event))"
       @create-workspace="runAction(actions.openNewWorkspaceEditor)"

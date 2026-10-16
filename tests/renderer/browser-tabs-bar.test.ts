@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -213,6 +213,43 @@ describe('BrowserTabsBar', () => {
     await view.rerender({ userAttention: { id: 'attention-1', reason: 'Confirm.', requestedAt: '2026-10-16T07:00:00.000Z', workspaceId: 'workspace-1', tabId: 'moved' } })
     expect(screen.getByRole('button', { name: 'Collapse workspace Billing, 1 tab, Needs you' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse workspace Research, 1 tab' })).toBeInTheDocument()
+  })
+
+  it('names the agent it follows under the workspace following brought into view, with Stay here', async () => {
+    const billing = { ...workspace('workspace-2'), name: 'Billing' }
+    const followed = browserState({
+      tabs: [tab('first'), tab('invoice', { active: true, mcpGroupId: billing.id, mcpGroupName: billing.name })],
+      activeTabId: 'invoice',
+      mcpTabGroups: [workspace(), billing],
+      agentFollow: { tabId: 'invoice', agentName: 'Claude Code' }
+    })
+    const view = renderTabs(followed, true, 'vertical')
+    const row = screen.getByTestId('workspace-following')
+    expect(row).toHaveTextContent('Following Claude Code')
+    // A long name is cut to fit, so its tooltip carries it in full.
+    expect(within(row).getByText('Following Claude Code')).toHaveAttribute('data-tooltip', 'Following Claude Code')
+    expect(within(screen.getByRole('group', { name: 'Billing' })).getByTestId('workspace-following')).toBe(row)
+    // Beside the workspace header, never inside it: the header is itself a button.
+    expect(row.closest('button')).toBeNull()
+    const stay = within(row).getByRole('button', { name: 'Stay here' })
+    expect(stay).toHaveAccessibleDescription('Stop following agents and stay on this tab')
+    await fireEvent.click(stay)
+    expect(view.emitted().stayHere).toEqual([[]])
+
+    // The person has moved to another tab, so following no longer shows this page.
+    await view.rerender({ state: {
+      ...followed,
+      tabs: [tab('first', { active: true }), tab('invoice', { mcpGroupId: billing.id, mcpGroupName: billing.name })],
+      activeTabId: 'first'
+    } })
+    expect(screen.queryByTestId('workspace-following')).toBeNull()
+    await view.rerender({ state: { ...followed, agentFollow: undefined } })
+    expect(screen.queryByTestId('workspace-following')).toBeNull()
+    // A client whose name cleans to nothing is named as its avatar is.
+    await view.rerender({ state: { ...followed, agentFollow: { tabId: 'invoice', agentName: '' } } })
+    expect(screen.getByTestId('workspace-following')).toHaveTextContent('Following Agent')
+    await view.rerender({ state: followed, orientation: 'horizontal' })
+    expect(screen.queryByTestId('workspace-following')).toBeNull()
   })
 
   it('describes agent activity without replacing the tab name or its navigation controls', async () => {

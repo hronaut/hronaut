@@ -23,6 +23,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconPauseCircle from '~icons/material-symbols/pause-circle-rounded'
 import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
+import IconVisibility from '~icons/material-symbols/visibility-rounded'
 import IconHelp from '~icons/material-symbols/help-outline-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
@@ -63,6 +64,8 @@ const emit = defineEmits<{
   dragStart: []
   toggleRailPinned: []
   searchTabs: []
+  /** Stop following agents and stay on the tab in view. */
+  stayHere: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -259,6 +262,18 @@ function tabGroupTabCount(groupId: string): number {
 // The workspace whose page is in view: none while Home or Settings is showing, as for the tabs themselves.
 const activeWorkspaceId = computed(() => (
   props.settingsActive ? undefined : props.state.tabs.find((tab) => tab.active)?.mcpGroupId
+))
+
+// The workspace following brought into view, while its tab is still the one shown.
+const followedWorkspaceId = computed(() => {
+  const follow = props.state.agentFollow
+  if (!follow || props.settingsActive || props.orientation !== 'vertical') return undefined
+  return props.state.tabs.find((tab) => tab.id === follow.tabId && tab.active)?.mcpGroupId
+})
+
+// A client whose name cleans to nothing is named as in its avatar.
+const followingLabel = computed(() => (
+  props.state.agentFollow ? t('shell.tabs.followingAgent', { name: props.state.agentFollow.agentName || t('shell.agents.unnamed') }) : ''
 ))
 
 // A request names its tab when it has one; that tab's workspace is the one
@@ -640,6 +655,19 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         <!-- The space keeps the visible name and count apart for label-in-name checks; inline-flex does not render it. -->
         <span>{{ workspace.name }}</span> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
+      <!-- Beside the header, not in it: the header is a button. -->
+      <div v-if="followedWorkspaceId === workspace.id && state.agentFollow" class="tab-group-following" data-testid="workspace-following">
+        <IconVisibility class="tab-group-following-icon" aria-hidden="true" />
+        <!-- The tooltip shows a long name in full; screen readers already read the whole text. -->
+        <span class="tab-group-following-name" :data-tooltip="followingLabel">{{ followingLabel }}</span>
+        <UiButton appearance="application"
+          class="tab-group-stay"
+          type="button"
+          v-tooltip="t('shell.tabs.stayHereDescription')"
+          :aria-description="t('shell.tabs.stayHereDescription')"
+          @click="emit('stayHere')"
+        >{{ t('shell.tabs.stayHere') }}</UiButton>
+      </div>
       <div
         class="workspace-tab-list"
         role="tablist"
