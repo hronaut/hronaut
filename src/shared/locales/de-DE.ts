@@ -1438,6 +1438,17 @@ export const deDE = {
     "applying": "Wird angewendet…",
     "apply": "Vorschau anwenden"
   },
+  "emulationFrame": {
+    "label": "Emulierter Ansichtsbereich {size}",
+    "size": "{width} × {height}",
+    "desktop": "Desktop",
+    "mobile": "Mobil",
+    "pixelRatio": "{ratio}× Pixelverhältnis",
+    "rotate": "Ansichtsbereich drehen",
+    "fit": "Ansichtsbereich an Fenster anpassen",
+    "reset": "Fenstergröße verwenden",
+    "failed": "Der Ansichtsbereich konnte nicht geändert werden."
+  },
   "environment": {
     "kicker": "Aktuelle Website",
     "heading": "Umgebung",

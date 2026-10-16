@@ -62,6 +62,11 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
     environmentController.toggle()
   }
 
+  /** Shows a viewport the emulation frame applied in an open Responsive preview, so Apply does not undo it. */
+  function frameViewportApplied(tabId: string): void {
+    if (options.responsivePanelOpen.value && options.activeTab.value?.id === tabId) loadResponsiveDraft()
+  }
+
   function setResponsiveTabViewport(
     tabId: string,
     viewport: NonNullable<BrowserEmulationState['viewport']> | null
@@ -114,6 +119,8 @@ export function useAppEmulationFeatureController(options: AppEmulationFeatureCon
     beginEmulationMutation: emulationController.beginMutation,
     invalidateEmulationMutation: emulationController.invalidateMutation,
     isEmulationMutationCurrent: emulationController.isMutationCurrent,
+    isEmulationMutationSequenceCurrent: emulationController.isMutationSequenceCurrent,
+    frameViewportApplied,
     resetActiveTabEmulation: emulationController.resetActive,
     environmentState: environmentController.state,
     activeEnvironmentOverrideCount: environmentController.activeOverrideCount,

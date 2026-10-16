@@ -80,7 +80,7 @@ function createFeature() {
     formatPercent: (value) => `${value}%`,
     showToast
   })
-  return { activeTab, browser, syncState, responsivePanel, feature, showToast }
+  return { activeTab, browser, syncState, responsivePanel, responsivePanelOpen, feature, showToast }
 }
 
 describe('app emulation feature controller', () => {
@@ -121,5 +121,18 @@ describe('app emulation feature controller', () => {
     feature.dispose()
     feature.dispose()
     await expect(feature.resetActiveTabEmulation()).resolves.toBe(false)
+  })
+
+  it('shows a viewport the emulation frame applied in an open Responsive preview of that tab', () => {
+    const { responsivePanel, responsivePanelOpen, feature } = createFeature()
+    // The other split view pane: the panel shows the active tab, so it stays as it is.
+    feature.frameViewportApplied('tab-2')
+    expect(responsivePanel.value.loadDraft).not.toHaveBeenCalled()
+    feature.frameViewportApplied('tab-1')
+    expect(responsivePanel.value.loadDraft).toHaveBeenCalledWith(emulation().viewport)
+    responsivePanelOpen.value = false
+    feature.frameViewportApplied('tab-1')
+    expect(responsivePanel.value.loadDraft).toHaveBeenCalledOnce()
+    feature.dispose()
   })
 })

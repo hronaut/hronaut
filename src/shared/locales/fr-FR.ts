@@ -1438,6 +1438,17 @@ export const frFR = {
     "applying": "Application…",
     "apply": "Appliquer l’aperçu"
   },
+  "emulationFrame": {
+    "label": "Fenêtre d’affichage émulée {size}",
+    "size": "{width} × {height}",
+    "desktop": "Ordinateur",
+    "mobile": "Mobile",
+    "pixelRatio": "Densité de pixels {ratio}×",
+    "rotate": "Faire pivoter la fenêtre d’affichage",
+    "fit": "Adapter la fenêtre d’affichage à la fenêtre",
+    "reset": "Utiliser la taille de la fenêtre",
+    "failed": "Impossible de modifier la fenêtre d’affichage."
+  },
   "environment": {
     "kicker": "Site actuel",
     "heading": "Environnement",
