@@ -64,6 +64,14 @@ async function pendingMessage(broker: WalletBroker, wallet: WalletDescriptor, me
   return { pending, settle: () => broker.reject(pending.id) }
 }
 
+// A request is listed from the moment it is created, before its checks finish and it reaches the person, so wait for that
+// state: under load, approving or reading it earlier fails with "not awaiting human approval" or missing details.
+async function awaitingMessage(broker: WalletBroker) {
+  const awaiting = () => broker.listPending().find((request) => request.operation === 'sign-message' && request.status === 'awaiting-human')
+  await vi.waitFor(() => expect(awaiting()).toBeDefined())
+  return awaiting()!
+}
+
 function siwe(wallet: WalletDescriptor, domain = 'dapp.example', address = wallet.publicAddress, chain = wallet.network.id): string {
   return [
     `${domain} wants you to sign in with your Ethereum account:`, address, '', 'Sign in to Dapp.', '',
@@ -156,8 +164,7 @@ describe('message text in the trusted approval', () => {
       })]
     })
     signing.catch(() => undefined)
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
-    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+    const pending = await awaitingMessage(broker)
 
     expect(pending.details?.typedData).toMatchObject({
       primaryType: 'PermitSingle',
@@ -190,8 +197,7 @@ describe('message text in the trusted approval', () => {
       }
     } as const
     const signing = broker.providerRequest(context, { family: 'evm', method: 'eth_signTypedData_v3', params: [wallet.publicAddress, JSON.stringify(mail)] })
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
-    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+    const pending = await awaitingMessage(broker)
     expect(pending.details?.typedData).toMatchObject({ primaryType: 'Mail', domain: { name: 'Ether Mail', chainId: '11155111' } })
     await broker.approve(pending.id)
     const signature = await signing as Hex
@@ -224,8 +230,7 @@ describe('message text in the trusted approval', () => {
       })]
     })
     signing.catch(() => undefined)
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
-    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+    const pending = await awaitingMessage(broker)
 
     expect(pending.details?.typedData?.tokenAccess?.allowances).toEqual([{ token, amount: maxUint256, unlimited: true }])
     expect(pending.details?.typedData?.warnings).toEqual(['token-permit', 'unlimited-amount'])
@@ -287,8 +292,7 @@ describe('Sign-In with Solana text in the trusted approval', () => {
       params: [{ account: { address: wallet.publicAddress }, message: new TextEncoder().encode(message) }]
     })
     signing.catch(() => undefined)
-    await vi.waitFor(() => expect(broker.listPending().some((request) => request.operation === 'sign-message')).toBe(true))
-    const pending = broker.listPending().find((request) => request.operation === 'sign-message')!
+    const pending = await awaitingMessage(broker)
 
     expect(pending.details?.message).toEqual({ text: message, warnings })
     await broker.reject(pending.id)
