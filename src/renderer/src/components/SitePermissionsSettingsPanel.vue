@@ -123,7 +123,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             class="permission-remove"
             type="button"
             :label="t('runtimeActions.permission.forgetAria', { permission: permissionLabel(permission.permission), origin: group.origin })"
-            :title="t('settings.permissions.forget')"
+            :tooltip="t('settings.permissions.forget')"
             :aria-disabled="clearing || isPending(permission)"
             @click="remove(permission)"
           >

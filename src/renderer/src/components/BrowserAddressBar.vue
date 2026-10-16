@@ -22,6 +22,7 @@ import type { PageToolsPresentationController } from '../composables/usePageTool
 import type { SiteDataSummaryController } from '../composables/useSiteDataSummaryController.js'
 import type { SitePermissionsController } from '../composables/useSitePermissionsController.js'
 import SiteControlsPanel from './SiteControlsPanel.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 export interface BrowserAddressBarActions {
   toggleSiteControls: () => unknown
@@ -125,7 +126,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       class="site-controls-button"
       :class="{ active: siteControlsOpen, customized: activeSitePermissions.length > 0 }"
       type="button"
-      :title="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsAvailable')"
+      v-tooltip="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsAvailable')"
       :aria-label="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsUnavailable')"
       aria-controls="site-controls-panel"
       :aria-expanded="siteControlsOpen"
@@ -153,7 +154,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       @input="handleInput"
       @keydown="handleKeydown"
     />
-    <span v-if="activeTab?.emulationState" class="emulation-pill" role="status" :title="t('emulationApplication.help')">
+    <span v-if="activeTab?.emulationState" class="emulation-pill" role="status" v-tooltip="t('emulationApplication.help')">
       <IconSpeed aria-hidden="true" />
       <span>{{ t('emulationApplication.' + activeTab.emulationState.application) }}</span>
     </span>
@@ -162,7 +163,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       class="emulation-pill"
       :class="{ offline: activeEmulation.network === 'offline' }"
       type="button"
-      :title="t('runtime.emulation.reset', { description: emulationDescription(activeEmulation) })"
+      v-tooltip="t('runtime.emulation.reset', { description: emulationDescription(activeEmulation) })"
       :aria-label="t('runtime.emulation.reset', { description: emulationDescription(activeEmulation) })"
       :disabled="resetPending"
       @click="run(actions.resetActiveTabEmulation)"
@@ -177,7 +178,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :class="{ offline: cssStatePreview.uncertain }"
       data-testid="css-state-preview-pill"
       type="button"
-      :title="cssStatePreview.action"
+      v-tooltip="cssStatePreview.action"
       :aria-label="cssStatePreview.action"
       @click="run(actions.clearActiveCssStatePreview)"
     >
@@ -189,7 +190,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       v-if="activeNetworkRouteCount || networkConditionsUnconfirmed"
       class="network-routes-pill"
       type="button"
-      :title="networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : t('shell.pageTools.openRoutes', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
+      v-tooltip="networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : t('shell.pageTools.openRoutes', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
       :aria-label="networkConditionsUnconfirmed ? t('network.conditions.unconfirmed') : t('shell.pageTools.openRoutes', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
       @click="run(actions.openRequestConditions)"
     >

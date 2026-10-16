@@ -685,7 +685,7 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
   await networkPanel.getByRole('button', { name: 'Save sanitized HAR' }).click()
   const savedHarButton = networkPanel.locator('footer').getByRole('button', { name: 'Saved' })
   await expect(savedHarButton).toBeVisible()
-  const savedHarPath = await savedHarButton.getAttribute('title')
+  const savedHarPath = await savedHarButton.getAttribute('data-tooltip')
   expect(savedHarPath).toBeTruthy()
   const savedHarText = await readFile(savedHarPath!, 'utf8')
   expect(JSON.parse(savedHarText)).toMatchObject({

@@ -50,6 +50,7 @@ import PanelDockPicker from './PanelDockPicker.vue'
 import ReproTimeline from './ReproTimeline.vue'
 import IncidentPackageReview from './IncidentPackageReview.vue'
 import PageMetadataPanel from '../features/diagnostics/page-metadata/PageMetadataPanel.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -917,7 +918,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <article v-for="resource in coverageResult.report.resources" :key="`${resource.type}:${resource.url}`" role="listitem">
             <div>
               <span class="coverage-type">{{ resource.type === 'javascript' ? 'JS' : 'CSS' }}</span>
-              <strong :title="resource.url">{{ resource.url }}</strong>
+              <strong v-tooltip="resource.url">{{ resource.url }}</strong>
               <small>{{ t('coverage.unusedOf', { unused: formatBytes(resource.unusedBytes), total: formatBytes(resource.totalBytes) }) }}</small>
             </div>
             <output>{{ localPercent(resource.usedPercent) }}</output>
@@ -1023,7 +1024,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
             <div>
               <span class="coverage-type">JS</span>
               <strong>{{ hotspot.functionName || t('cpuProfile.anonymous') }}</strong>
-              <small v-if="hotspot.url" :title="hotspot.url">{{ hotspot.url }}<template v-if="hotspot.lineNumber">:{{ hotspot.lineNumber }}</template></small>
+              <small v-if="hotspot.url" v-tooltip="hotspot.url">{{ hotspot.url }}<template v-if="hotspot.lineNumber">:{{ hotspot.lineNumber }}</template></small>
               <small v-else>{{ t('cpuProfile.anonymous') }}</small>
               <small>{{ t('cpuProfile.hotspotDetails', {
                 duration: localDuration(hotspot.selfTimeMs),
@@ -1174,7 +1175,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
                   <div>
                     <span class="coverage-type">JS</span>
                     <strong>{{ hotspot.functionName || t('memory.allocation.anonymous') }}</strong>
-                    <small v-if="hotspot.url" :title="hotspot.url">{{ hotspot.url }}<template v-if="hotspot.lineNumber">:{{ hotspot.lineNumber }}</template></small>
+                    <small v-if="hotspot.url" v-tooltip="hotspot.url">{{ hotspot.url }}<template v-if="hotspot.lineNumber">:{{ hotspot.lineNumber }}</template></small>
                     <small v-else>{{ t('memory.allocation.anonymous') }}</small>
                     <small>{{ t('memory.allocation.hotspotDetails', {
                       bytes: formatBytes(hotspot.selfBytes),
@@ -1383,7 +1384,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <div class="debug-report-footer-context">
             <span>{{ t('debugReport.generated', { time: debugTimestamp(debugReport.generatedAt) }) }}</span>
-            <label class="preserve-logs-toggle" :title="t('debugReport.preserveTitle')">
+            <label class="preserve-logs-toggle" v-tooltip="t('debugReport.preserveTitle')">
               <input type="checkbox" :checked="activeTab?.preserveDiagnosticLogs" :disabled="preservationBusy" @change="updatePreservation" />
               {{ t('debugReport.preserve') }}
             </label>

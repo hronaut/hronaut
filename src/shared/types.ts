@@ -3040,6 +3040,10 @@ export interface HronautShellApi {
   setWindowControlsScrim(color: string | null): void
   /** Main has hidden the page views under trusted chrome, with or without a snapshot. */
   onOcclusionPagesHidden(listener: () => void): () => void
+  /** Shows a themed tooltip above the page views; main places it beside the control's box. */
+  showTooltip(request: import('./shell-tooltip.js').ShellTooltipRequest): void
+  /** Hides the tooltip with this id, or any tooltip when none is given. */
+  hideTooltip(id?: number): void
   setFollowAgentActivitySuspended(suspended: boolean): void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
   onClipboardFailed(listener: (message: string) => void): () => void

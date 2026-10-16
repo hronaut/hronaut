@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from './UiButton.vue'
+import { vTooltip } from './tooltip.js'
 
 withDefaults(defineProps<{
   label: string
@@ -9,6 +10,8 @@ withDefaults(defineProps<{
   busy?: boolean
   pressed?: boolean | null
   loadingLabel?: string
+  /** Tooltip text when it differs from the accessible label. */
+  tooltip?: string
 }>(), {
   variant: 'ghost',
   size: 'small',
@@ -27,7 +30,7 @@ withDefaults(defineProps<{
     :pressed="pressed"
     :loading-label="loadingLabel"
     :aria-label="busy && loadingLabel ? loadingLabel : label"
-    :title="label"
+    v-tooltip="tooltip ?? label"
   >
     <slot />
   </UiButton>

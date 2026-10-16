@@ -14,7 +14,7 @@ test('keeps tab toggles as named icon buttons so the toolbar fits one row at 144
   await expect(controls).toHaveCount(4)
   for (const button of await controls.all()) {
     await expect(button).toHaveText('')
-    await expect(button).toHaveAttribute('title', /\S/)
+    await expect(button).toHaveAttribute('data-tooltip', /\S/)
     await expect(button).toHaveAttribute('aria-pressed', /true|false/)
     const box = (await button.boundingBox())!
     expect(box.width).toBeGreaterThanOrEqual(32)

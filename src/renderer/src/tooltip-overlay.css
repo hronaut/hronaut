@@ -1,0 +1,66 @@
+@layer theme, tokens, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source("./");
+@import './styles/tokens.css' layer(tokens);
+
+@theme inline {
+  --color-copy: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-copy: var(--accent-text);
+  --color-danger-copy: var(--danger-text);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
+}
+
+:root,
+:root[data-theme="light"],
+:root[data-theme="sepia"] { @apply [color-scheme:light]; }
+:root[data-theme="dark"],
+:root[data-theme="midnight"],
+:root[data-theme="cyberpunk"],
+:root[data-theme="cyberpunk-turbo"],
+:root[data-theme="matrix"],
+:root[data-theme="machine"],
+:root[data-theme="galactic"] { @apply [color-scheme:dark]; }
+
+
+* { @apply box-border; }
+html, body, #tooltip-overlay-root { @apply m-0; @apply overflow-hidden; @apply bg-transparent; }
+html, body { @apply w-full; @apply h-full; }
+/* Room for the shadow; main places the view this far outside the tooltip (SHELL_TOOLTIP_SHADOW_ROOM). */
+#tooltip-overlay-root { @apply inline-block; @apply [padding:4px]; }
+
+/* Mirrors .ui-tooltip__content in primitives.css. The view is sized to this box, so it needs no margin. */
+.tooltip-overlay {
+  @apply block;
+  @apply [width:max-content];
+  @apply [max-width:320px];
+  @apply [padding:6px_8px];
+  @apply [border:1px_solid_var(--border-soft)];
+  @apply [border-radius:var(--corner-1)];
+  @apply text-copy;
+  @apply bg-surface-raised;
+  @apply [box-shadow:var(--elevation-1)];
+  @apply [font-family:var(--font-ui)];
+  @apply [font-size:var(--type-micro-size)];
+  @apply [line-height:1.35];
+  @apply [white-space:pre-line];
+  @apply [overflow-wrap:anywhere];
+  @apply [animation:tooltip-overlay-in_var(--motion-instant)_var(--motion-ease-out)];
+}
+
+@keyframes tooltip-overlay-in {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-overlay { @apply [animation:none]; }
+}

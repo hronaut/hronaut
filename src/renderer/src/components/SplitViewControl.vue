@@ -10,6 +10,7 @@ import IconSwapHoriz from '~icons/material-symbols/swap-horiz-rounded'
 import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../../shared/types.js'
 import type { BrowserSplitOrientation } from '../../../shared/split-view.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 type SplitViewBrowserApi = Pick<HronautApi, 'openSplitView' | 'updateSplitView' | 'closeSplitView'>
 
@@ -122,7 +123,7 @@ defineExpose({ close, toggleMenu })
       class="icon-button split-view-button"
       :class="{ active: Boolean(state.splitView) }"
       type="button"
-      :title="state.splitView ? t('runtime.tabs.splitWith', { title: splitPartner?.title || t('runtime.tabs.splitOther') }) : t('runtime.tabs.splitOpen')"
+      v-tooltip="state.splitView ? t('runtime.tabs.splitWith', { title: splitPartner?.title || t('runtime.tabs.splitOther') }) : t('runtime.tabs.splitOpen')"
       :aria-label="t('shell.split.heading')"
       aria-haspopup="dialog"
       :aria-expanded="open"

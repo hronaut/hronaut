@@ -1034,7 +1034,7 @@ test('shows an error status when the MCP port is already in use', async ({
     conflictingApp = await launchHronaut(profileDirectory, mcpPort)
     const statusPill = conflictingApp.window.getByRole('button', { name: 'MCP error' })
     await expect(statusPill).toBeVisible()
-    await expect(statusPill).toHaveAttribute('title', /EADDRINUSE/)
+    await expect(statusPill).toHaveAttribute('data-tooltip', /EADDRINUSE/)
     await expect(conflictingApp.window.locator('.mcp-controls')).toHaveClass(/error/)
     await expect(conflictingApp.window.getByRole('button', { name: 'Pause agents' })).toBeDisabled()
 
@@ -6585,7 +6585,7 @@ test('saves, searches, renames, and removes local bookmarks', async ({ appWindow
     const panel = appWindow.getByRole('dialog', { name: 'Bookmarks' })
     await expect(panel).toBeVisible()
     await expect(panel).toContainText('Bookmark fixture')
-    await expect(bookmarksButton).toHaveAttribute('title', /current page saved/)
+    await expect(bookmarksButton).toHaveAttribute('data-tooltip', /current page saved/)
     await expect.poll(async () => {
       const value = JSON.parse(await readFile(join(profileDirectory, 'bookmarks.json'), 'utf8'))
       return value.bookmarks?.[0]

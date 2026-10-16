@@ -9,6 +9,7 @@ import IconStar from '~icons/material-symbols/star-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import IconStop from '~icons/material-symbols/stop-rounded'
 import type { BrowserTabState } from '../../../shared/types.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -37,9 +38,9 @@ function refreshOrStop(): void {
 </script>
 
 <template>
-  <UiButton appearance="application" class="icon-button" type="button" :title="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
-  <UiButton appearance="application" class="icon-button" type="button" :title="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
-  <UiButton appearance="application" class="icon-button" type="button" :title="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
+  <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
+  <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
+  <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
     <IconStop v-if="activeTab?.loading" aria-hidden="true" />
     <IconRefresh v-else aria-hidden="true" />
   </UiButton>
@@ -47,7 +48,7 @@ function refreshOrStop(): void {
   <UiButton appearance="application"
     class="icon-button find-button"
     type="button"
-    :title="t('shell.toolbar.findTitle')"
+    v-tooltip="t('shell.toolbar.findTitle')"
     :aria-label="t('shell.toolbar.find')"
     aria-keyshortcuts="Control+F Meta+F"
     :disabled="!activeTab"
@@ -58,7 +59,7 @@ function refreshOrStop(): void {
   <UiButton appearance="application"
     class="zoom-button"
     type="button"
-    :title="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
+    v-tooltip="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
     :aria-label="t('shell.toolbar.zoom', { percent: `${activeTab?.zoomPercent ?? 100}%` })"
     :aria-expanded="zoomOpen"
     :disabled="!activeTab"
@@ -70,7 +71,7 @@ function refreshOrStop(): void {
     class="icon-button bookmarks-button"
     :class="{ bookmarked: currentBookmark }"
     type="button"
-    :title="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
+    v-tooltip="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
     :aria-label="t('shell.toolbar.bookmarks')"
     aria-keyshortcuts="Control+D Meta+D"
     :aria-expanded="bookmarksOpen"

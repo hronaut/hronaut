@@ -21,7 +21,7 @@ describe('PanelResizeHandle', () => {
     expect(separator).toHaveAttribute('aria-valuemin', '280')
     expect(separator).toHaveAttribute('aria-valuemax', '640')
     expect(separator).toHaveAttribute('aria-valuenow', '420')
-    expect(separator).toHaveAttribute('title', 'Drag or use arrow keys')
+    expect(separator).toHaveAttribute('data-tooltip', 'Drag or use arrow keys')
     expect(separator).toHaveClass('active')
 
     await fireEvent.pointerDown(separator)

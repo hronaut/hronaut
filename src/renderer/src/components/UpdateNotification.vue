@@ -11,6 +11,7 @@ import IconInfo from '~icons/material-symbols/info-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import type { AppUpdateState } from '../../../shared/types'
 import { formatReleaseNotes } from '../release-notes'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = withDefaults(defineProps<{ state: AppUpdateState; mode?: 'pill' | 'panel'; disabled?: boolean }>(), {
   mode: 'pill',
@@ -80,7 +81,7 @@ const pillLabel = computed(() => {
     type="button"
     aria-live="polite"
     :aria-label="t('updates.open', { status: pillLabel })"
-    :title="t('updates.open', { status: pillLabel })"
+    v-tooltip="t('updates.open', { status: pillLabel })"
     @click="emit('open')"
   >
     <span class="update-status-icon" :class="{ busy, error: state.status === 'error' || state.status === 'install-error' }" aria-hidden="true">

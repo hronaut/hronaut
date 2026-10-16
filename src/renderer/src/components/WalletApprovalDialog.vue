@@ -11,6 +11,7 @@ import {
   type WalletTransactionWarning,
   type WalletTypedDataWarning
 } from '../../../shared/wallet.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   controller: WalletsController
@@ -167,7 +168,7 @@ function rawDetails(): string {
           <div><dt>{{ t('wallets.approval.account') }}</dt><dd><code>{{ request.details?.publicAddress }}</code></dd></div>
           <div><dt>{{ t('wallets.approval.network') }}</dt><dd>{{ request.details?.networkName ?? request.networkId }}</dd></div>
           <div><dt>{{ t('wallets.approval.origin') }}</dt><dd><code>{{ request.origin }}</code></dd></div>
-          <div><dt>{{ t('wallets.approval.workspace') }}</dt><dd :title="request.workspaceId">{{ workspaceName }}</dd></div>
+          <div><dt>{{ t('wallets.approval.workspace') }}</dt><dd v-tooltip="request.workspaceId">{{ workspaceName }}</dd></div>
           <div><dt>{{ t('wallets.approval.requester') }}</dt><dd>{{ t('wallets.approval.requesterValue', { name: request.requester.name ?? request.requester.id, type: request.requester.type }) }}</dd></div>
           <div v-if="request.details?.method"><dt>{{ t('wallets.approval.method') }}</dt><dd>{{ request.details.method }}</dd></div>
           <div v-if="request.details?.contract"><dt>{{ t('wallets.approval.contract') }}</dt><dd><code>{{ request.details.contract }}</code></dd></div>

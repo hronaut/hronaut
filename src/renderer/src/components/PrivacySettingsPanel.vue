@@ -12,6 +12,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import IconSwapHoriz from '~icons/material-symbols/swap-horiz-rounded'
 import IconWorkspaces from '~icons/material-symbols/workspaces-rounded'
 import type { PrivacySettingsController } from '../composables/usePrivacySettingsController'
+import { vTooltip } from '../ui/tooltip.js'
 
 interface WorkspaceDataSummary {
   id: string
@@ -160,8 +161,8 @@ watch(() => filteredWebsites.value.map(site => site.origin).join('\n'), async (_
       <article v-for="site in filteredWebsites" v-else :key="site.origin" class="janitor-site">
         <span class="janitor-site-icon" aria-hidden="true"><IconLanguage /></span>
         <span class="janitor-site-copy">
-          <strong :title="site.title">{{ site.hostname }}</strong>
-          <small :title="site.origin">{{ site.origin }}</small>
+          <strong v-tooltip="site.title">{{ site.hostname }}</strong>
+          <small v-tooltip="site.origin">{{ site.origin }}</small>
           <span v-if="websiteMeta(site).length" class="janitor-site-meta">
             <span v-for="item in websiteMeta(site)" :key="item">{{ item }}</span>
           </span>

@@ -85,6 +85,7 @@ import type {
 } from '../shared/wallet.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions.js'
+import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
 
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
@@ -566,6 +567,8 @@ const shellApi: HronautShellApi = {
     ipcRenderer.on('browser:occlusion-pages-hidden', handler)
     return () => ipcRenderer.removeListener('browser:occlusion-pages-hidden', handler)
   },
+  showTooltip: (request: ShellTooltipRequest) => ipcRenderer.send('shell-tooltip:show', request),
+  hideTooltip: (id?: number) => ipcRenderer.send('shell-tooltip:hide', id),
   setFollowAgentActivitySuspended: (suspended: boolean) =>
     ipcRenderer.send('browser:follow-agent-activity-suspended', suspended),
   onHelpRequested: (listener: (action: HelpMenuAction) => void) => {

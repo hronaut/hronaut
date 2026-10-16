@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { beginSurfaceLeave, overlayTransitionHooks } from '../composables/overlay-motion.js'
 import UiButton from './UiButton.vue'
+import { vTooltip } from './tooltip.js'
 
 const props = withDefaults(defineProps<{
   label: string
@@ -67,7 +68,7 @@ defineExpose({ close, focus: () => trigger.value?.focus() })
       variant="ghost"
       :disabled="disabled"
       :aria-label="label"
-      :title="title"
+      v-tooltip="title"
       :aria-expanded="open"
       :aria-controls="panelId"
       @click="toggle"

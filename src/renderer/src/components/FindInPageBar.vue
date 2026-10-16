@@ -14,6 +14,7 @@ import {
   type HronautApi
 } from '../../../shared/types.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { vTooltip } from '../ui/tooltip.js'
 
 type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage'>
 
@@ -166,13 +167,13 @@ defineExpose({ close, openForTab })
     <output class="find-count" aria-live="polite" :aria-busy="searching">
       {{ searching ? t('find.searching') : searchFailed ? t('find.failed') : query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
     </output>
-    <UiButton v-if="searchFailed" appearance="application" class="find-action" type="button" :title="t('find.retry')" :aria-label="t('find.retry')" @click="retrySearch">
+    <UiButton v-if="searchFailed" appearance="application" class="find-action" type="button" v-tooltip="t('find.retry')" :aria-label="t('find.retry')" @click="retrySearch">
       <IconRefresh aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"
       class="find-action find-option"
       type="button"
-      :title="t('find.matchCaseTitle')"
+      v-tooltip="t('find.matchCaseTitle')"
       :aria-label="t('find.matchCase')"
       :aria-pressed="caseSensitive"
       @click="toggleCaseSensitive"
@@ -180,7 +181,7 @@ defineExpose({ close, openForTab })
     <UiButton appearance="application"
       class="find-action"
       type="button"
-      :title="t('find.previousTitle')"
+      v-tooltip="t('find.previousTitle')"
       :aria-label="t('find.previous')"
       :aria-disabled="searching || !query || !result.matches"
       @click="navigateMatch(false)"
@@ -190,14 +191,14 @@ defineExpose({ close, openForTab })
     <UiButton appearance="application"
       class="find-action"
       type="button"
-      :title="t('find.nextTitle')"
+      v-tooltip="t('find.nextTitle')"
       :aria-label="t('find.next')"
       :aria-disabled="searching || !query || !result.matches"
       @click="navigateMatch(true)"
     >
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
-    <UiButton appearance="application" class="find-action" type="button" :title="t('find.closeTitle')" :aria-label="t('find.close')" @click="close">
+    <UiButton appearance="application" class="find-action" type="button" v-tooltip="t('find.closeTitle')" :aria-label="t('find.close')" @click="close">
       <IconClose aria-hidden="true" />
     </UiButton>
   </div>

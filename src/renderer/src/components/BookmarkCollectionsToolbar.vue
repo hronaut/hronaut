@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { BookmarkCollectionsController } from '../composables/useBookmarkCollectionsController.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import UiButton from '../ui/UiButton.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{ controller: BookmarkCollectionsController; blocked: boolean }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -59,7 +60,7 @@ function keydown(event: KeyboardEvent): void {
     <div class="bookmark-collection-actions">
       <UiButton appearance="application" type="button" :disabled="blocked || pending || collections.length >= 50" @click="begin()">{{ t('bookmarks.newCollection') }}</UiButton>
       <UiButton v-if="selected" appearance="application" type="button" :disabled="blocked || pending" @click="begin(selected.id)">{{ t('bookmarks.renameCollection') }}</UiButton>
-      <UiButton v-if="selected" appearance="application" type="button" :disabled="blocked || pending" :title="t('bookmarks.removeCollectionHint')" @click="finish(controller.remove)">{{ t('bookmarks.removeCollection') }}</UiButton>
+      <UiButton v-if="selected" appearance="application" type="button" :disabled="blocked || pending" v-tooltip="t('bookmarks.removeCollectionHint')" @click="finish(controller.remove)">{{ t('bookmarks.removeCollection') }}</UiButton>
     </div>
     <div v-if="editor" class="bookmark-collection-editor">
       <input ref="nameInput" v-model="draft" :aria-label="t('bookmarks.collectionName')" maxlength="80" :disabled="blocked || pending" @keydown="keydown" />

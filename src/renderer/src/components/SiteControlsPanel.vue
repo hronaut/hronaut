@@ -14,6 +14,7 @@ import type {
   SupportedLocale
 } from '../../../shared/types'
 import PanelDockPicker from './PanelDockPicker.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   hostname: string
@@ -94,7 +95,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             <option value="allow">{{ t('shell.siteControls.allow') }}</option>
             <option value="deny">{{ t('shell.siteControls.block') }}</option>
           </select>
-          <UiButton appearance="application" type="button" :aria-label="t('runtimeActions.permission.resetAria', { permission: permissionLabel(permission.permission), origin: permission.origin })" :title="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" type="button" :aria-label="t('runtimeActions.permission.resetAria', { permission: permissionLabel(permission.permission), origin: permission.origin })" v-tooltip="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </div>
       <p v-else>{{ t('shell.siteControls.empty') }}</p>

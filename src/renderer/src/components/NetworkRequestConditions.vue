@@ -16,6 +16,7 @@ import {
   type BrowserNetworkAbortReason,
   type BrowserNetworkRouteSummary
 } from '../../../shared/types'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   application?: 'confirmed' | 'pending' | 'unknown'
@@ -87,9 +88,9 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
       </div>
       <div v-else-if="routes.length" class="request-condition-list" :aria-label="t('network.conditions.heading')">
         <article v-for="(route, index) in routes" :key="route.id" class="request-condition-item">
-          <span class="request-condition-order" :title="index === 0 ? t('network.conditions.firstWins') : t('network.conditions.priority', { number: localNumber(index + 1) })">{{ localNumber(index + 1) }}</span>
+          <span class="request-condition-order" v-tooltip="index === 0 ? t('network.conditions.firstWins') : t('network.conditions.priority', { number: localNumber(index + 1) })">{{ localNumber(index + 1) }}</span>
           <span class="request-condition-copy">
-            <strong :title="route.urlPattern">{{ route.urlPattern }}</strong>
+            <strong v-tooltip="route.urlPattern">{{ route.urlPattern }}</strong>
             <small>
               {{ route.method || t('network.conditions.anyMethod') }} ·
               <template v-if="route.behavior === 'abort'">{{ t('network.conditions.failAs', { reason: route.abort }) }}</template>
@@ -104,9 +105,9 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
               <input type="checkbox" :checked="route.enabled" :aria-label="t('network.conditions.enabledAria', { pattern: route.urlPattern })" :disabled="unconfirmed() || state === 'saving'" @change="emit('setEnabled', route.id, ($event.target as HTMLInputElement).checked)" />
               {{ route.enabled ? t('network.conditions.enabled') : t('network.conditions.disabled') }}
             </label>
-            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveUpAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveUp')" :disabled="unconfirmed() || state === 'saving' || index === 0" @click="emit('move', route.id, 'up')"><IconKeyboardArrowUp aria-hidden="true" /></UiButton>
-            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveDownAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveDown')" :disabled="unconfirmed() || state === 'saving' || index === routes.length - 1" @click="emit('move', route.id, 'down')"><IconKeyboardArrowDown aria-hidden="true" /></UiButton>
-            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.removeAria', { pattern: route.urlPattern })" :title="t('network.conditions.remove')" :disabled="unconfirmed() || state === 'saving'" @click="emit('remove', route.id)"><IconDelete aria-hidden="true" /></UiButton>
+            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveUpAria', { pattern: route.urlPattern })" v-tooltip="t('network.conditions.moveUp')" :disabled="unconfirmed() || state === 'saving' || index === 0" @click="emit('move', route.id, 'up')"><IconKeyboardArrowUp aria-hidden="true" /></UiButton>
+            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.moveDownAria', { pattern: route.urlPattern })" v-tooltip="t('network.conditions.moveDown')" :disabled="unconfirmed() || state === 'saving' || index === routes.length - 1" @click="emit('move', route.id, 'down')"><IconKeyboardArrowDown aria-hidden="true" /></UiButton>
+            <UiButton appearance="application" type="button" :aria-label="t('network.conditions.removeAria', { pattern: route.urlPattern })" v-tooltip="t('network.conditions.remove')" :disabled="unconfirmed() || state === 'saving'" @click="emit('remove', route.id)"><IconDelete aria-hidden="true" /></UiButton>
           </span>
         </article>
       </div>

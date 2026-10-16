@@ -52,7 +52,7 @@ test('attributes and filters similar report downloads by retained origins withou
       expect(entry?.savePath).toBeTruthy()
       const row = panel.getByRole('article').filter({ hasText: entry!.filename })
       await expect(row.locator('.download-origin')).toHaveText(`Download origin: ${origin}`)
-      await expect(row.locator('.download-origin')).toHaveAttribute('title', origin)
+      await expect(row.locator('.download-origin')).toHaveAttribute('data-tooltip', origin)
       expect(await row.innerHTML()).not.toMatch(/private\/report|token=|synthetic-secret/)
       await expect(row.getByRole('link')).toHaveCount(0)
       expect(await readFile(entry!.savePath!, 'utf8')).toBe(contents[index])

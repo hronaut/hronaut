@@ -8,6 +8,7 @@ import IconPause from '~icons/material-symbols/pause-rounded'
 import IconPlay from '~icons/material-symbols/play-arrow-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import type { McpStatusController } from '../composables/useMcpStatusController'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   controller: McpStatusController
@@ -84,7 +85,7 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
     <UiButton appearance="application"
       class="mcp-pause-button"
       type="button"
-      :title="pauseTitle"
+      v-tooltip="pauseTitle"
       :aria-description="pauseTitle"
       :aria-busy="pauseBusy"
       :aria-label="(pauseBusy ? t('runtime.locks.waiting') + ': ' : '') + t(state.paused ? 'runtime.mcp.resumeAgents' : 'runtime.mcp.pauseAgents')"

@@ -37,6 +37,7 @@ import NetworkContentSearch from './NetworkContentSearch.vue'
 import NetworkRequestConditions from './NetworkRequestConditions.vue'
 import NetworkRequestPriority from './NetworkRequestPriority.vue'
 import PanelDockPicker from './PanelDockPicker.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -206,10 +207,10 @@ onBeforeUnmount(dispose)
             type="button"
             :class="{ active: networkContentSearchOpen }"
             :aria-label="t('network.searchContent')"
-            :title="t('network.searchContentTitle')"
+            v-tooltip="t('network.searchContentTitle')"
             @click="toggleNetworkContentSearch"
           ><IconSearch aria-hidden="true" /></UiButton>
-          <UiButton appearance="application" type="button" :aria-label="t('network.refreshRequests')" :title="t('network.refresh')" @click="refreshNetworkMonitor()"><IconRefresh aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" type="button" :aria-label="t('network.refreshRequests')" v-tooltip="t('network.refresh')" @click="refreshNetworkMonitor()"><IconRefresh aria-hidden="true" /></UiButton>
           <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('network.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
@@ -245,7 +246,7 @@ onBeforeUnmount(dispose)
               type="search"
               :aria-label="t('network.filterAria')"
               :placeholder="t('network.filterPlaceholder')"
-              :title="t('network.filterTitle')"
+              v-tooltip="t('network.filterTitle')"
               spellcheck="false"
             />
           </label>
@@ -259,7 +260,7 @@ onBeforeUnmount(dispose)
             <UiButton appearance="application"
               type="button"
               :aria-label="t('network.sortDirection', { direction: networkSortDirection === 'asc' ? t('network.ascending') : t('network.descending') })"
-              :title="networkSortDirection === 'asc' ? t('network.ascendingTitle') : t('network.descendingTitle')"
+              v-tooltip="networkSortDirection === 'asc' ? t('network.ascendingTitle') : t('network.descendingTitle')"
               @click="toggleNetworkSortDirection"
             >
               <IconKeyboardArrowUp v-if="networkSortDirection === 'asc'" aria-hidden="true" />
@@ -271,7 +272,7 @@ onBeforeUnmount(dispose)
             {{ t('network.failuresOnly') }}
             <span v-if="networkFailureCount">{{ localNumber(networkFailureCount) }}</span>
           </label>
-          <label class="preserve-logs-toggle" :title="t('network.preserveTitle')">
+          <label class="preserve-logs-toggle" v-tooltip="t('network.preserveTitle')">
             <input type="checkbox" :checked="activeTab?.preserveDiagnosticLogs" :disabled="preservationBusy" @change="updatePreservation" />
             {{ t('network.preserve') }}
           </label>
@@ -320,11 +321,11 @@ onBeforeUnmount(dispose)
             >
               <span class="network-request-primary">
                 <span class="network-request-status">{{ networkRequestStatus(request) }}</span>
-                <strong :title="request.url">{{ networkRequestName(request) }}</strong>
+                <strong v-tooltip="request.url">{{ networkRequestName(request) }}</strong>
                 <small
                   v-if="request.responseSource && request.responseSource !== 'network'"
                   class="network-request-source"
-                  :title="networkRequestSourceSummary(request)"
+                  v-tooltip="networkRequestSourceSummary(request)"
                 >{{ networkResponseSourceLabel(request.responseSource) }}</small>
               </span>
               <span class="network-request-meta">
@@ -338,7 +339,7 @@ onBeforeUnmount(dispose)
                 class="network-request-waterfall"
                 role="img"
                 :aria-label="networkWaterfallLabel(request)"
-                :title="networkWaterfallLabel(request)"
+                v-tooltip="networkWaterfallLabel(request)"
               >
                 <i
                   :class="{ pending: request.durationMs === undefined && !request.completedAt }"
@@ -403,7 +404,7 @@ onBeforeUnmount(dispose)
                       complete: networkReplayState === 'replayed'
                     }"
                     :disabled="networkReplayState === 'replaying'"
-                    :title="networkReplayRequiresConfirmation(networkRequestDetails.method)
+                    v-tooltip="networkReplayRequiresConfirmation(networkRequestDetails.method)
                       ? t('network.details.replayRisk')
                       : t('network.details.replaySafe')"
                     @click="replaySelectedNetworkRequest"
@@ -592,7 +593,7 @@ onBeforeUnmount(dispose)
                     <header>
                       <span>{{ t('network.details.event') }}</span>
                       <strong>{{ message.eventName }}</strong>
-                      <small :title="message.eventId ? t('network.details.eventId', { id: message.eventId }) : undefined">{{ message.eventId ? `${message.eventId} · ` : '' }}{{ debugTimestamp(message.timestamp) }}</small>
+                      <small v-tooltip="message.eventId ? t('network.details.eventId', { id: message.eventId }) : undefined">{{ message.eventId ? `${message.eventId} · ` : '' }}{{ debugTimestamp(message.timestamp) }}</small>
                       <code>{{ formatBytes(message.sizeBytes) }}</code>
                     </header>
                     <pre v-if="message.data">{{ message.data }}</pre>
@@ -686,7 +687,7 @@ onBeforeUnmount(dispose)
           <UiButton appearance="application" variant="primary"
             type="button"
             class="primary"
-            :title="networkHarExport?.path"
+            v-tooltip="networkHarExport?.path"
             :disabled="!filteredNetworkRequests.length || networkHarSaveState === 'saving'"
             @click="saveSanitizedNetworkHar"
           >

@@ -80,10 +80,10 @@ describe('BrowserPageActions', () => {
     // the rail's pause-all, and every toggle keeps a name, tooltip and state.
     for (const button of buttons) {
       expect(button).toHaveTextContent(/^$/)
-      expect(button.getAttribute('title')).toBeTruthy()
+      expect(button.getAttribute('data-tooltip')).toBeTruthy()
       expect(button).toHaveAttribute('aria-pressed')
     }
-    expect(screen.getByRole('button', { name: 'Pause agents for this tab' })).toHaveAttribute('title', 'Pause agents for this tab')
+    expect(screen.getByRole('button', { name: 'Pause agents for this tab' })).toHaveAttribute('data-tooltip', 'Pause agents for this tab')
     expect(screen.getByRole('button', { name: 'Lock page input in this tab' })).toHaveAttribute('aria-pressed', 'false')
     const freeze = screen.getByRole('button', { name: 'Freeze this live page for deterministic review' })
     const pause = screen.getByRole('button', { name: 'Pause agents for this tab' })
@@ -105,13 +105,13 @@ describe('BrowserPageActions', () => {
     const activeTab = tab()
     const view = renderActions('idle', activeTab)
     const mute = screen.getByRole('button', { name: 'Mute Tab' })
-    expect(mute).toHaveAttribute('title', 'Mute Example')
+    expect(mute).toHaveAttribute('data-tooltip', 'Mute Example')
     expect(mute).toHaveAttribute('aria-pressed', 'false')
     await userEvent.click(mute)
     expect(view.emitted().toggleTabMuted).toEqual([[activeTab]])
     await view.rerender({ activeTab: tab({ id: 'tab-2', title: 'Music', muted: true }) })
     const unmute = screen.getByRole('button', { name: 'Unmute Tab' })
-    expect(unmute).toHaveAttribute('title', 'Unmute Music')
+    expect(unmute).toHaveAttribute('data-tooltip', 'Unmute Music')
     expect(unmute).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(unmute)
     expect(view.emitted().toggleTabMuted?.[1]).toEqual([expect.objectContaining({ id: 'tab-2', muted: true })])

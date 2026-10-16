@@ -23,6 +23,7 @@ import SiteStorageIndexedDbView from './SiteStorageIndexedDbView.vue'
 import PwaLifecyclePanel from './PwaLifecyclePanel.vue'
 import SiteStoragePwaView from './SiteStoragePwaView.vue'
 import SiteStorageUsageView from './SiteStorageUsageView.vue'
+import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -166,12 +167,12 @@ onBeforeUnmount(dispose)
           <div v-else-if="!filteredSiteStorageItems.length" class="site-storage-empty compact"><IconSearch aria-hidden="true" /><strong>{{ t('siteStorage.noMatches') }}</strong></div>
           <template v-else>
             <article v-for="(item, index) in filteredSiteStorageItems" :key="`${item.key}-${item.domain ?? ''}-${item.path ?? ''}-${index}`" class="site-storage-item" :class="{ protected: item.protected }">
-              <UiButton appearance="application" class="site-storage-item-main" type="button" :disabled="item.protected || item.valueTruncated || siteStorageState === 'saving'" :title="item.protected ? t('siteStorage.protectedTitle') : item.valueTruncated ? t('siteStorage.partialValueTitle') : t('siteStorage.editTitle')" @click="editSiteStorageItem(item)">
+              <UiButton appearance="application" class="site-storage-item-main" type="button" :disabled="item.protected || item.valueTruncated || siteStorageState === 'saving'" v-tooltip="item.protected ? t('siteStorage.protectedTitle') : item.valueTruncated ? t('siteStorage.partialValueTitle') : t('siteStorage.editTitle')" @click="editSiteStorageItem(item)">
                   <strong>{{ item.key }}</strong>
                   <code>{{ item.protected ? t('siteStorage.protectedValue') : (item.value || t('siteStorage.emptyValue')) }}</code>
                   <small>{{ localBytes(item.valueBytes) }}<template v-if="item.domain"> · {{ item.domain }}{{ item.path }}</template><template v-if="item.valueTruncated"> {{ t('siteStorage.previewTruncated') }}</template></small>
               </UiButton>
-              <UiButton appearance="application" class="site-storage-item-delete" type="button" :disabled="item.protected || siteStorageState === 'saving'" :aria-label="item.protected ? t('siteStorage.protectedAria', { key: item.key }) : t('siteStorage.deleteAria', { key: item.key })" :title="item.protected ? t('siteStorage.protectedCookie') : t('siteStorage.deleteEntry')" @click="deleteSiteStorageItem(item)"><IconLock v-if="item.protected" aria-hidden="true" /><IconDelete v-else aria-hidden="true" /></UiButton>
+              <UiButton appearance="application" class="site-storage-item-delete" type="button" :disabled="item.protected || siteStorageState === 'saving'" :aria-label="item.protected ? t('siteStorage.protectedAria', { key: item.key }) : t('siteStorage.deleteAria', { key: item.key })" v-tooltip="item.protected ? t('siteStorage.protectedCookie') : t('siteStorage.deleteEntry')" @click="deleteSiteStorageItem(item)"><IconLock v-if="item.protected" aria-hidden="true" /><IconDelete v-else aria-hidden="true" /></UiButton>
             </article>
           </template>
         </div>

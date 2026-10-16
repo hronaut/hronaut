@@ -6,6 +6,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import type { AppToast } from '../composables/useAppToastController'
+import { vTooltip } from '../ui/tooltip.js'
 
 defineProps<{
   toasts: readonly AppToast[]
@@ -35,7 +36,7 @@ const { t } = useI18n({ useScope: 'global' })
       :class="toast.tone"
       :role="toast.tone === 'error' ? 'alert' : 'status'"
       :aria-label="toast.title"
-      :title="`${toast.title}: ${toast.message}`"
+      v-tooltip="`${toast.title}: ${toast.message}`"
       @focusin="$emit('retain', toast.id)"
     >
       <span class="app-toast-mark" aria-hidden="true">
