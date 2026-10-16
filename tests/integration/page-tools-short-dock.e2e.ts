@@ -35,6 +35,9 @@ for (const dock of ['top', 'bottom', 'left', 'right'] as const) {
             await writeFile(info.outputPath(name), Buffer.from(png, 'base64'))
           }
           const body = panel.locator('.page-tools-body')
+          // scrollHeight and clientHeight are rounded to whole CSS pixels while scroll offsets snap to device pixels, so
+          // at a fractional scale the furthest reachable offset can fall short of their difference by one more device pixel.
+          const endSlack = 1 + 1 / scale
           const receipts: unknown[] = []
           const wheel = async (target: Locator) => {
             const before = await body.evaluate(element => {
@@ -53,7 +56,7 @@ for (const dock of ['top', 'bottom', 'left', 'right'] as const) {
             try {
               await native(target, '--wheel-once')
               await expect.poll(async () => (await observed()).wheels.length).toBe(1)
-              if (before.top < before.max - 1) await expect.poll(async () => (await observed()).ends).toBeGreaterThan(0)
+              if (before.top < before.max - endSlack) await expect.poll(async () => (await observed()).ends).toBeGreaterThan(0)
               const after = await observed()
               expect(after.wheels[0]!.trusted).toBe(true)
               expect(after.wheels[0]!.deltaY).toBeGreaterThan(0)
@@ -86,7 +89,7 @@ for (const dock of ['top', 'bottom', 'left', 'right'] as const) {
           }
           // Footer and empty-result recovery share the same ordinary scroll route.
           for (let step = 0; step < 8; step++) {
-            const atEnd = await body.evaluate(element => element.scrollTop >= element.scrollHeight - element.clientHeight - 1)
+            const atEnd = await body.evaluate((element, slack) => element.scrollTop >= element.scrollHeight - element.clientHeight - slack, endSlack)
             if (atEnd) break
             await wheel(body)
           }

@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.50.0] - 2026-10-16
+
 ### Added
 
 - A tab emulating a viewport smaller than the window now shows that viewport at its exact size, centered on a dotted backdrop with a thin frame, instead of the page sitting in the corner of an empty background. A caption above the page names the size, Desktop or Mobile, and the pixel ratio when it is not 1×, with buttons to rotate the viewport, fit it to the window and return the tab to the window size. When the window is only a little taller than the viewport, the page moves down just enough for the caption; without room above, the caption goes below the page, or into a card beside it when only the sides have room. In split view each pane frames its own tab. The page still gets the emulated viewport, and an agent's screenshots keep the emulated size. Removing the viewport, from the frame, Responsive preview or an agent, gives the page the whole space at once.
@@ -20,6 +22,20 @@ All notable changes to Hronaut are documented in this file.
 
 - Opening Commands, Search tabs, a workspace editor, Settings or another Hronaut dialog no longer flashes the page area white. Before, Hronaut hid the website the moment a dialog opened, and the empty window showed for several frames until the dialog was drawn. Now a still picture of the page stays under the dialog, and the page is hidden only once that picture is on screen. The page also stays visible behind an open dialog, dimmed and softly blurred, instead of leaving an empty area. This also holds when a dialog opens just as Hronaut updates the page's preview for the tab overview, such as right after the page loads or the window is resized.
 - On Windows and Linux, the minimize, maximize and close buttons in the top-right corner now dim with the rest of the window when Search tabs, Create workspace, Commands or another dialog with a backdrop opens, and return to their colors when it closes. Before, they stayed at full brightness above the backdrop, because they are drawn above the window's own content. A dialog opened over another dims them by both backdrops.
+
+### Known issues
+
+- An agent's request for you, and the **Needs you** mark on its workspace and tab, end at your next click or key press anywhere in Hronaut, even in another workspace or on a control unrelated to the request.
+- A panel opened in its own window keeps the operating system's tooltips instead of the themed ones.
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.49.0] - 2026-10-16
 
