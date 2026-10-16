@@ -75,3 +75,5 @@
 @import './styles/dialogs.css' layer(application);
 @import './styles/settings.css' layer(application);
 @import './styles/panels.css' layer(application);
+/* Themed native controls follow the application layer; see controls.css. */
+@import './styles/controls.css' layer(components);

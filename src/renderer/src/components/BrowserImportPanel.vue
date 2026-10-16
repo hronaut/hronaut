@@ -142,12 +142,12 @@ onBeforeUnmount(() => { generation++; void props.browser.browserImport.cancel().
 .browser-import-footer { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--border-soft); }
 .browser-import-panel :is(h3, h4, p) { margin: 0; line-height: 1.5; }
 .browser-import-panel h3 { font-size: var(--type-title-size); font-weight: var(--weight-strong); }
-.browser-import-panel :is(select, input[type=search]) { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px; border: 1px solid var(--border); border-radius: var(--corner-2); background: var(--surface); color: var(--text); font: inherit; }
+.browser-import-panel :is(select, input[type=search]) { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px; border: 1px solid var(--border); border-radius: var(--corner-2); background-color: var(--surface); color: var(--text); font: inherit; }
+.browser-import-panel select { padding-right: 28px; }
 .browser-import-panel :is(select, input[type=search]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .browser-import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .browser-import-sites { height: clamp(240px, 35vh, 360px); overflow: auto; display: grid; align-content: start; gap: 4px; }
 .browser-import-sites label { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: var(--corner-1); background: var(--surface); }
-.browser-import-sites input { accent-color: var(--accent); }
 .browser-import-sites label span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }
 .browser-import-sites small { display: block; opacity: 0.7; }
 </style>
