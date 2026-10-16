@@ -109,3 +109,25 @@ test('a tab whose viewport Hronaut cannot confirm fills its space until the view
   await expect.poll(async () => (await frames())[0]?.viewport.width).toBe(600)
   await expect.poll(async () => (await viewBounds())?.width).toBe(600)
 })
+
+test('a viewport larger than the window after a framed one still captures at its full size', async ({ capabilities, appWindow, electronApp }) => {
+  const { tabId, fixtureUrl } = capabilities
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1400, 1000))
+  const call = (method: string, ...args: unknown[]) => appWindow.evaluate(`window.hronaut.${method}(${[tabId, ...args].map(arg => JSON.stringify(arg)).join(', ')})`)
+  const page = (script: string) => electronApp.evaluate(({ webContents }, input) => (
+    webContents.getAllWebContents().find(contents => contents.getURL() === input.url)!.executeJavaScript(input.script)
+  ), { url: fixtureUrl, script })
+  const captureSize = () => electronApp.evaluate(async ({ webContents }, url) => (
+    (await webContents.getAllWebContents().find(contents => contents.getURL() === url)!.capturePage()).getSize()
+  ), fixtureUrl)
+  const viewport = (width: number, height: number) => ({ width, height, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'landscape' })
+
+  await call('setTabViewport', viewport(600, 360))
+  await expect.poll(() => page('[innerWidth, innerHeight]')).toEqual([600, 360])
+  await expect.poll(captureSize).toEqual({ width: 600, height: 360 })
+  // Chromium sizes captures by the view the page had when its viewport changed,
+  // so the view must take its new size first or captures stop at the window.
+  await call('setTabViewport', viewport(1800, 1200))
+  await expect.poll(() => page('[innerWidth, innerHeight]')).toEqual([1800, 1200])
+  await expect.poll(captureSize).toEqual({ width: 1800, height: 1200 })
+})
