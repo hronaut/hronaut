@@ -3,7 +3,9 @@
 html, body, #app { @apply w-full h-full m-0 overflow-hidden; }
 body { @apply [background:var(--toolbar)] text-copy; }
 /* Around the page card, the shell's surface continues from the toolbar or, with the tab rail, from the rail. */
-body:has(.shell.vertical-tabs-shell:not(.detached-panel-window)) { @apply [background:var(--shell-bottom)]; }
+body:has(.shell.vertical-tabs-shell:not(.detached-panel-window)) { background: var(--shell-wash) fixed, var(--shell-bottom); }
+/* The workspace wash crossfades when the workspace in view changes. */
+:root { transition: --workspace-tint 600ms ease-in-out; }
 /* Home and Settings have no toolbar, so with tabs above the page the space continues from the tab strip. */
 body:has(.shell.home-shell:not(.vertical-tabs-shell):not(.detached-panel-window)) { @apply [background:var(--shell-top)]; }
 button, input { @apply [font:inherit]; }

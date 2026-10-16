@@ -20,6 +20,13 @@
   font-display: fallback;
 }
 
+/* The color of the workspace in view, set at runtime; registered so a change crossfades. */
+@property --workspace-tint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
 :root,
 .ui-theme-scope {
   --font-ui: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -94,6 +101,11 @@
   --group-tint-hover: 16%;
   --group-border-tint: 30%;
   --group-border-tint-active: 52%;
+
+  /* The shell's surface around the page takes a radial wash of the workspace in view, strongest in the top-left
+     corner and gone before the window controls. Muted text keeps 4.5:1 at its strongest for all workspace colors. */
+  --shell-wash-strength: 13%;
+  --shell-wash: radial-gradient(ellipse 75vw 90vh at 0 0, color-mix(in srgb, var(--workspace-tint) var(--shell-wash-strength), transparent), transparent);
 }
 
 /* Reduced motion keeps fades and drops movement, everywhere at once. */
@@ -131,6 +143,7 @@
   --group-tint: 5%;
   --group-tint-active: 10%;
   --group-tint-hover: 11%;
+  --shell-wash-strength: 10%;
 }
 
 :root,
