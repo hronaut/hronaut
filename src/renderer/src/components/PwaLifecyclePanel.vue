@@ -58,7 +58,7 @@ onBeforeUnmount(() => { disposed = true; request++; clearInterval(timer) })
 </template>
 
 <style scoped>
-.pwa-lifecycle { padding: 12px; font-size: 12px; line-height: 1.5; border-bottom: 1px solid var(--border-soft); }
+.pwa-lifecycle { padding: 12px; font-size: var(--type-small-size); line-height: 1.5; border-bottom: 1px solid var(--border-soft); }
 .pwa-lifecycle p { margin: 8px 0; }
 .pwa-lifecycle-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .pwa-lifecycle-events { max-height: 260px; overflow: auto; padding-left: 24px; }

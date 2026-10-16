@@ -6,15 +6,15 @@ button, input { @apply [font:inherit]; }
 button { @apply [color:inherit]; }
 
 .startup-failure {
-  @apply [width:min(560px,_calc(100%_-_40px))] [margin:clamp(40px,_12vh,_120px)_auto_0] [padding:28px] [border:1px_solid_var(--border)] [border-radius:18px] bg-surface [box-shadow:0_18px_48px_var(--shadow)];
+  @apply [width:min(560px,_calc(100%_-_40px))] [margin:clamp(40px,_12vh,_120px)_auto_0] [padding:28px] [border:1px_solid_var(--border)] [border-radius:var(--corner-4)] bg-surface [box-shadow:var(--elevation-3)];
 }
-.startup-failure-brand { @apply flex items-center [gap:10px] text-muted [font-size:0.78rem] [font-weight:800] [letter-spacing:0.16em]; }
-.startup-failure-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:9px] text-button-copy bg-accent [box-shadow:0_5px_16px_var(--shadow)] [letter-spacing:0]; }
+.startup-failure-brand { @apply flex items-center [gap:10px] text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [letter-spacing:0.16em]; }
+.startup-failure-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:var(--corner-2)] text-button-copy bg-accent [box-shadow:0_5px_16px_var(--shadow)] [letter-spacing:0]; }
 .startup-failure-copy { @apply [margin:24px_0]; }
 .startup-failure-copy h1 { @apply m-0 [font-size:clamp(1.8rem,_6vw,_2.8rem)] [line-height:1.06]; }
 .startup-failure-copy p { @apply [margin:12px_0] text-muted [line-height:1.55]; }
-.startup-failure-copy code { @apply block [max-height:150px] overflow-auto [padding:12px] [border:1px_solid_var(--border-soft)] [border-radius:10px] text-danger bg-surface-muted whitespace-pre-wrap [overflow-wrap:anywhere]; }
-.startup-failure-retry { @apply [min-height:42px] [padding:0_18px] border-0 [border-radius:10px] text-button-copy bg-accent cursor-pointer [font-weight:750]; }
+.startup-failure-copy code { @apply block [max-height:150px] overflow-auto [padding:12px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-danger bg-surface-muted whitespace-pre-wrap [overflow-wrap:anywhere]; }
+.startup-failure-retry { @apply [min-height:42px] [padding:0_18px] border-0 [border-radius:var(--corner-2)] text-button-copy bg-accent cursor-pointer [font-weight:var(--weight-strong)]; }
 .startup-failure-retry:hover { @apply [filter:brightness(1.06)]; }
 .startup-failure-retry:focus-visible { @apply [outline:3px_solid_var(--accent-soft)] [outline-offset:3px]; }
 .startup-failure small { @apply block [margin-top:16px] text-subtle; }

@@ -69,10 +69,10 @@ const { t } = useI18n({ useScope: 'global' })
   gap: 7px;
   padding: 4px 6px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--corner-2);
   color: var(--text);
   background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
-  box-shadow: 0 12px 34px rgba(0, 0, 0, .28);
+  box-shadow: var(--elevation-2);
   backdrop-filter: blur(14px);
   pointer-events: auto;
 }
@@ -84,7 +84,7 @@ const { t } = useI18n({ useScope: 'global' })
   width: 24px;
   height: 24px;
   place-items: center;
-  border-radius: 7px;
+  border-radius: var(--corner-1);
   color: var(--accent);
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
@@ -92,8 +92,8 @@ const { t } = useI18n({ useScope: 'global' })
 .app-toast.success .app-toast-mark { color: var(--success); }
 .app-toast-mark svg { width: 15px; height: 15px; }
 .app-toast-copy { display: flex; min-width: 0; align-items: baseline; gap: 7px; }
-.app-toast-copy strong { flex: 0 0 auto; font-size: 12px; line-height: 1.2; }
-.app-toast-copy > span { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.app-toast-copy strong { flex: 0 0 auto; font-size: var(--type-small-size); line-height: 1.2; }
+.app-toast-copy > span { min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--type-small-size); line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .app-toast > button {
   display: grid;
   width: 24px;
@@ -101,7 +101,7 @@ const { t } = useI18n({ useScope: 'global' })
   padding: 0;
   place-items: center;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--corner-1);
   color: var(--muted);
   background: transparent;
   cursor: pointer;
