@@ -112,8 +112,6 @@ describe('agent avatars in the toolbar', () => {
     await user.click(windsurf)
     await nextTick()
     expect(windsurf.getAttribute('aria-expanded')).toBe('true')
-    // The toolbar learns a card is open under it, so the full-page view keeps it in view.
-    expect(view.emitted('cardOpenChange')).toEqual([[true]])
     const shown = card.last()
     expect(shown.model).toMatchObject({
       name: 'Windsurf',
@@ -128,7 +126,6 @@ describe('agent avatars in the toolbar', () => {
     expect(card.api.hide).toHaveBeenCalledWith(shown.cardId)
     await nextTick()
     expect(windsurf.getAttribute('aria-expanded')).toBe('false')
-    expect(view.emitted('cardOpenChange')).toEqual([[true], [false]])
 
     // The tab already in view needs no Show its tab.
     await user.click(screen.getByRole('button', { name: 'Claude Code, working' }))
@@ -454,12 +451,16 @@ describe('agent avatars in the toolbar', () => {
       props: { workspaceId: 'workspace-a', activeTabId: 'tab-1', tabs: TABS, api, cardApi: card.api }
     })
     await flushPromises()
-    const avatars = wrapper.vm as unknown as { openCard: () => boolean }
+    const avatars = wrapper.vm as unknown as { openCard: () => boolean; cardOpen: boolean }
     try {
+      expect(avatars.cardOpen).toBe(false)
       expect(avatars.openCard()).toBe(true)
       await nextTick()
       expect(card.last().model.name).toBe('Windsurf')
+      // The toolbar can tell a card is open under it, so the full-page view keeps it in view.
+      expect(avatars.cardOpen).toBe(true)
       card.emit({ cardId: card.last().cardId, kind: 'closed', reason: 'escape' })
+      expect(avatars.cardOpen).toBe(false)
       change({ revision: 2, workspaces: { 'workspace-a': [agent('Claude Code')] } })
       await nextTick()
       expect(avatars.openCard()).toBe(true)

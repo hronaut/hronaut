@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, effectScope, h, nextTick, ref, type EffectScope } from 'vue'
+import { defineComponent, effectScope, h, nextTick, ref, type EffectScope, type Ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppBrowserChromeLayer from '../../src/renderer/src/components/AppBrowserChromeLayer.vue'
 import { useFullPageView } from '../../src/renderer/src/composables/useFullPageView.js'
@@ -146,12 +146,17 @@ const AgentPresenceAvatarsStub = defineComponent({
     attentionId: String,
     attentionDecision: Boolean
   },
-  emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision', 'setPinLiveStatus', 'cardOpenChange'],
+  emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision', 'setPinLiveStatus'],
   setup(_props, { expose }) {
-    expose({ openCard: openAgentCardSpy, focus: focusAgentAvatarSpy })
+    // Each mounted toolbar starts with no card open, as the real avatars do.
+    const cardOpen = ref(false)
+    agentCardsOpen.push(cardOpen)
+    expose({ openCard: openAgentCardSpy, focus: focusAgentAvatarSpy, cardOpen })
     return () => h('div', { 'data-testid': 'agent-presence' })
   }
 })
+
+const agentCardsOpen: Array<Ref<boolean>> = []
 
 const openAgentCardSpy = vi.fn((_options?: { reopen?: boolean }) => true)
 const focusAgentAvatarSpy = vi.fn(() => true)
@@ -232,7 +237,7 @@ const ShellTitleBarSurfaceStub = defineComponent({
 
 const scopes: EffectScope[] = []
 
-function createHarness(home = false) {
+function createHarness(home = false, options: { attach?: boolean } = {}) {
   const fullPageAvailable = ref(!home)
   const fullPageAttention = ref(false)
   const scope = effectScope()
@@ -415,6 +420,7 @@ function createHarness(home = false) {
   }
   const wrapper = mount(AppBrowserChromeLayer, {
     props,
+    ...(options.attach ? { attachTo: document.body } : {}),
     global: {
       plugins: [createHronautI18n('en-US')],
       stubs: {
@@ -465,6 +471,7 @@ describe('AppBrowserChromeLayer', () => {
   beforeEach(() => {
     openAgentCardSpy.mockClear()
     focusAgentAvatarSpy.mockClear()
+    agentCardsOpen.splice(0)
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -492,7 +499,7 @@ describe('AppBrowserChromeLayer', () => {
 
     // Resting the pointer anywhere on the chrome shows it after a moment, and leaving hides it again.
     const chrome = harness.wrapper.find('.browser-chrome')
-    await chrome.trigger('mouseenter')
+    await harness.wrapper.find('.full-page-side-edge').trigger('mouseover')
     await vi.advanceTimersByTimeAsync(179)
     expect(edge().exists()).toBe(true)
     await vi.advanceTimersByTimeAsync(1)
@@ -518,11 +525,10 @@ describe('AppBrowserChromeLayer', () => {
     expect(edge().exists()).toBe(true)
 
     // An agent card sits under its avatar, so the chrome stays while one is open.
-    const avatars = harness.wrapper.getComponent(AgentPresenceAvatarsStub)
-    avatars.vm.$emit('cardOpenChange', true)
+    agentCardsOpen.at(-1)!.value = true
     await nextTick()
     expect(edge().exists()).toBe(false)
-    avatars.vm.$emit('cardOpenChange', false)
+    agentCardsOpen.at(-1)!.value = false
     await nextTick()
     expect(edge().exists()).toBe(true)
 
@@ -531,6 +537,72 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.fullPage.enabled.value).toBe(false)
     expect(edge().exists()).toBe(false)
     expect(exit().exists()).toBe(false)
+  })
+
+  it('shows the band again under a pointer that stays on the chrome when the window loses focus', async () => {
+    vi.useFakeTimers()
+    const harness = createHarness()
+    const edge = () => harness.wrapper.find('[data-testid="full-page-edge"]')
+    harness.fullPage.toggle()
+    await nextTick()
+    await edge().trigger('mouseover')
+    await vi.advanceTimersByTimeAsync(180)
+    expect(edge().exists()).toBe(false)
+    // Choosing a tab gives the page focus; the chrome steps aside once the click is done, and the band
+    // takes the tab's place under the pointer, inside the same chrome.
+    window.dispatchEvent(new Event('blur'))
+    await vi.advanceTimersByTimeAsync(400)
+    expect(edge().exists()).toBe(true)
+    await edge().trigger('mouseover')
+    await vi.advanceTimersByTimeAsync(180)
+    expect(edge().exists()).toBe(false)
+  })
+
+  it('lets an agent card hold the chrome only while that toolbar shows it', async () => {
+    const harness = createHarness()
+    harness.fullPage.toggle()
+    agentCardsOpen.at(-1)!.value = true
+    await nextTick()
+    expect(harness.fullPage.concealed.value).toBe(false)
+    // An agent's tab change goes Home and back with the card open; the new toolbar has no card.
+    harness.activeIsHome.value = true
+    await nextTick()
+    harness.activeIsHome.value = false
+    await nextTick()
+    expect(agentCardsOpen).toHaveLength(2)
+    expect(harness.fullPage.concealed.value).toBe(true)
+  })
+
+  it('keeps focus in the window when the view ends while its exit button has focus', async () => {
+    const harness = createHarness(false, { attach: true })
+    const activeTab = document.createElement('button')
+    activeTab.dataset.activeTab = 'true'
+    document.body.append(activeTab)
+    try {
+      harness.fullPage.toggle()
+      await nextTick()
+      const exit = harness.wrapper.find<HTMLButtonElement>('button[aria-label="Exit full-page view"]')
+      exit.element.focus()
+      expect(document.activeElement).toBe(exit.element)
+      // By the keys, the menu or the palette rather than the button itself.
+      harness.fullPage.toggle()
+      await nextTick()
+      await nextTick()
+      expect(document.activeElement).toBe(activeTab)
+      // Ending the view with focus elsewhere leaves it there.
+      const field = document.createElement('input')
+      document.body.append(field)
+      harness.fullPage.toggle()
+      await nextTick()
+      field.focus()
+      harness.fullPage.toggle()
+      await nextTick()
+      await nextTick()
+      expect(document.activeElement).toBe(field)
+    } finally {
+      harness.wrapper.unmount()
+      document.body.replaceChildren()
+    }
   })
 
   it('has no full-page view on Home', async () => {

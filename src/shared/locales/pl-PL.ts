@@ -1499,7 +1499,7 @@ export const plPL = {
       "unpin": "Odepnij stan na żywo"
     },
     "fullPage": {
-      "exit": "Zamknij widok pełnej strony"
+      "exit": "Wyjdź z widoku pełnej strony"
     },
     "siteControls": {
       "close": "Zamknij ustawienia witryny",

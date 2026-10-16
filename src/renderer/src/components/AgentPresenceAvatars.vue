@@ -60,8 +60,6 @@ const emit = defineEmits<{
   answerAttention: [id: string, answer: 'resolved' | 'dismissed']
   /** Open the workspace where its waiting decisions are reviewed. */
   reviewDecision: [workspaceId: string]
-  /** An agent card opened or closed under one of these avatars. */
-  cardOpenChange: [open: boolean]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -227,7 +225,6 @@ watchEffect(() => {
   const agent = key ? agentByKey(key) : undefined
   decisionCardOpen.value = agent?.state === 'needs-you' && !gone(agent)
 })
-watch(() => card.openKey.value !== null, (open) => emit('cardOpenChange', open), { flush: 'sync' })
 // The card belongs to the workspace in view.
 watch(() => props.workspaceId, () => card.close())
 
@@ -318,7 +315,10 @@ function focus(): boolean {
   return Boolean(avatar)
 }
 
-defineExpose({ openCard, focus })
+// Whether a card is open under one of these avatars, so the full-page view keeps the toolbar in view.
+const cardOpen = computed(() => card.openKey.value !== null)
+
+defineExpose({ openCard, focus, cardOpen })
 </script>
 
 <template>

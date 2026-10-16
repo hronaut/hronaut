@@ -47,6 +47,7 @@ import type { TransientPanelsCloseOptions } from './composables/useTransientPane
 import { useShellTooltips } from './composables/shell-tooltips'
 import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
 import { useFullPageView } from './composables/useFullPageView'
+import { licenseExpiryNoticeShown } from './composables/license-expiry-notice'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -661,11 +662,13 @@ const {
   closePanelsExcept: closeDockedPanelsExcept,
   closeAddressSuggestions
 })
-// What opens from the tabs and the toolbar keeps them in view while it is open.
+// What opens from the tabs and the toolbar keeps them in view while it is open, and so does a bar shown
+// under the toolbar (Find, Zoom, a page that failed or the renewal notice), so it does not move under the pointer.
 fullPageView.holdWhile(() => [
   mcpStatusController.summaryOpen, updateNoticeOpen, addressSuggestionsOpen, tabSearchOpen,
-  downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen
-].some((open) => open.value === true))
+  downloadsOpen, historyOpen, splitMenuOpen, siteControlsOpen, findOpen, zoomOpen
+].some((open) => open.value === true) || Boolean(activeTab.value?.pageProblem)
+  || licenseExpiryNoticeShown(appSettingsFeatureController.commercialLicenseController.state.value))
 const appActiveTabFeatureController = useAppActiveTabFeatureController({
   presentation: {
     state,

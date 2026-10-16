@@ -151,7 +151,8 @@ describe('useAppCommandPaletteFeatureController', () => {
     expect(methods.runShortcut.mock.calls).toEqual([
       ['new-tab'],
       ['reload'],
-      ['reload-ignoring-cache']
+      ['reload-ignoring-cache'],
+      ['toggle-full-page']
     ])
     expect(methods.toggleElementPicker.mock.calls).toEqual([['screenshot'], ['context']])
     expect(methods.capturePageScreenshot.mock.calls).toEqual([['viewport'], ['full-page']])

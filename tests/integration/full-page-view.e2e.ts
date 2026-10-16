@@ -61,10 +61,11 @@ test('the full-page view gives the page the window and brings the chrome back at
     await expect.poll(() => pageBounds(electronApp, url)).toEqual({
       x: normal.x, y: bandBottom, width: normal.width, height: normal.y + normal.height - bandBottom
     })
-    // Nothing under the band moves the window, so the pointer reaches it.
-    expect(await appWindow.evaluate(() => Array.from(document.querySelectorAll('[data-titlebar-drag-surface]'))
+    // Nothing in the view moves the window, so the system leaves the pointer to the band and the bars it reveals.
+    const dragRegions = () => appWindow.evaluate(() => Array.from(document.querySelectorAll('[data-titlebar-drag-surface]'))
       .map((element) => getComputedStyle(element).getPropertyValue('-webkit-app-region'))
-      .filter((region) => region === 'drag'))).toEqual([])
+      .filter((region) => region === 'drag').length)
+    expect(await dragRegions()).toBe(0)
 
     // Resting the pointer at the top edge brings them back, and the page makes room again.
     await appWindow.mouse.move(600, 20)
@@ -73,6 +74,7 @@ test('the full-page view gives the page the window and brings the chrome back at
     const exit = appWindow.getByRole('button', { name: 'Exit full-page view', exact: true })
     await expect(exit).toBeVisible()
     expect((await exit.boundingBox())!.height).toBeGreaterThanOrEqual(32)
+    expect(await dragRegions()).toBe(0)
     // Moving back onto the page hides them.
     await appWindow.mouse.move(600, 500)
     await expect(shell).toHaveClass(/full-page-concealed/)
@@ -98,6 +100,18 @@ test('the full-page view gives the page the window and brings the chrome back at
     await expect(shell).not.toHaveClass(/full-page-view/)
     await expect(edge).toHaveCount(0)
     await expect.poll(() => pageBounds(electronApp, url)).toEqual(normal)
+    expect(await dragRegions()).toBeGreaterThan(0)
+
+    // Turned on while the pointer rests on the tabs, the band that takes their place answers the next move.
+    await appWindow.mouse.move(600, 20)
+    await appWindow.keyboard.press('Control+Shift+F')
+    await expect(shell).toHaveClass(/full-page-concealed/)
+    await appWindow.mouse.move(610, 22)
+    await expect(shell).not.toHaveClass(/full-page-concealed/)
+    await appWindow.mouse.move(600, 500)
+    await expect(shell).toHaveClass(/full-page-concealed/)
+    await appWindow.keyboard.press('Control+Shift+F')
+    await expect(shell).not.toHaveClass(/full-page-view/)
 
     // With the tabs in a rail, the hidden rail gives the page its width, and the window's left edge brings it back.
     await appWindow.evaluate("window.hronautSettings.setTabPosition('left')")

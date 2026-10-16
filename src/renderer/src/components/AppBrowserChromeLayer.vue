@@ -209,9 +209,7 @@ function selectTab(tabId: string): void {
   void props.runAction(() => selectBrowserTab(tabId))
 }
 
-const agentPresenceAvatars = ref<{ openCard: (options?: { reopen?: boolean }) => boolean; focus: () => boolean } | null>(null)
-// An agent card sits under its avatar, so the chrome stays in view while one is open.
-const agentCardOpen = ref(false)
+const agentPresenceAvatars = ref<{ openCard: (options?: { reopen?: boolean }) => boolean; focus: () => boolean; cardOpen: boolean } | null>(null)
 const activeWorkspaceName = computed(() => {
   const workspaceId = activeTab.value?.mcpGroupId
   return workspaceId ? props.state.mcpTabGroups.find((group) => group.id === workspaceId)?.name : undefined
@@ -276,7 +274,9 @@ function unpinLiveStrip(): void {
 }
 
 const { active: fullPageActive, concealed: fullPageConcealed } = props.fullPage
-props.fullPage.holdWhile(() => agentCardOpen.value && agentPresenceAvatars.value !== null)
+// An agent card sits under its avatar, so the chrome stays in view while one is open. The avatars own that
+// state: a toolbar that leaves and comes back starts with no card.
+props.fullPage.holdWhile(() => agentPresenceAvatars.value?.cardOpen === true)
 const chrome = ref<HTMLElement | null>(null)
 // The view can start while you work in the chrome, as from the address field; it stays in view until you leave.
 watch(fullPageActive, (active) => {
@@ -284,14 +284,17 @@ watch(fullPageActive, (active) => {
 })
 const fullPageTitle = computed(() => activeTab.value?.label || activeTab.value?.title || activeTab.value?.url || '')
 
-// The exit button leaves with the view; focus moves to the active tab rather than dropping out of the window.
-function exitFullPage(): void {
-  if (!props.fullPage.toggle()) return
+// The exit button leaves with the view, whether it is pressed or the view ends by shortcut, menu or palette
+// while it has focus; focus moves to the active tab, or the address field, rather than out of the window.
+watch(props.fullPage.enabled, (enabled) => {
+  if (enabled || !document.activeElement?.closest('.full-page-exit-button')) return
   void nextTick(() => {
     if (document.activeElement && document.activeElement !== document.body) return
-    document.querySelector<HTMLElement>('[data-active-tab="true"]')?.focus({ preventScroll: true })
+    const target = document.querySelector<HTMLElement>('[data-active-tab="true"]')
+      ?? document.querySelector<HTMLElement>('.toolbar .address-form input')
+    target?.focus()
   })
-}
+})
 
 function startTabDrag(): void {
   tabSearchOpen.value = false
@@ -306,7 +309,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
   <div
     ref="chrome"
     class="browser-chrome"
-    @mouseenter="fullPage.reveal"
+    @mouseover="fullPage.reveal"
     @mouseleave="fullPage.conceal"
     @focusin="fullPage.reveal"
     @focusout="fullPage.focusOut"
@@ -479,7 +482,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
           @set-follow="setFollowAgentActivity"
           @set-show-cursor="setShowAgentCursor"
           @set-pin-live-status="setPinAgentLiveStatus"
-          @card-open-change="agentCardOpen = $event"
           @answer-attention="answerAttention"
           @review-decision="actions.reviewDecisions"
         />
@@ -521,7 +523,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
             v-tooltip="t('shell.fullPage.exit')"
             :aria-label="t('shell.fullPage.exit')"
             aria-keyshortcuts="Control+Shift+F Meta+Shift+F"
-            @click="exitFullPage"
+            @click="fullPage.toggle()"
           ><IconFullscreenExit aria-hidden="true" /></UiButton>
         </template>
       </BrowserNavigationControls>

@@ -701,15 +701,15 @@
 /* Full-page view. The tabs, the rail, the toolbar and the live strip give way to a band at the window's top
    edge, as tall as the window controls, and with the rail a strip in the page's left gutter. Resting the pointer
    on either shows them again, and the page makes room. Hidden, they stay in the document, out of flow and unseen,
-   so keyboard focus still reaches them and shows them. The band takes no window drag, so the pointer reaches it;
-   the bars it reveals do. */
+   so keyboard focus still reaches them and shows them. Nothing in the view drags the window: the system takes
+   the pointer over a drag region away from the shell, which would hide the bars the pointer had just revealed. */
 .browser-chrome { @apply [display:contents]; }
 .shell.full-page-view.full-page-concealed { @apply [min-height:0]; }
 .shell.full-page-concealed :is(.topbar, .toolbar, .agent-live-strip) { @apply [opacity:0] pointer-events-none; }
 .shell.full-page-concealed:not(.vertical-tabs-shell) .topbar,
 .shell.full-page-concealed :is(.toolbar, .agent-live-strip) { @apply absolute [inset:0_0_auto_0]; }
 .shell.full-page-concealed .shell-title-bar-surface { @apply hidden; }
-.shell.full-page-concealed [data-titlebar-drag-surface] { @apply [-webkit-app-region:no-drag] [app-region:no-drag]; }
+.shell.full-page-view [data-titlebar-drag-surface] { @apply [-webkit-app-region:no-drag] [app-region:no-drag]; }
 .full-page-edge {
   @apply relative [z-index:1] flex min-w-0 items-center justify-center [height:var(--titlebar-area-height-safe)] [padding:0_10px] text-muted [font-size:var(--type-small-size)];
 }
