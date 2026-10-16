@@ -1,3 +1,4 @@
+import { dimTitleBarOverlay, parseScrimColor } from '../../src/shared/title-bar.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 async function appRegion(locator: import('@playwright/test').Locator): Promise<string> {
@@ -244,6 +245,50 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   await toolbar.hover()
   await expect.poll(() => rail.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(56)
   await expect.poll(() => railTitle.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(56)
+})
+
+test('dims the native window controls with the dialog backdrop and restores them when it closes', async ({
+  appWindow,
+  electronApp
+}) => {
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
+    if (!main) throw new Error('Missing main window')
+    const original = main.setTitleBarOverlay.bind(main)
+    ;(main as typeof main & { setTitleBarOverlay: typeof main.setTitleBarOverlay }).setTitleBarOverlay = (options) => {
+      ;(globalThis as typeof globalThis & { __hronautTitleBarOverlay?: Electron.TitleBarOverlay }).__hronautTitleBarOverlay = options
+      original(options)
+    }
+  })
+  const overlay = () => electronApp.evaluate(() => (
+    (globalThis as typeof globalThis & { __hronautTitleBarOverlay?: Electron.TitleBarOverlay }).__hronautTitleBarOverlay
+  ))
+  const undimmed = { color: '#07160b', symbolColor: '#d9ffe0', height: 44 }
+  await appWindow.evaluate('window.hronautSettings.setTheme("matrix")')
+  await expect.poll(overlay).toMatchObject(undimmed)
+
+  const dialogs = [
+    { open: appWindow.getByRole('button', { name: 'Search tabs' }), dialog: appWindow.locator('.tab-search-panel') },
+    { open: appWindow.getByRole('button', { name: 'Create workspace' }), dialog: appWindow.getByRole('dialog', { name: 'Create workspace' }) }
+  ]
+  for (const { open, dialog } of dialogs) {
+    await open.click()
+    await expect(dialog).toBeVisible()
+    // The backdrop the shell draws under the native controls in the top-right corner.
+    const backdrop = parseScrimColor(await appWindow.evaluate(() => {
+      let element = document.elementFromPoint(window.innerWidth - 2, 2)
+      while (element && getComputedStyle(element).position !== 'fixed') element = element.parentElement
+      return element ? getComputedStyle(element).backgroundColor : null
+    }))
+    expect(backdrop).not.toBeNull()
+    const dimmed = dimTitleBarOverlay(undimmed, backdrop)
+    expect(dimmed.color).not.toBe(undimmed.color)
+    await expect.poll(overlay).toMatchObject({ ...dimmed })
+
+    await appWindow.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect.poll(overlay).toMatchObject(undimmed)
+  }
 })
 
 test('persists the system-title-bar fallback across restart on every platform', async ({

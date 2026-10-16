@@ -7,6 +7,7 @@ import type {
 import { disposeAll } from './dispose-all.js'
 import { usePanelDockLayout } from './usePanelDockLayout.js'
 import { useShellOverlayCoordinationController } from './useShellOverlayCoordinationController.js'
+import { useWindowControlsScrim } from './useWindowControlsScrim.js'
 
 type BooleanState = Readonly<Ref<boolean>>
 type PanelDockLayoutController = ReturnType<typeof usePanelDockLayout>
@@ -18,7 +19,7 @@ export interface AppShellLayoutFeatureControllerOptions {
     dockedPanelOpen: ComputedRef<boolean>
     tabRailWidth: ComputedRef<number>
     detachedWindow: boolean
-    shellApi: Pick<HronautShellApi, 'setToolbarHeight' | 'setContentInsets' | 'setBrowserContentOccluded'>
+    shellApi: Pick<HronautShellApi, 'setToolbarHeight' | 'setContentInsets' | 'setBrowserContentOccluded' | 'setWindowControlsScrim'>
   }
   modals: {
     settings: BooleanState
@@ -69,15 +70,18 @@ export function useAppShellLayoutFeatureController(
   options: AppShellLayoutFeatureControllerOptions
 ): AppShellLayoutFeatureController {
   const { layout, modals, overlays } = options
-  const fullModalOpen = computed(() => modals.settings.value
-    || modals.commandPalette.value
-    || modals.helpDialog.value
-    || modals.releaseHistory.value
-    || modals.workspaceEditor.value
-    || modals.credentialPicker.value
-    || modals.walletApproval.value
-    || overlays.tabSearch.value
-    || overlays.mcpReadiness?.value === true)
+  const fullModalStates = [
+    modals.settings,
+    modals.commandPalette,
+    modals.helpDialog,
+    modals.releaseHistory,
+    modals.workspaceEditor,
+    modals.credentialPicker,
+    modals.walletApproval,
+    overlays.tabSearch,
+    ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : [])
+  ]
+  const fullModalOpen = computed(() => fullModalStates.some((open) => open.value))
   const panelDockLayout = usePanelDockLayout({
     ...layout,
     fullModalOpen
@@ -137,12 +141,18 @@ export function useAppShellLayoutFeatureController(
     },
     reportLayout: panelDockLayout.reportShellHeight
   })
+  const windowControlsScrim = useWindowControlsScrim({
+    sources: fullModalStates,
+    report: (color) => {
+      if (!layout.detachedWindow) layout.shellApi.setWindowControlsScrim(color)
+    }
+  })
   let disposed = false
 
   function dispose(): void {
     if (disposed) return
     disposed = true
-    disposeAll([overlayCoordination.dispose, panelDockLayout.dispose])
+    disposeAll([windowControlsScrim.dispose, overlayCoordination.dispose, panelDockLayout.dispose])
   }
 
   return {

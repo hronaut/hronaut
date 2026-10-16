@@ -32,6 +32,7 @@ interface Harness {
   setToolbarHeight: ReturnType<typeof vi.fn>
   setContentInsets: ReturnType<typeof vi.fn>
   setBrowserContentOccluded: ReturnType<typeof vi.fn>
+  setWindowControlsScrim: ReturnType<typeof vi.fn>
 }
 
 const mountedWrappers: VueWrapper[] = []
@@ -83,6 +84,7 @@ function createHarness(detachedWindow = false): Harness {
   const setToolbarHeight = vi.fn()
   const setContentInsets = vi.fn()
   const setBrowserContentOccluded = vi.fn()
+  const setWindowControlsScrim = vi.fn()
   let controller!: AppShellLayoutFeatureController
   const wrapper = mount(defineComponent({
     setup() {
@@ -94,7 +96,7 @@ function createHarness(detachedWindow = false): Harness {
           dockedPanelOpen: computed(() => dockedPanelOpen.value),
           tabRailWidth: computed(() => tabRailWidth.value),
           detachedWindow,
-          shellApi: { setToolbarHeight, setContentInsets, setBrowserContentOccluded }
+          shellApi: { setToolbarHeight, setContentInsets, setBrowserContentOccluded, setWindowControlsScrim }
         },
         modals,
         overlays,
@@ -118,7 +120,8 @@ function createHarness(detachedWindow = false): Harness {
     closeAddressSuggestions,
     setToolbarHeight,
     setContentInsets,
-    setBrowserContentOccluded
+    setBrowserContentOccluded,
+    setWindowControlsScrim
   }
 }
 
@@ -165,6 +168,46 @@ describe('useAppShellLayoutFeatureController', () => {
     harness.overlays.history.value = true
     await nextTick()
     expect(harness.closePanelsExcept).not.toHaveBeenCalled()
+  })
+
+  it('dims the native window controls with the backdrop of a full-window dialog and restores them on close', async () => {
+    const harness = createHarness()
+    const backdrop = document.createElement('div')
+    backdrop.style.position = 'fixed'
+    backdrop.style.backgroundColor = 'rgba(4, 7, 12, 0.48)'
+    const elementsFromPoint = vi.fn((): Element[] => [])
+    Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: elementsFromPoint })
+    try {
+      // Search tabs and Create workspace draw their backdrop under the native controls in the top-right corner.
+      for (const open of [harness.overlays.tabSearch, harness.modals.workspaceEditor]) {
+        document.body.append(backdrop)
+        elementsFromPoint.mockReturnValue([backdrop])
+        open.value = true
+        await nextTick()
+        await nextTick()
+        expect(harness.setWindowControlsScrim).toHaveBeenLastCalledWith('rgba(4, 7, 12, 0.48)')
+        expect(elementsFromPoint).toHaveBeenLastCalledWith(window.innerWidth - 2, 2)
+
+        backdrop.remove()
+        elementsFromPoint.mockReturnValue([])
+        open.value = false
+        await nextTick()
+        await nextTick()
+        expect(harness.setWindowControlsScrim).toHaveBeenLastCalledWith(null)
+      }
+      expect(harness.setWindowControlsScrim).toHaveBeenCalledTimes(4)
+
+      const detached = createHarness(true)
+      document.body.append(backdrop)
+      elementsFromPoint.mockReturnValue([backdrop])
+      detached.modals.settings.value = true
+      await nextTick()
+      await nextTick()
+      expect(detached.setWindowControlsScrim).not.toHaveBeenCalled()
+    } finally {
+      backdrop.remove()
+      Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
   })
 
   it('does not send main-window content occlusion from a detached panel window', async () => {

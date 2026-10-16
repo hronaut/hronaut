@@ -65,6 +65,43 @@ export function titleBarOverlayStyle(
   }
 }
 
+/** A translucent dialog backdrop, as the renderer computes it. */
+export interface ScrimColor {
+  red: number
+  green: number
+  blue: number
+  alpha: number
+}
+
+/** Accepts only a translucent `rgb()` or `rgba()` color, as `getComputedStyle` reports a dialog backdrop. */
+export function parseScrimColor(value: unknown): ScrimColor | null {
+  if (typeof value !== 'string' || value.length > 64) return null
+  const match = /^rgba?\(\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*[,\s]\s*(\d{1,3})\s*(?:[,/]\s*(\d*\.?\d+)\s*)?\)$/u.exec(value.trim())
+  if (!match) return null
+  const [red, green, blue] = [match[1], match[2], match[3]].map(Number) as [number, number, number]
+  const alpha = match[4] === undefined ? 1 : Number(match[4])
+  if (red > 255 || green > 255 || blue > 255 || !(alpha > 0 && alpha < 1)) return null
+  return { red, green, blue, alpha }
+}
+
+function blendHex(color: string, scrim: ScrimColor): string {
+  const channels = [1, 3, 5].map((index) => Number.parseInt(color.slice(index, index + 2), 16))
+  const blended = channels.map((channel, index) => {
+    const over = [scrim.red, scrim.green, scrim.blue][index]!
+    return Math.round(channel * (1 - scrim.alpha) + over * scrim.alpha)
+  })
+  return `#${blended.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`
+}
+
+/**
+ * The native window controls sit above the page and the shell, so a dialog's
+ * backdrop cannot cover them; lay the same backdrop over their colors instead.
+ */
+export function dimTitleBarOverlay(style: TitleBarOverlayStyle, scrim: ScrimColor | null): TitleBarOverlayStyle {
+  if (!scrim || !/^#[0-9a-f]{6}$/iu.test(style.color) || !/^#[0-9a-f]{6}$/iu.test(style.symbolColor)) return style
+  return { ...style, color: blendHex(style.color, scrim), symbolColor: blendHex(style.symbolColor, scrim) }
+}
+
 export interface MainWindowChromeOptions {
   titleBarStyle?: 'hidden'
   titleBarOverlay?: Pick<TitleBarOverlayStyle, 'height'> | TitleBarOverlayStyle

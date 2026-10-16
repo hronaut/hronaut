@@ -560,6 +560,7 @@ const shellApi: HronautShellApi = {
     return () => ipcRenderer.removeListener('browser:occlusion-snapshot', handler)
   },
   presentOcclusionSnapshot: (id: number) => ipcRenderer.send('browser:occlusion-snapshot-presented', id),
+  setWindowControlsScrim: (color: string | null) => ipcRenderer.send('shell:window-controls-scrim', color),
   setFollowAgentActivitySuspended: (suspended: boolean) =>
     ipcRenderer.send('browser:follow-agent-activity-suspended', suspended),
   onHelpRequested: (listener: (action: HelpMenuAction) => void) => {
