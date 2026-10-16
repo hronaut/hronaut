@@ -3,9 +3,11 @@ import { INTERFACE_SCALE_OPTIONS } from '../src/shared/interface-scale.js'
 import { RESOLVED_THEME_NAMES } from '../src/shared/theme.js'
 import {
   TITLE_BAR_BASE_HEIGHT,
+  dimTitleBarOverlay,
   isAutoHideMenuToggleInput,
   mainWindowChromeOptions,
   normalizeTitleBarArea,
+  parseScrimColor,
   titleBarOverlayStyle
 } from '../src/shared/title-bar.js'
 
@@ -143,6 +145,42 @@ describe('hybrid title bar configuration', () => {
       height: TITLE_BAR_BASE_HEIGHT,
       leftInset: 0,
       rightInset: 0
+    })
+  })
+})
+
+describe('window controls under a dialog backdrop', () => {
+  it('accepts only a bounded translucent rgb color as the backdrop', () => {
+    expect(parseScrimColor('rgba(4, 7, 12, 0.48)')).toEqual({ red: 4, green: 7, blue: 12, alpha: 0.48 })
+    expect(parseScrimColor('rgb(4 7 12 / .5)')).toEqual({ red: 4, green: 7, blue: 12, alpha: 0.5 })
+    for (const value of [
+      'rgb(4, 7, 12)',
+      'rgba(4, 7, 12, 0)',
+      'rgba(4, 7, 12, 1)',
+      'rgba(256, 7, 12, 0.5)',
+      '#04070c80',
+      'url(javascript:alert(1))',
+      `rgba(4, 7, 12, 0.${'5'.repeat(80)})`,
+      null,
+      42
+    ]) expect(parseScrimColor(value), String(value)).toBeNull()
+  })
+
+  it.each(RESOLVED_THEME_NAMES)('lays the backdrop over the %s window controls and restores them without one', (theme) => {
+    const style = titleBarOverlayStyle(theme, 'top', 1)
+    const scrim = { red: 0, green: 0, blue: 0, alpha: 0.5 }
+    const dimmed = dimTitleBarOverlay(style, scrim)
+    const half = (color: string) => `#${[1, 3, 5].map((index) => Math.round(Number.parseInt(color.slice(index, index + 2), 16) / 2).toString(16).padStart(2, '0')).join('')}`
+    expect(dimmed).toEqual({ ...style, color: half(style.color), symbolColor: half(style.symbolColor) })
+    expect(dimTitleBarOverlay(style, null)).toEqual(style)
+  })
+
+  it('blends exactly as the backdrop composites over an opaque color', () => {
+    const style = { color: '#ffffff', symbolColor: '#000000', height: 44 }
+    expect(dimTitleBarOverlay(style, { red: 4, green: 7, blue: 12, alpha: 0.48 })).toEqual({
+      color: '#87888a',
+      symbolColor: '#020306',
+      height: 44
     })
   })
 })

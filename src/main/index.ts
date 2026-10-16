@@ -172,10 +172,13 @@ import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import { isSearchEngineName } from '../shared/search-engine.js'
 import {
+  dimTitleBarOverlay,
   isAutoHideMenuToggleInput,
   mainWindowChromeOptions,
+  parseScrimColor,
   titleBarOverlayStyle,
   type DesktopWindowPlatform,
+  type ScrimColor,
   type WindowChromeMode
 } from '../shared/title-bar.js'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
@@ -1139,6 +1142,15 @@ function desktopWindowPlatform(): DesktopWindowPlatform {
   return 'linux'
 }
 
+/** The backdrop of the dialog open in the main window, laid over the native window controls. */
+let windowControlsScrim: ScrimColor | null = null
+
+function clearWindowControlsScrim(): void {
+  if (!windowControlsScrim) return
+  windowControlsScrim = null
+  applyMainWindowTitleBarOverlay()
+}
+
 function applyMainWindowTitleBarOverlay(): void {
   if (
     mainWindowChromeMode !== 'overlay'
@@ -1146,11 +1158,11 @@ function applyMainWindowTitleBarOverlay(): void {
     || !mainWindow
     || mainWindow.isDestroyed()
   ) return
-  mainWindow.setTitleBarOverlay(titleBarOverlayStyle(
+  mainWindow.setTitleBarOverlay(dimTitleBarOverlay(titleBarOverlayStyle(
     resolvedTheme(settings.theme),
     settings.tabPosition,
     settings.interfaceScale
-  ))
+  ), windowControlsScrim))
 }
 
 function applyTheme(theme: ThemeName): void {
@@ -3600,6 +3612,14 @@ function registerIpc(): void {
     if (!Number.isSafeInteger(id) || (id as number) < 1) throw new TypeError('Invalid occlusion snapshot')
     tabsManager?.presentOcclusionSnapshot(id as number)
   })
+  ipcMain.on('shell:window-controls-scrim', (event, color: unknown) => {
+    if (workspaceStartupFailure) return
+    assertMainShellSender(event)
+    const scrim = color === null ? null : parseScrimColor(color)
+    if (color !== null && !scrim) throw new TypeError('Invalid window controls scrim')
+    windowControlsScrim = scrim
+    applyMainWindowTitleBarOverlay()
+  })
   ipcMain.on('browser:follow-agent-activity-suspended', (event, suspended: unknown) => {
     if (workspaceStartupFailure) return
     assertMainShellSender(event)
@@ -3815,7 +3835,14 @@ async function createWindow(startMinimized = false): Promise<void> {
   registerIpc()
 
   mainWindow.on('blur', () => tabsManager?.cancelSplitDivider())
-  mainWindow.webContents.on('render-process-gone', () => tabsManager?.cancelSplitDivider())
+  mainWindow.webContents.on('render-process-gone', () => {
+    tabsManager?.cancelSplitDivider()
+    clearWindowControlsScrim()
+  })
+  // A new shell document has no dialog open, whatever the previous one reported.
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) clearWindowControlsScrim()
+  })
   mainWindow.on('resize', () => tabsManager?.layout())
   mainWindow.on('resize', scheduleWindowStateSave)
   mainWindow.on('move', scheduleWindowStateSave)
@@ -3846,6 +3873,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     addressSuggestionOverlayBounds = null
     addressSuggestionOverlayVisible = false
     addressSuggestionOverlayDismissalPending = false
+    windowControlsScrim = null
     mainWindow = null
   })
   mainWindow.webContents.on('before-input-event', (event, input) => {
