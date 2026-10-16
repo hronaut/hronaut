@@ -8,7 +8,7 @@ import { useAgentPresence } from '../../src/renderer/src/composables/useAgentPre
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentCardEvent, AgentCardShowRequest, HronautAgentCardApi } from '../../src/shared/agent-card.js'
 import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
-import { AGENT_STEP_KINDS } from '../../src/shared/agent-steps.js'
+import { AGENT_STEP_KINDS, AGENT_STEP_TARGET_KINDS } from '../../src/shared/agent-steps.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 
 function agent(name: string, overrides: Partial<AgentPresence> = {}): AgentPresence {
@@ -65,6 +65,20 @@ describe('agent avatars in the toolbar', () => {
     expect(buttons[0]?.querySelector('.agent-avatar-badge')).not.toBeNull()
     expect(buttons[1]?.querySelector('.agent-avatar-badge')).toBeNull()
     expect(buttons[1]?.textContent?.trim()).toBe('C')
+  })
+
+  it('names what the current step acts on in the tooltip when main knows it', async () => {
+    renderAvatars([
+      agent('Claude Code', { step: 'click', target: 'Review order' }),
+      agent('Cursor', { step: 'navigate', target: 'shop.example/checkout' }),
+      agent('Windsurf', { step: 'read', target: 'ignored' })
+    ])
+    const group = await screen.findByRole('group', { name: 'Agents in this workspace' })
+    expect(within(group).getAllByRole('button').map((button) => button.dataset.tooltip)).toEqual([
+      'Claude Code · Clicking “Review order”',
+      'Cursor · Opening shop.example/checkout',
+      'Windsurf · Reading the page'
+    ])
   })
 
   it('shows three avatars, then the rest as +N with their names', async () => {
@@ -399,6 +413,10 @@ describe('agent step words', () => {
       for (const key of [...AGENT_STEP_KINDS.map((kind) => `shell.agents.steps.${kind}`), 'shell.agents.states.idle', 'shell.agents.states.working', 'shell.agents.states.needsYou', 'shell.agents.group', 'shell.agents.more', 'shell.agents.needsYouReason']) {
         expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
         expect(i18n.t(key, { name: 'N', state: 'S', step: 'P', reason: 'R', names: 'A, B' }), `${locale} ${key}`).not.toBe(key)
+      }
+      for (const key of AGENT_STEP_TARGET_KINDS.map((kind) => `shell.agents.targetSteps.${kind}`)) {
+        expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
+        expect(i18n.t(key, { target: 'Ztarget' }), `${locale} ${key}`).toContain('Ztarget')
       }
     }
   })

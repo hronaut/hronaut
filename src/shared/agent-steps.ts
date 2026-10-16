@@ -1,7 +1,7 @@
 /**
  * Plain-words kinds of agent step, for the toolbar's agent avatars and later
- * Home's activity feed. A kind names what the agent is doing in general terms
- * only: never a target, an address, page text or a typed value.
+ * Home's activity feed. A kind names what the agent is doing in general terms;
+ * some kinds can also carry a target (see AGENT_STEP_TARGET_KINDS), never a typed value.
  */
 export const AGENT_STEP_KINDS = [
   'click',
@@ -77,4 +77,28 @@ const ACTING_STEPS: ReadonlySet<AgentStepKind> = new Set<AgentStepKind>([
 
 export function agentStepActs(kind: AgentStepKind): boolean {
   return ACTING_STEPS.has(kind)
+}
+
+/**
+ * Steps that can name what they act on: a control's name from Hronaut's own snapshot of the page, or, for
+ * opening a page, its host and path. The shell shows it, such as Clicking "Review order"; agents never get it.
+ */
+export const AGENT_STEP_TARGET_KINDS = ['click', 'type', 'fillForm', 'choose', 'hover', 'drag', 'upload', 'navigate', 'openTab'] as const
+
+export type AgentStepTargetKind = (typeof AGENT_STEP_TARGET_KINDS)[number]
+
+export function agentStepTakesTarget(kind: AgentStepKind): kind is AgentStepTargetKind {
+  return (AGENT_STEP_TARGET_KINDS as readonly string[]).includes(kind)
+}
+
+/** A web address as a step shows it: host and path, without sign-in details, query or fragment. Other addresses show none. */
+export function agentStepAddress(url: string): string | undefined {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return undefined
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined
+  return parsed.host + (parsed.pathname === '/' ? '' : parsed.pathname)
 }

@@ -5,7 +5,7 @@ import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { AgentCardEvent, AgentCardModel, AgentCardShowRequest, HronautAgentCardApi } from '../../src/shared/agent-card.js'
 import { parseAgentCardModel } from '../../src/shared/agent-card.js'
 import type { AgentPresence } from '../../src/shared/agent-presence.js'
-import { AGENT_STEP_KINDS } from '../../src/shared/agent-steps.js'
+import { AGENT_STEP_KINDS, AGENT_STEP_TARGET_KINDS } from '../../src/shared/agent-steps.js'
 import { SUPPORTED_LOCALES } from '../../src/shared/locale.js'
 
 const t = createHronautI18n('en-US').global.t as (key: string, values?: Record<string, unknown>) => string
@@ -73,6 +73,32 @@ describe('agent card content', () => {
     expect(agentCardModel(asking, context({ attentionReason: 'Log in.' }), t).reason?.answers).toBeUndefined()
   })
 
+  it('names what a step acts on when main knows it, and keeps the general phrase otherwise', () => {
+    const card = agentCardModel(agent({
+      step: 'click',
+      target: 'Review order',
+      recentSteps: [
+        { step: 'type', outcome: 'done', at: 3, target: 'Promo code' },
+        { step: 'click', outcome: 'failed', at: 2, target: 'Pay' },
+        { step: 'openTab', outcome: 'done', at: 1, target: 'shop.example/checkout' },
+        { step: 'read', outcome: 'done', at: 0, target: 'ignored' },
+        { step: 'type', outcome: 'done', at: 0 }
+      ]
+    }), context(), t)
+    expect(card.now.text).toBe('Clicking “Review order”')
+    expect(card.recent.steps).toEqual([
+      { text: 'Typed in Promo code' },
+      { text: 'Clicked “Pay”, failed', failed: true },
+      { text: 'Opened shop.example/checkout in a new tab' },
+      // A step that takes no target keeps its general phrase, as does one whose target main did not know.
+      { text: 'Read the page' },
+      { text: 'Typed' }
+    ])
+    // The longest target still fits the card contract.
+    const long = agentCardModel(agent({ target: 'x'.repeat(120), recentSteps: [{ step: 'click', outcome: 'done', at: 1, target: 'y'.repeat(120) }] }), context(), t)
+    expect(parseAgentCardModel(long)).toEqual(long)
+  })
+
   it('offers no tab actions without a tab, and says when an idle agent waits or a disconnected one left', () => {
     expect(agentCardModel(agent({ state: 'idle' }), context({ tab: undefined }), t)).toMatchObject({ buttons: [], now: { text: 'Waiting for its next step' } })
     const gone = agentCardModel(agent({ state: 'needs-you' }), context({ gone: true, attentionReason: 'Old request.' }), t)
@@ -102,6 +128,10 @@ describe('agent card content', () => {
       for (const key of [...keys, 'shell.agents.states.gone', 'shell.agents.gone']) {
         expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
         expect(i18n.t(key, { name: 'N', workspace: 'W', step: 'S' }), `${locale} ${key}`).not.toBe(key)
+      }
+      for (const key of AGENT_STEP_TARGET_KINDS.map((kind) => `shell.agentCard.targetSteps.${kind}`)) {
+        expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
+        expect(i18n.t(key, { target: 'Ztarget' }), `${locale} ${key}`).toContain('Ztarget')
       }
     }
   })

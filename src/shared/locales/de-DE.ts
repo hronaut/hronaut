@@ -1363,6 +1363,17 @@ export const deDE = {
         "askYou": "Bittet Sie um Hilfe",
         "inspect": "Untersucht die Seite",
         "working": "Arbeitet"
+      },
+      "targetSteps": {
+        "click": "Klickt auf „{target}“",
+        "type": "Tippt in {target}",
+        "fillForm": "Füllt {target} aus",
+        "choose": "Wählt eine Option in {target}",
+        "hover": "Zeigt auf „{target}“",
+        "drag": "Zieht „{target}“",
+        "upload": "Lädt eine Datei in {target} hoch",
+        "navigate": "Öffnet {target}",
+        "openTab": "Öffnet {target} in einem neuen Tab"
       }
     },
     "agentCard": {
@@ -1412,6 +1423,17 @@ export const deDE = {
         "askYou": "Hat Sie um Hilfe gebeten",
         "inspect": "Hat die Seite untersucht",
         "working": "Hat einen Schritt erledigt"
+      },
+      "targetSteps": {
+        "click": "Hat auf „{target}“ geklickt",
+        "type": "Hat in {target} getippt",
+        "fillForm": "Hat {target} ausgefüllt",
+        "choose": "Hat eine Option in {target} gewählt",
+        "hover": "Hat auf „{target}“ gezeigt",
+        "drag": "Hat „{target}“ gezogen",
+        "upload": "Hat eine Datei in {target} hochgeladen",
+        "navigate": "Hat {target} geöffnet",
+        "openTab": "Hat {target} in einem neuen Tab geöffnet"
       }
     },
     "siteControls": {

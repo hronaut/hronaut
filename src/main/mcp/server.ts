@@ -105,6 +105,8 @@ export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
 import { AgentPresenceRegistry, type AgentCall } from './agent-presence.js'
 import type { AgentPresence } from '../../shared/agent-presence.js'
+import { agentStepAddress } from '../../shared/agent-steps.js'
+import { webAddress } from '../browser/url.js'
 export {
   WorkspaceWriteLeaseError,
   WorkspaceWriteLeaseRegistry,
@@ -1211,13 +1213,33 @@ function createBrowserMcpServer(
       request.keyHoldPolicy = { permission: 'denied', policyDecision: error.decision }
     }
   }
+  // What a call acts on, for the shell's plain-words steps only: the name Hronaut's own snapshot of the page
+  // showed for the control it names by ref, or the host and path of a page it opens. Never a selector,
+  // typed text, query or anything the agent wrote, and a lookup that fails never fails the call.
+  const agentCallTarget = (name: string, input: Record<string, unknown>, workspaceId: string): string | undefined => {
+    try {
+      if (name === 'browser_navigate' || name === 'browser_new_tab') {
+        // Search terms name no page: the search engine is the user's, so the step keeps its general phrase.
+        const address = typeof input.url === 'string' && input.url.trim() ? webAddress(input.url) : undefined
+        return address ? agentStepAddress(address) : undefined
+      }
+      const fields = input.fields
+      const ref = name === 'browser_drag' ? input.sourceRef
+        : name === 'browser_fill_form' ? (Array.isArray(fields) && fields.length === 1 ? (fields[0] as { ref?: unknown } | null)?.ref : undefined)
+          : ['browser_click', 'browser_type', 'browser_select', 'browser_hover', 'browser_file_upload'].includes(name) ? input.ref : undefined
+      return typeof ref === 'string' ? manager.agentStepName(workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined, ref) : undefined
+    } catch {
+      return undefined
+    }
+  }
   // Each call in a workspace this client may use shows it in that workspace's
   // toolbar, whatever the tool; a refused call shows no one.
   const startAgentCall = (name: string, input: unknown): ((failed: boolean) => void) | undefined => {
     if (!onAgentCall || !input || typeof input !== 'object' || Array.isArray(input)) return undefined
     const { workspaceId, tabId } = input as { workspaceId?: unknown; tabId?: unknown }
     if (typeof workspaceId !== 'string' || !activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) return undefined
-    const call = { activityId: randomUUID(), toolName: name, source: 'call' as const, ...(typeof tabId === 'string' ? { tabId } : {}) }
+    const target = agentCallTarget(name, input as Record<string, unknown>, workspaceId)
+    const call = { activityId: randomUUID(), toolName: name, source: 'call' as const, ...(typeof tabId === 'string' ? { tabId } : {}), ...(target ? { target } : {}) }
     onAgentCall({ ...call, phase: 'started', occurredAt: Date.now() }, workspaceId)
     return (failed) => onAgentCall({ ...call, phase: failed ? 'failed' : 'finished', occurredAt: Date.now() }, workspaceId)
   }

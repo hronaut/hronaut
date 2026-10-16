@@ -11,6 +11,7 @@ import {
   type HronautAgentPresenceApi
 } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
+import { agentStepText } from '../composables/agent-step-text.js'
 import { agentCardModel, useAgentCard } from '../composables/useAgentCard.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import UiButton from '../ui/UiButton.vue'
@@ -97,7 +98,7 @@ function tooltip(agent: AgentPresence): string {
       : t('shell.agents.needsYou', { name })
   }
   if (agent.state === 'idle') return t('shell.agents.idle', { name })
-  return t('shell.agents.tooltip', { name, step: t(`shell.agents.steps.${agent.step}`) })
+  return t('shell.agents.tooltip', { name, step: agentStepText(t, agent.step, agent.target, 'now') })
 }
 
 function color(agent: AgentPresence): string {

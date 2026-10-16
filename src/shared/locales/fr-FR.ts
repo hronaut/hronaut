@@ -1363,6 +1363,17 @@ export const frFR = {
         "askYou": "Vous demande de l’aide",
         "inspect": "Inspecte la page",
         "working": "Travaille"
+      },
+      "targetSteps": {
+        "click": "Clique sur « {target} »",
+        "type": "Saisit du texte dans {target}",
+        "fillForm": "Remplit {target}",
+        "choose": "Choisit une option dans {target}",
+        "hover": "Pointe sur « {target} »",
+        "drag": "Fait glisser « {target} »",
+        "upload": "Envoie un fichier dans {target}",
+        "navigate": "Ouvre {target}",
+        "openTab": "Ouvre {target} dans un nouvel onglet"
       }
     },
     "agentCard": {
@@ -1412,6 +1423,17 @@ export const frFR = {
         "askYou": "Vous a demandé de l’aide",
         "inspect": "A inspecté la page",
         "working": "A terminé une étape"
+      },
+      "targetSteps": {
+        "click": "A cliqué sur « {target} »",
+        "type": "A saisi du texte dans {target}",
+        "fillForm": "A rempli {target}",
+        "choose": "A choisi une option dans {target}",
+        "hover": "A pointé sur « {target} »",
+        "drag": "A fait glisser « {target} »",
+        "upload": "A envoyé un fichier dans {target}",
+        "navigate": "A ouvert {target}",
+        "openTab": "A ouvert {target} dans un nouvel onglet"
       }
     },
     "siteControls": {

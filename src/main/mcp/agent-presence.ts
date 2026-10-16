@@ -18,6 +18,9 @@ export const AGENT_WORKING_GRACE_MS = 10_000
  * time its workspace write lease lasts. */
 export const AGENT_PRESENCE_WINDOW_MS = WorkspaceWriteLeaseRegistry.LIFETIME_MS
 export const AGENT_NAME_MAX_GRAPHEMES = 64
+/** A step's target shows at most this many graphemes and UTF-16 units, then an ellipsis. */
+export const AGENT_STEP_TARGET_MAX_GRAPHEMES = 60
+export const AGENT_STEP_TARGET_MAX_UNITS = 120
 const AGENT_PRESENCE_MAX_ENTRIES = 200
 /** Finished steps kept per agent and workspace, for the agent card's history. */
 export const AGENT_STEP_HISTORY_LIMIT = 20
@@ -26,22 +29,43 @@ export const AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT = 1024
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
+function visibleText(value: string): string {
+  return value.normalize('NFC')
+    .replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0]/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+}
+
 /** A client-supplied name, safe to show as text: no control, format, private,
  * unassigned or line separator characters and no blank fillers, collapsed
  * spaces, at most 64 graphemes. A name with nothing visible left is empty. */
 export function sanitizeAgentName(value: string): string {
-  const cleaned = value.normalize('NFC')
-    .replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0]/gu, ' ')
-    .replace(/\s+/gu, ' ')
-    .trim()
   let result = ''
   let count = 0
-  for (const { segment } of graphemes.segment(cleaned)) {
+  for (const { segment } of graphemes.segment(visibleText(value))) {
     if (count === AGENT_NAME_MAX_GRAPHEMES) break
     result += segment
     count += 1
   }
   return result.trimEnd()
+}
+
+/** A step's target cleaned the same way, at most 60 graphemes and 120 UTF-16 units, cut with an
+ * ellipsis; undefined when nothing visible is left. */
+export function sanitizeAgentStepTarget(value: string): string | undefined {
+  let result = ''
+  let count = 0
+  let cut = false
+  for (const { segment } of graphemes.segment(visibleText(value))) {
+    if (count === AGENT_STEP_TARGET_MAX_GRAPHEMES || result.length + segment.length > AGENT_STEP_TARGET_MAX_UNITS - 1) {
+      cut = true
+      break
+    }
+    result += segment
+    count += 1
+  }
+  result = result.trimEnd()
+  return result ? (cut ? `${result}…` : result) : undefined
 }
 
 /** The first letter or number of a name, upper case, or empty. */
@@ -65,6 +89,7 @@ export function agentColorIndex(name: string): number {
 interface InFlightStep {
   startedAt: number
   step: AgentStepKind
+  target?: string
 }
 
 /** One authorized tool call in a workspace, or the tab activity it caused. */
@@ -77,6 +102,8 @@ export interface AgentCall {
   occurredAt: number
   /** 'call' for the tool call itself, which alone adds a finished step; 'tab' for the tab activity it caused. */
   source?: 'call' | 'tab'
+  /** What the call acts on, for the shell only: a control's name or a host and path. */
+  target?: string
 }
 
 interface WorkspaceActivity {
@@ -84,6 +111,7 @@ interface WorkspaceActivity {
   lastActivityAt: number
   settledAt?: number
   step: AgentStepKind
+  target?: string
   lastTabId?: string
   inFlight: Map<string, InFlightStep>
   /** Finished calls, oldest first, at most AGENT_STEP_HISTORY_LIMIT. */
@@ -151,18 +179,21 @@ export class AgentPresenceRegistry {
       record.workspaces.set(workspaceId, workspace)
     }
     workspace.lastActivityAt = Math.max(workspace.lastActivityAt, call.occurredAt)
-    workspace.step = agentStepKind(call.toolName)
+    const step = agentStepKind(call.toolName)
+    // The tab activity a call caused keeps the call's target; anything else says what it acts on itself.
+    if (call.source === 'call' || step !== workspace.step) workspace.target = call.target === undefined ? undefined : sanitizeAgentStepTarget(call.target)
+    workspace.step = step
     if (call.tabId) workspace.lastTabId = call.tabId
     let startedAt: number | undefined
     if (call.phase === 'started') {
-      workspace.inFlight.set(call.activityId, { startedAt: call.occurredAt, step: workspace.step })
+      workspace.inFlight.set(call.activityId, { startedAt: call.occurredAt, step: workspace.step, ...(workspace.target ? { target: workspace.target } : {}) })
       while (workspace.inFlight.size > ACTIVITY_HISTORY_LIMIT) workspace.inFlight.delete(workspace.inFlight.keys().next().value!)
     } else {
       startedAt = workspace.inFlight.get(call.activityId)?.startedAt
       workspace.inFlight.delete(call.activityId)
       workspace.settledAt = call.occurredAt
       if (call.source === 'call') {
-        workspace.steps.push({ step: workspace.step, outcome: call.phase === 'failed' ? 'failed' : 'done', at: call.occurredAt })
+        workspace.steps.push({ step: workspace.step, ...(workspace.target ? { target: workspace.target } : {}), outcome: call.phase === 'failed' ? 'failed' : 'done', at: call.occurredAt })
         if (workspace.steps.length > AGENT_STEP_HISTORY_LIMIT) workspace.steps.splice(0, workspace.steps.length - AGENT_STEP_HISTORY_LIMIT)
       }
     }
@@ -237,7 +268,7 @@ export class AgentPresenceRegistry {
           initial: record.initial,
           colorIndex: record.colorIndex,
           state,
-          step: asking ? 'askYou' : this.currentStep(workspace!),
+          ...(asking ? { step: 'askYou' as const } : this.currentStep(workspace!)),
           recentSteps: workspace ? workspace.steps.slice(-AGENT_RECENT_STEPS_LIMIT).reverse() : [],
           ...(lastTabId ? { lastTabId } : {}),
           ...(attentionTabId ? { attentionTabId } : {}),
@@ -278,10 +309,11 @@ export class AgentPresenceRegistry {
     return now - workspace.lastActivityAt < AGENT_PRESENCE_WINDOW_MS ? 'idle' : undefined
   }
 
-  private currentStep(workspace: WorkspaceActivity): AgentStepKind {
+  private currentStep(workspace: WorkspaceActivity): { step: AgentStepKind; target?: string } {
     let latest: InFlightStep | undefined
     for (const step of workspace.inFlight.values()) if (!latest || step.startedAt >= latest.startedAt) latest = step
-    return latest?.step ?? workspace.step
+    const { step, target } = latest ?? workspace
+    return target ? { step, target } : { step }
   }
 
   private markClosed(sessionId: string): void {

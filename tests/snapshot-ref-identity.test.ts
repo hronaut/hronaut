@@ -75,3 +75,28 @@ it('restarts numbering explicitly when the per-document identity limit is reache
   ;(globalThis as unknown as { __hronautSnapshotIdentity: { next: number } }).__hronautSnapshotIdentity.next = 999_999
   expect(controls(capture())).toEqual(['[e1] button "Save"'])
 })
+
+it('names each control the agent was shown for the shell, by its label and never by a field value, its text or options', () => {
+  document.body.innerHTML = `
+    <label for="promo">Promo code</label><input id="promo" value="value-canary">
+    <label>Notes <textarea>draft-canary</textarea></label>
+    <select aria-label="Country"><option>option-canary</option></select>
+    <span id="hint">Card number</span><input aria-labelledby="hint" value="4111-canary">
+    <input placeholder="Search" value="query-canary">
+    <input type="submit" value="Place order">
+    <button>Review   order</button>
+    <div contenteditable="true">editor-canary</div>`
+  const result = window.eval(snapshotScript(100_000, true)) as { targetNames: [string, string][] }
+  expect(result.targetNames).toEqual([
+    ['e1', 'Promo code'], ['e2', 'Notes'], ['e3', 'Country'], ['e4', 'Card number'], ['e5', 'Search'], ['e6', 'Place order'], ['e7', 'Review order']
+  ])
+  expect(JSON.stringify(result.targetNames)).not.toContain('canary')
+})
+
+it('names only the controls whose lines fit in the snapshot', () => {
+  document.body.innerHTML = Array.from({ length: 200 }, (_, index) => `<button>Action ${index}</button>`).join('')
+  const result = window.eval(snapshotScript(1_000, true)) as { text: string; targetNames: [string, string][] }
+  expect(result.targetNames.length).toBeGreaterThan(0)
+  expect(result.targetNames.length).toBeLessThan(200)
+  for (const [ref] of result.targetNames) expect(result.text).toContain(`[${ref}`)
+})

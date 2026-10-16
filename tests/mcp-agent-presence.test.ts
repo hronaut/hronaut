@@ -10,7 +10,10 @@ import {
   AgentPresenceRegistry,
   agentColorIndex,
   agentInitial,
+  AGENT_STEP_TARGET_MAX_GRAPHEMES,
+  AGENT_STEP_TARGET_MAX_UNITS,
   sanitizeAgentName,
+  sanitizeAgentStepTarget,
   type AgentPresenceContext
 } from '../src/main/mcp/agent-presence.js'
 import { McpHttpServer, type McpHttpServerOptions, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
@@ -151,6 +154,29 @@ describe('agent presence registry', () => {
     expect(registry.derive(2_100, context({ currentAttentionId: 'attention-1' }))[otherWorkspace]?.[0]?.recentSteps).toEqual([])
   })
 
+  it('names what a call acts on through its tab activity and in its finished step, until a call without one', () => {
+    const registry = new AgentPresenceRegistry()
+    const call = (activityId: string, toolName: string, phase: McpTabActivity['phase'], occurredAt: number, source: 'call' | 'tab', target?: string) =>
+      registry.track(claude, workspace, { activityId, toolName, phase, occurredAt, source, ...(target ? { target } : {}) })
+    call('a', 'browser_click', 'started', 1_000, 'call', 'Review\norder')
+    expect(registry.derive(1_050, context())[workspace]?.[0]).toEqual(expect.objectContaining({ step: 'click', target: 'Review order' }))
+    // The click's own tab activity says nothing of its target, and keeps the call's.
+    call('a-tab', 'browser_click', 'started', 1_000, 'tab')
+    call('a-tab', 'browser_click', 'finished', 1_100, 'tab')
+    expect(registry.derive(1_100, context())[workspace]?.[0]).toEqual(expect.objectContaining({ step: 'click', target: 'Review order' }))
+    call('a', 'browser_click', 'finished', 1_100, 'call', 'Review\norder')
+    expect(registry.derive(1_200, context())[workspace]?.[0]?.recentSteps).toEqual([{ step: 'click', target: 'Review order', outcome: 'done', at: 1_100 }])
+    // A call without a target shows none, and its step is recorded without one.
+    call('b', 'browser_type', 'started', 1_300, 'call')
+    expect(registry.derive(1_350, context())[workspace]?.[0]).not.toHaveProperty('target')
+    call('b', 'browser_type', 'finished', 1_400, 'call')
+    expect(registry.derive(1_500, context())[workspace]?.[0]?.recentSteps[0]).toEqual({ step: 'type', outcome: 'done', at: 1_400 })
+    // While the agent asks for you, its step is the request, with no target.
+    call('c', 'browser_click', 'started', 1_600, 'call', 'Pay now')
+    registry.recordAttention(claude, workspace, 'attention-1', undefined, 1_700)
+    expect(registry.derive(1_800, context({ currentAttentionId: 'attention-1' }))[workspace]?.[0]).not.toHaveProperty('target')
+  })
+
   it('keeps the last tab when a call names none', () => {
     const registry = new AgentPresenceRegistry()
     registry.track(claude, workspace, activity('finished', 1_000, { tabId: 'tab-4' }))
@@ -277,6 +303,20 @@ describe('agent names', () => {
     expect(agentInitial(sanitizeAgentName('\u3164'))).toBe('')
   })
 
+  it('keeps a step target as plain, bounded text, cut with an ellipsis', () => {
+    expect(sanitizeAgentStepTarget(' Review\u202E\u200Border \n now ')).toBe('Review order now')
+    expect(sanitizeAgentStepTarget('\u3164\u200B\u2028')).toBeUndefined()
+    const segments = (value: string) => [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)]
+    const long = sanitizeAgentStepTarget('a'.repeat(200))!
+    expect(segments(long)).toHaveLength(AGENT_STEP_TARGET_MAX_GRAPHEMES + 1)
+    expect(long.endsWith('…')).toBe(true)
+    // Stacked combining marks count by length too, so one grapheme cannot carry a page of text.
+    const marks = '\u0301'.repeat(500)
+    expect(sanitizeAgentStepTarget(`Pay Z${marks}algo`)).toBe('Pay…')
+    expect(sanitizeAgentStepTarget(`Z${marks}algo`)).toBeUndefined()
+    expect(sanitizeAgentStepTarget(`${'é'.repeat(59)}${'e\u0301'.repeat(40)}`)!.length).toBeLessThanOrEqual(AGENT_STEP_TARGET_MAX_UNITS)
+  })
+
   it('takes the first letter or number as the initial', () => {
     expect(agentInitial('claude code')).toBe('C')
     expect(agentInitial('  ñandú')).toBe('Ñ')
@@ -313,7 +353,7 @@ describe('agent presence over MCP', () => {
     vi.useRealTimers()
   })
 
-  async function startServer(requestUserAttention?: (input: UserAttentionInput) => Promise<UserAttentionRequest>, options: Partial<McpHttpServerOptions> = {}) {
+  async function startServer(requestUserAttention?: (input: UserAttentionInput) => Promise<UserAttentionRequest>, options: Partial<McpHttpServerOptions> = {}, managerOverrides: Record<string, unknown> = {}) {
     const state = { attention: null as UserAttentionRequest | null, count: 0 }
     const request = vi.fn(requestUserAttention ?? (async (input: UserAttentionInput) => {
       state.count += 1
@@ -331,7 +371,8 @@ describe('agent presence over MCP', () => {
       mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
       getState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] })),
       getMcpGroupState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] })),
-      stop: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] }))
+      stop: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] })),
+      ...managerOverrides
     }
     const onAgentPresenceChanged = vi.fn()
     const started = new McpHttpServer(manager as never, {
@@ -410,6 +451,37 @@ describe('agent presence over MCP', () => {
     const refused = await stranger.client.callTool({ name: 'browser_tabs', arguments: { workspaceId: '01912345-6789-7abc-8def-0123456789ac' } }) as CallToolResult
     expect(refused.isError).toBe(true)
     expect(server.getAgentPresence()[workspaceId]?.map((agent) => agent.name)).toEqual(['Cursor'])
+  })
+
+  it('shows the shell what a step acts on: a host and path, or the name a snapshot showed, never more', async () => {
+    const agentStepName = vi.fn((_workspace: string, _tab: string | undefined, ref: string) => ref === 'e5' ? 'Review order' : undefined)
+    const { server, connect } = await startServer(undefined, {}, { agentStepName })
+    const claudeClient = await connect('Claude Code')
+    const latest = () => server.getAgentPresence()[workspaceId]?.[0]?.recentSteps[0]
+    await claudeClient.client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'https://agent:secret-canary@shop.example/checkout?token=query-canary#fragment-canary' } })
+    expect(latest()).toEqual(expect.objectContaining({ step: 'navigate', target: 'shop.example/checkout' }))
+    await claudeClient.client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'localhost:5173/' } })
+    expect(latest()).toEqual(expect.objectContaining({ step: 'navigate', target: 'localhost:5173' }))
+    await claudeClient.client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'data:text/html,<p>data-canary</p>' } })
+    expect(latest()).not.toHaveProperty('target')
+    // Search terms name no page: the search engine is the user's, so the step keeps its general phrase.
+    await claudeClient.client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'cheap flights' } })
+    expect(latest()).toEqual(expect.objectContaining({ step: 'navigate' }))
+    expect(latest()).not.toHaveProperty('target')
+    await claudeClient.client.callTool({ name: 'browser_type', arguments: { workspaceId, tabId, ref: 'e5', text: 'typed-canary' } })
+    expect(latest()).toEqual(expect.objectContaining({ step: 'type', target: 'Review order' }))
+    expect(agentStepName).toHaveBeenLastCalledWith(workspaceId, tabId, 'e5')
+    // A selector is the agent's own text, so it names nothing.
+    await claudeClient.client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId, selector: '#selector-canary' } })
+    expect(latest()).toEqual(expect.objectContaining({ step: 'click' }))
+    expect(latest()).not.toHaveProperty('target')
+    expect(JSON.stringify(server.getAgentPresence())).not.toMatch(/canary|agent:|token|fragment/)
+    // A lookup that fails leaves the step without a target and never fails the call by itself.
+    agentStepName.mockImplementation(() => { throw new Error('lookup failed') })
+    const clicked = await claudeClient.client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId, ref: 'e5' } }) as CallToolResult
+    expect(text(clicked)).not.toContain('lookup failed')
+    expect(latest()).toEqual(expect.objectContaining({ step: 'click' }))
+    expect(latest()).not.toHaveProperty('target')
   })
 
   it('keeps needs you while the request is open after a click, and reports an action of the agent that asked', async () => {

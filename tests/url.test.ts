@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isAgentWorkspaceNavigationUrl, isHronautHomeUrl, normalizeAddress } from '../src/main/browser/url.js'
+import { isAgentWorkspaceNavigationUrl, isHronautHomeUrl, normalizeAddress, webAddress } from '../src/main/browser/url.js'
 
 describe('isHronautHomeUrl', () => {
   it('recognizes the Home origin without accepting lookalike hosts or userinfo', () => {
@@ -106,5 +106,18 @@ describe('isAgentWorkspaceNavigationUrl', () => {
     'blob:file:///tmp/private.txt'
   ])('rejects local or privileged agent documents: %s', (url) => {
     expect(isAgentWorkspaceNavigationUrl(url)).toBe(false)
+  })
+})
+
+describe('webAddress', () => {
+  it('gives the address a typed input names, and nothing for search terms', () => {
+    expect(webAddress(' https://example.com/path ')).toBe('https://example.com/path')
+    expect(webAddress('localhost:5173/checkout')).toBe('http://localhost:5173/checkout')
+    expect(webAddress('example.com')).toBe('https://example.com')
+    expect(webAddress('about:blank')).toBe('about:blank')
+    expect(webAddress('cheap flights')).toBeUndefined()
+    expect(webAddress('user@example.com')).toBeUndefined()
+    // normalizeAddress still searches for them with the chosen engine.
+    expect(normalizeAddress('cheap flights', 'duckduckgo')).toBe('https://duckduckgo.com/?q=cheap%20flights')
   })
 })

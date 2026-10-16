@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication, Page } from '@playwright/test'
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function succeeded(result: CallToolResult): string {
   const content = result.content.find(item => item.type === 'text')
@@ -364,4 +365,60 @@ test('leaves Ctrl/Cmd+. to the page when its workspace has no agents', async ({ 
   await pressShortcutInPage(electronApp, url)
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)')).toBe('Page kept the key')
   expect(await cardView(electronApp)).toBeNull()
+})
+
+test('names what each step acted on in plain words, without typed text, values or the query', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end('<!doctype html><title>Checkout</title><label for="promo">Promo code</label><input id="promo" value="value-canary"><button>Review order</button>')
+  })
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('The checkout fixture did not expose a port')
+  await expect.poll(async () => {
+    try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+  }).toBe(true)
+  const client = new Client({ name: 'Claude Code', version: '1.0.0' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+  try {
+    await connectMcpWorkspace(client, 'Plain words', false)
+    const results: string[] = []
+    const call = async (name: string, args: Record<string, unknown>) => {
+      const text = succeeded(await client.callTool({ name, arguments: args }) as CallToolResult)
+      results.push(text)
+      return text
+    }
+    const opened = JSON.parse(await call('browser_new_tab', { url: `http://127.0.0.1:${address.port}/checkout?token=query-canary#fragment-canary`, active: true }))
+    const tabId = (opened.tabs as Array<{ id: string }>)[0]!.id
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    const avatar = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true }).getByRole('button', { name: /^Claude Code, / })
+    // The address shows as its host and path only.
+    await expect(avatar).toHaveAttribute('data-tooltip', `Claude Code · Opening 127.0.0.1:${address.port}/checkout in a new tab`)
+    const snapshot = await call('browser_snapshot', { tabId })
+    const promo = /\[(e\d+)\] input/.exec(snapshot)?.[1]
+    const review = /\[(e\d+)\] button[^[]*?Review order/.exec(snapshot)?.[1]
+    expect(promo, snapshot).toBeTruthy()
+    expect(review, snapshot).toBeTruthy()
+    await call('browser_type', { tabId, ref: promo, text: 'typed-canary' })
+    await call('browser_click', { tabId, ref: review })
+
+    await expect(avatar).toHaveAttribute('data-tooltip', 'Claude Code · Clicking “Review order”')
+    await avatar.click()
+    await expect.poll(async () => (await cardView(electronApp))?.visible ?? false).toBe(true)
+    const card = (await cardView(electronApp))!
+    expect(card.text).toContain('Typed in Promo code')
+    expect(card.text).toContain('Clicked “Review order”')
+    // What the shell gets names the controls and the address only.
+    const presence = JSON.stringify(await appWindow.evaluate('window.hronautAgentPresence.get()'))
+    for (const text of [card.text, presence]) {
+      expect(text).not.toMatch(/canary|token=/)
+    }
+    // Agents get their usual results: the names are the shell's alone.
+    for (const result of results) expect(result).not.toMatch(/Typed in|Clicked “|Opened 127/)
+    await pressInCard(electronApp, 'Escape')
+    await expect.poll(() => cardView(electronApp)).toBeNull()
+  } finally {
+    await client.close()
+    await closeFixtureServer(server)
+  }
 })

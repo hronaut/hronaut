@@ -1363,6 +1363,17 @@ export const esES = {
         "askYou": "Pidiéndote ayuda",
         "inspect": "Inspeccionando la página",
         "working": "Trabajando"
+      },
+      "targetSteps": {
+        "click": "Haciendo clic en «{target}»",
+        "type": "Escribiendo en {target}",
+        "fillForm": "Rellenando {target}",
+        "choose": "Eligiendo una opción en {target}",
+        "hover": "Señalando «{target}»",
+        "drag": "Arrastrando «{target}»",
+        "upload": "Subiendo un archivo a {target}",
+        "navigate": "Abriendo {target}",
+        "openTab": "Abriendo {target} en una pestaña nueva"
       }
     },
     "agentCard": {
@@ -1412,6 +1423,17 @@ export const esES = {
         "askYou": "Te pidió ayuda",
         "inspect": "Inspeccionó la página",
         "working": "Terminó un paso"
+      },
+      "targetSteps": {
+        "click": "Hizo clic en «{target}»",
+        "type": "Escribió en {target}",
+        "fillForm": "Rellenó {target}",
+        "choose": "Eligió una opción en {target}",
+        "hover": "Señaló «{target}»",
+        "drag": "Arrastró «{target}»",
+        "upload": "Subió un archivo a {target}",
+        "navigate": "Abrió {target}",
+        "openTab": "Abrió {target} en una pestaña nueva"
       }
     },
     "siteControls": {
