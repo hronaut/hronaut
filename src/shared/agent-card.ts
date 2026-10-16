@@ -1,4 +1,5 @@
 import type { AgentPresenceState } from './agent-presence.js'
+import { normalizeHumanWaitingNote } from './human-waiting.js'
 import type { ShellTooltipRect } from './shell-tooltip.js'
 import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
 
@@ -8,9 +9,15 @@ import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
  * user's choices to the shell, which carries them out with the shell's own browser API.
  */
 export const AGENT_CARD_ACTIONS = [
-  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'hand-back', 'dismiss', 'review-decision'
+  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'hand-back', 'dismiss', 'review-decision',
+  'answer-resolve', 'answer-reject'
 ] as const
 export type AgentCardAction = typeof AGENT_CARD_ACTIONS[number]
+/** Answers to an agent's decision; only these carry the person's note. */
+export type AgentCardAnswerAction = 'answer-resolve' | 'answer-reject'
+export function isAgentCardAnswerAction(value: unknown): value is AgentCardAnswerAction {
+  return value === 'answer-resolve' || value === 'answer-reject'
+}
 
 /** Why the card closed: Esc, focus moved away (an outside click or another window), an action, or the view was lost. */
 export const AGENT_CARD_CLOSE_REASONS = ['escape', 'blur', 'action', 'lost'] as const
@@ -28,11 +35,14 @@ export const AGENT_CARD_EDGE = 8
 export const AGENT_CARD_TEXT_LIMIT = 300
 export const AGENT_CARD_REASON_LIMIT = 2_000
 export const AGENT_CARD_INITIAL_LIMIT = 8
+/** An approval step's description, as long as a waiting decision keeps it. */
+export const AGENT_CARD_PLAN_TEXT_LIMIT = 512
 const TEXT_LIMIT = AGENT_CARD_TEXT_LIMIT
 const REASON_LIMIT = AGENT_CARD_REASON_LIMIT
 const RECENT_LIMIT = 3
 const BUTTON_LIMIT = 4
-const ANSWER_LIMIT = 2
+const ANSWER_LIMIT = 3
+const PLAN_LIMIT = 4
 
 export interface AgentCardStep {
   text: string
@@ -45,6 +55,26 @@ export interface AgentCardButton {
   disabled?: boolean
   /** Names what an answer answers, such as the request's id; it comes back with the action. */
   key?: string
+  /** Stays disabled until the person ticks the decision's check box. */
+  needsCheck?: boolean
+}
+
+/** A decision the agent left for you, answered in the card. */
+export interface AgentCardDecision {
+  /** Names the decision; the card keeps what you typed for it while it stays open. */
+  id: string
+  /** Names the decision and the revision the card shows; its answers carry it back. */
+  key: string
+  /** What an approval would do: the agent's own bounded description of each step. */
+  plan?: { heading: string; steps: Array<{ text: string; detail?: string }> }
+  /** What Hronaut found when it checked the workspace, and the box the person ticks to confirm the page as it is. */
+  check?: { text: string; confirm: string }
+  /** A field for the person's note or answer, sent with one answer. With a toggle it opens on demand. */
+  field?: { label: string; required: boolean; toggle?: string; send: AgentCardButton & { action: AgentCardAnswerAction } }
+  /** Sending, or why an answer did not go. */
+  status?: { text: string; alert?: boolean }
+  /** An answer is on its way; the card's answers wait. */
+  busy?: boolean
 }
 
 export interface AgentCardSwitch {
@@ -67,7 +97,7 @@ export interface AgentCardModel {
   /** For example "Connected over MCP · Checkout". */
   subtitle: string
   /** Why the agent asked for you, while it needs you, and how you can answer it here. */
-  reason?: { heading: string; text: string; answers?: AgentCardButton[] }
+  reason?: { heading: string; text: string; answers?: AgentCardButton[]; decision?: AgentCardDecision }
   now: { heading: string; text: string }
   recent: { heading: string; steps: AgentCardStep[]; empty: string }
   follow: AgentCardSwitch
@@ -102,12 +132,12 @@ export interface AgentCardMeasurement {
 
 /** Sent by the card view. */
 export type AgentCardViewMessage =
-  | { cardId: number; kind: 'action'; action: AgentCardAction; key?: string }
+  | { cardId: number; kind: 'action'; action: AgentCardAction; key?: string; note?: string }
   | { cardId: number; kind: 'close'; reason: 'escape' }
 
-/** Sent to the shell. */
+/** Sent to the shell. An answer to a decision can carry the person's note. */
 export type AgentCardEvent =
-  | { cardId: number; kind: 'action'; action: AgentCardAction; key?: string }
+  | { cardId: number; kind: 'action'; action: AgentCardAction; key?: string; note?: string }
   | { cardId: number; kind: 'closed'; reason: AgentCardCloseReason }
 
 export interface HronautAgentCardApi {
@@ -150,26 +180,78 @@ function section(value: unknown, limit = TEXT_LIMIT): { heading: string; text: s
   return { heading: text(source.heading), text: text(source.text, limit) }
 }
 
+function button(entry: unknown): AgentCardButton {
+  const source = record(entry)
+  if (!source || !isAgentCardAction(source.action) || (source.disabled !== undefined && typeof source.disabled !== 'boolean')
+    || (source.key !== undefined && !validKey(source.key)) || (source.needsCheck !== undefined && typeof source.needsCheck !== 'boolean')) {
+    throw new TypeError('Invalid agent card button')
+  }
+  return {
+    action: source.action,
+    label: text(source.label),
+    ...(source.disabled ? { disabled: true } : {}),
+    ...(source.key === undefined ? {} : { key: source.key }),
+    ...(source.needsCheck ? { needsCheck: true } : {})
+  }
+}
+
 function buttons(value: unknown, limit: number): AgentCardButton[] {
   if (!Array.isArray(value) || value.length > limit) throw new TypeError('Invalid agent card buttons')
-  return value.map((entry) => {
-    const button = record(entry)
-    if (!button || !isAgentCardAction(button.action) || (button.disabled !== undefined && typeof button.disabled !== 'boolean')
-      || (button.key !== undefined && !validKey(button.key))) {
-      throw new TypeError('Invalid agent card button')
-    }
-    return {
-      action: button.action,
-      label: text(button.label),
-      ...(button.disabled ? { disabled: true } : {}),
-      ...(button.key === undefined ? {} : { key: button.key })
-    }
-  })
+  return value.map(button)
+}
+
+function decisionSection(value: unknown): AgentCardDecision {
+  const source = record(value)
+  if (!source || !validKey(source.id) || !validKey(source.key) || (source.busy !== undefined && typeof source.busy !== 'boolean')) {
+    throw new TypeError('Invalid agent card decision')
+  }
+  const plan = source.plan === undefined ? undefined : record(source.plan)
+  if (source.plan !== undefined && (!plan || !Array.isArray(plan.steps) || plan.steps.length < 1 || plan.steps.length > PLAN_LIMIT)) {
+    throw new TypeError('Invalid agent card plan')
+  }
+  const check = source.check === undefined ? undefined : record(source.check)
+  if (source.check !== undefined && !check) throw new TypeError('Invalid agent card check')
+  const field = source.field === undefined ? undefined : record(source.field)
+  if (source.field !== undefined && (!field || typeof field.required !== 'boolean')) throw new TypeError('Invalid agent card field')
+  const send = field ? button(field.send) : undefined
+  if (send && (!isAgentCardAnswerAction(send.action) || send.key !== source.key)) throw new TypeError('Invalid agent card field')
+  const status = source.status === undefined ? undefined : record(source.status)
+  if (source.status !== undefined && (!status || (status.alert !== undefined && typeof status.alert !== 'boolean'))) throw new TypeError('Invalid agent card status')
+  return {
+    id: source.id,
+    key: source.key,
+    ...(plan ? {
+      plan: {
+        heading: text(plan.heading),
+        steps: (plan.steps as unknown[]).map((entry) => {
+          const step = record(entry)
+          if (!step) throw new TypeError('Invalid agent card plan')
+          return { text: text(step.text, AGENT_CARD_PLAN_TEXT_LIMIT), ...(step.detail === undefined ? {} : { detail: text(step.detail) }) }
+        })
+      }
+    } : {}),
+    ...(check ? { check: { text: text(check.text), confirm: text(check.confirm) } } : {}),
+    ...(field && send ? {
+      field: {
+        label: text(field.label),
+        required: field.required as boolean,
+        ...(field.toggle === undefined ? {} : { toggle: text(field.toggle) }),
+        send: { ...send, action: send.action as AgentCardAnswerAction }
+      }
+    } : {}),
+    ...(status ? { status: { text: text(status.text), ...(status.alert ? { alert: true } : {}) } } : {}),
+    ...(source.busy ? { busy: true } : {})
+  }
 }
 
 function reasonSection(value: unknown): NonNullable<AgentCardModel['reason']> {
   const answers = record(value)?.answers
-  return { ...section(value, REASON_LIMIT), ...(answers === undefined ? {} : { answers: buttons(answers, ANSWER_LIMIT) }) }
+  const decision = record(value)?.decision
+  return {
+    ...section(value, REASON_LIMIT),
+    ...(answers === undefined ? {} : { answers: buttons(answers, ANSWER_LIMIT) }),
+    ...(decision === undefined ? {} : { decision: decisionSection(decision) })
+  }
 }
 
 function cardSwitch(value: unknown, name: string): AgentCardSwitch {
@@ -241,7 +323,16 @@ export function parseAgentCardViewMessage(value: unknown): AgentCardViewMessage 
   const source = record(value)
   if (!source || !validAgentCardId(source.cardId)) return null
   if (source.kind === 'action' && isAgentCardAction(source.action) && (source.key === undefined || validKey(source.key))) {
-    return { cardId: source.cardId, kind: 'action', action: source.action, ...(source.key === undefined ? {} : { key: source.key }) }
+    // Only an answer to a decision carries a note, cleaned and bounded as main will take it.
+    const note = source.note === undefined ? undefined : isAgentCardAnswerAction(source.action) ? normalizeHumanWaitingNote(source.note) : null
+    if (note === null) return null
+    return {
+      cardId: source.cardId,
+      kind: 'action',
+      action: source.action,
+      ...(source.key === undefined ? {} : { key: source.key }),
+      ...(note === undefined ? {} : { note })
+    }
   }
   if (source.kind === 'close' && source.reason === 'escape') return { cardId: source.cardId, kind: 'close', reason: 'escape' }
   return null

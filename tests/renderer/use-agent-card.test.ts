@@ -75,6 +75,91 @@ describe('agent card content', () => {
     expect(agentCardModel(asking, context({ attentionReason: 'Log in.' }), t).reason?.answers).toBeUndefined()
   })
 
+  describe('a decision answered in the card', () => {
+    const asking = agent({ state: 'needs-you', step: 'askYou' })
+    const unknown = { status: 'confirm' as const, reasons: ['CHECKPOINT_UNAVAILABLE' as const, 'PRIOR_WRITE_OUTCOME_UNKNOWN' as const], unknownOutcome: true }
+    function decide(decision: NonNullable<AgentCardContext['decision']>) {
+      const card = agentCardModel(asking, context({ attentionReason: 'Human decision required: x', attentionId: 'attention-2', attentionDecision: true, decision }), t)
+      // What the shell builds is what main accepts.
+      expect(parseAgentCardModel(card)).toEqual(card)
+      return card.reason!
+    }
+
+    it('hands a page back after the page check, or sends it back with what to fix', () => {
+      const reason = decide({ key: 'd1_r1', id: 'd1', revision: 'r1', decision: 'review-page', check: unknown, phase: 'idle' })
+      expect(reason.text).toBe('Look at the page, then hand it back or tell the agent what to fix.')
+      expect(reason.answers).toEqual([
+        { action: 'answer-resolve', label: 'Looks good, hand back', key: 'd1_r1', needsCheck: true },
+        { action: 'review-decision', label: 'Open in workspace', key: 'attention-2' }
+      ])
+      expect(reason.decision).toEqual({
+        id: 'd1',
+        key: 'd1_r1',
+        check: {
+          text: 'Hronaut checked this page: Checkpoint unavailable · Earlier action outcome remains unknown.',
+          confirm: 'I reviewed the page and understand that the earlier action may already have taken effect.'
+        },
+        field: { label: 'What should the agent fix? (optional)', required: false, toggle: 'Something wrong?', send: { action: 'answer-reject', label: 'Send back', key: 'd1_r1' } }
+      })
+      // Nothing to confirm: the answer is free. A stale reading asks only to confirm the page.
+      expect(decide({ key: 'd1_r1', id: 'd1', revision: 'r1', decision: 'review-page', check: { status: 'clear', reasons: [] }, phase: 'idle' }).answers?.[0])
+        .toEqual({ action: 'answer-resolve', label: 'Looks good, hand back', key: 'd1_r1' })
+      expect(decide({ key: 'd1_r1', id: 'd1', revision: 'r1', decision: 'review-page', check: { status: 'confirm', reasons: [], unknownOutcome: false }, phase: 'idle' }).decision?.check)
+        .toEqual({ text: 'Hronaut checked this page.', confirm: 'I looked at the page as it is now.' })
+    })
+
+    it('offers no hand back while the page is being checked or cannot be checked here', () => {
+      const checking = decide({ key: 'd1_r1', id: 'd1', revision: 'r1', decision: 'review-page', check: { status: 'checking' }, phase: 'idle' })
+      expect(checking.answers?.map((answer) => answer.action)).toEqual(['review-decision'])
+      expect(checking.decision?.status).toEqual({ text: 'Checking the page…' })
+      const unavailable = decide({ key: 'd2_r1', id: 'd2', revision: 'r1', decision: 'provide-input', check: { status: 'unavailable', reasons: ['EVIDENCE_UNAVAILABLE'] }, phase: 'idle' })
+      expect(unavailable.answers?.map((answer) => answer.action)).toEqual(['review-decision'])
+      expect(unavailable.decision?.field).toBeUndefined()
+      expect(unavailable.decision?.status).toEqual({ text: 'Hronaut can’t check this page from here. Open it in the workspace to answer.' })
+    })
+
+    it('asks for the input the agent needs, and says how sending went', () => {
+      const reason = decide({ key: 'd2_r1', id: 'd2', revision: 'r1', decision: 'provide-input', check: unknown, phase: 'idle' })
+      expect(reason.text).toBe('The agent needs your answer to carry on.')
+      expect(reason.answers).toEqual([{ action: 'review-decision', label: 'Open in workspace', key: 'attention-2' }])
+      expect(reason.decision?.field).toEqual({ label: 'Your answer for the agent', required: true, send: { action: 'answer-resolve', label: 'Send', key: 'd2_r1', needsCheck: true } })
+      const phases = (['sending', 'sent', 'failed', 'changed'] as const).map((phase) => decide({ key: 'd2_r1', id: 'd2', revision: 'r1', decision: 'provide-input', check: unknown, phase }).decision)
+      expect(phases.map((decision) => [decision?.status, decision?.busy])).toEqual([
+        [{ text: 'Sending…' }, true],
+        [{ text: 'Sent to the agent' }, true],
+        [{ text: 'That didn’t go through. Try again, or open it in the workspace.', alert: true }, undefined],
+        [{ text: 'The page changed since Hronaut checked it. Look again, then confirm.', alert: true }, undefined]
+      ])
+    })
+
+    it('shows what an approval would do, leaves approving to the workspace and can reject it', () => {
+      const step = { toolName: 'browser_click', actionClass: 'interact' as const, reversibility: 'irreversible' as const, representation: 'bounded-description' as const, description: 'Submit the order', origin: 'https://shop.example', artifactHash: 'a'.repeat(64) }
+      const reason = decide({
+        key: 'd3_r1', id: 'd3', revision: 'r1', decision: 'approve-action', phase: 'idle',
+        steps: [step, { ...step, representation: 'visible-browser-only', description: undefined, origin: undefined, reversibility: 'unknown' }, step, step, step]
+      })
+      expect(reason.text).toBe('The agent wants your approval before it acts.')
+      expect(reason.answers).toEqual([{ action: 'review-decision', label: 'Review and approve', key: 'attention-2' }])
+      expect(reason.decision?.plan?.heading).toBe('What it will do')
+      expect(reason.decision?.plan?.steps).toHaveLength(4)
+      expect(reason.decision?.plan?.steps.slice(0, 2)).toEqual([
+        { text: 'Submit the order', detail: 'Irreversible · https://shop.example' },
+        { text: 'The mutation cannot be represented safely as text. Inspect the visible browser before deciding.', detail: 'Unknown' }
+      ])
+      expect(reason.decision?.check).toBeUndefined()
+      expect(reason.decision?.field).toEqual({ label: 'Reason for the agent (optional)', required: false, toggle: 'Reject…', send: { action: 'answer-reject', label: 'Reject', key: 'd3_r1' } })
+      // Nothing in the card completes an approval.
+      expect(JSON.stringify(reason)).not.toContain('answer-resolve')
+    })
+
+    it('leaves an unknown outcome, and a decision not read yet, to the workspace', () => {
+      const unresolved = decide({ key: 'd4_r1', id: 'd4', revision: 'r1', decision: 'resolve-unknown', phase: 'idle' })
+      expect(unresolved).toEqual({ heading: 'Why it needs you', text: 'The agent can’t tell whether its last action took effect.', answers: [{ action: 'review-decision', label: 'Review the decision', key: 'attention-2' }] })
+      const card = agentCardModel(asking, context({ attentionReason: 'Human decision required: review-page', attentionId: 'attention-2', attentionDecision: true }), t)
+      expect(card.reason).toEqual({ heading: 'Why it needs you', text: 'Human decision required: review-page', answers: [{ action: 'review-decision', label: 'Review the decision', key: 'attention-2' }] })
+    })
+  })
+
   it('names what a step acts on when main knows it, and keeps the general phrase otherwise', () => {
     const card = agentCardModel(agent({
       step: 'click',
@@ -123,6 +208,9 @@ describe('agent card content', () => {
     const keys = [
       'label', 'connected', 'states.idle', 'states.working', 'states.needsYou', 'states.gone', 'reason', 'now', 'nowIdle', 'gone',
       'recent', 'noSteps', 'stepFailed', 'follow', 'cursor', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
+      'openDecision', 'looksGood', 'somethingWrong', 'whatToFix', 'sendBack', 'send', 'reviewAndApprove', 'whatItWillDo', 'stepDetail', 'rejectToggle',
+      'rejectReason', 'reject', 'checked', 'checkedPage', 'confirmPage', 'checking', 'checkUnavailable', 'answerSending', 'answerSent', 'answerFailed', 'answerChanged',
+      'decisionReasons.review-page', 'decisionReasons.provide-input', 'decisionReasons.approve-action', 'decisionReasons.resolve-unknown',
       ...AGENT_STEP_KINDS.map((kind) => `steps.${kind}`)
     ].map((key) => `shell.agentCard.${key}`)
     for (const locale of SUPPORTED_LOCALES) {
@@ -131,6 +219,8 @@ describe('agent card content', () => {
         expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
         expect(i18n.t(key, { name: 'N', workspace: 'W', step: 'S' }), `${locale} ${key}`).not.toBe(key)
       }
+      expect(i18n.t('shell.agentCard.checked', { reasons: 'Zreasons' }), locale).toContain('Zreasons')
+      expect(i18n.t('shell.agentCard.stepDetail', { reversibility: 'Zrev', origin: 'Zorigin' }), locale).toMatch(/Zrev.*Zorigin/u)
       for (const key of AGENT_STEP_TARGET_KINDS.map((kind) => `shell.agentCard.targetSteps.${kind}`)) {
         expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
         expect(i18n.t(key, { target: 'Ztarget' }), `${locale} ${key}`).toContain('Ztarget')
@@ -200,10 +290,12 @@ describe('agent card lifecycle', () => {
     expect(onAction).not.toHaveBeenCalled()
     expect(card.openKey.value).toBe('b')
     emit({ cardId: second, kind: 'action', action: 'take-over' })
-    expect(onAction).toHaveBeenCalledWith('b', 'take-over', undefined)
-    // An answer carries the key of the request the card showed.
+    expect(onAction).toHaveBeenCalledWith('b', 'take-over', undefined, undefined)
+    // An answer carries the key of the request the card showed, and a decision's answer what you wrote.
     emit({ cardId: second, kind: 'action', action: 'hand-back', key: 'attention-1' })
-    expect(onAction).toHaveBeenLastCalledWith('b', 'hand-back', 'attention-1')
+    expect(onAction).toHaveBeenLastCalledWith('b', 'hand-back', 'attention-1', undefined)
+    emit({ cardId: second, kind: 'action', action: 'answer-reject', key: 'd1_r1', note: 'Wrong total' })
+    expect(onAction).toHaveBeenLastCalledWith('b', 'answer-reject', 'd1_r1', 'Wrong total')
     emit({ cardId: second, kind: 'closed', reason: 'escape' })
     expect(onClosed).toHaveBeenCalledWith('b', 'escape')
     expect(card.openKey.value).toBeNull()
@@ -211,7 +303,7 @@ describe('agent card lifecycle', () => {
     expect(api.hide).not.toHaveBeenCalled()
     // A late event after it closed changes nothing.
     emit({ cardId: second, kind: 'action', action: 'pause' })
-    expect(onAction).toHaveBeenCalledTimes(2)
+    expect(onAction).toHaveBeenCalledTimes(3)
   })
 
   it('closes the card when its agent or its avatar goes away, and when the scope ends', async () => {

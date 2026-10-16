@@ -146,3 +146,198 @@ describe('agent card view', () => {
     }
   })
 })
+
+describe('agent card view: answering a decision', () => {
+  const check = { text: 'Hronaut checked this page: Earlier action outcome remains unknown.', confirm: 'I reviewed the page and understand that the earlier action may already have taken effect.' }
+
+  function reviewPage(decision: Partial<NonNullable<NonNullable<AgentCardModel['reason']>['decision']>> = {}): AgentCardModel {
+    return model({
+      state: 'needs-you',
+      reason: {
+        heading: 'Why it needs you',
+        text: 'Look at the page, then hand it back or tell the agent what to fix.',
+        answers: [
+          { action: 'answer-resolve', label: 'Looks good, hand back', key: 'decision-1_r1', needsCheck: true },
+          { action: 'review-decision', label: 'Open in workspace', key: 'attention-1' }
+        ],
+        decision: {
+          id: 'decision-1',
+          key: 'decision-1_r1',
+          check,
+          field: { label: 'What should the agent fix? (optional)', required: false, toggle: 'Something wrong?', send: { action: 'answer-reject', label: 'Send back', key: 'decision-1_r1' } },
+          ...decision
+        }
+      }
+    })
+  }
+
+  function provideInput(decision: Partial<NonNullable<NonNullable<AgentCardModel['reason']>['decision']>> = {}): AgentCardModel {
+    return model({
+      state: 'needs-you',
+      reason: {
+        heading: 'Why it needs you',
+        text: 'The agent needs your answer to carry on.',
+        answers: [{ action: 'review-decision', label: 'Open in workspace', key: 'attention-2' }],
+        decision: {
+          id: 'decision-2',
+          key: 'decision-2_r1',
+          check,
+          field: { label: 'Your answer for the agent', required: true, send: { action: 'answer-resolve', label: 'Send', key: 'decision-2_r1', needsCheck: true } },
+          ...decision
+        }
+      }
+    })
+  }
+
+  function type(field: HTMLTextAreaElement, value: string): void {
+    field.value = value
+    field.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  function tick(box: HTMLInputElement, checked = true): void {
+    box.checked = checked
+    box.dispatchEvent(new Event('change', { bubbles: true }))
+  }
+
+  it('waits for the page check before handing back, and sends the decision key without a note', async () => {
+    const view = await loadView()
+    view.render({ cardId: 5, revision: 1, theme: 'light', model: reviewPage() })
+    expect(view.control('.agent-card-check-text').textContent).toBe(check.text)
+    const looksGood = view.control('[data-action="answer-resolve"]') as HTMLButtonElement
+    expect(looksGood.disabled).toBe(true)
+    const box = view.control('[data-focus="answer-check"]') as HTMLInputElement
+    expect(box.closest('label')?.textContent).toBe(check.confirm)
+    tick(box)
+    expect(looksGood.disabled).toBe(false)
+    looksGood.click()
+    expect(view.sent.at(-1)).toEqual({ cardId: 5, kind: 'action', action: 'answer-resolve', key: 'decision-1_r1' })
+    // A check with nothing to confirm leaves the answer free.
+    view.render({ cardId: 5, revision: 2, theme: 'light', model: reviewPage({ check: undefined }) })
+    expect((view.control('[data-action="answer-resolve"]') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('opens the field on demand, sends the note with the rejection and measures the card again', async () => {
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
+    let height = 300
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ x: 0, y: 0, left: 0, top: 0, right: 320, bottom: height, width: 320, height, toJSON: () => ({}) }))
+    try {
+      const view = await loadView()
+      view.render({ cardId: 6, revision: 1, theme: 'light', model: reviewPage() })
+      const field = view.control('.agent-card-field')
+      expect(field.hidden).toBe(true)
+      // A closed field is out of the Tab order.
+      expect([...document.querySelectorAll('textarea')].some((node) => node === document.activeElement)).toBe(false)
+      const toggle = view.control('[data-focus="answer-toggle"]')
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+      expect(toggle.getAttribute('aria-controls')).toBe(field.id)
+      height = 420
+      toggle.click()
+      expect(field.hidden).toBe(false)
+      expect(toggle.getAttribute('aria-expanded')).toBe('true')
+      const textarea = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
+      expect(document.activeElement).toBe(textarea)
+      expect(textarea.maxLength).toBe(1_000)
+      expect(view.measured.at(-1)).toMatchObject({ cardId: 6, revision: 1, height: 420 })
+      type(textarea, '  The total is wrong.  ')
+      view.control('[data-focus="answer-send"]').click()
+      expect(view.sent.at(-1)).toEqual({ cardId: 6, kind: 'action', action: 'answer-reject', key: 'decision-1_r1', note: 'The total is wrong.' })
+    } finally {
+      rect.mockRestore()
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+    }
+  })
+
+  it('keeps what you typed, the caret and focus through an update, and waits while sending', async () => {
+    const view = await loadView()
+    view.render({ cardId: 7, revision: 1, theme: 'light', model: provideInput() })
+    const textarea = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
+    const send = () => view.control('[data-focus="answer-send"]') as HTMLButtonElement
+    expect(textarea.required).toBe(true)
+    // The answer is required, and so is the check.
+    expect(send().disabled).toBe(true)
+    tick(view.control('[data-focus="answer-check"]') as HTMLInputElement)
+    expect(send().disabled).toBe(true)
+    textarea.focus()
+    type(textarea, 'Use the second address')
+    textarea.setSelectionRange(4, 10)
+    expect(send().disabled).toBe(false)
+    view.render({ cardId: 7, revision: 2, theme: 'light', model: provideInput({ status: { text: 'Sending…' }, busy: true }) })
+    const kept = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
+    expect(kept).not.toBe(textarea)
+    expect(kept.value).toBe('Use the second address')
+    expect(document.activeElement).toBe(kept)
+    expect([kept.selectionStart, kept.selectionEnd]).toEqual([4, 10])
+    expect(kept.readOnly).toBe(true)
+    expect(send().disabled).toBe(true)
+    expect((view.control('[data-focus="answer-check"]') as HTMLInputElement).checked).toBe(true)
+    expect(view.control('.agent-card-status').getAttribute('role')).toBe('status')
+    // A failure keeps the text; a new page check asks for a new tick.
+    view.render({ cardId: 7, revision: 3, theme: 'light', model: provideInput({ status: { text: 'The page changed', alert: true }, check: { ...check, text: 'Hronaut checked this page: Website origin changed.' } }) })
+    expect((view.control('[data-focus="answer-note"]') as HTMLTextAreaElement).value).toBe('Use the second address')
+    expect((view.control('[data-focus="answer-check"]') as HTMLInputElement).checked).toBe(false)
+    expect(send().disabled).toBe(true)
+    expect(view.control('.agent-card-status').getAttribute('role')).toBe('alert')
+  })
+
+  it('sends with Ctrl or Cmd and Enter, leaves Enter alone for a new line, and leaves keys to an input method', async () => {
+    const view = await loadView()
+    view.render({ cardId: 8, revision: 1, theme: 'light', model: provideInput({ check: undefined }) })
+    const textarea = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
+    textarea.focus()
+    const press = (init: KeyboardEventInit) => {
+      const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })
+      textarea.dispatchEvent(event)
+      return event
+    }
+    // Nothing typed: Ctrl+Enter sends nothing.
+    press({ key: 'Enter', ctrlKey: true })
+    expect(view.sent).toEqual([])
+    type(textarea, 'Blue')
+    expect(press({ key: 'Enter' }).defaultPrevented).toBe(false)
+    expect(press({ key: 'Escape', isComposing: true }).defaultPrevented).toBe(false)
+    expect(press({ key: 'Enter', ctrlKey: true, isComposing: true }).defaultPrevented).toBe(false)
+    expect(view.sent).toEqual([])
+    press({ key: 'Enter', metaKey: true })
+    expect(view.sent).toEqual([{ cardId: 8, kind: 'action', action: 'answer-resolve', key: 'decision-2_r1', note: 'Blue' }])
+    press({ key: 'Escape' })
+    expect(view.sent.at(-1)).toEqual({ cardId: 8, kind: 'close', reason: 'escape' })
+  })
+
+  it('starts a new card with nothing typed or ticked', async () => {
+    const view = await loadView()
+    view.render({ cardId: 9, revision: 1, theme: 'light', model: provideInput() })
+    type(view.control('[data-focus="answer-note"]') as HTMLTextAreaElement, 'Secret answer')
+    tick(view.control('[data-focus="answer-check"]') as HTMLInputElement)
+    view.render({ cardId: 10, revision: 1, theme: 'light', model: provideInput() })
+    expect((view.control('[data-focus="answer-note"]') as HTMLTextAreaElement).value).toBe('')
+    expect((view.control('[data-focus="answer-check"]') as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('shows what an approval would do, offers no approval there and keeps Tab inside the card', async () => {
+    const view = await loadView()
+    view.render({ cardId: 11, revision: 1, theme: 'light', model: model({
+      state: 'needs-you',
+      buttons: [],
+      reason: {
+        heading: 'Why it needs you',
+        text: 'The agent wants your approval before it acts.',
+        answers: [{ action: 'review-decision', label: 'Review and approve', key: 'attention-3' }],
+        decision: {
+          id: 'decision-3',
+          key: 'decision-3_r1',
+          plan: { heading: 'What it will do', steps: [{ text: 'Submit the order', detail: 'Irreversible · https://shop.example' }] },
+          field: { label: 'Reason for the agent (optional)', required: false, toggle: 'Reject…', send: { action: 'answer-reject', label: 'Reject', key: 'decision-3_r1' } }
+        }
+      }
+    }) })
+    expect([...document.querySelectorAll('.agent-card-plan li')].map((item) => item.textContent)).toEqual(['Submit the orderIrreversible · https://shop.example'])
+    expect(document.querySelector('[data-action="answer-resolve"]')).toBeNull()
+    expect([...document.querySelectorAll('.agent-card-answers button')].map((button) => button.textContent)).toEqual(['Review and approve', 'Reject…'])
+    expect(view.control('.agent-card-field').hidden).toBe(true)
+    view.control('[data-action="cursor-off"]').focus()
+    key('Tab')
+    expect(document.activeElement).toBe(view.control('.agent-card-close'))
+    key('Tab', true)
+    expect((document.activeElement as HTMLElement).dataset.action).toBe('cursor-off')
+  })
+})
