@@ -164,6 +164,7 @@ function decisionContent(cardId: number, decision: AgentCardDecision, answers: r
   }
 
   let checkbox: HTMLInputElement | undefined
+  let checkBox: HTMLElement | undefined
   if (decision.check) {
     const check = decision.check
     const box = element('div', 'agent-card-check')
@@ -177,12 +178,13 @@ function decisionContent(cardId: number, decision: AgentCardDecision, answers: r
     checkbox.disabled = decision.busy === true
     checkbox.addEventListener('change', () => {
       draft.checkedFor = checkbox!.checked ? check.id : undefined
-      if (checkbox!.checked) send({ cardId, kind: 'action', action: 'answer-check', key: decision.key })
+      // The tick names the reading it confirms, so a newer one the card has not shown yet is not confirmed by it.
+      if (checkbox!.checked) send({ cardId, kind: 'action', action: 'answer-check', key: check.id })
       update()
     })
     label.append(checkbox, element('span', '', check.confirm))
     box.append(element('p', 'agent-card-check-text', check.text), label)
-    content.push(box)
+    checkBox = box
   }
 
   const field = decision.field
@@ -243,8 +245,10 @@ function decisionContent(cardId: number, decision: AgentCardDecision, answers: r
     row.append(node)
   }
   if (toggleNode) row.append(toggleNode)
-  // A field you always answer in comes before the answers; one opened on demand comes after them.
+  // A field you always answer in comes before the check, so you type, then confirm the page and send;
+  // one opened on demand comes after the answers.
   if (fieldBox && !field?.toggle) content.push(fieldBox)
+  if (checkBox) content.push(checkBox)
   content.push(row)
   if (fieldBox && field?.toggle) content.push(fieldBox)
 

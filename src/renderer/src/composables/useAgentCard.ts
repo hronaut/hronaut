@@ -137,7 +137,12 @@ function reasonAnswers(requestId: string, context: AgentCardContext, t: Translat
   const status = decision.phase === 'sending' ? { text: t('shell.agentCard.answerSending') }
     : decision.phase === 'sent' ? { text: t('shell.agentCard.answerSent') }
       : decision.phase === 'failed' ? { text: t('shell.agentCard.answerFailed'), alert: true }
-        : decision.phase === 'changed' ? { text: t('shell.agentCard.answerChanged'), alert: true }
+        // Nothing was sent because the page changed: confirm it again, open it in the workspace, or try again.
+        : decision.phase === 'changed' ? {
+          text: t(check?.status === 'confirm' ? 'shell.agentCard.answerChanged'
+            : check?.status === 'unavailable' ? 'shell.agentCard.checkUnavailable' : 'shell.agentCard.answerFailed'),
+          alert: true
+        }
           : check?.status === 'checking' ? { text: t('shell.agentCard.checking') }
             : check?.status === 'unavailable' ? { text: t('shell.agentCard.checkUnavailable') }
               : undefined

@@ -135,6 +135,11 @@ describe('agent card content', () => {
         [{ text: 'That didn’t go through. Try again, or open it in the workspace.', alert: true }, undefined],
         [{ text: 'Confirm the page again: it changed, or more than 30 seconds passed since you confirmed it.', alert: true }, undefined]
       ])
+      // Nothing was sent because the page changed, but there is nothing to tick: try again, or answer in the workspace.
+      expect(decide({ key: 'd2_r1', id: 'd2', revision: 'r1', decision: 'provide-input', check: { status: 'clear', reasons: [] }, phase: 'changed' }).decision?.status)
+        .toEqual({ text: 'That didn’t go through. Try again, or open it in the workspace.', alert: true })
+      expect(decide({ key: 'd2_r1', id: 'd2', revision: 'r1', decision: 'provide-input', check: { status: 'unavailable', reasons: [] }, phase: 'changed' }).decision?.status)
+        .toEqual({ text: 'Hronaut can’t check this page from here. Open it in the workspace to answer.', alert: true })
     })
 
     it('shows what an approval would do, leaves approving to the workspace and can reject it', () => {

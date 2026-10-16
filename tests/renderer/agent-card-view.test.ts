@@ -209,8 +209,8 @@ describe('agent card view: answering a decision', () => {
     const box = view.control('[data-focus="answer-check"]') as HTMLInputElement
     expect(box.closest('label')?.textContent).toBe(check.confirm)
     tick(box)
-    // Hronaut reads the page when you confirm it.
-    expect(view.sent).toEqual([{ cardId: 5, kind: 'action', action: 'answer-check', key: 'decision-1_r1' }])
+    // Hronaut reads the page when you confirm it; the tick names the reading it confirms.
+    expect(view.sent).toEqual([{ cardId: 5, kind: 'action', action: 'answer-check', key: 'check-1' }])
     tick(box, false)
     expect(looksGood.disabled).toBe(true)
     expect(view.sent).toHaveLength(1)
@@ -262,6 +262,9 @@ describe('agent card view: answering a decision', () => {
     const textarea = view.control('[data-focus="answer-note"]') as HTMLTextAreaElement
     const send = () => view.control('[data-focus="answer-send"]') as HTMLButtonElement
     expect(textarea.required).toBe(true)
+    // You type, then confirm the page and send: the check comes after the field.
+    const box = view.control('.agent-card-check')
+    expect(textarea.closest('.agent-card-field')!.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // The answer is required, and so is the check; spaces and invisible characters are no answer.
     expect(send().disabled).toBe(true)
     tick(view.control('[data-focus="answer-check"]') as HTMLInputElement)

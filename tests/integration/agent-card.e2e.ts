@@ -112,6 +112,16 @@ async function pressInCard(electronApp: ElectronApplication, keyCode: string): P
   }, keyCode)
 }
 
+/**
+ * Waits until main reports the tab an agent last used, and the shell has that report too: main publishes
+ * presence on its next turn, so one more round trip arrives after it.
+ */
+async function agentTabReported(appWindow: Page, name: string, tabId: string): Promise<void> {
+  await expect.poll(() => appWindow.evaluate(`window.hronautAgentPresence.get().then(snapshot => Object.values(snapshot.workspaces).flat()
+    .find(agent => agent.name === ${JSON.stringify(name)})?.lastTabId)`)).toBe(tabId)
+  await appWindow.evaluate('window.hronautAgentPresence.get()')
+}
+
 /** Ctrl/Cmd+. pressed while the page with this URL has focus; resolves with whether the page saw it. */
 async function pressShortcutInPage(electronApp: ElectronApplication, url: string): Promise<void> {
   await electronApp.evaluate(({ webContents }, url) => {
@@ -202,6 +212,8 @@ test('opens an agent card under its avatar to pause, take over and follow, and r
     const secondUrl = 'data:text/html,<title>Card two</title><main>Two</main>'
     const second = parsed(await claude.client.callTool({ name: 'browser_new_tab', arguments: { url: secondUrl, active: false } }) as CallToolResult)
     const secondTabId = (second.tabs as Array<{ id: string }>).find(tab => tab.id !== firstTabId)!.id
+    // The card acts on the tab the avatar shows when it opens, which follows the agent's call once it settles.
+    await agentTabReported(appWindow, 'Claude Code', secondTabId)
     // Ctrl/Cmd+. pressed in the page opens the card while the workspace in view has agents.
     await pressShortcutInPage(electronApp, firstUrl)
     await expect.poll(async () => (await cardView(electronApp))?.actions).toEqual(['show-tab', 'pause', 'take-over'])

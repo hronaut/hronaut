@@ -47,6 +47,11 @@ export function agentCardRejects(decision: HumanWaitingDecision): boolean {
 
 let lastToken = 0
 
+/** The same reading under a new name: a tick given for the old name no longer counts. */
+function renamed(check: AgentDecisionCheck | undefined): AgentDecisionCheck | undefined {
+  return check?.status === 'confirm' ? { ...check, token: `check-${++lastToken}` } : check
+}
+
 function checkOf(report: WorkspaceContinuityReport): AgentDecisionCheck {
   const reasons = [...report.reasons]
   // The test main applies before it completes a decision: nothing for you to confirm.
@@ -80,6 +85,17 @@ export interface AgentDecisionAnswerOptions {
   active: () => boolean
 }
 
+/** A tick: the reading it confirmed, and what Hronaut read when you ticked. */
+interface Confirmation {
+  key: string
+  token: string
+  /** Read as the card showed it: completing confirms this review. */
+  reviewId?: string
+  /** Read differently, so it needs a new tick; undefined when the page could not be read. */
+  reading?: AgentDecisionCheck
+  ready: Promise<void>
+}
+
 export interface AgentDecisionAnswers {
   state: Readonly<Ref<AgentDecisionAnswerState | undefined>>
   /**
@@ -89,10 +105,11 @@ export interface AgentDecisionAnswers {
    */
   answer: (key: string, action: 'resolve' | 'reject', note?: string) => Promise<void>
   /**
-   * You ticked the box confirming the page. Hronaut reads the page at that moment; completing confirms
-   * that reading, which main refuses if the page changed since or 30 seconds have passed.
+   * You ticked the box confirming the reading the card showed, named by its check's id. Hronaut reads
+   * the page at that moment; completing confirms that reading, which main refuses if the page changed
+   * since or 30 seconds have passed.
    */
-  confirm: (key: string) => void
+  confirm: (checkId: string) => void
 }
 
 /**
@@ -105,7 +122,7 @@ export function useAgentDecisionAnswers(options: AgentDecisionAnswerOptions): Ag
   let generation = 0
   let loadedTarget: AgentDecisionTarget | undefined
   // The reading you confirmed by ticking: taken when you ticked, ready once main has answered.
-  let confirmation: { key: string; token: string; reviewId?: string; ready: Promise<void> } | undefined
+  let confirmation: Confirmation | undefined
 
   async function load(target: AgentDecisionTarget, phase: AgentDecisionAnswerState['phase'] = 'idle'): Promise<void> {
     const browser = options.browser()
@@ -148,7 +165,8 @@ export function useAgentDecisionAnswers(options: AgentDecisionAnswerOptions): Ag
       state.value = { ...base, check }
     } catch {
       // Without the decision, the card offers to review it in the workspace; after a failed answer it keeps saying so.
-      if (current === generation) state.value = previous?.id === target.decisionId ? { ...previous, phase: 'failed' } : undefined
+      // A tick no longer counts after this, so the card asks for a new one.
+      if (current === generation) state.value = previous?.id === target.decisionId ? { ...previous, check: renamed(previous.check), phase: 'failed' } : undefined
     }
   }
 
@@ -167,34 +185,38 @@ export function useAgentDecisionAnswers(options: AgentDecisionAnswerOptions): Ag
     { immediate: true }
   )
 
-  function confirm(key: string): void {
+  function confirm(checkId: string): void {
     const current = state.value
     const target = loadedTarget
     const browser = options.browser()
     const shown = current?.check
-    if (!current || !target || !browser || current.key !== key || shown?.status !== 'confirm' || current.phase === 'sending' || current.phase === 'sent') return
-    const entry: { key: string; token: string; reviewId?: string; ready: Promise<void> } = { key, token: shown.token, ready: Promise.resolve() }
+    if (!current || !target || !browser || shown?.status !== 'confirm' || shown.token !== checkId
+      || current.phase === 'sending' || current.phase === 'sent') return
+    const key = current.key
+    const at = generation
+    const entry: Confirmation = { key, token: shown.token, ready: Promise.resolve() }
     confirmation = entry
     entry.ready = (async () => {
-      let check: AgentDecisionCheck | undefined
       try {
         const report = await browser.reviewWorkspaceContinuity(target.workspaceId)
-        check = checkOf(report)
-        if (sameReading(shown, check) && report.reviewId) {
-          entry.reviewId = report.reviewId
-          // A new tick answers the card's request to confirm the page again.
-          const now = state.value
-          if (now?.key === key && now.phase === 'changed' && now.check?.status === 'confirm' && now.check.token === shown.token) state.value = { ...now, phase: 'idle' }
-          return
-        }
+        const check = checkOf(report)
+        if (sameReading(shown, check) && report.reviewId) entry.reviewId = report.reviewId
+        else entry.reading = check
       } catch {
-        check = undefined
+        entry.reading = undefined
       }
-      if (confirmation === entry) confirmation = undefined
-      // The page no longer reads as the card showed it: show the new reading, which needs a new tick.
+      // A newer tick, an answer under way or a newer reading owns the card; this tick's result stays on its entry.
+      if (confirmation !== entry || generation !== at) return
       const now = state.value
       if (now?.key !== key || now.check?.status !== 'confirm' || now.check.token !== shown.token) return
-      if (check) state.value = { ...now, check, phase: 'changed' }
+      if (entry.reviewId) {
+        // A new tick answers the card's request to confirm the page again.
+        if (now.phase === 'changed') state.value = { ...now, phase: 'idle' }
+        return
+      }
+      confirmation = undefined
+      // The page no longer reads as the card showed it: show the new reading, which needs a new tick.
+      if (entry.reading) state.value = { ...now, check: entry.reading, phase: 'changed' }
       else void load(target, 'failed')
     })()
   }
@@ -211,7 +233,13 @@ export function useAgentDecisionAnswers(options: AgentDecisionAnswerOptions): Ag
       : !agentCardRejects(current.decision)) return
     // Completing a page that needed confirming needs the tick for the reading the card shows.
     const confirmed = action === 'resolve' && shown?.status === 'confirm' ? confirmation : undefined
-    if (action === 'resolve' && shown?.status === 'confirm' && (!confirmed || confirmed.key !== key || confirmed.token !== shown.token)) return
+    if (action === 'resolve' && shown?.status === 'confirm' && (!confirmed || confirmed.key !== key || confirmed.token !== shown.token)) {
+      // The card's box was ticked for a reading the shell no longer holds a tick for: ask for a new one.
+      confirmation = undefined
+      generation += 1
+      state.value = { ...current, check: renamed(shown), phase: 'changed' }
+      return
+    }
     const run = ++generation
     state.value = { ...current, phase: 'sending' }
     // Once sent, the answer goes through even if the card closes; only what the card shows waits on it being current.
@@ -221,13 +249,17 @@ export function useAgentDecisionAnswers(options: AgentDecisionAnswerOptions): Ag
     try {
       if (confirmed) {
         await confirmed.ready
-        // The page changed when you ticked; the card already shows the new reading.
-        if (!confirmed.reviewId) return
+        if (confirmation === confirmed) confirmation = undefined
+        if (!confirmed.reviewId) {
+          // The page read differently when you ticked: show that reading, which needs a new tick.
+          if (confirmed.reading) show({ ...current, check: confirmed.reading, phase: 'changed' })
+          else if (run === generation) void load(target, 'failed')
+          return
+        }
         try {
           await browser.reconcileWorkspaceContinuity(target.workspaceId, confirmed.reviewId, shown?.status === 'confirm' && shown.unknownOutcome)
         } catch {
           // The page changed since you ticked, or 30 seconds passed: confirm it again.
-          if (confirmation === confirmed) confirmation = undefined
           if (run === generation) void load(target, 'changed')
           return
         }
@@ -240,7 +272,8 @@ export function useAgentDecisionAnswers(options: AgentDecisionAnswerOptions): Ag
         }
       }
       const record = await browser.changeHumanWaiting(target.workspaceId, current.id, current.revision, action, undefined, note)
-      show({ ...current, phase: humanWaitingDecisionOpen(record.state) ? 'failed' : 'sent' })
+      // A confirmed review counts once, so trying again needs a new tick.
+      show({ ...current, check: confirmed ? renamed(current.check) : current.check, phase: humanWaitingDecisionOpen(record.state) ? 'failed' : 'sent' })
     } catch {
       // Read the decision and the page again; what you typed stays in the card.
       if (run === generation) void load(target, 'failed')

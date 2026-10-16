@@ -259,7 +259,12 @@ describe('agent avatars in the toolbar', () => {
     expect(browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
     expect(browser.changeHumanWaiting).not.toHaveBeenCalled()
 
-    card.emit({ cardId, kind: 'action', action: 'answer-check', key: 'decision-1_revision-1' })
+    // The tick names the reading it confirms; one for a reading the card does not show confirms nothing.
+    card.emit({ cardId, kind: 'action', action: 'answer-check', key: 'check-0' })
+    await flushPromises()
+    expect(browser.reviewWorkspaceContinuity).toHaveBeenCalledTimes(1)
+    await nextTick()
+    card.emit({ cardId, kind: 'action', action: 'answer-check', key: card.last().model.reason!.decision!.check!.id })
     await flushPromises()
     card.emit({ cardId, kind: 'action', action: 'answer-resolve', key: 'decision-1_revision-1' })
     await flushPromises()

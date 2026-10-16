@@ -69,7 +69,7 @@ export interface AgentCardDecision {
   plan?: { heading: string; steps: Array<{ text: string; detail?: string }>; more?: string }
   /**
    * What Hronaut found when it checked the workspace, and the box the person ticks to confirm the page as it is.
-   * Ticking it sends `answer-check`; its id names this reading, and a new reading needs a new tick.
+   * Ticking it sends `answer-check` with this id as its key: the id names this reading, and a new reading needs a new tick.
    */
   check?: { id: string; text: string; confirm: string }
   /** A field for the person's note or answer, sent with one answer. With a toggle it opens on demand. */

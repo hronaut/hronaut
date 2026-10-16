@@ -227,7 +227,7 @@ function run(clientKey: string, action: AgentCardAction, key?: string, note?: st
   const agent = agentByKey(clientKey)
   const tab = agent && (openTab(cardTabId) ?? openTab(target(agent)))
   if (action === 'answer-check' || action === 'answer-resolve' || action === 'answer-reject') {
-    // The decision checks the key against the revision the card showed.
+    // The decision checks the key against the revision the card showed; a tick names the reading it confirms.
     if (!key || !props.attentionDecision || agent?.state !== 'needs-you' || gone(agent)) return
     if (action === 'answer-check') decisionAnswers.confirm(key)
     else void decisionAnswers.answer(key, action === 'answer-resolve' ? 'resolve' : 'reject', note)

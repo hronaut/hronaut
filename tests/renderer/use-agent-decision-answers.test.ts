@@ -44,6 +44,12 @@ function setup(records: HumanWaitingRecord[] = [record()], reports: WorkspaceCon
   return { browser, calls, target, active, scope, answers }
 }
 
+/** The id of the reading the card shows, which a tick confirms. */
+function shownCheck(answers: ReturnType<typeof setup>['answers']): string {
+  const check = answers.state.value?.check
+  return check?.status === 'confirm' ? check.token : 'no-check'
+}
+
 async function settle(): Promise<void> {
   for (let index = 0; index < 6; index += 1) await Promise.resolve()
   await nextTick()
@@ -77,7 +83,7 @@ describe('answering an agent decision from its card', () => {
     // Without the tick there is nothing to confirm.
     await answers.answer('decision-1_revision-1', 'resolve', 'Use the second address')
     expect(calls).toEqual([])
-    answers.confirm('decision-1_revision-1')
+    answers.confirm(shownCheck(answers))
     await answers.answer('decision-1_revision-1', 'resolve', 'Use the second address')
     expect(calls).toEqual([
       'review workspace-1',
@@ -93,7 +99,7 @@ describe('answering an agent decision from its card', () => {
     const { browser, answers, scope } = setup(undefined, [report(), report({ reasons: ['ORIGIN_CHANGED', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] })])
     await settle()
     const shown = answers.state.value?.check
-    answers.confirm('decision-1_revision-1')
+    answers.confirm(shownCheck(answers))
     await answers.answer('decision-1_revision-1', 'resolve')
     expect(browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
     expect(browser.changeHumanWaiting).not.toHaveBeenCalled()
@@ -110,7 +116,7 @@ describe('answering an agent decision from its card', () => {
     await settle()
     const shown = answers.state.value?.check
     browser.reconcileWorkspaceContinuity.mockRejectedValueOnce(new Error('Browser state changed after continuity review'))
-    answers.confirm('decision-1_revision-1')
+    answers.confirm(shownCheck(answers))
     await answers.answer('decision-1_revision-1', 'resolve')
     await settle()
     expect(browser.changeHumanWaiting).not.toHaveBeenCalled()
@@ -120,10 +126,75 @@ describe('answering an agent decision from its card', () => {
     await answers.answer('decision-1_revision-1', 'resolve')
     expect(browser.reconcileWorkspaceContinuity).toHaveBeenCalledTimes(1)
     // A tick that reads the same clears the request to confirm again.
-    answers.confirm('decision-1_revision-1')
+    answers.confirm(shownCheck(answers))
     await settle()
     expect(answers.state.value?.phase).toBe('idle')
     scope.stop()
+  })
+
+  it('leaves a newer tick or an answer under way alone when an earlier tick reads late', async () => {
+    // Tick, then send back quickly: the tick's late, different reading does not take over the card.
+    const rejecting = setup()
+    await settle()
+    let finishTick!: (value: WorkspaceContinuityReport) => void
+    rejecting.browser.reviewWorkspaceContinuity.mockImplementationOnce(() => new Promise((resolve) => { finishTick = resolve }))
+    let finishReject!: (value: HumanWaitingRecord) => void
+    rejecting.browser.changeHumanWaiting.mockImplementationOnce(() => new Promise((resolve) => { finishReject = resolve }))
+    rejecting.answers.confirm(shownCheck(rejecting.answers))
+    const sending = rejecting.answers.answer('decision-1_revision-1', 'reject', 'Wrong total')
+    await settle()
+    finishTick(report({ reasons: ['ORIGIN_CHANGED'] }))
+    await settle()
+    expect(rejecting.answers.state.value?.phase).toBe('sending')
+    finishReject(record({ state: 'REJECTED' }))
+    await sending
+    expect(rejecting.answers.state.value?.phase).toBe('sent')
+    rejecting.scope.stop()
+
+    // Two ticks, then send: the first tick's different reading arrives last and changes nothing; the second is confirmed.
+    const twice = setup(undefined, [report({ reviewId: 'review-shown' })])
+    await settle()
+    const ticks: Array<(value: WorkspaceContinuityReport) => void> = []
+    twice.browser.reviewWorkspaceContinuity.mockImplementation(() => new Promise((resolve) => { ticks.push(resolve) }))
+    const shown = shownCheck(twice.answers)
+    twice.answers.confirm(shown)
+    twice.answers.confirm(shown)
+    const completing = twice.answers.answer('decision-1_revision-1', 'resolve')
+    ticks[1](report({ reviewId: 'review-second' }))
+    ticks[0](report({ reasons: ['ORIGIN_CHANGED'], reviewId: 'review-first' }))
+    await completing
+    expect(twice.browser.reconcileWorkspaceContinuity.mock.calls).toEqual([['workspace-1', 'review-second', true]])
+    expect(twice.answers.state.value?.phase).toBe('sent')
+    twice.scope.stop()
+  })
+
+  it('asks for a new tick after a reload keeps the card, and after a confirmed review was used', async () => {
+    // The decision cannot be read again after main refused the confirmation: the box no longer counts as ticked.
+    const reload = setup()
+    await settle()
+    const shown = shownCheck(reload.answers)
+    reload.browser.reconcileWorkspaceContinuity.mockRejectedValueOnce(new Error('Browser state changed after continuity review'))
+    reload.browser.listHumanWaiting.mockRejectedValueOnce(new Error('Human waiting history is unavailable'))
+    reload.answers.confirm(shown)
+    await reload.answers.answer('decision-1_revision-1', 'resolve')
+    await settle()
+    expect(reload.answers.state.value).toMatchObject({ phase: 'failed', check: { status: 'confirm' } })
+    expect(shownCheck(reload.answers)).not.toBe(shown)
+    reload.scope.stop()
+
+    // Main kept the decision open after the page was confirmed; that review counts once, so trying again needs a new tick.
+    const open = setup()
+    await settle()
+    const before = shownCheck(open.answers)
+    open.browser.changeHumanWaiting.mockResolvedValueOnce(record())
+    open.answers.confirm(before)
+    await open.answers.answer('decision-1_revision-1', 'resolve')
+    expect(open.answers.state.value?.phase).toBe('failed')
+    expect(shownCheck(open.answers)).not.toBe(before)
+    await open.answers.answer('decision-1_revision-1', 'resolve')
+    expect(open.browser.reconcileWorkspaceContinuity).toHaveBeenCalledTimes(1)
+    expect(open.answers.state.value?.phase).toBe('changed')
+    open.scope.stop()
   })
 
   it('finishes an answer it started when the card closes, and reads again when completing failed after the page was confirmed', async () => {
@@ -131,7 +202,7 @@ describe('answering an agent decision from its card', () => {
     await settle()
     let finishReconcile!: () => void
     closing.browser.reconcileWorkspaceContinuity.mockImplementationOnce(() => new Promise((resolve) => { finishReconcile = () => resolve(report()) }))
-    closing.answers.confirm('decision-1_revision-1')
+    closing.answers.confirm(shownCheck(closing.answers))
     const sending = closing.answers.answer('decision-1_revision-1', 'resolve')
     await settle()
     closing.active.value = false
@@ -146,7 +217,7 @@ describe('answering an agent decision from its card', () => {
     const failing = setup(undefined, [report(), report(), clear])
     await settle()
     failing.browser.changeHumanWaiting.mockRejectedValueOnce(new Error('Browser review changed while saving; inspect current state again'))
-    failing.answers.confirm('decision-1_revision-1')
+    failing.answers.confirm(shownCheck(failing.answers))
     await failing.answers.answer('decision-1_revision-1', 'resolve')
     await settle()
     // The guard is confirmed now, so trying again needs no new tick.
@@ -197,17 +268,21 @@ describe('answering an agent decision from its card', () => {
     const unavailable = setup(undefined, [report({ reviewId: null })])
     await settle()
     expect(unavailable.answers.state.value?.check).toEqual({ status: 'unavailable', reasons: ['CHECKPOINT_UNAVAILABLE', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] })
-    unavailable.answers.confirm('decision-1_revision-1')
+    unavailable.answers.confirm(shownCheck(unavailable.answers))
     await unavailable.answers.answer('decision-1_revision-1', 'resolve')
     expect(unavailable.browser.changeHumanWaiting).not.toHaveBeenCalled()
     unavailable.scope.stop()
 
-    // A tick for another revision confirms nothing.
+    // A tick for a reading the card no longer shows confirms nothing, and completing then asks for a new tick.
     const other = setup()
     await settle()
-    other.answers.confirm('decision-1_revision-0')
+    const shown = shownCheck(other.answers)
+    other.answers.confirm('check-0')
     await other.answers.answer('decision-1_revision-1', 'resolve')
+    expect(other.browser.reviewWorkspaceContinuity).toHaveBeenCalledTimes(1)
     expect(other.browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
+    expect(other.answers.state.value?.phase).toBe('changed')
+    expect(shownCheck(other.answers)).not.toBe(shown)
     other.scope.stop()
   })
 
