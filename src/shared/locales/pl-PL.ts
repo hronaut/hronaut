@@ -794,6 +794,10 @@ export const plPL = {
         "label": "Pokaż lub ukryj narzędzia deweloperskie",
         "description": "Otwórz Chromium DevTools dla bieżącej witryny"
       },
+      "full-page-view": {
+        "label": "Przełącz widok pełnej strony",
+        "description": "Ukryj karty i pasek narzędzi, aby witryna wypełniła okno"
+      },
       "settings": {
         "label": "Otwórz ustawienia",
         "description": "Zmień preferencje Hronaut"
@@ -858,7 +862,8 @@ export const plPL = {
       "previousTab": "Przejdź do poprzedniej karty",
       "directTab": "Przejdź do karty internetowej 1–8",
       "lastTab": "Przejdź do ostatniej karty internetowej",
-      "resetZoom": "Zresetuj powiększenie strony"
+      "resetZoom": "Zresetuj powiększenie strony",
+      "fullPage": "Przełącz widok pełnej strony"
     },
     "responsive": {
       "preview": "Testuj telefony, tablety i komputery",
@@ -1492,6 +1497,9 @@ export const plPL = {
       "answerDescription": "Otwórz kartę agenta, aby odpowiedzieć na jego decyzję",
       "decision": "Czeka na Twoją decyzję",
       "unpin": "Odepnij stan na żywo"
+    },
+    "fullPage": {
+      "exit": "Wyjdź z widoku pełnej strony"
     },
     "siteControls": {
       "close": "Zamknij ustawienia witryny",
@@ -3402,6 +3410,7 @@ export const plPL = {
       "reload": "Odśwież kartę",
       "reloadWithoutCache": "Odśwież kartę bez pamięci podręcznej",
       "developerTools": "Narzędzia deweloperskie",
+      "fullPageView": "Widok pełnej strony",
       "actualSize": "Rozmiar rzeczywisty",
       "zoomIn": "Powiększ",
       "zoomOut": "Pomniejsz",

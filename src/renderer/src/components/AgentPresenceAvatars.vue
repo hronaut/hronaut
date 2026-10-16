@@ -315,7 +315,10 @@ function focus(): boolean {
   return Boolean(avatar)
 }
 
-defineExpose({ openCard, focus })
+// Whether a card is open under one of these avatars, so the full-page view keeps the toolbar in view.
+const cardOpen = computed(() => card.openKey.value !== null)
+
+defineExpose({ openCard, focus, cardOpen })
 </script>
 
 <template>

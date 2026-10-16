@@ -8,6 +8,13 @@ describe('filterCommandPaletteCommands', () => {
     expect(commands.some((command) => command.id === 'capture-area')).toBe(false)
   })
 
+  it('offers the full-page view over a website, found by its usual names', () => {
+    expect(filterCommandPaletteCommands('', false).some((command) => command.id === 'full-page-view')).toBe(false)
+    expect(filterCommandPaletteCommands('fullscreen', true)[0]?.id).toBe('full-page-view')
+    expect(filterCommandPaletteCommands('hide toolbar', true)[0]?.id).toBe('full-page-view')
+    expect(filterCommandPaletteCommands('full-page view', true)[0]?.id).toBe('full-page-view')
+  })
+
   it('finds commands through descriptions and synonyms', () => {
     expect(filterCommandPaletteCommands('clipboard image', true).map((command) => command.id)).toEqual([
       'capture-area',

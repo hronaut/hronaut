@@ -5,7 +5,8 @@ const CONCEAL_DELAY = 260
 
 export function useTabRailInteractionController(options: {
   enabled: Readonly<Ref<boolean>>
-  onNativeBlur: () => void
+  /** The window lost focus to the page; says whether the surface was shown until then. */
+  onNativeBlur: (wasRevealed: boolean) => void
 }) {
   const revealed = ref(false)
   let hovered = false
@@ -55,6 +56,8 @@ export function useTabRailInteractionController(options: {
     if (!event) { setRevealed(true); return }
     if (event.currentTarget instanceof HTMLElement) rail = event.currentTarget
     if (event.type === 'focusin') focused = true
+    // A surface that tracks mouseover hears every move between its parts; only arriving counts.
+    else if (hovered) return
     else hovered = true
     reconcile()
   }
@@ -65,6 +68,14 @@ export function useTabRailInteractionController(options: {
     hovered = false
     // Native page focus can leave a stale DOM activeElement behind.
     focused = document.hasFocus() && Boolean(rail?.contains(document.activeElement))
+    reconcile()
+  }
+
+  /** Picks up keyboard focus that is already inside the surface, as when it becomes hideable while in use. */
+  function sync(surface: HTMLElement): void {
+    if (!options.enabled.value || disposed) return
+    rail = surface
+    focused = document.hasFocus() && surface.contains(document.activeElement)
     reconcile()
   }
 
@@ -116,9 +127,10 @@ export function useTabRailInteractionController(options: {
   }
 
   function windowBlur(): void {
+    const wasRevealed = revealed.value
     reset()
     // A native page click must finish against stable native view bounds.
-    options.onNativeBlur()
+    options.onNativeBlur(wasRevealed)
   }
 
   window.addEventListener('blur', windowBlur)
@@ -142,5 +154,5 @@ export function useTabRailInteractionController(options: {
     window.removeEventListener('drop', dragEnd, true)
   })
 
-  return { revealed, reveal, conceal, focusOut, setRevealed }
+  return { revealed, reveal, conceal, focusOut, setRevealed, sync }
 }

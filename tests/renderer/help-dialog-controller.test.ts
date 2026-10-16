@@ -50,7 +50,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.lastTab',
       keys: ['Ctrl/Cmd', '9']
     })
-    expect(controller.shortcuts.value).toHaveLength(19)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.fullPage',
+      keys: ['Ctrl/Cmd', 'Shift', 'F']
+    })
+    expect(controller.shortcuts.value).toHaveLength(20)
     controller.dispose()
   })
 })

@@ -794,6 +794,10 @@ export const deDE = {
         "label": "Entwicklertools umschalten",
         "description": "Chromium DevTools für die aktuelle Website öffnen"
       },
+      "full-page-view": {
+        "label": "Ganzseitenansicht umschalten",
+        "description": "Tabs und Symbolleiste ausblenden, damit die Website das Fenster füllt"
+      },
       "settings": {
         "label": "Einstellungen öffnen",
         "description": "Hronaut-Einstellungen ändern"
@@ -858,7 +862,8 @@ export const deDE = {
       "previousTab": "Zum vorherigen Tab wechseln",
       "directTab": "Zu Website-Tab 1–8 wechseln",
       "lastTab": "Zum letzten Website-Tab wechseln",
-      "resetZoom": "Seitenzoom zurücksetzen"
+      "resetZoom": "Seitenzoom zurücksetzen",
+      "fullPage": "Ganzseitenansicht umschalten"
     },
     "responsive": {
       "preview": "Telefone, Tablets und Desktops testen",
@@ -1492,6 +1497,9 @@ export const deDE = {
       "answerDescription": "Die Karte des Agenten öffnen, um seine Entscheidung zu beantworten",
       "decision": "Wartet auf Ihre Entscheidung",
       "unpin": "Live-Status lösen"
+    },
+    "fullPage": {
+      "exit": "Ganzseitenansicht beenden"
     },
     "siteControls": {
       "close": "Website-Steuerung schließen",
@@ -3402,6 +3410,7 @@ export const deDE = {
       "reload": "Tab neu laden",
       "reloadWithoutCache": "Tab ohne Cache neu laden",
       "developerTools": "Entwicklertools",
+      "fullPageView": "Ganzseitenansicht",
       "actualSize": "Originalgröße",
       "zoomIn": "Vergrößern",
       "zoomOut": "Verkleinern",

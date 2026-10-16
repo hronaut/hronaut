@@ -21,6 +21,7 @@ export type BrowserShortcutAction =
   | 'pick-element'
   | 'toggle-devtools'
   | 'agent-card'
+  | 'toggle-full-page'
 
 export interface BrowserShortcutInput {
   key: string
@@ -60,6 +61,7 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (!input.shift && key === '-') return 'zoom-out'
   if (!input.shift && key === '0') return 'zoom-reset'
   if (key === 't') return input.shift ? 'reopen-closed-tab' : 'new-tab'
+  if (input.shift && key === 'f') return 'toggle-full-page'
   if (input.shift) return null
   if (key === 'l') return 'focus-address'
   if (key === 'w') return 'close-tab'

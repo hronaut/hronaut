@@ -2935,6 +2935,7 @@ test('puts Help in the native application menu and opens shell dialogs above eve
     'Reload Tab',
     'Reload Tab Without Cache',
     'Developer Tools',
+    'Full-Page View',
     'separator',
     'Actual Size',
     'Zoom In',

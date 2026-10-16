@@ -75,6 +75,7 @@ function createController(canRunAction = (_action: string) => true) {
     toggleElementPicker: vi.fn(async () => undefined),
     toggleDeveloperTools: vi.fn(async () => undefined),
     openAgentCard: vi.fn(async () => undefined),
+    toggleFullPageView: vi.fn(async () => undefined),
     onError: vi.fn()
   }
   const controller = useBrowserShortcutController({
@@ -143,6 +144,15 @@ describe('browser shortcut controller', () => {
     harness.settingsOpen.value = true
     await expect(harness.controller.run('agent-card')).resolves.toBe(false)
     expect(harness.callbacks.openAgentCard).toHaveBeenCalledOnce()
+  })
+
+  it('toggles the full-page view from its shortcut, but not under Settings', async () => {
+    const harness = createController()
+    await expect(harness.controller.run('toggle-full-page')).resolves.toBe(true)
+    expect(harness.callbacks.toggleFullPageView).toHaveBeenCalledOnce()
+    harness.settingsOpen.value = true
+    await expect(harness.controller.run('toggle-full-page')).resolves.toBe(false)
+    expect(harness.callbacks.toggleFullPageView).toHaveBeenCalledOnce()
   })
 
   it('reports rejected browser operations instead of leaking an unhandled shortcut failure', async () => {

@@ -93,6 +93,15 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: '.', control: true, repeat: true }))).toBeNull()
   })
 
+  it('toggles the full-page view with the primary modifier plus Shift+F, leaving Find on F', () => {
+    expect(browserShortcutAction(input({ key: 'F', control: true, shift: true }))).toBe('toggle-full-page')
+    expect(browserShortcutAction(input({ key: 'F', meta: true, shift: true }))).toBe('toggle-full-page')
+    expect(browserShortcutAction(input({ key: 'f', control: true }))).toBe('find')
+    expect(browserShortcutAction(input({ key: 'F', shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F', control: true, shift: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'F', meta: true, shift: true, repeat: true }))).toBeNull()
+  })
+
   it('maps standard page zoom shortcuts', () => {
     for (const modifier of [{ control: true }, { meta: true }]) {
       expect(browserShortcutAction(input({ key: '+', shift: true, ...modifier }))).toBe('zoom-in')
