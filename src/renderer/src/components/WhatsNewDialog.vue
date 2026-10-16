@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import UiIconButton from '../ui/UiIconButton.vue'
+import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -74,80 +75,82 @@ useModalDialogFocus({
 </script>
 
 <template>
-  <div v-if="open" class="settings-overlay whats-new-overlay" @click.self="close">
-    <section
-      ref="panel"
-      class="whats-new-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="whats-new-title"
-      :aria-busy="busy"
-      tabindex="-1"
-      @focusin="invalidatePaginationFocus"
-    >
-      <header class="whats-new-header">
-        <h2 id="whats-new-title">{{ t('updates.history.title') }}</h2>
-        <div class="whats-new-header-actions">
-          <UiIconButton :disabled="busy" :label="t('updates.history.refresh')" @click="refresh"><IconRefresh aria-hidden="true" /></UiIconButton>
-          <UiIconButton class="panel-close" :label="t('updates.history.close')" @click="close"><IconClose aria-hidden="true" /></UiIconButton>
-        </div>
-      </header>
+  <UiOverlayTransition>
+    <div v-if="open" class="settings-overlay whats-new-overlay" @click.self="close">
+      <section
+        ref="panel"
+        class="whats-new-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="whats-new-title"
+        :aria-busy="busy"
+        tabindex="-1"
+        @focusin="invalidatePaginationFocus"
+      >
+        <header class="whats-new-header">
+          <h2 id="whats-new-title">{{ t('updates.history.title') }}</h2>
+          <div class="whats-new-header-actions">
+            <UiIconButton :disabled="busy" :label="t('updates.history.refresh')" @click="refresh"><IconRefresh aria-hidden="true" /></UiIconButton>
+            <UiIconButton class="panel-close" :label="t('updates.history.close')" @click="close"><IconClose aria-hidden="true" /></UiIconButton>
+          </div>
+        </header>
 
-      <div class="whats-new-content">
-        <div v-if="state === 'loading' && releases.length === 0" class="whats-new-state" role="status">
-          <IconProgress class="state-spinner" aria-hidden="true" />
-          <strong>{{ t('updates.history.loading') }}</strong>
-          <span>{{ t('updates.history.loadingDescription') }}</span>
+        <div class="whats-new-content">
+          <div v-if="state === 'loading' && releases.length === 0" class="whats-new-state" role="status">
+            <IconProgress class="state-spinner" aria-hidden="true" />
+            <strong>{{ t('updates.history.loading') }}</strong>
+            <span>{{ t('updates.history.loadingDescription') }}</span>
+          </div>
+          <div v-else-if="state === 'error' && releases.length === 0" class="whats-new-state error" role="alert">
+            <IconHistory aria-hidden="true" />
+            <strong>{{ t('updates.history.unavailable') }}</strong>
+            <span>{{ error }}</span>
+            <UiButton variant="primary" :disabled="busy" @click="refresh">{{ t('common.tryAgain') }}</UiButton>
+          </div>
+          <div v-else-if="state === 'ready' && releases.length === 0" class="whats-new-state">
+            <IconHistory aria-hidden="true" />
+            <strong>{{ t('updates.history.empty') }}</strong>
+            <span>{{ t('updates.history.emptyDescription') }}</span>
+          </div>
+          <div v-else class="whats-new-list">
+            <article
+              v-for="release in formattedReleases"
+              :key="release.url"
+              class="whats-new-release"
+              :aria-label="release.title"
+            >
+              <header>
+                <div>
+                  <time :datetime="release.publishedAt">{{ formatDate(release.publishedAt) }}</time>
+                  <h3 v-if="release.displayTitle" class="whats-new-release-title">{{ release.displayTitle }}</h3>
+                </div>
+                <UiButton size="small" :aria-label="t('updates.history.openRelease', { version: release.version })" @click="openExternal(release.url)">
+                  <code>v{{ release.version }}</code><IconLaunch aria-hidden="true" />
+                </UiButton>
+              </header>
+              <div
+                v-if="release.formattedNotes"
+                class="release-notes whats-new-notes"
+                @click="openReleaseNoteLink"
+                v-html="release.formattedNotes"
+              />
+              <p v-else class="whats-new-no-notes">{{ t('updates.history.noNotes') }}</p>
+            </article>
+          </div>
         </div>
-        <div v-else-if="state === 'error' && releases.length === 0" class="whats-new-state error" role="alert">
-          <IconHistory aria-hidden="true" />
-          <strong>{{ t('updates.history.unavailable') }}</strong>
-          <span>{{ error }}</span>
-          <UiButton variant="primary" :disabled="busy" @click="refresh">{{ t('common.tryAgain') }}</UiButton>
-        </div>
-        <div v-else-if="state === 'ready' && releases.length === 0" class="whats-new-state">
-          <IconHistory aria-hidden="true" />
-          <strong>{{ t('updates.history.empty') }}</strong>
-          <span>{{ t('updates.history.emptyDescription') }}</span>
-        </div>
-        <div v-else class="whats-new-list">
-          <article
-            v-for="release in formattedReleases"
-            :key="release.url"
-            class="whats-new-release"
-            :aria-label="release.title"
-          >
-            <header>
-              <div>
-                <time :datetime="release.publishedAt">{{ formatDate(release.publishedAt) }}</time>
-                <h3 v-if="release.displayTitle" class="whats-new-release-title">{{ release.displayTitle }}</h3>
-              </div>
-              <UiButton size="small" :aria-label="t('updates.history.openRelease', { version: release.version })" @click="openExternal(release.url)">
-                <code>v{{ release.version }}</code><IconLaunch aria-hidden="true" />
-              </UiButton>
-            </header>
-            <div
-              v-if="release.formattedNotes"
-              class="release-notes whats-new-notes"
-              @click="openReleaseNoteLink"
-              v-html="release.formattedNotes"
-            />
-            <p v-else class="whats-new-no-notes">{{ t('updates.history.noNotes') }}</p>
-          </article>
-        </div>
-      </div>
 
-      <footer class="whats-new-footer">
-        <span v-if="error && releases.length > 0" role="alert">{{ error }}</span>
-        <span v-else>{{ t('updates.history.source') }}</span>
-        <UiButton v-if="hasMore" :disabled="busy" @click="loadOlder">
-          <IconProgress v-if="operation === 'more'" class="state-spinner" aria-hidden="true" />
-          {{ operation === 'more' ? t('updates.history.loadingMore') : t('updates.history.loadMore') }}
-        </UiButton>
-        <UiButton v-else @click="openExternal('https://github.com/hronaut/hronaut/releases')">
-          {{ t('updates.history.openAll') }}<IconLaunch aria-hidden="true" />
-        </UiButton>
-      </footer>
-    </section>
-  </div>
+        <footer class="whats-new-footer">
+          <span v-if="error && releases.length > 0" role="alert">{{ error }}</span>
+          <span v-else>{{ t('updates.history.source') }}</span>
+          <UiButton v-if="hasMore" :disabled="busy" @click="loadOlder">
+            <IconProgress v-if="operation === 'more'" class="state-spinner" aria-hidden="true" />
+            {{ operation === 'more' ? t('updates.history.loadingMore') : t('updates.history.loadMore') }}
+          </UiButton>
+          <UiButton v-else @click="openExternal('https://github.com/hronaut/hronaut/releases')">
+            {{ t('updates.history.openAll') }}<IconLaunch aria-hidden="true" />
+          </UiButton>
+        </footer>
+      </section>
+    </div>
+  </UiOverlayTransition>
 </template>

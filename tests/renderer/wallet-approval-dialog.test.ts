@@ -385,4 +385,75 @@ describe('WalletApprovalDialog', () => {
       Reflect.deleteProperty(window, 'hronautShell')
     }
   })
+
+  it('takes clicks only once each request has finished appearing', async () => {
+    const style = document.createElement('style')
+    style.textContent = '.wallet-approval-dialog { animation-name: ui-surface-in; } .wallet-approval-dialog--entering { pointer-events: none; }'
+    document.head.append(style)
+    try {
+      const queue = ref([request()])
+      const wallets = { ...controller(), awaitingApproval: queue } as unknown as WalletsController
+      render(WalletApprovalDialog, {
+        props: { controller: wallets, workspaces: [] }, global: { plugins: [createHronautI18n('en-US')] }
+      })
+      const user = userEvent.setup()
+      const dialog = screen.getByRole('alertdialog', { name: /sign message/i })
+      const approve = screen.getByRole('button', { name: 'Approve exact request' })
+      // While the dialog is still nearly transparent, a click aimed at the page must not approve it.
+      await vi.waitFor(() => expect(getComputedStyle(dialog).pointerEvents).toBe('none'))
+      await expect(user.click(approve)).rejects.toThrow(/pointer-events/u)
+      // A child's own animation does not end the dialog's entrance.
+      approve.dispatchEvent(new Event('animationend', { bubbles: true }))
+      expect(dialog).toHaveClass('wallet-approval-dialog--entering')
+
+      dialog.dispatchEvent(new Event('animationend'))
+      await vi.waitFor(() => expect(dialog).not.toHaveClass('wallet-approval-dialog--entering'))
+      await user.click(approve)
+      expect(wallets.approve).toHaveBeenCalledWith('request-1')
+
+      // The next request appears again before it takes clicks.
+      queue.value = [request('request-2', 'Second wallet')]
+      await screen.findByText('Second wallet')
+      const next = screen.getByRole('alertdialog', { name: /sign message/i })
+      expect(next).toHaveClass('wallet-approval-dialog--entering')
+      // The replaced section's cancelled animation does not end the new request's entrance.
+      dialog.dispatchEvent(new Event('animationcancel'))
+      await Promise.resolve()
+      expect(next).toHaveClass('wallet-approval-dialog--entering')
+    } finally {
+      style.remove()
+    }
+  })
+
+  it('stops waiting for an entrance that never ends, counting only time on screen', async () => {
+    vi.useFakeTimers()
+    const style = document.createElement('style')
+    style.textContent = '.wallet-approval-dialog { animation-name: ui-surface-in; }'
+    document.head.append(style)
+    let visibility: DocumentVisibilityState = 'visible'
+    const visibilityState = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility)
+    try {
+      render(WalletApprovalDialog, {
+        props: { controller: controller(), workspaces: [] }, global: { plugins: [createHronautI18n('en-US')] }
+      })
+      const dialog = screen.getByRole('alertdialog', { name: /sign message/i })
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(dialog).toHaveClass('wallet-approval-dialog--entering')
+      // Animations stop in a hidden window, and the click that brings it back must not land on a transparent dialog.
+      visibility = 'hidden'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(dialog).toHaveClass('wallet-approval-dialog--entering')
+      visibility = 'visible'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(1_499)
+      expect(dialog).toHaveClass('wallet-approval-dialog--entering')
+      await vi.advanceTimersByTimeAsync(1)
+      expect(dialog).not.toHaveClass('wallet-approval-dialog--entering')
+    } finally {
+      visibilityState.mockRestore()
+      style.remove()
+      vi.useRealTimers()
+    }
+  })
 })

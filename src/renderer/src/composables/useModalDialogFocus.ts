@@ -185,6 +185,8 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
       }
 
       if (!registered) return
+      // A closing dialog can stay in the document while its exit plays, after its ref is cleared.
+      const closingPanel = options.panel.value
       registered = false
       removeActiveDialog(activeDialog)
       focusGeneration += 1
@@ -207,7 +209,7 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
       // Native focus checks can finish after the user has chosen another control.
       const activeElement = document.activeElement
       if (activeElement && activeElement !== document.body && activeElement !== document.documentElement
-        && !options.panel.value?.contains(activeElement)) return
+        && !closingPanel?.contains(activeElement) && !options.panel.value?.contains(activeElement)) return
       target.focus({ preventScroll: true })
     },
     { immediate: true }

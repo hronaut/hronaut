@@ -101,4 +101,45 @@ describe('window controls scrim', () => {
     await nextTick()
     expect(report).not.toHaveBeenCalled()
   })
+
+  it('keeps a closed dialog dimming the controls until its exit stops holding the page', async () => {
+    const open = ref(true)
+    const exitHoldsPage = ref(false)
+    const report = vi.fn()
+    let current: string | null = 'rgba(4, 7, 12, 0.48)'
+    const scope = effectScope()
+    scope.run(() => useWindowControlsScrim({ sources: [open], exitHoldsPage, report, read: () => current }))
+    open.value = false
+    await nextTick()
+    open.value = true
+    await nextTick()
+    await nextTick()
+    expect(report).toHaveBeenCalledExactlyOnceWith('rgba(4, 7, 12, 0.48)')
+
+    // The leaving backdrop is inert, so it no longer reads, but it still fades over the hidden page.
+    open.value = false
+    exitHoldsPage.value = true
+    current = null
+    await nextTick()
+    await nextTick()
+    expect(report).toHaveBeenCalledOnce()
+
+    // Another dialog opening during the exit still reports its own backdrop at once.
+    open.value = true
+    current = 'rgba(18, 18, 24, 0.38)'
+    await nextTick()
+    await nextTick()
+    expect(report).toHaveBeenLastCalledWith('rgba(18, 18, 24, 0.38)')
+    open.value = false
+    current = null
+    await nextTick()
+    await nextTick()
+    expect(report).toHaveBeenCalledTimes(2)
+
+    exitHoldsPage.value = false
+    await nextTick()
+    await nextTick()
+    expect(report).toHaveBeenLastCalledWith(null)
+    scope.stop()
+  })
 })

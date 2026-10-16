@@ -3038,6 +3038,8 @@ export interface HronautShellApi {
   presentOcclusionSnapshot(id: number): void
   /** The computed backdrop color of the open dialog, or null, so the native window controls dim with it. */
   setWindowControlsScrim(color: string | null): void
+  /** Main has hidden the page views under trusted chrome, with or without a snapshot. */
+  onOcclusionPagesHidden(listener: () => void): () => void
   setFollowAgentActivitySuspended(suspended: boolean): void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
   onClipboardFailed(listener: (message: string) => void): () => void

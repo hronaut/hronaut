@@ -1,4 +1,4 @@
-import { nextTick, onScopeDispose, watch, type WatchSource } from 'vue'
+import { nextTick, onScopeDispose, watch, type Ref, type WatchSource } from 'vue'
 import { parseScrimColor, type ScrimColor } from '../../../shared/title-bar.js'
 
 /** Lays `top` over `bottom` as the compositor does. */
@@ -40,6 +40,8 @@ export function readWindowControlsScrim(): string | null {
 interface WindowControlsScrimOptions {
   /** Open states of the dialogs that draw a backdrop over the whole window. */
   sources: WatchSource<unknown>[]
+  /** True while a closed dialog's exit still keeps the page hidden behind its backdrop. */
+  exitHoldsPage?: Readonly<Ref<boolean>>
   report(color: string | null): void
   read?: () => string | null
 }
@@ -49,11 +51,14 @@ export function useWindowControlsScrim(options: WindowControlsScrimOptions) {
   const read = options.read ?? readWindowControlsScrim
   let reported: string | null = null
   let disposed = false
-  const stop = watch(options.sources, async () => {
+  const exitHoldsPage = options.exitHoldsPage
+  const stop = watch(exitHoldsPage ? [...options.sources, exitHoldsPage] : options.sources, async () => {
     // Read the backdrop once the dialog that changed is in the DOM.
     await nextTick()
     if (disposed) return
     const next = read()
+    // A leaving backdrop is inert and no longer hit-tests; the controls come back with the page, not before.
+    if (next === null && exitHoldsPage?.value) return
     if (next === reported) return
     reported = next
     options.report(next)

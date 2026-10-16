@@ -1,0 +1,89 @@
+/*
+ * Overlay motion. Surfaces spring in from just above their place and fade out
+ * quickly; reduced motion turns both into fades through the motion tokens.
+ */
+@keyframes ui-backdrop-in { from { opacity: 0; } }
+@keyframes ui-surface-in { from { opacity: 0; transform: translateY(var(--motion-enter-y)) scale(var(--motion-enter-scale)); } }
+@keyframes ui-backdrop-out { to { opacity: 0; } }
+@keyframes ui-surface-out { to { opacity: 0; transform: scale(var(--motion-enter-scale)); } }
+
+/* Split view's menu only fades: main moves the page aside by its measured box, which a transform would shrink. */
+.settings-overlay,
+.tab-group-editor-overlay,
+.wallet-approval-overlay,
+.split-view-menu {
+  animation: ui-backdrop-in var(--motion-base) var(--motion-ease-out) both;
+}
+
+.settings-overlay > *,
+.tab-group-editor-overlay > *,
+.wallet-approval-overlay > *,
+.ui-popover__panel,
+.ui-menu__panel {
+  animation: ui-surface-in var(--motion-base) var(--motion-ease-spring) both;
+}
+
+.ui-popover--top-start .ui-popover__panel,
+.ui-popover--top-end .ui-popover__panel { transform-origin: bottom center; }
+.ui-popover__panel,
+.ui-menu__panel { transform-origin: top center; }
+
+/* The page stays above the shell until its snapshot is painted; start the entrance once it is visible. */
+:root[data-overlay-entrance-held] :is(
+  .settings-overlay,
+  .tab-group-editor-overlay,
+  .wallet-approval-overlay
+):not(.ui-overlay-leave-active),
+:root[data-overlay-entrance-held] :is(
+  .settings-overlay,
+  .tab-group-editor-overlay,
+  .wallet-approval-overlay
+):not(.ui-overlay-leave-active) > *,
+:root[data-overlay-entrance-held] .ui-popover__panel--holds-page:not(.ui-surface-leave-active) {
+  animation-play-state: paused;
+}
+
+.ui-overlay-leave-active {
+  animation: ui-backdrop-out var(--motion-fast) var(--motion-ease-out) both;
+  pointer-events: none;
+}
+.ui-overlay-leave-active > * { animation: ui-surface-out var(--motion-fast) var(--motion-ease-out) both; }
+.ui-surface-leave-active {
+  animation: ui-surface-out var(--motion-fast) var(--motion-ease-out) both;
+  pointer-events: none;
+}
+
+/*
+ * Reduced motion stops other animations with !important rules in the
+ * application layer. This layer comes before it, and an earlier layer's
+ * !important wins, so overlays keep their entrance and exit as fades.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .settings-overlay,
+  .tab-group-editor-overlay,
+  .wallet-approval-overlay,
+  .settings-overlay > *,
+  .tab-group-editor-overlay > *,
+  .wallet-approval-overlay > *,
+  .ui-popover__panel,
+  .ui-menu__panel,
+  .split-view-menu {
+    animation-duration: var(--motion-base) !important;
+  }
+  .ui-overlay-leave-active,
+  .ui-overlay-leave-active > *,
+  .ui-surface-leave-active {
+    animation-duration: var(--motion-fast) !important;
+  }
+}
+
+/* A surface closed while its entrance still waited for the page snapshot leaves at once; see beginSurfaceLeave.
+   It stays invisible until removed, instead of showing at full opacity once its held entrance is dropped. */
+.ui-overlay-leave-instant,
+.ui-overlay-leave-instant > * {
+  animation: none !important;
+}
+
+.ui-overlay-leave-instant {
+  opacity: 0 !important;
+}

@@ -435,4 +435,37 @@ describe('modal dialog focus lifecycle', () => {
     await nextTick()
     expect(trigger).toHaveFocus()
   })
+
+  it('returns focus to the opener while the closed dialog is still playing its exit', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const user = userEvent.setup()
+    render(defineComponent({
+      setup() {
+        const open = ref(false)
+        const panel = ref<HTMLElement | null>(null)
+        useModalDialogFocus({ open, panel })
+        // The exit never ends here, so the closed dialog stays in the document after its ref is cleared.
+        const keepLeaving = (_element: Element, _done: () => void): void => undefined
+        return { open, panel, keepLeaving }
+      },
+      template: `
+        <button type="button" @click="open = true">Open leaving dialog</button>
+        <Transition :css="false" @leave="keepLeaving">
+          <section v-if="open" ref="panel" role="dialog" aria-modal="true" aria-label="Leaving" tabindex="-1">
+            <button type="button" @keydown.escape="open = false">Inside</button>
+          </section>
+        </Transition>
+      `
+    }), { global: { stubs: { transition: false } } })
+    const trigger = screen.getByRole('button', { name: 'Open leaving dialog' })
+
+    await user.click(trigger)
+    const dialog = await screen.findByRole('dialog', { name: 'Leaving' })
+    screen.getByRole('button', { name: 'Inside' }).focus()
+    await user.keyboard('{Escape}')
+    await nextTick()
+    await nextTick()
+    expect(dialog).toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
 })

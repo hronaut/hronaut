@@ -3,6 +3,7 @@ import { effectScope } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import PageSnapshot from '../../src/renderer/src/components/PageSnapshot.vue'
 import { useOcclusionSnapshotController } from '../../src/renderer/src/composables/useOcclusionSnapshotController.js'
+import { holdOverlayEntrance, overlayExitHoldsPage, overlayTransitionHooks, resetOverlayMotion } from '../../src/renderer/src/composables/overlay-motion.js'
 import type { BrowserOcclusionSnapshot, HronautShellApi } from '../../src/shared/types.js'
 
 function deferred<T = void>() {
@@ -19,12 +20,21 @@ const snapshotOf = (id: number, x = 0): BrowserOcclusionSnapshot => ({
 
 function fakeShell() {
   let listener: ((snapshot: BrowserOcclusionSnapshot | null) => void) | undefined
+  let pagesHiddenListener: (() => void) | undefined
   const unsubscribe = vi.fn()
+  const unsubscribePagesHidden = vi.fn()
   const api = {
     onOcclusionSnapshot: vi.fn((next: (snapshot: BrowserOcclusionSnapshot | null) => void) => { listener = next; return unsubscribe }),
-    presentOcclusionSnapshot: vi.fn((_id: number) => undefined)
+    presentOcclusionSnapshot: vi.fn((_id: number) => undefined),
+    onOcclusionPagesHidden: vi.fn((next: () => void) => { pagesHiddenListener = next; return unsubscribePagesHidden })
   }
-  return { api, unsubscribe, send: (snapshot: BrowserOcclusionSnapshot | null) => listener?.(snapshot) }
+  return {
+    api,
+    unsubscribe,
+    unsubscribePagesHidden,
+    send: (snapshot: BrowserOcclusionSnapshot | null) => listener?.(snapshot),
+    hidePages: () => pagesHiddenListener?.()
+  }
 }
 
 function setup(options: Parameters<typeof useOcclusionSnapshotController>[1] = {}) {
@@ -37,7 +47,7 @@ function setup(options: Parameters<typeof useOcclusionSnapshotController>[1] = {
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0))
 
 describe('occlusion snapshot controller', () => {
-  afterEach(() => { vi.useRealTimers() })
+  afterEach(() => { vi.useRealTimers(); resetOverlayMotion() })
 
   it('lets main hide the pages only after the snapshot has been painted', async () => {
     const paint = deferred()
@@ -50,6 +60,79 @@ describe('occlusion snapshot controller', () => {
     paint.resolve()
     await flush()
     expect(api.presentOcclusionSnapshot).toHaveBeenCalledWith(1)
+    scope.stop()
+  })
+
+  it('starts held overlay entrances once main can hide the pages', async () => {
+    const paint = deferred()
+    const { api, send, scope } = setup({ decode: async () => undefined, afterPaint: () => paint.promise })
+    holdOverlayEntrance()
+    send(snapshotOf(1))
+    await flush()
+    expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(true)
+    paint.resolve()
+    await flush()
+    expect(api.presentOcclusionSnapshot).toHaveBeenCalledWith(1)
+    expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(false)
+
+    // An image that cannot be shown lets main hide the pages at once, so the entrance starts too.
+    holdOverlayEntrance()
+    const failing = setup({ decode: async () => { throw new Error('bad image') }, afterPaint: async () => undefined })
+    failing.send(snapshotOf(2))
+    await flush()
+    expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(false)
+    failing.scope.stop()
+    scope.stop()
+  })
+
+  it('starts held overlay entrances when main hides the pages without a snapshot', () => {
+    const { hidePages, scope, unsubscribePagesHidden } = setup({ decode: async () => undefined, afterPaint: async () => undefined })
+    // A sleeping page, or one whose capture missed main's deadline, leaves the screen with no image.
+    holdOverlayEntrance()
+    hidePages()
+    expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(false)
+    scope.stop()
+    expect(unsubscribePagesHidden).toHaveBeenCalledOnce()
+  })
+
+  it('lets a closing overlay keep the pages hidden only while their snapshot is on screen', async () => {
+    const { send, scope } = setup({ decode: async () => undefined, afterPaint: async () => undefined })
+    const exit = document.createElement('div')
+    // Without an image, holding the pages back would leave the window empty under the exit.
+    overlayTransitionHooks.onBeforeLeave(exit)
+    expect(overlayExitHoldsPage.value).toBe(false)
+    overlayTransitionHooks.onAfterLeave(exit)
+
+    send(snapshotOf(1))
+    await flush()
+    overlayTransitionHooks.onBeforeLeave(exit)
+    expect(overlayExitHoldsPage.value).toBe(true)
+    // Main withdraws the image, such as for a tab picked in Search tabs: the page returns at once.
+    send(null)
+    expect(overlayExitHoldsPage.value).toBe(false)
+    overlayTransitionHooks.onAfterLeave(exit)
+
+    send(snapshotOf(2))
+    await flush()
+    overlayTransitionHooks.onBeforeLeave(exit)
+    expect(overlayExitHoldsPage.value).toBe(true)
+    scope.stop()
+    expect(overlayExitHoldsPage.value).toBe(false)
+  })
+
+  it('does not start a newer held entrance for an earlier overlay\'s late snapshot', async () => {
+    const paint = deferred()
+    const { api, send, scope } = setup({ decode: async () => undefined, afterPaint: () => paint.promise })
+    holdOverlayEntrance()
+    send(snapshotOf(1))
+    await flush()
+    // The first dialog closed and another opened while its snapshot was still painting.
+    holdOverlayEntrance()
+    paint.resolve()
+    await flush()
+    expect(api.presentOcclusionSnapshot).toHaveBeenCalledWith(1)
+    // Main waits on the second dialog's snapshot, so its entrance keeps waiting too.
+    expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(true)
     scope.stop()
   })
 

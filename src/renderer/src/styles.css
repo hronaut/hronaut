@@ -1,4 +1,4 @@
-@layer theme, tokens, base, primitives, application, components, utilities;
+@layer theme, tokens, base, primitives, motion, application, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source("./");
@@ -65,6 +65,8 @@
 @import './styles/tokens.css' layer(tokens);
 @import './styles/base.css' layer(base);
 @import './styles/primitives.css' layer(primitives);
+/* Before the application layer, so overlay motion survives its reduced-motion !important rules. */
+@import './styles/motion.css' layer(motion);
 @import './styles/title-bar.css' layer(application);
 @import './styles/shell.css' layer(application);
 @import './styles/tools.css' layer(application);

@@ -3,7 +3,7 @@ import type { Locator, Page } from '@playwright/test'
 import axe from 'axe-core'
 import type { AppReleaseHistoryPage } from '../../src/shared/types.js'
 import type { WalletRequestSummary } from '../../src/shared/wallet.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, settleShellMotion, test } from './fixtures.js'
 
 async function expectStyledButtons(surface: Locator): Promise<void> {
   const nativeButtons = await surface.locator('button').evaluateAll(elements => elements.filter(element => {
@@ -15,6 +15,7 @@ async function expectStyledButtons(surface: Locator): Promise<void> {
 }
 
 async function expectReadableContrast(surface: Locator): Promise<void> {
+  await settleShellMotion(surface.page())
   const violations = await surface.evaluate(async element => (await (window as unknown as { axe: typeof axe }).axe.run(element, { runOnly: ['color-contrast'] })).violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(node => ({ target: node.target, issue: node.failureSummary })) })))
   expect.soft(violations, `Readable text in ${await surface.getAttribute('class')}`).toEqual([])
 }

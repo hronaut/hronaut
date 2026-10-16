@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import UiOverlayTransition from "../ui/UiOverlayTransition.vue"
 import { onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -83,54 +84,56 @@ onBeforeUnmount(disposeComponent)
 </script>
 
 <template>
-  <div v-if="open" class="settings-overlay credential-picker-overlay" @click.self="close">
-    <section ref="panel" class="credential-picker" role="dialog" aria-modal="true" aria-labelledby="credential-picker-title">
-      <header class="credential-picker-header">
-        <IconPassword aria-hidden="true" />
-        <div>
-          <span class="eyebrow">{{ t('credentialPicker.kicker') }}</span>
-          <h2 id="credential-picker-title">{{ t('credentialPicker.heading') }}</h2>
+  <UiOverlayTransition>
+    <div v-if="open" class="settings-overlay credential-picker-overlay" @click.self="close">
+      <section ref="panel" class="credential-picker" role="dialog" aria-modal="true" aria-labelledby="credential-picker-title">
+        <header class="credential-picker-header">
+          <IconPassword aria-hidden="true" />
+          <div>
+            <span class="eyebrow">{{ t('credentialPicker.kicker') }}</span>
+            <h2 id="credential-picker-title">{{ t('credentialPicker.heading') }}</h2>
+          </div>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('credentialPicker.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        </header>
+        <div class="credential-picker-field">
+          <IconSearch aria-hidden="true" />
+          <input
+            ref="input"
+            v-model="query"
+            type="search"
+            role="combobox"
+            :aria-label="t('credentialPicker.search')"
+            aria-autocomplete="list"
+            aria-controls="credential-picker-results"
+            :aria-expanded="credentials.length > 0"
+            :aria-activedescendant="selectedCredential ? credentialOptionId(selectedCredential) : undefined"
+            autocomplete="off"
+            spellcheck="false"
+            :placeholder="t('credentialPicker.placeholder')"
+            @keydown="handleKeydown"
+          />
         </div>
-        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('credentialPicker.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
-      </header>
-      <div class="credential-picker-field">
-        <IconSearch aria-hidden="true" />
-        <input
-          ref="input"
-          v-model="query"
-          type="search"
-          role="combobox"
-          :aria-label="t('credentialPicker.search')"
-          aria-autocomplete="list"
-          aria-controls="credential-picker-results"
-          :aria-expanded="credentials.length > 0"
-          :aria-activedescendant="selectedCredential ? credentialOptionId(selectedCredential) : undefined"
-          autocomplete="off"
-          spellcheck="false"
-          :placeholder="t('credentialPicker.placeholder')"
-          @keydown="handleKeydown"
-        />
-      </div>
-      <div v-if="credentials.length" id="credential-picker-results" class="credential-picker-results" role="listbox" :aria-label="t('credentialPicker.results')">
-        <UiButton appearance="application"
-          v-for="(credential, index) in credentials"
-          :id="credentialOptionId(credential)"
-          :key="credential.id"
-          class="credential-picker-item"
-          :class="{ selected: index === selection }"
-          type="button"
-          role="option"
-          :aria-selected="index === selection"
-          @pointermove="selectFromPointer($event, index)"
-          @click="fill(credential)"
-        >
-          <span class="credential-picker-mark" aria-hidden="true"><IconKey /></span>
-          <span><strong>{{ credential.username || t('credentialPicker.unnamed') }}</strong><small>{{ credential.origin }}</small></span>
-          <IconKeyboardArrowRight aria-hidden="true" />
-        </UiButton>
-      </div>
-      <div v-else class="credential-picker-empty"><IconSearch aria-hidden="true" /><strong>{{ t('credentialPicker.empty') }}</strong><span>{{ t('credentialPicker.tryAnother') }}</span></div>
-      <footer><span><IconShieldLock aria-hidden="true" /> {{ t('credentialPicker.paused') }}</span><span><kbd>↑</kbd><kbd>↓</kbd> {{ t('credentialPicker.select') }} · <kbd>Enter</kbd> {{ t('credentialPicker.fill') }}</span></footer>
-    </section>
-  </div>
+        <div v-if="credentials.length" id="credential-picker-results" class="credential-picker-results" role="listbox" :aria-label="t('credentialPicker.results')">
+          <UiButton appearance="application"
+            v-for="(credential, index) in credentials"
+            :id="credentialOptionId(credential)"
+            :key="credential.id"
+            class="credential-picker-item"
+            :class="{ selected: index === selection }"
+            type="button"
+            role="option"
+            :aria-selected="index === selection"
+            @pointermove="selectFromPointer($event, index)"
+            @click="fill(credential)"
+          >
+            <span class="credential-picker-mark" aria-hidden="true"><IconKey /></span>
+            <span><strong>{{ credential.username || t('credentialPicker.unnamed') }}</strong><small>{{ credential.origin }}</small></span>
+            <IconKeyboardArrowRight aria-hidden="true" />
+          </UiButton>
+        </div>
+        <div v-else class="credential-picker-empty"><IconSearch aria-hidden="true" /><strong>{{ t('credentialPicker.empty') }}</strong><span>{{ t('credentialPicker.tryAnother') }}</span></div>
+        <footer><span><IconShieldLock aria-hidden="true" /> {{ t('credentialPicker.paused') }}</span><span><kbd>↑</kbd><kbd>↓</kbd> {{ t('credentialPicker.select') }} · <kbd>Enter</kbd> {{ t('credentialPicker.fill') }}</span></footer>
+      </section>
+    </div>
+  </UiOverlayTransition>
 </template>

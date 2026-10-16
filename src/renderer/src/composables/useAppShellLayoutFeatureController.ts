@@ -5,6 +5,7 @@ import type {
   PanelDock
 } from '../../../shared/types.js'
 import { disposeAll } from './dispose-all.js'
+import { holdOverlayEntrance, overlayExitHoldsPage, releaseOverlayEntrance } from './overlay-motion.js'
 import { usePanelDockLayout } from './usePanelDockLayout.js'
 import { useShellOverlayCoordinationController } from './useShellOverlayCoordinationController.js'
 import { useWindowControlsScrim } from './useWindowControlsScrim.js'
@@ -133,16 +134,23 @@ export function useAppShellLayoutFeatureController(
       { panel: 'bookmarks', open: overlays.bookmarks }
     ],
     fullModalOpen,
+    // A closing overlay plays its exit over the page snapshot before the page returns.
+    browserContentOccluded: computed(() => fullModalOpen.value || overlayExitHoldsPage.value),
     keepsSeparatePanelOpen: options.keepsSeparatePanelOpen,
     closePanelsExcept: options.closePanelsExcept,
     closeAddressSuggestions: options.closeAddressSuggestions,
     setBrowserContentOccluded: (occluded) => {
-      if (!layout.detachedWindow) layout.shellApi.setBrowserContentOccluded(occluded)
+      if (layout.detachedWindow) return
+      // An entrance waits for the page views to leave the screen; once they return, nothing is left to wait for.
+      if (occluded) holdOverlayEntrance()
+      else releaseOverlayEntrance()
+      layout.shellApi.setBrowserContentOccluded(occluded)
     },
     reportLayout: panelDockLayout.reportShellHeight
   })
   const windowControlsScrim = useWindowControlsScrim({
     sources: fullModalStates,
+    exitHoldsPage: overlayExitHoldsPage,
     report: (color) => {
       if (!layout.detachedWindow) layout.shellApi.setWindowControlsScrim(color)
     }
