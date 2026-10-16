@@ -377,6 +377,33 @@ describe('BrowserTabsBar', () => {
     expect(document.querySelector('.workspace-rail-header')).toContainElement(screen.getByRole('button', { name: 'Create workspace' }))
   })
 
+  it.each(['horizontal', 'vertical'] as const)('marks the %s workspace card holding the page in view', async orientation => {
+    const second = { ...workspace('workspace-2'), name: 'Review', color: 'cyan' as const }
+    const state = browserState({ mcpTabGroups: [workspace(), second] })
+    state.tabs.push(tab('second', { mcpGroupId: second.id, mcpGroupName: second.name }))
+    const view = renderTabs(state, true, orientation)
+    const card = (name: string) => screen.getByRole('group', { name })
+    // Home is in view: no workspace card is the active one.
+    expect(card('Research')).not.toHaveClass('active')
+    expect(card('Review')).not.toHaveClass('active')
+
+    const showing = (id: string) => ({
+      ...state,
+      activeTabId: id,
+      tabs: state.tabs.map(entry => ({ ...entry, active: entry.id === id }))
+    })
+    await view.rerender({ state: showing('second') })
+    expect(card('Review')).toHaveClass('active')
+    expect(card('Research')).not.toHaveClass('active')
+    await view.rerender({ state: showing('first') })
+    expect(card('Research')).toHaveClass('active')
+    expect(card('Review')).not.toHaveClass('active')
+    // Settings covers the page, so no workspace is in view, as no tab is selected.
+    await view.rerender({ settingsActive: true })
+    expect(card('Research')).not.toHaveClass('active')
+    expect(card('Research').querySelector('.tab-group-label')).not.toHaveClass('active')
+  })
+
   it('keeps the horizontal strip layout without a Workspaces header', () => {
     renderTabs(browserState(), true, 'horizontal')
     expect(document.querySelector('.workspace-rail-header')).toBeNull()

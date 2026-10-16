@@ -45,6 +45,8 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
           return {
             marker: marker.backgroundColor,
             markerWidth: marker.width,
+            markerHeight: marker.height,
+            markerRadius: parseFloat(marker.borderTopLeftRadius),
             markerShadow: marker.boxShadow,
             labelBackground: label.backgroundColor,
             sectionBackground: section.backgroundColor,
@@ -52,12 +54,16 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
             sectionBorderWidth: section.borderWidth
           }
         })
+        // The workspace color is a round dot after the chevron, on a card tinted with that color.
         expect(workspaceColor.marker).toBe('rgb(139, 124, 246)')
-        expect(workspaceColor.markerWidth).toBe('5px')
+        expect([workspaceColor.markerWidth, workspaceColor.markerHeight]).toEqual(['8px', '8px'])
+        expect(workspaceColor.markerRadius).toBeGreaterThanOrEqual(4)
         expect(workspaceColor.markerShadow).not.toBe('none')
-        expect(workspaceColor.labelBackground).not.toBe(workspaceColor.sectionBackground)
+        // The sticky header shares its card's opaque fill; the card has a 1 px border in its color, not the neutral one.
+        expect(workspaceColor.labelBackground).toBe(workspaceColor.sectionBackground)
+        expect(workspaceColor.sectionBackground).not.toBe('rgba(0, 0, 0, 0)')
         expect(workspaceColor.sectionBorder).not.toBe('rgb(50, 50, 57)')
-        expect(workspaceColor.sectionBorderWidth).toBe('2px')
+        expect(workspaceColor.sectionBorderWidth).toBe('1px')
       }
       await captureChrome(appWindow, testInfo.outputPath(`${orientation}-${theme}-two-workspaces.png`))
     }

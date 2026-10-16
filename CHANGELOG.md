@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - The top of the open tab rail is regrouped. The pin that keeps the rail open is now an icon beside Home instead of a row of its own, with the same tooltip and one click. Below it, a small **Workspaces** heading above the groups carries two icon buttons: Search tabs, the same as the button at the bottom of the rail and Ctrl+Shift+A (Cmd+Shift+A on macOS), and Create workspace, which moved there from the end of the list. A folded rail still shows Home, the pin under it and Create workspace at the end, and its workspaces and tabs keep their rows when it opens. If a dialog opened from the rail, such as Search tabs, closes after the rail has folded behind it, focus now returns to Home, which opens the rail again, instead of being lost. The tab strip above the page is unchanged.
+- Each workspace in the tab rail and tab strip is now a card in a soft tint of its color with a 1 px border in that color, and the workspace showing the page in view is tinted a little more, so you can tell at a glance where you are. A round color dot after the folding arrow replaces the thin color bar, and the workspace's header shares its card's color instead of a separate darker band. Dark themes use a stronger tint than light ones; a workspace that needs you keeps its amber border.
 
 ## [2.50.0] - 2026-10-16
 

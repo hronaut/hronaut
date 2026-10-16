@@ -93,7 +93,7 @@
   @apply flex-col items-stretch [grid-column:1_/_-1] [padding-left:5px];
 }
 .browser-tabs-bar.vertical .tab-group-label {
-  @apply sticky [top:0] [z-index:4] w-full [max-width:none] [height:28px] m-0 [grid-column:1_/_-1] [background:color-mix(in_srgb,_var(--tab-group-color)_16%,_var(--toolbar))];
+  @apply sticky [top:0] [z-index:4] w-full [max-width:none] [height:28px] m-0 [grid-column:1_/_-1];
 }
 .browser-tabs-bar.vertical .workspace-new-tab {
   @apply w-full [height:28px] m-0 [grid-column:1_/_-1];
@@ -209,13 +209,20 @@
   @apply flex min-w-0 w-full [height:37px] [align-items:end] [gap:4px] overflow-x-auto overflow-y-hidden box-border [scroll-padding-inline:31px] [overscroll-behavior-inline:contain] [scrollbar-width:none];
 }
 .tabs-strip::-webkit-scrollbar { @apply hidden; }
+/* A group is a card in a soft tint of its color. The workspace in view is tinted more. Its sticky header shares the
+   card's fill, opaque, so tabs scrolling under it stay hidden. */
 .workspace-tab-section {
-  @apply flex [flex:0_1_auto] [min-width:min-content] items-center [gap:4px] [height:37px] [padding:3px] [border:1px_solid_color-mix(in_srgb,_var(--tab-group-color)_38%,_var(--border-soft))] [border-radius:var(--corner-2)] [background:color-mix(in_srgb,_var(--tab-group-color)_10%,_var(--shell-bottom))];
+  --group-surface: color-mix(in srgb, var(--tab-group-color) var(--group-tint), var(--shell-bottom));
+  @apply flex [flex:0_1_auto] [min-width:min-content] items-center [gap:4px] [height:37px] [padding:3px] [border:1px_solid_color-mix(in_srgb,_var(--tab-group-color)_var(--group-border-tint),_var(--border-soft))] [border-radius:var(--corner-2)] [background:var(--group-surface)];
+}
+.workspace-tab-section.active {
+  --group-surface: color-mix(in srgb, var(--tab-group-color) var(--group-tint-active), var(--shell-bottom));
+  @apply [border-color:color-mix(in_srgb,_var(--tab-group-color)_var(--group-border-tint-active),_var(--border-soft))];
 }
 .workspace-tab-list { @apply flex min-w-0 items-center [gap:3px]; }
 .workspace-tab-list:empty { @apply hidden; }
 .browser-tabs-bar.horizontal .tab-group-label {
-  @apply sticky [left:0] [z-index:4] [background:color-mix(in_srgb,_var(--tab-group-color)_16%,_var(--toolbar))];
+  @apply sticky [left:0] [z-index:4];
 }
 @media (max-width: 1300px) {
   .browser-tabs-bar.horizontal .new-workspace { @apply [width:28px] p-0 justify-center; }
@@ -225,6 +232,7 @@
   .browser-tabs-bar.horizontal .app-home-label { @apply hidden; }
   .browser-tabs-bar.horizontal .app-home-button { @apply [width:34px] [padding:0_8px] [margin-right:4px]; }
   .browser-tabs-bar.horizontal .tab-group-label { @apply [width:86px] [max-width:86px] [padding:0_3px]; }
+  .browser-tabs-bar.horizontal .tab-group-label::before { @apply m-0; }
   .browser-tabs-bar.horizontal .tab-group-count,
   .browser-tabs-bar.horizontal .tab-group-default-badge { @apply hidden; }
   .browser-tabs-bar.horizontal .tab:not(.pinned) { @apply [width:112px] [flex-basis:112px]; }
@@ -256,13 +264,16 @@
 .tabs-scroll-button:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
 .tabs-scroll-button:disabled { @apply invisible opacity-0 pointer-events-none; }
 .tab-group-label {
-  @apply flex items-center [gap:4px] overflow-hidden [max-width:150px] flex-none [height:29px] m-0 [padding:0_6px] [border:1px_solid_transparent] [border-radius:5px] [background:transparent] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1.2] text-ellipsis whitespace-nowrap cursor-pointer;
+  @apply flex items-center [gap:4px] overflow-hidden [max-width:150px] flex-none [height:29px] m-0 [padding:0_6px] [border:1px_solid_transparent] [border-radius:5px] [background:var(--group-surface,_transparent)] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1.2] text-ellipsis whitespace-nowrap cursor-pointer;
 }
 .tab-group-label > svg {
   @apply [width:14px] [height:14px] flex-none;
 }
+/* The chevron leads, before the color dot drawn as ::before. */
+.tab-group-label > svg:first-child { @apply [order:-1]; }
+/* The workspace's color dot, after the chevron. */
 .tab-group-label::before {
-  @apply [width:3px] [height:16px] flex-none [border-radius:var(--corner-pill)] [background:var(--tab-group-color)] [box-shadow:0_0_0_2px_color-mix(in_srgb,_var(--tab-group-color)_22%,_transparent)];
+  @apply [width:8px] [height:8px] flex-none [margin:0_2px] [border-radius:var(--corner-pill)] [background:var(--tab-group-color)] [box-shadow:0_0_0_2px_color-mix(in_srgb,_var(--tab-group-color)_26%,_transparent)];
   content: "";
 }
 .tab-group-label > .tab-group-default-badge { @apply [width:13px] [height:13px] [opacity:.84]; }
@@ -271,25 +282,13 @@
 }
 .tab-group-label:hover,
 .tab-group-label:focus-visible {
-  @apply [border-color:var(--tab-group-color)] [background:color-mix(in_srgb,_var(--tab-group-color)_25%,_var(--toolbar))];
+  @apply [border-color:var(--tab-group-color)] [background:color-mix(in_srgb,_var(--tab-group-color)_var(--group-tint-hover),_var(--shell-bottom))];
 }
 .tab-group-label:focus-visible {
   @apply [outline:2px_solid_color-mix(in_srgb,_var(--tab-group-color)_72%,_white)] [outline-offset:1px];
 }
 .tab-group-label.active {
   @apply [color:var(--text)];
-}
-:root[data-theme="dark"] .workspace-tab-section {
-  @apply [border-width:2px] [border-color:color-mix(in_srgb,_var(--tab-group-color)_62%,_var(--border-soft))] [background:color-mix(in_srgb,_var(--tab-group-color)_18%,_var(--shell-bottom))];
-}
-:root[data-theme="dark"] .tab-group-label {
-  @apply [background:color-mix(in_srgb,_var(--tab-group-color)_24%,_var(--toolbar))];
-}
-:root[data-theme="dark"] .tab-group-label::before {
-  @apply [width:5px] [height:18px] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--tab-group-color)_34%,_transparent)];
-}
-:root[data-theme="dark"] .tab-group-label.active {
-  @apply [background:color-mix(in_srgb,_var(--tab-group-color)_32%,_var(--toolbar))];
 }
 .tab-group-count {
   @apply [min-width:14px] [padding:0_2px] text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-medium)] text-center;

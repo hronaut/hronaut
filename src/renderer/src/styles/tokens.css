@@ -83,6 +83,14 @@
   --needs-you-soft: color-mix(in srgb, var(--needs-you) 14%, transparent);
   --connected: var(--success);
   --connected-soft: color-mix(in srgb, var(--connected) 14%, transparent);
+
+  /* Workspace group cards: how much of the workspace color tints a card and its border, more for the workspace in
+     view and a hovered header. Muted text keeps 4.5:1 on every tint for all workspace colors. */
+  --group-tint: 6%;
+  --group-tint-active: 12%;
+  --group-tint-hover: 16%;
+  --group-border-tint: 30%;
+  --group-border-tint-active: 52%;
 }
 
 /* Reduced motion keeps fades and drops movement, everywhere at once. */
@@ -105,11 +113,20 @@
 .ui-theme-scope:is([data-theme="dark"], [data-theme="midnight"], [data-theme="cyberpunk"], [data-theme="cyberpunk-turbo"], [data-theme="matrix"], [data-theme="machine"], [data-theme="galactic"]) {
   --elevation-highlight: rgba(255, 255, 255, 0.06);
   --needs-you: #f5b83d;
+  --group-tint: 10%;
+  --group-tint-active: 18%;
+  --group-tint-hover: 28%;
+  --group-border-tint: 46%;
+  --group-border-tint-active: 70%;
 }
 
 :root[data-theme="sepia"],
 .ui-theme-scope[data-theme="sepia"] {
   --needs-you: #7f3d09;
+  /* Sepia's muted text has the least room: it falls under 4.5:1 above about 11%. */
+  --group-tint: 5%;
+  --group-tint-active: 10%;
+  --group-tint-hover: 11%;
 }
 
 :root,
