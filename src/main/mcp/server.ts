@@ -103,6 +103,8 @@ import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
+import { AgentPresenceRegistry } from './agent-presence.js'
+import type { AgentPresence } from '../../shared/agent-presence.js'
 export {
   WorkspaceWriteLeaseError,
   WorkspaceWriteLeaseRegistry,
@@ -327,6 +329,8 @@ export interface McpHttpServerOptions {
   siteData: SiteDataOperations
   wallets?: WalletAgentOperations
   onTabActivity?: (activity: McpTabActivity) => void
+  /** Agent presence may have changed; read it with getAgentPresence(). Called often and synchronously. */
+  onAgentPresenceChanged?: () => void
 }
 
 export interface McpClientActivity {
@@ -1042,7 +1046,7 @@ function createBrowserMcpServer(
   capability?: { store: McpCapabilityProfileStore; grant: McpCapabilityGrant },
   wallets?: WalletAgentOperations,
   walletSessions?: WalletAgentSessionRegistry,
-  onTabActivity?: (activity: McpTabActivity) => void,
+  onTabActivity?: (activity: McpTabActivity, workspaceId: string) => void,
   auditReceipts?: AuditReceiptService,
   getPaused: () => boolean = () => false,
   actionTracker = new McpActionTracker(),
@@ -2362,7 +2366,7 @@ function createBrowserMcpServer(
               phase: 'started',
               ...(preservePresentation ? { suppressFollow: true } : {}),
               occurredAt: Date.now()
-            })
+            }, workspaceId)
           }
           const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
           try {
@@ -2666,7 +2670,7 @@ function createBrowserMcpServer(
             ...(preservePresentation ? { suppressFollow: true } : {}),
             occurredAt: Date.now(),
             result: activityResult
-          })
+          }, workspaceId)
         }
         const invalidatedWaitResult = (error: unknown): CallToolResult | undefined => {
           if (!activityStarted || !resolvedTabId || (name !== 'browser_wait' && name !== 'browser_network_wait')) {
@@ -3573,12 +3577,12 @@ function createBrowserMcpServer(
         validate()
         const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, label, () => creation.publication!(), tabId => {
           const activityId = randomUUID()
-          onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() })
+          onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
           creation.publication = () => {
             validate()
             if (!manager.tabBelongsToMcpGroup(workspaceId!, tabId)) throw workspaceAuthorizationError()
           }
-          creation.finish = result => onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: result.isError ? 'failed' : 'finished', occurredAt: Date.now(), result: classifyMcpActivityResult({ readOnly: false, dispatched: true, cancelled: creation.cancelled?.() === true, timedOut: false, threw: false, isError: result.isError === true, invalidatedOutcome: result.structuredContent?.status === 'OUTCOME_UNKNOWN' ? 'outcome-unknown' : undefined }) })
+          creation.finish = result => onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: result.isError ? 'failed' : 'finished', occurredAt: Date.now(), result: classifyMcpActivityResult({ readOnly: false, dispatched: true, cancelled: creation.cancelled?.() === true, timedOut: false, threw: false, isError: result.isError === true, invalidatedOutcome: result.structuredContent?.status === 'OUTCOME_UNKNOWN' ? 'outcome-unknown' : undefined }) }, workspaceId!)
         }, () => { creation.attempted = true })
         creation.knownNotSaved = saved.labelPersistence === 'not-saved'
         const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), ...saved,
@@ -3591,8 +3595,8 @@ function createBrowserMcpServer(
       const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
       if (createdTab) {
         const activityId = randomUUID()
-        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() })
-        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() })
+        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
+        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
       }
       return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)))
     })
@@ -5723,6 +5727,8 @@ export class McpHttpServer {
   private readonly walletSessions: WalletAgentSessionRegistry
   private readonly workspaceLeases = new WorkspaceWriteLeaseRegistry()
   private readonly actionTracker: McpActionTracker
+  private readonly agentPresence = new AgentPresenceRegistry()
+  private agentPresenceTimer: NodeJS.Timeout | undefined
 
   constructor(
     private readonly manager: BrowserTabsManager,
@@ -5936,6 +5942,7 @@ export class McpHttpServer {
                 this.clients.delete(sessionId)
               }
               this.workspaceLeases.clearOwner(sessionId)
+              this.removeAgentPresence(sessionId)
               await this.walletSessions.clearOwner(sessionId)
             }
           })
@@ -5943,7 +5950,11 @@ export class McpHttpServer {
             this.manager,
             this.options.showWindowInactive,
             this.options.getUserAttention,
-            this.options.requestUserAttention,
+            async (input) => {
+              const attention = await this.options.requestUserAttention(input)
+              this.recordAgentAttention(client, input, attention)
+              return attention
+            },
             this.options.bookmarks,
             this.options.history,
             this.options.siteData,
@@ -5955,7 +5966,7 @@ export class McpHttpServer {
               : undefined,
             this.options.wallets,
             this.walletSessions,
-            (activity) => this.trackTabActivity(activity),
+            (activity, workspaceId) => this.trackTabActivity(activity, client, workspaceId),
             this.options.auditReceipts,
             () => this.paused,
             this.actionTracker,
@@ -6012,6 +6023,19 @@ export class McpHttpServer {
     await this.walletSessions.clear()
     this.workspaceLeases.clear()
     this.clients.clear()
+    clearTimeout(this.agentPresenceTimer)
+    this.agentPresenceTimer = undefined
+    this.agentPresence.clear()
+    this.agentPresenceChanged()
+  }
+
+  /** Agents seen recently in each open workspace they may use, in display order. */
+  getAgentPresence(now = Date.now()): Record<string, AgentPresence[]> {
+    return this.agentPresence.derive(now, {
+      workspaceOpen: (workspaceId) => this.manager.isOpenAgentWorkspace(workspaceId),
+      currentAttentionId: this.options.getUserAttention()?.id ?? null,
+      tabInWorkspace: (workspaceId, tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
+    })
   }
 
   private authenticateRequest(authorization: string | undefined): McpRequestAuthorization | null {
@@ -6094,12 +6118,52 @@ export class McpHttpServer {
     this.transportSessions.delete(sessionId)
     if (this.clients.get(sessionId) === session.client) this.clients.delete(sessionId)
     this.workspaceLeases.clearOwner(sessionId)
+    this.removeAgentPresence(sessionId)
     await this.walletSessions.clearOwner(sessionId)
     await Promise.allSettled([session.transport.close(), session.server.close()])
   }
 
-  private trackTabActivity(activity: McpTabActivity): void {
+  private trackTabActivity(activity: McpTabActivity, client: McpClientActivity, workspaceId: string): void {
     this.options.onTabActivity?.(activity)
     this.actionTracker.activityHistory.track(activity)
+    try {
+      this.agentPresence.track({ id: client.id, name: client.name }, workspaceId, activity)
+    } catch (error) {
+      console.error('[mcp] Failed to record agent presence:', error)
+    }
+    this.agentPresenceChanged()
+  }
+
+  private recordAgentAttention(client: McpClientActivity, input: UserAttentionInput, attention: UserAttentionRequest): void {
+    const workspaceId = input.workspaceId ?? attention.workspaceId
+    if (!workspaceId) return
+    try {
+      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now())
+    } catch (error) {
+      console.error('[mcp] Failed to record agent presence:', error)
+    }
+    this.agentPresenceChanged()
+  }
+
+  private removeAgentPresence(sessionId: string): void {
+    this.agentPresence.removeClient(sessionId)
+    this.agentPresenceChanged()
+  }
+
+  /** Tells main presence may have changed, and wakes again for the next change no call will cause. */
+  private agentPresenceChanged(): void {
+    clearTimeout(this.agentPresenceTimer)
+    this.agentPresenceTimer = undefined
+    const now = Date.now()
+    const next = this.agentPresence.nextTransitionAt(now)
+    if (next !== undefined && this.httpServer) {
+      this.agentPresenceTimer = setTimeout(() => this.agentPresenceChanged(), next - now + 1)
+      this.agentPresenceTimer.unref?.()
+    }
+    try {
+      this.options.onAgentPresenceChanged?.()
+    } catch (error) {
+      console.error('[mcp] Failed to publish agent presence:', error)
+    }
   }
 }

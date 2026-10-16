@@ -1325,6 +1325,44 @@ export const frFR = {
       "zoom": "Contrôles du zoom de la page, {percent}",
       "bookmarks": "Favoris"
     },
+    "agents": {
+      "group": "Agents dans cet espace",
+      "unnamed": "Agent",
+      "avatarLabel": "{name}, {state}",
+      "states": {
+        "idle": "inactif",
+        "working": "au travail",
+        "needsYou": "vous attend"
+      },
+      "tooltip": "{name} · {step}",
+      "idle": "{name} · Inactif",
+      "needsYou": "{name} · Vous attend",
+      "needsYouReason": "{name} · Vous attend : {reason}",
+      "more": "Autres agents : {names}",
+      "steps": {
+        "click": "Clique sur la page",
+        "type": "Saisit du texte",
+        "fillForm": "Remplit un formulaire",
+        "choose": "Choisit une option",
+        "pressKey": "Appuie sur une touche",
+        "hover": "Pointe sur la page",
+        "scroll": "Fait défiler la page",
+        "drag": "Fait glisser un élément",
+        "navigate": "Ouvre une page",
+        "history": "Revient en arrière ou avance",
+        "openTab": "Ouvre un nouvel onglet",
+        "switchTab": "Change d’onglet",
+        "closeTab": "Ferme un onglet",
+        "read": "Lit la page",
+        "screenshot": "Prend une capture d’écran",
+        "wait": "Attend la page",
+        "script": "Exécute un script sur la page",
+        "upload": "Envoie un fichier",
+        "askYou": "Vous demande de l’aide",
+        "inspect": "Inspecte la page",
+        "working": "Travaille"
+      }
+    },
     "siteControls": {
       "close": "Fermer les contrôles du site",
       "cookie": "cookie",

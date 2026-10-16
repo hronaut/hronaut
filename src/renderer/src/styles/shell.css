@@ -578,6 +578,40 @@
     calc(var(--titlebar-controls-fallback-width) + 12px)
   );
 }
+/* Agents active in the workspace in view: overlapping round avatars, at most
+   three, then +N. A ring in the shell color separates the overlap; state is the
+   fill (idle is pale), a breathing accent ring (working) or an amber ring and
+   badge (needs you), never only color: the name and state are in the label. */
+.agent-presence { @apply flex flex-none items-center [margin-left:2px]; }
+.agent-avatar {
+  @apply relative grid flex-none place-items-center [width:32px] [min-width:32px] [height:32px] [padding:0] [border:0] [border-radius:var(--corner-pill)] bg-transparent cursor-pointer;
+}
+.agent-avatar + .agent-avatar, .agent-avatar + .agent-avatar-more { @apply [margin-left:-6px]; }
+.agent-avatar:is(:hover, :focus-visible) { @apply [z-index:2]; }
+.agent-avatar-face, .agent-avatar-more {
+  @apply grid [width:28px] [height:28px] place-items-center rounded-full [border:2px_solid_var(--shell-bar,_var(--toolbar))] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1];
+}
+.agent-avatar-face {
+  @apply text-copy [background:color-mix(in_srgb,_var(--agent-color)_30%,_var(--surface))] [transition:background-color_160ms,_box-shadow_160ms];
+}
+.agent-avatar-face svg { @apply [width:15px] [height:15px]; }
+.agent-avatar:hover .agent-avatar-face { @apply [background:color-mix(in_srgb,_var(--agent-color)_42%,_var(--surface))]; }
+.agent-avatar[data-state="idle"] .agent-avatar-face { @apply text-muted [background:color-mix(in_srgb,_var(--agent-color)_10%,_var(--surface))]; }
+.agent-avatar[data-state="working"] .agent-avatar-face { @apply [box-shadow:0_0_0_2px_var(--accent)] [animation:agent-avatar-breathe_1.6s_ease-in-out_infinite]; }
+.agent-avatar[data-state="needs-you"] .agent-avatar-face { @apply [box-shadow:0_0_0_2px_var(--needs-you)]; }
+.agent-avatar-badge {
+  @apply absolute [z-index:1] [top:-3px] [right:-3px] grid [width:15px] [height:15px] place-items-center [border:2px_solid_var(--shell-bar,_var(--toolbar))] rounded-full [background:#b65900] text-white pointer-events-none;
+}
+.agent-avatar-badge svg { @apply [width:11px] [height:11px]; }
+.agent-avatar-more { @apply flex-none text-muted bg-surface-muted [font-variant-numeric:tabular-nums]; }
+@keyframes agent-avatar-breathe { 50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-avatar[data-state="working"] .agent-avatar-face { animation: none; }
+}
+@media (forced-colors: active) {
+  .agent-avatar[data-state="working"] .agent-avatar-face,
+  .agent-avatar[data-state="needs-you"] .agent-avatar-face { @apply [outline:2px_solid_Highlight] [outline-offset:1px]; }
+}
 .compact-vertical-tab-rail-revealed .toolbar {
   @apply flex-wrap justify-start [height:auto] [min-height:60px] [gap:4px] [padding-right:12px];
 }

@@ -21,7 +21,7 @@ export interface McpToolMetric {
   lastUsedAt: string
 }
 
-const ACTIVITY_HISTORY_LIMIT = 40
+export const ACTIVITY_HISTORY_LIMIT = 40
 
 /** Bounded in-memory activity metadata shared across endpoint replacements.
  * No command arguments, page contents, or results are retained.

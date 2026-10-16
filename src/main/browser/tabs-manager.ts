@@ -1804,6 +1804,12 @@ export class BrowserTabsManager {
     }))
   }
 
+  /** An open (not archived) workspace that agents may use. */
+  isOpenAgentWorkspace(workspaceId: string): boolean {
+    const group = this.mcpTabGroups.get(workspaceId)
+    return !!group && group.agentAccess !== false
+  }
+
   isWorkspaceAgentAccessible(workspaceId: string): boolean {
     const group = this.mcpTabGroups.get(workspaceId) ?? this.savedTabGroups.get(workspaceId)
     return !!group && group.agentAccess !== false
