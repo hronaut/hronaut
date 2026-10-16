@@ -177,7 +177,7 @@ describe('overlay motion', () => {
     expect(heldRules.map((match) => match[2] ?? '')).toEqual(['', ' > *'])
     expect(motion).toMatch(/:root\[data-overlay-entrance-held\] \.ui-popover__panel--holds-page:not\(\.ui-surface-leave-active\) \{\n {2}animation-play-state: paused;/u)
     // A surface closed during its entrance leaves without jumping back to full opacity first.
-    expect(motion).toMatch(/\.ui-overlay-leave-instant,\n\.ui-overlay-leave-instant > \* \{\n {2}animation: none !important;\n\}\n$/u)
+    expect(motion).toMatch(/\.ui-overlay-leave-instant,\n\.ui-overlay-leave-instant > \* \{\n {2}animation: none !important;\n\}\n\n\.ui-overlay-leave-instant \{\n {2}opacity: 0 !important;\n\}\n$/u)
     for (const [, list] of heldRules) {
       for (const backdrop of ['.settings-overlay', '.tab-group-editor-overlay', '.wallet-approval-overlay']) expect(list).toContain(backdrop)
     }

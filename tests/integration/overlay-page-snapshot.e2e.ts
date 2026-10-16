@@ -9,7 +9,8 @@ type SnapshotRecord = { appeared: number; removed: number; panes: number; stop: 
 const PAGE_COLOR = '#1d6f42'
 
 // Give the snapshot more than its 250 ms deadline so a loaded test machine cannot turn the ordering check into a race.
-// Set per file, not at import: every file in a worker is imported before any runs, and another file's afterAll would clear it.
+// Set in beforeAll, not at import: tests run as parallel groups, afterAll runs after each group, and a later group
+// in the same worker does not import the file again.
 test.beforeAll(() => {
   process.env.HRONAUT_INTEGRATION_TEST_HOOKS = '1'
   process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS = '10000'

@@ -5,7 +5,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 
-// Set per file, not at import: every file in a worker is imported before any runs, and another file's afterAll would clear it.
+// Set in beforeAll, not at import: tests run as parallel groups, afterAll runs after each group, and a later group
+// in the same worker does not import the file again.
 test.beforeAll(() => { process.env.HRONAUT_INTEGRATION_TEST_HOOKS = '1' })
 test.afterAll(() => { delete process.env.HRONAUT_INTEGRATION_TEST_HOOKS })
 
