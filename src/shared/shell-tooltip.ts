@@ -10,6 +10,12 @@ export const SHELL_TOOLTIP_GAP = 6
 export const SHELL_TOOLTIP_EDGE = 4
 /** Transparent room the tooltip view keeps around the tooltip for its shadow, in CSS pixels. */
 export const SHELL_TOOLTIP_SHADOW_ROOM = 4
+/**
+ * Largest tooltip main draws, in CSS pixels. The tooltip view caps its box at 320 px wide and
+ * 12 lines (tooltip-overlay.css); main clamps a larger report so the view never covers the window.
+ */
+export const SHELL_TOOLTIP_MAX_WIDTH = 320
+export const SHELL_TOOLTIP_MAX_HEIGHT = 240
 
 export interface ShellTooltipRect {
   x: number
@@ -105,7 +111,8 @@ function clamp(value: number, minimum: number, maximum: number): number {
 /**
  * Places a tooltip of `size` beside `anchor` inside a window `area`, all in one unit: on the
  * requested side, on the opposite side when that one has no room, and slid along the edge so it
- * stays inside the window.
+ * stays inside the window. Returns null when it fits on neither side: the native view takes the
+ * pointer, so it must never cover the control it describes.
  */
 export function placeShellTooltip(
   anchor: ShellTooltipRect,
@@ -113,11 +120,11 @@ export function placeShellTooltip(
   placement: ShellTooltipPlacement,
   area: { width: number; height: number },
   { gap = SHELL_TOOLTIP_GAP, edge = SHELL_TOOLTIP_EDGE } = {}
-): ShellTooltipRect {
+): ShellTooltipRect | null {
   let point = origin(anchor, size, placement, gap)
   if (!fits(point, size, area, placement, edge)) {
-    const flipped = origin(anchor, size, opposite(placement), gap)
-    if (fits(flipped, size, area, opposite(placement), edge)) point = flipped
+    point = origin(anchor, size, opposite(placement), gap)
+    if (!fits(point, size, area, opposite(placement), edge)) return null
   }
   return {
     x: Math.round(clamp(point.x, edge, area.width - edge - size.width)),

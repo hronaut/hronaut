@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installShellTooltips, SHELL_TOOLTIP_DELAY_MS, SHELL_TOOLTIP_WARM_MS } from '../../src/renderer/src/composables/shell-tooltips.js'
+import { installShellTooltips, SHELL_TOOLTIP_DELAY_MS, SHELL_TOOLTIP_SETTLE_MS, SHELL_TOOLTIP_WARM_MS } from '../../src/renderer/src/composables/shell-tooltips.js'
 import { vTooltip } from '../../src/renderer/src/ui/tooltip.js'
 import type { ShellTooltipRequest } from '../../src/shared/shell-tooltip.js'
 
@@ -132,11 +132,65 @@ describe('shell tooltips', () => {
     }
   })
 
-  it('falls back to a native title without a port, as in a detached panel window', () => {
+  it('falls back to a native title without a port, as in a detached panel window, only while the pointer is on the control', () => {
     uninstall = installShellTooltips(null)
     const button = control('Clear console')
     pointer('pointerover', button)
     expect(button.title).toBe('Clear console')
+    // The control may lose its tooltip later; a stale title must not stay behind as its tooltip and description.
+    pointer('pointerout', button, document.body)
+    expect(button.hasAttribute('title')).toBe(false)
+  })
+
+  it('hides for a scroll that moves the control, not for one in an unrelated list', () => {
+    const port = tooltipPort()
+    uninstall = installShellTooltips(port)
+    const toolbar = document.createElement('div')
+    const list = document.createElement('div')
+    document.body.append(toolbar, list)
+    const button = control('Downloads')
+    toolbar.append(button)
+    pointer('pointerover', button)
+    vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+    list.dispatchEvent(new Event('scroll'))
+    expect(port.hideTooltip).not.toHaveBeenCalled()
+    toolbar.dispatchEvent(new Event('scroll'))
+    expect(port.hideTooltip).toHaveBeenCalledExactlyOnceWith(1)
+  })
+
+  it('shows the tooltip beside a control again once it stops resizing, as in a rail that expands', () => {
+    let resized: (() => void) | undefined
+    const observed: Element[] = []
+    class FakeResizeObserver {
+      constructor(callback: () => void) { resized = callback }
+      observe(element: Element): void { observed.push(element) }
+      disconnect(): void { resized = undefined }
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    try {
+      const port = tooltipPort()
+      uninstall = installShellTooltips(port)
+      const tab = control('Checkout · Acme Store')
+      pointer('pointerover', tab)
+      vi.advanceTimersByTime(SHELL_TOOLTIP_DELAY_MS)
+      expect(observed).toEqual([tab])
+      // The first report, for the box the tooltip was placed beside, changes nothing.
+      resized!()
+      expect(port.hideTooltip).not.toHaveBeenCalled()
+
+      tab.getBoundingClientRect = () => ({ left: 8, top: 120, width: 120, height: 32, right: 128, bottom: 152, x: 8, y: 120, toJSON: () => ({}) })
+      resized!()
+      expect(port.hideTooltip).toHaveBeenCalledExactlyOnceWith(1)
+      vi.advanceTimersByTime(SHELL_TOOLTIP_SETTLE_MS - 1)
+      // Still resizing: wait for it to settle.
+      resized!()
+      vi.advanceTimersByTime(SHELL_TOOLTIP_SETTLE_MS - 1)
+      expect(port.showTooltip).toHaveBeenCalledOnce()
+      vi.advanceTimersByTime(1)
+      expect(port.showTooltip).toHaveBeenLastCalledWith(expect.objectContaining({ id: 2, anchor: { x: 8, y: 120, width: 120, height: 32 } }))
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('stops listening once uninstalled', () => {

@@ -11,7 +11,7 @@ afterEach(() => {
 
 describe('native tooltip view', () => {
   it('renders the text as plain text in the theme and reports its size while hidden', async () => {
-    document.body.innerHTML = '<main id="tooltip-overlay-root"></main>'
+    document.body.innerHTML = '<div id="tooltip-overlay-root" aria-hidden="true"></div>'
     const measured = vi.fn()
     let receive!: (state: ShellTooltipState) => void
     vi.stubGlobal('hronautTooltipOverlayView', {
@@ -34,5 +34,9 @@ describe('native tooltip view', () => {
     receive({ id: 5, text: 'Settings', theme: 'dark' })
     expect(measured).toHaveBeenLastCalledWith({ id: 5, width: 96, height: 21 })
     expect(document.querySelectorAll('[role=tooltip]')).toHaveLength(1)
+
+    // After a shell reload, ids start over; a repeated id and size is still measured.
+    receive({ id: 5, text: 'Downloads', theme: 'dark' })
+    expect(measured).toHaveBeenCalledTimes(3)
   })
 })

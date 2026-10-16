@@ -38,9 +38,17 @@ html, body { @apply w-full; @apply h-full; }
 /* Room for the shadow; main places the view this far outside the tooltip (SHELL_TOOLTIP_SHADOW_ROOM). */
 #tooltip-overlay-root { @apply inline-block; @apply [padding:4px]; }
 
-/* Mirrors .ui-tooltip__content in primitives.css. The view is sized to this box, so it needs no margin. */
+/*
+ * Mirrors .ui-tooltip__content in primitives.css. The view is sized to this box, so it needs no margin.
+ * At most 320 px wide and 12 lines tall, the limits main also applies (SHELL_TOOLTIP_MAX_WIDTH).
+ * Each line takes its own direction, so a right-to-left page title does not turn the whole tooltip.
+ */
 .tooltip-overlay {
-  @apply block;
+  @apply [display:-webkit-box];
+  @apply [-webkit-box-orient:vertical];
+  @apply [-webkit-line-clamp:12];
+  @apply overflow-hidden;
+  @apply [unicode-bidi:plaintext];
   @apply [width:max-content];
   @apply [max-width:320px];
   @apply [padding:6px_8px];

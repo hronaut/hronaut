@@ -7,7 +7,8 @@
     <title>Tooltip</title>
   </head>
   <body>
-    <main id="tooltip-overlay-root"></main>
+    <!-- The shell already gives each control this text as its accessible description. -->
+    <div id="tooltip-overlay-root" aria-hidden="true"></div>
     <script type="module" src="/src/tooltip-overlay.ts"></script>
   </body>
 </html>

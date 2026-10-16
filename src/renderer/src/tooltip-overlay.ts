@@ -32,11 +32,12 @@ function measure(id: number, element: HTMLElement): void {
 
 function render(state: ShellTooltipState): void {
   currentId = state.id
+  // A reloaded shell numbers its tooltips from 1 again, so every new state is measured.
+  reported = ''
   document.documentElement.dataset.theme = state.theme
   const tooltip = document.createElement('div')
   tooltip.className = 'tooltip-overlay'
   tooltip.setAttribute('role', 'tooltip')
-  tooltip.dir = 'auto'
   tooltip.textContent = state.text
   overlayRoot.replaceChildren(tooltip)
   measure(state.id, tooltip)

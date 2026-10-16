@@ -1727,14 +1727,27 @@ function tooltipSurfaceApi(view: WebContentsView, webContents: WebContents): She
     send: (state) => { if (!webContents.isDestroyed()) webContents.send('tooltip-overlay:state', state) },
     setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
     setBounds: (bounds) => view.setBounds(bounds),
-    setVisible: (visible) => { if (!webContents.isDestroyed()) view.setVisible(visible) },
-    // Re-adding an existing child makes it the topmost native view, above a page shown meanwhile.
-    raise: () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.contentView.addChildView(view) },
+    present: () => {
+      if (webContents.isDestroyed() || !mainWindow || mainWindow.isDestroyed()) return
+      // Adding the view again also makes it the topmost native view, above a page shown meanwhile.
+      mainWindow.contentView.addChildView(view)
+      view.setVisible(true)
+    },
+    withdraw: () => {
+      if (webContents.isDestroyed()) return
+      view.setVisible(false)
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.contentView.children.includes(view)) {
+        mainWindow.contentView.removeChildView(view)
+      }
+    },
     isDestroyed: () => webContents.isDestroyed()
   }
 }
 
-/** One transparent view, created on the first tooltip, draws the shell's tooltips above the page views. */
+/**
+ * One transparent view, created on the first tooltip, draws the shell's tooltips above the page
+ * views. It is in the window only while a tooltip shows.
+ */
 async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
   if (tooltipSurfaceLoad) return tooltipSurfaceLoad
   const opening = (async () => {
@@ -1762,7 +1775,7 @@ async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
         tooltipSurface = null
         tooltipSurfaceLoad = null
         shellTooltips.surfaceLost()
-        if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow && !mainWindow.isDestroyed() && mainWindow.contentView.children.includes(view)) {
           try {
             mainWindow.contentView.removeChildView(view)
           } catch (error) {
@@ -1775,7 +1788,6 @@ async function ensureTooltipSurface(): Promise<ShellTooltipSurface> {
       })
       await webContents.loadURL(expectedUrl)
       if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The main window closed before the tooltip view loaded')
-      mainWindow.contentView.addChildView(view)
       return tooltipSurfaceApi(view, webContents)
     } catch (error) {
       if (!webContents.isDestroyed()) webContents.close()
@@ -3869,7 +3881,11 @@ async function createWindow(startMinimized = false): Promise<void> {
     getLocale: () => resolvedLocale,
     getTabPosition: () => settings.tabPosition,
     configureSession: configureBrowserSession,
-    onUserInteraction: acknowledgeUserAttention,
+    onUserInteraction: () => {
+      // A key press in a page hides a shell tooltip, as it hides a native one.
+      shellTooltips.hide()
+      acknowledgeUserAttention()
+    },
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return

@@ -4,6 +4,7 @@ import {
   SHELL_TOOLTIP_PLACEMENTS,
   SHELL_TOOLTIP_TEXT_LIMIT,
   type ShellTooltipPlacement,
+  type ShellTooltipRect,
   type ShellTooltipRequest
 } from '../../../shared/shell-tooltip.js'
 
@@ -11,6 +12,8 @@ import {
 export const SHELL_TOOLTIP_DELAY_MS = 500
 /** After a tooltip hides, the next control's tooltip appears at once for this long. */
 export const SHELL_TOOLTIP_WARM_MS = 600
+/** A control that resizes under its tooltip, such as in a rail that expands, shows it again once still this long. */
+export const SHELL_TOOLTIP_SETTLE_MS = 150
 
 export interface ShellTooltipPort {
   showTooltip(request: ShellTooltipRequest): void
@@ -19,6 +22,11 @@ export interface ShellTooltipPort {
 
 function triggerFor(node: EventTarget | null): HTMLElement | null {
   return node instanceof Element ? node.closest<HTMLElement>('[data-tooltip]') : null
+}
+
+function sameBox(box: DOMRect, anchor: ShellTooltipRect): boolean {
+  return Math.abs(box.left - anchor.x) < 1 && Math.abs(box.top - anchor.y) < 1
+    && Math.abs(box.width - anchor.width) < 1 && Math.abs(box.height - anchor.height) < 1
 }
 
 function placementFor(trigger: HTMLElement): ShellTooltipPlacement {
@@ -41,10 +49,20 @@ export function installShellTooltips(port: ShellTooltipPort | null, root: Docume
   let warmUntil = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   let observer: MutationObserver | null = null
+  let resizer: ResizeObserver | null = null
+  // The control that got a native title as the fallback, and the title it got.
+  let titled: { element: HTMLElement; title: string } | null = null
 
   function stopObserving(): void {
     observer?.disconnect()
     observer = null
+    resizer?.disconnect()
+    resizer = null
+  }
+
+  function clearFallbackTitle(): void {
+    if (titled && titled.element.title === titled.title) titled.element.removeAttribute('title')
+    titled = null
   }
 
   function hide(): void {
@@ -64,11 +82,12 @@ export function installShellTooltips(port: ShellTooltipPort | null, root: Docume
     const box = target.getBoundingClientRect()
     if (box.width <= 0 && box.height <= 0) return
     const theme = root.documentElement.dataset.theme
+    const anchor = { x: box.left, y: box.top, width: box.width, height: box.height }
     shownId = ++nextId
     port.showTooltip({
       id: shownId,
       text: text.slice(0, SHELL_TOOLTIP_TEXT_LIMIT),
-      anchor: { x: box.left, y: box.top, width: box.width, height: box.height },
+      anchor,
       placement: placementFor(target),
       theme: isResolvedThemeName(theme) ? theme : 'dark'
     })
@@ -84,16 +103,31 @@ export function installShellTooltips(port: ShellTooltipPort | null, root: Docume
       }
     })
     observer.observe(root.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-tooltip'] })
+    // A control that resizes, such as a tab in a rail that expands under the pointer, would leave its
+    // tooltip over its new box. Hide it, and show it beside the control once the control is still.
+    if (typeof view.ResizeObserver !== 'function') return
+    resizer = new view.ResizeObserver(() => {
+      if (target !== trigger || (shownId && sameBox(target.getBoundingClientRect(), anchor))) return
+      if (shownId) {
+        port?.hideTooltip(shownId)
+        shownId = 0
+      }
+      if (timer !== undefined) clearTimeout(timer)
+      timer = setTimeout(() => show(target), SHELL_TOOLTIP_SETTLE_MS)
+    })
+    resizer.observe(target)
   }
 
   function enter(next: HTMLElement | null): void {
     if (next === trigger) return
     hide()
+    clearFallbackTitle()
     trigger = next
     if (!next || next === suppressed) return
     if (!port) {
-      // A plain title is the native fallback; it follows the current text.
-      next.title = next.dataset.tooltip ?? ''
+      // A plain title is the native fallback, set while the pointer is on the control.
+      titled = { element: next, title: next.dataset.tooltip ?? '' }
+      next.title = titled.title
       return
     }
     if (Date.now() < warmUntil) show(next)
@@ -119,25 +153,31 @@ export function installShellTooltips(port: ShellTooltipPort | null, root: Docume
   const onVisibility = (): void => {
     if (root.visibilityState === 'hidden') onBlur()
   }
+  // Only a scroll that moves the control dismisses its tooltip, not one in an unrelated list.
+  const onScroll = (event: Event): void => {
+    const scrolled = event.target
+    if (!trigger || scrolled === root || (scrolled instanceof Node && scrolled.contains(trigger))) onBlur()
+  }
 
   root.addEventListener('pointerover', onPointerOver, true)
   root.addEventListener('pointerout', onPointerOut, true)
   root.addEventListener('pointerdown', dismiss, true)
   root.addEventListener('keydown', dismiss, true)
   root.addEventListener('wheel', onBlur, { capture: true, passive: true })
-  root.addEventListener('scroll', onBlur, true)
+  root.addEventListener('scroll', onScroll, true)
   root.addEventListener('visibilitychange', onVisibility)
   view.addEventListener('blur', onBlur)
 
   return () => {
     hide()
+    clearFallbackTitle()
     trigger = null
     root.removeEventListener('pointerover', onPointerOver, true)
     root.removeEventListener('pointerout', onPointerOut, true)
     root.removeEventListener('pointerdown', dismiss, true)
     root.removeEventListener('keydown', dismiss, true)
     root.removeEventListener('wheel', onBlur, true)
-    root.removeEventListener('scroll', onBlur, true)
+    root.removeEventListener('scroll', onScroll, true)
     root.removeEventListener('visibilitychange', onVisibility)
     view.removeEventListener('blur', onBlur)
   }
