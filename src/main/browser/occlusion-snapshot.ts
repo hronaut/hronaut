@@ -15,6 +15,8 @@ export interface OcclusionSnapshotPane {
   contents: { capturePage(rect: undefined, options: { stayHidden: boolean; stayAwake: boolean }): Promise<OcclusionSnapshotImage> }
   /** The page view's bounds in window coordinates. */
   bounds: Rectangle
+  /** Settles when another capture of this page, such as its tab preview, is done; this one waits for it. */
+  busy?: Promise<void>
 }
 
 export interface OcclusionSnapshotPorts {
@@ -99,6 +101,11 @@ export class OcclusionSnapshot {
       const captured = await Promise.all(panes.map(async (pane) => {
         this.capturing.add(pane.contents)
         try {
+          // Two native captures of one page must not overlap; a preview takes a few milliseconds, well within the deadline.
+          if (pane.busy) {
+            await pane.busy
+            if (this.pending?.id !== id) throw new Error('Occlusion snapshot was replaced')
+          }
           // Do not wake a hidden page or count as a visible viewer of it.
           return { pane, image: await pane.contents.capturePage(undefined, { stayHidden: true, stayAwake: false }) }
         } finally {

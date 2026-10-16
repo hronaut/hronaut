@@ -216,6 +216,57 @@ test('blocks clicks on the page while it is held on screen for its snapshot', as
   }
 })
 
+test('captures the page snapshot once a tab preview capture of the same page finishes', async ({ appWindow, electronApp }) => {
+  type PreviewProbe = { held: number; release: () => void; restore: () => void }
+  const { server, url } = await startColorServer()
+  const original = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getContentSize())
+  try {
+    await openColorTab(appWindow, electronApp, url)
+    // Hold the page's tab preview captures, as a slow one would be, and lay the window out so one starts.
+    await electronApp.evaluate(({ BrowserWindow, webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)!
+      const capture = page.capturePage.bind(page)
+      const releases: Array<() => void> = []
+      const probe: PreviewProbe = {
+        held: 0,
+        release: () => { for (const release of releases.splice(0)) release() },
+        restore: () => { delete (page as unknown as Record<string, unknown>).capturePage }
+      }
+      Object.defineProperty(page, 'capturePage', {
+        configurable: true,
+        value: (...args: Parameters<typeof page.capturePage>) => {
+          // The tab preview of the visible page captures without arguments; the dialog snapshot passes options.
+          if (args.length > 0) return capture(...args)
+          probe.held += 1
+          return new Promise((resolve) => { releases.push(() => resolve(capture())) })
+        }
+      })
+      ;(globalThis as { __previewProbe?: PreviewProbe }).__previewProbe = probe
+      const win = BrowserWindow.getAllWindows()[0]!
+      win.focus()
+      const [width, height] = win.getContentSize()
+      win.setContentSize(width!, height! - 2)
+    }, url)
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as { __previewProbe?: PreviewProbe }).__previewProbe!.held)).toBeGreaterThan(0)
+
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true)')
+    await electronApp.evaluate(() => (globalThis as { __previewProbe?: PreviewProbe }).__previewProbe!.release())
+    // Before the fix the page was skipped while its preview was captured, and the dialog opened over an empty window.
+    await expect(appWindow.getByTestId('page-snapshot')).toHaveCount(1)
+  } finally {
+    await electronApp.evaluate(() => {
+      const probe = (globalThis as { __previewProbe?: PreviewProbe }).__previewProbe
+      probe?.release()
+      probe?.restore()
+    }).catch(() => undefined)
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await electronApp.evaluate(({ BrowserWindow }, size) => {
+      BrowserWindow.getAllWindows()[0]!.setContentSize(size[0]!, size[1]!)
+    }, original).catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})
+
 test('withdraws a page snapshot that no longer lines up after a resize', async ({ appWindow, electronApp }) => {
   const { server, url } = await startColorServer()
   const original = await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getContentSize())

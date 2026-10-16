@@ -144,6 +144,35 @@ describe('occlusion snapshot', () => {
     expect(empty.sent).toEqual([])
   })
 
+  it('captures a page right after its tab preview capture settles, not instead of it', async () => {
+    const preview = deferred<void>()
+    const { snapshot, page, capture, sent, ports } = setup()
+    const pane = ports.panes()[0]!
+    ports.panes = () => [{ ...pane, busy: preview.promise }]
+    snapshot.begin()
+    await Promise.resolve()
+    // Two native captures of one page must not overlap, and the page stays on screen meanwhile.
+    expect(page.capturePage).not.toHaveBeenCalled()
+    expect(snapshot.holdingPages).toBe(true)
+    preview.resolve()
+    await vi.waitFor(() => expect(page.capturePage).toHaveBeenCalledOnce())
+    capture.resolve(image(1600))
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    expect(ports.relayout).not.toHaveBeenCalled()
+
+    // A dialog closed while the preview was still running does not capture the page afterwards.
+    const late = deferred<void>()
+    const closed = setup()
+    const closedPane = closed.ports.panes()[0]!
+    closed.ports.panes = () => [{ ...closedPane, busy: late.promise }]
+    closed.snapshot.begin()
+    closed.snapshot.end()
+    late.resolve()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(closed.page.capturePage).not.toHaveBeenCalled()
+    expect(closed.sent).toEqual([])
+  })
+
   it('does nothing without a page to capture, and clears its deadline on dispose', () => {
     vi.useFakeTimers()
     const none = setup({ panes: () => [] })
