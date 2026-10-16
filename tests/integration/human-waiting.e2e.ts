@@ -94,8 +94,12 @@ test('gives the agent what the person wrote with an answer, without saving it', 
     expect(rejected).toMatchObject({ state: 'REJECTED', note: 'The total is wrong:\nit misses the discount-canary', answeredAt: expect.any(Number) })
     const listed = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
     expect(listed).toMatchObject({ state: 'REJECTED', note: 'The total is wrong:\nit misses the discount-canary' })
-    // The decision is saved; the note is not.
-    await expect.poll(async () => (await readFile(join(profileDirectory, 'human-waiting.json'), 'utf8').catch(() => '')).includes(waiting.id)).toBe(true)
+    // The rejection is saved; the note is not.
+    const saved = async () => {
+      const history = JSON.parse(await readFile(join(profileDirectory, 'human-waiting.json'), 'utf8').catch(() => '{}')) as { records?: HumanWaitingRecord[] }
+      return history.records?.find(candidate => candidate.id === waiting.id)?.state
+    }
+    await expect.poll(saved).toBe('REJECTED')
     expect(await readFile(join(profileDirectory, 'human-waiting.json'), 'utf8')).not.toContain('discount-canary')
   } finally {
     await client.close()

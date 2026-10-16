@@ -87,13 +87,19 @@ export interface HumanWaitingRecord extends Omit<HumanWaitingInput, 'timeoutMs' 
 export const HUMAN_WAITING_NOTE_LIMIT = 1_000
 
 /**
- * A person's note for the agent, without control characters other than line breaks and without surrounding
- * space: undefined when there is nothing left, or null when it is not text or is longer than the limit.
+ * A person's note for the agent, as they see it: line breaks become LF and tabs spaces; other control
+ * characters and invisible format characters (bidi controls, zero-width and tag characters, but not the
+ * joiners emoji and some scripts need) are dropped, as is surrounding space. Undefined when nothing is left,
+ * or null when it is not text or is longer than the limit.
  */
 export function normalizeHumanWaitingNote(value: unknown): string | undefined | null {
   if (value === undefined) return undefined
   if (typeof value !== 'string') return null
-  const note = value.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g, '').trim()
+  const note = value
+    .replace(/\r\n?|[\u2028\u2029]/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F]|(?![\u200C\u200D])\p{Cf}/gu, '')
+    .trim()
   if (note.length > HUMAN_WAITING_NOTE_LIMIT) return null
   return note || undefined
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { HumanWaitingService } from '../src/main/mcp/human-waiting-service.js'
+import { HumanWaitingStore } from '../src/main/mcp/human-waiting-store.js'
 import { HUMAN_WAITING_NOTE_LIMIT, normalizeHumanWaitingNote } from '../src/shared/human-waiting.js'
 
 const input = {
@@ -18,6 +19,11 @@ function service() {
 describe('a person\'s answer to an agent\'s decision', () => {
   it('cleans a note: line breaks kept, other control characters and surrounding space dropped, bounded', () => {
     expect(normalizeHumanWaitingNote('  Use the\r\nstaging\u0007 card \u009b ')).toBe('Use the\nstaging card')
+    // What reaches the agent is what the person saw: no invisible text, such as tags or bidi controls pasted from a page.
+    expect(normalizeHumanWaitingNote('Ship it\u{E0049}\u{E0067}\u{E006E}\u202E\u200B\u2066\uFEFF')).toBe('Ship it')
+    expect(normalizeHumanWaitingNote('Order\t123\u2028Thanks\u2029')).toBe('Order 123\nThanks')
+    // Joiners that emoji and some scripts need stay.
+    expect(normalizeHumanWaitingNote('👩\u200D💻 می\u200Cخواهم')).toBe('👩\u200D💻 می\u200Cخواهم')
     expect(normalizeHumanWaitingNote(' \t ')).toBeUndefined()
     expect(normalizeHumanWaitingNote(undefined)).toBeUndefined()
     expect(normalizeHumanWaitingNote(42)).toBeNull()
@@ -59,11 +65,27 @@ describe('a person\'s answer to an agent\'s decision', () => {
     expect(cancelled).not.toHaveProperty('answeredAt')
   })
 
-  it('refuses a note with an acknowledgment or cancellation, or one it has not cleaned', async () => {
+  it('sends a person\'s reason for cancelling, since only reviews offer a rejection', async () => {
+    const { service: waiting } = service()
+    const record = await waiting.create(input, authorize)
+    await expect(waiting.change(input.workspaceId, record.id, record.revision, 'cancel', authorize, undefined, undefined, { note: 'Not needed any more' }))
+      .resolves.toMatchObject({ state: 'CANCELLED', note: 'Not needed any more' })
+  })
+
+  it('keeps answers only while their decisions are in the history', async () => {
+    const waiting = new HumanWaitingService({ load: async () => null, save: async () => undefined }, new HumanWaitingStore({ capacity: 1 }))
+    const first = await waiting.create(input, authorize)
+    await waiting.change(input.workspaceId, first.id, first.revision, 'reject', authorize, undefined, undefined, { note: 'first-canary' })
+    const second = await waiting.create({ ...input, runId: '0198dc5b-4192-7000-8000-000000000003' }, authorize)
+    await waiting.change(input.workspaceId, second.id, second.revision, 'reject', authorize, undefined, undefined, { note: 'second' })
+    const answers = (waiting as unknown as { answers: Map<string, unknown> }).answers
+    expect([...answers.keys()]).toEqual([second.id])
+  })
+
+  it('refuses a note with an acknowledgment, or one it has not cleaned', async () => {
     const { service: waiting } = service()
     const record = await waiting.create(input, authorize)
     await expect(waiting.change(input.workspaceId, record.id, record.revision, 'acknowledge', authorize, undefined, undefined, { note: 'seen' })).rejects.toThrow(/note/)
-    await expect(waiting.change(input.workspaceId, record.id, record.revision, 'cancel', authorize, undefined, undefined, { note: 'never mind' })).rejects.toThrow(/note/)
     await expect(waiting.change(input.workspaceId, record.id, record.revision, 'resolve', authorize, fresh, undefined, { note: ' padded ' })).rejects.toThrow(/note/)
     await expect(waiting.change(input.workspaceId, record.id, record.revision, 'resolve', authorize, fresh, undefined, { note: 'x'.repeat(HUMAN_WAITING_NOTE_LIMIT + 1) })).rejects.toThrow(/note/)
     expect((await waiting.list(input.workspaceId, authorize))[0]).toMatchObject({ state: 'WAITING_FOR_HUMAN' })

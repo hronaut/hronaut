@@ -2781,7 +2781,7 @@ function registerIpc(): void {
       throw new Error('Waiting decision confirmation unavailable')
     }
     const answerNote = normalizeHumanWaitingNote(note)
-    if (answerNote === null || (answerNote !== undefined && action !== 'resolve' && action !== 'reject')) {
+    if (answerNote === null || (answerNote !== undefined && action === 'acknowledge')) {
       throw new Error('Waiting decision note unavailable')
     }
     let checkpointId: string | null | undefined

@@ -157,7 +157,7 @@ export class HumanWaitingService {
     answer?: { note?: string }
   ) {
     return this.serialize(async () => {
-      if (answer?.note !== undefined && ((action !== 'resolve' && action !== 'reject') || normalizeHumanWaitingNote(answer.note) !== answer.note)) {
+      if (answer?.note !== undefined && (action === 'acknowledge' || normalizeHumanWaitingNote(answer.note) !== answer.note)) {
         throw new Error('Waiting decision note unavailable')
       }
       authorize()
@@ -179,8 +179,8 @@ export class HumanWaitingService {
           await validateFresh!()
           authorize()
         } catch {
-          this.store.invalidateResolution(id)
           this.answers.delete(id)
+          this.store.invalidateResolution(id)
           await this.save()
           throw new Error('Browser review changed while saving; inspect current state again')
         }
@@ -192,11 +192,9 @@ export class HumanWaitingService {
   private remember(id: string, note: string | undefined): void {
     this.answers.delete(id)
     this.answers.set(id, { answeredAt: Date.now(), ...(note ? { note } : {}) })
-    // Bounded like the history itself; the oldest answers go first.
-    for (const old of this.answers.keys()) {
-      if (this.answers.size <= 1000) break
-      this.answers.delete(old)
-    }
+    // Answers live only as long as their decisions do in the history.
+    const kept = new Set(this.store.snapshot().records.map(record => record.id))
+    for (const old of this.answers.keys()) if (!kept.has(old)) this.answers.delete(old)
   }
 
   private withAnswer<T extends { id: string }>(record: T): T & { answeredAt?: number; note?: string } {

@@ -52,7 +52,9 @@ async function change(record: HumanWaitingRecord, action: 'acknowledge' | 'cance
   const confirmation = action === 'resolve' && requiresHumanWaitingAccountAndTargetConfirmation(record)
     ? { accountAndTargetVerified: true as const }
     : undefined
-  const note = action === 'resolve' || action === 'reject' ? normalizeHumanWaitingNote(notes.value[record.id] ?? '') ?? undefined : undefined
+  const note = action === 'acknowledge' ? undefined : normalizeHumanWaitingNote(notes.value[record.id] ?? '')
+  // A note main would refuse is not dropped from the answer: the person sees the error and keeps the text.
+  if (note === null) { error.value = true; busy.value = false; return }
   try {
     const next = note !== undefined
       ? await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action, confirmation, note)
@@ -69,8 +71,10 @@ async function change(record: HumanWaitingRecord, action: 'acknowledge' | 'cance
   } finally { if (current === generation) busy.value = false }
 }
 
-watch(() => [props.workspaceId, props.disabled] as const, () => {
-  generation += 1; records.value = []; reviewed.value = {}; accountAndTargetReviewed.value = {}; notes.value = {}; busy.value = false
+watch(() => [props.workspaceId, props.disabled] as const, ([workspaceId], previous) => {
+  // Notes belong to their workspace; the editor turning its controls off and on again keeps them.
+  if (workspaceId !== previous?.[0]) notes.value = {}
+  generation += 1; records.value = []; reviewed.value = {}; accountAndTargetReviewed.value = {}; busy.value = false
   void refresh()
 }, { immediate: true })
 onBeforeUnmount(() => { generation += 1 })

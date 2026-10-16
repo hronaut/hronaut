@@ -182,6 +182,17 @@ it('asks for an answer on a request for input, and keeps what was typed when sen
   expect(field.element.value).toBe('Use the staging card')
 })
 
+it('keeps what was typed while the editor turns its controls off and on, and sends it with a cancellation', async () => {
+  const { view, browser, button } = setup(); await flushPromises()
+  await view.get('[data-testid="human-waiting-note-field"]').setValue('Not needed any more')
+  await view.setProps({ disabled: true }); await flushPromises()
+  await view.setProps({ disabled: false }); await flushPromises()
+  expect(view.get<HTMLTextAreaElement>('[data-testid="human-waiting-note-field"]').element.value).toBe('Not needed any more')
+  browser.changeHumanWaiting.mockResolvedValueOnce({ ...record, state: 'CANCELLED', note: 'Not needed any more' })
+  await button('Cancel decision').trigger('click'); await flushPromises()
+  expect(browser.changeHumanWaiting).toHaveBeenCalledExactlyOnceWith('first', 'decision', 'revision', 'cancel', undefined, 'Not needed any more')
+})
+
 it('does not send a note with an acknowledgment', async () => {
   const { view, browser, button } = setup(); await flushPromises()
   await view.get('[data-testid="human-waiting-note-field"]').setValue('Looking at it')
