@@ -119,6 +119,46 @@ describe('agent avatars in the toolbar', () => {
     expect(card.last().model.buttons.map((button) => button.action)).toEqual(['pause', 'take-over'])
   })
 
+  it('answers the request the card showed, and nothing once a newer request or another agent asks', async () => {
+    const card = fakeCardApi()
+    const asking = agent('Windsurf', { state: 'needs-you', attentionTabId: 'tab-3' })
+    const { view, change } = renderAvatars([asking, agent('Claude Code')], { cardApi: card.api, attentionReason: 'Log in, then hand back.', attentionId: 'attention-1' })
+    await fireEvent.click(await screen.findByRole('button', { name: 'Windsurf, needs you' }))
+    await nextTick()
+    const { cardId, model } = card.last()
+    expect(model.reason?.answers?.map((answer) => [answer.action, answer.key])).toEqual([['hand-back', 'attention-1'], ['dismiss', 'attention-1']])
+    card.emit({ cardId, kind: 'action', action: 'hand-back', key: 'attention-1' })
+    card.emit({ cardId, kind: 'action', action: 'dismiss', key: 'attention-1' })
+    expect(view.emitted('answerAttention')).toEqual([['attention-1', 'resolved'], ['attention-1', 'dismissed']])
+
+    // A newer request arrived while the old card's answer was on its way: that answer changes nothing.
+    await view.rerender({ attentionReason: 'Approve the order.', attentionId: 'attention-2' })
+    card.emit({ cardId, kind: 'action', action: 'hand-back', key: 'attention-1' })
+    card.emit({ cardId, kind: 'action', action: 'hand-back' })
+    expect(view.emitted('answerAttention')).toHaveLength(2)
+    // Nor does one for an agent that no longer asks.
+    change({ revision: 2, workspaces: { 'workspace-a': [agent('Windsurf', { state: 'working' }), agent('Claude Code')] } })
+    await nextTick()
+    card.emit({ cardId, kind: 'action', action: 'hand-back', key: 'attention-2' })
+    expect(view.emitted('answerAttention')).toHaveLength(2)
+  })
+
+  it('opens the workspace to review a waiting decision, which the card does not answer itself', async () => {
+    const card = fakeCardApi()
+    const { view } = renderAvatars([agent('Windsurf', { state: 'needs-you' })], {
+      cardApi: card.api, attentionReason: 'Human decision required: review-page', attentionId: 'attention-3', attentionDecision: true
+    })
+    await fireEvent.click(await screen.findByRole('button', { name: 'Windsurf, needs you' }))
+    await nextTick()
+    const { cardId, model } = card.last()
+    expect(model.reason?.answers?.map((answer) => answer.action)).toEqual(['review-decision'])
+    card.emit({ cardId, kind: 'action', action: 'hand-back', key: 'attention-3' })
+    expect(view.emitted('answerAttention')).toBeUndefined()
+    card.emit({ cardId, kind: 'action', action: 'review-decision', key: 'attention-3' })
+    expect(view.emitted('reviewDecision')).toEqual([['workspace-a']])
+    expect(card.api.hide).toHaveBeenCalledWith(cardId)
+  })
+
   it('pauses, resumes, takes over and follows from the card, and disables pause while agent control is locked', async () => {
     const card = fakeCardApi()
     const { view } = renderAvatars([agent('Claude Code', { lastTabId: 'tab-2' })], { cardApi: card.api, tabs: [{ id: 'tab-1' }, { id: 'tab-2', agentPaused: true }] })

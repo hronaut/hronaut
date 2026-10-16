@@ -48,6 +48,7 @@ const importBusy = ref(false)
 const templateView = ref(false)
 const templateBusy = ref(false)
 const templateBrowser = window.hronaut
+const activitySection = ref<HTMLDetailsElement | null>(null)
 watch(open, (value) => { if (!value) { templateView.value = false; importTarget.value = null } })
 function close(): void { if (!templateBusy.value && !importBusy.value) closeEditor() }
 const {
@@ -167,6 +168,27 @@ async function openExisting(id: string): Promise<void> {
   importDestination.value = id
   await openExistingEditor(id)
 }
+/**
+ * Opens the workspace with its activity and decisions shown, as an agent card's Review the decision does.
+ * They unfold as soon as this workspace's editor shows, not once its lists load, so a late load never takes
+ * focus from what you did meanwhile; an open that never showed it changes nothing.
+ */
+async function openDecisions(id: string): Promise<void> {
+  const stop = watch([open, workspaceId], ([visible, shown]) => {
+    if (!visible || shown !== id) return
+    stop()
+    const section = activitySection.value
+    if (!section) return
+    section.open = true
+    if (!panel.value?.contains(document.activeElement)) section.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
+    section.scrollIntoView?.({ block: 'nearest' })
+  }, { flush: 'post' })
+  try {
+    await openExisting(id)
+  } finally {
+    stop()
+  }
+}
 async function openNew(): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
   importTarget.value = null
@@ -202,7 +224,7 @@ function openTemplates(): void {
   templateView.value = true
   open.value = true
 }
-defineExpose({ openImport, openExisting, openNew, openTransfer, openLibrary, openTemplates, close })
+defineExpose({ openImport, openExisting, openDecisions, openNew, openTransfer, openLibrary, openTemplates, close })
 onBeforeUnmount(dispose)
 </script>
 
@@ -317,7 +339,7 @@ onBeforeUnmount(dispose)
           </section>
           </details>
           </template>
-          <details v-if="mode === 'edit' && workspaceId" class="workspace-editor-section workspace-activity-disclosure">
+          <details v-if="mode === 'edit' && workspaceId" ref="activitySection" class="workspace-editor-section workspace-activity-disclosure">
             <summary><IconShield aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.activitySummary') }}</strong><small>{{ t('workspaceLibrary.activityHelp') }}</small></span></summary>
           <WorkspaceContinuityPanel v-if="mode === 'edit' && workspaceId" :key="workspaceId" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
           <HumanWaitingPanel v-if="mode === 'edit' && workspaceId" :key="`waiting-${workspaceId}`" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />

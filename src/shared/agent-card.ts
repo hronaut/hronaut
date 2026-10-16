@@ -7,7 +7,9 @@ import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
  * the user's language; main draws it in a transparent view above the page and returns the
  * user's choices to the shell, which carries them out with the shell's own browser API.
  */
-export const AGENT_CARD_ACTIONS = ['show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off'] as const
+export const AGENT_CARD_ACTIONS = [
+  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'hand-back', 'dismiss', 'review-decision'
+] as const
 export type AgentCardAction = typeof AGENT_CARD_ACTIONS[number]
 
 /** Why the card closed: Esc, focus moved away (an outside click or another window), an action, or the view was lost. */
@@ -30,6 +32,7 @@ const TEXT_LIMIT = AGENT_CARD_TEXT_LIMIT
 const REASON_LIMIT = AGENT_CARD_REASON_LIMIT
 const RECENT_LIMIT = 3
 const BUTTON_LIMIT = 4
+const ANSWER_LIMIT = 2
 
 export interface AgentCardStep {
   text: string
@@ -40,6 +43,8 @@ export interface AgentCardButton {
   action: AgentCardAction
   label: string
   disabled?: boolean
+  /** Names what an answer answers, such as the request's id; it comes back with the action. */
+  key?: string
 }
 
 /** Everything the card shows, already in the user's language. */
@@ -55,8 +60,8 @@ export interface AgentCardModel {
   stateLabel: string
   /** For example "Connected over MCP · Checkout". */
   subtitle: string
-  /** Why the agent asked for you, while it needs you. */
-  reason?: { heading: string; text: string }
+  /** Why the agent asked for you, while it needs you, and how you can answer it here. */
+  reason?: { heading: string; text: string; answers?: AgentCardButton[] }
   now: { heading: string; text: string }
   recent: { heading: string; steps: AgentCardStep[]; empty: string }
   follow: { label: string; checked: boolean; disabled?: boolean }
@@ -89,12 +94,12 @@ export interface AgentCardMeasurement {
 
 /** Sent by the card view. */
 export type AgentCardViewMessage =
-  | { cardId: number; kind: 'action'; action: AgentCardAction }
+  | { cardId: number; kind: 'action'; action: AgentCardAction; key?: string }
   | { cardId: number; kind: 'close'; reason: 'escape' }
 
 /** Sent to the shell. */
 export type AgentCardEvent =
-  | { cardId: number; kind: 'action'; action: AgentCardAction }
+  | { cardId: number; kind: 'action'; action: AgentCardAction; key?: string }
   | { cardId: number; kind: 'closed'; reason: AgentCardCloseReason }
 
 export interface HronautAgentCardApi {
@@ -117,6 +122,12 @@ function finite(value: unknown, minimum: number): number {
   return value
 }
 
+const KEY = /^[\w-]{1,128}$/u
+
+function validKey(value: unknown): value is string {
+  return typeof value === 'string' && KEY.test(value)
+}
+
 export function validAgentCardId(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) > 0
 }
@@ -131,6 +142,28 @@ function section(value: unknown, limit = TEXT_LIMIT): { heading: string; text: s
   return { heading: text(source.heading), text: text(source.text, limit) }
 }
 
+function buttons(value: unknown, limit: number): AgentCardButton[] {
+  if (!Array.isArray(value) || value.length > limit) throw new TypeError('Invalid agent card buttons')
+  return value.map((entry) => {
+    const button = record(entry)
+    if (!button || !isAgentCardAction(button.action) || (button.disabled !== undefined && typeof button.disabled !== 'boolean')
+      || (button.key !== undefined && !validKey(button.key))) {
+      throw new TypeError('Invalid agent card button')
+    }
+    return {
+      action: button.action,
+      label: text(button.label),
+      ...(button.disabled ? { disabled: true } : {}),
+      ...(button.key === undefined ? {} : { key: button.key })
+    }
+  })
+}
+
+function reasonSection(value: unknown): NonNullable<AgentCardModel['reason']> {
+  const answers = record(value)?.answers
+  return { ...section(value, REASON_LIMIT), ...(answers === undefined ? {} : { answers: buttons(answers, ANSWER_LIMIT) }) }
+}
+
 export function parseAgentCardModel(value: unknown): AgentCardModel {
   const source = record(value)
   if (!source) throw new TypeError('Invalid agent card')
@@ -142,7 +175,6 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
   if (!recent || !Array.isArray(recent.steps) || recent.steps.length > RECENT_LIMIT) throw new TypeError('Invalid agent card steps')
   const follow = record(source.follow)
   if (!follow || typeof follow.checked !== 'boolean' || (follow.disabled !== undefined && typeof follow.disabled !== 'boolean')) throw new TypeError('Invalid agent card follow switch')
-  if (!Array.isArray(source.buttons) || source.buttons.length > BUTTON_LIMIT) throw new TypeError('Invalid agent card buttons')
   return {
     label: text(source.label),
     name: text(source.name),
@@ -151,7 +183,7 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
     state,
     stateLabel: text(source.stateLabel),
     subtitle: text(source.subtitle),
-    ...(source.reason === undefined ? {} : { reason: section(source.reason, REASON_LIMIT) }),
+    ...(source.reason === undefined ? {} : { reason: reasonSection(source.reason) }),
     now: section(source.now),
     recent: {
       heading: text(recent.heading),
@@ -163,13 +195,7 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
       })
     },
     follow: { label: text(follow.label), checked: follow.checked, ...(follow.disabled ? { disabled: true } : {}) },
-    buttons: source.buttons.map((value) => {
-      const button = record(value)
-      if (!button || !isAgentCardAction(button.action) || (button.disabled !== undefined && typeof button.disabled !== 'boolean')) {
-        throw new TypeError('Invalid agent card button')
-      }
-      return { action: button.action, label: text(button.label), ...(button.disabled ? { disabled: true } : {}) }
-    }),
+    buttons: buttons(source.buttons, BUTTON_LIMIT),
     closeLabel: text(source.closeLabel)
   }
 }
@@ -199,7 +225,9 @@ export function parseAgentCardMeasurement(value: unknown): AgentCardMeasurement 
 export function parseAgentCardViewMessage(value: unknown): AgentCardViewMessage | null {
   const source = record(value)
   if (!source || !validAgentCardId(source.cardId)) return null
-  if (source.kind === 'action' && isAgentCardAction(source.action)) return { cardId: source.cardId, kind: 'action', action: source.action }
+  if (source.kind === 'action' && isAgentCardAction(source.action) && (source.key === undefined || validKey(source.key))) {
+    return { cardId: source.cardId, kind: 'action', action: source.action, ...(source.key === undefined ? {} : { key: source.key }) }
+  }
   if (source.kind === 'close' && source.reason === 'escape') return { cardId: source.cardId, kind: 'close', reason: 'escape' }
   return null
 }

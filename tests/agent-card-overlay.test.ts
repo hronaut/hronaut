@@ -49,6 +49,15 @@ describe('agent card contracts', () => {
     // A long reason is allowed, within its own limit.
     expect(parseAgentCardShowRequest({ ...request(), model: model({ reason: { heading: 'Why', text: 'r'.repeat(2_000) } }) }).model.reason?.text).toHaveLength(2_000)
     expect(() => parseAgentCardShowRequest({ ...request(), model: model({ reason: { heading: 'Why', text: 'r'.repeat(2_001) } }) })).toThrow(TypeError)
+    // Answers sit with the reason, at most two, each with the key of what it answers.
+    const answers = [{ action: 'hand-back' as const, label: 'Done, hand back', key: 'attention-1' }, { action: 'dismiss' as const, label: 'Dismiss', key: 'attention-1' }]
+    expect(parseAgentCardShowRequest({ ...request(), model: model({ reason: { heading: 'Why', text: 'Log in.', answers } }) }).model.reason?.answers).toEqual(answers)
+    for (const wrong of [
+      [...answers, { action: 'review-decision' as const, label: 'Review', key: 'attention-1' }],
+      [{ ...answers[0], key: 'not a key' }],
+      [{ ...answers[0], key: 'k'.repeat(129) }],
+      [{ ...answers[0], action: 'resolve' }]
+    ]) expect(() => parseAgentCardShowRequest({ ...request(), model: model({ reason: { heading: 'Why', text: 'Log in.', answers: wrong as never } }) })).toThrow(TypeError)
   })
 
   it('reads only well-formed measurements and view messages', () => {
@@ -61,6 +70,8 @@ describe('agent card contracts', () => {
     expect(parseAgentCardViewMessage({ cardId: 2, kind: 'close', reason: 'blur' })).toBeNull()
     expect(parseAgentCardViewMessage({ cardId: 2, kind: 'close', reason: 'lost' })).toBeNull()
     expect(parseAgentCardViewMessage({ cardId: 2, kind: 'action', action: 'navigate' })).toBeNull()
+    expect(parseAgentCardViewMessage({ cardId: 2, kind: 'action', action: 'hand-back', key: 'attention-1' })).toEqual({ cardId: 2, kind: 'action', action: 'hand-back', key: 'attention-1' })
+    expect(parseAgentCardViewMessage({ cardId: 2, kind: 'action', action: 'hand-back', key: '<script>' })).toBeNull()
   })
 
   it('places the card under its avatar, inside the window, and above it only when that side fits', () => {
@@ -222,7 +233,11 @@ describe('agent card overlay', () => {
     overlay.measured({ cardId: 1, revision: lastState().revision, width: 320, height: 300 })
     overlay.received({ cardId: 7, kind: 'action', action: 'take-over' })
     overlay.received({ cardId: 1, kind: 'action', action: 'pause' })
-    expect(ports.emit.mock.calls).toEqual([[{ cardId: 1, kind: 'action', action: 'pause' }]])
+    overlay.received({ cardId: 1, kind: 'action', action: 'hand-back', key: 'attention-1' })
+    expect(ports.emit.mock.calls).toEqual([
+      [{ cardId: 1, kind: 'action', action: 'pause' }],
+      [{ cardId: 1, kind: 'action', action: 'hand-back', key: 'attention-1' }]
+    ])
     overlay.received({ cardId: 1, kind: 'close', reason: 'escape' })
     expect(ports.emit).toHaveBeenLastCalledWith({ cardId: 1, kind: 'closed', reason: 'escape' })
     expect(ports.focusShell).toHaveBeenCalledOnce()

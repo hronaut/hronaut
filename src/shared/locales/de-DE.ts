@@ -1386,6 +1386,9 @@ export const deDE = {
       "pause": "Auf diesem Tab pausieren",
       "resume": "Auf diesem Tab fortsetzen",
       "takeOver": "Übernehmen",
+      "handBack": "Erledigt, zurückgeben",
+      "dismiss": "Hinweis schließen",
+      "reviewDecision": "Entscheidung prüfen",
       "close": "Schließen",
       "steps": {
         "click": "Hat auf die Seite geklickt",

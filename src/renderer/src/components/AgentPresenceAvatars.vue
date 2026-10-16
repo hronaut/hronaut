@@ -23,6 +23,10 @@ const props = defineProps<{
   activeTabId?: string
   /** The reason of the current request for you, shown for the agent that made it. */
   attentionReason?: string
+  /** That request's id, which an answer from the card must match. */
+  attentionId?: string
+  /** That request is a human-waiting decision. */
+  attentionDecision?: boolean
   /** The open tabs, to find the one an agent acts on and whether agents are paused there. */
   tabs?: readonly { id: string; agentPaused?: boolean }[]
   follow?: boolean
@@ -38,6 +42,10 @@ const emit = defineEmits<{
   /** Pause agents on this tab and show it, for you to carry on. */
   takeOver: [tabId: string]
   setFollow: [follow: boolean]
+  /** Answer the open request for you: done and handed back, or dismissed. */
+  answerAttention: [id: string, answer: 'resolved' | 'dismissed']
+  /** Open the workspace where its waiting decisions are reviewed. */
+  reviewDecision: [workspaceId: string]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -109,8 +117,8 @@ function agentByKey(clientKey: string): AgentPresence | undefined {
   return shown.value.find((agent) => agent.clientKey === clientKey)
 }
 
-// Pressing anywhere in the shell answers a request for you, and that answer can arrive before
-// the click. The card keeps the tab the avatar showed when pressed. Pressing an avatar also
+// The state can change between the press and the click, such as a request for you ending. The
+// card keeps the tab the avatar showed when pressed. Pressing an avatar also
 // moves focus out of its open card, which closes it; that click must not open it again.
 let pressed: { clientKey: string; tabId?: string; cardOpen: boolean } | undefined
 // The tab the open card acts on, chosen when it opened.
@@ -146,6 +154,8 @@ const card = useAgentCard({
     return agentCardModel(agent, {
       workspaceName: props.workspaceName || props.workspaceId || '',
       ...(props.attentionReason ? { attentionReason: props.attentionReason } : {}),
+      ...(props.attentionId ? { attentionId: props.attentionId } : {}),
+      ...(props.attentionDecision ? { attentionDecision: true } : {}),
       follow: props.follow === true,
       ...(tab ? { tab } : {}),
       tabInView: tab?.id === props.activeTabId,
@@ -156,8 +166,8 @@ const card = useAgentCard({
     }, t)
   },
   anchor: avatarElement,
-  onAction(clientKey, action) {
-    run(clientKey, action)
+  onAction(clientKey, action, key) {
+    run(clientKey, action, key)
   },
   onClosed(clientKey, reason) {
     if (reason === 'blur') blurClosed = { clientKey, at: performance.now() }
@@ -186,11 +196,23 @@ watch(card.openKey, (key) => {
 // The card belongs to the workspace in view.
 watch(() => props.workspaceId, () => card.close())
 
-function run(clientKey: string, action: AgentCardAction): void {
+function run(clientKey: string, action: AgentCardAction, key?: string): void {
   const agent = agentByKey(clientKey)
   const tab = agent && (openTab(cardTabId) ?? openTab(target(agent)))
   if (action === 'follow-on' || action === 'follow-off') {
     emit('setFollow', action === 'follow-on')
+    return
+  }
+  if (action === 'hand-back' || action === 'dismiss' || action === 'review-decision') {
+    // An answer applies only to the request the card showed, while this agent still asks it.
+    if (!key || key !== props.attentionId || agent?.state !== 'needs-you' || gone(agent)) return
+    if (action === 'review-decision') {
+      card.close()
+      if (props.workspaceId) emit('reviewDecision', props.workspaceId)
+      return
+    }
+    if (props.attentionDecision) return
+    emit('answerAttention', key, action === 'hand-back' ? 'resolved' : 'dismissed')
     return
   }
   if (!tab) return

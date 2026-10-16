@@ -34,6 +34,15 @@ export class UserAttentionLifecycle {
     const record = this.records.get(id)
     if (record && pending(record.status.state)) { record.status.state = state; this.changed() }
   }
+  /** The user answered this request from its agent's card. Dismissed stays pending for a waiting agent, as from the tray. */
+  answer(id: string, state: 'resolved' | 'dismissed'): boolean {
+    this.expire()
+    const record = this.records.get(id)
+    if (!record || !pending(record.status.state)) return false
+    record.status.state = state
+    this.changed()
+    return true
+  }
   forTab(tabId: string, workspaceId: string | undefined): UserAttentionStatus | undefined {
     this.expire()
     const record = [...this.records.values()].find(({ status }) => status.tabId === tabId

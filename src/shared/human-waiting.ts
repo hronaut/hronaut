@@ -1,6 +1,10 @@
 export type HumanWaitingDecision = 'review-page' | 'approve-action' | 'provide-input' | 'resolve-unknown'
 export type HumanWaitingState = 'WAITING_FOR_HUMAN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'REJECTED'
   | 'EXPIRED' | 'CANCELLED' | 'ATTEMPTED' | 'VERIFIED' | 'UNKNOWN'
+/** Still waiting for the person: not yet answered, cancelled or expired. */
+export function humanWaitingDecisionOpen(state: HumanWaitingState): boolean {
+  return state === 'WAITING_FOR_HUMAN' || state === 'ACKNOWLEDGED'
+}
 export type HumanWaitingReviewStatus = 'PROPOSED' | 'REVIEWED' | 'APPROVED' | 'REJECTED'
   | 'CANCELLED' | 'EXPIRED' | 'ATTEMPTED' | 'VERIFIED' | 'UNKNOWN'
 

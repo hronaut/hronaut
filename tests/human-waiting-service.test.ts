@@ -92,6 +92,43 @@ describe('durable waiting owner', () => {
     expect(deliver).not.toHaveBeenCalled()
   })
 
+  it('tells listeners each saved state, so a request for you can end with its decision', async () => {
+    const service = new HumanWaitingService({ load: async () => null, save: async () => undefined })
+    const saved: string[][] = []
+    const failing = vi.fn(() => { throw new Error('listener failed') })
+    service.onSaved(failing)
+    const stop = service.onSaved((records) => { saved.push(records.map(({ id, workspaceId, state }) => `${id}:${workspaceId}:${state}`)) })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const record = await service.create(input, authorize)
+      expect(saved.at(-1)).toEqual([`${record.id}:${input.workspaceId}:WAITING_FOR_HUMAN`])
+      await service.change(input.workspaceId, record.id, record.revision, 'cancel', authorize)
+      // A listener that throws neither fails the change nor stops the others.
+      expect(saved.at(-1)).toEqual([`${record.id}:${input.workspaceId}:CANCELLED`])
+      expect(failing).toHaveBeenCalled()
+      stop()
+      const count = saved.length
+      await service.create({ ...input, runId: '0198dc5b-4192-7000-8000-000000000003' }, authorize)
+      expect(saved).toHaveLength(count)
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
+  it('tells listeners only where a resolution ended, not a step it undid', async () => {
+    let saves = 0
+    let changed = false
+    const service = new HumanWaitingService({ load: async () => null, save: async () => { if (++saves === 2) changed = true } })
+    const states: string[] = []
+    service.onSaved((records) => { states.push(...records.map(({ state }) => state)) })
+    const record = await service.create(input, authorize)
+    await expect(service.change(input.workspaceId, record.id, record.revision, 'resolve', authorize, async () => {
+      if (changed) throw new Error('browser changed')
+    })).rejects.toThrow(/review/i)
+    // The resolution was saved, then undone when the browser changed: the decision still waits for you.
+    expect(states).toEqual(['WAITING_FOR_HUMAN', 'WAITING_FOR_HUMAN'])
+  })
+
   it('does not send another alert after a human acknowledgment', async () => {
     const service = new HumanWaitingService({ load: async () => null, save: async () => undefined })
     const record = await service.create(input, authorize)

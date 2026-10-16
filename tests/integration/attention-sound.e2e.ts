@@ -217,7 +217,7 @@ test('uses the agent notification message and marks the requested tab until it c
   }
 })
 
-test('marks a folded workspace that needs the user until the user answers in Hronaut', async ({ appWindow, mcpPort, mcpToken }) => {
+test('marks a folded workspace that needs the user until the request is answered', async ({ appWindow, mcpPort, mcpToken }) => {
   const client = new Client({ name: 'attention-workspace-test', version: '1' })
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
@@ -249,9 +249,18 @@ test('marks a folded workspace that needs the user until the user answers in Hro
     await expect.poll(() => hasNeedsYouBorder(workspaceGroup)).toBe(true)
     await expect(appWindow.locator('.workspace-tab-section.needs-you')).toHaveCount(1)
 
-    // Opening the workspace is a click in Hronaut, which answers the request as it does for a marked tab.
+    // Opening the workspace is a click in Hronaut: agents see the request as seen, but the mark stays until it is answered.
     await groupHeader.click()
     await expect(groupHeader).toHaveAttribute('aria-expanded', 'true')
+    await expect.poll(async () => {
+      const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
+      return JSON.parse(text(status)).userAttention
+    }).toBeNull()
+    await expect(workspaceGroup).toHaveClass(/needs-you/)
+    await expect(groupHeader).toHaveAccessibleName(/^Collapse workspace Folded attention, \d+ tabs?, Needs you$/)
+
+    const { id } = JSON.parse(text(requested)) as { id: string }
+    expect(await appWindow.evaluate(`window.hronaut.answerUserAttention(${JSON.stringify(id)}, 'dismissed')`)).toBe(true)
     await expect(workspaceGroup).not.toHaveClass(/needs-you/)
     await expect(groupHeader).toHaveAccessibleName(/^Collapse workspace Folded attention, \d+ tabs?$/)
   } finally {

@@ -141,9 +141,11 @@ const AgentPresenceAvatarsStub = defineComponent({
   props: {
     workspaceId: String,
     activeTabId: String,
-    attentionReason: String
+    attentionReason: String,
+    attentionId: String,
+    attentionDecision: Boolean
   },
-  emits: ['select', 'takeOver'],
+  emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision'],
   setup() {
     return () => h('div', { 'data-testid': 'agent-presence' })
   }
@@ -227,12 +229,14 @@ function createHarness(home = false) {
     stop: vi.fn(async () => browserState),
     setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => browserState),
     setTabPageLifecycle: vi.fn(async () => browserState),
-    showTabContextMenu: vi.fn(async () => undefined)
+    showTabContextMenu: vi.fn(async () => undefined),
+    answerUserAttention: vi.fn(async (_id: string, _answer: 'resolved' | 'dismissed') => true)
   }
   const actions = {
     openHome: vi.fn(),
     newTabInWorkspace: vi.fn(),
     openNewWorkspaceEditor: vi.fn(),
+    reviewDecisions: vi.fn(),
     toggleCommandPalette: vi.fn(),
     toggleTabSearch: vi.fn(),
     openFind: vi.fn(),
@@ -694,7 +698,15 @@ describe('AppBrowserChromeLayer', () => {
     // The agent avatars follow the workspace of the page in view and select a tab like the tab bar.
     expect(avatars.props()).toMatchObject({ workspaceId: 'workspace-1', activeTabId: 'tab-1' })
     await harness.wrapper.setProps({ tabSearchOpen: true, userAttention: { id: 'attention-1', reason: 'Check the total.', requestedAt: '2026-10-16T00:00:00.000Z' } })
-    expect(avatars.props('attentionReason')).toBe('Check the total.')
+    expect(avatars.props()).toMatchObject({ attentionReason: 'Check the total.', attentionId: 'attention-1', attentionDecision: false })
+    // The card's answers go to main with the id of the request they answer, and a decision opens its workspace.
+    avatars.vm.$emit('answerAttention', 'attention-1', 'resolved')
+    await nextTick()
+    expect(harness.browser.answerUserAttention).toHaveBeenCalledWith('attention-1', 'resolved')
+    avatars.vm.$emit('reviewDecision', 'workspace-1')
+    expect(harness.actions.reviewDecisions).toHaveBeenCalledWith('workspace-1')
+    await harness.wrapper.setProps({ userAttention: { id: 'attention-2', reason: 'Approve it.', requestedAt: '2026-10-16T00:00:00.000Z', humanWaitingDecisionId: 'decision-1' } })
+    expect(avatars.props('attentionDecision')).toBe(true)
     avatars.vm.$emit('select', 'tab-2')
     await nextTick()
     expect(harness.wrapper.emitted('update:tabSearchOpen')?.at(-1)).toEqual([false])

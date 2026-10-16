@@ -77,6 +77,26 @@ describe('agent card view', () => {
     expect(view.control('.agent-card-switch').getAttribute('aria-checked')).toBe('true')
   })
 
+  it('shows the answers under the reason and sends each with the key of the request it answers', async () => {
+    const view = await loadView()
+    view.render({ cardId: 4, revision: 1, theme: 'light', model: model({
+      state: 'needs-you',
+      reason: { heading: 'Why it needs you', text: 'Log in, then hand back.', answers: [
+        { action: 'hand-back', label: 'Done, hand back', key: 'attention-1' },
+        { action: 'dismiss', label: 'Dismiss', key: 'attention-1' }
+      ] }
+    }) })
+    const answers = [...document.querySelectorAll<HTMLButtonElement>('.agent-card-answers button')]
+    expect(answers.map((button) => [button.textContent, button.closest('section')?.getAttribute('aria-labelledby')])).toEqual([
+      ['Done, hand back', 'agent-card-reason'],
+      ['Dismiss', 'agent-card-reason']
+    ])
+    answers[0].click()
+    expect(view.sent.at(-1)).toEqual({ cardId: 4, kind: 'action', action: 'hand-back', key: 'attention-1' })
+    view.control('[data-action="pause"]').click()
+    expect(view.sent.at(-1)).toEqual({ cardId: 4, kind: 'action', action: 'pause' })
+  })
+
   it('closes on Esc and keeps Tab inside the card', async () => {
     const view = await loadView()
     view.render({ cardId: 3, revision: 1, theme: 'light', model: model() })

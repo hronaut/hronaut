@@ -2725,6 +2725,8 @@ export interface HronautApi {
   browserImport: BrowserImportApi
   getState(): Promise<BrowserState>
   getUserAttention(): Promise<UserAttentionRequest | null>
+  /** Answers the open plain request from its agent's card. False when that request is no longer open. */
+  answerUserAttention(id: string, answer: 'resolved' | 'dismissed'): Promise<boolean>
   onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void
   getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
   getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview>

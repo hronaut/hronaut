@@ -58,6 +58,21 @@ describe('agent card content', () => {
     ])
   })
 
+  it('answers a request from the card with its id: hand back or dismiss, or review a decision', () => {
+    const asking = agent({ state: 'needs-you', step: 'askYou' })
+    const plain = agentCardModel(asking, context({ attentionReason: 'Log in, then hand back.', attentionId: 'attention-1' }), t)
+    expect(plain.reason).toEqual({
+      heading: 'Why it needs you',
+      text: 'Log in, then hand back.',
+      answers: [{ action: 'hand-back', label: 'Done, hand back', key: 'attention-1' }, { action: 'dismiss', label: 'Dismiss', key: 'attention-1' }]
+    })
+    expect(parseAgentCardModel(plain)).toEqual(plain)
+    const decision = agentCardModel(asking, context({ attentionReason: 'Human decision required: review-page', attentionId: 'attention-2', attentionDecision: true }), t)
+    expect(decision.reason?.answers).toEqual([{ action: 'review-decision', label: 'Review the decision', key: 'attention-2' }])
+    // Without the request's id there is nothing to answer.
+    expect(agentCardModel(asking, context({ attentionReason: 'Log in.' }), t).reason?.answers).toBeUndefined()
+  })
+
   it('offers no tab actions without a tab, and says when an idle agent waits or a disconnected one left', () => {
     expect(agentCardModel(agent({ state: 'idle' }), context({ tab: undefined }), t)).toMatchObject({ buttons: [], now: { text: 'Waiting for its next step' } })
     const gone = agentCardModel(agent({ state: 'needs-you' }), context({ gone: true, attentionReason: 'Old request.' }), t)
@@ -79,7 +94,7 @@ describe('agent card content', () => {
   it('has every card phrase in every language', () => {
     const keys = [
       'label', 'connected', 'states.idle', 'states.working', 'states.needsYou', 'states.gone', 'reason', 'now', 'nowIdle', 'gone',
-      'recent', 'noSteps', 'stepFailed', 'follow', 'showTab', 'pause', 'resume', 'takeOver', 'close',
+      'recent', 'noSteps', 'stepFailed', 'follow', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
       ...AGENT_STEP_KINDS.map((kind) => `steps.${kind}`)
     ].map((key) => `shell.agentCard.${key}`)
     for (const locale of SUPPORTED_LOCALES) {
@@ -153,7 +168,10 @@ describe('agent card lifecycle', () => {
     expect(onAction).not.toHaveBeenCalled()
     expect(card.openKey.value).toBe('b')
     emit({ cardId: second, kind: 'action', action: 'take-over' })
-    expect(onAction).toHaveBeenCalledWith('b', 'take-over')
+    expect(onAction).toHaveBeenCalledWith('b', 'take-over', undefined)
+    // An answer carries the key of the request the card showed.
+    emit({ cardId: second, kind: 'action', action: 'hand-back', key: 'attention-1' })
+    expect(onAction).toHaveBeenLastCalledWith('b', 'hand-back', 'attention-1')
     emit({ cardId: second, kind: 'closed', reason: 'escape' })
     expect(onClosed).toHaveBeenCalledWith('b', 'escape')
     expect(card.openKey.value).toBeNull()
@@ -161,7 +179,7 @@ describe('agent card lifecycle', () => {
     expect(api.hide).not.toHaveBeenCalled()
     // A late event after it closed changes nothing.
     emit({ cardId: second, kind: 'action', action: 'pause' })
-    expect(onAction).toHaveBeenCalledOnce()
+    expect(onAction).toHaveBeenCalledTimes(2)
   })
 
   it('closes the card when its agent or its avatar goes away, and when the scope ends', async () => {

@@ -68,3 +68,13 @@ const INSPECT_TOOL = /^browser_(?:console|network|issues|performance|accessibili
 export function agentStepKind(toolName: string): AgentStepKind {
   return STEP_BY_TOOL[toolName] ?? (INSPECT_TOOL.test(toolName) ? 'inspect' : 'working')
 }
+
+/** Steps that change the page or the tabs. An agent taking one has moved on from waiting for you;
+ * reading, waiting, scrolling or showing a tab does not count. */
+const ACTING_STEPS: ReadonlySet<AgentStepKind> = new Set<AgentStepKind>([
+  'click', 'type', 'fillForm', 'choose', 'pressKey', 'drag', 'navigate', 'history', 'openTab', 'closeTab', 'upload'
+])
+
+export function agentStepActs(kind: AgentStepKind): boolean {
+  return ACTING_STEPS.has(kind)
+}

@@ -1,5 +1,5 @@
 import './agent-card.css'
-import type { AgentCardMeasurement, AgentCardModel, AgentCardState, AgentCardViewMessage } from '../../shared/agent-card.js'
+import type { AgentCardButton, AgentCardMeasurement, AgentCardModel, AgentCardState, AgentCardViewMessage } from '../../shared/agent-card.js'
 
 interface HronautAgentCardViewApi {
   onState(listener: (state: AgentCardState) => void): () => void
@@ -60,6 +60,19 @@ function section(id: string, heading: string, ...content: HTMLElement[]): HTMLEl
   return node
 }
 
+function actions(cardId: number, className: string, buttons: readonly AgentCardButton[]): HTMLElement {
+  const row = element('div', className)
+  for (const button of buttons) {
+    const node = element('button', 'agent-card-button', button.label)
+    node.type = 'button'
+    node.dataset.action = button.action
+    node.disabled = button.disabled === true
+    node.addEventListener('click', () => send({ cardId, kind: 'action', action: button.action, ...(button.key ? { key: button.key } : {}) }))
+    row.append(node)
+  }
+  return row
+}
+
 function build(cardId: number, model: AgentCardModel): HTMLElement {
   const card = element('div', 'agent-card')
   card.dataset.state = model.state
@@ -86,7 +99,12 @@ function build(cardId: number, model: AgentCardModel): HTMLElement {
   header.append(avatar, title, close)
   card.append(header)
 
-  if (model.reason) card.append(section('agent-card-reason', model.reason.heading, element('p', 'agent-card-reason', model.reason.text)))
+  if (model.reason) {
+    const why = element('p', 'agent-card-reason', model.reason.text)
+    card.append(model.reason.answers?.length
+      ? section('agent-card-reason', model.reason.heading, why, actions(cardId, 'agent-card-answers', model.reason.answers))
+      : section('agent-card-reason', model.reason.heading, why))
+  }
   card.append(section('agent-card-now', model.now.heading, element('p', 'agent-card-now', model.now.text)))
   if (model.recent.steps.length) {
     const list = element('ul', 'agent-card-steps')
@@ -111,18 +129,7 @@ function build(cardId: number, model: AgentCardModel): HTMLElement {
   follow.addEventListener('click', () => send({ cardId, kind: 'action', action: model.follow.checked ? 'follow-off' : 'follow-on' }))
   card.append(follow)
 
-  if (model.buttons.length) {
-    const actions = element('div', 'agent-card-actions')
-    for (const button of model.buttons) {
-      const node = element('button', 'agent-card-button', button.label)
-      node.type = 'button'
-      node.dataset.action = button.action
-      node.disabled = button.disabled === true
-      node.addEventListener('click', () => send({ cardId, kind: 'action', action: button.action }))
-      actions.append(node)
-    }
-    card.append(actions)
-  }
+  if (model.buttons.length) card.append(actions(cardId, 'agent-card-actions', model.buttons))
   return card
 }
 

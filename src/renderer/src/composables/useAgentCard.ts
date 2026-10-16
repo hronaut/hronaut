@@ -28,8 +28,12 @@ export function fitAgentCardText(text: string, limit = AGENT_CARD_TEXT_LIMIT): s
 /** What the shell knows around an agent, beyond its presence. */
 export interface AgentCardContext {
   workspaceName: string
-  /** The reason of the current request for you, shown while this agent needs you. */
+  /** The current request for you, shown while this agent needs you. */
   attentionReason?: string
+  /** The request's id, which its answers carry back. */
+  attentionId?: string
+  /** The request is a human-waiting decision, answered where decisions are reviewed. */
+  attentionDecision?: boolean
   follow: boolean
   /** The tab the card acts on (the one the agent asked about or last used), while it is still open. */
   tab?: { id: string; agentPaused: boolean }
@@ -67,7 +71,18 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
     stateLabel: t(`shell.agentCard.states.${stateKey}`),
     subtitle: fitAgentCardText(t('shell.agentCard.connected', { workspace: context.workspaceName })),
     ...(!context.gone && agent.state === 'needs-you' && context.attentionReason
-      ? { reason: { heading: t('shell.agentCard.reason'), text: fitAgentCardText(context.attentionReason, AGENT_CARD_REASON_LIMIT) } }
+      ? {
+          reason: {
+            heading: t('shell.agentCard.reason'),
+            text: fitAgentCardText(context.attentionReason, AGENT_CARD_REASON_LIMIT),
+            ...(context.attentionId ? { answers: context.attentionDecision
+              ? [{ action: 'review-decision', label: t('shell.agentCard.reviewDecision'), key: context.attentionId }]
+              : [
+                  { action: 'hand-back', label: t('shell.agentCard.handBack'), key: context.attentionId },
+                  { action: 'dismiss', label: t('shell.agentCard.dismiss'), key: context.attentionId }
+                ] } : {})
+          }
+        }
       : {}),
     now: {
       heading: t('shell.agentCard.now'),
@@ -98,7 +113,8 @@ export interface AgentCardOptions {
   model: (clientKey: string) => AgentCardModel | undefined
   /** The avatar the card opens under. */
   anchor: (clientKey: string) => HTMLElement | null
-  onAction: (clientKey: string, action: AgentCardAction) => void
+  /** A choice made on the card; an answer carries the key of what it answers, as the card showed it. */
+  onAction: (clientKey: string, action: AgentCardAction, key?: string) => void
   onClosed?: (clientKey: string, reason: AgentCardCloseReason) => void
 }
 
@@ -161,7 +177,7 @@ export function useAgentCard(options: AgentCardOptions): AgentCardController {
     // Events of a card that has since closed or been replaced are stale.
     if (!key || event.cardId !== cardId) return
     if (event.kind === 'action') {
-      options.onAction(key, event.action)
+      options.onAction(key, event.action, event.key)
       return
     }
     openKey.value = null
