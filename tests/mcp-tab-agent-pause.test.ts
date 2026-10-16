@@ -23,7 +23,9 @@ it('never lets existing tab exceptions bypass a staged listener or protected pau
     // The staging gate is gone; an uninitialized transport still cannot run tools.
     expect((await fetch(endpoint)).status).not.toBe(503)
     server.setTabAgentPaused('tab', false)
-    expect(manager.setTabAgentPaused).toHaveBeenCalledWith('tab', false)
+    expect(manager.setTabAgentPaused).toHaveBeenCalledWith('tab', false, {})
+    server.setTabAgentPaused('tab', true, { takeOver: true })
+    expect(manager.setTabAgentPaused).toHaveBeenLastCalledWith('tab', true, { takeOver: true })
     server.setPaused(true, false)
     expect((await fetch(endpoint)).status).toBe(503)
     expect(() => server.setTabAgentPaused('tab', false)).toThrow(/protected operation/)

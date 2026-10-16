@@ -4,7 +4,10 @@ interface AgentControlManager {
   getState(): BrowserState
   getMcpGroupState(workspaceId: string): BrowserState
   isTabAgentPaused?(tabId: string): boolean
+  isTabTakenOver?(tabId: string): boolean
 }
+
+const TAKEN_OVER = 'Agents are paused for this tab: the person took it over in the Hronaut window and has control. Wait until they hand it back; browser_tabs then shows agentPaused false and handedBack with a note of what changed.'
 
 /** A tab exception never grants workspace-wide operations or bypasses ownership. */
 export function requireTabAgentControl(
@@ -36,7 +39,11 @@ export function requireTabAgentControl(
   }
   if (targetsTab) {
     const tabId = resolvedTabId ?? (typeof input.tabId === 'string' ? input.tabId : workspace.activeTabId)
-    if (!tabId || !workspace.tabs.some(tab => tab.id === tabId) || manager.isTabAgentPaused(tabId)) denied()
+    if (!tabId || !workspace.tabs.some(tab => tab.id === tabId)) denied()
+    if (manager.isTabAgentPaused(tabId!)) {
+      if (!globallyPaused && manager.isTabTakenOver?.(tabId!)) throw new Error(TAKEN_OVER)
+      denied()
+    }
     return
   }
   // Workspace/global tools can affect more than one page and cannot borrow a

@@ -303,6 +303,10 @@ export interface BrowserTabState {
   /** Saved per-tab agent pause preference and current effective state. */
   tabAgentPaused?: boolean
   agentPaused?: boolean
+  /** Runtime only: when the person took this paused tab over from its agent, in epoch milliseconds. */
+  takenOverAt?: number
+  /** Runtime only: the person's latest hand back of this tab, with a plain note for the agent of what changed. */
+  handedBack?: { at: number; note: string }
 }
 
 export type BrowserPageLifecycleState = 'active' | 'frozen' | 'unknown'
@@ -2752,7 +2756,8 @@ export interface HronautApi {
   setTabLabel(tabId: string, label: string): Promise<{ state: BrowserState; status: 'saved' | 'durability-unconfirmed' }>
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState>
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState>
-  setTabAgentPaused(tabId: string, paused: boolean): Promise<BrowserState>
+  /** With `takeOver`, a pause records that the person took the tab over, and the resume that ends it hands it back. */
+  setTabAgentPaused(tabId: string, paused: boolean, options?: { takeOver?: boolean }): Promise<BrowserState>
   clearCssStatePreview(tabId: string): Promise<BrowserState>
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>

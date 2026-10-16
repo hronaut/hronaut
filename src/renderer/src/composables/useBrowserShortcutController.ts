@@ -37,6 +37,7 @@ export interface BrowserShortcutControllerOptions {
   toggleDeveloperTools: ShortcutCallback
   openAgentCard?: ShortcutCallback
   toggleFullPageView?: ShortcutCallback
+  takeOverFromAgent?: ShortcutCallback
   onError: (action: BrowserShortcutAction, error: unknown) => void
 }
 
@@ -169,6 +170,9 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
         return
       case 'toggle-full-page':
         await options.toggleFullPageView?.()
+        return
+      case 'take-over':
+        await options.takeOverFromAgent?.()
     }
   }
 
@@ -178,7 +182,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
       || !options.canRunAction(action)
       || (options.settingsOpen.value && [
         'reload', 'reload-ignoring-cache', 'find', 'bookmark', 'pick-element',
-        'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page'
+        'toggle-devtools', 'zoom-in', 'zoom-out', 'zoom-reset', 'agent-card', 'toggle-full-page', 'take-over'
       ].includes(action))
     ) return false
     const operationGeneration = generation

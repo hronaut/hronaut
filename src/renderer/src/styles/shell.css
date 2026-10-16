@@ -640,6 +640,36 @@
   .agent-avatar[data-state="working"] .agent-avatar-face { @apply [outline:2px_dashed_Highlight] [outline-offset:1px]; }
   .agent-avatar[data-state="needs-you"] .agent-avatar-face { @apply [outline:3px_solid_Highlight] [outline-offset:0]; }
 }
+/* After you click or type in a page an agent is working on: "Take over from <agent>?", at the start of the
+   commands and never over the page; once you have, "You have control" with Hand back. It takes only room the
+   toolbar leaves free (AgentTakeOverPrompt measures the unseen copies), keeps only its buttons when its words
+   do not fit, and otherwise leaves a hand badge on the agent's avatar. The buttons keep 32 px targets. */
+.agent-take-over-slot { display: contents; }
+.agent-take-over {
+  @apply flex flex-none min-w-0 items-center [gap:2px] [height:36px] [padding:0_2px_0_12px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-pill)] text-copy [background:var(--surface)] [font-size:var(--type-small-size)];
+}
+.agent-take-over.compact { @apply [padding-left:2px]; }
+.agent-take-over[data-state="offer"] {
+  @apply [border-color:color-mix(in_srgb,_var(--agent-color)_55%,_var(--border-soft))] [animation:agent-take-over-in_var(--motion-fast)_var(--motion-ease-out)];
+}
+@keyframes agent-take-over-in { from { opacity: 0; } }
+.agent-take-over-text { @apply min-w-0 [max-width:28ch] [margin-right:6px] overflow-hidden text-ellipsis whitespace-nowrap [font-weight:var(--weight-medium)]; }
+.agent-take-over-button {
+  @apply [min-height:32px] [padding:0_12px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-pill)] text-copy [background:transparent] [font-size:var(--type-small-size)] [font-weight:var(--weight-medium)] whitespace-nowrap;
+}
+.agent-take-over-button.primary { @apply [border-color:transparent] [background:color-mix(in_srgb,_var(--agent-color)_24%,_var(--surface))]; }
+.agent-take-over-button:hover:not(:disabled) { @apply [background:var(--hover)]; }
+.agent-take-over-button.primary:hover:not(:disabled) { @apply [background:color-mix(in_srgb,_var(--agent-color)_34%,_var(--surface))]; }
+.agent-take-over-dismiss { @apply grid flex-none [width:32px] [height:32px] place-items-center p-0 [border:1px_solid_transparent] [border-radius:var(--corner-pill)] text-muted [background:transparent]; }
+.agent-take-over-dismiss:hover { @apply text-copy [background:var(--hover)]; }
+.agent-take-over-dismiss svg { @apply [width:18px] [height:18px]; }
+.agent-take-over-measure { @apply absolute [top:0] [left:0] [width:0] [height:0] overflow-hidden invisible pointer-events-none; }
+.agent-take-over-measure > .agent-take-over { @apply absolute [top:0] [left:0] [width:max-content] [animation:none]; }
+.agent-avatar-badge.take-over { @apply [background:color-mix(in_srgb,_var(--agent-color)_78%,_#000)]; }
+@media (forced-colors: active) {
+  .agent-take-over { @apply [border:2px_solid_Highlight]; }
+  .agent-take-over-button { @apply [border-color:ButtonText]; }
+}
 /* The pinned live status: a 38 px strip in the gap below the toolbar, lined up with the page card,
    which moves down to make room and is never covered. */
 .agent-live-strip {

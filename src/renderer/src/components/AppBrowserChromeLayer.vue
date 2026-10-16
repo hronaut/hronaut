@@ -28,6 +28,7 @@ import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
 import AgentLiveStrip from './AgentLiveStrip.vue'
 import AgentPresenceAvatars from './AgentPresenceAvatars.vue'
+import AgentTakeOverPrompt, { type AgentTakeOverBadge } from './AgentTakeOverPrompt.vue'
 import AppTopbarActions from './AppTopbarActions.vue'
 import BrowserAddressBar from './BrowserAddressBar.vue'
 import BrowserNavigationControls from './BrowserNavigationControls.vue'
@@ -219,14 +220,15 @@ function setAgentPaused(tabId: string, paused: boolean): void {
   void props.runAction(() => setTabAgentPaused(tabId, paused))
 }
 
-// Taking over pauses agents on the tab first, so none of their steps lands after you start.
+// Taking over pauses agents on the tab first, so none of their steps lands after you start, and tells
+// them you have control until you hand the tab back.
 // Whatever you chose meanwhile wins: another take over, another tab, tab search or Settings.
 let takeOverGeneration = 0
 function takeOverTab(tabId: string): void {
   const generation = ++takeOverGeneration
   const before = { tabId: activeTab.value?.id, tabSearch: tabSearchOpen.value, settings: settingsOpen.value }
   void props.runAction(async () => {
-    const paused = await setTabAgentPaused(tabId, true)
+    const paused = await setTabAgentPaused(tabId, true, { takeOver: true })
     if (!paused || generation !== takeOverGeneration || activeTab.value?.id !== before.tabId
       || (tabSearchOpen.value && !before.tabSearch) || (settingsOpen.value && !before.settings)) return
     settingsDialogController.close()
@@ -257,6 +259,13 @@ function openAgentCard(): boolean {
   return agentPresenceAvatars.value?.openCard() ?? false
 }
 
+const agentTakeOver = ref<{ takeOver: () => boolean; offerText: string; badge?: AgentTakeOverBadge } | null>(null)
+
+/** Takes over from the agent working on the page you just touched; false when none is offered. */
+function takeOverFromAgent(): boolean {
+  return agentTakeOver.value?.takeOver() ?? false
+}
+
 // The strip's Answer shows the card even when it was open, since pressing Answer closes it.
 function answerInAgentCard(): void {
   agentPresenceAvatars.value?.openCard({ reopen: true })
@@ -282,7 +291,10 @@ const chrome = ref<HTMLElement | null>(null)
 watch(fullPageActive, (active) => {
   if (active && chrome.value) props.fullPage.sync(chrome.value)
 })
-const fullPageTitle = computed(() => activeTab.value?.label || activeTab.value?.title || activeTab.value?.url || '')
+// The band names the page, or offers to take over from the agent working on it once you touch it; resting on
+// the band shows the toolbar with the button.
+const fullPageTitle = computed(() => agentTakeOver.value?.offerText
+  || activeTab.value?.label || activeTab.value?.title || activeTab.value?.url || '')
 
 // The exit button leaves with the view, whether it is pressed or the view ends by shortcut, menu or palette
 // while it has focus; focus moves to the active tab, or the address field, rather than out of the window.
@@ -300,7 +312,7 @@ function startTabDrag(): void {
   tabSearchOpen.value = false
 }
 
-defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
+defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFromAgent })
 </script>
 
 <template>
@@ -476,6 +488,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
           :show-cursor="settings.showAgentCursor"
           :pin-live-status="settings.pinAgentLiveStatus"
           :agent-control-locked="state.agentControlLocked === true"
+          :take-over-badge="agentTakeOver?.badge"
           @select="selectTab"
           @set-paused="setAgentPaused"
           @take-over="takeOverTab"
@@ -485,6 +498,17 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
           @answer-attention="answerAttention"
           @review-decision="actions.reviewDecisions"
         />
+        <template #leading>
+          <AgentTakeOverPrompt
+            ref="agentTakeOver"
+            :workspace-id="activeTab?.mcpGroupId"
+            :active-tab-id="activeTab?.id"
+            :tabs="state.tabs"
+            :agent-control-locked="state.agentControlLocked === true"
+            @take-over="takeOverTab"
+            @hand-back="setAgentPaused($event, false)"
+          />
+        </template>
         <template #commands>
           <BrowserPageActions
             v-model:split-menu-open="splitMenuOpen"

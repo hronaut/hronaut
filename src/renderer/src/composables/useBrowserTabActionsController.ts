@@ -131,17 +131,21 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
    * Pauses or resumes agents on a tab, judged when its turn in the queue comes, so a quick second request cannot undo the first.
    * Resolves with whether this request left the tab in that state (false while agent control is locked), from main's own
    * answer: the shell's copy of the state can lag behind it when another change, such as a page's new title, arrives meanwhile.
+   * With `takeOver`, the pause also records that you took the tab over, even when agents were already paused there.
    */
-  async function setTabAgentPaused(tabId: string, paused: boolean): Promise<boolean> {
+  async function setTabAgentPaused(tabId: string, paused: boolean, pauseOptions: { takeOver?: boolean } = {}): Promise<boolean> {
     let applied = false
+    const takeOver = paused && pauseOptions.takeOver === true
     await enqueueToggle(`agents:${tabId}`, async () => {
       const current = options.state.value.tabs.find(candidate => candidate.id === tabId)
       if (!current || options.state.value.agentControlLocked) return
-      if ((current.agentPaused === true) === paused) {
+      if ((current.agentPaused === true) === paused && (!takeOver || current.takenOverAt !== undefined)) {
         applied = true
         return
       }
-      const next = options.browser.setTabAgentPaused(tabId, paused)
+      const next = takeOver
+        ? options.browser.setTabAgentPaused(tabId, paused, { takeOver: true })
+        : options.browser.setTabAgentPaused(tabId, paused)
       await options.syncState(next)
       const answered = (await next).tabs.find(candidate => candidate.id === tabId)
       applied = answered !== undefined && (answered.agentPaused === true) === paused

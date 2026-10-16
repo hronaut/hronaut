@@ -181,6 +181,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     openAgentCard?: () => unknown
     /** Hides or shows the tabs, rail and toolbar over a website. */
     toggleFullPageView?: () => unknown
+    /** Takes over from the agent working on the page you just touched; nothing happens without an offer. */
+    takeOverFromAgent?: () => unknown
   }
   actions: {
     closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
@@ -312,7 +314,7 @@ export function useAppShellInteractionFeatureController(
     openSettings: () => { surfaces.settings.activate?.() },
     closeSettingsTab: surfaces.settings.closeTab,
     // A card or a picker over an open dialog would fight it for focus.
-    canRunAction: (action) => (action !== 'pick-element' && action !== 'agent-card') || !(
+    canRunAction: (action) => (action !== 'pick-element' && action !== 'agent-card' && action !== 'take-over') || !(
       transient.commandPaletteOpen.value
       || transient.workspaceEditorOpen.value
       || transient.credentialPickerOpen.value
@@ -332,6 +334,7 @@ export function useAppShellInteractionFeatureController(
     toggleDeveloperTools: navigation.toggleDeveloperTools,
     ...(navigation.openAgentCard ? { openAgentCard: async () => { await navigation.openAgentCard?.() } } : {}),
     ...(navigation.toggleFullPageView ? { toggleFullPageView: () => { navigation.toggleFullPageView?.() } } : {}),
+    ...(navigation.takeOverFromAgent ? { takeOverFromAgent: () => { navigation.takeOverFromAgent?.() } } : {}),
     onError: actions.reportShortcutError
   })
   runShortcutFromPalette = browserShortcuts.run

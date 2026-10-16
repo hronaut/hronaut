@@ -863,7 +863,8 @@ export const frFR = {
       "directTab": "Passer à l’onglet web 1–8",
       "lastTab": "Passer au dernier onglet web",
       "resetZoom": "Réinitialiser le zoom de la page",
-      "fullPage": "Activer ou désactiver la vue pleine page"
+      "fullPage": "Activer ou désactiver la vue pleine page",
+      "takeOver": "Prendre la main sur l’agent qui travaille sur la page"
     },
     "responsive": {
       "preview": "Tester les téléphones, tablettes et ordinateurs",
@@ -1500,6 +1501,18 @@ export const frFR = {
     },
     "fullPage": {
       "exit": "Quitter la vue pleine page"
+    },
+    "takeOver": {
+      "offer": "Prendre la main sur {name} ?",
+      "takeOver": "Prendre la main",
+      "takeOverDescription": "Mettre {name} en pause sur cet onglet et continuer vous-même",
+      "dismiss": "Ignorer",
+      "control": "Vous avez la main",
+      "handBack": "Rendre la main",
+      "handBackTo": "Rendre la main à {name}",
+      "handBackDescription": "Relancer l’agent sur cet onglet et lui dire ce qui a changé",
+      "avatarOffer": "Prendre la main sur {name} : Ctrl/Cmd+Shift+O",
+      "avatarControl": "Vous avez la main sur cet onglet. Relancez {name} pour le lui rendre"
     },
     "siteControls": {
       "close": "Fermer les contrôles du site",

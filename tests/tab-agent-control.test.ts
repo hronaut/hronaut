@@ -50,3 +50,28 @@ describe('per-tab agent authorization', () => {
     expect(() => check('browser_workspaces', { action: 'create' })).not.toThrow()
   })
 })
+
+describe('a tab the person took over', () => {
+  function takenOver(global: boolean) {
+    const paused = new Set(['taken'])
+    const state = { activeTabId: 'taken', tabs: [{ id: 'free' }, { id: 'taken' }] } as BrowserState
+    const manager = {
+      getState: () => state,
+      getMcpGroupState: () => state,
+      isTabAgentPaused: (id: string) => paused.has(id),
+      isTabTakenOver: (id: string) => id === 'taken'
+    }
+    return (input: Record<string, unknown>) => requireTabAgentControl(manager, global, 'browser_click', input, true)
+  }
+
+  it('tells the agent the person has control and how it hears of the hand back', () => {
+    const check = takenOver(false)
+    expect(() => check({ workspaceId: 'workspace', tabId: 'taken' })).toThrow(/^Agents are paused for this tab: the person took it over in the Hronaut window and has control\..*handedBack/)
+    expect(() => check({ workspaceId: 'workspace' })).toThrow(/took it over/)
+    expect(() => check({ workspaceId: 'workspace', tabId: 'free' })).not.toThrow()
+  })
+
+  it('gives the general pause message while all agents are paused', () => {
+    expect(() => takenOver(true)({ workspaceId: 'workspace', tabId: 'taken' })).toThrow(/^Agents are paused for this target\./)
+  })
+})

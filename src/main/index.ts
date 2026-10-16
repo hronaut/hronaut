@@ -21,7 +21,7 @@ import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-o
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import type { AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
@@ -610,6 +610,42 @@ let agentPresenceSentRevision = 0
 let agentPresencePublishScheduled = false
 /** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
 let followAgentActivityIntent = 0
+
+/** The latest take-over offer the shell heard of, so a person typing in a page sends it at most once a second. */
+let takeOverOffer: { tabId: string; clientKey: string; sentAt: number } | undefined
+
+function agentWorkingOnTab(tabId: string, workspaceId: string): AgentPresence | undefined {
+  try {
+    return mcpServer?.getAgentPresence()[workspaceId]?.find((agent) => agent.state === 'working' && agent.lastTabId === tabId)
+  } catch {
+    return undefined
+  }
+}
+
+/** An agent is working on this tab and the person can take it over from them. */
+function takeOverAvailable(tabId: string, workspaceId: string | undefined): AgentPresence | undefined {
+  if (!workspaceId || !tabsManager || tabsManager.isTabAgentPaused(tabId)) return undefined
+  return agentWorkingOnTab(tabId, workspaceId)
+}
+
+/** The person clicked or typed in a page an agent is working on, so the shell offers a take over. */
+function offerTakeOver(tabId: string, workspaceId: string | undefined): void {
+  const agent = takeOverAvailable(tabId, workspaceId)
+  if (!agent) return
+  const now = Date.now()
+  // The shell's offer lasts from the latest touch; while the person keeps typing, it hears of it once a second.
+  if (takeOverOffer?.tabId === tabId && takeOverOffer.clientKey === agent.clientKey && now - takeOverOffer.sentAt < 1_000) return
+  takeOverOffer = { tabId, clientKey: agent.clientKey, sentAt: now }
+  sendToMainWindow('agent-presence:take-over-offer', { tabId, clientKey: agent.clientKey })
+}
+
+function tabAgentPauseOptions(value: unknown): { takeOver: boolean } {
+  if (value === undefined) return { takeOver: false }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new TypeError('Invalid tab agent pause options')
+  const { takeOver, ...rest } = value as { takeOver?: unknown }
+  if (Object.keys(rest).length > 0 || (takeOver !== undefined && typeof takeOver !== 'boolean')) throw new TypeError('Invalid tab agent pause options')
+  return { takeOver: takeOver === true }
+}
 
 /** The agents in each open workspace; the revision increases only when the list changes. */
 function agentPresenceSnapshot(): AgentPresenceSnapshot {
@@ -2707,11 +2743,14 @@ function registerIpc(): void {
     if (typeof tabId !== 'string' || typeof sleeping !== 'boolean') throw new TypeError('Invalid tab sleeping state')
     return tabsManager!.setTabSleeping(tabId, sleeping)
   })
-  handleBrowserIpc('browser:set-tab-agent-paused', (event, tabId: unknown, paused: unknown) => {
+  handleBrowserIpc('browser:set-tab-agent-paused', (event, tabId: unknown, paused: unknown, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || typeof paused !== 'boolean') throw new TypeError('Invalid tab agent pause state')
+    const pauseOptions = tabAgentPauseOptions(options)
     if (!mcpServer) throw new Error('Agent service is unavailable')
-    return mcpServer.setTabAgentPaused(tabId, paused)
+    const state = mcpServer.setTabAgentPaused(tabId, paused, pauseOptions)
+    if (paused && takeOverOffer?.tabId === tabId) takeOverOffer = undefined
+    return state
   })
   handleBrowserIpc('browser:clear-css-state-preview', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
@@ -4078,10 +4117,11 @@ async function createWindow(startMinimized = false): Promise<void> {
     getLocale: () => resolvedLocale,
     getTabPosition: () => settings.tabPosition,
     configureSession: configureBrowserSession,
-    onUserInteraction: () => {
+    onUserInteraction: (touched) => {
       // A key press in a page hides a shell tooltip, as it hides a native one.
       shellTooltips.hide()
       acknowledgeUserAttention()
+      if (touched) offerTakeOver(touched.tabId, touched.workspaceId)
     },
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
@@ -4098,8 +4138,9 @@ async function createWindow(startMinimized = false): Promise<void> {
         console.error('[audit] Failed to finalize receipts for a closed workspace.')
       })
     },
-    shortcutAvailable: (action, workspaceId) => action !== 'agent-card'
-      || (workspaceId !== undefined && (agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0),
+    // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
+    shortcutAvailable: (action, workspaceId, tabId) => action === 'take-over' ? takeOverAvailable(tabId, workspaceId) !== undefined
+      : action !== 'agent-card' || (workspaceId !== undefined && (agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0),
     onShortcutRequested: (action) => {
       if (mainWindow && !mainWindow.webContents.isDestroyed()) {
         // The page WebContentsView owns native focus when a website shortcut is

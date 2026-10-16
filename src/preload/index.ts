@@ -2,7 +2,7 @@ import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/spl
 import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
 import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
 import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
-import type { AgentPresenceSnapshot, HronautAgentPresenceApi } from '../shared/agent-presence.js'
+import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
 import type {
@@ -113,7 +113,7 @@ const api: HronautApi = {
   setTabLabel: (tabId: string, label: string) => ipcRenderer.invoke('browser:set-tab-label', tabId, label),
   setTabPinned: (tabId: string, pinned: boolean) => ipcRenderer.invoke('browser:set-tab-pinned', tabId, pinned),
   setTabSleeping: (tabId: string, sleeping: boolean) => ipcRenderer.invoke('browser:set-tab-sleeping', tabId, sleeping),
-  setTabAgentPaused: (tabId: string, paused: boolean) => ipcRenderer.invoke('browser:set-tab-agent-paused', tabId, paused),
+  setTabAgentPaused: (tabId: string, paused: boolean, options?: { takeOver?: boolean }) => ipcRenderer.invoke('browser:set-tab-agent-paused', tabId, paused, options),
   clearCssStatePreview: (tabId: string) => ipcRenderer.invoke('browser:clear-css-state-preview', tabId),
   setTabPageLifecycle: (tabId: string, state: 'active' | 'frozen') => ipcRenderer.invoke('browser:set-tab-page-lifecycle', tabId, state),
   sleepInactiveTabs: () => ipcRenderer.invoke('browser:sleep-inactive-tabs'),
@@ -635,6 +635,11 @@ const agentPresenceApi: HronautAgentPresenceApi = {
     const handler = (_event: Electron.IpcRendererEvent, snapshot: AgentPresenceSnapshot): void => listener(snapshot)
     ipcRenderer.on('agent-presence:changed', handler)
     return () => ipcRenderer.removeListener('agent-presence:changed', handler)
+  },
+  onTakeOverOffer: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, offer: AgentTakeOverOffer): void => listener(offer)
+    ipcRenderer.on('agent-presence:take-over-offer', handler)
+    return () => ipcRenderer.removeListener('agent-presence:take-over-offer', handler)
   }
 }
 contextBridge.exposeInMainWorld('hronautAgentPresence', agentPresenceApi)

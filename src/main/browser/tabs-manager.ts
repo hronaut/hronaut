@@ -401,6 +401,7 @@ import {
 } from './workspace-storage.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
+import { handBackNote, type TakeOverMark } from './take-over.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 type BrowserClickTarget = {
@@ -677,6 +678,10 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   wakePromise?: Promise<void>
   humanInteractionLocked: boolean
   tabAgentPaused: boolean
+  /** Runtime only: the tab as it was when the person took it over from its agent. */
+  takeOver?: TakeOverMark
+  /** Runtime only: the person's latest hand back, with its note for the agent. */
+  handedBack?: { at: number; note: string }
   zoomIsolated: boolean
   /** Construction-time WebPreferences value; undefined is the browser default of 16. */
   defaultFontSize?: number
@@ -923,11 +928,12 @@ export interface TabsManagerOptions {
   toolbarHeight?: number
   getTabAttention?: (tabId: string, workspaceId: string | undefined) => { id: string } | undefined
   resolveTabAttention?: (id: string, tabId: string, workspaceId: string | undefined) => void
-  onUserInteraction?: () => void
+  /** The person used the browser; with the tab, when they clicked or typed in its page. */
+  onUserInteraction?: (touched?: { tabId: string; workspaceId: string | undefined }) => void
   onCredentialSubmitted?: (candidate: BrowserCredentialCandidate) => void
   onShortcutRequested?: (action: BrowserShortcutAction) => void
   /** A shortcut the browser takes from this tab's page only while true; the page keeps the key otherwise. */
-  shortcutAvailable?: (action: BrowserShortcutAction, workspaceId: string | undefined) => boolean
+  shortcutAvailable?: (action: BrowserShortcutAction, workspaceId: string | undefined, tabId: string) => boolean
   copyText: (text: string) => Promise<void>
   copyImageAt: (webContents: WebContents, x: number, y: number) => Promise<void>
   onClipboardCopyFailed?: (error: unknown) => void
@@ -5172,10 +5178,11 @@ export class BrowserTabsManager {
         void this.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
       }
     }
+    for (const tab of this.tabs.values()) this.settleTakeOver(tab)
     this.changed(false)
   }
 
-  setTabAgentPaused(tabId: string, paused: boolean): BrowserState {
+  setTabAgentPaused(tabId: string, paused: boolean, options: { takeOver?: boolean } = {}): BrowserState {
     const tab = this.getTab(tabId)
     tab.nativeInputEnvironmentGeneration += 1
     if (isHronautHomeUrl(tab.url)) throw new Error('Agent control is only available for page tabs.')
@@ -5191,9 +5198,35 @@ export class BrowserTabsManager {
     if (this.isTabAgentPaused(tab.id)) {
       this.liveRegionRecorder.release(tab)
       void this.cssStatePreview.clear(tab, 'agent-paused').catch(() => undefined)
+      if (options.takeOver && !tab.takeOver) {
+        tab.takeOver = this.takeOverMark(tab)
+        tab.handedBack = undefined
+      }
     }
+    this.settleTakeOver(tab)
     this.changed()
     return this.getState()
+  }
+
+  /** Any resume of a tab the person took over hands it back, and tells its agent what changed. */
+  private settleTakeOver(tab: BrowserTab): void {
+    if (!tab.takeOver || this.isTabAgentPaused(tab.id)) return
+    tab.handedBack = { at: Date.now(), note: handBackNote(tab.takeOver, this.takeOverMark(tab)) }
+    tab.takeOver = undefined
+  }
+
+  private takeOverMark(tab: BrowserTab): TakeOverMark {
+    return {
+      at: Date.now(),
+      url: tab.url,
+      navigationGeneration: tab.navigationGeneration,
+      humanInteractionGeneration: tab.humanInteractionGeneration
+    }
+  }
+
+  /** The person took this tab over from its agent and has not handed it back. */
+  isTabTakenOver(tabId: string): boolean {
+    return Boolean(this.tabs.get(tabId)?.takeOver) && this.isTabAgentPaused(tabId)
   }
 
   isTabAgentPaused(tabId: string): boolean {
@@ -9915,7 +9948,7 @@ export class BrowserTabsManager {
       // when a person presses it while there are agents to show. An agent's debugger keys usually skip
       // this handler; one that arrives here as expected agent input still reaches the page.
       const shortcut = requested && (
-        this.options.shortcutAvailable?.(requested, tab.mcpGroupId) === false
+        this.options.shortcutAvailable?.(requested, tab.mcpGroupId, tab.id) === false
         || (requested === 'agent-card' && expectedAgentInput)
       ) ? null : requested
       if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
@@ -9938,7 +9971,7 @@ export class BrowserTabsManager {
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
         this.mcpActivityFollower.noteHumanInput()
-        this.options.onUserInteraction?.()
+        this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
       }
     })
     // Wheel and touch input never reach before-mouse-event; while the person scrolls or touches
@@ -9997,7 +10030,7 @@ export class BrowserTabsManager {
           this.markTabActiveInGroup(tab)
           this.changed()
         }
-        this.options.onUserInteraction?.()
+        this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
       }
     })
     webContents.on('context-menu', (event, params) => {
@@ -10897,6 +10930,8 @@ export class BrowserTabsManager {
       tabAgentPaused: tab.tabAgentPaused,
       humanInteractionInputLocked: this.isHumanInteractionLocked(tab),
       agentPaused: this.isTabAgentPaused(tab.id),
+      ...(this.isTabTakenOver(tab.id) ? { takenOverAt: tab.takeOver!.at } : {}),
+      ...(tab.handedBack ? { handedBack: { ...tab.handedBack } } : {}),
       preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
       videoRecording: this.videoRecorder.state(tab.id).status,
       zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
