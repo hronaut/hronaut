@@ -342,12 +342,18 @@ describe('browser tab actions controller', () => {
     harness.syncState.mockImplementation(async () => undefined)
     expect(await harness.controller.setTabAgentPaused('active', true)).toBe(true)
     expect(harness.state.value.tabs[0]?.agentPaused).not.toBe(true)
-    // Main refused it: the tab stays as it was.
+    // Main's answer still shows the tab running.
     harness.browser.setTabAgentPaused.mockImplementation(async () => harness.state.value)
     expect(await harness.controller.setTabAgentPaused('active', true)).toBe(false)
+    // A failed call rejects, as before.
+    harness.browser.setTabAgentPaused.mockImplementation(async () => { throw new Error('Tab not found') })
+    await expect(harness.controller.setTabAgentPaused('active', true)).rejects.toThrow('Tab not found')
     // Already in that state, or locked.
     harness.state.value.tabs = harness.state.value.tabs.map(candidate => ({ ...candidate, agentPaused: true }))
     expect(await harness.controller.setTabAgentPaused('active', true)).toBe(true)
+    // Main's answer no longer has the tab, so it was not resumed either.
+    harness.browser.setTabAgentPaused.mockImplementation(async () => ({ ...harness.state.value, tabs: [] }))
+    expect(await harness.controller.setTabAgentPaused('active', false)).toBe(false)
     harness.state.value.agentControlLocked = true
     expect(await harness.controller.setTabAgentPaused('active', false)).toBe(false)
   })

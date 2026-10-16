@@ -129,8 +129,8 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
 
   /**
    * Pauses or resumes agents on a tab, judged when its turn in the queue comes, so a quick second request cannot undo the first.
-   * Resolves with whether the tab is now in that state, from main's own answer: the shell's copy of the state can lag behind it
-   * when another change, such as a page's new title, arrives meanwhile.
+   * Resolves with whether this request left the tab in that state (false while agent control is locked), from main's own
+   * answer: the shell's copy of the state can lag behind it when another change, such as a page's new title, arrives meanwhile.
    */
   async function setTabAgentPaused(tabId: string, paused: boolean): Promise<boolean> {
     let applied = false
@@ -143,7 +143,8 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
       }
       const next = options.browser.setTabAgentPaused(tabId, paused)
       await options.syncState(next)
-      applied = ((await next).tabs.find(candidate => candidate.id === tabId)?.agentPaused === true) === paused
+      const answered = (await next).tabs.find(candidate => candidate.id === tabId)
+      applied = answered !== undefined && (answered.agentPaused === true) === paused
     })
     return applied
   }
