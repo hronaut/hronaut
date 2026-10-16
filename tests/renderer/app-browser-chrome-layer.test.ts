@@ -46,6 +46,7 @@ const BrowserTabsBarStub = defineComponent({
   name: 'BrowserTabsBar',
   props: {
     state: Object,
+    tabSearchOpen: Boolean,
     hydrated: Boolean,
     orientation: String,
     railPinned: Boolean,
@@ -67,7 +68,8 @@ const BrowserTabsBarStub = defineComponent({
     'toggleTabMuted',
     'closeTab',
     'dragStart',
-    'toggleRailPinned'
+    'toggleRailPinned',
+    'searchTabs'
   ],
   setup(_props, { expose }) {
     expose({ expandTabGroup, expandTabGroupForTab })
@@ -483,6 +485,7 @@ describe('AppBrowserChromeLayer', () => {
     const page = harness.wrapper.getComponent(BrowserPageActionsStub)
 
     expect(topbar.props()).toMatchObject({ commandPaletteOpen: true, tabSearchOpen: true })
+    expect(harness.wrapper.getComponent(BrowserTabsBarStub).props('tabSearchOpen')).toBe(true)
     expect(navigation.props('zoomOpen')).toBe(true)
     expect(address.props('siteControlsOpen')).toBe(true)
     expect(address.props('panelDock')).toBe('right')
@@ -498,6 +501,7 @@ describe('AppBrowserChromeLayer', () => {
       pageToolsOpen: false
     })
     expect(topbar.props()).toMatchObject({ commandPaletteOpen: false, tabSearchOpen: false })
+    expect(harness.wrapper.getComponent(BrowserTabsBarStub).props('tabSearchOpen')).toBe(false)
     expect(navigation.props('zoomOpen')).toBe(false)
     expect(address.props('siteControlsOpen')).toBe(false)
     expect(page.props()).toMatchObject({ splitMenuOpen: false, pageToolsOpen: false })
@@ -558,6 +562,7 @@ describe('AppBrowserChromeLayer', () => {
     tabs.vm.$emit('toggleTabMuted', harness.props.state.tabs[0])
     tabs.vm.$emit('closeTab', 'tab-1')
     tabs.vm.$emit('toggleRailPinned')
+    tabs.vm.$emit('searchTabs')
 
     topbar.vm.$emit('toggleCommandPalette')
     topbar.vm.$emit('toggleTabSearch')
@@ -591,7 +596,8 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.tabActions.closeTab).toHaveBeenCalledWith('tab-1')
     expect(harness.shellActions.toggleVerticalTabRailPinned).toHaveBeenCalledOnce()
     expect(harness.actions.toggleCommandPalette).toHaveBeenCalledOnce()
-    expect(harness.actions.toggleTabSearch).toHaveBeenCalledOnce()
+    // The rail's Find a workspace or tab button and the Search tabs icon open the same panel.
+    expect(harness.actions.toggleTabSearch).toHaveBeenCalledTimes(2)
     expect(harness.collectionActions.toggleDownloads).toHaveBeenCalledOnce()
     expect(harness.collectionActions.toggleVisitHistory).toHaveBeenCalledOnce()
     expect(harness.tabActions.toggleAllTabsMuted).toHaveBeenCalledOnce()

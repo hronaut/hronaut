@@ -1296,6 +1296,7 @@ export const plPL = {
       "workspace": "Obszar roboczy",
       "collapseRail": "Zwijaj pasek kart, gdy nie jest używany",
       "keepRailExpanded": "Pozostaw pasek kart rozwinięty",
+      "workspacesHeading": "Obszary robocze",
       "locked": "Wprowadzanie zablokowane",
       "lock": "Zablokuj wprowadzanie"
     },

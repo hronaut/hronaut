@@ -1296,6 +1296,7 @@ export const frFR = {
       "workspace": "Espace de travail",
       "collapseRail": "Réduire la barre d’onglets lorsqu’elle n’est pas utilisée",
       "keepRailExpanded": "Garder la barre d’onglets développée",
+      "workspacesHeading": "Espaces de travail",
       "locked": "Saisie bloquée",
       "lock": "Bloquer la saisie"
     },

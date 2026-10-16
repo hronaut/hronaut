@@ -323,6 +323,71 @@ describe('BrowserTabsBar', () => {
     expect(strip.scrollTop).toBe(120)
   })
 
+  it('puts the rail pin beside Home and the workspace actions in a Workspaces header', async () => {
+    const view = renderTabs(browserState(), true, 'vertical')
+    const header = document.querySelector<HTMLElement>('.tab-rail-header')!
+    const pin = screen.getByRole('button', { name: 'Collapse tab rail when not in use' })
+    expect(header).toContainElement(screen.getByRole('button', { name: 'Open Hronaut Home' }))
+    expect(header).toContainElement(pin)
+    // The pin is an icon: its name comes from its label, not from a row of text.
+    expect(pin).toHaveTextContent('')
+    expect(pin).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(pin)
+    expect(view.emitted('toggleRailPinned')).toHaveLength(1)
+
+    const workspaces = document.querySelector<HTMLElement>('.workspace-rail-header')!
+    expect(workspaces).toHaveTextContent('Workspaces')
+    const create = screen.getByRole('button', { name: 'Create workspace' })
+    // The same command, name and shortcut as Search tabs at the bottom of the rail.
+    const find = screen.getByRole('button', { name: 'Search tabs' })
+    expect(workspaces).toContainElement(create)
+    expect(workspaces).toContainElement(find)
+    // Moved, not copied: the open rail's strip no longer ends with its own Create workspace row.
+    expect(screen.getAllByRole('button', { name: 'Create workspace' })).toHaveLength(1)
+    expect(document.querySelector('.tabs-strip')).not.toContainElement(create)
+    expect(document.querySelector('.workspace-action-divider')).toBeNull()
+    expect(find).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+A Meta+Shift+A')
+    expect(find).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(find)
+    await userEvent.click(create)
+    expect(view.emitted('searchTabs')).toHaveLength(1)
+    expect(view.emitted('createWorkspace')).toHaveLength(1)
+    await view.rerender({ tabSearchOpen: true })
+    expect(find).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('keeps the pin and Create workspace in a folded rail and moves them into the header as it opens', async () => {
+    const view = renderTabs(browserState(), true, 'vertical', false)
+    const navigation = screen.getByRole('navigation', { name: 'Tab navigation' })
+    expect(navigation).toHaveClass('rail-collapsed')
+    // Folded, the rail ends with Create workspace as before. Focus opens the rail and replaces this copy, so it stays out
+    // of the tab order; the header's own button, hidden by the folded styles, takes over once open.
+    const folded = document.querySelector<HTMLElement>('.tabs-strip .new-workspace')!
+    expect(folded).toHaveAccessibleName('Create workspace')
+    expect(folded).toHaveAttribute('tabindex', '-1')
+    expect(document.querySelector('.tabs-strip .workspace-action-divider')).not.toBeNull()
+    await userEvent.click(folded)
+    expect(view.emitted('createWorkspace')).toHaveLength(1)
+    expect(document.querySelector('.tab-rail-header')).toContainElement(screen.getByRole('button', { name: 'Keep tab rail expanded' }))
+
+    await view.rerender({ railRevealed: true })
+    expect(navigation).not.toHaveClass('rail-collapsed')
+    expect(document.querySelector('.tabs-strip .new-workspace')).toBeNull()
+    expect(document.querySelector('.tabs-strip .workspace-action-divider')).toBeNull()
+    expect(document.querySelector('.workspace-rail-header')).toContainElement(screen.getByRole('button', { name: 'Create workspace' }))
+  })
+
+  it('keeps the horizontal strip layout without a Workspaces header', () => {
+    renderTabs(browserState(), true, 'horizontal')
+    expect(document.querySelector('.workspace-rail-header')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Search tabs' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /tab rail/ })).toBeNull()
+    const create = screen.getByRole('button', { name: 'Create workspace' })
+    expect(document.querySelector('.tabs-strip')).toContainElement(create)
+    expect(create).toHaveTextContent('Workspace')
+    expect(create).not.toHaveAttribute('tabindex')
+  })
+
   it('renders the shell reveal state without independently moving pointer or keyboard targets', async () => {
     const view = renderTabs(browserState(), true, 'vertical', false)
     const navigation = screen.getByRole('navigation', { name: 'Tab navigation' })

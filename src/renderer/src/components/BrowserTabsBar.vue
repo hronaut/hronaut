@@ -19,6 +19,7 @@ import IconKeyboardArrowUp from '~icons/material-symbols/keyboard-arrow-up-round
 import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconKeepOff from '~icons/material-symbols/keep-off-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
+import IconSearch from '~icons/material-symbols/search-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconPauseCircle from '~icons/material-symbols/pause-circle-rounded'
 import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
@@ -37,6 +38,7 @@ const props = defineProps<{
   state: BrowserState
   settingsActive?: boolean
   userAttention?: UserAttentionRequest | null
+  tabSearchOpen?: boolean
   hydrated: boolean
   orientation: 'horizontal' | 'vertical'
   railPinned: boolean
@@ -60,6 +62,7 @@ const emit = defineEmits<{
   closeTab: [tabId: string]
   dragStart: []
   toggleRailPinned: []
+  searchTabs: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -570,10 +573,28 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
   >
     <IconKeep v-if="railPinned" aria-hidden="true" />
     <IconKeepOff v-else aria-hidden="true" />
-    <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
   </UiButton>
   </div>
   <span class="topbar-divider" aria-hidden="true" />
+  <div v-if="vertical" class="workspace-rail-header">
+    <span class="workspace-rail-title">{{ t('shell.tabs.workspacesHeading') }}</span>
+    <UiButton appearance="application"
+      class="workspace-rail-find"
+      type="button"
+      v-tooltip="t('shell.actions.searchTabsTitle')"
+      :aria-label="t('shell.actions.searchTabs')"
+      aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
+      :aria-expanded="tabSearchOpen"
+      @click="emit('searchTabs')"
+    ><IconSearch aria-hidden="true" /></UiButton>
+    <UiButton appearance="application"
+      class="new-workspace"
+      type="button"
+      v-tooltip="t('shell.tabs.createWorkspaceTitle')"
+      :aria-label="t('shell.tabs.createWorkspace')"
+      @click="emit('createWorkspace')"
+    ><IconAdd aria-hidden="true" /></UiButton>
+  </div>
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
     <UiButton appearance="application"
       v-if="hasTabOverflow"
@@ -727,10 +748,14 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
       :aria-label="t('tabSearch.newTabTitle')"
       @click="emit('newTab')"
     ><IconAdd aria-hidden="true" /></UiButton>
-    <span class="workspace-action-divider" aria-hidden="true" />
+    <!-- A folded rail keeps Create workspace at the end of its list, as before; once open, the Workspaces header has it.
+         Focus opens the rail, so this copy is left out of the tab order rather than lost from under focus. -->
+    <span v-if="!vertical || !railExpanded" class="workspace-action-divider" aria-hidden="true" />
     <UiButton appearance="application"
+      v-if="!vertical || !railExpanded"
       class="new-workspace"
       type="button"
+      :tabindex="vertical ? -1 : undefined"
       v-tooltip="t('shell.tabs.createWorkspaceTitle')"
       :aria-label="t('shell.tabs.createWorkspace')"
       @click="emit('createWorkspace')"
