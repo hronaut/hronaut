@@ -16,7 +16,7 @@ import {
   type AgentCardEvent,
   type AgentCardShowRequest
 } from '../shared/agent-card.js'
-import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
+import { humanWaitingDecisionOpen, normalizeHumanWaitingNote } from '../shared/human-waiting.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -2764,7 +2764,7 @@ function registerIpc(): void {
     if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !humanWaiting) throw new Error('Waiting workspace unavailable')
     return humanWaiting.list(workspaceId, authorize)
   })
-  handleBrowserIpc('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown) => {
+  handleBrowserIpc('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown, note: unknown) => {
     const authorize = (): void => { assertTrustedShellSender(event) }
     authorize()
     if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
@@ -2780,6 +2780,10 @@ function registerIpc(): void {
     if (trustedConfirmation === null || (action !== 'resolve' && trustedConfirmation !== undefined)) {
       throw new Error('Waiting decision confirmation unavailable')
     }
+    const answerNote = normalizeHumanWaitingNote(note)
+    if (answerNote === null || (answerNote !== undefined && action !== 'resolve' && action !== 'reject')) {
+      throw new Error('Waiting decision note unavailable')
+    }
     let checkpointId: string | null | undefined
     const validateFresh = async (): Promise<void> => {
       const report = await tabsManager!.inspectWorkspaceContinuity(workspaceId)
@@ -2793,7 +2797,7 @@ function registerIpc(): void {
       checkpointId = report.checkpointId
     }
     const attentionId = userAttention?.workspaceId === workspaceId && attentionDecisionId === id ? userAttention.id : undefined
-    const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh, trustedConfirmation)
+    const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh, trustedConfirmation, { note: answerNote })
     if (attentionId && userAttention?.id === attentionId) {
       if (humanWaitingDecisionOpen(record.state)) quietUserAttention()
       else endUserAttention()

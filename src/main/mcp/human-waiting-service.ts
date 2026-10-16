@@ -1,6 +1,7 @@
 import { HumanWaitingStore, currentHumanWaitingReviewStep } from './human-waiting-store.js'
 import type { HumanWaitingPersistence } from './human-waiting-persistence.js'
 import {
+  normalizeHumanWaitingNote,
   requiresHumanWaitingAccountAndTargetConfirmation,
   type HumanWaitingState,
   type HumanWaitingTrustedConfirmation
@@ -47,6 +48,8 @@ export class HumanWaitingService {
   private requestEpoch = 0
   private pendingRequests = 0
   private readonly savedListeners = new Set<(records: readonly HumanWaitingSavedState[]) => void>()
+  /** Answers people gave in Hronaut, by decision. Kept in memory only, so their notes are never saved. */
+  private readonly answers = new Map<string, { answeredAt: number; note?: string }>()
   /** What the running operation saved last, reported once it settles. */
   private unreportedRecords: readonly HumanWaitingSavedState[] | undefined
 
@@ -137,7 +140,7 @@ export class HumanWaitingService {
         await this.save()
         authorize()
         const result = this.store.list(workspaceId)
-        if (JSON.stringify(this.store.snapshot().records) === this.persistedRecords) return result
+        if (JSON.stringify(this.store.snapshot().records) === this.persistedRecords) return result.map(record => this.withAnswer(record))
       }
     })
   }
@@ -149,9 +152,14 @@ export class HumanWaitingService {
     action: 'acknowledge' | 'cancel' | 'reject' | 'resolve',
     authorize: Authorization,
     validateFresh?: () => Promise<void>,
-    trustedConfirmation?: HumanWaitingTrustedConfirmation
+    trustedConfirmation?: HumanWaitingTrustedConfirmation,
+    /** Given when a person answers in Hronaut, with what they wrote to the agent. */
+    answer?: { note?: string }
   ) {
     return this.serialize(async () => {
+      if (answer?.note !== undefined && ((action !== 'resolve' && action !== 'reject') || normalizeHumanWaitingNote(answer.note) !== answer.note)) {
+        throw new Error('Waiting decision note unavailable')
+      }
       authorize()
       if (!this.store.list(workspaceId).some(record => record.id === id)) throw new Error('Waiting decision unavailable')
       if (action === 'resolve') {
@@ -164,6 +172,7 @@ export class HumanWaitingService {
         authorize()
       }
       const result = this.store[action](id, revision)
+      if (answer && action !== 'acknowledge') this.remember(id, answer.note)
       await this.save()
       if (action === 'resolve') {
         try {
@@ -171,12 +180,28 @@ export class HumanWaitingService {
           authorize()
         } catch {
           this.store.invalidateResolution(id)
+          this.answers.delete(id)
           await this.save()
           throw new Error('Browser review changed while saving; inspect current state again')
         }
       } else authorize()
-      return this.current(workspaceId, result.id)
+      return this.withAnswer(this.current(workspaceId, result.id))
     })
+  }
+
+  private remember(id: string, note: string | undefined): void {
+    this.answers.delete(id)
+    this.answers.set(id, { answeredAt: Date.now(), ...(note ? { note } : {}) })
+    // Bounded like the history itself; the oldest answers go first.
+    for (const old of this.answers.keys()) {
+      if (this.answers.size <= 1000) break
+      this.answers.delete(old)
+    }
+  }
+
+  private withAnswer<T extends { id: string }>(record: T): T & { answeredAt?: number; note?: string } {
+    const answer = this.answers.get(record.id)
+    return answer ? { ...record, ...answer } : record
   }
 
   private current(workspaceId: string, id: string) {
