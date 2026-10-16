@@ -582,10 +582,14 @@
    three, then +N. A ring in the shell color separates the overlap; state is the
    fill (idle is pale), a breathing accent ring (working) or an amber ring and
    badge (needs you), never only color: the name and state are in the label. */
-.agent-presence { @apply flex flex-none items-center [gap:2px] [margin-left:2px]; }
+.agent-presence { @apply flex flex-none items-center [margin-left:2px]; }
 .agent-avatar {
   @apply relative grid flex-none place-items-center [width:32px] [min-width:32px] [height:32px] [padding:0] [border:0] [border-radius:var(--corner-pill)] bg-transparent cursor-pointer;
 }
+/* Overlapping, Figma style; the face's shell-colored border cuts each one out of the next, and the
+   avatar under the pointer or keyboard focus comes to the front with its whole 32 px target. */
+.agent-avatar + .agent-avatar, .agent-avatar + .agent-avatar-more { @apply [margin-left:-6px]; }
+.agent-avatar:is(:hover, :focus-visible) { @apply [z-index:2]; }
 .agent-avatar-face, .agent-avatar-more {
   @apply grid [width:28px] [height:28px] place-items-center rounded-full [border:2px_solid_var(--shell-bar,_var(--toolbar))] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1];
 }

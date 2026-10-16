@@ -54,6 +54,11 @@ test('shows the agents working in the workspace in view, who needs you, and forg
     const windsurfAvatar = group.getByRole('button', { name: /^Windsurf, / })
     await expect(windsurfAvatar).toHaveAttribute('data-tooltip', 'Windsurf · Reading the page')
     await expect(group.getByRole('button')).toHaveText(['C', 'W'])
+    // They overlap, Figma style, and the one under the pointer comes to the front.
+    const edges = await group.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect()).map(box => ({ left: box.left, right: box.right })))
+    expect(edges[1]!.left).toBeLessThan(edges[0]!.right)
+    await windsurfAvatar.hover()
+    expect(await windsurfAvatar.evaluate(element => getComputedStyle(element).zIndex)).toBe('2')
 
     // Any call counts, not only calls that act on a tab.
     await connectMcpWorkspace(cursor.client, '', false, workspace)
