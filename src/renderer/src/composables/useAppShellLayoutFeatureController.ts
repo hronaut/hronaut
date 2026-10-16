@@ -150,6 +150,7 @@ export function useAppShellLayoutFeatureController(
   })
   const windowControlsScrim = useWindowControlsScrim({
     sources: fullModalStates,
+    exitHoldsPage: overlayExitHoldsPage,
     report: (color) => {
       if (!layout.detachedWindow) layout.shellApi.setWindowControlsScrim(color)
     }

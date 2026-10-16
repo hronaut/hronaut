@@ -248,6 +248,40 @@ describe('useAppShellLayoutFeatureController', () => {
     }
   })
 
+  it('keeps the native window controls dimmed while a closing dialog still hides the page', async () => {
+    const harness = createHarness()
+    const backdrop = document.createElement('div')
+    backdrop.style.position = 'fixed'
+    backdrop.style.backgroundColor = 'rgba(4, 7, 12, 0.48)'
+    document.body.append(backdrop)
+    const elementsFromPoint = vi.fn((): Element[] => [backdrop])
+    Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: elementsFromPoint })
+    const exiting = document.createElement('div')
+    try {
+      harness.modals.commandPalette.value = true
+      await nextTick()
+      await nextTick()
+      expect(harness.setWindowControlsScrim).toHaveBeenLastCalledWith('rgba(4, 7, 12, 0.48)')
+      setPageSnapshotOnScreen(true)
+
+      // The leaving backdrop is inert and no longer hit-tests while it fades over the page snapshot.
+      elementsFromPoint.mockReturnValue([])
+      harness.modals.commandPalette.value = false
+      overlayTransitionHooks.onBeforeLeave(exiting)
+      await nextTick()
+      await nextTick()
+      expect(harness.setWindowControlsScrim).toHaveBeenCalledOnce()
+      overlayTransitionHooks.onAfterLeave(exiting)
+      await nextTick()
+      await nextTick()
+      expect(harness.setWindowControlsScrim).toHaveBeenLastCalledWith(null)
+    } finally {
+      overlayTransitionHooks.onAfterLeave(exiting)
+      backdrop.remove()
+      Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
+  })
+
   it('returns the page at once when its snapshot is withdrawn or missing during an exit', async () => {
     const harness = createHarness()
     const exiting = document.createElement('div')
