@@ -38,7 +38,8 @@
   .settings-overlay,
   .tab-group-editor-overlay,
   .wallet-approval-overlay
-):not(.ui-overlay-leave-active) > * {
+):not(.ui-overlay-leave-active) > *,
+:root[data-overlay-entrance-held] .ui-popover__panel--holds-page:not(.ui-surface-leave-active) {
   animation-play-state: paused;
 }
 
@@ -74,4 +75,10 @@
   .ui-surface-leave-active {
     animation-duration: var(--motion-fast) !important;
   }
+}
+
+/* A surface closed before its entrance finished leaves at once; see beginSurfaceLeave. */
+.ui-overlay-leave-instant,
+.ui-overlay-leave-instant > * {
+  animation-name: none !important;
 }

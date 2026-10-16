@@ -1,6 +1,6 @@
 import { nextTick, onScopeDispose, shallowRef } from 'vue'
 import type { BrowserOcclusionSnapshot, HronautShellApi } from '../../../shared/types.js'
-import { releaseOverlayEntrance, setPageSnapshotOnScreen } from './overlay-motion.js'
+import { overlayEntranceEpoch, releaseOverlayEntrance, setPageSnapshotOnScreen } from './overlay-motion.js'
 
 type OcclusionSnapshotApi = Pick<HronautShellApi, 'onOcclusionSnapshot' | 'presentOcclusionSnapshot'>
   & Partial<Pick<HronautShellApi, 'onOcclusionPagesHidden'>>
@@ -39,12 +39,12 @@ export function useOcclusionSnapshotController(api: OcclusionSnapshotApi | undef
   let clearTimer: ReturnType<typeof setTimeout> | undefined
   let disposed = false
 
-  async function show(next: BrowserOcclusionSnapshot, current: number): Promise<void> {
+  async function show(next: BrowserOcclusionSnapshot, current: number, epoch: number): Promise<void> {
     try {
       await Promise.all(next.panes.map((pane) => decode(pane.image)))
     } catch {
       // An image that cannot be shown leaves the old behavior: main hides the pages at once.
-      if (current === generation && !disposed) present(next.id)
+      if (current === generation && !disposed) present(next.id, epoch)
       return
     }
     if (current !== generation || disposed) return
@@ -52,13 +52,14 @@ export function useOcclusionSnapshotController(api: OcclusionSnapshotApi | undef
     setPageSnapshotOnScreen(true)
     await nextTick()
     await afterPaint()
-    if (current === generation && !disposed) present(next.id)
+    if (current === generation && !disposed) present(next.id, epoch)
   }
 
-  function present(id: number): void {
+  function present(id: number, epoch: number): void {
     api?.presentOcclusionSnapshot(id)
-    // Main hides the page views on this confirmation, so overlays can start their entrance.
-    releaseOverlayEntrance()
+    // Main hides the page views on this confirmation, so overlays can start their entrance,
+    // unless a newer overlay is already waiting for a newer snapshot.
+    if (overlayEntranceEpoch() === epoch) releaseOverlayEntrance()
   }
 
   async function clear(current: number): Promise<void> {
@@ -79,7 +80,7 @@ export function useOcclusionSnapshotController(api: OcclusionSnapshotApi | undef
     }
     // A newer snapshot is not on screen until it is decoded and painted.
     setPageSnapshotOnScreen(false)
-    if (next) void show(next, current)
+    if (next) void show(next, current, overlayEntranceEpoch())
     else void clear(current)
   })
   // Main also hides the pages without a snapshot, such as for a sleeping page or after its deadline.

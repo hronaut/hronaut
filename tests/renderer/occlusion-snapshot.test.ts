@@ -97,21 +97,43 @@ describe('occlusion snapshot controller', () => {
 
   it('lets a closing overlay keep the pages hidden only while their snapshot is on screen', async () => {
     const { send, scope } = setup({ decode: async () => undefined, afterPaint: async () => undefined })
-    overlayTransitionHooks.onBeforeLeave(document.createElement('div'))
+    const exit = document.createElement('div')
     // Without an image, holding the pages back would leave the window empty under the exit.
+    overlayTransitionHooks.onBeforeLeave(exit)
     expect(overlayExitHoldsPage.value).toBe(false)
+    overlayTransitionHooks.onAfterLeave(exit)
+
     send(snapshotOf(1))
     await flush()
+    overlayTransitionHooks.onBeforeLeave(exit)
     expect(overlayExitHoldsPage.value).toBe(true)
     // Main withdraws the image, such as for a tab picked in Search tabs: the page returns at once.
     send(null)
     expect(overlayExitHoldsPage.value).toBe(false)
+    overlayTransitionHooks.onAfterLeave(exit)
 
     send(snapshotOf(2))
     await flush()
+    overlayTransitionHooks.onBeforeLeave(exit)
     expect(overlayExitHoldsPage.value).toBe(true)
     scope.stop()
     expect(overlayExitHoldsPage.value).toBe(false)
+  })
+
+  it('does not start a newer held entrance for an earlier overlay\'s late snapshot', async () => {
+    const paint = deferred()
+    const { api, send, scope } = setup({ decode: async () => undefined, afterPaint: () => paint.promise })
+    holdOverlayEntrance()
+    send(snapshotOf(1))
+    await flush()
+    // The first dialog closed and another opened while its snapshot was still painting.
+    holdOverlayEntrance()
+    paint.resolve()
+    await flush()
+    expect(api.presentOcclusionSnapshot).toHaveBeenCalledWith(1)
+    // Main waits on the second dialog's snapshot, so its entrance keeps waiting too.
+    expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(true)
+    scope.stop()
   })
 
   it('ignores a snapshot replaced while its image was still decoding', async () => {

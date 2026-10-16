@@ -64,17 +64,22 @@ export function useShellOverlayCoordinationController(
   // A modal that closes into its exit transition flips the state back within one
   // update; report only real changes.
   let reportedOccluded: boolean | null = null
-  const stopBrowserContentOcclusionWatch = watch(browserContentOccluded, async (open, wasOpen) => {
+  let occlusionChange = 0
+  const stopBrowserContentOcclusionWatch = watch(browserContentOccluded, async (open) => {
+    const change = ++occlusionChange
     // Hide a native WebContentsView before renderer-owned trusted chrome can
     // be obscured. On close, wait until the modal has left the DOM before
     // allowing website content to return.
     if (!open) {
+      // This watch can run before the closing overlay's render is even queued,
+      // so wait for that render, where its exit starts and may keep the page hidden.
       await nextTick()
-      if (browserContentOccluded.value) return
-      // This synchronous watch queues its nextTick before the layout watch.
+      await nextTick()
+      // A newer change decides, such as the exit that started in that render.
+      if (change !== occlusionChange || browserContentOccluded.value) return
       // Publish current toolbar/insets before revealing the native page so it
       // never paints with the modal's stale layout, even for a single frame.
-      if (!disposed && wasOpen) options.reportLayout()
+      if (!disposed && reportedOccluded) options.reportLayout()
     }
     if (disposed || reportedOccluded === open) return
     reportedOccluded = open

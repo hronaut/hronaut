@@ -239,6 +239,7 @@ describe('useAppShellLayoutFeatureController', () => {
       expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
       overlayTransitionHooks.onAfterLeave(exiting)
       await nextTick()
+      await nextTick()
       expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
       // Once the page is back, no entrance waits for it.
       expect(document.documentElement.hasAttribute('data-overlay-entrance-held')).toBe(false)

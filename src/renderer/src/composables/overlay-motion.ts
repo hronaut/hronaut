@@ -1,4 +1,4 @@
-import { computed, shallowReactive, shallowRef } from 'vue'
+import { computed, shallowReactive } from 'vue'
 
 /**
  * Main reports when the page views leave the screen, with or without a
@@ -9,32 +9,40 @@ export const OVERLAY_ENTRANCE_HOLD_MS = 1_000
 /** A leave that never reports its end, such as one whose parent unmounted, stops holding the page after this. */
 const OVERLAY_LEAVE_LIMIT_MS = 1_000
 const ENTRANCE_HELD_ATTRIBUTE = 'data-overlay-entrance-held'
+const LEAVE_INSTANT_CLASS = 'ui-overlay-leave-instant'
+const ENTRANCES = new Set(['ui-backdrop-in', 'ui-surface-in'])
 
-const leaving = shallowReactive(new Map<Element, ReturnType<typeof setTimeout>>())
-const pageSnapshotOnScreen = shallowRef(false)
+/** Exits that keep the page views hidden: each started while the page snapshot was on screen. */
+const holdingExits = shallowReactive(new Map<Element, ReturnType<typeof setTimeout>>())
+let pageSnapshotOnScreen = false
 let entranceTimer: ReturnType<typeof setTimeout> | undefined
-
-/** A full-window overlay is playing its exit. */
-export const overlaysLeaving = computed(() => leaving.size > 0)
+let entranceEpoch = 0
 
 /**
  * A closing overlay keeps the page views hidden while it plays its exit over
- * the page snapshot. Once main withdraws the snapshot, such as for a tab picked
- * in Search tabs, the page returns at once instead of leaving an empty window
- * under the fading overlay.
+ * the page snapshot. An exit only keeps the page hidden behind a snapshot that
+ * is already on screen, and once main withdraws that snapshot, such as for a
+ * tab picked in Search tabs, the page returns at once instead of leaving an
+ * empty window under the fading overlay.
  */
-export const overlayExitHoldsPage = computed(() => leaving.size > 0 && pageSnapshotOnScreen.value)
+export const overlayExitHoldsPage = computed(() => holdingExits.size > 0)
+
+function releaseHeldExits(): void {
+  for (const timer of holdingExits.values()) clearTimeout(timer)
+  holdingExits.clear()
+}
 
 /** Whether the shell shows main's still image of the pages under trusted chrome. */
 export function setPageSnapshotOnScreen(shown: boolean): void {
-  pageSnapshotOnScreen.value = shown
+  pageSnapshotOnScreen = shown
+  if (!shown) releaseHeldExits()
 }
 
 function settleLeave(element: Element): void {
-  const timer = leaving.get(element)
+  const timer = holdingExits.get(element)
   if (timer === undefined) return
   clearTimeout(timer)
-  leaving.delete(element)
+  holdingExits.delete(element)
 }
 
 /** A surface playing its exit takes no focus or input and leaves the accessibility tree. */
@@ -45,12 +53,32 @@ export function inertLeavingSurface(element: Element): void {
   element.setAttribute('aria-hidden', 'true')
 }
 
-/** Transition hooks for full-window overlays: the exit keeps the page hidden and takes no input. */
+function entranceUnfinished(element: Element): boolean {
+  if (typeof element.getAnimations !== 'function') return false
+  return element.getAnimations({ subtree: true }).some((animation) => (
+    'animationName' in animation && ENTRANCES.has(String(animation.animationName)) && animation.playState !== 'finished'
+  ))
+}
+
+/**
+ * Starts a surface's exit. A surface closed before its entrance finished, or
+ * while it waited for the page snapshot, leaves at once: its exit would first
+ * jump to full opacity.
+ */
+export function beginSurfaceLeave(element: Element): boolean {
+  inertLeavingSurface(element)
+  if (!entranceUnfinished(element)) return false
+  element.classList.add(LEAVE_INSTANT_CLASS)
+  return true
+}
+
+/** Transition hooks for overlays that hide the page: the exit keeps the page hidden and takes no input. */
 export const overlayTransitionHooks = {
   onBeforeLeave(element: Element): void {
-    inertLeavingSurface(element)
     settleLeave(element)
-    leaving.set(element, setTimeout(() => leaving.delete(element), OVERLAY_LEAVE_LIMIT_MS))
+    // An exit only keeps an occlusion that already shows the page snapshot; it never starts one.
+    if (beginSurfaceLeave(element) || !pageSnapshotOnScreen) return
+    holdingExits.set(element, setTimeout(() => holdingExits.delete(element), OVERLAY_LEAVE_LIMIT_MS))
   },
   onAfterLeave: settleLeave,
   onLeaveCancelled: settleLeave
@@ -63,8 +91,14 @@ export const overlayTransitionHooks = {
  */
 export function holdOverlayEntrance(): void {
   if (entranceTimer !== undefined) clearTimeout(entranceTimer)
+  entranceEpoch += 1
   document.documentElement.setAttribute(ENTRANCE_HELD_ATTRIBUTE, '')
   entranceTimer = setTimeout(releaseOverlayEntrance, OVERLAY_ENTRANCE_HOLD_MS)
+}
+
+/** Identifies the latest held entrance, so a late answer for an earlier one cannot release it. */
+export function overlayEntranceEpoch(): number {
+  return entranceEpoch
 }
 
 export function releaseOverlayEntrance(): void {
@@ -76,7 +110,6 @@ export function releaseOverlayEntrance(): void {
 /** Clears module state between tests. */
 export function resetOverlayMotion(): void {
   releaseOverlayEntrance()
-  pageSnapshotOnScreen.value = false
-  for (const timer of leaving.values()) clearTimeout(timer)
-  leaving.clear()
+  pageSnapshotOnScreen = false
+  releaseHeldExits()
 }

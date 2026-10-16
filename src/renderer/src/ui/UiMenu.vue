@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { inertLeavingSurface } from '../composables/overlay-motion.js'
+import { beginSurfaceLeave } from '../composables/overlay-motion.js'
 import UiButton from './UiButton.vue'
 
 export interface UiMenuItem {
@@ -69,7 +69,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
       @click="setOpen(!open)"
       @keydown.down.prevent="setOpen(true)"
     ><slot name="trigger">{{ label }}</slot></UiButton>
-    <Transition name="ui-surface" @before-leave="inertLeavingSurface">
+    <Transition name="ui-surface" @before-leave="beginSurfaceLeave">
       <span
         v-if="open"
         ref="menu"

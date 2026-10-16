@@ -40,19 +40,35 @@ function settleEntrance(): void {
   enteringRequestId.value = undefined
 }
 
+/** The entrance can wait for the page snapshot first; a stalled one still ends, counting only time on screen. */
+function limitEntrance(): void {
+  if (entranceTimer !== undefined) clearTimeout(entranceTimer)
+  entranceTimer = undefined
+  // Animations stop while the window is hidden, and the click that brings it back must not land on a transparent dialog.
+  if (enteringRequestId.value && document.visibilityState === 'visible') entranceTimer = setTimeout(settleEntrance, ENTRANCE_LIMIT_MS)
+}
+
+function entranceEnded(event: AnimationEvent): void {
+  // The section of an earlier request, replaced or removed during its exit, still reports its own animations.
+  if ((event.currentTarget as HTMLElement).dataset.requestId === enteringRequestId.value) settleEntrance()
+}
+
 watch(requestId, async (id) => {
   settleEntrance()
   if (!id) return
   enteringRequestId.value = id
-  // The entrance can wait for the page snapshot first; a stalled one still ends.
-  entranceTimer = setTimeout(settleEntrance, ENTRANCE_LIMIT_MS)
+  limitEntrance()
   await nextTick()
   if (requestId.value !== id || enteringRequestId.value !== id) return
   const animation = panel.value ? getComputedStyle(panel.value).animationName : ''
   if (!animation || animation === 'none') settleEntrance()
 }, { immediate: true })
 
-onBeforeUnmount(settleEntrance)
+document.addEventListener('visibilitychange', limitEntrance)
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', limitEntrance)
+  settleEntrance()
+})
 
 const messageWarningKeys: Record<WalletMessageWarning, string> = {
   'hidden-characters': 'hiddenCharacters',
@@ -133,12 +149,13 @@ function rawDetails(): string {
         ref="panel"
         class="wallet-approval-dialog"
         :class="{ 'wallet-approval-dialog--entering': enteringRequestId === request.id }"
+        :data-request-id="request.id"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="wallet-approval-title"
         tabindex="-1"
-        @animationend.self="settleEntrance"
-        @animationcancel.self="settleEntrance"
+        @animationend.self="entranceEnded"
+        @animationcancel.self="entranceEnded"
       >
         <header>
           <span class="eyebrow">{{ t('wallets.approval.eyebrow') }}</span>

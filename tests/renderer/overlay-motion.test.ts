@@ -5,12 +5,16 @@ import { defineComponent, h, nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   OVERLAY_ENTRANCE_HOLD_MS,
+  beginSurfaceLeave,
   holdOverlayEntrance,
+  overlayEntranceEpoch,
+  overlayExitHoldsPage,
   overlayTransitionHooks,
-  overlaysLeaving,
   releaseOverlayEntrance,
-  resetOverlayMotion
+  resetOverlayMotion,
+  setPageSnapshotOnScreen
 } from '../../src/renderer/src/composables/overlay-motion.js'
+import UiPopover from '../../src/renderer/src/ui/UiPopover.vue'
 import UiOverlayTransition from '../../src/renderer/src/ui/UiOverlayTransition.vue'
 
 const held = () => document.documentElement.hasAttribute('data-overlay-entrance-held')
@@ -37,31 +41,74 @@ describe('overlay motion', () => {
     vi.advanceTimersByTime(1)
     expect(held()).toBe(false)
     expect(vi.getTimerCount()).toBe(0)
+    // Each hold is a new entrance, so a late answer for an earlier one can be told apart.
+    const epoch = overlayEntranceEpoch()
+    holdOverlayEntrance()
+    expect(overlayEntranceEpoch()).toBe(epoch + 1)
   })
 
-  it('counts each leaving overlay until its exit ends, is cancelled or overruns', () => {
+  it('keeps the page hidden through each exit over the snapshot until it ends, is cancelled or overruns', () => {
     vi.useFakeTimers()
+    setPageSnapshotOnScreen(true)
     const first = document.createElement('div')
     const second = document.createElement('div')
     overlayTransitionHooks.onBeforeLeave(first)
     overlayTransitionHooks.onBeforeLeave(second)
     // A leaving overlay takes no focus or input.
     expect(first.inert).toBe(true)
-    expect(overlaysLeaving.value).toBe(true)
+    expect(overlayExitHoldsPage.value).toBe(true)
     overlayTransitionHooks.onAfterLeave(first)
-    expect(overlaysLeaving.value).toBe(true)
+    expect(overlayExitHoldsPage.value).toBe(true)
     overlayTransitionHooks.onLeaveCancelled(second)
-    expect(overlaysLeaving.value).toBe(false)
+    expect(overlayExitHoldsPage.value).toBe(false)
 
     // An exit whose end is never reported, such as when its parent unmounts, cannot hide the page for good.
     overlayTransitionHooks.onBeforeLeave(first)
     vi.advanceTimersByTime(999)
-    expect(overlaysLeaving.value).toBe(true)
+    expect(overlayExitHoldsPage.value).toBe(true)
     vi.advanceTimersByTime(1)
-    expect(overlaysLeaving.value).toBe(false)
+    expect(overlayExitHoldsPage.value).toBe(false)
+  })
+
+  it('only keeps the page hidden behind a snapshot already on screen', () => {
+    const exit = document.createElement('div')
+    // A dialog closed while its snapshot was still decoding lets the page return at once.
+    overlayTransitionHooks.onBeforeLeave(exit)
+    expect(overlayExitHoldsPage.value).toBe(false)
+    // The snapshot painting afterwards must not hide the returned page again.
+    setPageSnapshotOnScreen(true)
+    expect(overlayExitHoldsPage.value).toBe(false)
+    overlayTransitionHooks.onAfterLeave(exit)
+
+    // Main withdrawing the snapshot during an exit, such as for a tab picked in Search tabs, returns the page.
+    overlayTransitionHooks.onBeforeLeave(exit)
+    expect(overlayExitHoldsPage.value).toBe(true)
+    setPageSnapshotOnScreen(false)
+    expect(overlayExitHoldsPage.value).toBe(false)
+  })
+
+  it('ends at once the exit of a surface closed before its entrance finished', () => {
+    setPageSnapshotOnScreen(true)
+    const surface = (playState: AnimationPlayState) => {
+      const element = document.createElement('div')
+      Object.assign(element, { getAnimations: () => [{ animationName: 'ui-surface-in', playState }] })
+      return element
+    }
+    // Paused while it waited for the page snapshot, or still running: its exit would first jump to full opacity.
+    for (const playState of ['paused', 'running'] as const) {
+      const entering = surface(playState)
+      overlayTransitionHooks.onBeforeLeave(entering)
+      expect(entering.classList.contains('ui-overlay-leave-instant'), playState).toBe(true)
+      expect(entering.inert).toBe(true)
+      expect(overlayExitHoldsPage.value).toBe(false)
+    }
+    const shown = surface('finished')
+    expect(beginSurfaceLeave(shown)).toBe(false)
+    expect(shown.classList.contains('ui-overlay-leave-instant')).toBe(false)
   })
 
   it('keeps a closed overlay in place, inert, through its exit', async () => {
+    setPageSnapshotOnScreen(true)
     const open = ref(true)
     const wrapper = mount(defineComponent({
       setup: () => () => h(UiOverlayTransition, null, () => open.value ? h('div', { class: 'settings-overlay' }) : null)
@@ -72,10 +119,26 @@ describe('overlay motion', () => {
     expect(leaving?.classList.contains('ui-overlay-leave-active')).toBe(true)
     expect(leaving?.inert).toBe(true)
     expect(leaving?.getAttribute('aria-hidden')).toBe('true')
-    expect(overlaysLeaving.value).toBe(true)
+    expect(overlayExitHoldsPage.value).toBe(true)
     leaving?.dispatchEvent(new Event('animationend'))
     await vi.waitFor(() => expect(document.querySelector('.settings-overlay')).toBeNull())
-    expect(overlaysLeaving.value).toBe(false)
+    expect(overlayExitHoldsPage.value).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('lets a popover that covers the page hold it through its exit', async () => {
+    setPageSnapshotOnScreen(true)
+    const open = ref(true)
+    const wrapper = mount(defineComponent({
+      setup: () => () => h(UiPopover, { label: 'Agent access', holdsPage: true, modelValue: open.value }, () => 'Ready')
+    }), { attachTo: document.body, global: { stubs: { transition: false } } })
+    expect(document.querySelector('.ui-popover__panel')?.classList.contains('ui-popover__panel--holds-page')).toBe(true)
+    open.value = false
+    await nextTick()
+    expect(overlayExitHoldsPage.value).toBe(true)
+    document.querySelector('.ui-popover__panel')?.dispatchEvent(new Event('animationend'))
+    await vi.waitFor(() => expect(document.querySelector('.ui-popover__panel')).toBeNull())
+    expect(overlayExitHoldsPage.value).toBe(false)
     wrapper.unmount()
   })
 
@@ -92,6 +155,9 @@ describe('overlay motion', () => {
     // A held entrance waits at its first frame, but an exit that starts meanwhile still plays.
     const heldRules = [...motion.matchAll(/:root\[data-overlay-entrance-held\] :is\(([^)]*)\):not\(\.ui-overlay-leave-active\)( > \*)?\s*[,{]/gu)]
     expect(heldRules.map((match) => match[2] ?? '')).toEqual(['', ' > *'])
+    expect(motion).toMatch(/:root\[data-overlay-entrance-held\] \.ui-popover__panel--holds-page:not\(\.ui-surface-leave-active\) \{\n {2}animation-play-state: paused;/u)
+    // A surface closed during its entrance leaves without jumping back to full opacity first.
+    expect(motion).toMatch(/\.ui-overlay-leave-instant,\n\.ui-overlay-leave-instant > \* \{\n {2}animation-name: none !important;\n\}\n$/u)
     for (const [, list] of heldRules) {
       for (const backdrop of ['.settings-overlay', '.tab-group-editor-overlay', '.wallet-approval-overlay']) expect(list).toContain(backdrop)
     }

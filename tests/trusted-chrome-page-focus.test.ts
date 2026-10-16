@@ -45,7 +45,7 @@ it('focuses a tab picked while trusted chrome plays its exit once the page is sh
 })
 
 it('keeps a click or key press in the shell during the exit instead of focusing the picked tab', () => {
-  for (const type of ['mouseDown', 'rawKeyDown']) {
+  for (const type of ['mouseDown', 'rawKeyDown', 'keyDown']) {
     const { manager, internals, shell, page, tab } = fixture()
     internals.focusTabOrTrustedChrome(tab)
     shell.emit('input-event', {}, { type: 'mouseMove' })

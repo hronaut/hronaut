@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
-import { inertLeavingSurface } from '../composables/overlay-motion.js'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { beginSurfaceLeave, overlayTransitionHooks } from '../composables/overlay-motion.js'
 import UiButton from './UiButton.vue'
 
 const props = withDefaults(defineProps<{
@@ -9,15 +9,19 @@ const props = withDefaults(defineProps<{
   triggerClass?: string
   placement?: 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
   disabled?: boolean
+  /** The panel extends over the page, so the page views are hidden while it shows. */
+  holdsPage?: boolean
 }>(), {
   placement: 'bottom-start',
-  disabled: false
+  disabled: false,
+  holdsPage: false
 })
 const open = defineModel<boolean>({ default: false })
 const root = ref<HTMLElement | null>(null)
 const trigger = ref<InstanceType<typeof UiButton> | null>(null)
 const panel = ref<HTMLElement | null>(null)
 const panelId = `ui-popover-${useId()}`
+const transitionHooks = computed(() => props.holdsPage ? overlayTransitionHooks : { onBeforeLeave: beginSurfaceLeave })
 
 function close({ restoreFocus = false } = {}): void {
   open.value = false
@@ -68,6 +72,6 @@ defineExpose({ close, focus: () => trigger.value?.focus() })
       :aria-controls="panelId"
       @click="toggle"
     ><slot name="trigger" :open="open" /></UiButton>
-    <Transition name="ui-surface" @before-leave="inertLeavingSurface"><span v-if="open" :id="panelId" ref="panel" class="ui-popover__panel"><slot :close="close" /></span></Transition>
+    <Transition name="ui-surface" v-bind="transitionHooks"><span v-if="open" :id="panelId" ref="panel" class="ui-popover__panel" :class="{ 'ui-popover__panel--holds-page': holdsPage }"><slot :close="close" /></span></Transition>
   </span>
 </template>

@@ -1,7 +1,18 @@
 import type { DetachablePanelId } from '../../src/shared/types.js'
-import { computed, nextTick, ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { computed, defineComponent, h, nextTick, ref } from 'vue'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { overlayExitHoldsPage, resetOverlayMotion, setPageSnapshotOnScreen } from '../../src/renderer/src/composables/overlay-motion.js'
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
+import UiOverlayTransition from '../../src/renderer/src/ui/UiOverlayTransition.vue'
+
+/** The occlusion watch waits for the render after a modal closes, which may not be queued yet. */
+async function afterCloseRender(): Promise<void> {
+  await nextTick()
+  await nextTick()
+}
+
+afterEach(() => resetOverlayMotion())
 
 function createHarness(separatePanel = false) {
   const activePanel = ref<DetachablePanelId | null>(null)
@@ -124,7 +135,7 @@ describe('shell overlay coordination controller', () => {
 
   it('keeps native website content occluded until the modal has left the DOM', async () => {
     const harness = createHarness()
-    await nextTick()
+    await afterCloseRender()
     expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
 
     harness.fullModalOpen.value = true
@@ -132,7 +143,7 @@ describe('shell overlay coordination controller', () => {
 
     harness.fullModalOpen.value = false
     expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
-    await nextTick()
+    await afterCloseRender()
     expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
   })
 
@@ -158,14 +169,14 @@ describe('shell overlay coordination controller', () => {
 
   it('restores page geometry before revealing native content after a modal closes', async () => {
     const harness = createHarness()
-    await nextTick()
+    await afterCloseRender()
     harness.fullModalOpen.value = true
     const transitions: string[] = []
     harness.reportLayout.mockImplementation(() => transitions.push('layout'))
     harness.setBrowserContentOccluded.mockImplementation((occluded: boolean) => transitions.push(occluded ? 'hide' : 'show'))
     harness.fullModalOpen.value = false
     expect(transitions).toEqual([])
-    await nextTick()
+    await afterCloseRender()
     expect(transitions).toEqual(['layout', 'show'])
     harness.controller.dispose()
   })
@@ -200,9 +211,49 @@ describe('shell overlay coordination controller', () => {
     expect(reportLayout).not.toHaveBeenCalled()
 
     leaving.value = false
-    await nextTick()
+    await afterCloseRender()
     expect(reportLayout).toHaveBeenCalledOnce()
     expect(setBrowserContentOccluded.mock.calls).toEqual([[true], [false]])
     controller.dispose()
+  })
+
+  it('keeps the page hidden through a real overlay exit that starts in the render after the close', async () => {
+    const open = ref(false)
+    const setBrowserContentOccluded = vi.fn()
+    // Nothing else queues a render before the occlusion watch runs, as when the closing modal is no layout source.
+    const wrapper = mount(defineComponent({
+      setup() {
+        useShellOverlayCoordinationController({
+          activePanel: ref(null),
+          splitMenu: ref(false),
+          layoutSources: [],
+          competingOverlayStates: [],
+          preservedPanels: [],
+          fullModalOpen: open,
+          browserContentOccluded: computed(() => open.value || overlayExitHoldsPage.value),
+          keepsSeparatePanelOpen: () => false,
+          closePanelsExcept: vi.fn(),
+          closeAddressSuggestions: vi.fn(),
+          setBrowserContentOccluded,
+          reportLayout: vi.fn()
+        })
+        return () => h(UiOverlayTransition, null, () => open.value ? h('div', { class: 'settings-overlay' }) : null)
+      }
+    }), { attachTo: document.body, global: { stubs: { transition: false } } })
+    open.value = true
+    await nextTick()
+    setPageSnapshotOnScreen(true)
+    setBrowserContentOccluded.mockClear()
+
+    open.value = false
+    await afterCloseRender()
+    await Promise.resolve()
+    // Reporting the page shown before the exit starts would bring it back over the dialog, then hide it again.
+    expect(document.querySelector('.settings-overlay')?.classList.contains('ui-overlay-leave-active')).toBe(true)
+    expect(setBrowserContentOccluded).not.toHaveBeenCalled()
+
+    document.querySelector('.settings-overlay')?.dispatchEvent(new Event('animationend'))
+    await vi.waitFor(() => expect(setBrowserContentOccluded.mock.calls).toEqual([[false]]))
+    wrapper.unmount()
   })
 })

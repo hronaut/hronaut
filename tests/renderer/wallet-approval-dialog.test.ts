@@ -414,27 +414,44 @@ describe('WalletApprovalDialog', () => {
       // The next request appears again before it takes clicks.
       queue.value = [request('request-2', 'Second wallet')]
       await screen.findByText('Second wallet')
-      expect(screen.getByRole('alertdialog', { name: /sign message/i })).toHaveClass('wallet-approval-dialog--entering')
+      const next = screen.getByRole('alertdialog', { name: /sign message/i })
+      expect(next).toHaveClass('wallet-approval-dialog--entering')
+      // The replaced section's cancelled animation does not end the new request's entrance.
+      dialog.dispatchEvent(new Event('animationcancel'))
+      await Promise.resolve()
+      expect(next).toHaveClass('wallet-approval-dialog--entering')
     } finally {
       style.remove()
     }
   })
 
-  it('stops waiting for an entrance that never ends', async () => {
+  it('stops waiting for an entrance that never ends, counting only time on screen', async () => {
     vi.useFakeTimers()
     const style = document.createElement('style')
     style.textContent = '.wallet-approval-dialog { animation-name: ui-surface-in; }'
     document.head.append(style)
+    let visibility: DocumentVisibilityState = 'visible'
+    const visibilityState = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility)
     try {
       render(WalletApprovalDialog, {
         props: { controller: controller(), workspaces: [] }, global: { plugins: [createHronautI18n('en-US')] }
       })
       const dialog = screen.getByRole('alertdialog', { name: /sign message/i })
-      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(1_000)
       expect(dialog).toHaveClass('wallet-approval-dialog--entering')
-      await vi.advanceTimersByTimeAsync(1_500)
+      // Animations stop in a hidden window, and the click that brings it back must not land on a transparent dialog.
+      visibility = 'hidden'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(dialog).toHaveClass('wallet-approval-dialog--entering')
+      visibility = 'visible'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await vi.advanceTimersByTimeAsync(1_499)
+      expect(dialog).toHaveClass('wallet-approval-dialog--entering')
+      await vi.advanceTimersByTimeAsync(1)
       expect(dialog).not.toHaveClass('wallet-approval-dialog--entering')
     } finally {
+      visibilityState.mockRestore()
       style.remove()
       vi.useRealTimers()
     }
