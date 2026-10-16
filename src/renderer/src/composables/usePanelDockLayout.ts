@@ -1,6 +1,6 @@
 import { nextTick, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { shellHeightForBrowserContent } from '../../../shared/update-presentation.js'
-import { PAGE_CARD_GUTTER, pageCardInsets } from '../../../shared/page-card.js'
+import { pageCardInsets } from '../../../shared/page-card.js'
 import type { PanelDock } from '../../../shared/types.js'
 import {
   readLocalPreference,
@@ -68,10 +68,10 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     const availableHeight = Math.max(0, window.innerHeight - shellHeight)
     // Keep the usual 220px reserve for the page card and its gutters when both
     // surfaces fit. In a short viewport, recover up to the panel's 240px minimum
-    // while leaving the native website view at least one third of the space the
-    // gutters leave.
-    const pageCardSpace = Math.max(0, availableHeight - 2 * PAGE_CARD_GUTTER)
-    const compactMaximum = Math.min(240, Math.floor(pageCardSpace * 2 / 3))
+    // while leaving the page card, gutters included, at least one third of the
+    // available space. Taking the gutters from the panel instead would leave
+    // Page tools too short to show a whole result.
+    const compactMaximum = Math.min(240, Math.floor(availableHeight * 2 / 3))
     return Math.max(1, Math.min(700, Math.max(availableHeight - 220, compactMaximum)))
   }
 

@@ -23,6 +23,23 @@ async function readyHome(app: ElectronApplication): Promise<void> {
   ).toBe(true)
 }
 
+/**
+ * Resizes the window and waits until Home has laid out at its new width. Home sits in the page card, inset from the
+ * window's edges, so its width is the card's, not the window's.
+ */
+async function resizeHome(app: ElectronApplication, width: number): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, nextWidth) => BrowserWindow.getAllWindows()[0]!.setSize(nextWidth, 900), width)
+  await expect.poll(async () => {
+    const card = await app.evaluate(({ BrowserWindow, WebContentsView }) => {
+      const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find((candidate) => (
+        candidate instanceof WebContentsView && candidate.webContents.getURL().startsWith('hronaut://home')
+      )) as Electron.WebContentsView | undefined
+      return view?.getBounds().width ?? 0
+    })
+    return card > width - 60 && card <= width && await homeScript<number>(app, 'innerWidth') === card
+  }).toBe(true)
+}
+
 async function captureHome(app: ElectronApplication): Promise<Buffer> {
   const png = await app.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
@@ -38,8 +55,7 @@ test('Home keeps its content width and position when switching between short and
   // Exercise the returning-profile short view as well as long diagnostics.
   await homeScript(electronApp, `localStorage.setItem('hronaut.home.onboarded', 'true'); import(document.querySelector('script[type="module"]').src).then(module => module.homeController.refresh())`)
   for (const width of [1200, 760]) {
-    await electronApp.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900), width)
-    await expect.poll(() => homeScript(electronApp, 'innerWidth')).toBe(width)
+    await resizeHome(electronApp, width)
     await homeScript(electronApp, 'document.getElementById("home-tab-workspaces").click()')
     const measure = () => homeScript<{ x: number; width: number; scrollable: boolean }>(electronApp, `(() => {
       const page = document.querySelector('.page');
@@ -79,8 +95,7 @@ test('Home keeps client setup accessible in a compact layout across themes and l
       await home("document.querySelector('[data-home-view=connect]').click()")
       await expect.poll(() => home('matchMedia("(prefers-color-scheme: dark)").matches')).toBe(theme === 'dark')
       for (const width of [1200, 760]) {
-        await electronApp.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900), width)
-        await expect.poll(() => home('innerWidth')).toBe(width)
+        await resizeHome(electronApp, width)
         await home('scrollTo(0, 0); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
         const layout = await home<{ setupTop: number; copyTop: number; guideBottom: number; titleSize: number; background: string; overflow: number; listHeight: number }>(`(() => ({
           setupTop: document.getElementById('setup').getBoundingClientRect().top,
@@ -113,8 +128,7 @@ test('Home keeps MCP readiness diagnostics readable at desktop and compact width
   await homeScript(electronApp, 'document.getElementById("home-tab-overview").click()')
 
   for (const width of [1200, 760]) {
-    await electronApp.evaluate(({ BrowserWindow }, nextWidth) => BrowserWindow.getAllWindows()[0]!.setSize(nextWidth, 900), width)
-    await expect.poll(() => homeScript(electronApp, 'innerWidth')).toBe(width)
+    await resizeHome(electronApp, width)
     await expect.poll(() => homeScript(electronApp, `(() => {
       const overview = document.getElementById('home-overview');
       const heading = [...document.querySelectorAll('h1, h2, h3')].find(node => node.textContent?.trim() === 'MCP readiness');

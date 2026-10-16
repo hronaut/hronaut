@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeHronaut, expect, launchHronaut, settleShellMotion, test } from './fixtures.js'
 
 test('switches language live through Settings and persists it across restart', async ({
   appWindow,
@@ -93,6 +93,8 @@ test('supports Russian and the additional European language choices', async ({ a
     await selector.selectOption(locale)
     await expect(appWindow.locator('html')).toHaveAttribute('lang', locale)
     await expect(appWindow.getByRole('tabpanel', { name: heading, exact: true })).toBeVisible()
+    // Settings grows into place as it opens, a hair past its full size; measure the layout it settles at.
+    await settleShellMotion(appWindow)
     const layout = await appWindow.evaluate<{
       pageOverflow: number
       dialogOverflow: number
