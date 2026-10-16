@@ -1316,14 +1316,14 @@ export function dragPointsScript(
 
 /**
  * Takes an agent's cursor off the page and resolves once the page has painted without it, or at once
- * when there is none.
+ * when there is none. Only Hronaut's own hosts, which sit directly under the root element, are removed.
  */
 export function dismissAgentPointerScript(): string {
   return `(async () => {
     const state = globalThis.__hronautAgentCursor;
     if (state && Array.isArray(state.timers)) for (const timer of state.timers) clearTimeout(timer);
     globalThis.__hronautAgentCursor = undefined;
-    const hosts = document.querySelectorAll('[data-hronaut-agent-pointer]');
+    const hosts = document.documentElement.querySelectorAll(':scope > [data-hronaut-agent-pointer]');
     if (!hosts.length) return false;
     hosts.forEach((node) => node.remove());
     await new Promise((resolve) => {
@@ -1346,9 +1346,11 @@ export const AGENT_POINTER_IDLE_MS = 2_000
 export const AGENT_POINTER_FADE_MS = 320
 
 /**
- * Draws an agent's cursor on the page, in its own isolated world: it glides from where it last was to the point
- * in 600 to 900 ms, carries the agent's name in its avatar's color, leaves a ripple where it clicks, and fades
- * after two idle seconds. It returns at once, so the agent's input never waits for the glide.
+ * Draws an agent's cursor on the page, in its own isolated world: it glides from where it is to the point
+ * in 600 to 900 ms, carries the agent's name in its avatar's color, and fades after two idle seconds. A click
+ * or the start of a drag leaves a ripple at the point at once, since the input itself does not wait for the
+ * glide; the end of a drag waits for the cursor to reach the drag's start, and holds it pressed until it
+ * arrives.
  */
 export function agentPointerScript(
   point: { x: number; y: number },
@@ -1371,32 +1373,45 @@ export function agentPointerScript(
     const media = (query) => typeof matchMedia === 'function' && matchMedia(query).matches;
     const reduced = media('(prefers-reduced-motion: reduce)');
     const forced = media('(forced-colors: active)');
+    const now = () => (typeof performance === 'object' ? performance.now() : Date.now());
+    // The host shares the page's DOM, so its own styles outrank the page's, even !important ones.
+    const pin = (element, styles) => {
+      for (const [property, value] of Object.entries(styles)) element.style.setProperty(property, value, 'important');
+    };
 
-    // One cursor per document, kept in this isolated world, so the next step glides from where it was.
+    // One cursor per document, kept in this isolated world, so the next step glides from where it is.
     let state = globalThis.__hronautAgentCursor;
     if (!state || !(state.host instanceof HTMLElement) || !state.host.isConnected
-      || state.host.getAttribute('data-hronaut-agent-pointer') !== 'v2') state = undefined;
+      || state.host.getAttribute('data-hronaut-agent-pointer') !== 'v2' || !(state.cursor instanceof HTMLElement)) state = undefined;
     let fresh = false;
     if (!state) {
-      document.querySelectorAll('[data-hronaut-agent-pointer]').forEach((node) => node.remove());
+      document.documentElement.querySelectorAll(':scope > [data-hronaut-agent-pointer]').forEach((node) => node.remove());
       const host = document.createElement('div');
       host.setAttribute('data-hronaut-agent-pointer', 'v2');
       host.setAttribute('aria-hidden', 'true');
-      Object.assign(host.style, {
+      pin(host, {
         all: 'initial',
+        display: 'block',
         position: 'fixed',
         left: '0',
         top: '0',
         width: '0',
         height: '0',
-        zIndex: '2147483647',
-        pointerEvents: 'none',
+        transform: 'none',
+        'z-index': '2147483647',
+        'pointer-events': 'none',
         opacity: '1',
+        transition: 'opacity ' + FADE_MS + 'ms ease',
         contain: 'style',
-        forcedColorAdjust: 'none'
+        'forced-color-adjust': 'none'
       });
       const root = host.attachShadow({ mode: 'closed' });
+      // The cursor moves inside the host, so ripples can stay where the input happened.
+      const cursor = document.createElement('div');
+      cursor.setAttribute('data-cursor', '');
+      Object.assign(cursor.style, { position: 'absolute', left: '0', top: '0' });
       const pointer = document.createElement('div');
+      pointer.setAttribute('data-arrow', '');
       Object.assign(pointer.style, {
         position: 'absolute',
         left: '-2px',
@@ -1424,17 +1439,19 @@ export function agentPointerScript(
         boxShadow: '0 1px 3px rgba(0,0,0,.3)',
         boxSizing: 'border-box'
       });
-      root.append(pointer, tag);
+      cursor.append(pointer, tag);
+      root.append(cursor);
       const start = effect === 'drag-end' && origin ? origin : point;
-      host.style.transform = 'translate3d(' + start.x + 'px,' + start.y + 'px,0)';
+      cursor.style.transform = 'translate3d(' + start.x + 'px,' + start.y + 'px,0)';
       document.documentElement.append(host);
-      state = { host, root, pointer, tag, x: start.x, y: start.y, timers: [] };
+      state = { host, root, cursor, pointer, tag, x: start.x, y: start.y, arriveAt: 0, pressed: false, timers: [] };
       globalThis.__hronautAgentCursor = state;
       fresh = true;
     }
-    const { host, root, pointer, tag } = state;
+    const { host, root, cursor, pointer, tag } = state;
     for (const timer of state.timers) clearTimeout(timer);
     state.timers = [];
+    const later = (callback, delay) => { state.timers.push(setTimeout(callback, delay)); };
 
     pointer.style.background = forced ? 'CanvasText' : colored ? agent.fill : '#6757e8';
     tag.textContent = name;
@@ -1442,17 +1459,9 @@ export function agentPointerScript(
     Object.assign(tag.style, forced
       ? { background: 'Canvas', color: 'CanvasText', border: '1px solid CanvasText' }
       : { background: colored ? agent.fill : '#6757e8', color: colored ? agent.ink : '#ffffff', border: '0' });
-    pointer.style.transform = effect === 'drag-start' ? 'scale(.84)' : 'scale(1)';
+    pin(host, { opacity: '1' });
 
-    const distance = Math.hypot(point.x - state.x, point.y - state.y);
-    const duration = reduced || distance < 1 ? 0 : Math.round(Math.min(900, Math.max(600, 600 + distance * 0.25)));
-    if (fresh && duration) host.getBoundingClientRect();
-    host.style.transition = (duration ? 'transform ' + duration + 'ms cubic-bezier(.16,1,.3,1), ' : '') + 'opacity ' + FADE_MS + 'ms ease';
-    host.style.transform = 'translate3d(' + point.x + 'px,' + point.y + 'px,0)';
-    host.style.opacity = '1';
-    state.x = point.x;
-    state.y = point.y;
-
+    // A ripple marks where the input happened, when it happened, wherever the cursor is in its glide.
     const ripple = () => {
       const ripples = root.querySelectorAll('[data-ripple]');
       if (ripples.length >= 3) ripples[0].remove();
@@ -1460,8 +1469,8 @@ export function agentPointerScript(
       pulse.setAttribute('data-ripple', '');
       Object.assign(pulse.style, {
         position: 'absolute',
-        left: '-12px',
-        top: '-12px',
+        left: (point.x - 12) + 'px',
+        top: (point.y - 12) + 'px',
         width: '24px',
         height: '24px',
         border: '2px solid ' + (forced ? 'Highlight' : colored ? agent.fill : '#8d80ff'),
@@ -1474,22 +1483,52 @@ export function agentPointerScript(
         ? [{ opacity: 0.9 }, { opacity: 0 }]
         : [{ opacity: 0.9, transform: 'scale(.35)' }, { opacity: 0, transform: 'scale(1.6)' }];
       if (typeof pulse.animate === 'function') {
-        const animation = pulse.animate(frames, { duration: 420, easing: 'ease-out' });
+        const animation = pulse.animate(frames, { duration: 600, easing: 'ease-out' });
         animation.finished.then(() => pulse.remove(), () => pulse.remove());
       } else {
-        setTimeout(() => pulse.remove(), 420);
+        setTimeout(() => pulse.remove(), 600);
       }
     };
-    const later = (callback, delay) => { state.timers.push(setTimeout(callback, delay)); };
-    if (effect === 'click' || effect === 'drag-start') {
-      if (duration) later(ripple, duration);
-      else ripple();
+    if (effect === 'click' || effect === 'drag-start') ripple();
+
+    const glide = () => {
+      // Measure from where the cursor is on screen, which is not its last target while it is still gliding.
+      let fromX = state.x;
+      let fromY = state.y;
+      if (now() < state.arriveAt && typeof DOMMatrixReadOnly === 'function') {
+        try {
+          const matrix = new DOMMatrixReadOnly(getComputedStyle(cursor).transform);
+          fromX = matrix.m41;
+          fromY = matrix.m42;
+        } catch {}
+      }
+      const distance = Math.hypot(point.x - fromX, point.y - fromY);
+      const duration = reduced || distance < 1 ? 0 : Math.round(Math.min(900, Math.max(600, 600 + distance * 0.25)));
+      if (fresh && duration) cursor.getBoundingClientRect();
+      cursor.style.transition = duration ? 'transform ' + duration + 'ms cubic-bezier(.16,1,.3,1)' : 'none';
+      cursor.style.transform = 'translate3d(' + point.x + 'px,' + point.y + 'px,0)';
+      state.x = point.x;
+      state.y = point.y;
+      state.arriveAt = now() + duration;
+      const pressed = effect === 'drag-start' || effect === 'drag-end';
+      state.pressed = effect === 'drag-start';
+      pointer.style.transform = pressed ? 'scale(.84)' : 'scale(1)';
+      // A drag lets go once it reaches its end.
+      if (effect === 'drag-end') later(() => { pointer.style.transform = 'scale(1)'; }, duration);
+      later(() => { pin(host, { opacity: '0' }); }, duration + IDLE_MS);
+      later(() => {
+        host.remove();
+        if (globalThis.__hronautAgentCursor === state) globalThis.__hronautAgentCursor = undefined;
+      }, duration + IDLE_MS + FADE_MS);
+    };
+    // The end of a drag starts from the drag's start, so it waits for the cursor to get there.
+    const wait = effect === 'drag-end' && state.pressed ? Math.max(0, Math.ceil(state.arriveAt - now())) : 0;
+    if (wait) {
+      pointer.style.transform = 'scale(.84)';
+      later(glide, wait);
+    } else {
+      glide();
     }
-    later(() => { host.style.opacity = '0'; }, duration + IDLE_MS);
-    later(() => {
-      host.remove();
-      if (globalThis.__hronautAgentCursor === state) globalThis.__hronautAgentCursor = undefined;
-    }, duration + IDLE_MS + FADE_MS);
     return true;
   })()`
 }

@@ -6,7 +6,8 @@ import type { AgentPointerIdentity } from '../src/main/browser/page-scripts.js'
 
 const CLAUDE: AgentPointerIdentity = { name: 'Claude Code', fill: '#2aa198', ink: '#111318' }
 
-type PointerManager = Pick<BrowserTabsManager, 'screenshot'> & {
+type PointerManager = Pick<BrowserTabsManager, 'screenshot' | 'savePdf'> & {
+  captureVisual(tab: unknown, settleMs: number): Promise<{ png: Buffer }>
   showAgentPointer(webContents: unknown, point: { x: number; y: number }, effect: 'click', options?: { agent?: AgentPointerIdentity }): Promise<void>
 }
 
@@ -22,17 +23,34 @@ function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = asy
     }),
     capturePage: vi.fn(async () => {
       order.push('capture')
-      return { getSize: () => ({ width: 10, height: 10 }), toPNG: () => Buffer.from('png') }
-    })
+      return {
+        isEmpty: () => false,
+        getSize: () => ({ width: 1, height: 1 }),
+        toPNG: () => Buffer.from('png'),
+        toBitmap: () => Buffer.alloc(4)
+      }
+    }),
+    getURL: () => 'https://shop.example/checkout',
+    printToPDF: vi.fn(async () => {
+      order.push('print')
+      return Buffer.from('%PDF')
+    }),
+    on: vi.fn(),
+    removeListener: vi.fn()
   }
-  const tab = { id: 'tab-1', webContents }
+  const tab = { id: 'tab-1', title: 'Checkout', navigationGeneration: 1, webContents }
   const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
     options: showAgentCursor === undefined ? {} : { getShowAgentCursor: () => showAgentCursor },
     tabs: new Map([[tab.id, tab]]),
     activeTabId: tab.id,
-    withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run()
+    mcpTabGroups: new Map(),
+    inspectionPermissions: new Map(),
+    destroyed: false,
+    withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run(),
+    writeUniqueDownload: async (filename: string) => `/downloads/${filename}`,
+    snapshotDeltaContext: () => ({ tabId: tab.id, workspaceId: null, navigationGeneration: 1, observationGeneration: 0, humanInteractionGeneration: 0, snapshotFormatVersion: 1 })
   }) as unknown as PointerManager
-  return { manager, webContents, order, scripts }
+  return { manager, tab, webContents, order, scripts }
 }
 
 afterEach(() => {
@@ -68,5 +86,18 @@ it('captures anyway when the page does not answer, after a moment', async () => 
   expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`])
   await vi.advanceTimersByTimeAsync(1)
   await expect(shot).resolves.toMatchObject({ mimeType: 'image/png' })
+  expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`, 'capture'])
+})
+
+it('takes an agent\'s cursor off the page before printing it to PDF, since it would show on every page', async () => {
+  const { manager, order, scripts } = fixture(true)
+  await expect(manager.savePdf({ tabId: 'tab-1' })).resolves.toMatchObject({ bytes: 4 })
+  expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`, 'print'])
+  expect(scripts[0]).toContain('[data-hronaut-agent-pointer]')
+})
+
+it('takes an agent\'s cursor off the page before a visual comparison capture', async () => {
+  const { manager, tab, order } = fixture(true)
+  await expect(manager.captureVisual(tab, 0)).resolves.toMatchObject({ png: Buffer.from('png') })
   expect(order).toEqual([`world ${ISOLATED_WORLDS.agentPointer}`, 'capture'])
 })

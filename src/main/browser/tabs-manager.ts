@@ -8563,7 +8563,10 @@ export class BrowserTabsManager {
     // later commit does not increment navigationGeneration a second time.
     webContents.on('did-navigate', onDocumentCommitted)
     try {
-      const data = await this.withRenderableTab(tab, () => {
+      const data = await this.withRenderableTab(tab, async () => {
+        assertCurrent()
+        // An agent's cursor is fixed to the viewport, so it would print on every page.
+        await this.dismissAgentPointer(webContents)
         assertCurrent()
         return webContents.printToPDF({
           landscape: options.landscape ?? false,
