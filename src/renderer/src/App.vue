@@ -45,6 +45,7 @@ import { useSettingsWorkspaceActionsController } from './composables/useSettings
 import { useAppBrowserChromeFeatureController } from './composables/useAppBrowserChromeFeatureController'
 import type { TransientPanelsCloseOptions } from './composables/useTransientPanelsController'
 import { useShellTooltips } from './composables/shell-tooltips'
+import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -258,6 +259,7 @@ const {
   openSection: openSettingsSection,
   close: closeSettings
 } = settingsDialogController
+useWorkspaceShellTint({ state, settingsOpen, detachedWindow: isDetachedPanelWindow })
 const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
 const walletWorkspaces = computed(() => state.value.mcpTabGroups.map((workspace) => ({ id: workspace.id, name: workspace.name })))
 const dataWorkspaces = computed(() => [
