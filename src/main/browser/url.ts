@@ -44,7 +44,8 @@ export function isAgentWorkspaceNavigationUrl(value: string): boolean {
   }
 }
 
-export function normalizeAddress(input: string, searchEngine: SearchEngineName = DEFAULT_SEARCH_ENGINE): string {
+/** The address a typed input names, without falling back to a search: undefined when it reads as search terms. */
+export function webAddress(input: string): string | undefined {
   const value = input.trim()
   if (!value) return 'about:blank'
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
@@ -54,11 +55,15 @@ export function normalizeAddress(input: string, searchEngine: SearchEngineName =
       new URL(candidate)
       return candidate
     } catch {
-      return searchUrl(value, searchEngine)
+      return undefined
     }
   }
   if (SCHEME_PATTERN.test(value)) return value
-  return searchUrl(value, searchEngine)
+  return undefined
+}
+
+export function normalizeAddress(input: string, searchEngine: SearchEngineName = DEFAULT_SEARCH_ENGINE): string {
+  return webAddress(input) ?? searchUrl(input.trim(), searchEngine)
 }
 
 export function isWebUrl(url: string): boolean {

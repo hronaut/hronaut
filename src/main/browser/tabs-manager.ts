@@ -638,7 +638,8 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   loading: boolean
   navigationGeneration: number
   /** Names of the controls this page's snapshots showed agents, by ref, for the shell's plain-words steps. */
-  agentStepNames?: { navigationGeneration: number; names: Map<string, string> }
+  /** The control names the latest snapshot of this document showed, for the shell's plain-words steps. */
+  agentStepNames?: { documentGeneration: number; names: Map<string, string> }
   /**
    * The navigation generation wallet requests are bound to. It advances when a
    * navigation to another document starts, even one that never commits, such
@@ -5338,31 +5339,30 @@ export class BrowserTabsManager {
       throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
     }
     const { targetNames, ...published } = snapshot
-    this.rememberAgentStepNames(current, targetNames, rootSelector === undefined)
+    this.rememberAgentStepNames(current, targetNames)
     return rootSelector === undefined ? published : { ...published, captureId: randomUUID() }
   }
 
   /**
-   * Keeps the names of the controls a snapshot showed the agent, for this page only, so the shell can say
-   * Clicking "Review order" for a later click on that ref. They never go back to agents.
+   * Keeps the names of the controls a snapshot showed the agent, so the shell can say Clicking "Review order"
+   * for a later click on that ref. Each capture replaces them: it also takes the refs of earlier captures off
+   * the page. They never go back to agents.
    */
-  private rememberAgentStepNames(tab: BrowserTab, targetNames: unknown, wholePage: boolean): void {
-    const kept = tab.agentStepNames?.navigationGeneration === tab.navigationGeneration && !wholePage
-      ? tab.agentStepNames.names : new Map<string, string>()
+  private rememberAgentStepNames(tab: BrowserTab, targetNames: unknown): void {
+    const names = new Map<string, string>()
     if (Array.isArray(targetNames)) {
       for (const entry of targetNames.slice(0, AGENT_STEP_NAMES_LIMIT)) {
         if (!Array.isArray(entry) || typeof entry[0] !== 'string' || typeof entry[1] !== 'string' || !/^e\d{1,7}$/.test(entry[0])) continue
-        kept.delete(entry[0])
-        kept.set(entry[0], entry[1].slice(0, 120))
+        names.set(entry[0], entry[1].slice(0, 120))
       }
     }
-    while (kept.size > AGENT_STEP_NAMES_LIMIT) kept.delete(kept.keys().next().value!)
-    tab.agentStepNames = { navigationGeneration: tab.navigationGeneration, names: kept }
+    tab.agentStepNames = { documentGeneration: tab.walletNavigationGeneration, names }
   }
 
   /**
-   * The name a snapshot of this page showed for a control ref, for the shell's plain-words steps. The tab
-   * defaults to the one a workspace tool would use; any navigation since that snapshot forgets the names.
+   * The name the latest snapshot of this page showed for a control ref, for the shell's plain-words steps.
+   * The tab defaults to the one a workspace tool would use. Loading another document forgets the names;
+   * a route change within the page keeps them, as it keeps the refs.
    */
   agentStepName(workspaceId: string, tabId: string | undefined, ref: string): string | undefined {
     const group = this.mcpTabGroups.get(workspaceId)
@@ -5371,8 +5371,9 @@ export class BrowserTabsManager {
       ?? (group.activeTabId && this.tabs.get(group.activeTabId)?.mcpGroupId === workspaceId ? group.activeTabId : undefined)
       ?? [...this.tabs.values()].find((candidate) => candidate.mcpGroupId === workspaceId)?.id
       ?? '')
-    const names = tab?.mcpGroupId === workspaceId ? tab.agentStepNames : undefined
-    return names?.navigationGeneration === tab!.navigationGeneration ? names.names.get(ref) : undefined
+    if (!tab || tab.mcpGroupId !== workspaceId) return undefined
+    const names = tab.agentStepNames
+    return names?.documentGeneration === tab.walletNavigationGeneration ? names.names.get(ref) : undefined
   }
 
   async observationQuality(options: {

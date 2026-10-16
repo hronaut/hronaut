@@ -391,6 +391,9 @@ test('names what each step acted on in plain words, without typed text, values o
     const opened = JSON.parse(await call('browser_new_tab', { url: `http://127.0.0.1:${address.port}/checkout?token=query-canary#fragment-canary`, active: true }))
     const tabId = (opened.tabs as Array<{ id: string }>)[0]!.id
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    const avatar = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true }).getByRole('button', { name: /^Claude Code, / })
+    // The address shows as its host and path only.
+    await expect(avatar).toHaveAttribute('data-tooltip', `Claude Code · Opening 127.0.0.1:${address.port}/checkout in a new tab`)
     const snapshot = await call('browser_snapshot', { tabId })
     const promo = /\[(e\d+)\] input/.exec(snapshot)?.[1]
     const review = /\[(e\d+)\] button[^[]*?Review order/.exec(snapshot)?.[1]
@@ -399,11 +402,10 @@ test('names what each step acted on in plain words, without typed text, values o
     await call('browser_type', { tabId, ref: promo, text: 'typed-canary' })
     await call('browser_click', { tabId, ref: review })
 
-    const avatar = appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true }).getByRole('button', { name: /^Claude Code, / })
+    await expect(avatar).toHaveAttribute('data-tooltip', 'Claude Code · Clicking “Review order”')
     await avatar.click()
     await expect.poll(async () => (await cardView(electronApp))?.visible ?? false).toBe(true)
     const card = (await cardView(electronApp))!
-    expect(card.text).toContain(`Opened 127.0.0.1:${address.port}/checkout in a new tab`)
     expect(card.text).toContain('Typed in Promo code')
     expect(card.text).toContain('Clicked “Review order”')
     // What the shell gets names the controls and the address only.

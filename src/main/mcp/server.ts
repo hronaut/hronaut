@@ -106,7 +106,7 @@ import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspa
 import { AgentPresenceRegistry, type AgentCall } from './agent-presence.js'
 import type { AgentPresence } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
-import { normalizeAddress } from '../browser/url.js'
+import { webAddress } from '../browser/url.js'
 export {
   WorkspaceWriteLeaseError,
   WorkspaceWriteLeaseRegistry,
@@ -1219,7 +1219,9 @@ function createBrowserMcpServer(
   const agentCallTarget = (name: string, input: Record<string, unknown>, workspaceId: string): string | undefined => {
     try {
       if (name === 'browser_navigate' || name === 'browser_new_tab') {
-        return typeof input.url === 'string' && input.url.trim() ? agentStepAddress(normalizeAddress(input.url)) : undefined
+        // Search terms name no page: the search engine is the user's, so the step keeps its general phrase.
+        const address = typeof input.url === 'string' && input.url.trim() ? webAddress(input.url) : undefined
+        return address ? agentStepAddress(address) : undefined
       }
       const fields = input.fields
       const ref = name === 'browser_drag' ? input.sourceRef

@@ -72,11 +72,14 @@ export function snapshotScript(maxChars: number, includeMetadata = false, rootSe
     // The name of each control the agent was shown, for the shell's plain-words steps such as Clicking "Review order".
     // A form field is named only by its label, never by its value, its text or its options.
     const targetNames = [];
+    // Label text is read node by node, at most 200 nodes per label and 5,000 per capture.
+    let stepLabelVisits = 5000;
     const stepLabelText = (node) => {
       let text = '';
       let visits = 200;
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      while (text.length < 240 && --visits > 0 && walker.nextNode()) {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+      while (text.length < 240 && --visits > 0 && --stepLabelVisits > 0 && walker.nextNode()) {
+        if (walker.currentNode.nodeType !== Node.TEXT_NODE) continue;
         const parent = walker.currentNode.parentElement;
         if (!parent || parent.closest('input,textarea,select,option,script,style,[contenteditable]')) continue;
         text += walker.currentNode.textContent + ' ';

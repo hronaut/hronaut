@@ -464,6 +464,10 @@ describe('agent presence over MCP', () => {
     expect(latest()).toEqual(expect.objectContaining({ step: 'navigate', target: 'localhost:5173' }))
     await claudeClient.client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'data:text/html,<p>data-canary</p>' } })
     expect(latest()).not.toHaveProperty('target')
+    // Search terms name no page: the search engine is the user's, so the step keeps its general phrase.
+    await claudeClient.client.callTool({ name: 'browser_navigate', arguments: { workspaceId, tabId, url: 'cheap flights' } })
+    expect(latest()).toEqual(expect.objectContaining({ step: 'navigate' }))
+    expect(latest()).not.toHaveProperty('target')
     await claudeClient.client.callTool({ name: 'browser_type', arguments: { workspaceId, tabId, ref: 'e5', text: 'typed-canary' } })
     expect(latest()).toEqual(expect.objectContaining({ step: 'type', target: 'Review order' }))
     expect(agentStepName).toHaveBeenLastCalledWith(workspaceId, tabId, 'e5')
