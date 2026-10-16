@@ -636,6 +636,8 @@ export interface AppSettings {
   attentionSoundCue: AttentionSoundCue
   challengeDetectionEnabled: boolean
   followAgentActivity: boolean
+  /** Draw each agent's named cursor on the page where it clicks, points or drags. */
+  showAgentCursor: boolean
   mcpRemoteAccess: boolean
   mcpAuthentication: boolean
   mcpPort: number
@@ -2944,6 +2946,7 @@ export interface HronautSettingsApi {
   setAttentionSound(enabled: boolean): Promise<AppSettings>
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
+  setShowAgentCursor(enabled: boolean): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>

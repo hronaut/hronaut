@@ -8,7 +8,7 @@ import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
  * user's choices to the shell, which carries them out with the shell's own browser API.
  */
 export const AGENT_CARD_ACTIONS = [
-  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'hand-back', 'dismiss', 'review-decision'
+  'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'hand-back', 'dismiss', 'review-decision'
 ] as const
 export type AgentCardAction = typeof AGENT_CARD_ACTIONS[number]
 
@@ -47,6 +47,12 @@ export interface AgentCardButton {
   key?: string
 }
 
+export interface AgentCardSwitch {
+  label: string
+  checked: boolean
+  disabled?: boolean
+}
+
 /** Everything the card shows, already in the user's language. */
 export interface AgentCardModel {
   /** The dialog's accessible name. */
@@ -64,7 +70,9 @@ export interface AgentCardModel {
   reason?: { heading: string; text: string; answers?: AgentCardButton[] }
   now: { heading: string; text: string }
   recent: { heading: string; steps: AgentCardStep[]; empty: string }
-  follow: { label: string; checked: boolean; disabled?: boolean }
+  follow: AgentCardSwitch
+  /** Whether agents' cursors are drawn on the page. */
+  cursor: AgentCardSwitch
   buttons: AgentCardButton[]
   closeLabel: string
 }
@@ -164,6 +172,14 @@ function reasonSection(value: unknown): NonNullable<AgentCardModel['reason']> {
   return { ...section(value, REASON_LIMIT), ...(answers === undefined ? {} : { answers: buttons(answers, ANSWER_LIMIT) }) }
 }
 
+function cardSwitch(value: unknown, name: string): AgentCardSwitch {
+  const source = record(value)
+  if (!source || typeof source.checked !== 'boolean' || (source.disabled !== undefined && typeof source.disabled !== 'boolean')) {
+    throw new TypeError(`Invalid agent card ${name} switch`)
+  }
+  return { label: text(source.label), checked: source.checked, ...(source.disabled ? { disabled: true } : {}) }
+}
+
 export function parseAgentCardModel(value: unknown): AgentCardModel {
   const source = record(value)
   if (!source) throw new TypeError('Invalid agent card')
@@ -173,8 +189,6 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
   if (!/^#[0-9a-f]{6}$/iu.test(color)) throw new TypeError('Invalid agent card color')
   const recent = record(source.recent)
   if (!recent || !Array.isArray(recent.steps) || recent.steps.length > RECENT_LIMIT) throw new TypeError('Invalid agent card steps')
-  const follow = record(source.follow)
-  if (!follow || typeof follow.checked !== 'boolean' || (follow.disabled !== undefined && typeof follow.disabled !== 'boolean')) throw new TypeError('Invalid agent card follow switch')
   return {
     label: text(source.label),
     name: text(source.name),
@@ -194,7 +208,8 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
         return { text: text(step.text), ...(step.failed ? { failed: true } : {}) }
       })
     },
-    follow: { label: text(follow.label), checked: follow.checked, ...(follow.disabled ? { disabled: true } : {}) },
+    follow: cardSwitch(source.follow, 'follow'),
+    cursor: cardSwitch(source.cursor, 'cursor'),
     buttons: buttons(source.buttons, BUTTON_LIMIT),
     closeLabel: text(source.closeLabel)
   }

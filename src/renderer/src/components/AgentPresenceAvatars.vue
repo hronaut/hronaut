@@ -5,19 +5,18 @@ import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconSmartToy from '~icons/material-symbols/smart-toy-outline-rounded'
 import type { AgentCardAction, HronautAgentCardApi } from '../../../shared/agent-card.js'
 import {
-  AGENT_AVATAR_COLORS,
   AGENT_AVATAR_VISIBLE_LIMIT,
+  agentAvatarColorHex,
   type AgentPresence,
   type HronautAgentPresenceApi
 } from '../../../shared/agent-presence.js'
-import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
 import { agentStepText } from '../composables/agent-step-text.js'
 import { agentCardModel, useAgentCard } from '../composables/useAgentCard.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   /** The workspace of the page in view; no avatars without one. */
   workspaceId?: string
   workspaceName?: string
@@ -31,10 +30,12 @@ const props = defineProps<{
   /** The open tabs, to find the one an agent acts on and whether agents are paused there. */
   tabs?: readonly { id: string; agentPaused?: boolean }[]
   follow?: boolean
+  /** Agents' cursors are drawn on the page; on unless the shell says otherwise. */
+  showCursor?: boolean
   agentControlLocked?: boolean
   api?: HronautAgentPresenceApi
   cardApi?: HronautAgentCardApi
-}>()
+}>(), { showCursor: true })
 
 const emit = defineEmits<{
   select: [tabId: string]
@@ -43,6 +44,8 @@ const emit = defineEmits<{
   /** Pause agents on this tab and show it, for you to carry on. */
   takeOver: [tabId: string]
   setFollow: [follow: boolean]
+  /** Draw agents' cursors on the page, or stop. */
+  setShowCursor: [show: boolean]
   /** Answer the open request for you: done and handed back, or dismissed. */
   answerAttention: [id: string, answer: 'resolved' | 'dismissed']
   /** Open the workspace where its waiting decisions are reviewed. */
@@ -102,7 +105,7 @@ function tooltip(agent: AgentPresence): string {
 }
 
 function color(agent: AgentPresence): string {
-  return BROWSER_TAB_GROUP_COLOR_HEX[AGENT_AVATAR_COLORS[agent.colorIndex] ?? 'gray']
+  return agentAvatarColorHex(agent.colorIndex)
 }
 
 function target(agent: AgentPresence): string | undefined {
@@ -158,6 +161,7 @@ const card = useAgentCard({
       ...(props.attentionId ? { attentionId: props.attentionId } : {}),
       ...(props.attentionDecision ? { attentionDecision: true } : {}),
       follow: props.follow === true,
+      showCursor: props.showCursor,
       ...(tab ? { tab } : {}),
       tabInView: tab?.id === props.activeTabId,
       agentControlLocked: props.agentControlLocked === true,
@@ -202,6 +206,10 @@ function run(clientKey: string, action: AgentCardAction, key?: string): void {
   const tab = agent && (openTab(cardTabId) ?? openTab(target(agent)))
   if (action === 'follow-on' || action === 'follow-off') {
     emit('setFollow', action === 'follow-on')
+    return
+  }
+  if (action === 'cursor-on' || action === 'cursor-off') {
+    emit('setShowCursor', action === 'cursor-on')
     return
   }
   if (action === 'hand-back' || action === 'dismiss' || action === 'review-decision') {

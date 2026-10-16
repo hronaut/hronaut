@@ -281,6 +281,10 @@ export const esES = {
       "label": "Reproducir sonido de atención",
       "description": "Reproducir un aviso cuando un agente necesite un paso manual en el navegador."
     },
+    "agentCursor": {
+      "label": "Mostrar cursores de agentes",
+      "description": "Mostrar el cursor de cada agente, con su nombre, donde hace clic, señala o arrastra en una página."
+    },
     "attentionSound": {
       "label": "Sonido de atención",
       "description": "Elige el aviso que suena cuando Hronaut te necesita.",
@@ -1393,6 +1397,7 @@ export const esES = {
       "noSteps": "Aún no hay pasos terminados",
       "stepFailed": "{step}, falló",
       "follow": "Seguir a los agentes en todos los espacios",
+      "cursor": "Mostrar los cursores de los agentes en la página",
       "showTab": "Mostrar su pestaña",
       "pause": "Pausar en esta pestaña",
       "resume": "Reanudar en esta pestaña",

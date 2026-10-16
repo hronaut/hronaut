@@ -1314,97 +1314,182 @@ export function dragPointsScript(
   })()`
 }
 
+/**
+ * Takes an agent's cursor off the page and resolves once the page has painted without it, or at once
+ * when there is none.
+ */
+export function dismissAgentPointerScript(): string {
+  return `(async () => {
+    const state = globalThis.__hronautAgentCursor;
+    if (state && Array.isArray(state.timers)) for (const timer of state.timers) clearTimeout(timer);
+    globalThis.__hronautAgentCursor = undefined;
+    const hosts = document.querySelectorAll('[data-hronaut-agent-pointer]');
+    if (!hosts.length) return false;
+    hosts.forEach((node) => node.remove());
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+    return true;
+  })()`
+}
+
+/** Who an agent's cursor belongs to: its client's name (may be empty), and the avatar's fill and ink colors. */
+export interface AgentPointerIdentity {
+  name: string
+  fill: string
+  ink: string
+}
+
+/** How long an agent's cursor stays after it arrives, and how long it takes to fade out. */
+export const AGENT_POINTER_IDLE_MS = 2_000
+export const AGENT_POINTER_FADE_MS = 320
+
+/**
+ * Draws an agent's cursor on the page, in its own isolated world: it glides from where it last was to the point
+ * in 600 to 900 ms, carries the agent's name in its avatar's color, leaves a ripple where it clicks, and fades
+ * after two idle seconds. It returns at once, so the agent's input never waits for the glide.
+ */
 export function agentPointerScript(
   point: { x: number; y: number },
   effect: 'move' | 'click' | 'drag-start' | 'drag-end',
-  origin?: { x: number; y: number }
+  origin?: { x: number; y: number },
+  agent?: AgentPointerIdentity
 ): string {
   return `(() => {
     const point = ${JSON.stringify(point)};
     const effect = ${JSON.stringify(effect)};
-    const origin = ${JSON.stringify(origin)};
+    const origin = ${JSON.stringify(origin ?? null)};
+    const agent = ${javascriptLiteral(agent ?? null)};
+    const IDLE_MS = ${AGENT_POINTER_IDLE_MS};
+    const FADE_MS = ${AGENT_POINTER_FADE_MS};
     if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
     if (origin && (!Number.isFinite(origin.x) || !Number.isFinite(origin.y))) return false;
+    const color = (value) => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
+    const colored = Boolean(agent) && color(agent.fill) && color(agent.ink);
+    const name = colored && typeof agent.name === 'string' && agent.name.length <= 128 ? agent.name : '';
+    const media = (query) => typeof matchMedia === 'function' && matchMedia(query).matches;
+    const reduced = media('(prefers-reduced-motion: reduce)');
+    const forced = media('(forced-colors: active)');
 
-    document.querySelectorAll('[data-hronaut-agent-pointer="v1"]').forEach((node) => node.remove());
-    const host = document.createElement('div');
-    host.setAttribute('data-hronaut-agent-pointer', 'v1');
-    Object.assign(host.style, {
-      all: 'initial',
-      position: 'fixed',
-      left: '0',
-      top: '0',
-      width: '0',
-      height: '0',
-      zIndex: '2147483647',
-      pointerEvents: 'none',
-      opacity: '1',
-      transform: 'translate3d(' + point.x + 'px,' + point.y + 'px,0)',
-      transition: 'opacity 180ms ease',
-      contain: 'style'
-    });
-    const root = host.attachShadow({ mode: 'closed' });
-
-    if (origin) {
-      const deltaX = point.x - origin.x;
-      const deltaY = point.y - origin.y;
-      const trail = document.createElement('div');
-      Object.assign(trail.style, {
-        position: 'absolute',
-        right: '0',
-        top: '1px',
-        width: Math.hypot(deltaX, deltaY) + 'px',
-        height: '3px',
-        borderRadius: '999px',
-        background: 'linear-gradient(90deg, transparent, rgba(103,87,232,.7))',
-        transform: 'rotate(' + Math.atan2(deltaY, deltaX) + 'rad)',
-        transformOrigin: '100% 50%'
+    // One cursor per document, kept in this isolated world, so the next step glides from where it was.
+    let state = globalThis.__hronautAgentCursor;
+    if (!state || !(state.host instanceof HTMLElement) || !state.host.isConnected
+      || state.host.getAttribute('data-hronaut-agent-pointer') !== 'v2') state = undefined;
+    let fresh = false;
+    if (!state) {
+      document.querySelectorAll('[data-hronaut-agent-pointer]').forEach((node) => node.remove());
+      const host = document.createElement('div');
+      host.setAttribute('data-hronaut-agent-pointer', 'v2');
+      host.setAttribute('aria-hidden', 'true');
+      Object.assign(host.style, {
+        all: 'initial',
+        position: 'fixed',
+        left: '0',
+        top: '0',
+        width: '0',
+        height: '0',
+        zIndex: '2147483647',
+        pointerEvents: 'none',
+        opacity: '1',
+        contain: 'style',
+        forcedColorAdjust: 'none'
       });
-      root.append(trail);
-    }
-
-    const pointer = document.createElement('div');
-    Object.assign(pointer.style, {
-      position: 'absolute',
-      left: '-2px',
-      top: '-2px',
-      width: '18px',
-      height: '24px',
-      background: '#6757e8',
-      clipPath: 'polygon(0 0, 100% 68%, 57% 72%, 38% 100%)',
-      filter: 'drop-shadow(0 0 1px white) drop-shadow(0 2px 3px rgba(0,0,0,.45))',
-      transform: effect === 'drag-start' ? 'scale(.84)' : 'scale(1)',
-      transformOrigin: '2px 2px'
-    });
-    root.append(pointer);
-    document.documentElement.append(host);
-
-    if (effect === 'click' || effect === 'drag-start') {
-      const pulse = document.createElement('div');
-      Object.assign(pulse.style, {
+      const root = host.attachShadow({ mode: 'closed' });
+      const pointer = document.createElement('div');
+      Object.assign(pointer.style, {
         position: 'absolute',
-        left: '-10px',
-        top: '-10px',
-        width: '20px',
-        height: '20px',
-        border: '2px solid #8d80ff',
+        left: '-2px',
+        top: '-2px',
+        width: '18px',
+        height: '24px',
+        clipPath: 'polygon(0 0, 100% 68%, 57% 72%, 38% 100%)',
+        filter: 'drop-shadow(0 0 1px white) drop-shadow(0 2px 3px rgba(0,0,0,.45))',
+        transformOrigin: '2px 2px',
+        transition: reduced ? 'none' : 'transform 120ms ease-out'
+      });
+      const tag = document.createElement('span');
+      tag.setAttribute('dir', 'auto');
+      Object.assign(tag.style, {
+        position: 'absolute',
+        left: '14px',
+        top: '20px',
+        maxWidth: '180px',
+        padding: '0 8px',
         borderRadius: '999px',
+        font: '500 12px/18px system-ui, sans-serif',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        boxShadow: '0 1px 3px rgba(0,0,0,.3)',
         boxSizing: 'border-box'
       });
+      root.append(pointer, tag);
+      const start = effect === 'drag-end' && origin ? origin : point;
+      host.style.transform = 'translate3d(' + start.x + 'px,' + start.y + 'px,0)';
+      document.documentElement.append(host);
+      state = { host, root, pointer, tag, x: start.x, y: start.y, timers: [] };
+      globalThis.__hronautAgentCursor = state;
+      fresh = true;
+    }
+    const { host, root, pointer, tag } = state;
+    for (const timer of state.timers) clearTimeout(timer);
+    state.timers = [];
+
+    pointer.style.background = forced ? 'CanvasText' : colored ? agent.fill : '#6757e8';
+    tag.textContent = name;
+    tag.style.display = name ? 'block' : 'none';
+    Object.assign(tag.style, forced
+      ? { background: 'Canvas', color: 'CanvasText', border: '1px solid CanvasText' }
+      : { background: colored ? agent.fill : '#6757e8', color: colored ? agent.ink : '#ffffff', border: '0' });
+    pointer.style.transform = effect === 'drag-start' ? 'scale(.84)' : 'scale(1)';
+
+    const distance = Math.hypot(point.x - state.x, point.y - state.y);
+    const duration = reduced || distance < 1 ? 0 : Math.round(Math.min(900, Math.max(600, 600 + distance * 0.25)));
+    if (fresh && duration) host.getBoundingClientRect();
+    host.style.transition = (duration ? 'transform ' + duration + 'ms cubic-bezier(.16,1,.3,1), ' : '') + 'opacity ' + FADE_MS + 'ms ease';
+    host.style.transform = 'translate3d(' + point.x + 'px,' + point.y + 'px,0)';
+    host.style.opacity = '1';
+    state.x = point.x;
+    state.y = point.y;
+
+    const ripple = () => {
+      const ripples = root.querySelectorAll('[data-ripple]');
+      if (ripples.length >= 3) ripples[0].remove();
+      const pulse = document.createElement('div');
+      pulse.setAttribute('data-ripple', '');
+      Object.assign(pulse.style, {
+        position: 'absolute',
+        left: '-12px',
+        top: '-12px',
+        width: '24px',
+        height: '24px',
+        border: '2px solid ' + (forced ? 'Highlight' : colored ? agent.fill : '#8d80ff'),
+        borderRadius: '999px',
+        boxSizing: 'border-box',
+        opacity: '0'
+      });
       root.append(pulse);
+      const frames = reduced
+        ? [{ opacity: 0.9 }, { opacity: 0 }]
+        : [{ opacity: 0.9, transform: 'scale(.35)' }, { opacity: 0, transform: 'scale(1.6)' }];
       if (typeof pulse.animate === 'function') {
-        const animation = pulse.animate([
-          { opacity: 0.9, transform: 'scale(.35)' },
-          { opacity: 0, transform: 'scale(1.5)' }
-        ], { duration: 360, easing: 'ease-out' });
+        const animation = pulse.animate(frames, { duration: 420, easing: 'ease-out' });
         animation.finished.then(() => pulse.remove(), () => pulse.remove());
       } else {
-        setTimeout(() => pulse.remove(), 360);
+        setTimeout(() => pulse.remove(), 420);
       }
+    };
+    const later = (callback, delay) => { state.timers.push(setTimeout(callback, delay)); };
+    if (effect === 'click' || effect === 'drag-start') {
+      if (duration) later(ripple, duration);
+      else ripple();
     }
-
-    setTimeout(() => { if (host.isConnected) host.style.opacity = '0'; }, 900);
-    setTimeout(() => host.remove(), 1_200);
+    later(() => { host.style.opacity = '0'; }, duration + IDLE_MS);
+    later(() => {
+      host.remove();
+      if (globalThis.__hronautAgentCursor === state) globalThis.__hronautAgentCursor = undefined;
+    }, duration + IDLE_MS + FADE_MS);
     return true;
   })()`
 }

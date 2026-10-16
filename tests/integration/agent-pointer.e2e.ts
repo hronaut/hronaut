@@ -125,6 +125,50 @@ test('shows agent clicks and hovers without intercepting page input', async ({ a
       return page.executeJavaScript(`({ count: document.querySelector('[data-hronaut-agent-pointer]') ? 1 : 0, hooks: window.hooks })`)
     }, url)
     expect(pointerCount).toEqual({ count: 1, hooks: 0 })
+
+    // The cursor carries the client's name in its avatar's color, readable only from Hronaut's own world.
+    const cursorIn = (world: 'page' | 'cursor') => electronApp.evaluate(async ({ webContents }, { pageUrl, world }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)!
+      const code = `(() => {
+        const host = document.querySelector('[data-hronaut-agent-pointer]');
+        const state = globalThis.__hronautAgentCursor;
+        return {
+          present: Boolean(host),
+          opacity: host?.style.opacity ?? null,
+          ariaHidden: host?.getAttribute('aria-hidden') ?? null,
+          name: state?.tag?.textContent ?? null,
+          fill: state?.tag ? getComputedStyle(state.tag).backgroundColor : null,
+          ink: state?.tag ? getComputedStyle(state.tag).color : null,
+          text: document.documentElement.innerText + document.documentElement.textContent
+        };
+      })()`
+      return world === 'page' ? page.executeJavaScript(code) : page.executeJavaScriptInIsolatedWorld(1013, [{ code }])
+    }, { pageUrl: url, world }) as Promise<{ present: boolean; opacity: string | null; ariaHidden: string | null; name: string | null; fill: string | null; ink: string | null; text: string }>
+    const avatarColor = await appWindow.getByRole('group', { name: 'Agents in this workspace', exact: true })
+      .getByRole('button', { name: /^hronaut-agent-pointer-test, / })
+      .evaluate((button) => getComputedStyle(button).getPropertyValue('--agent-color').trim())
+    const hex = (rgb: string | null) => '#' + (rgb?.match(/\d+/g) ?? []).slice(0, 3).map((value) => Number(value).toString(16).padStart(2, '0')).join('')
+    const own = await cursorIn('cursor')
+    expect(own).toMatchObject({ present: true, ariaHidden: 'true', name: 'hronaut-agent-pointer-test', ink: 'rgb(17, 19, 24)' })
+    expect(hex(own.fill)).toBe(avatarColor)
+    const seenByPage = await cursorIn('page')
+    expect(seenByPage).toMatchObject({ present: true, name: null })
+    expect(seenByPage.text).not.toContain('hronaut-agent-pointer-test')
+
+    // It stays after the step instead of vanishing within a second, then leaves on its own.
+    await new Promise((resolve) => setTimeout(resolve, 1_300))
+    expect((await cursorIn('cursor')).opacity).toBe('1')
+    await expect.poll(async () => (await cursorIn('page')).present, { timeout: 6_000 }).toBe(false)
+
+    // With agent cursors turned off, a click draws none.
+    await appWindow.evaluate('window.hronautSettings.setShowAgentCursor(false)')
+    try {
+      const quiet = await client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#action', native: true } }) as CallToolResult
+      expect(quiet.isError, text(quiet)).not.toBe(true)
+      expect((await cursorIn('page')).present).toBe(false)
+    } finally {
+      await appWindow.evaluate('window.hronautSettings.setShowAgentCursor(true)')
+    }
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)

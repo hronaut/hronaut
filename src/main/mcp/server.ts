@@ -103,7 +103,7 @@ import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
-import { AgentPresenceRegistry, type AgentCall } from './agent-presence.js'
+import { AgentPresenceRegistry, agentCursorIdentity, type AgentCall } from './agent-presence.js'
 import type { AgentPresence } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
 import { webAddress } from '../browser/url.js'
@@ -4362,7 +4362,7 @@ function createBrowserMcpServer(
       }
     }) => {
       if (!validateNativeInput) throw new Error('Click authority is unavailable')
-      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress, retainClickAuthority))
+      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress, retainClickAuthority, agentCursorIdentity(client.name)))
     })
   )
   registerWorkspaceTool(
@@ -4454,7 +4454,7 @@ function createBrowserMcpServer(
       y?: number
     }) => {
       if (!validateNativeInput) throw new Error('Native input authority is unavailable')
-      return textResult(await manager.hover(input, validateNativeInput))
+      return textResult(await manager.hover(input, validateNativeInput, agentCursorIdentity(client.name)))
     })
   )
   registerWorkspaceTool(
@@ -4486,7 +4486,7 @@ function createBrowserMcpServer(
       endY?: number
     }) => {
       if (!validateNativeInput) throw new Error('Native input authority is unavailable')
-      return textResult(await manager.drag(input, validateNativeInput))
+      return textResult(await manager.drag(input, validateNativeInput, agentCursorIdentity(client.name)))
     })
   )
   registerWorkspaceTool(

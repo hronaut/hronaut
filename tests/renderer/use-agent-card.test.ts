@@ -15,7 +15,7 @@ function agent(overrides: Partial<AgentPresence> = {}): AgentPresence {
 }
 
 function context(overrides: Partial<AgentCardContext> = {}): AgentCardContext {
-  return { workspaceName: 'Checkout', follow: false, tab: { id: 'tab-2', agentPaused: false }, tabInView: false, agentControlLocked: false, color: '#2aa198', name: 'Claude Code', ...overrides }
+  return { workspaceName: 'Checkout', follow: false, showCursor: true, tab: { id: 'tab-2', agentPaused: false }, tabInView: false, agentControlLocked: false, color: '#2aa198', name: 'Claude Code', ...overrides }
 }
 
 describe('agent card content', () => {
@@ -34,6 +34,7 @@ describe('agent card content', () => {
       now: { heading: 'Now', text: 'Reading the page' },
       recent: { heading: 'Recent steps', empty: 'No finished steps yet', steps: [{ text: 'Clicked on the page, failed', failed: true }, { text: 'Opened a page' }] },
       follow: { label: 'Follow agents in all workspaces', checked: false },
+      cursor: { label: 'Show agent cursors on the page', checked: true },
       buttons: [
         { action: 'show-tab', label: 'Show its tab' },
         { action: 'pause', label: 'Pause on this tab' },
@@ -52,6 +53,7 @@ describe('agent card content', () => {
     expect(card.reason).toEqual({ heading: 'Why it needs you', text: 'Approve the order.' })
     expect(card.stateLabel).toBe('Needs you')
     expect(card.follow.checked).toBe(true)
+    expect(agentCardModel(agent(), context({ showCursor: false }), t).cursor).toEqual({ label: 'Show agent cursors on the page', checked: false })
     expect(card.buttons).toEqual([
       { action: 'resume', label: 'Resume on this tab', disabled: true },
       { action: 'take-over', label: 'Take over', disabled: true }
@@ -120,7 +122,7 @@ describe('agent card content', () => {
   it('has every card phrase in every language', () => {
     const keys = [
       'label', 'connected', 'states.idle', 'states.working', 'states.needsYou', 'states.gone', 'reason', 'now', 'nowIdle', 'gone',
-      'recent', 'noSteps', 'stepFailed', 'follow', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
+      'recent', 'noSteps', 'stepFailed', 'follow', 'cursor', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
       ...AGENT_STEP_KINDS.map((kind) => `steps.${kind}`)
     ].map((key) => `shell.agentCard.${key}`)
     for (const locale of SUPPORTED_LOCALES) {

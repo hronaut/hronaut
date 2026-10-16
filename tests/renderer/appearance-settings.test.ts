@@ -24,6 +24,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       attentionSoundCue: 'warning',
       challengeDetectionEnabled: false,
       followAgentActivity: false,
+      showAgentCursor: true,
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
@@ -220,5 +221,36 @@ describe('AppearanceSettings', () => {
 
     expect(setUseSystemTitleBar).toHaveBeenCalledWith(true)
     expect(screen.getByRole('status')).toHaveTextContent('Restart Hronaut to apply this window-frame change.')
+  })
+
+  it('turns agent cursors on the page off and back on', async () => {
+    const setShowAgentCursor = vi.fn(async (showAgentCursor: boolean) => ({ ...snapshot('en-US').settings, showAgentCursor }))
+    Object.defineProperty(window, 'hronautSettings', { configurable: true, value: { setShowAgentCursor } })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    render(AppearanceSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+
+    const cursors = screen.getByRole('checkbox', { name: /^Show agent cursors/ })
+    expect(cursors).toBeChecked()
+    expect(cursors).toHaveAccessibleName(/where it clicks, points or drags/)
+    const user = userEvent.setup()
+    await user.click(cursors)
+    expect(setShowAgentCursor).toHaveBeenLastCalledWith(false)
+    expect(cursors).not.toBeChecked()
+    await user.click(cursors)
+    expect(setShowAgentCursor).toHaveBeenLastCalledWith(true)
+    expect(cursors).toBeChecked()
+  })
+
+  it('has the agent cursor setting in every language', () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      const i18n = createHronautI18n(locale).global
+      for (const key of ['appearance.agentCursor.label', 'appearance.agentCursor.description', 'shell.agentCard.cursor']) {
+        expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
+      }
+    }
   })
 })

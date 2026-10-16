@@ -281,6 +281,10 @@ export const frFR = {
       "label": "Émettre un son d’attention",
       "description": "Émettre un avertissement lorsqu’un agent nécessite une étape manuelle dans le navigateur."
     },
+    "agentCursor": {
+      "label": "Afficher les curseurs des agents",
+      "description": "Afficher le curseur de chaque agent, avec son nom, là où il clique, pointe ou fait glisser sur une page."
+    },
     "attentionSound": {
       "label": "Son d’attention",
       "description": "Choisissez le signal émis lorsque Hronaut a besoin de vous.",
@@ -1393,6 +1397,7 @@ export const frFR = {
       "noSteps": "Aucune étape terminée pour l’instant",
       "stepFailed": "{step}, échec",
       "follow": "Suivre les agents dans tous les espaces",
+      "cursor": "Afficher les curseurs des agents sur la page",
       "showTab": "Afficher son onglet",
       "pause": "Mettre en pause sur cet onglet",
       "resume": "Reprendre sur cet onglet",

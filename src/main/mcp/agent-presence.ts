@@ -1,13 +1,16 @@
 import { createHmac, randomBytes } from 'node:crypto'
 import {
   AGENT_AVATAR_COLORS,
+  AGENT_AVATAR_INK,
   AGENT_RECENT_STEPS_LIMIT,
+  agentAvatarColorHex,
   type AgentPresence,
   type AgentPresenceState,
   type AgentRecentStep
 } from '../../shared/agent-presence.js'
 import { agentStepActs, agentStepKind, type AgentStepKind } from '../../shared/agent-steps.js'
 import type { McpTabActivity } from '../../shared/types.js'
+import type { AgentPointerIdentity } from '../browser/page-scripts.js'
 import { ACTIVITY_HISTORY_LIMIT } from './activity-history.js'
 import { WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
 
@@ -84,6 +87,23 @@ export function agentColorIndex(name: string): number {
     hash = Math.imul(hash, 0x01000193) >>> 0
   }
   return hash % AGENT_AVATAR_COLORS.length
+}
+
+/** An agent's name tag on the page is cut to this many graphemes. */
+export const AGENT_CURSOR_NAME_MAX_GRAPHEMES = 32
+
+/**
+ * Who an agent's cursor on the page belongs to: the client's cleaned name, at most 32 graphemes with the ellipsis, in its
+ * avatar's color. The color comes from the whole name, as the avatar's does.
+ */
+export function agentCursorIdentity(rawName: string): AgentPointerIdentity {
+  const full = sanitizeAgentName(rawName)
+  // At most 64 graphemes after cleaning.
+  const segments = [...graphemes.segment(full)].map(({ segment }) => segment)
+  const name = segments.length > AGENT_CURSOR_NAME_MAX_GRAPHEMES
+    ? `${segments.slice(0, AGENT_CURSOR_NAME_MAX_GRAPHEMES - 1).join('').trimEnd()}…`
+    : full
+  return { name, fill: agentAvatarColorHex(agentColorIndex(full)), ink: AGENT_AVATAR_INK }
 }
 
 interface InFlightStep {

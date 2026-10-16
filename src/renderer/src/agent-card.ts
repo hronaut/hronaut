@@ -1,5 +1,5 @@
 import './agent-card.css'
-import type { AgentCardButton, AgentCardMeasurement, AgentCardModel, AgentCardState, AgentCardViewMessage } from '../../shared/agent-card.js'
+import type { AgentCardAction, AgentCardButton, AgentCardMeasurement, AgentCardModel, AgentCardState, AgentCardSwitch, AgentCardViewMessage } from '../../shared/agent-card.js'
 
 interface HronautAgentCardViewApi {
   onState(listener: (state: AgentCardState) => void): () => void
@@ -18,7 +18,9 @@ const ROBOT = 'M10 3h4v2h3a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V8a3 3 0
 const DONE = 'M5 12.5l4.5 4.5L19 7.5'
 const FAILED = 'M7 7l10 10M17 7L7 17'
 const CLOSE = 'M6 6l12 12M18 6L6 18'
-const TOGGLED: Record<string, string> = { pause: 'resume', resume: 'pause', 'follow-on': 'follow-off', 'follow-off': 'follow-on' }
+const TOGGLED: Record<string, string> = {
+  pause: 'resume', resume: 'pause', 'follow-on': 'follow-off', 'follow-off': 'follow-on', 'cursor-on': 'cursor-off', 'cursor-off': 'cursor-on'
+}
 
 const root = document.querySelector<HTMLElement>('#agent-card-root')
 if (!root) throw new Error('Agent card root is unavailable')
@@ -57,6 +59,19 @@ function section(id: string, heading: string, ...content: HTMLElement[]): HTMLEl
   title.id = id
   node.setAttribute('aria-labelledby', id)
   node.append(title, ...content)
+  return node
+}
+
+/** A switch that sends the action that flips it. */
+function toggle(cardId: number, model: AgentCardSwitch, action: AgentCardAction): HTMLElement {
+  const node = element('button', 'agent-card-switch')
+  node.type = 'button'
+  node.setAttribute('role', 'switch')
+  node.setAttribute('aria-checked', String(model.checked))
+  node.disabled = model.disabled === true
+  node.dataset.action = action
+  node.append(element('span', '', model.label), element('span', 'agent-card-switch-track'))
+  node.addEventListener('click', () => send({ cardId, kind: 'action', action }))
   return node
 }
 
@@ -119,15 +134,10 @@ function build(cardId: number, model: AgentCardModel): HTMLElement {
     card.append(section('agent-card-recent', model.recent.heading, element('p', 'agent-card-subtitle', model.recent.empty)))
   }
 
-  const follow = element('button', 'agent-card-switch')
-  follow.type = 'button'
-  follow.setAttribute('role', 'switch')
-  follow.setAttribute('aria-checked', String(model.follow.checked))
-  follow.disabled = model.follow.disabled === true
-  follow.dataset.action = model.follow.checked ? 'follow-off' : 'follow-on'
-  follow.append(element('span', '', model.follow.label), element('span', 'agent-card-switch-track'))
-  follow.addEventListener('click', () => send({ cardId, kind: 'action', action: model.follow.checked ? 'follow-off' : 'follow-on' }))
-  card.append(follow)
+  card.append(
+    toggle(cardId, model.follow, model.follow.checked ? 'follow-off' : 'follow-on'),
+    toggle(cardId, model.cursor, model.cursor.checked ? 'cursor-off' : 'cursor-on')
+  )
 
   if (model.buttons.length) card.append(actions(cardId, 'agent-card-actions', model.buttons))
   return card

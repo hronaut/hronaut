@@ -12,12 +12,13 @@ import {
   agentInitial,
   AGENT_STEP_TARGET_MAX_GRAPHEMES,
   AGENT_STEP_TARGET_MAX_UNITS,
+  agentCursorIdentity,
   sanitizeAgentName,
   sanitizeAgentStepTarget,
   type AgentPresenceContext
 } from '../src/main/mcp/agent-presence.js'
 import { McpHttpServer, type McpHttpServerOptions, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
-import { AGENT_AVATAR_COLORS } from '../src/shared/agent-presence.js'
+import { AGENT_AVATAR_COLORS, AGENT_AVATAR_INK, agentAvatarColorHex } from '../src/shared/agent-presence.js'
 import type { McpTabActivity } from '../src/shared/types.js'
 
 const workspace = 'workspace-a'
@@ -289,6 +290,34 @@ describe('agent presence registry', () => {
   })
 })
 
+function contrast(first: string, second: string): number {
+  const luminance = (hex: string) => {
+    const channel = (index: number) => {
+      const value = Number.parseInt(hex.slice(index, index + 2), 16) / 255
+      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
+  }
+  const one = luminance(first)
+  const other = luminance(second)
+  return (Math.max(one, other) + 0.05) / (Math.min(one, other) + 0.05)
+}
+
+describe('agent cursor identity', () => {
+  it('names the cursor as the avatar does, in the avatar\'s color, with readable text', () => {
+    const identity = agentCursorIdentity('  Claude\u0007 Code\n')
+    expect(identity).toEqual({ name: 'Claude Code', fill: agentAvatarColorHex(agentColorIndex('Claude Code')), ink: AGENT_AVATAR_INK })
+    // A long name is cut for the tag, while its color still comes from the whole name, like the avatar's.
+    const long = 'Agent '.repeat(20)
+    const cut = agentCursorIdentity(long)
+    expect([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(cut.name)]).toHaveLength(32)
+    expect(cut.name.endsWith('…')).toBe(true)
+    expect(cut.fill).toBe(agentAvatarColorHex(agentColorIndex(sanitizeAgentName(long))))
+    expect(agentCursorIdentity('\u0000').name).toBe('')
+    for (const index of AGENT_AVATAR_COLORS.keys()) expect(contrast(agentAvatarColorHex(index), AGENT_AVATAR_INK)).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
 describe('agent names', () => {
   it('keeps a client-supplied name as plain, bounded text', () => {
     expect(sanitizeAgentName('  Claude\u0000 Code\n‮evil  ')).toBe('Claude Code evil')
@@ -482,6 +511,24 @@ describe('agent presence over MCP', () => {
     expect(text(clicked)).not.toContain('lookup failed')
     expect(latest()).toEqual(expect.objectContaining({ step: 'click' }))
     expect(latest()).not.toHaveProperty('target')
+  })
+
+  it('draws the calling agent\'s named cursor for its clicks, hovers and drags', async () => {
+    const click = vi.fn(async () => ({ ok: true }))
+    const hover = vi.fn(async () => ({ ok: true }))
+    const drag = vi.fn(async () => ({ ok: true }))
+    const { connect } = await startServer(undefined, {}, { click, hover, drag })
+    const claudeClient = await connect('Claude\u0007 Code')
+    const expected = { name: 'Claude Code', fill: agentAvatarColorHex(agentColorIndex('Claude Code')), ink: AGENT_AVATAR_INK }
+    const clicked = await claudeClient.client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId, ref: 'e5' } }) as CallToolResult
+    expect(clicked.isError, text(clicked)).not.toBe(true)
+    expect(click.mock.calls.at(-1)?.at(-1)).toEqual(expected)
+    const hovered = await claudeClient.client.callTool({ name: 'browser_hover', arguments: { workspaceId, tabId, ref: 'e5' } }) as CallToolResult
+    expect(hovered.isError, text(hovered)).not.toBe(true)
+    expect(hover.mock.calls.at(-1)?.at(-1)).toEqual(expected)
+    const dragged = await claudeClient.client.callTool({ name: 'browser_drag', arguments: { workspaceId, tabId, sourceRef: 'e5', targetRef: 'e6' } }) as CallToolResult
+    expect(dragged.isError, text(dragged)).not.toBe(true)
+    expect(drag.mock.calls.at(-1)?.at(-1)).toEqual(expected)
   })
 
   it('keeps needs you while the request is open after a click, and reports an action of the agent that asked', async () => {

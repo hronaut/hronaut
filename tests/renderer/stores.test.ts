@@ -51,6 +51,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       attentionSoundCue: 'warning',
       challengeDetectionEnabled: false,
       followAgentActivity: false,
+      showAgentCursor: true,
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
