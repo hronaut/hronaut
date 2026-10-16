@@ -1,4 +1,5 @@
 import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
+import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
 import type {
@@ -585,3 +586,13 @@ const splitDividerApi: HronautSplitDividerApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautSplitDivider', splitDividerApi)
+
+const emulationFrameApi: HronautEmulationFrameApi = {
+  get: () => ipcRenderer.invoke('emulation-frame:get'),
+  onChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, frames: EmulationFrameGeometry[]): void => listener(frames)
+    ipcRenderer.on('emulation-frame:changed', handler)
+    return () => ipcRenderer.removeListener('emulation-frame:changed', handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautEmulationFrame', emulationFrameApi)

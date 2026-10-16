@@ -647,6 +647,9 @@ export const enUS = {
   responsive: {
     kicker: 'Responsive testing', heading: 'Responsive preview', close: 'Close responsive preview', preset: 'Viewport preset', presetHelp: 'Generic sizes expose layout breakpoints without pretending to be a physical device.', rotate: 'Rotate', rotateTitle: 'Rotate viewport', rotateAria: 'Rotate responsive viewport', presetAria: 'Responsive viewport preset', custom: 'Custom', range: '200–3840 px', customDescription: 'Choose exact conditions', orientation: 'Orientation', orientationHelp: 'Width and height rotate together.', orientationAria: 'Viewport orientation', portrait: 'Portrait', landscape: 'Landscape', customConditions: 'Custom conditions', cssPixels: 'Viewport values are CSS pixels.', width: 'Width', height: 'Height', dpr: 'DPR', mobile: 'Mobile rendering', touch: 'Touch events', applied: 'Viewport applied', applyingViewport: 'Applying viewport…', previewConditions: 'Preview conditions', limitation: 'Simulation changes only this website tab. It is useful for responsive debugging, but it is not a physical-device test.', reset: 'Reset viewport', applying: 'Applying…', apply: 'Apply preview'
   },
+  emulationFrame: {
+    label: 'Emulated viewport {size}', size: '{width} × {height}', desktop: 'Desktop', mobile: 'Mobile', pixelRatio: '{ratio}× pixel ratio', rotate: 'Rotate viewport', fit: 'Fit viewport to window', reset: 'Use window size', failed: 'The viewport could not be changed.'
+  },
   environment: {
     kicker: 'Current website', heading: 'Environment', close: 'Close Environment',
     loading: { heading: 'Loading conditions', description: 'Reproduce slower devices and unreliable connections.' },

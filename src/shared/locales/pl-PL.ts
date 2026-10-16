@@ -1438,6 +1438,17 @@ export const plPL = {
     "applying": "Stosowanie…",
     "apply": "Zastosuj podgląd"
   },
+  "emulationFrame": {
+    "label": "Emulowany obszar widoku {size}",
+    "size": "{width} × {height}",
+    "desktop": "Komputer",
+    "mobile": "Urządzenie mobilne",
+    "pixelRatio": "Gęstość pikseli {ratio}×",
+    "rotate": "Obróć obszar widoku",
+    "fit": "Dopasuj obszar widoku do okna",
+    "reset": "Użyj rozmiaru okna",
+    "failed": "Nie udało się zmienić obszaru widoku."
+  },
   "environment": {
     "kicker": "Bieżąca witryna",
     "heading": "Środowisko",

@@ -237,6 +237,7 @@ import {
   type BrowserSplitOrientation,
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
+import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -697,6 +698,12 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   emulationRevision: number
   emulationContextGeneration: number
   emulationExtraHttpHeaders: Record<string, string>
+  /**
+   * The emulated viewport size the page's view is sized for, while Hronaut
+   * knows the page has it. Without one the view fills its space, since the
+   * page's real viewport is then the view itself.
+   */
+  emulationViewSize?: { width: number; height: number }
   mcpGroupId?: string
   snapshotBaselineGeneration: number
   accessibilityBaseline?: BrowserAccessibilityAudit
@@ -1219,6 +1226,7 @@ export class BrowserTabsManager {
   private splitView: BrowserSplitViewState | null = null
   private splitViewGeneration = 0
   private lastSplitDividerGeometry = ''
+  private lastEmulationFrames = '[]'
   private readonly splitDivider = new SplitDividerController({
     read: () => this.getSplitDivider(),
     owns: (geometry) => this.splitViewGeneration === geometry.revision
@@ -1373,6 +1381,8 @@ export class BrowserTabsManager {
   private readonly devToolsOpening = new Set<number>()
   private readonly rendererRecovery = new RendererRecovery()
   private readonly renderQueues = new Map<number, Promise<void>>()
+  /** Tabs whose view is out of its place for an offscreen capture, which restores it. */
+  private readonly offscreenCaptureTabIds = new Set<string>()
   private workspaceTemplateImporter?: WorkspaceTemplateImporter
   private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
   private readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
@@ -4502,7 +4512,8 @@ export class BrowserTabsManager {
       if (replacement && !replacement.webContents.isDestroyed()) {
         this.window.contentView.addChildView(replacement.view)
         replacementWasAttached = true
-        replacement.view.setBounds(bounds)
+        // The closing tab's bounds can be sized for its own emulated viewport.
+        replacement.view.setBounds(this.tabViewBounds(replacement, this.browserViewBounds()))
         replacement.view.setVisible(visible)
       }
     } catch (error) {
@@ -4516,6 +4527,8 @@ export class BrowserTabsManager {
       }
       throw error
     }
+    // The closing tab's frame and caption leave with its page.
+    this.publishEmulationFrames()
 
     const cleanup = (): void => {
       // A user can select another page while Chromium runs beforeunload.
@@ -6654,8 +6667,12 @@ export class BrowserTabsManager {
       let submitted = false
       tab.nativeInputEnvironmentGeneration += 1
       tab.emulationApplication = 'pending'
+      const previousViewSize = tab.emulationViewSize
       try {
         this.changed(false)
+        // Removing the override hands the page the view's own size, so the
+        // view fills its space first, while the override still pins the page.
+        if (!next.viewport) this.setEmulationViewSize(tab, undefined)
         await this.applyEmulationState(tab, next, nextHeaders, async (method, params) => {
           admission()
           networkContext()
@@ -6676,6 +6693,7 @@ export class BrowserTabsManager {
           // from the retained configuration, it needs its own recovery.
           if (submitted && networkChanged) this.markNetworkConditionsUnknown(tab)
           this.changed(false)
+          this.setEmulationViewSize(tab, submitted ? undefined : previousViewSize)
         }
         throw error
       }
@@ -6685,6 +6703,7 @@ export class BrowserTabsManager {
       tab.emulationApplication = 'confirmed'
       tab.networkConditionApplication = 'confirmed'
       this.changed(false)
+      this.setEmulationViewSize(tab, next.viewport)
       validate()
       const result = this.emulationResult(tab)
       retainPublication?.(this.emulationPublication(tab.id, result))
@@ -8828,6 +8847,84 @@ export class BrowserTabsManager {
   finishSplitDivider(token: string, commit: boolean, ratio?: number): SplitDividerGeometry | null { return this.splitDivider.finish(token, commit, ratio) }
   setSplitDividerRatio(revision: number, ratio: number): SplitDividerGeometry | null { return this.splitDivider.setRatio(revision, ratio) }
 
+  /**
+   * Tabs emulating a viewport smaller than their space, for the renderer to
+   * frame. Their pages keep the emulated size, centered in that space.
+   */
+  getEmulationFrames(): EmulationFrameGeometry[] {
+    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
+      || this.browserContentOccluded || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
+    const area = this.browserViewBounds()
+    const scale = this.window.webContents.getZoomFactor?.() ?? 1
+    const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
+    const second = this.splitView ? this.tabs.get(this.splitView.secondTabId) : undefined
+    const split = this.splitView && first && second
+      ? splitViewBounds(area, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * scale))
+      : undefined
+    const panes: Array<[BrowserTab | undefined, Rectangle]> = split
+      ? [[first, split.first], [second, split.second]]
+      : [[this.tabs.get(this.activeTabId), area]]
+    const cssBounds = (rect: Rectangle): Rectangle => ({
+      x: rect.x / scale, y: rect.y / scale, width: rect.width / scale, height: rect.height / scale
+    })
+    const frames: EmulationFrameGeometry[] = []
+    for (const [tab, space] of panes) {
+      const viewport = tab?.emulation.viewport
+      // A tab whose page is out of the window, such as one closing behind its beforeunload check, has no frame.
+      if (!tab || !viewport || !tab.emulationViewSize || !this.window.contentView.children.includes(tab.view)) continue
+      const bounds = this.tabViewBounds(tab, space)
+      if (bounds.width === space.width && bounds.height === space.height) continue
+      frames.push({
+        tabId: tab.id, bounds: cssBounds(bounds), area: cssBounds(space),
+        viewport: { ...viewport }, available: { width: space.width, height: space.height }
+      })
+    }
+    return frames
+  }
+
+  private publishEmulationFrames(): void {
+    const frames = this.getEmulationFrames()
+    const serialized = JSON.stringify(frames)
+    if (serialized === this.lastEmulationFrames) return
+    this.lastEmulationFrames = serialized
+    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('emulation-frame:changed', frames)
+  }
+
+  /** Where a tab's page goes in its space: see `emulationViewSize`. */
+  private tabViewBounds(tab: BrowserTab, space: Rectangle): Rectangle {
+    // Rounded up, so the space is never less than the caption needs in shell pixels.
+    const captionSpace = Math.ceil(EMULATION_FRAME_CAPTION_SPACE * (this.window.webContents.getZoomFactor?.() ?? 1))
+    return emulatedViewBounds(space, tab.emulationViewSize, captionSpace)
+  }
+
+  /**
+   * Sizes a tab's page for the emulated viewport it now has, or for its whole
+   * space. A tab in the background gets the size it would have in front, so
+   * its real viewport and captures follow a change made while it is hidden.
+   */
+  private setEmulationViewSize(tab: BrowserTab, viewport: { width: number; height: number } | undefined): void {
+    const size = viewport ? { width: viewport.width, height: viewport.height } : undefined
+    const resized = size?.width !== tab.emulationViewSize?.width || size?.height !== tab.emulationViewSize?.height
+    tab.emulationViewSize = size
+    if (this.destroyed || this.window.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
+      || this.offscreenCaptureTabIds.has(tab.id)) return
+    try {
+      const attached = this.window.contentView.children.includes(tab.view)
+      if (attached && (this.activeTabId === tab.id || this.splitViewContains(tab.id))) {
+        if (resized) this.layout()
+        // The caption can change without the size, such as the pixel ratio.
+        else this.publishEmulationFrames()
+      } else if (resized && !attached) {
+        tab.view.setBounds(this.tabViewBounds(tab, this.browserViewBounds()))
+      }
+      // An attached tab that is not in front stands in for a tab closing behind
+      // its beforeunload check, and gets its size when it is next laid out.
+    } catch (error) {
+      // Electron can tear a view down under a debugger detach or renderer exit.
+      console.warn(`[browser] Could not resize tab ${tab.id} for its viewport:`, error)
+    }
+  }
+
   private publishSplitDivider(): void {
     const geometry = this.getSplitDivider()
     const serialized = JSON.stringify(geometry)
@@ -8845,7 +8942,12 @@ export class BrowserTabsManager {
   }
 
   layout(): void {
-    if (this.destroyed || this.window.isDestroyed() || !this.activeTabId) return
+    if (this.destroyed || this.window.isDestroyed()) return
+    if (!this.activeTabId) {
+      // A frame must not outlive the last tab.
+      this.publishEmulationFrames()
+      return
+    }
     this.splitDivider.reconcile()
     const tab = this.tabs.get(this.activeTabId)
     if (!tab) return
@@ -8862,8 +8964,8 @@ export class BrowserTabsManager {
       if (firstTab && secondTab) {
         const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * (this.window.webContents.getZoomFactor?.() ?? 1)))
         if (browserContentVisible) {
-          firstTab.view.setBounds(splitBounds.first)
-          secondTab.view.setBounds(splitBounds.second)
+          firstTab.view.setBounds(this.tabViewBounds(firstTab, splitBounds.first))
+          secondTab.view.setBounds(this.tabViewBounds(secondTab, splitBounds.second))
         }
         firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
         secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
@@ -8872,15 +8974,17 @@ export class BrowserTabsManager {
         this.scheduleTabOverviewPreview(firstTab)
         this.scheduleTabOverviewPreview(secondTab)
         this.publishSplitDivider()
+        this.publishEmulationFrames()
         return
       }
       this.splitView = null
     }
-    if (browserContentVisible) tab.view.setBounds(viewBounds)
+    if (browserContentVisible) tab.view.setBounds(this.tabViewBounds(tab, viewBounds))
     tab.view.setVisible(browserContentVisible)
     this.reconcileTabPresentation(tab)
     this.scheduleTabOverviewPreview(tab)
     this.publishSplitDivider()
+    this.publishEmulationFrames()
   }
 
   async flushPersist(): Promise<void> {
@@ -9389,6 +9493,7 @@ export class BrowserTabsManager {
       }
       this.activeTabId = null
       this.changed(false)
+      this.publishEmulationFrames()
       void this.createTab({ url: HRONAUT_HOME_URL, active: true })
         .catch((error) => {
           console.error('[browser] Could not create a replacement tab after renderer teardown:', error)
@@ -9632,6 +9737,7 @@ export class BrowserTabsManager {
       this.cssStatePreview.debuggerDetached(tab)
       this.defaultExecutionContexts.delete(webContents.id)
       this.changed(false)
+      this.setEmulationViewSize(tab, undefined)
       if (
         !this.destroyed
         && this.tabs.has(tab.id)
@@ -9860,6 +9966,7 @@ export class BrowserTabsManager {
       tab.emulationApplication = 'unknown'
       tab.nativeInputEnvironmentGeneration++
       this.changed(false)
+      this.setEmulationViewSize(tab, undefined)
       this.invalidateTabOverviewPreview(tab)
       this.tabOverviewPreviewCaptures.cancelPending(tab.id)
       this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -11278,6 +11385,7 @@ export class BrowserTabsManager {
         ) return await operation()
 
         const originalBounds = tab.view.getBounds()
+        const viewSizeAtStart = tab.emulationViewSize
         // A visible host already has a compositor surface. Position the capture
         // view outside its viewport so it cannot cover the UI or activate another
         // native window. Wayland can activate even a non-focusable showInactive
@@ -11298,6 +11406,7 @@ export class BrowserTabsManager {
         try {
           const width = Math.max(1, originalBounds.width)
           const height = Math.max(1, originalBounds.height)
+          this.offscreenCaptureTabIds.add(tab.id)
           tab.view.setBounds({ x: reuseHost ? -width : 0, y: 0, width, height })
           captureWindow.contentView.addChildView(tab.view, reuseHost ? 0 : undefined)
           // Printing works with an attached hidden host. Mapping it on Wayland
@@ -11309,6 +11418,7 @@ export class BrowserTabsManager {
           if (mode === 'presented-frame') await this.waitForPresentation(webContents)
           return await operation()
         } finally {
+          this.offscreenCaptureTabIds.delete(tab.id)
           let cleanupError: unknown
           // Human selection can make this the presented view while capture is
           // pending. Detaching it from the shared host would discard that focus.
@@ -11335,7 +11445,8 @@ export class BrowserTabsManager {
                 if (!this.window.contentView.children.includes(tab.view)) this.window.contentView.addChildView(tab.view)
                 this.layout()
               } else {
-                tab.view.setBounds(originalBounds)
+                // A viewport change during the capture left the view's size to this restore.
+                tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : this.tabViewBounds(tab, this.browserViewBounds()))
               }
             } catch (error) {
               cleanupError ??= error

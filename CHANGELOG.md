@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- A tab emulating a viewport smaller than the window now shows that viewport at its exact size, centered on a dotted backdrop with a thin frame, instead of the page sitting in the corner of an empty background. A caption above the page names the size, Desktop or Mobile, and the pixel ratio when it is not 1×, with buttons to rotate the viewport, fit it to the window and return the tab to the window size. When the window is only a little taller than the viewport, the page moves down just enough for the caption; without room above, the caption goes below the page, or into a card beside it when only the sides have room. In split view each pane frames its own tab. The page still gets the emulated viewport, and an agent's screenshots keep the emulated size. Removing the viewport, from the frame, Responsive preview or an agent, gives the page the whole space at once.
+
 ## [2.49.0] - 2026-10-16
 
 ### Added

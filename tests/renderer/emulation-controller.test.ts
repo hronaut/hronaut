@@ -190,4 +190,17 @@ describe('emulation controller', () => {
     expect(disposed.onResetError).not.toHaveBeenCalled()
     expect(disposed.controller.resetPending.value).toBe(false)
   })
+
+  it('keeps a change to the other split view pane current until a newer change starts', () => {
+    const { controller } = createController()
+    const mutation = controller.beginMutation()
+    // The active tab is tab-1; tab-2 is the other pane.
+    expect(controller.isMutationCurrent(mutation, 'tab-2')).toBe(false)
+    expect(controller.isMutationSequenceCurrent(mutation)).toBe(true)
+    controller.invalidateMutation()
+    expect(controller.isMutationSequenceCurrent(mutation)).toBe(false)
+    const latest = controller.beginMutation()
+    controller.dispose()
+    expect(controller.isMutationSequenceCurrent(latest)).toBe(false)
+  })
 })

@@ -1438,6 +1438,17 @@ export const esES = {
     "applying": "Aplicando…",
     "apply": "Aplicar vista previa"
   },
+  "emulationFrame": {
+    "label": "Área de visualización emulada {size}",
+    "size": "{width} × {height}",
+    "desktop": "Escritorio",
+    "mobile": "Móvil",
+    "pixelRatio": "Densidad de píxeles {ratio}×",
+    "rotate": "Girar área de visualización",
+    "fit": "Ajustar el área de visualización a la ventana",
+    "reset": "Usar el tamaño de la ventana",
+    "failed": "No se pudo cambiar el área de visualización."
+  },
   "environment": {
     "kicker": "Sitio actual",
     "heading": "Entorno",

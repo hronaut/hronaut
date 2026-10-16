@@ -120,7 +120,12 @@ export function useEmulationController(options: EmulationControllerOptions) {
   }
 
   function isMutationCurrent(sequence: number, tabId: string): boolean {
-    return !disposed && sequence === mutationSequence && options.activeTab.value?.id === tabId
+    return isMutationSequenceCurrent(sequence) && options.activeTab.value?.id === tabId
+  }
+
+  /** For a change to a tab that need not be the active one, such as the other pane of split view. */
+  function isMutationSequenceCurrent(sequence: number): boolean {
+    return !disposed && sequence === mutationSequence
   }
 
   async function resetActive(): Promise<boolean> {
@@ -159,6 +164,7 @@ export function useEmulationController(options: EmulationControllerOptions) {
     beginMutation,
     invalidateMutation,
     isMutationCurrent,
+    isMutationSequenceCurrent,
     resetActive,
     dispose
   }

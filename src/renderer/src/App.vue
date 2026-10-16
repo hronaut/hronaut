@@ -13,6 +13,7 @@ import SplitViewDivider from './components/SplitViewDivider.vue'
 import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
 import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
+import EmulationFrame from './components/EmulationFrame.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
 import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
@@ -779,6 +780,14 @@ useAppLifecycleController({
 
 <template>
   <SplitViewDivider v-if="!isDetachedPanelWindow" />
+  <EmulationFrame
+    v-if="!isDetachedPanelWindow"
+    :set-tab-viewport="appEmulationFeatureController.setResponsiveTabViewport"
+    :sync-state="syncState"
+    :begin-mutation="appEmulationFeatureController.beginEmulationMutation"
+    :is-mutation-current="appEmulationFeatureController.isEmulationMutationSequenceCurrent"
+    :on-applied="appEmulationFeatureController.frameViewportApplied"
+  />
   <header
     ref="shell"
     class="shell"

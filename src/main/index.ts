@@ -2118,7 +2118,7 @@ function runWorkspaceRead<T>(event: Electron.IpcMainInvokeEvent, assertSender: (
 function handleBrowserIpc(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
   ipcMain.handle(channel, (event, ...args) => {
     if (workspaceStartupFailure) throw workspaceStartupFailure
-    if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', 'split-divider:get'].includes(channel)) assertWorkspaceInitialized()
+    if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', 'split-divider:get', 'emulation-frame:get'].includes(channel)) assertWorkspaceInitialized()
     return listener(event, ...args)
   })
 }
@@ -2377,6 +2377,7 @@ function registerIpc(): void {
     })
   })
   handleBrowserIpc('split-divider:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getSplitDivider()))
+  handleBrowserIpc('emulation-frame:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getEmulationFrames()))
   handleBrowserIpc('split-divider:begin', (event, revision: unknown) => {
     assertMainShellSender(event)
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) throw new TypeError('Invalid split revision')
