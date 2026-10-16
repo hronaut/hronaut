@@ -31,7 +31,7 @@
 :root[data-theme="cyberpunk-turbo"] .tab.active .tab-active-indicator {
   @apply [background:var(--turbo-highlight)];
 }
-:root[data-theme="cyberpunk-turbo"] :is(.tab-group, .tab, .address-form, .ui-button, .ui-input, .ui-select, .settings-dialog, .theme-option, .global-lock-controls) {
+:root[data-theme="cyberpunk-turbo"] :is(.tab-group, .tab, .address-form, .tab-controls, .ui-button, .ui-input, .ui-select, .settings-dialog, .theme-option, .global-lock-controls) {
   @apply [border-radius:4px];
 }
 :root[data-theme="cyberpunk-turbo"] .settings-dialog {
@@ -547,27 +547,36 @@
 @keyframes mcp-status-pulse { 50% { opacity: .45; } }
 
 .toolbar {
-  @apply relative [z-index:1] flex flex-wrap items-center [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--shell-bar)];
+  @apply relative [z-index:1] flex flex-wrap items-center justify-end [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--shell-bar)];
 }
+/* The address field sits centered between the navigation buttons and the
+   commands, up to 520 px wide. The commands wrap as one group, so a toolbar
+   too narrow for both gives the address its own row and puts every command
+   in a second band that ends where the address field ends. */
+.toolbar .address-form { @apply [max-width:520px] [margin-inline:auto]; }
+.toolbar .reload-button { @apply [margin-right:6px]; }
+.toolbar-commands { @apply flex [flex:0_1_auto] min-w-0 flex-wrap items-center justify-end [gap:inherit] [margin-left:6px]; }
 .vertical-tabs-shell .toolbar {
   @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)];
   padding-left: max(
     12px,
     calc(var(--titlebar-controls-left-safe) - var(--tab-rail-width) + 12px)
   );
+  /* Keep a clear 20 px before the window controls. */
   padding-right: max(
     12px,
-    calc(var(--titlebar-controls-right-safe) + 12px),
-    calc(var(--titlebar-controls-fallback-width) + 12px)
+    calc(var(--titlebar-controls-right-safe) + 20px),
+    calc(var(--titlebar-controls-fallback-width) + 20px)
   );
 }
 .compact-vertical-tab-rail-revealed .toolbar {
-  @apply flex-wrap [height:auto] [min-height:60px] [gap:4px] [padding-right:12px];
+  @apply flex-wrap justify-start [height:auto] [min-height:60px] [gap:4px] [padding-right:12px];
 }
 .compact-vertical-tab-rail .toolbar .icon-button { @apply [width:28px] [flex-basis:28px]; }
 .compact-vertical-tab-rail-revealed .toolbar .icon-button { @apply [width:28px] [height:32px] [flex:0_0_28px]; }
 .compact-vertical-tab-rail-revealed .toolbar > .icon-button:nth-child(-n+3) { @apply [height:44px]; }
-.compact-vertical-tab-rail-revealed .toolbar .address-form { @apply [flex:0_0_100%] min-w-0 m-0; }
+.compact-vertical-tab-rail-revealed .toolbar .address-form { @apply [flex:0_0_100%] min-w-0 [max-width:none] m-0; }
+.compact-vertical-tab-rail-revealed .toolbar-commands { @apply justify-start [margin-left:0]; }
 .compact-vertical-tab-rail-revealed .toolbar .zoom-button { @apply [min-width:44px] [padding-inline:4px]; }
 .icon-button { @apply grid [width:38px] [height:38px] place-items-center; }
 .icon-button > svg { @apply [width:21px] [height:21px]; }
@@ -689,12 +698,12 @@
 }
 .browser-tabs-bar.vertical:not(.rail-collapsed) .workspace-tab-section:not(.collapsed):not(.empty) .workspace-new-tab-label { @apply block; }
 
-.interaction-lock-button.tab-mute-button { @apply flex-none [height:34px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface-muted; }
-.interaction-lock-button.tab-mute-button.muted { @apply text-accent-copy border-accent bg-accent-soft; }
-/* Tab toggles are icon buttons at every width so the address keeps its room.
-   Names and current state come from aria-label, title and aria-pressed. */
-.tab-controls > .interaction-lock-button { @apply [width:32px] [min-width:32px] justify-center [padding:0]; }
-.interaction-lock-button.page-lifecycle-button.frozen { @apply text-accent-copy border-accent bg-accent-soft; }
+/* The four page toggles share one capsule: icon buttons at every width so the
+   address keeps its room, each with its own pressed state inside it. Names
+   and current state come from aria-label, the tooltip and aria-pressed. */
+.tab-controls > .interaction-lock-button { @apply flex-none [width:32px] [min-width:32px] [height:32px] justify-center [padding:0] [border:0] [border-radius:var(--corner-1)] bg-transparent; }
+.interaction-lock-button.tab-mute-button.muted,
+.interaction-lock-button.page-lifecycle-button.frozen { @apply text-accent-copy bg-accent-soft; }
 
 .interaction-lock-button .state-spinner,
 .all-lock-button .state-spinner,

@@ -147,7 +147,7 @@ const BrowserNavigationControlsStub = defineComponent({
   },
   emits: ['back', 'forward', 'reload', 'stop', 'find', 'toggleZoom', 'toggleBookmarks'],
   setup(_props, { slots }) {
-    return () => h('div', { 'data-testid': 'navigation' }, slots.default?.())
+    return () => h('div', { 'data-testid': 'navigation' }, [slots.default?.(), slots.commands?.()])
   }
 })
 

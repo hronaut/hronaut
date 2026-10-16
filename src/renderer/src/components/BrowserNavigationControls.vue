@@ -40,45 +40,48 @@ function refreshOrStop(): void {
 <template>
   <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
   <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
-  <UiButton appearance="application" class="icon-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
+  <UiButton appearance="application" class="icon-button reload-button" type="button" v-tooltip="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
     <IconStop v-if="activeTab?.loading" aria-hidden="true" />
     <IconRefresh v-else aria-hidden="true" />
   </UiButton>
   <slot />
-  <UiButton appearance="application"
-    class="icon-button find-button"
-    type="button"
-    v-tooltip="t('shell.toolbar.findTitle')"
-    :aria-label="t('shell.toolbar.find')"
-    aria-keyshortcuts="Control+F Meta+F"
-    :disabled="!activeTab"
-    @click="emit('find')"
-  >
-    <IconSearch aria-hidden="true" />
-  </UiButton>
-  <UiButton appearance="application"
-    class="zoom-button"
-    type="button"
-    v-tooltip="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
-    :aria-label="t('shell.toolbar.zoom', { percent: `${activeTab?.zoomPercent ?? 100}%` })"
-    :aria-expanded="zoomOpen"
-    :disabled="!activeTab"
-    @click="emit('toggleZoom')"
-  >
-    {{ activeTab?.zoomPercent ?? 100 }}%
-  </UiButton>
-  <UiButton appearance="application"
-    class="icon-button bookmarks-button"
-    :class="{ bookmarked: currentBookmark }"
-    type="button"
-    v-tooltip="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
-    :aria-label="t('shell.toolbar.bookmarks')"
-    aria-keyshortcuts="Control+D Meta+D"
-    :aria-expanded="bookmarksOpen"
-    :disabled="!activeTab"
-    @click="emit('toggleBookmarks')"
-  >
-    <IconStar v-if="currentBookmark" aria-hidden="true" />
-    <IconStarOutline v-else aria-hidden="true" />
-  </UiButton>
+  <div class="toolbar-commands">
+    <UiButton appearance="application"
+      class="icon-button find-button"
+      type="button"
+      v-tooltip="t('shell.toolbar.findTitle')"
+      :aria-label="t('shell.toolbar.find')"
+      aria-keyshortcuts="Control+F Meta+F"
+      :disabled="!activeTab"
+      @click="emit('find')"
+    >
+      <IconSearch aria-hidden="true" />
+    </UiButton>
+    <UiButton appearance="application"
+      class="zoom-button"
+      type="button"
+      v-tooltip="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
+      :aria-label="t('shell.toolbar.zoom', { percent: `${activeTab?.zoomPercent ?? 100}%` })"
+      :aria-expanded="zoomOpen"
+      :disabled="!activeTab"
+      @click="emit('toggleZoom')"
+    >
+      {{ activeTab?.zoomPercent ?? 100 }}%
+    </UiButton>
+    <UiButton appearance="application"
+      class="icon-button bookmarks-button"
+      :class="{ bookmarked: currentBookmark }"
+      type="button"
+      v-tooltip="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
+      :aria-label="t('shell.toolbar.bookmarks')"
+      aria-keyshortcuts="Control+D Meta+D"
+      :aria-expanded="bookmarksOpen"
+      :disabled="!activeTab"
+      @click="emit('toggleBookmarks')"
+    >
+      <IconStar v-if="currentBookmark" aria-hidden="true" />
+      <IconStarOutline v-else aria-hidden="true" />
+    </UiButton>
+    <slot name="commands" />
+  </div>
 </template>

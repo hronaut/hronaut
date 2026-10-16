@@ -93,7 +93,7 @@
 .site-controls-primary { @apply [border:1px_solid_var(--accent)] text-button-copy bg-accent; }
 .site-controls-panel button:focus-visible, .site-controls-panel select:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
 .tab-controls {
-  @apply flex flex-none items-center [gap:5px];
+  @apply flex flex-none items-center [gap:2px] [padding:2px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface-muted;
 }
 .interaction-lock-button {
   @apply flex [min-width:58px] items-center justify-center [gap:6px] [padding:0_9px] [height:34px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-muted bg-surface-muted [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)] cursor-pointer;
