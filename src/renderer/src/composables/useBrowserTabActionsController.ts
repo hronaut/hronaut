@@ -127,6 +127,15 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     })
   }
 
+  /** Pauses or resumes agents on a tab, judged when its turn in the queue comes, so a quick second request cannot undo the first. */
+  async function setTabAgentPaused(tabId: string, paused: boolean): Promise<void> {
+    await enqueueToggle(`agents:${tabId}`, async () => {
+      const current = options.state.value.tabs.find(candidate => candidate.id === tabId)
+      if (!current || options.state.value.agentControlLocked || (current.agentPaused === true) === paused) return
+      await options.syncState(options.browser.setTabAgentPaused(tabId, paused))
+    })
+  }
+
   async function togglePageLifecycle(tab: BrowserTabState): Promise<void> {
     await enqueueToggle(`lifecycle:${tab.id}`, async () => {
       const current = options.state.value.tabs.find(candidate => candidate.id === tab.id)
@@ -198,6 +207,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     closeTab,
     toggleTabMuted,
     toggleTabAgentPaused,
+    setTabAgentPaused,
     togglePageLifecycle,
     toggleAllTabsMuted,
     toggleTabHumanInteraction,

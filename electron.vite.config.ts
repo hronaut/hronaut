@@ -16,7 +16,8 @@ export default defineConfig({
           index: resolve('src/preload/index.ts'),
           page: resolve('src/preload/page.ts'),
           addressOverlay: resolve('src/preload/address-overlay.ts'),
-          tooltipOverlay: resolve('src/preload/tooltip-overlay.ts')
+          tooltipOverlay: resolve('src/preload/tooltip-overlay.ts'),
+          agentCard: resolve('src/preload/agent-card.ts')
         },
         output: {
           format: 'cjs',
@@ -41,7 +42,8 @@ export default defineConfig({
           videoInspection: resolve('src/renderer/video-inspection.html'),
           home: resolve('src/renderer/src/home.ts'),
           addressOverlay: resolve('src/renderer/address-overlay.html'),
-          tooltipOverlay: resolve('src/renderer/tooltip-overlay.html')
+          tooltipOverlay: resolve('src/renderer/tooltip-overlay.html'),
+          agentCard: resolve('src/renderer/agent-card.html')
         },
         preserveEntrySignatures: 'exports-only'
       }

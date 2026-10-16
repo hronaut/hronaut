@@ -84,6 +84,15 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'C', meta: true, shift: true }))).toBeNull()
   })
 
+  it('opens the agent card with the primary modifier plus period, and nothing else', () => {
+    expect(browserShortcutAction(input({ key: '.', control: true }))).toBe('agent-card')
+    expect(browserShortcutAction(input({ key: '.', meta: true }))).toBe('agent-card')
+    expect(browserShortcutAction(input({ key: '.' }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '.', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '.', control: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '.', control: true, repeat: true }))).toBeNull()
+  })
+
   it('maps standard page zoom shortcuts', () => {
     for (const modifier of [{ control: true }, { meta: true }]) {
       expect(browserShortcutAction(input({ key: '+', shift: true, ...modifier }))).toBe('zoom-in')

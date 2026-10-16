@@ -915,6 +915,8 @@ export interface TabsManagerOptions {
   onUserInteraction?: () => void
   onCredentialSubmitted?: (candidate: BrowserCredentialCandidate) => void
   onShortcutRequested?: (action: BrowserShortcutAction) => void
+  /** A shortcut the browser takes from this tab's page only while true; the page keeps the key otherwise. */
+  shortcutAvailable?: (action: BrowserShortcutAction, workspaceId: string | undefined) => boolean
   copyText: (text: string) => Promise<void>
   copyImageAt: (webContents: WebContents, x: number, y: number) => Promise<void>
   onClipboardCopyFailed?: (error: unknown) => void
@@ -9751,7 +9753,7 @@ export class BrowserTabsManager {
         else if (shortcut === 'pick-element') void this.cancelElementPicker(tab.id).catch(() => undefined)
         return
       }
-      const shortcut = input.type === 'keyDown' ? browserShortcutAction({
+      const requested = input.type === 'keyDown' ? browserShortcutAction({
         key: input.key,
         control: input.control,
         meta: input.meta,
@@ -9763,6 +9765,13 @@ export class BrowserTabsManager {
       // Consume one expected event even on unlocked tabs. An awaited agent
       // operation does not establish the origin of every arriving key event.
       const expectedAgentInput = this.consumeExpectedAgentKeyboardInput(webContents.id, input)
+      // Ctrl+. is also a page's own key, such as an editor's quick fix. It opens the agent card only
+      // when a person presses it while there are agents to show. An agent's debugger keys usually skip
+      // this handler; one that arrives here as expected agent input still reaches the page.
+      const shortcut = requested && (
+        this.options.shortcutAvailable?.(requested, tab.mcpGroupId) === false
+        || (requested === 'agent-card' && expectedAgentInput)
+      ) ? null : requested
       if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
         event.preventDefault()
         if (shortcut) {

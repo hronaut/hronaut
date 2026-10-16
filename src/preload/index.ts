@@ -1,6 +1,7 @@
 import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
 import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
 import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
+import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
 import type { AgentPresenceSnapshot, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
@@ -634,3 +635,14 @@ const agentPresenceApi: HronautAgentPresenceApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautAgentPresence', agentPresenceApi)
+
+const agentCardApi: HronautAgentCardApi = {
+  show: (request) => ipcRenderer.send('agent-card:show', request),
+  hide: (cardId) => ipcRenderer.send('agent-card:hide', cardId),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: AgentCardEvent): void => listener(event)
+    ipcRenderer.on('agent-card:event', handler)
+    return () => ipcRenderer.removeListener('agent-card:event', handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautAgentCard', agentCardApi)

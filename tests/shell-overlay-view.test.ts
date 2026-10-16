@@ -101,6 +101,10 @@ describe('shell overlay view', () => {
     view.present()
     expect(window.contentView.children.at(-1)).toBe(native)
     expect((native as unknown as FakeView).visible).toBe(true)
+    // Already on top, it is not added again: that would take keyboard focus from it.
+    window.contentView.addChildView.mockClear()
+    view.present()
+    expect(window.contentView.addChildView).not.toHaveBeenCalled()
     view.withdraw()
     expect(window.contentView.children).toEqual(['page', 'another page'])
     expect((native as unknown as FakeView).visible).toBe(false)

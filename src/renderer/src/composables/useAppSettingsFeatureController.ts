@@ -309,6 +309,13 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     if (!disposed && currentGeneration === generation) defaultDownloadDirectory.value = directory
   }
 
+  /** Turns Follow on or off, judged against any change still pending, so a quick second request cannot undo the first. */
+  function setFollowAgentActivity(follow: boolean): Promise<AppSettings> {
+    const target = pendingFollowAgentActivityMutations === 0 ? options.settings.value.followAgentActivity : followAgentActivityTarget
+    if (target === follow) return Promise.resolve(options.settings.value)
+    return toggleFollowAgentActivity()
+  }
+
   function toggleFollowAgentActivity(): Promise<AppSettings> {
     if (pendingFollowAgentActivityMutations === 0) {
       followAgentActivityTarget = options.settings.value.followAgentActivity
@@ -385,6 +392,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     walletsController,
     showUpdateStatusPill: updateNoticePresentationController.showStatusPill,
     toggleFollowAgentActivity,
+    setFollowAgentActivity,
     bootstrapTasks,
     dispose
   }

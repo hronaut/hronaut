@@ -67,12 +67,8 @@ test('shows the agents working in the workspace in view, who needs you, and forg
     await cursor.transport.terminateSession()
     await expect(group.getByRole('button', { name: /^Cursor, / })).toHaveCount(0)
 
-    // Clicking an avatar shows the tab that agent last used.
-    const second = parsed(await claude.client.callTool({ name: 'browser_new_tab', arguments: { url: 'data:text/html,<title>Presence two</title><main>Two</main>', active: false } }) as CallToolResult)
-    const secondTabId = (second.tabs as Array<{ id: string }>).find(tab => tab.id !== firstTabId)!.id
-    await expect(claudeAvatar).toHaveAttribute('data-tooltip', 'Claude Code · Opening a new tab')
-    await claudeAvatar.click()
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)')).toBe(secondTabId)
+    // Clicking an avatar opens its card (agent-card.e2e.ts covers the card itself).
+    await expect(claudeAvatar).toHaveAttribute('aria-haspopup', 'dialog')
 
     // An agent that asks for you comes first, with an amber ring, a badge and its reason.
     succeeded(await windsurf.client.callTool({ name: 'browser_request_user_attention', arguments: { tabId: firstTabId, reason: 'Check the total.' } }) as CallToolResult)
@@ -93,11 +89,8 @@ test('shows the agents working in the workspace in view, who needs you, and forg
     // Closing a session that waits for you keeps it until you answer; then it leaves.
     await windsurf.transport.terminateSession()
     await expect(asking).toBeVisible()
-    // Pressing the avatar answers the request and still shows the tab it asked about.
-    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(secondTabId)})`)
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)')).toBe(secondTabId)
-    await asking.click()
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)')).toBe(firstTabId)
+    // Pressing anywhere in the shell answers the request.
+    await appWindow.locator('.address-form input').click()
     await expect.poll(() => appWindow.evaluate('window.hronaut.getUserAttention()')).toBeNull()
     await expect(group.getByRole('button', { name: /^Windsurf/ })).toHaveCount(0)
     await expect(group.getByRole('button', { name: /^Claude Code, / })).toBeVisible()

@@ -1332,9 +1332,11 @@ export const deDE = {
       "states": {
         "idle": "inaktiv",
         "working": "arbeitet",
-        "needsYou": "wartet auf Sie"
+        "needsYou": "wartet auf Sie",
+        "gone": "getrennt"
       },
       "tooltip": "{name} · {step}",
+      "gone": "{name} · Getrennt",
       "idle": "{name} · Inaktiv",
       "needsYou": "{name} · Wartet auf Sie",
       "needsYouReason": "{name} · Wartet auf Sie: {reason}",
@@ -1361,6 +1363,52 @@ export const deDE = {
         "askYou": "Bittet Sie um Hilfe",
         "inspect": "Untersucht die Seite",
         "working": "Arbeitet"
+      }
+    },
+    "agentCard": {
+      "label": "{name}, Agentendetails",
+      "connected": "Über MCP verbunden · {workspace}",
+      "states": {
+        "idle": "Inaktiv",
+        "working": "Arbeitet",
+        "needsYou": "Wartet auf Sie",
+        "gone": "Getrennt"
+      },
+      "reason": "Warum er Sie braucht",
+      "now": "Jetzt",
+      "nowIdle": "Wartet auf den nächsten Schritt",
+      "gone": "Nicht mehr mit diesem Arbeitsbereich verbunden",
+      "recent": "Letzte Schritte",
+      "noSteps": "Noch keine abgeschlossenen Schritte",
+      "stepFailed": "{step}, fehlgeschlagen",
+      "follow": "Agenten in allen Arbeitsbereichen folgen",
+      "showTab": "Seinen Tab zeigen",
+      "pause": "Auf diesem Tab pausieren",
+      "resume": "Auf diesem Tab fortsetzen",
+      "takeOver": "Übernehmen",
+      "close": "Schließen",
+      "steps": {
+        "click": "Hat auf die Seite geklickt",
+        "type": "Hat getippt",
+        "fillForm": "Hat ein Formular ausgefüllt",
+        "choose": "Hat eine Option gewählt",
+        "pressKey": "Hat eine Taste gedrückt",
+        "hover": "Hat auf die Seite gezeigt",
+        "scroll": "Hat die Seite gescrollt",
+        "drag": "Hat ein Element gezogen",
+        "navigate": "Hat eine Seite geöffnet",
+        "history": "Ist zurück oder vor gegangen",
+        "openTab": "Hat einen neuen Tab geöffnet",
+        "switchTab": "Hat den Tab gewechselt",
+        "closeTab": "Hat einen Tab geschlossen",
+        "read": "Hat die Seite gelesen",
+        "screenshot": "Hat einen Screenshot erstellt",
+        "wait": "Hat auf die Seite gewartet",
+        "script": "Hat ein Skript auf der Seite ausgeführt",
+        "upload": "Hat eine Datei hochgeladen",
+        "askYou": "Hat Sie um Hilfe gebeten",
+        "inspect": "Hat die Seite untersucht",
+        "working": "Hat einen Schritt erledigt"
       }
     },
     "siteControls": {

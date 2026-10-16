@@ -177,6 +177,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     expandTabGroup: (groupId: string) => void
     togglePageTools: () => unknown
     toggleDeveloperTools: () => void | Promise<void>
+    /** Opens the agent card for the workspace in view; nothing happens when it has no agents. */
+    openAgentCard?: () => unknown
   }
   actions: {
     closeTransientPanels: (options?: TransientPanelsCloseOptions) => void
@@ -307,7 +309,8 @@ export function useAppShellInteractionFeatureController(
     settingsTabOpen: surfaces.settings.tabOpen,
     openSettings: () => { surfaces.settings.activate?.() },
     closeSettingsTab: surfaces.settings.closeTab,
-    canRunAction: (action) => action !== 'pick-element' || !(
+    // A card or a picker over an open dialog would fight it for focus.
+    canRunAction: (action) => (action !== 'pick-element' && action !== 'agent-card') || !(
       transient.commandPaletteOpen.value
       || transient.workspaceEditorOpen.value
       || transient.credentialPickerOpen.value
@@ -325,6 +328,7 @@ export function useAppShellInteractionFeatureController(
     toggleCommandPalette: commandPalette.toggle,
     toggleElementPicker: () => features.pageTools.toggleElementPicker('context'),
     toggleDeveloperTools: navigation.toggleDeveloperTools,
+    ...(navigation.openAgentCard ? { openAgentCard: async () => { await navigation.openAgentCard?.() } } : {}),
     onError: actions.reportShortcutError
   })
   runShortcutFromPalette = browserShortcuts.run

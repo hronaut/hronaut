@@ -550,7 +550,8 @@ const {
     },
     expandTabGroup: (groupId) => browserChromeLayer.value?.expandTabGroup(groupId),
     togglePageTools,
-    toggleDeveloperTools
+    toggleDeveloperTools,
+    openAgentCard: () => browserChromeLayer.value?.openAgentCard()
   },
   actions: {
     closeTransientPanels,

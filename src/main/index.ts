@@ -7,6 +7,15 @@ import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import { ShellOverlayView } from './shell-overlay-view.js'
+import { AgentCardOverlay, type AgentCardSurface } from './agent-card-overlay.js'
+import {
+  parseAgentCardMeasurement,
+  parseAgentCardShowRequest,
+  parseAgentCardViewMessage,
+  validAgentCardId,
+  type AgentCardEvent,
+  type AgentCardShowRequest
+} from '../shared/agent-card.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -39,6 +48,7 @@ import {
   shell,
   Tray,
   WebContentsView,
+  webContents as allWebContents,
   type MessageBoxOptions,
   type NativeImage,
   type Session,
@@ -250,6 +260,36 @@ const tooltipView = new ShellOverlayView({
   window: () => mainWindow,
   urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
   onLost: () => shellTooltips.surfaceLost()
+})
+const agentCardView = new ShellOverlayView({
+  name: 'agent card',
+  preload: join(__dirname, '../preload/agentCard.cjs'),
+  url: () => trustedAgentCardUrl(),
+  window: () => mainWindow,
+  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
+  onLost: () => agentCards.surfaceLost()
+})
+let shellFollowAgentActivitySuspended = false
+let agentCardOpen = false
+const agentCards = new AgentCardOverlay({
+  surface: () => ensureAgentCardSurface(),
+  windowSize: () => {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || mainWindow.isMinimized()) return null
+    const [width = 0, height = 0] = mainWindow.getContentSize()
+    return { width, height }
+  },
+  emit: (event: AgentCardEvent) => {
+    if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('agent-card:event', event)
+  },
+  focusShell: () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.focus()
+  },
+  openChanged: (open) => {
+    agentCardOpen = open
+    // Follow would switch tabs under the open card.
+    tabsManager?.setFollowAgentActivitySuspended(shellFollowAgentActivitySuspended || agentCardOpen)
+  },
+  focusOwner: () => allWebContents.getFocusedWebContents()?.id ?? null
 })
 const shellTooltips = new ShellTooltipOverlay({
   surface: () => ensureTooltipSurface(),
@@ -1753,6 +1793,38 @@ function assertAddressOverlaySender(event: Electron.IpcMainEvent): void {
   }
 }
 
+function trustedAgentCardUrl(): string {
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+    return new URL('agent-card.html', trustedShellUrl()).href
+  }
+  return pathToFileURL(join(__dirname, '../renderer/agent-card.html')).href
+}
+
+function assertAgentCardSender(event: Electron.IpcMainEvent): void {
+  if (!agentCardView.isSender(event)) throw new Error('Rejected IPC from a non-agent-card renderer')
+}
+
+/** One transparent view, created on the first agent card, draws the card above the page views. */
+const agentCardBlurWatched = new WeakSet<Electron.WebContents>()
+
+async function ensureAgentCardSurface(): Promise<AgentCardSurface> {
+  const { view, webContents } = await agentCardView.ensure()
+  if (!agentCardBlurWatched.has(webContents)) {
+    agentCardBlurWatched.add(webContents)
+    webContents.on('blur', () => agentCards.blurred())
+  }
+  return {
+    send: (state) => { if (!webContents.isDestroyed()) webContents.send('agent-card-view:state', state) },
+    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
+    setBounds: (bounds) => view.setBounds(bounds),
+    present: () => agentCardView.present(),
+    withdraw: () => agentCardView.withdraw(),
+    focus: () => { if (!webContents.isDestroyed()) webContents.focus() },
+    isFocused: () => !webContents.isDestroyed() && webContents.isFocused(),
+    isDestroyed: () => webContents.isDestroyed()
+  }
+}
+
 function trustedTooltipOverlayUrl(): string {
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
     return new URL('tooltip-overlay.html', trustedShellUrl()).href
@@ -2229,6 +2301,36 @@ function registerIpc(): void {
     assertMainShellSender(event)
     if (id !== undefined && !(Number.isSafeInteger(id) && (id as number) > 0)) throw new TypeError('Invalid tooltip id')
     shellTooltips.hide(id as number | undefined)
+  })
+  ipcMain.on('agent-card:show', (event, value: unknown) => {
+    if (workspaceStartupFailure) return
+    assertMainShellSender(event)
+    let request: AgentCardShowRequest
+    try {
+      request = parseAgentCardShowRequest(value)
+    } catch (error) {
+      // Nothing outside the contract is drawn; the shell hears the card closed and resets its avatar.
+      const cardId = value && typeof value === 'object' ? (value as { cardId?: unknown }).cardId : undefined
+      if (validAgentCardId(cardId)) agentCards.refused(cardId)
+      throw error
+    }
+    agentCards.show(request, event.sender.getZoomFactor())
+  })
+  ipcMain.on('agent-card:hide', (event, cardId: unknown) => {
+    if (workspaceStartupFailure) return
+    assertMainShellSender(event)
+    if (!validAgentCardId(cardId)) throw new TypeError('Invalid agent card id')
+    agentCards.hide(cardId)
+  })
+  ipcMain.on('agent-card-view:measured', (event, value: unknown) => {
+    assertAgentCardSender(event)
+    const measurement = parseAgentCardMeasurement(value)
+    if (measurement) agentCards.measured(measurement)
+  })
+  ipcMain.on('agent-card-view:message', (event, value: unknown) => {
+    assertAgentCardSender(event)
+    const message = parseAgentCardViewMessage(value)
+    if (message) agentCards.received(message)
   })
   ipcMain.on('tooltip-overlay:measured', (event, value: unknown) => {
     assertTooltipOverlaySender(event)
@@ -3728,7 +3830,8 @@ function registerIpc(): void {
     if (workspaceStartupFailure) return
     assertMainShellSender(event)
     if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')
-    tabsManager?.setFollowAgentActivitySuspended(suspended)
+    shellFollowAgentActivitySuspended = suspended
+    tabsManager?.setFollowAgentActivitySuspended(shellFollowAgentActivitySuspended || agentCardOpen)
   })
 }
 
@@ -3886,6 +3989,8 @@ async function createWindow(startMinimized = false): Promise<void> {
         console.error('[audit] Failed to finalize receipts for a closed workspace.')
       })
     },
+    shortcutAvailable: (action, workspaceId) => action !== 'agent-card'
+      || (workspaceId !== undefined && (agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0),
     onShortcutRequested: (action) => {
       if (mainWindow && !mainWindow.webContents.isDestroyed()) {
         // The page WebContentsView owns native focus when a website shortcut is
@@ -3904,6 +4009,8 @@ async function createWindow(startMinimized = false): Promise<void> {
       reconcileUserAttention(state)
       sendToPanelWindow('browser:state-changed', state)
       scheduleAgentPresencePublish()
+      // A page view attached meanwhile goes on top of the card's view; put the card back above it.
+      agentCards.restack()
     },
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
     confirmBeforeUnloadClose: async () => {
@@ -3948,17 +4055,21 @@ async function createWindow(startMinimized = false): Promise<void> {
     tabsManager?.cancelSplitDivider()
     clearWindowControlsScrim()
     shellTooltips.hide()
+    agentCards.shellReset()
   })
   // A new shell document has no dialog open, whatever the previous one reported.
   mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) {
       clearWindowControlsScrim()
       shellTooltips.hide()
+      agentCards.shellReset()
     }
   })
   // A tooltip belongs beside a control that just moved, or in a window that is no longer in front.
   for (const change of ['blur', 'resize', 'minimize', 'hide', 'enter-full-screen', 'leave-full-screen'] as const) {
     mainWindow.on(change as 'blur', () => shellTooltips.hide())
+    // The card belongs under an avatar that may have moved, in a window that is in front.
+    mainWindow.on(change as 'blur', () => agentCards.dismiss())
   }
   mainWindow.on('resize', () => tabsManager?.layout())
   mainWindow.on('resize', scheduleWindowStateSave)
@@ -3992,6 +4103,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     addressSuggestionOverlayDismissalPending = false
     shellTooltips.hide()
     tooltipView.close()
+    agentCards.hide()
+    agentCardView.close()
     windowControlsScrim = null
     mainWindow = null
   })

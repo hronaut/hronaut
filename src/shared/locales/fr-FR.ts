@@ -1332,9 +1332,11 @@ export const frFR = {
       "states": {
         "idle": "inactif",
         "working": "au travail",
-        "needsYou": "vous attend"
+        "needsYou": "vous attend",
+        "gone": "déconnecté"
       },
       "tooltip": "{name} · {step}",
+      "gone": "{name} · Déconnecté",
       "idle": "{name} · Inactif",
       "needsYou": "{name} · Vous attend",
       "needsYouReason": "{name} · Vous attend : {reason}",
@@ -1361,6 +1363,52 @@ export const frFR = {
         "askYou": "Vous demande de l’aide",
         "inspect": "Inspecte la page",
         "working": "Travaille"
+      }
+    },
+    "agentCard": {
+      "label": "{name}, détails de l’agent",
+      "connected": "Connecté via MCP · {workspace}",
+      "states": {
+        "idle": "Inactif",
+        "working": "Au travail",
+        "needsYou": "Vous attend",
+        "gone": "Déconnecté"
+      },
+      "reason": "Pourquoi il vous attend",
+      "now": "Maintenant",
+      "nowIdle": "Attend sa prochaine étape",
+      "gone": "N’est plus connecté à cet espace de travail",
+      "recent": "Étapes récentes",
+      "noSteps": "Aucune étape terminée pour l’instant",
+      "stepFailed": "{step}, échec",
+      "follow": "Suivre les agents dans tous les espaces",
+      "showTab": "Afficher son onglet",
+      "pause": "Mettre en pause sur cet onglet",
+      "resume": "Reprendre sur cet onglet",
+      "takeOver": "Prendre la main",
+      "close": "Fermer",
+      "steps": {
+        "click": "A cliqué sur la page",
+        "type": "A saisi du texte",
+        "fillForm": "A rempli un formulaire",
+        "choose": "A choisi une option",
+        "pressKey": "A appuyé sur une touche",
+        "hover": "A pointé sur la page",
+        "scroll": "A fait défiler la page",
+        "drag": "A fait glisser un élément",
+        "navigate": "A ouvert une page",
+        "history": "Est revenu en arrière ou a avancé",
+        "openTab": "A ouvert un nouvel onglet",
+        "switchTab": "A changé d’onglet",
+        "closeTab": "A fermé un onglet",
+        "read": "A lu la page",
+        "screenshot": "A pris une capture d’écran",
+        "wait": "A attendu la page",
+        "script": "A exécuté un script sur la page",
+        "upload": "A envoyé un fichier",
+        "askYou": "Vous a demandé de l’aide",
+        "inspect": "A inspecté la page",
+        "working": "A terminé une étape"
       }
     },
     "siteControls": {
