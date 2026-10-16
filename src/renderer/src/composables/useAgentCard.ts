@@ -111,6 +111,9 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
   }
 }
 
+// An approval's steps the card shows; the workspace shows them all.
+const PLAN_SHOWN = 4
+
 /** How you answer the request in the card: plain requests directly; decisions as their kind allows. */
 function reasonAnswers(requestId: string, context: AgentCardContext, t: Translate): { answers: AgentCardButton[]; decision?: AgentCardDecision } {
   if (!context.attentionDecision) {
@@ -143,6 +146,7 @@ function reasonAnswers(requestId: string, context: AgentCardContext, t: Translat
     key,
     ...(check?.status === 'confirm' ? {
       check: {
+        id: check.token,
         text: fitAgentCardText(check.reasons.length
           ? t('shell.agentCard.checked', { reasons: check.reasons.map((reason) => t(`workspaceContinuity.reasons.${reason}`)).join(' · ') })
           : t('shell.agentCard.checkedPage')),
@@ -171,22 +175,25 @@ function reasonAnswers(requestId: string, context: AgentCardContext, t: Translat
     }
   }
   if (decision.decision === 'provide-input') {
+    // While the page is read again the field stays, so what you typed stays in view; Send waits for the reading.
+    const checking = check?.status === 'checking'
     return {
       answers: [inWorkspace],
       decision: {
         ...result,
-        ...(completes ? {
+        ...(completes || checking ? {
           field: {
             label: t('humanWaiting.answerLabel'),
             required: true,
-            send: { action: 'answer-resolve', label: t('shell.agentCard.send'), key, ...(needsCheck ? { needsCheck: true } : {}) }
+            send: { action: 'answer-resolve', label: t('shell.agentCard.send'), key, ...(needsCheck ? { needsCheck: true } : {}), ...(checking ? { disabled: true } : {}) }
           }
         } : {})
       }
     }
   }
   // An approval is made in the workspace, where its exact details are; the card shows what it would do and can reject it.
-  const steps = (decision.steps ?? []).slice(0, 4).map((step) => {
+  const planned = decision.steps ?? []
+  const steps = planned.slice(0, PLAN_SHOWN).map((step) => {
     const reversibility = t(`humanWaiting.review.reversibilities.${step.reversibility}`)
     return {
       text: fitAgentCardText(step.representation === 'bounded-description' && step.description ? step.description : t('humanWaiting.review.visibleOnly'), AGENT_CARD_PLAN_TEXT_LIMIT),
@@ -197,7 +204,13 @@ function reasonAnswers(requestId: string, context: AgentCardContext, t: Translat
     answers: [{ action: 'review-decision', label: t('shell.agentCard.reviewAndApprove'), key: requestId }],
     decision: {
       ...result,
-      ...(steps.length ? { plan: { heading: t('shell.agentCard.whatItWillDo'), steps } } : {}),
+      ...(steps.length ? {
+        plan: {
+          heading: t('shell.agentCard.whatItWillDo'),
+          steps,
+          ...(planned.length > PLAN_SHOWN ? { more: t('shell.agentCard.moreSteps', { count: planned.length - PLAN_SHOWN }) } : {})
+        }
+      } : {}),
       field: {
         label: t('shell.agentCard.rejectReason'),
         required: false,

@@ -77,7 +77,7 @@ describe('agent card content', () => {
 
   describe('a decision answered in the card', () => {
     const asking = agent({ state: 'needs-you', step: 'askYou' })
-    const unknown = { status: 'confirm' as const, reasons: ['CHECKPOINT_UNAVAILABLE' as const, 'PRIOR_WRITE_OUTCOME_UNKNOWN' as const], unknownOutcome: true }
+    const unknown = { status: 'confirm' as const, reasons: ['CHECKPOINT_UNAVAILABLE' as const, 'PRIOR_WRITE_OUTCOME_UNKNOWN' as const], unknownOutcome: true, token: 'check-7' }
     function decide(decision: NonNullable<AgentCardContext['decision']>) {
       const card = agentCardModel(asking, context({ attentionReason: 'Human decision required: x', attentionId: 'attention-2', attentionDecision: true, decision }), t)
       // What the shell builds is what main accepts.
@@ -96,6 +96,7 @@ describe('agent card content', () => {
         id: 'd1',
         key: 'd1_r1',
         check: {
+          id: 'check-7',
           text: 'Hronaut checked this page: Checkpoint unavailable · Earlier action outcome remains unknown.',
           confirm: 'I reviewed the page and understand that the earlier action may already have taken effect.'
         },
@@ -104,8 +105,8 @@ describe('agent card content', () => {
       // Nothing to confirm: the answer is free. A stale reading asks only to confirm the page.
       expect(decide({ key: 'd1_r1', id: 'd1', revision: 'r1', decision: 'review-page', check: { status: 'clear', reasons: [] }, phase: 'idle' }).answers?.[0])
         .toEqual({ action: 'answer-resolve', label: 'Looks good, hand back', key: 'd1_r1' })
-      expect(decide({ key: 'd1_r1', id: 'd1', revision: 'r1', decision: 'review-page', check: { status: 'confirm', reasons: [], unknownOutcome: false }, phase: 'idle' }).decision?.check)
-        .toEqual({ text: 'Hronaut checked this page.', confirm: 'I looked at the page as it is now.' })
+      expect(decide({ key: 'd1_r1', id: 'd1', revision: 'r1', decision: 'review-page', check: { status: 'confirm', reasons: [], unknownOutcome: false, token: 'check-8' }, phase: 'idle' }).decision?.check)
+        .toEqual({ id: 'check-8', text: 'Hronaut checked this page.', confirm: 'I looked at the page as it is now.' })
     })
 
     it('offers no hand back while the page is being checked or cannot be checked here', () => {
@@ -116,6 +117,10 @@ describe('agent card content', () => {
       expect(unavailable.answers?.map((answer) => answer.action)).toEqual(['review-decision'])
       expect(unavailable.decision?.field).toBeUndefined()
       expect(unavailable.decision?.status).toEqual({ text: 'Hronaut can’t check this page from here. Open it in the workspace to answer.' })
+      // Reading the page again keeps the input field and what you typed in it, with Send waiting.
+      const rechecking = decide({ key: 'd2_r2', id: 'd2', revision: 'r2', decision: 'provide-input', check: { status: 'checking' }, phase: 'failed' })
+      expect(rechecking.decision?.field?.send).toEqual({ action: 'answer-resolve', label: 'Send', key: 'd2_r2', disabled: true })
+      expect(rechecking.decision?.status).toEqual({ text: 'That didn’t go through. Try again, or open it in the workspace.', alert: true })
     })
 
     it('asks for the input the agent needs, and says how sending went', () => {
@@ -128,7 +133,7 @@ describe('agent card content', () => {
         [{ text: 'Sending…' }, true],
         [{ text: 'Sent to the agent' }, true],
         [{ text: 'That didn’t go through. Try again, or open it in the workspace.', alert: true }, undefined],
-        [{ text: 'The page changed since Hronaut checked it. Look again, then confirm.', alert: true }, undefined]
+        [{ text: 'Confirm the page again: it changed, or more than 30 seconds passed since you confirmed it.', alert: true }, undefined]
       ])
     })
 
@@ -142,6 +147,7 @@ describe('agent card content', () => {
       expect(reason.answers).toEqual([{ action: 'review-decision', label: 'Review and approve', key: 'attention-2' }])
       expect(reason.decision?.plan?.heading).toBe('What it will do')
       expect(reason.decision?.plan?.steps).toHaveLength(4)
+      expect(reason.decision?.plan?.more).toBe('+1 more, shown in the workspace')
       expect(reason.decision?.plan?.steps.slice(0, 2)).toEqual([
         { text: 'Submit the order', detail: 'Irreversible · https://shop.example' },
         { text: 'The mutation cannot be represented safely as text. Inspect the visible browser before deciding.', detail: 'Unknown' }
@@ -209,7 +215,7 @@ describe('agent card content', () => {
       'label', 'connected', 'states.idle', 'states.working', 'states.needsYou', 'states.gone', 'reason', 'now', 'nowIdle', 'gone',
       'recent', 'noSteps', 'stepFailed', 'follow', 'cursor', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
       'openDecision', 'looksGood', 'somethingWrong', 'whatToFix', 'sendBack', 'send', 'reviewAndApprove', 'whatItWillDo', 'stepDetail', 'rejectToggle',
-      'rejectReason', 'reject', 'checked', 'checkedPage', 'confirmPage', 'checking', 'checkUnavailable', 'answerSending', 'answerSent', 'answerFailed', 'answerChanged',
+      'rejectReason', 'reject', 'checked', 'checkedPage', 'confirmPage', 'checking', 'checkUnavailable', 'answerSending', 'answerSent', 'answerFailed', 'answerChanged', 'moreSteps',
       'decisionReasons.review-page', 'decisionReasons.provide-input', 'decisionReasons.approve-action', 'decisionReasons.resolve-unknown',
       ...AGENT_STEP_KINDS.map((kind) => `steps.${kind}`)
     ].map((key) => `shell.agentCard.${key}`)
@@ -221,6 +227,7 @@ describe('agent card content', () => {
       }
       expect(i18n.t('shell.agentCard.checked', { reasons: 'Zreasons' }), locale).toContain('Zreasons')
       expect(i18n.t('shell.agentCard.stepDetail', { reversibility: 'Zrev', origin: 'Zorigin' }), locale).toMatch(/Zrev.*Zorigin/u)
+      expect(i18n.t('shell.agentCard.moreSteps', { count: 9 }), locale).toContain('9')
       for (const key of AGENT_STEP_TARGET_KINDS.map((kind) => `shell.agentCard.targetSteps.${kind}`)) {
         expect(i18n.te(key, locale), `${locale} ${key}`).toBe(true)
         expect(i18n.t(key, { target: 'Ztarget' }), `${locale} ${key}`).toContain('Ztarget')

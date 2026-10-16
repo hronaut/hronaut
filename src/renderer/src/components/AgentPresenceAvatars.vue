@@ -226,10 +226,11 @@ watch(() => props.workspaceId, () => card.close())
 function run(clientKey: string, action: AgentCardAction, key?: string, note?: string): void {
   const agent = agentByKey(clientKey)
   const tab = agent && (openTab(cardTabId) ?? openTab(target(agent)))
-  if (action === 'answer-resolve' || action === 'answer-reject') {
+  if (action === 'answer-check' || action === 'answer-resolve' || action === 'answer-reject') {
     // The decision checks the key against the revision the card showed.
     if (!key || !props.attentionDecision || agent?.state !== 'needs-you' || gone(agent)) return
-    void decisionAnswers.answer(key, action === 'answer-resolve' ? 'resolve' : 'reject', note)
+    if (action === 'answer-check') decisionAnswers.confirm(key)
+    else void decisionAnswers.answer(key, action === 'answer-resolve' ? 'resolve' : 'reject', note)
     return
   }
   if (action === 'follow-on' || action === 'follow-off') {

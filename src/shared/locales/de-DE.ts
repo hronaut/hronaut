@@ -1410,7 +1410,7 @@ export const deDE = {
       "dismiss": "Hinweis schließen",
       "reviewDecision": "Entscheidung prüfen",
       "openDecision": "Im Arbeitsbereich öffnen",
-      "looksGood": "Passt, zurückgeben",
+      "looksGood": "Alles in Ordnung, zurückgeben",
       "somethingWrong": "Stimmt etwas nicht?",
       "whatToFix": "Was soll der Agent beheben? (optional)",
       "sendBack": "Zurückschicken",
@@ -1429,7 +1429,8 @@ export const deDE = {
       "answerSending": "Wird gesendet…",
       "answerSent": "An den Agenten gesendet",
       "answerFailed": "Das hat nicht geklappt. Versuchen Sie es erneut oder öffnen Sie es im Arbeitsbereich.",
-      "answerChanged": "Die Seite hat sich seit der Prüfung geändert. Sehen Sie sie sich erneut an und bestätigen Sie dann.",
+      "answerChanged": "Bestätigen Sie die Seite erneut: Sie hat sich geändert, oder seit Ihrer Bestätigung sind mehr als 30 Sekunden vergangen.",
+      "moreSteps": "+{count} weitere, im Arbeitsbereich zu sehen",
       "decisionReasons": {
         "review-page": "Sehen Sie sich die Seite an und geben Sie sie zurück oder sagen Sie dem Agenten, was er beheben soll.",
         "provide-input": "Der Agent braucht Ihre Antwort, um weiterzumachen.",

@@ -360,16 +360,20 @@ async function inCard<T>(electronApp: ElectronApplication, script: string): Prom
 /** Types into the card's answer field as a person would, then optionally sends it with Ctrl or Cmd and Enter. */
 async function typeInCard(electronApp: ElectronApplication, text: string, send = false): Promise<void> {
   await inCard(electronApp, 'document.querySelector(\'[data-focus="answer-note"]\').focus()')
-  await electronApp.evaluate(({ BrowserWindow }, { text, send }) => {
+  const typing = async (action: 'insert' | 'send') => electronApp.evaluate(async ({ BrowserWindow }, { text, action }) => {
     const view = BrowserWindow.getAllWindows()[0]!.contentView.children.find((child) => (
       'webContents' in child && (child as Electron.WebContentsView).webContents.getURL().endsWith('agent-card.html')
     )) as Electron.WebContentsView
-    view.webContents.insertText(text)
-    if (!send) return
+    if (action === 'insert') return view.webContents.insertText(text)
     const modifiers = process.platform === 'darwin' ? ['meta'] as const : ['control'] as const
     view.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return', modifiers: [...modifiers] })
     view.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return', modifiers: [...modifiers] })
-  }, { text, send })
+  }, { text, action })
+  await typing('insert')
+  if (!send) return
+  // Inserted text and key events reach the page on separate routes; send only once the text is in the field.
+  await expect.poll(() => inCard<string>(electronApp, 'document.querySelector(\'[data-focus="answer-note"]\').value')).toMatch(new RegExp(`${text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`, 'u'))
+  await typing('send')
 }
 
 type DecisionCard = { reason: string; check: string | null; confirm: boolean; enabled: string[]; field: boolean; plan: string[]; status: string | null }

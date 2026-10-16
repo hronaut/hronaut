@@ -10,7 +10,7 @@ import {
   type AgentCardSwitch,
   type AgentCardViewMessage
 } from '../../shared/agent-card.js'
-import { HUMAN_WAITING_NOTE_LIMIT } from '../../shared/human-waiting.js'
+import { HUMAN_WAITING_NOTE_LIMIT, normalizeHumanWaitingNote } from '../../shared/human-waiting.js'
 
 interface HronautAgentCardViewApi {
   onState(listener: (state: AgentCardState) => void): () => void
@@ -42,7 +42,7 @@ let currentCardId = 0
 let currentRevision = 0
 let reported = ''
 
-/** What you did in a decision's answer before sending it: the box ticked for a check's exact text, the field opened, what you typed. */
+/** What you did in a decision's answer before sending it: the box ticked for one reading of the page, the field opened, what you typed. */
 interface Draft {
   checkedFor?: string
   open: boolean
@@ -50,6 +50,23 @@ interface Draft {
 }
 // Kept per decision while its card is open, so an update of the card keeps them; a new card starts empty.
 const drafts = new Map<string, Draft>()
+
+// How sending goes is announced from two regions that outlive the card's updates, so each change is read once.
+function liveRegion(role: 'status' | 'alert'): HTMLElement {
+  const node = element('div', 'agent-card-live')
+  node.setAttribute('role', role)
+  document.body.append(node)
+  return node
+}
+const politeRegion = liveRegion('status')
+const alertRegion = liveRegion('alert')
+
+function announce(status?: { text: string; alert?: boolean }): void {
+  const [region, other] = status?.alert ? [alertRegion, politeRegion] : [politeRegion, alertRegion]
+  if (other.textContent) other.textContent = ''
+  const text = status?.text ?? ''
+  if (region.textContent !== text) region.textContent = text
+}
 
 function draftOf(id: string): Draft {
   let draft = drafts.get(id)
@@ -142,6 +159,7 @@ function decisionContent(cardId: number, decision: AgentCardDecision, answers: r
     }
     const plan = element('div', 'agent-card-plan-section')
     plan.append(element('p', 'agent-card-plan-heading', decision.plan.heading), list)
+    if (decision.plan.more) plan.append(element('p', 'agent-card-plan-more', decision.plan.more))
     content.push(plan)
   }
 
@@ -153,11 +171,13 @@ function decisionContent(cardId: number, decision: AgentCardDecision, answers: r
     checkbox = element('input', '')
     checkbox.type = 'checkbox'
     checkbox.dataset.focus = 'answer-check'
-    // A tick confirms the page as this text described it; a new check needs a new tick.
-    checkbox.checked = draft.checkedFor === check.text
+    // A tick confirms the page as Hronaut read it this time, and asks it to read the page again at that moment;
+    // a new reading needs a new tick.
+    checkbox.checked = draft.checkedFor === check.id
     checkbox.disabled = decision.busy === true
     checkbox.addEventListener('change', () => {
-      draft.checkedFor = checkbox!.checked ? check.text : undefined
+      draft.checkedFor = checkbox!.checked ? check.id : undefined
+      if (checkbox!.checked) send({ cardId, kind: 'action', action: 'answer-check', key: decision.key })
       update()
     })
     label.append(checkbox, element('span', '', check.confirm))
@@ -229,8 +249,8 @@ function decisionContent(cardId: number, decision: AgentCardDecision, answers: r
   if (fieldBox && field?.toggle) content.push(fieldBox)
 
   if (decision.status) {
+    // Shown here; screen readers hear it from the live regions.
     const status = element('p', 'agent-card-status', decision.status.text)
-    status.setAttribute('role', decision.status.alert ? 'alert' : 'status')
     if (decision.status.alert) status.dataset.alert = 'true'
     content.push(status)
   }
@@ -240,7 +260,8 @@ function decisionContent(cardId: number, decision: AgentCardDecision, answers: r
     for (const { node, button, typed } of gated) {
       node.disabled = button.disabled === true || decision.busy === true
         || (button.needsCheck === true && !checked)
-        || (typed === true && decision.field?.required === true && !draft.note.trim())
+        // An answer of only spaces or invisible characters is no answer.
+        || (typed === true && decision.field?.required === true && !normalizeHumanWaitingNote(draft.note))
     }
   }
   update()
@@ -338,12 +359,16 @@ function render(state: AgentCardState): void {
   const focusedClose = !opening && active?.classList.contains('agent-card-close') === true
   const focusedCard = !opening && active === previous
   const scrollTop = opening ? 0 : previous?.scrollTop ?? 0
-  if (opening) drafts.clear()
+  if (opening) {
+    drafts.clear()
+    announce()
+  }
   currentCardId = state.cardId
   currentRevision = state.revision
-  // Only the decision the card shows keeps a draft.
+  // Another decision in the card drops the draft of the one before; a card briefly without it keeps the draft.
   const decisionId = state.model.reason?.decision?.id
-  for (const id of [...drafts.keys()]) if (id !== decisionId) drafts.delete(id)
+  if (decisionId) for (const id of [...drafts.keys()]) if (id !== decisionId) drafts.delete(id)
+  announce(state.model.reason?.decision?.status)
   document.documentElement.dataset.theme = state.theme
   const card = build(state.cardId, state.model, () => measure(state.cardId, state.revision, card))
   if (opening) card.dataset.opening = 'true'

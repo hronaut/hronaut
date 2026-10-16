@@ -68,8 +68,8 @@ describe('agent card contracts', () => {
     const decision = {
       id: 'decision-1',
       key: 'decision-1_revision-1',
-      plan: { heading: 'What it will do', steps: [{ text: 'd'.repeat(512), detail: 'Irreversible · https://shop.example' }] },
-      check: { text: 'Hronaut checked this page.', confirm: 'I looked at the page as it is now.' },
+      plan: { heading: 'What it will do', steps: [{ text: 'd'.repeat(512), detail: 'Irreversible · https://shop.example' }], more: '+2 more, shown in the workspace' },
+      check: { id: 'check-1', text: 'Hronaut checked this page.', confirm: 'I looked at the page as it is now.' },
       field: { label: 'Reason (optional)', required: false, toggle: 'Reject…', send: { action: 'answer-reject' as const, label: 'Reject', key: 'decision-1_revision-1' } },
       status: { text: 'That didn’t go through.', alert: true },
       busy: true
@@ -84,7 +84,10 @@ describe('agent card contracts', () => {
       { ...decision, plan: { heading: 'What', steps: [] } },
       { ...decision, plan: { heading: 'What', steps: Array.from({ length: 5 }, () => step) } },
       { ...decision, plan: { heading: 'What', steps: [{ ...step, text: 'd'.repeat(513) }] } },
-      { ...decision, check: { text: 'Checked' } },
+      { ...decision, check: { id: 'check-1', text: 'Checked' } },
+      // A tick confirms one reading, named by its id.
+      { ...decision, check: { ...decision.check, id: undefined } },
+      { ...decision, plan: { ...decision.plan, more: '' } },
       // A field sends only an answer, and only for the decision it belongs to.
       { ...decision, field: { ...decision.field, send: { ...decision.field.send, action: 'take-over' } } },
       { ...decision, field: { ...decision.field, send: { ...decision.field.send, key: 'decision-2_revision-1' } } },
@@ -100,7 +103,11 @@ describe('agent card contracts', () => {
       .toEqual({ cardId: 2, kind: 'action', action: 'answer-reject', key: 'decision-1_revision-1', note: 'Wrong total\nfix it' })
     expect(parseAgentCardViewMessage({ cardId: 2, kind: 'action', action: 'answer-resolve', key: 'decision-1_revision-1', note: '   ' }))
       .toEqual({ cardId: 2, kind: 'action', action: 'answer-resolve', key: 'decision-1_revision-1' })
+    // A tick carries the decision's key and nothing else.
+    expect(parseAgentCardViewMessage({ cardId: 2, kind: 'action', action: 'answer-check', key: 'decision-1_revision-1' }))
+      .toEqual({ cardId: 2, kind: 'action', action: 'answer-check', key: 'decision-1_revision-1' })
     for (const wrong of [
+      { cardId: 2, kind: 'action', action: 'answer-check', key: 'decision-1_revision-1', note: 'Looked' },
       { cardId: 2, kind: 'action', action: 'hand-back', key: 'attention-1', note: 'Done' },
       { cardId: 2, kind: 'action', action: 'take-over', note: 'Hi' },
       { cardId: 2, kind: 'action', action: 'answer-reject', key: 'decision-1_revision-1', note: 'n'.repeat(1_001) },

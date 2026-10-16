@@ -10,7 +10,7 @@ import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
  */
 export const AGENT_CARD_ACTIONS = [
   'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'hand-back', 'dismiss', 'review-decision',
-  'answer-resolve', 'answer-reject'
+  'answer-check', 'answer-resolve', 'answer-reject'
 ] as const
 export type AgentCardAction = typeof AGENT_CARD_ACTIONS[number]
 /** Answers to an agent's decision; only these carry the person's note. */
@@ -65,10 +65,13 @@ export interface AgentCardDecision {
   id: string
   /** Names the decision and the revision the card shows; its answers carry it back. */
   key: string
-  /** What an approval would do: the agent's own bounded description of each step. */
-  plan?: { heading: string; steps: Array<{ text: string; detail?: string }> }
-  /** What Hronaut found when it checked the workspace, and the box the person ticks to confirm the page as it is. */
-  check?: { text: string; confirm: string }
+  /** What an approval would do: the agent's own bounded description of each step, and how many more there are. */
+  plan?: { heading: string; steps: Array<{ text: string; detail?: string }>; more?: string }
+  /**
+   * What Hronaut found when it checked the workspace, and the box the person ticks to confirm the page as it is.
+   * Ticking it sends `answer-check`; its id names this reading, and a new reading needs a new tick.
+   */
+  check?: { id: string; text: string; confirm: string }
   /** A field for the person's note or answer, sent with one answer. With a toggle it opens on demand. */
   field?: { label: string; required: boolean; toggle?: string; send: AgentCardButton & { action: AgentCardAnswerAction } }
   /** Sending, or why an answer did not go. */
@@ -210,7 +213,7 @@ function decisionSection(value: unknown): AgentCardDecision {
     throw new TypeError('Invalid agent card plan')
   }
   const check = source.check === undefined ? undefined : record(source.check)
-  if (source.check !== undefined && !check) throw new TypeError('Invalid agent card check')
+  if (source.check !== undefined && (!check || !validKey(check.id))) throw new TypeError('Invalid agent card check')
   const field = source.field === undefined ? undefined : record(source.field)
   if (source.field !== undefined && (!field || typeof field.required !== 'boolean')) throw new TypeError('Invalid agent card field')
   const send = field ? button(field.send) : undefined
@@ -227,10 +230,11 @@ function decisionSection(value: unknown): AgentCardDecision {
           const step = record(entry)
           if (!step) throw new TypeError('Invalid agent card plan')
           return { text: text(step.text, AGENT_CARD_PLAN_TEXT_LIMIT), ...(step.detail === undefined ? {} : { detail: text(step.detail) }) }
-        })
+        }),
+        ...(plan.more === undefined ? {} : { more: text(plan.more) })
       }
     } : {}),
-    ...(check ? { check: { text: text(check.text), confirm: text(check.confirm) } } : {}),
+    ...(check ? { check: { id: check.id as string, text: text(check.text), confirm: text(check.confirm) } } : {}),
     ...(field && send ? {
       field: {
         label: text(field.label),

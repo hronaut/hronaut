@@ -1429,7 +1429,8 @@ export const frFR = {
       "answerSending": "Envoi…",
       "answerSent": "Envoyé à l’agent",
       "answerFailed": "L’envoi a échoué. Réessayez ou ouvrez-la dans l’espace de travail.",
-      "answerChanged": "La page a changé depuis la vérification de Hronaut. Regardez-la de nouveau, puis confirmez.",
+      "answerChanged": "Confirmez de nouveau la page : elle a changé, ou plus de 30 secondes se sont écoulées depuis votre confirmation.",
+      "moreSteps": "+{count} de plus, visibles dans l’espace de travail",
       "decisionReasons": {
         "review-page": "Regardez la page, puis rendez la main ou dites à l’agent quoi corriger.",
         "provide-input": "L’agent a besoin de votre réponse pour continuer.",

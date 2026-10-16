@@ -1429,7 +1429,8 @@ export const esES = {
       "answerSending": "Enviando…",
       "answerSent": "Enviado al agente",
       "answerFailed": "No se pudo enviar. Inténtalo de nuevo o ábrelo en el espacio de trabajo.",
-      "answerChanged": "La página cambió desde que Hronaut la revisó. Mírala de nuevo y confirma.",
+      "answerChanged": "Vuelve a confirmar la página: cambió o pasaron más de 30 segundos desde que la confirmaste.",
+      "moreSteps": "+{count} más, a la vista en el espacio de trabajo",
       "decisionReasons": {
         "review-page": "Mira la página y devuélvesela al agente o dile qué debe corregir.",
         "provide-input": "El agente necesita tu respuesta para continuar.",

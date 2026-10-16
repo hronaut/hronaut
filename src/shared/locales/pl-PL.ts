@@ -136,7 +136,7 @@ export const plPL = {
     "unavailable": "Brak punktu kontrolnego",
     "suspended": "Przed działaniami agenta wymagane jest sprawdzenie",
     "ready": "Blokada sprawdzania zdjęta; sprawdź ponownie przed nową czynnością",
-    "ack": "Sprawdziłem stronę i rozumiem, że poprzednia czynność mogła już odnieść skutek.",
+    "ack": "Potwierdzam, że strona została sprawdzona i że poprzednia czynność mogła już odnieść skutek.",
     "marker": "Opcjonalny selektor znacznika strony",
     "markerHelp": "Jeden element, do 512 bajtów tekstu. Nowy punkt kontrolny z pustym polem usuwa sprawdzanie znacznika.",
     "refresh": "Odczytaj bieżący stan",
@@ -1429,7 +1429,8 @@ export const plPL = {
       "answerSending": "Wysyłanie…",
       "answerSent": "Wysłano do agenta",
       "answerFailed": "Nie udało się wysłać. Spróbuj ponownie lub otwórz to w obszarze roboczym.",
-      "answerChanged": "Strona zmieniła się od sprawdzenia przez Hronaut. Obejrzyj ją ponownie i potwierdź.",
+      "answerChanged": "Potwierdź stronę ponownie: zmieniła się albo od potwierdzenia minęło ponad 30 sekund.",
+      "moreSteps": "+{count} więcej, widoczne w obszarze roboczym",
       "decisionReasons": {
         "review-page": "Obejrzyj stronę, a potem oddaj ją agentowi albo napisz, co ma poprawić.",
         "provide-input": "Agent potrzebuje Twojej odpowiedzi, aby kontynuować.",

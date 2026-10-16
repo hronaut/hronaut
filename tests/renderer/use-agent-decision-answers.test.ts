@@ -60,40 +60,98 @@ describe('answering an agent decision from its card', () => {
     active.value = true
     await settle()
     expect(calls).toEqual(['list workspace-1', 'review workspace-1'])
-    expect(answers.state.value).toEqual({
-      key: 'decision-1_revision-1', id: 'decision-1', revision: 'revision-1', decision: 'review-page', phase: 'idle',
-      check: { status: 'confirm', reasons: ['CHECKPOINT_UNAVAILABLE', 'PRIOR_WRITE_OUTCOME_UNKNOWN'], unknownOutcome: true }
-    })
+    const { check, ...shown } = answers.state.value!
+    expect(shown).toEqual({ key: 'decision-1_revision-1', id: 'decision-1', revision: 'revision-1', decision: 'review-page', phase: 'idle' })
+    expect(check?.status === 'confirm' && check.token).toMatch(/^check-\d+$/u)
+    expect(check).toMatchObject({ status: 'confirm', reasons: ['CHECKPOINT_UNAVAILABLE', 'PRIOR_WRITE_OUTCOME_UNKNOWN'], unknownOutcome: true })
     active.value = false
     await settle()
     expect(answers.state.value).toBeUndefined()
     scope.stop()
   })
 
-  it('confirms the page as reviewed, then completes the decision with what you wrote', async () => {
-    const { calls, answers, scope } = setup([record({ decision: 'provide-input' })])
+  it('reads the page when you tick, confirms that reading, then completes the decision with what you wrote', async () => {
+    const { browser, calls, answers, scope } = setup([record({ decision: 'provide-input' })], [report({ reviewId: 'review-shown' }), report({ reviewId: 'review-ticked' })])
     await settle()
     calls.length = 0
+    // Without the tick there is nothing to confirm.
+    await answers.answer('decision-1_revision-1', 'resolve', 'Use the second address')
+    expect(calls).toEqual([])
+    answers.confirm('decision-1_revision-1')
     await answers.answer('decision-1_revision-1', 'resolve', 'Use the second address')
     expect(calls).toEqual([
       'review workspace-1',
-      'reconcile workspace-1 review-1 true',
+      'reconcile workspace-1 review-ticked true',
       'change workspace-1 decision-1 revision-1 resolve undefined Use the second address'
     ])
     expect(answers.state.value?.phase).toBe('sent')
+    expect(browser.reconcileWorkspaceContinuity).toHaveBeenCalledTimes(1)
     scope.stop()
   })
 
-  it('sends nothing when the page changed since the card showed its check', async () => {
-    const { browser, calls, answers, scope } = setup(undefined, [report(), report({ reasons: ['ORIGIN_CHANGED', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] })])
+  it('asks for a new tick when the page reads differently as you tick it', async () => {
+    const { browser, answers, scope } = setup(undefined, [report(), report({ reasons: ['ORIGIN_CHANGED', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] })])
     await settle()
-    calls.length = 0
+    const shown = answers.state.value?.check
+    answers.confirm('decision-1_revision-1')
     await answers.answer('decision-1_revision-1', 'resolve')
-    expect(calls).toEqual(['review workspace-1'])
     expect(browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
     expect(browser.changeHumanWaiting).not.toHaveBeenCalled()
     expect(answers.state.value).toMatchObject({ phase: 'changed', check: { status: 'confirm', reasons: ['ORIGIN_CHANGED', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] } })
+    expect(answers.state.value?.check).not.toEqual(shown)
+    // The new reading is not confirmed until you tick again.
+    await answers.answer('decision-1_revision-1', 'resolve')
+    expect(browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
     scope.stop()
+  })
+
+  it('sends nothing when main finds the page changed since you ticked, or the tick too old, and asks again', async () => {
+    const { browser, answers, scope } = setup()
+    await settle()
+    const shown = answers.state.value?.check
+    browser.reconcileWorkspaceContinuity.mockRejectedValueOnce(new Error('Browser state changed after continuity review'))
+    answers.confirm('decision-1_revision-1')
+    await answers.answer('decision-1_revision-1', 'resolve')
+    await settle()
+    expect(browser.changeHumanWaiting).not.toHaveBeenCalled()
+    // The same reasons, but a new reading that needs a new tick.
+    expect(answers.state.value).toMatchObject({ phase: 'changed', check: { status: 'confirm', reasons: ['CHECKPOINT_UNAVAILABLE', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] } })
+    expect(answers.state.value?.check).not.toEqual(shown)
+    await answers.answer('decision-1_revision-1', 'resolve')
+    expect(browser.reconcileWorkspaceContinuity).toHaveBeenCalledTimes(1)
+    // A tick that reads the same clears the request to confirm again.
+    answers.confirm('decision-1_revision-1')
+    await settle()
+    expect(answers.state.value?.phase).toBe('idle')
+    scope.stop()
+  })
+
+  it('finishes an answer it started when the card closes, and reads again when completing failed after the page was confirmed', async () => {
+    const closing = setup()
+    await settle()
+    let finishReconcile!: () => void
+    closing.browser.reconcileWorkspaceContinuity.mockImplementationOnce(() => new Promise((resolve) => { finishReconcile = () => resolve(report()) }))
+    closing.answers.confirm('decision-1_revision-1')
+    const sending = closing.answers.answer('decision-1_revision-1', 'resolve')
+    await settle()
+    closing.active.value = false
+    await settle()
+    finishReconcile()
+    await sending
+    expect(closing.browser.changeHumanWaiting).toHaveBeenCalledTimes(1)
+    expect(closing.answers.state.value).toBeUndefined()
+    closing.scope.stop()
+
+    const clear = report({ status: 'WARN', suspended: false, reviewId: null, priorOutcomeAcknowledged: true })
+    const failing = setup(undefined, [report(), report(), clear])
+    await settle()
+    failing.browser.changeHumanWaiting.mockRejectedValueOnce(new Error('Browser review changed while saving; inspect current state again'))
+    failing.answers.confirm('decision-1_revision-1')
+    await failing.answers.answer('decision-1_revision-1', 'resolve')
+    await settle()
+    // The guard is confirmed now, so trying again needs no new tick.
+    expect(failing.answers.state.value).toMatchObject({ phase: 'failed', check: { status: 'clear' } })
+    failing.scope.stop()
   })
 
   it('completes without a confirmation when there is nothing to confirm, and rejects without a check', async () => {
@@ -139,17 +197,31 @@ describe('answering an agent decision from its card', () => {
     const unavailable = setup(undefined, [report({ reviewId: null })])
     await settle()
     expect(unavailable.answers.state.value?.check).toEqual({ status: 'unavailable', reasons: ['CHECKPOINT_UNAVAILABLE', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] })
+    unavailable.answers.confirm('decision-1_revision-1')
     await unavailable.answers.answer('decision-1_revision-1', 'resolve')
     expect(unavailable.browser.changeHumanWaiting).not.toHaveBeenCalled()
     unavailable.scope.stop()
+
+    // A tick for another revision confirms nothing.
+    const other = setup()
+    await settle()
+    other.answers.confirm('decision-1_revision-0')
+    await other.answers.answer('decision-1_revision-1', 'resolve')
+    expect(other.browser.reconcileWorkspaceContinuity).not.toHaveBeenCalled()
+    other.scope.stop()
   })
 
-  it('reads the decision again after a failure, keeping the card on the newest revision', async () => {
+  it('reads the decision again after a failure, keeping the card on the newest revision, or as it was when it cannot', async () => {
     const { browser, answers, scope } = setup()
     await settle()
     browser.changeHumanWaiting.mockRejectedValueOnce(new Error('Waiting decision unavailable or stale'))
     browser.listHumanWaiting.mockResolvedValueOnce([record({ revision: 'revision-3' })])
     await answers.answer('decision-1_revision-1', 'reject')
+    await settle()
+    expect(answers.state.value).toMatchObject({ key: 'decision-1_revision-3', phase: 'failed' })
+    browser.changeHumanWaiting.mockRejectedValueOnce(new Error('Waiting decision unavailable'))
+    browser.listHumanWaiting.mockRejectedValueOnce(new Error('Human waiting history is unavailable'))
+    await answers.answer('decision-1_revision-3', 'reject', 'Wrong total')
     await settle()
     expect(answers.state.value).toMatchObject({ key: 'decision-1_revision-3', phase: 'failed' })
     scope.stop()
