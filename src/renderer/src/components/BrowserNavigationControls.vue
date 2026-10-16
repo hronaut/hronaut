@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import { useResizeObserver } from '@vueuse/core'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
@@ -35,6 +37,22 @@ function refreshOrStop(): void {
   if (props.activeTab?.loading) emit('stop')
   else emit('reload')
 }
+
+const commands = ref<HTMLElement>()
+// True while the commands sit in their own band below the address. The address field then
+// fills its row (shell.css), so both rows end at the same edge.
+const commandsWrapped = ref(false)
+
+function syncCommandsWrapped(): void {
+  const reload = commands.value?.parentElement?.querySelector<HTMLElement>('.reload-button')
+  if (!reload || !commands.value) return
+  commandsWrapped.value = commands.value.getBoundingClientRect().top >= reload.getBoundingClientRect().bottom
+}
+
+useResizeObserver(
+  () => [commands.value, commands.value?.parentElement].filter((element): element is HTMLElement => Boolean(element)),
+  syncCommandsWrapped
+)
 </script>
 
 <template>
@@ -45,7 +63,7 @@ function refreshOrStop(): void {
     <IconRefresh v-else aria-hidden="true" />
   </UiButton>
   <slot />
-  <div class="toolbar-commands">
+  <div ref="commands" class="toolbar-commands" :class="{ wrapped: commandsWrapped }">
     <UiButton appearance="application"
       class="icon-button find-button"
       type="button"

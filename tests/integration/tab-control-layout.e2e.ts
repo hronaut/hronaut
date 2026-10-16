@@ -70,10 +70,16 @@ async function toolbarLayout(appWindow: Page): Promise<ToolbarLayout> {
       .filter(rect => rect.width > 0)
     const first = rects[0]!
     const last = rects[rects.length - 1]!
-    const rowTops = new Set([reload, ...rects].map(rect => Math.round((rect.top + rect.height / 2) / 20)))
+    // A command starts a new row when its middle sits below the previous row's bottom.
+    let rows = 1
+    let rowBottom = reload.bottom
+    for (const rect of rects) {
+      if (rect.top + rect.height / 2 > rowBottom) rows += 1
+      rowBottom = Math.max(rowBottom, rect.bottom)
+    }
     const rightInset = Number.parseFloat(document.documentElement.style.getPropertyValue('--titlebar-controls-right-runtime')) || 0
     return {
-      rows: rowTops.size,
+      rows,
       commands: rects.length,
       addressWidth: Math.round(address.width),
       // Distance from the middle of the space between reload and the first command.
@@ -82,17 +88,19 @@ async function toolbarLayout(appWindow: Page): Promise<ToolbarLayout> {
       bandRight: Math.round(Math.max(...rects.map(rect => rect.right))),
       addressRight: Math.round(address.right),
       commandsInOrder: rects.every((rect, index) => index === 0 || rect.left > rects[index - 1]!.left || rect.top > rects[index - 1]!.top),
-      controlsGap: rightInset > 0 ? Math.round(innerWidth - rightInset - last.right) : 20
+      controlsGap: Math.round(innerWidth - rightInset - last.right)
     }
   })
 }
+
+const resizeWindow = (electronApp: ElectronApplication, width: number, height: number) => electronApp.evaluate(({ BrowserWindow }, size) =>
+  BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height), { width, height })
 
 test('centers the address field up to 520 px and moves every command into one second band on a narrow window', async ({ appWindow, electronApp }, testInfo) => {
   await appWindow.evaluate(`window.hronautSettings.setTabPosition('left')`)
   await appWindow.evaluate("window.hronaut.newTab({ url: 'data:text/html,<title>Toolbar layout</title>', active: true })")
   await expect(appWindow.locator('.toolbar')).toBeVisible()
-  const resize = (width: number, height: number) => electronApp.evaluate(({ BrowserWindow }, size) =>
-    BrowserWindow.getAllWindows()[0]!.setContentSize(size.width, size.height), { width, height })
+  const resize = (width: number, height: number) => resizeWindow(electronApp, width, height)
 
   // Wide: one row, the address field stops at 520 px and sits centered between navigation and the commands.
   await resize(1900, 900)
@@ -121,4 +129,115 @@ test('centers the address field up to 520 px and moves every command into one se
   expect(narrow.controlsGap).toBeGreaterThanOrEqual(20)
   expect(await appWindow.locator('.toolbar').evaluate(toolbar => toolbar.scrollWidth <= toolbar.clientWidth)).toBe(true)
   await capture(electronApp, testInfo.outputPath('toolbar-1024.png'))
+
+  // Widths where the address row has more than 520 px to spare: the field fills its row
+  // once the commands wrap, so the band still ends where the address ends.
+  for (const [width, scale] of [[1100, 1], [1140, 1], [1220, 1.1]] as const) {
+    await appWindow.evaluate(`window.hronautSettings.setInterfaceScale(${scale})`)
+    await resize(width, 768)
+    await expect.poll(async () => {
+      const layout = await toolbarLayout(appWindow)
+      return layout.rows === 2 && layout.addressRowCommands === 0 && Math.abs(layout.bandRight - layout.addressRight) <= 1
+    }, { message: `${width} px at ${scale}` }).toBe(true)
+  }
+  await appWindow.evaluate('window.hronautSettings.setInterfaceScale(1)')
+  await appWindow.evaluate(`window.hronautSettings.setTabPosition('top')`)
+  await appWindow.evaluate('window.hronautSettings.setInterfaceScale(1.1)')
+  await resize(800, 768)
+  await expect.poll(async () => {
+    const layout = await toolbarLayout(appWindow)
+    return layout.rows >= 2 && layout.addressRowCommands === 0 && Math.abs(layout.bandRight - layout.addressRight) <= 1
+  }, { message: 'tabs above the page at 110%' }).toBe(true)
+  await appWindow.evaluate('window.hronautSettings.setInterfaceScale(1)')
+})
+
+test('lets status pills in the address field widen it instead of squeezing out the address', async ({ appWindow, electronApp }) => {
+  await appWindow.evaluate(`window.hronautSettings.setTabPosition('left')`)
+  await appWindow.evaluate("window.hronaut.newTab({ url: 'data:text/html,<title>Pills</title>', active: true })")
+  await resizeWindow(electronApp, 1900, 900)
+  const address = appWindow.getByRole('combobox', { name: 'Address', exact: true })
+  await expect.poll(async () => Math.round((await address.boundingBox())?.width ?? 0)).toBeGreaterThan(300)
+  // Three of the widest pills the field can carry at once, built with the real classes.
+  await appWindow.locator('.address-form').evaluate(form => {
+    for (const [name, label] of [
+      ['emulation-pill', 'Emulation application unknown'],
+      ['emulation-pill', 'Offline · iPhone 15 Pro Max'],
+      ['network-routes-pill', '12 request routes']
+    ]) {
+      const pill = document.createElement('span')
+      pill.className = `${name} test-pill`
+      pill.append(Object.assign(document.createElement('span'), { textContent: label }))
+      form.append(pill)
+    }
+  })
+  try {
+    await expect.poll(async () => Math.round((await address.boundingBox())?.width ?? 0)).toBeGreaterThan(300)
+    expect(await appWindow.locator('.toolbar').evaluate(toolbar => toolbar.scrollWidth <= toolbar.clientWidth)).toBe(true)
+  } finally {
+    await appWindow.locator('.address-form').evaluate(form => form.querySelectorAll('.test-pill').forEach(pill => pill.remove()))
+  }
+})
+
+test('keeps a pressed toggle distinct from a hovered one and the capsule out of the window drag area', async ({ appWindow, electronApp }) => {
+  await appWindow.evaluate(`window.hronautSettings.setTabPosition('left')`)
+  await appWindow.evaluate("window.hronaut.newTab({ url: 'data:text/html,<title>Pressed</title>', active: true })")
+  await resizeWindow(electronApp, 1600, 900)
+  await appWindow.evaluate(`(async () => {
+    const state = await window.hronaut.getState()
+    await window.hronaut.setTabMuted(state.activeTabId, true)
+  })()`)
+  const controls = appWindow.getByRole('group', { name: 'Tab controls', exact: true })
+  const mute = controls.locator('.tab-mute-button')
+  await expect(mute).toHaveAttribute('aria-pressed', 'true')
+  const look = () => mute.evaluate(button => ({ background: getComputedStyle(button).backgroundColor, ring: getComputedStyle(button).boxShadow }))
+  const pressed = await look()
+  expect(pressed.ring).toContain('inset')
+  await mute.hover()
+  await expect.poll(async () => (await look()).ring).not.toBe(pressed.ring)
+  const pressedHover = await look()
+  expect(pressedHover.background).toBe(pressed.background)
+  expect(pressedHover.ring).toContain('inset')
+  // An unpressed toggle under the pointer has no ring and a different fill.
+  const freeze = controls.locator('.page-lifecycle-button')
+  await expect(freeze).toHaveAttribute('aria-pressed', 'false')
+  await freeze.hover()
+  await expect.poll(() => freeze.evaluate(button => getComputedStyle(button).boxShadow)).toBe('none')
+  expect(await freeze.evaluate(button => getComputedStyle(button).backgroundColor)).not.toBe(pressed.background)
+  // The capsule's own edge is part of the control, not a handle that drags the window.
+  if (await appWindow.locator('.custom-title-bar').count()) {
+    expect(await controls.evaluate(group => getComputedStyle(group).getPropertyValue('-webkit-app-region'))).toBe('no-drag')
+  }
+})
+
+test('keeps address suggestions under the centered field when the toolbar changes width', async ({ appWindow, electronApp }) => {
+  await appWindow.evaluate(`window.hronautSettings.setTabPosition('left')`)
+  await appWindow.evaluate("window.hronaut.newTab({ url: 'data:text/html,<title>Anchor page</title>', active: true })")
+  await resizeWindow(electronApp, 1900, 900)
+  await appWindow.evaluate("window.hronautBookmarks.add('https://example.test/anchor', 'Anchor fixture')")
+  const address = appWindow.getByRole('combobox', { name: 'Address', exact: true })
+  await address.fill('Anchor')
+  await expect(address).toHaveAttribute('aria-expanded', 'true')
+  const offset = async () => {
+    const expectedX = await appWindow.locator('.address-form').evaluate(form => Math.round(form.getBoundingClientRect().left - 1))
+    const actualX = await electronApp.evaluate(({ BrowserWindow }) => {
+      const view = BrowserWindow.getAllWindows()[0]!.contentView.children.find(view => 'webContents' in view && (view as Electron.WebContentsView).webContents.getURL().includes('address-overlay.html'))
+      return view?.getBounds().x
+    })
+    // The field can sit on a half pixel; the overlay's bounds are whole pixels.
+    return Math.abs((actualX ?? -1000) - expectedX) <= 1
+  }
+  await expect.poll(offset).toBe(true)
+  // A wider command group moves the capped field without resizing it.
+  const before = await appWindow.locator('.address-form').evaluate(form => form.getBoundingClientRect().left)
+  await appWindow.locator('.toolbar-commands').evaluate(group => {
+    group.append(Object.assign(document.createElement('span'), { className: 'test-spacer', style: 'display:block;width:160px;height:8px' }))
+  })
+  try {
+    await expect.poll(() => appWindow.locator('.address-form').evaluate(form => form.getBoundingClientRect().left)).not.toBe(before)
+    await expect(address).toBeFocused()
+    await expect.poll(offset).toBe(true)
+  } finally {
+    await appWindow.locator('.toolbar-commands').evaluate(group => group.querySelector('.test-spacer')?.remove())
+  }
+  await expect.poll(offset).toBe(true)
 })

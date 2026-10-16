@@ -550,23 +550,32 @@
   @apply relative [z-index:1] flex flex-wrap items-center justify-end [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--shell-bar)];
 }
 /* The address field sits centered between the navigation buttons and the
-   commands, up to 520 px wide. The commands wrap as one group, so a toolbar
-   too narrow for both gives the address its own row and puts every command
-   in a second band that ends where the address field ends. */
+   commands, up to 520 px wide (ADDRESS_FIELD_MAX_WIDTH). The commands wrap as
+   one group, so a toolbar too narrow for both gives the address its own row
+   and puts every command in a second band. The address field then fills its
+   row, so both rows end at the same edge. Status pills inside the field lift
+   the cap too, so they never squeeze out the address. */
 .toolbar .address-form { @apply [max-width:520px] [margin-inline:auto]; }
+.toolbar:has(> .toolbar-commands.wrapped) .address-form,
+.toolbar .address-form:has(.emulation-pill, .network-routes-pill) { @apply [max-width:none]; }
 .toolbar .reload-button { @apply [margin-right:6px]; }
 .toolbar-commands { @apply flex [flex:0_1_auto] min-w-0 flex-wrap items-center justify-end [gap:inherit] [margin-left:6px]; }
+@media (max-width: 720px) {
+  .toolbar .address-form { @apply [margin-inline:2px]; }
+  .toolbar .reload-button { @apply [margin-right:0]; }
+  .toolbar-commands { @apply [margin-left:0]; }
+}
 .vertical-tabs-shell .toolbar {
   @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)];
   padding-left: max(
     12px,
     calc(var(--titlebar-controls-left-safe) - var(--tab-rail-width) + 12px)
   );
-  /* Keep a clear 20 px before the window controls. */
+  /* Keep a clear 20 px before window controls on the right. */
   padding-right: max(
     12px,
     calc(var(--titlebar-controls-right-safe) + 20px),
-    calc(var(--titlebar-controls-fallback-width) + 20px)
+    calc(var(--titlebar-controls-fallback-width) + 12px)
   );
 }
 .compact-vertical-tab-rail-revealed .toolbar {
@@ -704,6 +713,14 @@
 .tab-controls > .interaction-lock-button { @apply flex-none [width:32px] [min-width:32px] [height:32px] justify-center [padding:0] [border:0] [border-radius:var(--corner-1)] bg-transparent; }
 .interaction-lock-button.tab-mute-button.muted,
 .interaction-lock-button.page-lifecycle-button.frozen { @apply text-accent-copy bg-accent-soft; }
+/* A pressed toggle keeps its fill under the pointer and carries a ring in its
+   own color, so pressed never reads as hovered; the ring thickens on hover. */
+.tab-controls > .interaction-lock-button[aria-pressed="true"] { @apply [box-shadow:inset_0_0_0_1px_currentColor]; }
+.tab-controls > .interaction-lock-button[aria-pressed="true"]:hover:not(:disabled) { @apply [box-shadow:inset_0_0_0_2px_currentColor]; }
+@media (forced-colors: active) {
+  /* Shadows and fills vanish in high-contrast modes; a system-colored border marks a pressed toggle. */
+  .tab-controls > .interaction-lock-button[aria-pressed="true"] { @apply [border:2px_solid_Highlight]; }
+}
 
 .interaction-lock-button .state-spinner,
 .all-lock-button .state-spinner,
