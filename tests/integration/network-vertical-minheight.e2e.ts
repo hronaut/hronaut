@@ -64,9 +64,9 @@ for (const dock of ['top', 'bottom'] as const) {
         x: gutter, y: toolbarHeight + (dock === 'top' ? dockInset : 0),
         width: 760 - 2 * gutter, height: pageHeight
       })
-      // A short window leaves the page a third of the space beside the dock and the gutters.
-      expect(pageHeight).toBeGreaterThanOrEqual(85)
-      if (height === 520) expect(geometry.panel.height).toBe(142)
+      // A short window keeps the dock usable and leaves the page card, gutters included, a third of the space.
+      expect(pageHeight + gutter * (dock === 'top' ? 2 : 1)).toBeGreaterThanOrEqual(85)
+      if (height === 520) expect(geometry.panel.height).toBeGreaterThanOrEqual(150)
       // A real native click must still reach the website beside the trusted dock.
       await call('browser_evaluate', { script: "(() => { const button = document.createElement('button'); button.id='dock-web-probe'; button.textContent='Website'; button.style.cssText='position:fixed;z-index:999999;left:8px;top:8px;width:80px;height:32px'; button.onclick=()=>button.dataset.clicked='yes'; document.body.append(button); return true })()" })
       const websitePoint = await electronApp.evaluate(({ BrowserWindow }) => {

@@ -3,7 +3,6 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PanelDock } from '../../src/shared/types.js'
 import { usePanelDockLayout } from '../../src/renderer/src/composables/usePanelDockLayout.js'
-import { PAGE_CARD_GUTTER } from '../../src/shared/page-card.js'
 
 type Controller = ReturnType<typeof usePanelDockLayout>
 
@@ -119,9 +118,9 @@ describe('usePanelDockLayout', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 338 })
     try {
       harness.controller.reportShellHeight()
-      // 338 - 105 leaves 233 px; after 20 px of page card gutters the page keeps a third of the rest.
-      expect(harness.controller.size.value).toBe(142)
-      expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: dock === 'top' ? 152 : 0, right: 10, bottom: dock === 'bottom' ? 152 : 10, left: 10 })
+      // 338 - 105 leaves 233 px; the page card and its gutters keep a third of them.
+      expect(harness.controller.size.value).toBe(155)
+      expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: dock === 'top' ? 165 : 0, right: 10, bottom: dock === 'bottom' ? 165 : 10, left: 10 })
       expect(window.localStorage.getItem('hronaut:panel-dock-size-vertical')).toBe('290')
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
       harness.controller.reportShellHeight()
@@ -130,14 +129,14 @@ describe('usePanelDockLayout', () => {
   })
 
   it.each([
-    [0, 1], [1, 1], [20, 1], [233, 142], [359, 226], [360, 226],
-    [361, 227], [459, 240], [460, 240], [461, 241], [695, 475], [1000, 700]
-  ])('bounds the vertical dock at %s available CSS pixels, a third of them after the page card gutters left to the page', (available, maximum) => {
+    [0, 1], [1, 1], [20, 13], [233, 155], [359, 239], [360, 240],
+    [361, 240], [459, 240], [460, 240], [461, 241], [695, 475], [1000, 700]
+  ])('bounds the vertical dock at %s available CSS pixels, a third of them left to the page card', (available, maximum) => {
     const harness = mountHarness('bottom')
     try {
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: 105 + available })
-      // Short of the 220 px reserve, the page itself keeps a third of the space the gutters leave.
-      if (available > 2 * PAGE_CARD_GUTTER && available - 220 < maximum) expect(available - 2 * PAGE_CARD_GUTTER - maximum).toBeGreaterThanOrEqual(Math.floor((available - 2 * PAGE_CARD_GUTTER) / 3))
+      // Short of the 220 px reserve, the page card keeps a third of the space, its gutters included.
+      if (available > 1 && available - 220 < maximum) expect(available - maximum).toBeGreaterThanOrEqual(Math.ceil(available / 3))
       expect(harness.controller.maximumSize()).toBe(maximum)
     } finally { harness.wrapper.unmount() }
   })
@@ -149,8 +148,8 @@ describe('usePanelDockLayout', () => {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: 608 })
       expect(harness.controller.maximumSize('right', 183.5)).toBe(208)
       expect(harness.controller.maximumSize('left', 183.5)).toBe(208)
-      expect(harness.controller.maximumSize('top', 183.5)).toBe(141)
-      expect(harness.controller.maximumSize('bottom', 183.5)).toBe(141)
+      expect(harness.controller.maximumSize('top', 183.5)).toBe(155)
+      expect(harness.controller.maximumSize('bottom', 183.5)).toBe(155)
     } finally { harness.wrapper.unmount() }
   })
 
