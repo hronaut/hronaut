@@ -281,6 +281,10 @@ export const deDE = {
       "label": "Hinweiston wiedergeben",
       "description": "Einen Warnton abspielen, wenn ein Agent einen manuellen Browserschritt benötigt."
     },
+    "agentCursor": {
+      "label": "Agenten-Cursor zeigen",
+      "description": "Den Cursor jedes Agenten mit seinem Namen dort zeigen, wo er auf einer Seite klickt, zeigt oder zieht."
+    },
     "attentionSound": {
       "label": "Hinweiston",
       "description": "Wähle den Ton, den Hronaut bei Bedarf abspielt.",
@@ -1393,6 +1397,7 @@ export const deDE = {
       "noSteps": "Noch keine abgeschlossenen Schritte",
       "stepFailed": "{step}, fehlgeschlagen",
       "follow": "Agenten in allen Arbeitsbereichen folgen",
+      "cursor": "Agenten-Cursor auf der Seite zeigen",
       "showTab": "Seinen Tab zeigen",
       "pause": "Auf diesem Tab pausieren",
       "resume": "Auf diesem Tab fortsetzen",

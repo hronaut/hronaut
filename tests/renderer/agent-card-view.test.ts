@@ -13,6 +13,7 @@ function model(overrides: Partial<AgentCardModel> = {}): AgentCardModel {
     now: { heading: 'Now', text: 'Reading the page' },
     recent: { heading: 'Recent steps', empty: 'No finished steps yet', steps: [{ text: 'Clicked on the page, failed', failed: true }] },
     follow: { label: 'Follow agents in all workspaces', checked: false },
+    cursor: { label: 'Show agent cursors on the page', checked: true },
     buttons: [{ action: 'pause', label: 'Pause on this tab' }, { action: 'take-over', label: 'Take over' }],
     closeLabel: 'Close',
     ...overrides
@@ -71,10 +72,25 @@ describe('agent card view', () => {
     expect(view.sent).toEqual([{ cardId: 1, kind: 'action', action: 'pause' }])
     view.render({ cardId: 1, revision: 2, theme: 'light', model: model({ buttons: [{ action: 'resume', label: 'Resume on this tab' }, { action: 'take-over', label: 'Take over' }] }) })
     expect((document.activeElement as HTMLElement).dataset.action).toBe('resume')
-    view.control('.agent-card-switch').focus()
+    view.control('[data-action="follow-on"]').focus()
     view.render({ cardId: 1, revision: 3, theme: 'light', model: model({ follow: { label: 'Follow agents in all workspaces', checked: true } }) })
     expect((document.activeElement as HTMLElement).dataset.action).toBe('follow-off')
-    expect(view.control('.agent-card-switch').getAttribute('aria-checked')).toBe('true')
+    expect(view.control('[data-action="follow-off"]').getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('turns agent cursors off and on from their switch, keeping focus on it', async () => {
+    const view = await loadView()
+    view.render({ cardId: 2, revision: 1, theme: 'light', model: model() })
+    const cursor = view.control('[data-action="cursor-off"]')
+    expect(cursor.getAttribute('role')).toBe('switch')
+    expect(cursor.getAttribute('aria-checked')).toBe('true')
+    expect(cursor.textContent).toContain('Show agent cursors on the page')
+    cursor.focus()
+    cursor.click()
+    expect(view.sent).toEqual([{ cardId: 2, kind: 'action', action: 'cursor-off' }])
+    view.render({ cardId: 2, revision: 2, theme: 'light', model: model({ cursor: { label: 'Show agent cursors on the page', checked: false } }) })
+    expect((document.activeElement as HTMLElement).dataset.action).toBe('cursor-on')
+    expect(view.control('[data-action="cursor-on"]').getAttribute('aria-checked')).toBe('false')
   })
 
   it('shows the answers under the reason and sends each with the key of the request it answers', async () => {

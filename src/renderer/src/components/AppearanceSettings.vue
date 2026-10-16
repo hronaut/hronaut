@@ -146,6 +146,11 @@ async function setAttentionSound(event: Event): Promise<void> {
   if (!(await runSetting(store.setAttentionSound(input.checked)))) input.checked = settings.value.attentionSound
 }
 
+async function setShowAgentCursor(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await runSetting(store.setShowAgentCursor(input.checked)))) input.checked = settings.value.showAgentCursor
+}
+
 async function setAttentionSoundCue(event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   if (!(await runSetting(store.setAttentionSoundCue(input.value as AttentionSoundCue)))) {
@@ -327,6 +332,13 @@ async function setLanguagePreference(event: Event): Promise<void> {
           </UiButton>
         </div>
       </div>
+      <label class="settings-row" for="setting-agent-cursor">
+        <span>
+          <strong>{{ t('appearance.agentCursor.label') }}</strong>
+          <small>{{ t('appearance.agentCursor.description') }}</small>
+        </span>
+        <input id="setting-agent-cursor" type="checkbox" :checked="settings.showAgentCursor" @change="setShowAgentCursor" />
+      </label>
     </div>
   </div>
 </template>

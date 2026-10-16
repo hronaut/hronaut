@@ -1,9 +1,17 @@
 import type { AgentStepKind } from './agent-steps.js'
+import { BROWSER_TAB_GROUP_COLOR_HEX } from './tab-groups.js'
 
 /** The toolbar shows at most this many agent avatars, then a "+N" button. */
 export const AGENT_AVATAR_VISIBLE_LIMIT = 3
 /** Avatar fills cycle through this many colors; amber and red are left out. */
 export const AGENT_AVATAR_COLORS = ['blue', 'cyan', 'green', 'pink', 'purple', 'gray'] as const
+/** Text on a full avatar color, as on an agent's name tag on the page: at least 4.7:1 against every fill. */
+export const AGENT_AVATAR_INK = '#111318'
+
+/** The `#rrggbb` fill of an avatar color index. */
+export function agentAvatarColorHex(colorIndex: number): string {
+  return BROWSER_TAB_GROUP_COLOR_HEX[AGENT_AVATAR_COLORS[colorIndex] ?? 'gray']
+}
 
 export type AgentPresenceState = 'idle' | 'working' | 'needs-you'
 

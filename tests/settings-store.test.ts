@@ -64,6 +64,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
       followAgentActivity: true,
+      showAgentCursor: false,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
@@ -88,6 +89,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
       followAgentActivity: true,
+      showAgentCursor: false,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
@@ -112,6 +114,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
       followAgentActivity: true,
+      showAgentCursor: false,
       mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
@@ -176,6 +179,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'warning',
       challengeDetectionEnabled: false,
       followAgentActivity: false,
+      showAgentCursor: true,
       mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
@@ -187,6 +191,16 @@ describe('SettingsStore', () => {
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })
+  })
+
+  it('draws agent cursors unless the settings file turns them off with a boolean', async () => {
+    const { path, store } = await createStore()
+    expect((await store.load()).showAgentCursor).toBe(true)
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"showAgentCursor":"no"}\n', 'utf8')
+    expect((await store.load()).showAgentCursor).toBe(true)
+    await writeFile(path, '{"showAgentCursor":false}\n', 'utf8')
+    expect((await store.load()).showAgentCursor).toBe(false)
   })
 
   it('defaults missing tool sets to essentials for every profile', async () => {

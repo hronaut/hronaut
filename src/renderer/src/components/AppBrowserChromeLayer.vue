@@ -122,7 +122,8 @@ const {
   showUpdateStatusPill,
   settings,
   toggleFollowAgentActivity,
-  setFollowAgentActivity: setFollowAgentActivitySetting
+  setFollowAgentActivity: setFollowAgentActivitySetting,
+  setShowAgentCursor: setShowAgentCursorSetting
 } = props.settingsController
 const { state: updateState } = updateSettingsController
 const websiteTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
@@ -228,6 +229,10 @@ function takeOverTab(tabId: string): void {
 
 function setFollowAgentActivity(follow: boolean): void {
   void props.runAction(() => setFollowAgentActivitySetting(follow))
+}
+
+function setShowAgentCursor(show: boolean): void {
+  void props.runAction(() => setShowAgentCursorSetting(show))
 }
 
 // Main answers only the request still open with this id; an answer from an older card changes nothing.
@@ -398,11 +403,13 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard })
         :attention-decision="userAttention?.humanWaitingDecisionId !== undefined"
         :tabs="state.tabs"
         :follow="settings.followAgentActivity"
+        :show-cursor="settings.showAgentCursor"
         :agent-control-locked="state.agentControlLocked === true"
         @select="selectTab"
         @set-paused="setAgentPaused"
         @take-over="takeOverTab"
         @set-follow="setFollowAgentActivity"
+        @set-show-cursor="setShowAgentCursor"
         @answer-attention="answerAttention"
         @review-decision="actions.reviewDecisions"
       />

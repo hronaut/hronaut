@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   attentionSoundCue: 'warning',
   challengeDetectionEnabled: false,
   followAgentActivity: false,
+  showAgentCursor: true,
   mcpRemoteAccess: false,
   mcpAuthentication: false,
   mcpPort: DEFAULT_MCP_PORT,
@@ -88,6 +89,8 @@ export class SettingsStore {
           typeof value.followAgentActivity === 'boolean'
             ? value.followAgentActivity
             : DEFAULT_SETTINGS.followAgentActivity,
+        showAgentCursor:
+          typeof value.showAgentCursor === 'boolean' ? value.showAgentCursor : DEFAULT_SETTINGS.showAgentCursor,
         challengeDetectionEnabled: value.challengeDetectionEnabled === true,
         mcpRemoteAccess: value.mcpRemoteAccess === true,
         mcpAuthentication:

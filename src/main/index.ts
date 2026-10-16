@@ -3445,6 +3445,7 @@ function registerIpc(): void {
       launchMinimized: DEFAULT_SETTINGS.launchMinimized,
       attentionSound: DEFAULT_SETTINGS.attentionSound,
       attentionSoundCue: DEFAULT_SETTINGS.attentionSoundCue,
+      showAgentCursor: DEFAULT_SETTINGS.showAgentCursor,
       languagePreference: DEFAULT_SETTINGS.languagePreference
     }, app.isPackaged
       ? (next) => startupLaunchManager!.setEnabled(next.launchAtStartup)
@@ -3590,6 +3591,13 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (!isAttentionSoundCue(cue)) throw new TypeError('Unsupported attention sound')
     await updateSettings({ attentionSoundCue: cue })
+    publishSettings()
+    return { ...settings }
+  })
+  ipcMain.handle('settings:set-show-agent-cursor', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Show agent cursor must be a boolean')
+    await updateSettings({ showAgentCursor: enabled })
     publishSettings()
     return { ...settings }
   })
@@ -4033,6 +4041,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     memorySaverEnabled: settings.memorySaverEnabled,
     memorySaverTimeoutMinutes: settings.memorySaverTimeoutMinutes,
     followAgentActivity: settings.followAgentActivity,
+    getShowAgentCursor: () => settings.showAgentCursor,
     getChallengeDetectionEnabled: () => settings.challengeDetectionEnabled,
     getSearchEngine: () => settings.searchEngine,
     getLocale: () => resolvedLocale,

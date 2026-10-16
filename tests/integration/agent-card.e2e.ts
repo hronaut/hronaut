@@ -59,6 +59,7 @@ type CardView = {
   answers: string[]
   focusedControl: string | null
   follow: string | null
+  cursor: string | null
 }
 
 /** The native view that draws the agent card, while main has it in the window. */
@@ -78,9 +79,10 @@ async function cardView(electronApp: ElectronApplication): Promise<CardView | nu
         actions: [...document.querySelectorAll('.agent-card-actions button:not(:disabled)')].map((button) => button.dataset.action),
         answers: [...document.querySelectorAll('.agent-card-answers button:not(:disabled)')].map((button) => button.dataset.action),
         focusedControl: active?.dataset.action ?? (active?.classList.contains('agent-card-close') ? 'close' : active === card ? 'card' : null),
-        follow: document.querySelector('.agent-card-switch')?.getAttribute('aria-checked') ?? null
+        follow: document.querySelector('[data-action^="follow-"]')?.getAttribute('aria-checked') ?? null,
+        cursor: document.querySelector('[data-action^="cursor-"]')?.getAttribute('aria-checked') ?? null
       }
-    })()`) as Pick<CardView, 'label' | 'text' | 'actions' | 'answers' | 'focusedControl' | 'follow'>
+    })()`) as Pick<CardView, 'label' | 'text' | 'actions' | 'answers' | 'focusedControl' | 'follow' | 'cursor'>
     return {
       visible: view.getVisible(),
       topmost: children.at(-1) === view,
@@ -179,10 +181,17 @@ test('opens an agent card under its avatar to pause, take over and follow, and r
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(firstTabId)})?.agentPaused === true)`)).toBe(false)
 
     // The Follow switch changes the same setting as the rail's eye.
-    await clickInCard(electronApp, '.agent-card-switch')
+    await clickInCard(electronApp, '[data-action^="follow-"]')
     await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.followAgentActivity)')).toBe(true)
     await expect.poll(async () => (await cardView(electronApp))?.follow).toBe('true')
-    await clickInCard(electronApp, '.agent-card-switch')
+    // The cursor switch beside it turns agents' cursors on the page off and on.
+    expect((await cardView(electronApp))?.cursor).toBe('true')
+    await clickInCard(electronApp, '[data-action^="cursor-"]')
+    await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.showAgentCursor)')).toBe(false)
+    await expect.poll(async () => (await cardView(electronApp))?.cursor).toBe('false')
+    await clickInCard(electronApp, '[data-action^="cursor-"]')
+    await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.showAgentCursor)')).toBe(true)
+    await clickInCard(electronApp, '[data-action^="follow-"]')
     await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.followAgentActivity)')).toBe(false)
 
     // Focus moving out of the card, such as to the shell, closes it.

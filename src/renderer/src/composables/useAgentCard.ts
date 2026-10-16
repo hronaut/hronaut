@@ -36,6 +36,8 @@ export interface AgentCardContext {
   /** The request is a human-waiting decision, answered where decisions are reviewed. */
   attentionDecision?: boolean
   follow: boolean
+  /** Agents' cursors are drawn on the page. */
+  showCursor: boolean
   /** The tab the card acts on (the one the agent asked about or last used), while it is still open. */
   tab?: { id: string; agentPaused: boolean }
   /** The tab already in view needs no "Show its tab". */
@@ -100,6 +102,7 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
       })
     },
     follow: { label: t('shell.agentCard.follow'), checked: context.follow },
+    cursor: { label: t('shell.agentCard.cursor'), checked: context.showCursor },
     buttons,
     closeLabel: t('shell.agentCard.close')
   }

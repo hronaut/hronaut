@@ -281,6 +281,10 @@ export const plPL = {
       "label": "Odtwarzaj dźwięk uwagi",
       "description": "Odtwórz ostrzeżenie, gdy agent wymaga ręcznego kroku w przeglądarce."
     },
+    "agentCursor": {
+      "label": "Pokazuj kursory agentów",
+      "description": "Pokazuj kursor każdego agenta z jego nazwą tam, gdzie klika, wskazuje lub przeciąga na stronie."
+    },
     "attentionSound": {
       "label": "Dźwięk uwagi",
       "description": "Wybierz sygnał odtwarzany, gdy Hronaut Cię potrzebuje.",
@@ -1393,6 +1397,7 @@ export const plPL = {
       "noSteps": "Brak ukończonych kroków",
       "stepFailed": "{step}, nie udało się",
       "follow": "Śledź agentów we wszystkich obszarach",
+      "cursor": "Pokazuj kursory agentów na stronie",
       "showTab": "Pokaż jego kartę",
       "pause": "Wstrzymaj na tej karcie",
       "resume": "Wznów na tej karcie",

@@ -360,6 +360,8 @@ import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import {
   agentPointerScript,
+  dismissAgentPointerScript,
+  type AgentPointerIdentity,
   cancelElementPickerScript,
   cancelScreenshotAreaScript,
   dialogAwareClickScript,
@@ -910,6 +912,8 @@ export interface TabsManagerOptions {
   memorySaverEnabled?: boolean
   memorySaverTimeoutMinutes?: MemorySaverTimeoutMinutes
   followAgentActivity?: boolean
+  /** Whether agents' cursors are drawn on the page; on unless this says false. */
+  getShowAgentCursor?: () => boolean
   getChallengeDetectionEnabled?: () => boolean
   getSearchEngine?: () => SearchEngineName
   getLocale: () => SupportedLocale
@@ -6245,12 +6249,12 @@ export class BrowserTabsManager {
     })
   }
 
-  async click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void): Promise<unknown> {
+  async click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
     let observed: { tab: BrowserTab; observation: OpenedTabObservation } | undefined
     try {
       const result = await this.dispatchClick(target, validateClick, recordClickProgress, retainClickAuthority, (tab) => {
         observed = { tab, observation: this.observeOpenedTabs(tab) }
-      })
+      }, agent)
       const current = observed
       observed = undefined
       const opened = current && this.stopObservingOpenedTabs(current.tab, current.observation)
@@ -6260,7 +6264,7 @@ export class BrowserTabsManager {
     }
   }
 
-  private async dispatchClick(target: BrowserClickTarget, validateClick: ((validateContext: () => void) => void) | undefined, recordClickProgress: ((progress: NativeClickProgress) => void) | undefined, retainClickAuthority: ((authority: { validate(): void; dispose(): void }) => void) | undefined, observeTab: (tab: BrowserTab) => void): Promise<unknown> {
+  private async dispatchClick(target: BrowserClickTarget, validateClick: ((validateContext: () => void) => void) | undefined, recordClickProgress: ((progress: NativeClickProgress) => void) | undefined, retainClickAuthority: ((authority: { validate(): void; dispose(): void }) => void) | undefined, observeTab: (tab: BrowserTab) => void, agent?: AgentPointerIdentity): Promise<unknown> {
     const rightClick = target.button === 'right'
     if (rightClick) {
       assertRightClickPlatform(process.platform)
@@ -6291,7 +6295,7 @@ export class BrowserTabsManager {
       if (rightClick) { environment = this.rightClickEnvironment(tab); assertClickCurrent() }
       if (coordinatePoint) {
         await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
-        await this.showAgentPointer(webContents, coordinatePoint, 'click')
+        await this.showAgentPointer(webContents, coordinatePoint, 'click', { agent })
         if (dialogAction !== undefined) {
           await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
             const contextId = await this.mainWorldContextId(webContents)
@@ -6332,7 +6336,7 @@ export class BrowserTabsManager {
               await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
               assertClickCurrent()
               let point = await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
-              await this.showAgentPointer(webContents, point, 'click')
+              await this.showAgentPointer(webContents, point, 'click', { agent })
               assertClickCurrent()
               point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
               try { this.assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
@@ -6362,7 +6366,7 @@ export class BrowserTabsManager {
       }
       const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
         .catch(() => undefined) as { x: number; y: number } | undefined
-      if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click')
+      if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click', { agent })
       const result = await this.withAgentInput(webContents, () => {
         if (dialogAction === undefined) {
           // Pointer rendering and input preparation await page work. Recheck
@@ -6520,17 +6524,36 @@ export class BrowserTabsManager {
     }
   }
 
+  /**
+   * Draws the agent's cursor on the page, named and in its avatar's color when the call came from an MCP
+   * client. Nothing is drawn while agent cursors are turned off. The page gets only the point, the effect,
+   * the name and two colors, in an isolated world.
+   */
   private async showAgentPointer(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
     effect: 'move' | 'click' | 'drag-start' | 'drag-end',
-    origin?: { x: number; y: number }
+    options: { origin?: { x: number; y: number }; agent?: AgentPointerIdentity } = {}
   ): Promise<void> {
+    if (this.options.getShowAgentCursor?.() === false) return
     await webContents.executeJavaScriptInIsolatedWorld(
       AGENT_POINTER_WORLD_ID,
-      [{ code: agentPointerScript(point, effect, origin) }],
+      [{ code: agentPointerScript(point, effect, options.origin, options.agent) }],
       false
     ).catch(() => undefined)
+  }
+
+  /**
+   * Takes an agent's cursor off the page before a capture for an agent, so its screenshots and visual
+   * comparisons show the page itself. Waits for the page to paint without it, at most a moment.
+   */
+  private async dismissAgentPointer(webContents: BrowserTab['view']['webContents']): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      webContents.executeJavaScriptInIsolatedWorld(AGENT_POINTER_WORLD_ID, [{ code: dismissAgentPointerScript() }], false).catch(() => undefined),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, 300) })
+    ])
+    clearTimeout(timer)
   }
 
   async type(target: {
@@ -6602,7 +6625,7 @@ export class BrowserTabsManager {
     selector?: string
     x?: number
     y?: number
-  }, validateInput?: (validateContext: () => void) => void): Promise<unknown> {
+  }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'hover')
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
@@ -6614,7 +6637,7 @@ export class BrowserTabsManager {
         tag: string
       }
       if (coordinatePoint) await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
-      await this.showAgentPointer(webContents, point, 'move')
+      await this.showAgentPointer(webContents, point, 'move', { agent })
       await this.withAgentInput(webContents, () => this.withDebugger(webContents, () =>
         this.agentInputDebugger(webContents, authority.validate).sendCommand('Input.dispatchMouseEvent', {
           type: 'mouseMoved',
@@ -6637,7 +6660,7 @@ export class BrowserTabsManager {
     startY?: number
     endX?: number
     endY?: number
-  }, validateInput?: (validateContext: () => void) => void): Promise<unknown> {
+  }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
     const source = { ref: options.sourceRef, selector: options.sourceSelector }
     const target = { ref: options.targetRef, selector: options.targetSelector }
     const coordinatePoints = this.coordinateDragPointsOrValidateTargets(options, source, target)
@@ -6654,13 +6677,13 @@ export class BrowserTabsManager {
         await this.assertPointInsideVisibleViewport(webContents, from, 'drag')
         await this.assertPointInsideVisibleViewport(webContents, to, 'drag')
       }
-      await this.showAgentPointer(webContents, from, 'drag-start')
+      await this.showAgentPointer(webContents, from, 'drag-start', { agent })
       await this.withAgentInput(webContents, () => this.withDebugger(
         webContents,
         () => dispatchNativeDrag(this.agentInputDebugger(webContents, authority.validate), from, to, this.agentInputDebugger(webContents))
       ))
       authority.validate()
-      await this.showAgentPointer(webContents, to, 'drag-end', from)
+      await this.showAgentPointer(webContents, to, 'drag-end', { origin: from, agent })
       authority.validate()
       return { ok: true, from, to }
     } finally { authority.dispose() }
@@ -8182,6 +8205,7 @@ export class BrowserTabsManager {
       }
     }
     return this.withRenderableTab(tab, async () => {
+      await this.dismissAgentPointer(tab.webContents)
       if (settleMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, settleMs))
       assertCurrent()
       const environment = clip ? await this.visualCompareContext(tab) : undefined
@@ -8380,6 +8404,7 @@ export class BrowserTabsManager {
     }
     return this.withRenderableTab(tab, async () => {
       const webContents = tab.webContents
+      await this.dismissAgentPointer(webContents)
       if (hasTarget || options.clip) {
         const requestedClip = hasTarget
           ? await webContents.executeJavaScript(`(async () => {
@@ -8472,6 +8497,7 @@ export class BrowserTabsManager {
     const result = await this.withRenderableTab(tab, async () => {
       const id = randomUUID()
       const contents = tab.webContents
+      await this.dismissAgentPointer(contents)
       const execute = (code: string) => contents.executeJavaScriptInIsolatedWorld(SCREENSHOT_ANNOTATION_WORLD_ID, [{ code }], false)
       try {
         assertCurrent()
@@ -8537,7 +8563,10 @@ export class BrowserTabsManager {
     // later commit does not increment navigationGeneration a second time.
     webContents.on('did-navigate', onDocumentCommitted)
     try {
-      const data = await this.withRenderableTab(tab, () => {
+      const data = await this.withRenderableTab(tab, async () => {
+        assertCurrent()
+        // An agent's cursor is fixed to the viewport, so it would print on every page.
+        await this.dismissAgentPointer(webContents)
         assertCurrent()
         return webContents.printToPDF({
           landscape: options.landscape ?? false,
