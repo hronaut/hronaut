@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { effectScope, nextTick, ref } from 'vue'
+import { effectScope, nextTick, ref, type EffectScope } from 'vue'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WORKSPACE_TINT_PROPERTY, useWorkspaceShellTint } from '../../src/renderer/src/composables/useWorkspaceShellTint.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../src/shared/tab-groups.js'
@@ -65,14 +65,20 @@ function browserState(activeTabId: string | null): BrowserState {
 
 const stylesRoot = join(process.cwd(), 'src/renderer/src/styles')
 
-afterEach(() => document.documentElement.style.removeProperty(WORKSPACE_TINT_PROPERTY))
+let scope: EffectScope | undefined
+afterEach(() => {
+  scope?.stop()
+  scope = undefined
+  document.documentElement.style.removeProperty(WORKSPACE_TINT_PROPERTY)
+})
 
 describe('workspace shell tint', () => {
   it('takes the color of the workspace in view and goes neutral on Home, Settings and pages outside a workspace', async () => {
     const state = ref(browserState('checkout'))
     const settingsOpen = ref(false)
-    const scope = effectScope()
-    scope.run(() => useWorkspaceShellTint({ state, settingsOpen, detachedWindow: false }))
+    const tabOrientation = ref<'vertical' | 'horizontal'>('vertical')
+    scope = effectScope()
+    scope.run(() => useWorkspaceShellTint({ state, settingsOpen, tabOrientation, detachedWindow: false }))
     const tint = () => document.documentElement.style.getPropertyValue(WORKSPACE_TINT_PROPERTY)
     expect(tint()).toBe(BROWSER_TAB_GROUP_COLOR_HEX.green)
 
@@ -84,6 +90,14 @@ describe('workspace shell tint', () => {
     await nextTick()
     expect(tint()).toBe('')
     settingsOpen.value = false
+    await nextTick()
+    expect(tint()).toBe(BROWSER_TAB_GROUP_COLOR_HEX.purple)
+
+    // The tab strip above the page has no shared surface to wash.
+    tabOrientation.value = 'horizontal'
+    await nextTick()
+    expect(tint()).toBe('')
+    tabOrientation.value = 'vertical'
     await nextTick()
     expect(tint()).toBe(BROWSER_TAB_GROUP_COLOR_HEX.purple)
 
@@ -103,10 +117,9 @@ describe('workspace shell tint', () => {
   })
 
   it('leaves a detached panel window neutral', () => {
-    const scope = effectScope()
-    scope.run(() => useWorkspaceShellTint({ state: ref(browserState('checkout')), settingsOpen: ref(false), detachedWindow: true }))
+    scope = effectScope()
+    scope.run(() => useWorkspaceShellTint({ state: ref(browserState('checkout')), settingsOpen: ref(false), tabOrientation: ref('vertical'), detachedWindow: true }))
     expect(document.documentElement.style.getPropertyValue(WORKSPACE_TINT_PROPERTY)).toBe('')
-    scope.stop()
   })
 })
 
@@ -142,6 +155,15 @@ describe('workspace shell wash tokens', () => {
     expect(tokens).toMatch(/@property --workspace-tint\s*\{[^}]*syntax:\s*"<color>";[^}]*inherits:\s*true;[^}]*initial-value:\s*transparent;/u)
     const base = readFileSync(join(stylesRoot, 'base.css'), 'utf8')
     expect(base).toMatch(/:root\s*\{\s*transition:\s*--workspace-tint 600ms/u)
+  })
+
+  it('leaves the background image of the bars under the toolbar to the wash', () => {
+    // A scoped component style is unlayered and beats the shell stylesheet, so a background shorthand there would
+    // reset the wash to none and leave a flat band under the toolbar.
+    const notice = readFileSync(join(process.cwd(), 'src/renderer/src/components/LicenseExpiryNotice.vue'), 'utf8')
+    const rule = /\.license-expiry-notice\s*\{([^}]*)\}/u.exec(notice)?.[1] ?? ''
+    expect(rule).toMatch(/background-color:/u)
+    expect(rule).not.toMatch(/(^|[\s;])background:/u)
   })
 
   it('keeps muted text at 4.5:1 on the strongest point of the wash in every theme and workspace color', () => {

@@ -41,17 +41,19 @@ test('washes the shell in the color of the workspace in view and crossfades betw
     const rect = element.getBoundingClientRect()
     return { x: Math.round(rect.left + 2), y: Math.round(rect.top + 2) }
   })
-  const neutral = hexRgb('#f7f7f8')
+  const neutral = hexRgb(await appWindow.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--shell-bottom').trim()))
   const green = hexRgb(BROWSER_TAB_GROUP_COLOR_HEX.green)
   await expect.poll(() => windowPixel(electronApp, probe.x, probe.y)).toEqual(neutral)
 
   const acme = await createWorkspace(appWindow, 'Acme', 'green')
   await appWindow.evaluate(`window.hronaut.newTab(${JSON.stringify({ mcpGroupId: acme, url: 'data:text/html,<title>Checkout</title><body style="margin:0;background:white">', active: true })})`)
   await expect.poll(() => rootTint(appWindow)).toBe('rgb(101, 168, 67)')
-  // Strongest point: about 13 percent of the workspace color over the rail surface.
+  // Strongest point: the theme's wash strength (about 13 percent) of the workspace color over the rail surface.
+  const strength = Number.parseFloat(await appWindow.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--shell-wash-strength'))) / 100
+  expect(strength).toBeGreaterThan(0.05)
   await expect.poll(async () => {
     const pixel = await windowPixel(electronApp, probe.x, probe.y)
-    return (['r', 'g', 'b'] as const).every(channel => Math.abs(pixel[channel] - Math.round(green[channel] * 0.13 + neutral[channel] * 0.87)) <= 4)
+    return (['r', 'g', 'b'] as const).every(channel => Math.abs(pixel[channel] - Math.round(green[channel] * strength + neutral[channel] * (1 - strength))) <= 4)
   }, { message: 'The rail takes the green workspace wash' }).toBe(true)
   await appWindow.screenshot({ path: testInfo.outputPath('workspace-green.png') })
 
@@ -59,6 +61,12 @@ test('washes the shell in the color of the workspace in view and crossfades betw
   const surfaces = await appWindow.evaluate(() => [document.querySelector('.toolbar')!, document.querySelector('.topbar')!, document.body]
     .map(element => getComputedStyle(element).backgroundImage))
   expect(surfaces.every(image => image.includes('radial-gradient')), surfaces.join(' | ')).toBe(true)
+  // So do the bars that open under the toolbar.
+  await appWindow.getByRole('button', { name: 'Find in page', exact: true }).click()
+  await expect(appWindow.locator('.find-bar')).toBeVisible()
+  expect(await appWindow.locator('.find-bar').evaluate(element => getComputedStyle(element).backgroundImage)).toContain('radial-gradient')
+  await appWindow.keyboard.press('Escape')
+  await expect(appWindow.locator('.find-bar')).toBeHidden()
 
   // Switching workspaces runs a transition on the registered color instead of jumping.
   await appWindow.evaluate(() => {

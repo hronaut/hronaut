@@ -259,7 +259,7 @@ const {
   openSection: openSettingsSection,
   close: closeSettings
 } = settingsDialogController
-useWorkspaceShellTint({ state, settingsOpen, detachedWindow: isDetachedPanelWindow })
+useWorkspaceShellTint({ state, settingsOpen, tabOrientation, detachedWindow: isDetachedPanelWindow })
 const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
 const walletWorkspaces = computed(() => state.value.mcpTabGroups.map((workspace) => ({ id: workspace.id, name: workspace.name })))
 const dataWorkspaces = computed(() => [
