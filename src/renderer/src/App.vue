@@ -563,6 +563,7 @@ const {
     togglePageTools,
     toggleDeveloperTools,
     openAgentCard: () => browserChromeLayer.value?.openAgentCard(),
+    takeOverFromAgent: () => browserChromeLayer.value?.takeOverFromAgent(),
     toggleFullPageView: fullPageView.toggle
   },
   actions: {

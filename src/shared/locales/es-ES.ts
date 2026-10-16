@@ -863,7 +863,8 @@ export const esES = {
       "directTab": "Ir a la pestaña web 1–8",
       "lastTab": "Ir a la última pestaña web",
       "resetZoom": "Restablecer el zoom de la página",
-      "fullPage": "Alternar vista de página completa"
+      "fullPage": "Alternar vista de página completa",
+      "takeOver": "Tomar el control del agente que trabaja en la página"
     },
     "responsive": {
       "preview": "Probar teléfonos, tabletas y ordenadores",
@@ -1500,6 +1501,18 @@ export const esES = {
     },
     "fullPage": {
       "exit": "Salir de la vista de página completa"
+    },
+    "takeOver": {
+      "offer": "¿Tomar el control de {name}?",
+      "takeOver": "Tomar el control",
+      "takeOverDescription": "Pausar a {name} en esta pestaña y continuar tú",
+      "dismiss": "Descartar",
+      "control": "Tienes el control",
+      "handBack": "Devolver",
+      "handBackTo": "Devolver a {name}",
+      "handBackDescription": "Reanudar el agente en esta pestaña y decirle qué cambió",
+      "avatarOffer": "Tomar el control de {name}: Ctrl/Cmd+Shift+O",
+      "avatarControl": "Tienes el control de esta pestaña. Reanuda {name} para devolverla"
     },
     "siteControls": {
       "close": "Cerrar los controles del sitio",

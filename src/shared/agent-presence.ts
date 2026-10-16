@@ -63,9 +63,21 @@ export interface AgentPresenceSnapshot {
   workspaces: Record<string, AgentPresence[]>
 }
 
+/** After the person clicks or types in a page an agent is working on, they can take over for this long. */
+export const AGENT_TAKE_OVER_OFFER_MS = 8_000
+
+/** The person clicked or typed in a tab an agent was working on. Shell only. */
+export interface AgentTakeOverOffer {
+  tabId: string
+  /** The working agent's presence key. */
+  clientKey: string
+}
+
 export interface HronautAgentPresenceApi {
   get(): Promise<AgentPresenceSnapshot>
   onChanged(listener: (snapshot: AgentPresenceSnapshot) => void): () => void
+  /** Hears each offer to take over from the agent working on a tab the person just touched. */
+  onTakeOverOffer?(listener: (offer: AgentTakeOverOffer) => void): () => void
 }
 
 export const EMPTY_AGENT_PRESENCE: AgentPresenceSnapshot = Object.freeze({ revision: 0, workspaces: Object.freeze({}) }) as AgentPresenceSnapshot

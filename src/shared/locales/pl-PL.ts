@@ -863,7 +863,8 @@ export const plPL = {
       "directTab": "Przejdź do karty internetowej 1–8",
       "lastTab": "Przejdź do ostatniej karty internetowej",
       "resetZoom": "Zresetuj powiększenie strony",
-      "fullPage": "Przełącz widok pełnej strony"
+      "fullPage": "Przełącz widok pełnej strony",
+      "takeOver": "Przejmij kontrolę od agenta pracującego na stronie"
     },
     "responsive": {
       "preview": "Testuj telefony, tablety i komputery",
@@ -1500,6 +1501,18 @@ export const plPL = {
     },
     "fullPage": {
       "exit": "Wyjdź z widoku pełnej strony"
+    },
+    "takeOver": {
+      "offer": "Przejąć kontrolę od agenta {name}?",
+      "takeOver": "Przejmij",
+      "takeOverDescription": "Wstrzymaj agenta {name} na tej karcie i kontynuuj samodzielnie",
+      "dismiss": "Odrzuć",
+      "control": "Masz kontrolę",
+      "handBack": "Oddaj",
+      "handBackTo": "Oddaj agentowi {name}",
+      "handBackDescription": "Wznów agenta na tej karcie i przekaż mu, co się zmieniło",
+      "avatarOffer": "Przejmij kontrolę od agenta {name}: Ctrl/Cmd+Shift+O",
+      "avatarControl": "Masz kontrolę nad tą kartą. Wznów agenta {name}, aby ją oddać"
     },
     "siteControls": {
       "close": "Zamknij ustawienia witryny",

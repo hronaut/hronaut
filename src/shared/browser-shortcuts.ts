@@ -22,6 +22,7 @@ export type BrowserShortcutAction =
   | 'toggle-devtools'
   | 'agent-card'
   | 'toggle-full-page'
+  | 'take-over'
 
 export interface BrowserShortcutInput {
   key: string
@@ -62,6 +63,7 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (!input.shift && key === '0') return 'zoom-reset'
   if (key === 't') return input.shift ? 'reopen-closed-tab' : 'new-tab'
   if (input.shift && key === 'f') return 'toggle-full-page'
+  if (input.shift && key === 'o') return 'take-over'
   if (input.shift) return null
   if (key === 'l') return 'focus-address'
   if (key === 'w') return 'close-tab'

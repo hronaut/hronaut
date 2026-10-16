@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
+import IconBackHand from '~icons/material-symbols/back-hand-rounded'
 import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconSmartToy from '~icons/material-symbols/smart-toy-outline-rounded'
 import type { AgentCardAction, HronautAgentCardApi } from '../../../shared/agent-card.js'
@@ -41,6 +42,8 @@ const props = withDefaults(defineProps<{
   /** The live status strip is pinned below the toolbar. */
   pinLiveStatus?: boolean
   agentControlLocked?: boolean
+  /** The agent you can take over from, or whose tab you have, when the toolbar has no room to say so. */
+  takeOverBadge?: { clientKey: string; kind: 'offer' | 'control' }
   api?: HronautAgentPresenceApi
   cardApi?: HronautAgentCardApi
 }>(), { showCursor: true })
@@ -102,9 +105,15 @@ function label(agent: AgentPresence): string {
   return t('shell.agents.avatarLabel', { name: displayName(agent), state })
 }
 
+function takeOverBadgeFor(agent: AgentPresence): 'offer' | 'control' | undefined {
+  return props.takeOverBadge?.clientKey === agent.clientKey && !gone(agent) && agent.state !== 'needs-you' ? props.takeOverBadge.kind : undefined
+}
+
 function tooltip(agent: AgentPresence): string {
   const name = displayName(agent)
   if (gone(agent)) return t('shell.agents.gone', { name })
+  const takeOver = takeOverBadgeFor(agent)
+  if (takeOver) return t(takeOver === 'offer' ? 'shell.takeOver.avatarOffer' : 'shell.takeOver.avatarControl', { name })
   if (agent.state === 'needs-you') {
     return props.attentionReason
       ? t('shell.agents.needsYouReason', { name, reason: props.attentionReason })
@@ -355,6 +364,7 @@ defineExpose({ openCard, focus, cardOpen })
         <IconSmartToy v-else />
       </span>
       <span v-if="agent.state === 'needs-you' && !gone(agent)" class="agent-avatar-badge" aria-hidden="true"><IconPriorityHigh /></span>
+      <span v-else-if="takeOverBadgeFor(agent)" class="agent-avatar-badge take-over" :data-kind="takeOverBadgeFor(agent)" aria-hidden="true"><IconBackHand /></span>
     </UiButton>
     <span
       v-if="more.length"

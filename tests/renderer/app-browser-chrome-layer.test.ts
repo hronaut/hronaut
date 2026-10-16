@@ -144,7 +144,8 @@ const AgentPresenceAvatarsStub = defineComponent({
     activeTabId: String,
     attentionReason: String,
     attentionId: String,
-    attentionDecision: Boolean
+    attentionDecision: Boolean,
+    takeOverBadge: Object
   },
   emits: ['select', 'takeOver', 'answerAttention', 'reviewDecision', 'setPinLiveStatus'],
   setup(_props, { expose }) {
@@ -153,6 +154,25 @@ const AgentPresenceAvatarsStub = defineComponent({
     agentCardsOpen.push(cardOpen)
     expose({ openCard: openAgentCardSpy, focus: focusAgentAvatarSpy, cardOpen })
     return () => h('div', { 'data-testid': 'agent-presence' })
+  }
+})
+
+const takeOverOfferText = ref('')
+const takeOverBadge = ref<{ clientKey: string; kind: 'offer' | 'control' }>()
+const takeOverSpy = vi.fn(() => takeOverOfferText.value !== '')
+
+const AgentTakeOverPromptStub = defineComponent({
+  name: 'AgentTakeOverPrompt',
+  props: {
+    workspaceId: String,
+    activeTabId: String,
+    tabs: Array,
+    agentControlLocked: Boolean
+  },
+  emits: ['takeOver', 'handBack'],
+  setup(_props, { expose }) {
+    expose({ takeOver: takeOverSpy, offerText: takeOverOfferText, badge: takeOverBadge })
+    return () => h('div', { 'data-testid': 'agent-take-over' })
   }
 })
 
@@ -190,7 +210,7 @@ const BrowserNavigationControlsStub = defineComponent({
   },
   emits: ['back', 'forward', 'reload', 'stop', 'find', 'toggleZoom', 'toggleBookmarks'],
   setup(_props, { slots }) {
-    return () => h('div', { 'data-testid': 'navigation' }, [slots.default?.(), slots.commands?.()])
+    return () => h('div', { 'data-testid': 'navigation' }, [slots.default?.(), slots.leading?.(), slots.commands?.()])
   }
 })
 
@@ -429,6 +449,7 @@ function createHarness(home = false, options: { attach?: boolean } = {}) {
         BrowserAddressBar: BrowserAddressBarStub,
         AgentPresenceAvatars: AgentPresenceAvatarsStub,
         AgentLiveStrip: AgentLiveStripStub,
+        AgentTakeOverPrompt: AgentTakeOverPromptStub,
         BrowserNavigationControls: BrowserNavigationControlsStub,
         BrowserPageActions: BrowserPageActionsStub,
         ShellTitleBarSurface: ShellTitleBarSurfaceStub
@@ -471,6 +492,9 @@ describe('AppBrowserChromeLayer', () => {
   beforeEach(() => {
     openAgentCardSpy.mockClear()
     focusAgentAvatarSpy.mockClear()
+    takeOverSpy.mockClear()
+    takeOverOfferText.value = ''
+    takeOverBadge.value = undefined
     agentCardsOpen.splice(0)
   })
   afterEach(() => {
@@ -624,7 +648,8 @@ describe('AppBrowserChromeLayer', () => {
     expect((harness.wrapper.props('state') as BrowserState).tabs[0].agentPaused).not.toBe(true)
     finishPause()
     await flushPromises()
-    expect(harness.tabActions.setTabAgentPaused).toHaveBeenCalledWith('tab-1', true)
+    // The pause records that you took the tab over, so the agent hears you have it until you hand it back.
+    expect(harness.tabActions.setTabAgentPaused).toHaveBeenCalledWith('tab-1', true, { takeOver: true })
     expect(harness.tabActions.selectBrowserTab).toHaveBeenCalledWith('tab-1')
 
     // A pause that did not happen, such as under locked agent control, shows nothing.
@@ -654,6 +679,47 @@ describe('AppBrowserChromeLayer', () => {
     await flushPromises()
     expect(harness.tabActions.selectBrowserTab).not.toHaveBeenCalled()
     expect(harness.wrapper.props('tabSearchOpen')).toBe(true)
+  })
+
+  it('offers the take over in the toolbar, takes it by shortcut and hands the tab back', async () => {
+    const harness = createHarness()
+    const prompt = harness.wrapper.getComponent(AgentTakeOverPromptStub)
+    expect(prompt.props()).toMatchObject({ workspaceId: 'workspace-1', activeTabId: 'tab-1', agentControlLocked: false })
+    expect(prompt.props('tabs')).toEqual(harness.props.state.tabs)
+    // The shortcut does nothing without an offer.
+    const exposed = harness.wrapper.vm as unknown as { takeOverFromAgent: () => boolean }
+    expect(exposed.takeOverFromAgent()).toBe(false)
+    takeOverOfferText.value = 'Take over from Claude Code?'
+    expect(exposed.takeOverFromAgent()).toBe(true)
+    expect(takeOverSpy).toHaveBeenCalledTimes(2)
+
+    prompt.vm.$emit('takeOver', 'tab-1')
+    await flushPromises()
+    expect(harness.tabActions.setTabAgentPaused).toHaveBeenLastCalledWith('tab-1', true, { takeOver: true })
+    prompt.vm.$emit('handBack', 'tab-1')
+    await flushPromises()
+    expect(harness.tabActions.setTabAgentPaused).toHaveBeenLastCalledWith('tab-1', false)
+
+    // Without room in the toolbar, the agent's avatar carries the prompt's badge.
+    const avatars = harness.wrapper.getComponent(AgentPresenceAvatarsStub)
+    expect(avatars.props('takeOverBadge')).toBeUndefined()
+    takeOverBadge.value = { clientKey: 'key-claude', kind: 'offer' }
+    await nextTick()
+    expect(avatars.props('takeOverBadge')).toEqual({ clientKey: 'key-claude', kind: 'offer' })
+  })
+
+  it('offers the take over on the full-page band in place of the title', async () => {
+    const harness = createHarness()
+    harness.fullPage.toggle()
+    await nextTick()
+    const edge = () => harness.wrapper.find('[data-testid="full-page-edge"]')
+    expect(edge().text()).toBe('Example')
+    takeOverOfferText.value = 'Take over from Claude Code?'
+    await nextTick()
+    expect(edge().text()).toBe('Take over from Claude Code?')
+    takeOverOfferText.value = ''
+    await nextTick()
+    expect(edge().text()).toBe('Example')
   })
 
   it('pins the live strip for the workspace in view and routes its actions like the agent card', async () => {

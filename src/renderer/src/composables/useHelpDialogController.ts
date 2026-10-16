@@ -27,6 +27,7 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.pick'), keys: ['Ctrl+Shift+C', 'Cmd+Option+C'] },
     { label: options.translate('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },
     { label: options.translate('runtime.shortcuts.fullPage'), keys: ['Ctrl/Cmd', 'Shift', 'F'] },
+    { label: options.translate('runtime.shortcuts.takeOver'), keys: ['Ctrl/Cmd', 'Shift', 'O'] },
     { label: options.translate('runtime.shortcuts.bookmark'), keys: ['Ctrl/Cmd', 'D'] },
     { label: options.translate('runtime.shortcuts.history'), keys: ['Ctrl+H', 'Cmd+Y'] },
     { label: options.translate('runtime.shortcuts.clearData'), keys: ['Ctrl/Cmd', 'Shift', 'Delete'] },

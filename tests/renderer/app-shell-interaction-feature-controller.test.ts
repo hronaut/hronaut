@@ -48,7 +48,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createHarness() {
+function createHarness(extraNavigation: { takeOverFromAgent?: () => unknown } = {}) {
   const state = ref(browserState())
   const activeTab = computed(() => state.value.tabs.find((candidate) => candidate.id === state.value.activeTabId))
   const refs = {
@@ -186,7 +186,8 @@ function createHarness() {
       focusAddressInput: noop,
       expandTabGroup: noop,
       togglePageTools: noop,
-      toggleDeveloperTools: asyncNoop
+      toggleDeveloperTools: asyncNoop,
+      ...extraNavigation
     },
     actions: {
       closeTransientPanels: noop,
@@ -239,6 +240,20 @@ describe('app shell interaction feature controller', () => {
     harness.state.value = browserState(true)
     await expect(harness.controller.runBrowserShortcut('close-tab')).resolves.toBe(true)
     expect(harness.browser.closeTab).toHaveBeenCalledWith('active')
+    harness.controller.dispose()
+  })
+
+  it('takes over from the agent by shortcut, but not over an open dialog', async () => {
+    const takeOverFromAgent = vi.fn()
+    const harness = createHarness({ takeOverFromAgent })
+    await expect(harness.controller.runBrowserShortcut('take-over')).resolves.toBe(true)
+    expect(takeOverFromAgent).toHaveBeenCalledOnce()
+    harness.refs.commandPalette.value = true
+    await expect(harness.controller.runBrowserShortcut('take-over')).resolves.toBe(false)
+    harness.refs.commandPalette.value = false
+    harness.refs.workspaceEditor.value = true
+    await expect(harness.controller.runBrowserShortcut('take-over')).resolves.toBe(false)
+    expect(takeOverFromAgent).toHaveBeenCalledOnce()
     harness.controller.dispose()
   })
 

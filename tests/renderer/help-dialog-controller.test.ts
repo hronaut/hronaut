@@ -54,7 +54,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.fullPage',
       keys: ['Ctrl/Cmd', 'Shift', 'F']
     })
-    expect(controller.shortcuts.value).toHaveLength(20)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.takeOver',
+      keys: ['Ctrl/Cmd', 'Shift', 'O']
+    })
+    expect(controller.shortcuts.value).toHaveLength(21)
     controller.dispose()
   })
 })

@@ -60,7 +60,7 @@ function createHarness() {
     setAllTabsMuted: vi.fn(async (_muted: boolean) => state.value),
     setAllHumanInteractionLocked: vi.fn(async (_locked: boolean) => state.value),
     setTabHumanInteractionLocked: vi.fn(async (_tabId: string, _locked: boolean) => state.value),
-    setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => state.value),
+    setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean, _options?: { takeOver?: boolean }) => state.value),
     setTabPageLifecycle: vi.fn(async (_tabId: string, _lifecycle: 'active' | 'frozen') => state.value),
     setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
     showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined),
@@ -356,6 +356,23 @@ describe('browser tab actions controller', () => {
     expect(await harness.controller.setTabAgentPaused('active', false)).toBe(false)
     harness.state.value.agentControlLocked = true
     expect(await harness.controller.setTabAgentPaused('active', false)).toBe(false)
+  })
+
+  it('takes a tab over even when its agents were already paused, and only once', async () => {
+    const harness = createHarness()
+    harness.browser.setTabAgentPaused.mockImplementation(async (id: string, agentPaused: boolean, options?: { takeOver?: boolean }) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map(candidate => candidate.id === id
+        ? { ...candidate, agentPaused, ...(options?.takeOver ? { takenOverAt: 1 } : {}) }
+        : candidate)
+    }))
+    expect(await harness.controller.setTabAgentPaused('active', true)).toBe(true)
+    expect(await harness.controller.setTabAgentPaused('active', true, { takeOver: true })).toBe(true)
+    expect(await harness.controller.setTabAgentPaused('active', true, { takeOver: true })).toBe(true)
+    expect(harness.browser.setTabAgentPaused.mock.calls).toEqual([['active', true], ['active', true, { takeOver: true }]])
+    // A resume never carries the take-over option.
+    expect(await harness.controller.setTabAgentPaused('active', false, { takeOver: true })).toBe(true)
+    expect(harness.browser.setTabAgentPaused.mock.calls.at(-1)).toEqual(['active', false])
   })
 
   it('drops queued page and agent toggles after disposal or tab closure', async () => {

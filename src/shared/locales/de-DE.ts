@@ -863,7 +863,8 @@ export const deDE = {
       "directTab": "Zu Website-Tab 1–8 wechseln",
       "lastTab": "Zum letzten Website-Tab wechseln",
       "resetZoom": "Seitenzoom zurücksetzen",
-      "fullPage": "Ganzseitenansicht umschalten"
+      "fullPage": "Ganzseitenansicht umschalten",
+      "takeOver": "Vom Agenten auf der Seite übernehmen"
     },
     "responsive": {
       "preview": "Telefone, Tablets und Desktops testen",
@@ -1500,6 +1501,18 @@ export const deDE = {
     },
     "fullPage": {
       "exit": "Ganzseitenansicht beenden"
+    },
+    "takeOver": {
+      "offer": "Von {name} übernehmen?",
+      "takeOver": "Übernehmen",
+      "takeOverDescription": "{name} auf diesem Tab pausieren und selbst weitermachen",
+      "dismiss": "Schließen",
+      "control": "Sie haben die Kontrolle",
+      "handBack": "Zurückgeben",
+      "handBackTo": "An {name} zurückgeben",
+      "handBackDescription": "Den Agenten auf diesem Tab fortsetzen und ihm sagen, was sich geändert hat",
+      "avatarOffer": "Von {name} übernehmen: Ctrl/Cmd+Shift+O",
+      "avatarControl": "Sie haben die Kontrolle über diesen Tab. Setzen Sie {name} fort, um ihn zurückzugeben"
     },
     "siteControls": {
       "close": "Website-Steuerung schließen",

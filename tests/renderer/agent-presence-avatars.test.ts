@@ -67,6 +67,23 @@ describe('agent avatars in the toolbar', () => {
     expect(buttons[1]?.textContent?.trim()).toBe('C')
   })
 
+  it('carries a hand badge for the take over when the toolbar has no room for its prompt', async () => {
+    const { view } = renderAvatars([agent('Claude Code'), agent('Windsurf', { state: 'needs-you' })])
+    const group = await screen.findByRole('group', { name: 'Agents in this workspace' })
+    expect(group.querySelector('.agent-avatar-badge.take-over')).toBeNull()
+    await view.rerender({ takeOverBadge: { clientKey: 'key-Claude Code', kind: 'offer' } })
+    const claude = within(group).getByRole('button', { name: 'Claude Code, working' })
+    expect(claude.querySelector('.agent-avatar-badge.take-over')?.getAttribute('data-kind')).toBe('offer')
+    expect(claude.dataset.tooltip).toBe('Take over from Claude Code: Ctrl/Cmd+Shift+O')
+    await view.rerender({ takeOverBadge: { clientKey: 'key-Claude Code', kind: 'control' } })
+    expect(claude.dataset.tooltip).toBe('You have control of this tab. Resume Claude Code to hand it back')
+    // An agent that needs you keeps its own badge and reason.
+    await view.rerender({ takeOverBadge: { clientKey: 'key-Windsurf', kind: 'control' } })
+    const windsurf = within(group).getByRole('button', { name: 'Windsurf, needs you' })
+    expect(windsurf.querySelector('.agent-avatar-badge.take-over')).toBeNull()
+    expect(claude.querySelector('.agent-avatar-badge')).toBeNull()
+  })
+
   it('names what the current step acts on in the tooltip when main knows it', async () => {
     renderAvatars([
       agent('Claude Code', { step: 'click', target: 'Review order' }),

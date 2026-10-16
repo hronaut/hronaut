@@ -5821,9 +5821,9 @@ export class McpHttpServer {
     this.paused = paused
   }
 
-  setTabAgentPaused(tabId: string, paused: boolean): BrowserState {
+  setTabAgentPaused(tabId: string, paused: boolean, options: { takeOver?: boolean } = {}): BrowserState {
     if (this.paused && !this.allowTabPauseOverrides) throw new Error('Agents are temporarily paused for a protected operation.')
-    const state = this.manager.setTabAgentPaused(tabId, paused)
+    const state = this.manager.setTabAgentPaused(tabId, paused, options)
     this.actionTracker.invalidatePendingDispatches()
     return state
   }

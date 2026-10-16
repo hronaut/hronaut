@@ -93,6 +93,14 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: '.', control: true, repeat: true }))).toBeNull()
   })
 
+  it('takes over from the agent with the primary modifier plus Shift+O', () => {
+    expect(browserShortcutAction(input({ key: 'O', control: true, shift: true }))).toBe('take-over')
+    expect(browserShortcutAction(input({ key: 'o', meta: true, shift: true }))).toBe('take-over')
+    expect(browserShortcutAction(input({ key: 'o', control: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'O', control: true, shift: true, alt: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: 'O', control: true, shift: true, repeat: true }))).toBeNull()
+  })
+
   it('toggles the full-page view with the primary modifier plus Shift+F, leaving Find on F', () => {
     expect(browserShortcutAction(input({ key: 'F', control: true, shift: true }))).toBe('toggle-full-page')
     expect(browserShortcutAction(input({ key: 'F', meta: true, shift: true }))).toBe('toggle-full-page')

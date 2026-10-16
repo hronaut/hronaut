@@ -64,6 +64,8 @@ useResizeObserver(
   </UiButton>
   <slot />
   <div ref="commands" class="toolbar-commands" :class="{ wrapped: commandsWrapped }">
+    <!-- Takes only the room the commands leave, so it never narrows the address field. -->
+    <slot name="leading" />
     <UiButton appearance="application"
       class="icon-button find-button"
       type="button"
