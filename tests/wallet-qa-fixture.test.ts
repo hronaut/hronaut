@@ -3,6 +3,7 @@
 import { readFile } from 'node:fs/promises'
 import { hashTypedData } from 'viem'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { parseSendCalls } from '../src/main/wallet/evm-call-bundles.js'
 import { parseWatchAsset } from '../src/main/wallet/evm-watch-asset.js'
 import { websiteSignInMessageIssue } from '../src/main/wallet/policy.js'
 import { typedDataDisplay } from '../src/main/wallet/typed-data-display.js'
@@ -37,7 +38,7 @@ function pageWith(provider?: { request?: ReturnType<typeof vi.fn> }): FixturePag
   page.document.body.innerHTML = `
     <button id="discover"></button><button id="connect"></button><button id="accounts"></button>
     <button id="chain"></button><button id="switch"></button><button id="sign-in"></button><button id="sign-permit"></button><button id="send"></button>
-    <button id="receipt"></button><input id="chain-id" value="0x7a6a">
+    <button id="receipt"></button><button id="send-batch"></button><input id="chain-id" value="0x7a6a">
     <input id="token-symbol" value="HQA"><input id="token-decimals" value="6"><button id="watch-token"></button>
     <input id="recipient" value="0x1000000000000000000000000000000000000001">
     <input id="hash"><input id="rpc" value="http://127.0.0.1:8545">
@@ -558,5 +559,89 @@ describe('wallet QA add token', () => {
       }
     ]))
     expect(page.document.querySelector('#log')?.textContent ?? '').not.toContain('do not match')
+  })
+})
+
+describe('wallet QA batch calls', () => {
+  const account = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  const recipient = '0x1000000000000000000000000000000000000001'
+  const receipt = (transactionHash: string) => ({
+    status: '0x1', logs: [{ data: 'private synthetic payload' }], blockHash: `0x${'c'.repeat(64)}`, blockNumber: '0x2', gasUsed: '0x5208', transactionHash
+  })
+
+  it('sends two 1 wei calls as one batch and reads its status until it is done, logging only bounded summaries', async () => {
+    const statuses = [
+      { version: '2.0.0', id: '0xprivate-batch', chainId: '0x7a69', status: 100, atomic: false, receipts: [receipt(`0x${'1'.repeat(64)}`)] },
+      { version: '2.0.0', id: '0xprivate-batch', chainId: '0x7a69', status: 200, atomic: false, receipts: [receipt(`0x${'1'.repeat(64)}`), receipt(`0x${'2'.repeat(64)}`)] }
+    ]
+    const request = vi.fn(async ({ method }: { method: string; params?: unknown }) => {
+      if (method === 'eth_accounts') return [account]
+      if (method === 'eth_chainId') return '0x7a69'
+      if (method === 'wallet_sendCalls') return { id: '0xprivate-batch' }
+      if (method === 'wallet_getCallsStatus') return statuses.shift()
+      throw new Error('Unexpected method')
+    })
+    const page = pageWith({ request })
+
+    await click(page, '#send-batch')
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(5), { timeout: 3_000 })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const sent = request.mock.calls.find(([call]) => call.method === 'wallet_sendCalls')?.[0]
+    expect(sent).toEqual({
+      method: 'wallet_sendCalls',
+      params: [{ version: '2.0.0', chainId: '0x7a69', from: account, atomicRequired: false, calls: [{ to: recipient, value: '0x1' }, { to: recipient, value: '0x1' }] }]
+    })
+    // Hronaut accepts the batch as the fixture writes it.
+    expect(parseSendCalls(sent?.params).calls).toHaveLength(2)
+    expect(request.mock.calls.filter(([call]) => call.method === 'wallet_getCallsStatus').map(([call]) => call.params))
+      .toEqual([['0xprivate-batch'], ['0xprivate-batch']])
+    expect(events(page).filter(({ kind }) => kind === 'request:start' || kind === 'request:result')
+      .filter(({ value }) => ['wallet_sendCalls', 'wallet_getCallsStatus'].includes(value.method as string))
+      .map(({ kind, value }) => [kind, value.parameterSummary ?? value.result])).toEqual([
+      ['request:start', {
+        version: '2.0.0', callCount: 2, recipient: 'configured-synthetic-input', value: '1 wei each', atomicRequired: false, account: 'first-connected-account'
+      }],
+      ['request:result', { batchIdReturned: true }],
+      ['request:start', { batchId: 'returned-batch-id' }],
+      ['request:result', { status: 100, receiptCount: 1, receiptStatuses: ['success'], atomic: false }],
+      ['request:start', { batchId: 'returned-batch-id' }],
+      ['request:result', { status: 200, receiptCount: 2, receiptStatuses: ['success', 'success'], atomic: false }]
+    ])
+    const visibleLog = page.document.querySelector('#log')?.textContent ?? ''
+    for (const secret of [account, recipient, '0xprivate-batch', '1'.repeat(64), 'private synthetic payload']) {
+      expect(visibleLog).not.toContain(secret)
+    }
+  })
+
+  it('asks for no batch before the page has a connected account', async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === 'eth_accounts') return []
+      throw new Error('Unexpected method')
+    })
+    const page = pageWith({ request })
+
+    await click(page, '#send-batch')
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts'])
+  })
+
+  it('records a refused batch by its error code only and reads no status', async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === 'eth_accounts') return [account]
+      if (method === 'eth_chainId') return '0x7a69'
+      throw Object.assign(new Error(`Chain 0x7a69 is not this tab's active wallet network for ${account}`), { code: 5710 })
+    })
+    const page = pageWith({ request })
+
+    await click(page, '#send-batch')
+    await vi.waitFor(() => expect(events(page).some(({ kind }) => kind === 'request:error')).toBe(true))
+
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual(['eth_accounts', 'eth_chainId', 'wallet_sendCalls'])
+    expect(events(page)).toEqual(expect.arrayContaining([{
+      kind: 'request:error',
+      value: expect.objectContaining({ method: 'wallet_sendCalls', stage: 'provider-rejection', error: { category: 'provider-error', code: 5710 } })
+    }]))
+    expect(page.document.querySelector('#log')?.textContent ?? '').not.toContain('active wallet network')
   })
 })
