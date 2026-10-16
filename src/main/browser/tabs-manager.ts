@@ -640,6 +640,11 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   navigationPolicyDenialSequence: number
   pinned: boolean
   sleeping: boolean
+  /**
+   * Set while going to sleep replaces the page: the discarded page may still
+   * run until the sleeping page loads, and it cannot start a wallet call.
+   */
+  walletPageUnloading?: boolean
   pageLifecycleState: BrowserPageLifecycleState
   pageLifecycleUnknownRequest?: Exclude<BrowserPageLifecycleState, 'unknown'>
   pageLifecycleOperation?: {
@@ -906,6 +911,8 @@ export interface TabsManagerOptions {
   onWalletTabClosed?: (tabId: string) => void | Promise<void>
   onWalletTabRestored?: (tabId: string, navigationGeneration: number) => void | Promise<void>
   onWalletWorkspaceClosed?: (workspaceId: string) => void | Promise<void>
+  /** True while a page in the tab still waits on a wallet request, so the tab must not sleep. */
+  walletKeepsTabAwake?: (tabId: string) => boolean
   confirmBeforeUnloadClose?: () => Promise<boolean>
   configureSession?: (browserSession: Session) => void
 }
@@ -2260,7 +2267,12 @@ export class BrowserTabsManager {
     }))
   }
 
-  walletPageContext(webContentsId: number): BrowserWalletPageContext {
+  walletPageContext(webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
+    const context = this.walletContextForWebContents(webContentsId)
+    return { ...context, pageUnloading: this.tabs.get(context.tabId)?.walletPageUnloading === true }
+  }
+
+  private walletContextForWebContents(webContentsId: number): BrowserWalletPageContext {
     const tabId = this.webContentsToTab.get(webContentsId)
     const tab = tabId ? this.tabs.get(tabId) : undefined
     if (!tab || tab.webContents.isDestroyed() || tab.webContents.id !== webContentsId) {
@@ -2290,7 +2302,7 @@ export class BrowserTabsManager {
     const resolvedTabId = this.requireTabInMcpGroup(workspaceId, tabId)
     const tab = this.tabs.get(resolvedTabId)
     if (!tab || tab.webContents.isDestroyed()) throw new Error('Wallet request target tab is unavailable')
-    return this.walletPageContext(tab.webContents.id)
+    return this.walletContextForWebContents(tab.webContents.id)
   }
 
   sendWalletProviderEvent(tabId: string, event: import('../../shared/wallet.js').WalletProviderEvent): void {
@@ -10209,6 +10221,7 @@ export class BrowserTabsManager {
     if (tab.loading) return 'A loading tab cannot sleep.'
     if (tab.audible) return 'A tab playing audio stays active.'
     if (tab.dialog) return 'A tab with an open dialog stays active.'
+    if (this.options.walletKeepsTabAwake?.(tab.id)) return 'A tab waiting on a wallet request stays active.'
     if (tab.webContents.isDevToolsOpened() || this.devToolsOpening.has(tab.webContents.id)) {
       return 'A tab with Developer Tools open stays active.'
     }
@@ -10294,12 +10307,18 @@ export class BrowserTabsManager {
     }
     tab.sleepNavigationHistory = this.navigationHistorySnapshot(tab)
     tab.sleeping = true
+    tab.walletPageUnloading = true
     tab.loading = false
     tab.pendingHistoryUrl = null
     this.changed(false)
     let sleepingPageLoaded = false
     try {
-      await tab.webContents.loadURL(SLEEPING_PAGE_URL)
+      try {
+        await tab.webContents.loadURL(SLEEPING_PAGE_URL)
+      } finally {
+        // The page is gone now, or the navigation failed and it stays in use.
+        tab.walletPageUnloading = false
+      }
       sleepingPageLoaded = true
       await this.withDebugger(tab.webContents, () =>
         tab.webContents.debugger.sendCommand('HeapProfiler.collectGarbage')

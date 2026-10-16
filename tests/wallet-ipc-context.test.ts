@@ -5,7 +5,7 @@ function source(overrides: Partial<ReturnType<WalletIpcContextSource['walletPage
   return {
     walletPageContext: () => ({
       tabId: 'tab-1', workspaceId: 'workspace-1', navigationGeneration: 7,
-      topLevelOrigin: 'https://dapp.example', url: 'https://dapp.example/swap', ...overrides
+      topLevelOrigin: 'https://dapp.example', url: 'https://dapp.example/swap', pageUnloading: false, ...overrides
     })
   }
 }
@@ -32,6 +32,10 @@ describe('walletBrokerContextFromIpc', () => {
 
   it('rejects an origin mismatch caused by navigation races or origin spoofing', () => {
     expect(() => walletBrokerContextFromIpc(event('https://attacker.example/'), source())).toThrow('does not match')
+  })
+
+  it('refuses a call from a page that going to sleep is discarding, since its answer could never arrive', () => {
+    expect(() => walletBrokerContextFromIpc(event(), source({ pageUnloading: true }))).toThrow('goes to sleep')
   })
 
   it.each(['file:///tmp/dapp.html', 'data:text/html,test', 'hronaut://home/'])('rejects non-web sender URL %s', (url) => {

@@ -1594,6 +1594,8 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).toHaveBeenCalledOnce()
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['rejected-second'] }))
       .resolves.toMatchObject({ status: 600, atomic: false, receipts: [{ transactionHash: '0xtransaction' }] })
+    // A stopped batch no longer keeps its tab awake.
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
   })
 
   it('prepares each batch call only after the one before it is mined, and stops when one reverts', async () => {
@@ -1635,6 +1637,89 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).toHaveBeenCalledTimes(3)
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'wallet_getCallsStatus', params: ['reverting'] }))
       .resolves.toMatchObject({ status: 500, receipts: [{ status: '0x0', transactionHash: '0xreverted' }] })
+  })
+
+  it('keeps a tab awake while its page waits on a wallet request or a batch is still sending calls', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    chain.broadcast.mockResolvedValueOnce('0xapprove').mockResolvedValueOnce('0xswap')
+    let approvalMined = false
+    const confirmation = vi.fn(async (_wallet: WalletDescriptor, hash: string) => (
+      hash === '0xapprove' && !approvalMined ? { confirmed: false, failed: false } : { confirmed: true, failed: false, blockReference: '1' }
+    ))
+    const broker = new WalletBroker(service, { adapters: { evm: { ...chain, confirmation } }, confirmationPollIntervalMs: 5 })
+    await connect(broker)
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
+    const call = { to: '0x0000000000000000000000000000000000000002', value: '0x1' }
+    const sent = broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_sendCalls', params: [{ version: '2.0.0', id: 'swap-1', chainId: '0xaa36a7', atomicRequired: false, calls: [{ ...call }, { ...call }] }]
+    })
+    const nextApproval = () => broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation === 'sign-and-send-transaction')
+
+    // Sleeping would discard the page the approval answers, while the request could still be approved and sent.
+    const first = await nextApproval()
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
+    expect(broker.keepsTabAwake('tab-2')).toBe(false)
+    await broker.approve(first.id)
+    // While the first call is mined no request is open, but the batch will still ask for the next one.
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledWith(expect.anything(), '0xapprove'))
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
+
+    approvalMined = true
+    await broker.approve((await nextApproval()).id)
+    await expect(sent).resolves.toEqual({ id: 'swap-1' })
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
+  })
+
+  it('keeps a tab awake while its page request is prepared, but not for a node read or an expired agent request', async () => {
+    let now = new Date()
+    const { service, wallet } = await setup('testnet', false, () => now)
+    const chain = adapter()
+    const read = deferred<unknown>()
+    const readRpc = vi.fn(() => read.promise)
+    const evm = { ...chain, readRpc }
+    const broker = new WalletBroker(service, { adapters: { evm }, now: () => now })
+    await connect(broker)
+
+    // The page already waits while Hronaut prepares its transaction, before any request is recorded.
+    const normalized = await chain.normalizeTransaction(wallet, {})
+    const prepared = deferred()
+    vi.spyOn(evm, 'normalizeTransaction').mockImplementationOnce(async () => {
+      await prepared.promise
+      return normalized
+    })
+    const sent = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x0000000000000000000000000000000000000002', value: '0x1' }]
+    }))
+    // Counted before the call's first await, so there is no moment a sleep could slip in.
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
+    await vi.waitFor(() => expect(evm.normalizeTransaction).toHaveBeenCalled())
+    expect(broker.listPending().filter((request) => request.status === 'awaiting-human')).toEqual([])
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
+    prepared.resolve()
+    await broker.reject((await broker.waitForPending((request) => request.status === 'awaiting-human')).id)
+    await expect(sent).resolves.toMatchObject({ status: 'rejected' })
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
+
+    // A read the node answers never prompts, so the page can wait on it in a sleeping tab.
+    const balance = broker.providerRequest(context(), { family: 'evm', method: 'eth_getBalance', params: [wallet.publicAddress, 'latest'] })
+    await vi.waitFor(() => expect(readRpc).toHaveBeenCalled())
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
+    read.resolve('0x1')
+    await expect(balance).resolves.toBe('0x1')
+
+    // An agent request for the tab keeps it awake until its deadline, even if its expiry is not saved.
+    const agent = context({ requester: { type: 'agent', id: 'agent-awake', name: 'Agent' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    const transaction = settle(broker.requestAgentTransaction(agent, wallet.id, { to: '0x0000000000000000000000000000000000000002' }, true))
+    const pending = await broker.waitForPending((request) => request.status === 'awaiting-human' && request.operation === 'sign-and-send-transaction')
+    expect(broker.keepsTabAwake('tab-1')).toBe(true)
+    now = new Date(Date.parse(pending.expiresAt) + 1)
+    expect(broker.keepsTabAwake('tab-1')).toBe(false)
+    await broker.cancelForRequester(agent.requester.id)
+    await expect(transaction).resolves.toMatchObject({ status: 'rejected' })
   })
 
   it('lists the site\'s wallet_sendCalls batches for an agent, with the call each one stopped at', async () => {

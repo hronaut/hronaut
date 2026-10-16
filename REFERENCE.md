@@ -157,7 +157,7 @@ The workspace editor offers **Allow direct agent access**. Disabling it blocks d
 
 Memory Saver is enabled by default under **Settings → Performance**. After one hour of inactivity, Hronaut unloads eligible background website tabs and marks each sleeping tab with a moon. Choose 5 minutes through 4 hours, sleep every eligible tab immediately, or disable the feature. Selecting a sleeping tab or targeting it with an MCP command reloads it and restores its navigation history before the work begins.
 
-Visible split-view panes, pinned or loading tabs, audio playback, active downloads, open dialogs, Developer Tools, current MCP commands, and pages with edited form or rich-text content stay awake. Right-click an inactive tab to sleep or wake it directly. These protections follow the same practical model as mainstream browser memory savers while preserving Hronaut's persistent multi-agent workspace.
+Visible split-view panes, pinned or loading tabs, audio playback, active downloads, open dialogs, pages waiting on a wallet approval or still sending a wallet call batch, Developer Tools, current MCP commands, and pages with edited form or rich-text content stay awake. Right-click an inactive tab to sleep or wake it directly. These protections follow the same practical model as mainstream browser memory savers while preserving Hronaut's persistent multi-agent workspace.
 
 ## Pause agents instantly
 

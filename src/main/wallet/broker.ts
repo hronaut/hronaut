@@ -182,6 +182,13 @@ const TERMINAL_REQUEST_STATUSES = new Set([
   'confirmed', 'rejected', 'expired', 'cancelled', 'failed'
 ])
 
+/** A read or filter call Hronaut forwards to the EVM node; it never prompts, signs or sends. */
+function isEvmNodeRead(input: unknown): boolean {
+  const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
+  return family === 'evm' && typeof method === 'string'
+    && ([...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS] as readonly string[]).includes(method)
+}
+
 function sanitizedError(error: unknown): Error {
   const message = error instanceof Error ? error.message : 'Wallet request failed'
   const containsEndpoint = /(?:https?|wss?):\/\//i.test(message)
@@ -423,6 +430,8 @@ export class WalletBroker {
   private readonly pageCallFailures = new WalletPageLog<WalletPageCallFailure>(MAX_PAGE_CALL_FAILURES_PER_TAB, MAX_PAGE_CALL_FAILURE_TABS)
   private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
+  /** Website wallet calls still in progress, other than node reads, counted per tab. */
+  private readonly pageCallsInProgress = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
   private readonly confirmationShutdown = new AbortController()
   private lifecycleQueue: Promise<void> = Promise.resolve()
@@ -805,6 +814,9 @@ export class WalletBroker {
   }
 
   async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
+    // Counted before any await, so the tab stays awake while the request is still being prepared.
+    const holdsTab = context.requester.type === 'website' && !isEvmNodeRead(input)
+    if (holdsTab) this.pageCallsInProgress.set(context.tabId, (this.pageCallsInProgress.get(context.tabId) ?? 0) + 1)
     try {
       if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
       this.assertRequestContextActive(context)
@@ -818,6 +830,12 @@ export class WalletBroker {
       const sanitized = sanitizedError(error)
       this.recordPageCallFailure(context, input, sanitized)
       throw sanitized
+    } finally {
+      if (holdsTab) {
+        const inProgress = (this.pageCallsInProgress.get(context.tabId) ?? 1) - 1
+        if (inProgress > 0) this.pageCallsInProgress.set(context.tabId, inProgress)
+        else this.pageCallsInProgress.delete(context.tabId)
+      }
     }
   }
 
@@ -832,7 +850,7 @@ export class WalletBroker {
     const { family, method } = (input ?? {}) as { family?: unknown; method?: unknown }
     if (family !== 'evm' && family !== 'solana' && family !== 'tron') return
     const name = typeof method === 'string' && /^[A-Za-z0-9_]{1,128}$/.test(method) ? method : 'invalid'
-    if (family === 'evm' && ([...EVM_READ_RPC_METHODS, ...EVM_FILTER_RPC_METHODS] as readonly string[]).includes(name)) return
+    if (isEvmNodeRead(input)) return
     this.pageCallFailures.add(context, { family, method: name, error: error.message, failedAt: this.now().toISOString() })
   }
 
@@ -933,6 +951,18 @@ export class WalletBroker {
         this.rejectCancelled()
       }
     })
+  }
+
+  /**
+   * Whether a page in this tab still waits on the wallet: a wallet call it
+   * made that has not returned yet, from the moment it reaches the broker and
+   * including a wallet_sendCalls batch still sending calls, or a request not
+   * yet signed or sent, such as one an agent made for the tab. Putting the tab
+   * to sleep would discard the page that gets the answer, while the request
+   * could still be approved and sent.
+   */
+  keepsTabAwake(tabId: string): boolean {
+    return (this.pageCallsInProgress.get(tabId) ?? 0) > 0 || this.service.approvals.hasUnsentForTab(tabId, this.now())
   }
 
   async cancelForTab(tabId: string): Promise<void> {
