@@ -58,6 +58,12 @@
     <label>RPC URL <input id="rpc" value="http://127.0.0.1:8545" spellcheck="false"></label>
   </section>
 
+  <section>
+    <h2>Batch calls</h2>
+    <p>Sends two 1 wei transfers to the recipient above as one EIP-5792 <code>wallet_sendCalls</code> batch, the way wagmi's <code>useSendCalls</code> does, then reads <code>wallet_getCallsStatus</code> until the batch is no longer pending. Hronaut sends the calls one at a time, each with its own approval, and an agent can follow the batch under <code>callBatches</code> in <code>wallet_page_requests</code>.</p>
+    <button id="send-batch">Send 1 wei twice in one batch</button>
+  </section>
+
   <p class="status" id="status" role="status">Ready.</p>
   <pre id="log" aria-label="Fixture event log"></pre>
 
@@ -103,6 +109,9 @@
     const PERMIT_TOKEN = '0x5FbDB2315678afecb367f032d93F642f64180aa3'
     const PERMIT_SPENDER = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
     const PERMIT_VALUE = '1000000'
+    // EIP-5792 batch status codes: pending, confirmed, not included, reverted, partly done.
+    const BATCH_STATUSES = [100, 200, 400, 500, 600]
+    const BATCH_STATUS_READS = 30
     const parameterSummary = (method, params) => {
       if (!params) return 'none'
       if (method === 'wallet_switchEthereumChain') {
@@ -136,6 +145,19 @@
           account: 'first-connected-account'
         }
       }
+      if (method === 'wallet_sendCalls') {
+        const batch = Array.isArray(params) ? params[0] : undefined
+        const calls = Array.isArray(batch?.calls) ? batch.calls : []
+        return {
+          version: batch?.version === '2.0.0' ? '2.0.0' : 'other',
+          callCount: calls.length,
+          recipient: 'configured-synthetic-input',
+          value: calls.every(call => call?.value === '0x1') ? '1 wei each' : 'other',
+          atomicRequired: batch?.atomicRequired === true,
+          account: 'first-connected-account'
+        }
+      }
+      if (method === 'wallet_getCallsStatus') return { batchId: 'returned-batch-id' }
       if (method === 'eth_sendTransaction') {
         return {
           transactionCount: Array.isArray(params) ? params.length : 0,
@@ -159,6 +181,16 @@
         return {
           signatureReturned: typeof result === 'string',
           signatureBytes: typeof result === 'string' && /^0x[0-9a-f]*$/i.test(result) ? Math.floor((result.length - 2) / 2) : 0
+        }
+      }
+      if (method === 'wallet_sendCalls') return { batchIdReturned: typeof result?.id === 'string' }
+      if (method === 'wallet_getCallsStatus') {
+        const receipts = Array.isArray(result?.receipts) ? result.receipts : []
+        return {
+          status: BATCH_STATUSES.includes(result?.status) ? result.status : 'unknown',
+          receiptCount: receipts.length,
+          receiptStatuses: receipts.map(receipt => receipt?.status === '0x1' ? 'success' : receipt?.status === '0x0' ? 'reverted' : 'unknown'),
+          atomic: result?.atomic === true
         }
       }
       if (method === 'eth_sendTransaction') {
@@ -370,6 +402,27 @@
         value: '0x1'
       }])
       if (typeof hash === 'string') hashInput.value = hash
+    })
+    document.querySelector('#send-batch').addEventListener('click', async () => {
+      const accounts = await request('eth_accounts')
+      if (!Array.isArray(accounts) || !accounts[0]) return
+      const chainId = await request('eth_chainId')
+      if (typeof chainId !== 'string' || !/^0x[0-9a-f]{1,16}$/i.test(chainId)) return
+      const recipient = document.querySelector('#recipient').value.trim()
+      const batch = await request('wallet_sendCalls', [{
+        version: '2.0.0',
+        chainId,
+        from: accounts[0],
+        atomicRequired: false,
+        calls: [{ to: recipient, value: '0x1' }, { to: recipient, value: '0x1' }]
+      }])
+      if (typeof batch?.id !== 'string') return
+      // Reads the status the way wagmi's useWaitForCallsStatus does, until the batch is no longer pending.
+      for (let read = 1; read <= BATCH_STATUS_READS; read += 1) {
+        const status = await request('wallet_getCallsStatus', [batch.id])
+        if (status?.status !== 100 || read === BATCH_STATUS_READS) return
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
     })
     document.querySelector('#receipt').addEventListener('click', async () => {
       const method = 'eth_getTransactionReceipt'
