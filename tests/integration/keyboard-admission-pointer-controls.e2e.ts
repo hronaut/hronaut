@@ -45,6 +45,12 @@ for (const scenario of ['desktop', 'mobile-no-meta', 'cross-origin-frame'] as co
         return { zoom: page.getZoomFactor(), chromium: process.versions.chrome, page: await page.executeJavaScript('({width:innerWidth,height:innerHeight,dpr:devicePixelRatio,visualScale:visualViewport.scale,visualOffsetX:visualViewport.offsetLeft,visualOffsetY:visualViewport.offsetTop,hasMeta:!!document.querySelector("meta[name=viewport]")})'), frames: [page.mainFrame,...page.mainFrame.frames].map(frame => ({ url: frame.url, processId: frame.processId, routingId: frame.routingId })) }
       }, url)
       const result = await client.callTool({ name: 'browser_click', arguments: { tabId, ...(scenario === 'cross-origin-frame' ? { x: 320, y: 220 } : { selector: '#target', native: true }) } }) as CallToolResult
+      // The frame reports its click by postMessage, which reaches the page from another process after the click returns.
+      if (scenario === 'cross-origin-frame') {
+        await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
+          webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.hits')
+        ), url)).toBeGreaterThan(0)
+      }
       const observed = await electronApp.evaluate(async ({ webContents }, url) => ({ hits: await webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript('window.hits'), commands: (globalThis as Scope).__coordinateReview!.commands, events: (globalThis as Scope).__coordinateReview!.events }), url)
       const after = await appWindow.evaluate(async id => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.id === id)!.humanInteractionGeneration, tabId)
       const report = { scenario, context, observed, generationDelta: (after ?? 0) - (before ?? 0), result }
