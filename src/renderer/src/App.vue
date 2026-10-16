@@ -14,6 +14,7 @@ import DetachedPanelUnavailableState from './components/DetachedPanelUnavailable
 import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
 import EmulationFrame from './components/EmulationFrame.vue'
+import PageSnapshot from './components/PageSnapshot.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
 import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
@@ -788,6 +789,7 @@ useAppLifecycleController({
     :is-mutation-current="appEmulationFeatureController.isEmulationMutationSequenceCurrent"
     :on-applied="appEmulationFeatureController.frameViewportApplied"
   />
+  <PageSnapshot v-if="!isDetachedPanelWindow" />
   <header
     ref="shell"
     class="shell"

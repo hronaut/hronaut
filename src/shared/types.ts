@@ -3018,12 +3018,24 @@ export interface WindowChromeState {
   mainWindow: boolean
 }
 
+/**
+ * A still image of each page on screen, in shell CSS pixels, shown under
+ * trusted chrome while the page views themselves are hidden.
+ */
+export interface BrowserOcclusionSnapshot {
+  id: number
+  panes: Array<{ bounds: { x: number; y: number; width: number; height: number }; image: string }>
+}
+
 export interface HronautShellApi {
   windowChrome: WindowChromeState
   isWindowFocused(): Promise<boolean>
   setToolbarHeight(height: number): void
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
   setBrowserContentOccluded(occluded: boolean): void
+  onOcclusionSnapshot(listener: (snapshot: BrowserOcclusionSnapshot | null) => void): () => void
+  /** The snapshot is on screen, so main can hide the page views under trusted chrome. */
+  presentOcclusionSnapshot(id: number): void
   setFollowAgentActivitySuspended(suspended: boolean): void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
   onClipboardFailed(listener: (message: string) => void): () => void

@@ -62,6 +62,10 @@ Open **Settings** from the gear button in the top strip. Hronaut includes ten ap
 
 The selected theme is applied immediately and survives application restarts. System mode keeps Hronaut's renderer, native menus, and window background aligned with Electron's current operating-system theme. A fixed theme changes Hronaut's controls and native color preference without injecting styles into websites.
 
+### Dialogs over the page
+
+Websites are native views drawn above Hronaut's own window, so Hronaut hides them while one of its dialogs is open, such as Commands, Search tabs, a workspace editor, Settings or a wallet approval. Before hiding them, Hronaut takes a still picture of each page on screen and shows it under the dialog, then hides the pages once that picture is on screen, so the page area never goes blank. Keyboard focus moves to the dialog at once, and clicks or keys never reach the page while a dialog is open. The picture stays in the shell window only, is never saved and is dropped when the dialog closes; if the window is resized or the tab changes while the dialog is open, the picture is withdrawn rather than shown in the wrong place. When the picture is not ready within 250 ms, the pages are hidden anyway.
+
 ### Interface language
 
 Choose **System default**, English, Ukrainian, Russian, German, French, Spanish, or Polish in **Settings → Appearance**. The preference is stored in Hronaut's profile and applies immediately to the main window, detached panels, Hronaut Home, and native menus. System mode keeps the `system` preference and resolves Electron's operating-system locale centrally; unsupported system languages use English. Electron does not provide a reliable cross-platform live notification when the operating-system language changes, so an OS-language change is picked up on the next Hronaut launch. Choosing an explicit language, or switching back to System default, applies immediately without restarting.

@@ -26,9 +26,12 @@ describe('native preview capture ownership', () => {
     expect(await captures.run(page, duplicate, timeout, late)).toBeUndefined()
     expect(duplicate).not.toHaveBeenCalled()
     expect(await captures.run({}, async () => 'other page', timeout, late)).toBe('other page')
+    // Other capture paths, such as the dialog page snapshot, check the same ownership.
+    expect(captures.isPending(page)).toBe(true)
     native.resolve('late frame')
     await vi.advanceTimersByTimeAsync(0)
     expect(late).toHaveBeenCalledOnce()
+    expect(captures.isPending(page)).toBe(false)
     expect(await captures.run(page, async () => 'fresh frame', timeout, late)).toBe('fresh frame')
     expect(vi.getTimerCount()).toBe(0)
   })
