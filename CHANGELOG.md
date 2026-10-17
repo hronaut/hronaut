@@ -47,6 +47,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- When a coding agent quit without closing its MCP session, the toolbar and Home kept showing it as connected until something else changed. It now drops out once its 5 minutes without requests are up.
+- When a long agent name is cut short in the toolbar's status button, its tooltip now shows the whole status, such as "Claude Code connected", before the MCP address, instead of only the address.
 - With the tab rail, notifications such as **Tab closed** with its **Undo** button now appear over the page's toolbar instead of across the top of the rail, so they no longer cover tabs you want to click while they are showing.
 - In Polish, Russian and Ukrainian, counts in Hronaut's window now use the right word form, such as "1 вкладка", "2 вкладки", "5 вкладок" and "21 вкладка", instead of "1 вкладки" and "2 вкладок". Panels, Settings, the workspace switcher, Commands and other dialogs were affected; Home already counted correctly.
 

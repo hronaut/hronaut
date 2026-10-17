@@ -620,7 +620,7 @@
   @apply h-full border-0 text-accent-copy bg-transparent [font-size:var(--type-small-size)] cursor-pointer;
 }
 .mcp-pill { @apply flex items-center [gap:7px] [padding:0_9px_0_10px]; }
-/* A client names itself, so a long name or translation is cut here; the button's name and tooltip keep it whole. */
+/* A client names itself, so a long name or translation is cut here; the button's name keeps it whole, and the tooltip too when it names an agent. */
 .mcp-pill-label { @apply flex-none overflow-hidden text-ellipsis whitespace-nowrap [max-width:190px]; }
 /* The rail's row has a fixed width, so there the label takes two lines before it is cut. */
 .vertical-tabs-shell .mcp-pill-label { @apply [flex:0_1_auto] min-w-0 [max-width:none] whitespace-normal [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]; }

@@ -57,7 +57,9 @@ const statusTitle = computed(() => {
   if (state.value.status === 'error') return t('runtime.mcp.failed', { error: state.value.error ?? t('runtime.mcp.unknown') })
   if (state.value.status === 'starting') return t('runtime.mcp.startingAt', { url: endpoint.value })
   if (state.value.paused) return t('runtime.mcp.pauseGuidance')
-  return t('runtime.mcp.title', { url: endpoint.value })
+  const address = t('runtime.mcp.title', { url: endpoint.value })
+  // The label cuts a long client name, so the tooltip carries the whole status for pointer users too.
+  return agents.value.name ? `${statusLabel.value}. ${address}` : address
 })
 const pauseTitle = computed(() => {
   if (pauseBusy.value) return t('runtime.locks.waiting')

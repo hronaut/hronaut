@@ -5981,8 +5981,12 @@ export class McpHttpServer {
         completed = true
         this.activeRequests = Math.max(0, this.activeRequests - 1)
         client.activeRequests = Math.max(0, client.activeRequests - 1)
-        // A long-held stream closing is the last sign of a session whose window already passed.
-        if (client.activeRequests === 0 && client.initializedAt && !McpHttpServer.sessionLive(client, Date.now())) this.agentPresenceChanged()
+        if (client.activeRequests === 0 && client.initializedAt) {
+          // A long-held stream closing is the last sign of a session whose window already passed.
+          if (!McpHttpServer.sessionLive(client, Date.now())) this.agentPresenceChanged()
+          // Otherwise its window now runs out without a request, as when the client quits without closing its session.
+          else this.wakeForAgentPresence()
+        }
       }
       response.once('finish', completeRequest)
       response.once('close', completeRequest)
@@ -6391,6 +6395,16 @@ export class McpHttpServer {
 
   /** Tells main presence may have changed, and wakes again for the next change no call will cause. */
   private agentPresenceChanged(): void {
+    this.wakeForAgentPresence()
+    try {
+      this.options.onAgentPresenceChanged?.()
+    } catch (error) {
+      console.error('[mcp] Failed to publish agent presence:', error)
+    }
+  }
+
+  /** Wakes for the next presence change no call will cause: a step settling or an idle session's window ending. */
+  private wakeForAgentPresence(): void {
     clearTimeout(this.agentPresenceTimer)
     this.agentPresenceTimer = undefined
     const now = Date.now()
@@ -6400,11 +6414,6 @@ export class McpHttpServer {
     if (next !== undefined && this.httpServer) {
       this.agentPresenceTimer = setTimeout(() => this.agentPresenceChanged(), next - now + 1)
       this.agentPresenceTimer.unref?.()
-    }
-    try {
-      this.options.onAgentPresenceChanged?.()
-    } catch (error) {
-      console.error('[mcp] Failed to publish agent presence:', error)
     }
   }
 }

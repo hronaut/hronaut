@@ -16,6 +16,7 @@ function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = asy
   const scripts: string[] = []
   const webContents = {
     isDestroyed: () => false,
+    isLoadingMainFrame: () => false,
     executeJavaScriptInIsolatedWorld: vi.fn(async (world: number, sources: Array<{ code: string }>) => {
       order.push(`world ${world}`)
       scripts.push(sources[0]!.code)
@@ -46,6 +47,7 @@ function fixture(showAgentCursor?: boolean, answer: () => Promise<unknown> = asy
     mcpTabGroups: new Map(),
     inspectionPermissions: new Map(),
     destroyed: false,
+    cssStatePreview: { active: () => false },
     withRenderableTab: (_tab: unknown, run: () => Promise<unknown>) => run(),
     writeUniqueDownload: async (filename: string) => `/downloads/${filename}`,
     snapshotDeltaContext: () => ({ tabId: tab.id, workspaceId: null, navigationGeneration: 1, observationGeneration: 0, humanInteractionGeneration: 0, snapshotFormatVersion: 1 })
