@@ -1,52 +1,29 @@
-import { normalizeTabLabel, MAX_TAB_LABEL_INPUT_LENGTH } from '../../shared/tab-label.js'
-import { MAX_COMPARED_TEXT_VALUE_LENGTH } from '../../shared/value-comparison.js'
 import { browserClickSchema } from './browser-click-input.js'
-import { EMULATION_INPUT_ERRORS, EmulationInputError, MAX_OS_TEXT_SCALE, MAX_SAFE_AREA_INSET, MAX_SMALL_VIEWPORT_HEIGHT_DIFFERENCE, MIN_OS_TEXT_SCALE, SAFE_AREA_INSET_FIELDS } from '../browser/emulation-state.js'
-import { fileEvaluationSourceSchema, fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
+import { EMULATION_INPUT_ERRORS, EmulationInputError } from '../browser/emulation-state.js'
+import { fileEvaluationFailure, type FileEvaluationSource } from '../../shared/file-evaluation.js'
 import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure, type StorageComparisonHooks } from '../browser/storage-comparison-operation.js'
-import { nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
+import { nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
 import { storageInspectionFailure, type StorageInspectionHooks } from '../browser/storage-inspection-operation.js'
 import { recheckOpenedTabs, type TabsOpenedDuringClick } from '../browser/click-opened-tabs.js'
 import { WEB_STORAGE_INPUT_ERRORS, WebStorageInputError, webStorageFailure, type WebStorageHooks, type WebStorageProgress } from '../browser/web-storage-operation.js'
 import { cookieWriteFailure, type CookieWriteHooks, type CookieWriteProgress } from '../browser/cookie-write-operation.js'
 import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
-import { nativeWheelFields, NativeWheelOutcomeUnknownError, type NativeWheelInput } from '../browser/native-wheel.js'
-import { nativeKeyHoldFields, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
+import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
+import { NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
-import { compactTabDiscovery, TAB_DISCOVERY_LIMITS, type TabDiscoverySearch } from './tab-discovery.js'
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
-import type { PendingElementInspection } from '../browser/element-inspection-publication.js'
-import type { PendingPdfExport } from '../browser/pdf-export-publication.js'
-import type { PendingVideoInspection, VideoSourceBinding } from '../browser/video-recorder.js'
-import { videoInspectionSchema } from '../../shared/video-inspection.js'
-import type { PendingFrameObservation } from '../browser/frame-observation.js'
+import type { VideoSourceBinding } from '../browser/video-recorder.js'
 import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
-import { LIVE_REGION_LIMITS } from '../../shared/live-region.js'
-import { CSS_STATE_PREVIEW_LIMITS, CSS_STATE_PREVIEW_STATES } from '../../shared/css-state-preview.js'
-import { DEFAULT_FONT_SIZE_LIMITS } from '../../shared/default-font-size.js'
 import { frameObservationResult } from './frame-observation-result.js'
 import type { ReactInspectionAuthority } from '../browser/react-inspection.js'
-import { REACT_INSPECTION_ACTIONS, type ReactInspectionCommand } from '../../shared/react-inspection.js'
-import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
-import { CSS_INSPECTION_PROPERTIES, type CssInspectionProperty } from '../../shared/css-provenance.js'
-import { reproCheckpointSchema } from '../../shared/repro-checkpoint.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
-import { videoOptionsShape, type BrowserVideoOptions } from '../../shared/video.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
-import {
-  BROWSER_SERVER_INSTRUCTIONS,
-  BROWSER_TOOL_CATALOG,
-  BROWSER_TOOL_METADATA,
-  mcpToolCatalogForSet,
-  type AdvertisedBrowserToolDefinition,
-  type BrowserToolDefinition
-} from './tool-catalog.js'
+import { BROWSER_SERVER_INSTRUCTIONS, BROWSER_TOOL_CATALOG, mcpToolCatalogForSet, type BrowserToolDefinition } from './tool-catalog.js'
 export { BROWSER_SERVER_INSTRUCTIONS, BROWSER_TOOL_CATALOG, mcpToolCatalogForSet } from './tool-catalog.js'
 export type { BrowserToolDefinition } from './tool-catalog.js'
-import { networkRouteInputSchema } from '../browser/network-route-input.js'
 import { createServer, type Server } from 'node:http'
-import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
@@ -59,22 +36,10 @@ import type { AuditVerificationUpdate } from './audit-receipt-run.js'
 import type { AuditReceiptAuthorization } from './audit-receipt-store.js'
 import { runPostWriteVerification } from './post-write-verification-runner.js'
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
-import {
-  classifyBrowserReconciliation,
-  type BrowserReconciliationCondition,
-  type BrowserReconciliationResult
-} from '../../shared/browser-reconciliation.js'
-import {
-  classifyPublicObservationOutcome,
-  classifyWriterContextOutcome,
-  summarizePublicOutcomeAssessment,
-  type PublicObservationOutcome
-} from '../../shared/public-outcome.js'
+import { type BrowserReconciliationCondition } from '../../shared/browser-reconciliation.js'
 import type { HumanWaitingReviewBinding, HumanWaitingService } from './human-waiting-service.js'
 import { humanWaitingArtifactHash } from './human-waiting-store.js'
 import type { TaskRunService } from './task-run-service.js'
-import type { SavedTaskDefinition, TaskRunCheckDefinition } from './task-run-store.js'
-import { taskReviewMetrics } from './task-review-metrics.js'
 import {
   buildMcpReadinessDiagnostic,
   type McpReadinessDiagnostic
@@ -84,13 +49,11 @@ import {
   McpCapabilityAuthorizationError,
   mcpCapabilityArgumentValueDigest,
   type McpCapabilityGrant,
-  type McpCapabilityOperationClass,
   type McpCapabilityProfile,
   type McpCapabilityProfileInput,
   type McpCapabilityProfileStore,
   type McpCapabilityRequest
 } from './capability-profile-store.js'
-import { workspacePreflight } from './workspace-preflight.js'
 import {
   browserActionAuthorityReason,
   browserActionOperationClass,
@@ -103,7 +66,7 @@ import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
-import { AGENT_PRESENCE_WINDOW_MS, AgentPresenceRegistry, agentColorIndex, agentCursorIdentity, agentInitial, sanitizeAgentName, type AgentCall } from './agent-presence.js'
+import { AGENT_PRESENCE_WINDOW_MS, AgentPresenceRegistry, agentColorIndex, agentInitial, sanitizeAgentName, type AgentCall } from './agent-presence.js'
 import { HomeActivityFeed } from './home-activity-feed.js'
 import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
 import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
@@ -116,50 +79,123 @@ export {
   WorkspaceWriteLeaseRegistry,
   type WorkspaceWriteLeaseStatus
 } from './workspace-write-leases.js'
-import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
-import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
-import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
-import { RetainedBrowserWorkspaceError } from '../browser/workspace-errors.js'
 import type {
   BrowserBookmark,
-  BrowserEmulationOptions,
   BrowserHistoryEntry,
-  BrowserNetworkAbortReason,
-  BrowserNetworkRequestSortBy,
-  BrowserNetworkRequestSortDirection,
-  BrowserNetworkWaitOptions,
   BrowserState,
-  BrowserTabState,
   BrowsingDataSiteSummary,
   McpServerStatus,
   McpTabActivity,
-  McpActivityResult,
   McpCapabilityProfileCreateInput,
   UserAttentionInput,
   UserAttentionRequest
 } from '../../shared/types.js'
 export type { UserAttentionInput, UserAttentionRequest } from '../../shared/types.js'
-import { formatNetworkRequestCopy, type BrowserNetworkRequestCopyFormat } from '../../shared/network-request-copy.js'
-import { sortNetworkRequests } from '../../shared/network-request-sort.js'
-import { filterNetworkRequests, normalizeNetworkHarOptions } from '../../shared/network-har.js'
-import { formatReproAsPlaywright } from '../../shared/repro-export.js'
-import { isUuidV7 } from '../uuid-v7.js'
 import { type McpToolSet } from '../../shared/mcp-tool-sets.js'
-import {
-  WalletAgentDescriptorSchema,
-  WalletPublicRequestPayloadSchema,
-  type WalletAgentDescriptor
-} from '../../shared/wallet.js'
-
-const workspaceIdSchema = z.string().refine(isUuidV7, 'Workspace ID must be a UUIDv7.')
-const tabIdSchema = z.string().refine(isUuidV7, 'Tab ID must be a UUIDv7.')
+import { type WalletAgentDescriptor } from '../../shared/wallet.js'
+import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldNotDispatchedResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, selectionNotSubmittedResult, selectionUnknownResult, textResult, toolDefinition } from './tool-results.js'
+import { READ_ONLY_MULTI_ACTIONS, mcpCapabilityAction, mcpCapabilityOperationClass } from './capability-classification.js'
+import { type PostWriteRequest, type ReconciliationConditionRequest, workspaceIdSchema } from './tool-schemas.js'
+import { registerBrowserWorkspaces } from './tools/browser-workspaces/index.js'
+import { registerBrowserSavedWorkspaces } from './tools/browser-saved-workspaces/index.js'
+import { registerBrowserHumanWaiting } from './tools/browser-human-waiting/index.js'
+import { registerBrowserContinuity } from './tools/browser-continuity/index.js'
+import { registerBrowserPreflight } from './tools/browser-preflight/index.js'
+import { registerBrowserAuditReceipts } from './tools/browser-audit-receipts/index.js'
+import { registerBrowserTaskRuns } from './tools/browser-task-runs/index.js'
+import { registerBrowserStatus } from './tools/browser-status/index.js'
+import { registerBrowserShow } from './tools/browser-show/index.js'
+import { registerBrowserUserAttention } from './tools/browser-user-attention/index.js'
+import { registerBrowserRequestUserAttention } from './tools/browser-request-user-attention/index.js'
+import { registerBrowserTabs } from './tools/browser-tabs/index.js'
+import { registerBrowserNewTab } from './tools/browser-new-tab/index.js'
+import { registerBrowserSelectTab } from './tools/browser-select-tab/index.js'
+import { registerBrowserCloseTab } from './tools/browser-close-tab/index.js'
+import { registerBrowserBookmarks } from './tools/browser-bookmarks/index.js'
+import { registerBrowserVisitHistory } from './tools/browser-visit-history/index.js'
+import { registerBrowserSiteData } from './tools/browser-site-data/index.js'
+import { registerBrowserStorage } from './tools/browser-storage/index.js'
+import { registerBrowserStorageChanges } from './tools/browser-storage-changes/index.js'
+import { registerBrowserStorageUsage } from './tools/browser-storage-usage/index.js'
+import { registerBrowserIndexeddb } from './tools/browser-indexeddb/index.js'
+import { registerBrowserPwaLifecycle } from './tools/browser-pwa-lifecycle/index.js'
+import { registerBrowserPwa } from './tools/browser-pwa/index.js'
+import { registerBrowserNavigate } from './tools/browser-navigate/index.js'
+import { registerBrowserHistory } from './tools/browser-history/index.js'
+import { registerBrowserSnapshot } from './tools/browser-snapshot/index.js'
+import { registerBrowserPublicOutcome } from './tools/browser-public-outcome/index.js'
+import { registerBrowserFind } from './tools/browser-find/index.js'
+import { registerBrowserElementInspect } from './tools/browser-element-inspect/index.js'
+import { registerBrowserMediaState } from './tools/browser-media-state/index.js'
+import { registerBrowserImageState } from './tools/browser-image-state/index.js'
+import { registerBrowserGenerateLocator } from './tools/browser-generate-locator/index.js'
+import { registerBrowserReconciliation } from './tools/browser-reconciliation/index.js'
+import { registerBrowserClick } from './tools/browser-click/index.js'
+import { registerBrowserDialog } from './tools/browser-dialog/index.js'
+import { registerBrowserType } from './tools/browser-type/index.js'
+import { registerBrowserSelect } from './tools/browser-select/index.js'
+import { registerBrowserFillForm } from './tools/browser-fill-form/index.js'
+import { registerBrowserHover } from './tools/browser-hover/index.js'
+import { registerBrowserDrag } from './tools/browser-drag/index.js'
+import { registerBrowserWheel } from './tools/browser-wheel/index.js'
+import { registerBrowserScroll } from './tools/browser-scroll/index.js'
+import { registerBrowserHoldKey } from './tools/browser-hold-key/index.js'
+import { registerBrowserPress } from './tools/browser-press/index.js'
+import { registerBrowserFileUpload } from './tools/browser-file-upload/index.js'
+import { registerBrowserWait } from './tools/browser-wait/index.js'
+import { registerBrowserEmulate } from './tools/browser-emulate/index.js'
+import { registerBrowserPageLifecycle } from './tools/browser-page-lifecycle/index.js'
+import { registerBrowserZoom } from './tools/browser-zoom/index.js'
+import { registerBrowserAudio } from './tools/browser-audio/index.js'
+import { registerBrowserScreenshot } from './tools/browser-screenshot/index.js'
+import { registerBrowserPdfSave } from './tools/browser-pdf-save/index.js'
+import { registerBrowserResize } from './tools/browser-resize/index.js'
+import { registerBrowserAccessibilityAudit } from './tools/browser-accessibility-audit/index.js'
+import { registerBrowserQualityAudit } from './tools/browser-quality-audit/index.js'
+import { registerBrowserPerformance } from './tools/browser-performance/index.js'
+import { registerBrowserDesignOverview } from './tools/browser-design-overview/index.js'
+import { registerBrowserPageMetadata } from './tools/browser-page-metadata/index.js'
+import { registerBrowserMemory } from './tools/browser-memory/index.js'
+import { registerBrowserSecurity } from './tools/browser-security/index.js'
+import { registerBrowserReact } from './tools/browser-react/index.js'
+import { registerBrowserCodeCoverage } from './tools/browser-code-coverage/index.js'
+import { registerBrowserCpuProfile } from './tools/browser-cpu-profile/index.js'
+import { registerBrowserDebugReport } from './tools/browser-debug-report/index.js'
+import { registerBrowserVideo } from './tools/browser-video/index.js'
+import { registerBrowserRepro } from './tools/browser-repro/index.js'
+import { registerBrowserDomChanges } from './tools/browser-dom-changes/index.js'
+import { registerBrowserLiveRegion } from './tools/browser-live-region/index.js'
+import { registerBrowserCssStatePreview } from './tools/browser-css-state-preview/index.js'
+import { registerBrowserVisualCompare } from './tools/browser-visual-compare/index.js'
+import { registerBrowserConsole } from './tools/browser-console/index.js'
+import { registerBrowserDiagnosticLogs } from './tools/browser-diagnostic-logs/index.js'
+import { registerBrowserIssues } from './tools/browser-issues/index.js'
+import { registerBrowserNetwork } from './tools/browser-network/index.js'
+import { registerBrowserNetworkWait } from './tools/browser-network-wait/index.js'
+import { registerBrowserNetworkSearch } from './tools/browser-network-search/index.js'
+import { registerBrowserNetworkRequest } from './tools/browser-network-request/index.js'
+import { registerBrowserNetworkReplay } from './tools/browser-network-replay/index.js'
+import { registerBrowserNetworkHar } from './tools/browser-network-har/index.js'
+import { registerBrowserNetworkRoutes } from './tools/browser-network-routes/index.js'
+import { registerBrowserDownloads } from './tools/browser-downloads/index.js'
+import { registerBrowserWebmcp } from './tools/browser-webmcp/index.js'
+import { registerBrowserEvaluateFile } from './tools/browser-evaluate-file/index.js'
+import { registerBrowserEvaluate } from './tools/browser-evaluate/index.js'
+import { registerWalletList } from './tools/wallet-list/index.js'
+import { registerWalletBalance } from './tools/wallet-balance/index.js'
+import { registerWalletPrepareTransaction } from './tools/wallet-prepare-transaction/index.js'
+import { registerWalletRequest } from './tools/wallet-request/index.js'
+import { registerWalletRequestStatus } from './tools/wallet-request-status/index.js'
+import { registerWalletPageRequests } from './tools/wallet-page-requests/index.js'
+import { registerWalletCancelRequest } from './tools/wallet-cancel-request/index.js'
+import type { McpFrameRequest, McpToolContext, ResolvedTargetWakePolicy, WorkspaceToolHandler } from './tools/tool-context.js'
+export { assertMcpCapabilityClassificationContract, mcpCapabilityAction, mcpCapabilityOperationClass, READ_ONLY_MULTI_ACTIONS } from './capability-classification.js'
+export { classifyMcpActivityResult, closedTabWaitResult } from './tool-results.js'
+export { auditEvidenceExpiredReason } from './tools/browser-audit-receipts/index.js'
+export { browserClickPageInput } from './tools/browser-click/index.js'
 export const MCP_FAILED_AUTH_LIMIT = 120
 const MCP_FAILED_AUTH_WINDOW_MS = 60_000
-const workspaceResumeKeySchema = z.string().regex(
-  /^hrw1_[A-Za-z0-9_-]{43}$/,
-  'Workspace resume key is malformed.'
-)
 
 function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
   const expectedBytes = Buffer.from(expected, 'utf8')
@@ -220,7 +256,7 @@ interface WalletAgentSession {
   controller: AbortController
 }
 
-class WalletAgentSessionRegistry {
+export class WalletAgentSessionRegistry {
   private static readonly LIFETIME_MS = 30 * 60_000
   private readonly sessions = new Map<string, WalletAgentSession>()
   private cancellationQueue: Promise<void> = Promise.resolve()
@@ -405,116 +441,6 @@ export function mcpRequestAuthorized(configuredToken: string | undefined, author
   return bearer?.[1] === configuredToken
 }
 
-export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
-  browser_human_waiting: new Set(['list']),
-  browser_continuity: new Set(['status']),
-  browser_audit_receipts: new Set(['list', 'read', 'evidence']),
-  browser_task_runs: new Set(['get', 'list', 'metrics', 'list-saved', 'preview']),
-  browser_workspaces: new Set(['list', 'list-fork-sources', 'resume', 'list-origins', 'ownership-status']),
-  browser_saved_workspaces: new Set(['list', 'resume']),
-  browser_bookmarks: new Set(['list']),
-  browser_visit_history: new Set(['list']),
-  browser_site_data: new Set(['inspect']),
-  browser_storage: new Set(['list', 'get']),
-  browser_storage_changes: new Set(['get']),
-  browser_repro: new Set(['get']),
-  browser_video: new Set(['get', 'inspect']),
-  browser_dom_changes: new Set(['get']),
-  browser_live_region: new Set(['get']),
-  browser_css_state_preview: new Set(['get']),
-  browser_pwa_lifecycle: new Set(['get']),
-  browser_issues: new Set(['list']),
-  browser_console: new Set(['list']),
-  browser_diagnostic_logs: new Set(['get']),
-  browser_network: new Set(['list']),
-  browser_network_routes: new Set(['list']),
-  browser_downloads: new Set(['list']),
-  browser_webmcp: new Set(['status', 'list'])
-}
-
-const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOperationClass>> = {
-  browser_human_waiting: 'browser-state',
-  browser_continuity: 'browser-state',
-  browser_audit_receipts: 'browser-state',
-  browser_task_runs: 'browser-state',
-  browser_workspaces: 'browser-state',
-  browser_saved_workspaces: 'browser-state',
-  browser_show: 'browser-state',
-  browser_request_user_attention: 'browser-state',
-  browser_new_tab: 'navigate',
-  browser_select_tab: 'browser-state',
-  browser_close_tab: 'browser-state',
-  browser_bookmarks: 'browser-state',
-  browser_visit_history: 'browser-state',
-  browser_site_data: 'site-data',
-  browser_storage: 'site-data',
-  browser_storage_changes: 'browser-state',
-  browser_navigate: 'navigate',
-  browser_history: 'navigate',
-  browser_click: 'interact',
-  browser_dialog: 'interact',
-  browser_type: 'interact',
-  browser_select: 'interact',
-  browser_fill_form: 'interact',
-  browser_hover: 'interact',
-  browser_drag: 'interact',
-  browser_scroll: 'interact',
-  browser_wheel: 'interact',
-  browser_press: 'interact',
-  browser_hold_key: 'interact',
-  browser_file_upload: 'external-request',
-  browser_emulate: 'browser-state',
-  browser_page_lifecycle: 'browser-state',
-  browser_resize: 'browser-state',
-  browser_zoom: 'browser-state',
-  browser_audio: 'browser-state',
-  browser_screenshot: 'browser-state',
-  browser_pdf_save: 'external-request',
-  browser_performance: 'browser-state',
-  browser_code_coverage: 'browser-state',
-  browser_react: 'browser-state',
-  browser_cpu_profile: 'browser-state',
-  browser_memory: 'browser-state',
-  browser_repro: 'browser-state',
-  browser_video: 'browser-state',
-  browser_dom_changes: 'browser-state',
-  browser_live_region: 'browser-state',
-  browser_css_state_preview: 'browser-state',
-  browser_pwa_lifecycle: 'browser-state',
-  browser_visual_compare: 'browser-state',
-  browser_issues: 'browser-state',
-  browser_console: 'browser-state',
-  browser_diagnostic_logs: 'browser-state',
-  browser_network: 'network',
-  browser_network_replay: 'network',
-  browser_network_har: 'network',
-  browser_network_routes: 'network',
-  browser_downloads: 'external-request',
-  browser_evaluate: 'interact',
-  browser_evaluate_file: 'interact',
-  browser_webmcp: 'interact',
-  wallet_list: 'wallet',
-  wallet_balance: 'wallet',
-  wallet_prepare_transaction: 'wallet',
-  wallet_request: 'wallet',
-  wallet_request_status: 'wallet',
-  wallet_page_requests: 'wallet',
-  wallet_cancel_request: 'wallet'
-}
-
-export function mcpCapabilityOperationClass(
-  toolName: string,
-  input: Record<string, unknown>
-): McpCapabilityOperationClass {
-  if (toolName === 'browser_video' && (input.action === 'export' || input.action === 'import-audio')) return 'external-request'
-  const action = mcpCapabilityAction(toolName, input)
-  if (toolDefinition(toolName).annotations.readOnlyHint
-    || (action !== undefined && READ_ONLY_MULTI_ACTIONS[toolName]?.has(action))) return 'read'
-  const operationClass = MCP_NON_READ_OPERATION_CLASSES[toolName]
-  if (!operationClass) throw new Error(`MCP capability operation class is unrecognized for ${toolName}`)
-  return operationClass
-}
-
 const WORKSPACE_LEASE_OBSERVATION_TOOLS = new Set([
   'browser_human_waiting',
   'browser_continuity',
@@ -531,14 +457,6 @@ const WORKSPACE_LEASE_OBSERVATION_TOOLS = new Set([
 function requiresWorkspaceWriteLease(toolName: string, input: Record<string, unknown>): boolean {
   return mcpCapabilityOperationClass(toolName, input) !== 'read'
     && !WORKSPACE_LEASE_OBSERVATION_TOOLS.has(toolName)
-}
-
-export function mcpCapabilityAction(toolName: string, input: Record<string, unknown>): string | undefined {
-  if (typeof input.action === 'string') return input.action
-  if (toolName === 'browser_console' || toolName === 'browser_network') return input.clear === true ? 'clear' : 'list'
-  if (toolName === 'browser_downloads') return 'list'
-  if (toolName === 'browser_pwa_lifecycle') return 'get'
-  return undefined
 }
 
 export function assertMcpToolRegistrationContract(
@@ -576,50 +494,6 @@ function publicObserverAllowsTool(name: string): boolean {
   return name.startsWith('browser_')
     && (toolDefinition(name).annotations.readOnlyHint || PUBLIC_OBSERVER_LOCAL_TOOLS.has(name))
 }
-
-function normalizePublicObserverOrigin(value: string): string {
-  const parsed = new URL(value)
-  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.username || parsed.password) {
-    throw new TypeError('observerOrigin must be a credential-free HTTP or HTTPS address')
-  }
-  return parsed.origin
-}
-
-function normalizePublicOutcomeTarget(value: string): URL {
-  const parsed = new URL(value)
-  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.username || parsed.password) {
-    throw new TypeError('targetUrl must be a credential-free HTTP or HTTPS address')
-  }
-  return parsed
-}
-
-function publicOutcomeTargetFingerprint(key: Buffer, value: string): string {
-  return createHmac('sha256', key)
-    .update('hronaut-public-outcome-target-v1\0')
-    .update(value)
-    .digest('hex')
-}
-
-export function assertMcpCapabilityClassificationContract(
-  catalog: readonly AdvertisedBrowserToolDefinition[] = BROWSER_TOOL_CATALOG
-): void {
-  const catalogNames = new Set(catalog.map(tool => tool.name))
-  const missing = catalog
-    .filter(tool => !tool.annotations.readOnlyHint && !MCP_NON_READ_OPERATION_CLASSES[tool.name])
-    .map(tool => tool.name)
-    .sort()
-  const unknown = Object.keys(MCP_NON_READ_OPERATION_CLASSES)
-    .filter(toolName => !catalogNames.has(toolName))
-    .sort()
-  if (missing.length || unknown.length) {
-    throw new Error([
-      ...missing.map(toolName => `missing operation class: ${toolName}`),
-      ...unknown.map(toolName => `unknown operation-class entry: ${toolName}`)
-    ].join('; '))
-  }
-}
-
-assertMcpCapabilityClassificationContract()
 
 export function mcpCapabilityProfileInputFromPreset(
   input: McpCapabilityProfileCreateInput,
@@ -664,135 +538,6 @@ export function mcpCapabilityProfileInputFromPreset(
   }
 }
 
-function toolDefinition(name: string): AdvertisedBrowserToolDefinition {
-  const tool = BROWSER_TOOL_CATALOG.find((candidate) => candidate.name === name)
-  if (!tool) throw new Error(`Unknown browser tool: ${name}`)
-  return tool
-}
-
-function toolDescription(name: string): string {
-  return toolDefinition(name).description
-}
-
-const NETWORK_FILTER_QUERY_DESCRIPTION = 'Free text plus Chrome-style AND filters: domain (wildcards allowed), is:running, larger-than (B, K/KB, M/MB), method, response-source (network, disk-cache, prefetch-cache, service-worker, other-cache), resource-type, scheme, status-code (exact 100–599 or families 1xx–5xx), and url. Prefix a property with - to exclude matches (for example -domain:metrics.example or -url:poll). Empty operands and malformed status-code, response-source, larger-than, or is values match nothing. Response source uses only observed top-level metadata; missing sources match no positive source but are included by valid exclusions. Quote a phrase that contains spaces.'
-
-const textResult = (value: unknown): CallToolResult => ({
-  content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }]
-})
-
-const isTimeoutError = (error: unknown): boolean => error instanceof Error
-  && (error.name === 'TimeoutError' || /(?:timed out|timeout)/iu.test(error.message))
-
-const nativeClickFailureResult = (progress: NativeClickProgress, reasonValue: unknown = 'CONTEXT_OR_INPUT_UNCERTAIN', reviewFinalizationFailed = false, policy?: Record<string, unknown>): CallToolResult => {
-  const possible = nativeClickEffectsPossible(progress)
-  const reason = nativeClickReason(reasonValue)
-  const outcome = { ...(policy?.permission === 'denied' ? { permission: 'denied', policyDecision: policy.policyDecision } : {}), status: possible ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED', reason,
-    effects: possible ? 'possible' : 'none', retrySafe: false,
-    press: progress.downAttempted > 0 ? 'attempted' : 'not-dispatched', progress: { ...progress },
-    ...(reason === 'TARGET_DISABLED' ? { message: 'Target is natively disabled.' } : {}),
-    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-    nextAction: (reason === 'CLICK_STATE_UNCONFIRMED' || progress.targetCleanup === 'unconfirmed' || progress.inputCleanupFailed || progress.downAttempted > progress.upAcknowledged ? 'Close this tab before another semantic native click; retained handles or input cleanup could not be confirmed. ' : '') + 'Inspect fresh visible state before a new request. Preparatory scroll/hover and earlier presses are not rolled back. Press acknowledgements do not prove target routing or handler execution; do not replay automatically.' }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-const nativeInputCleanupResult = (reviewFinalizationFailed = false): CallToolResult => {
-  const outcome = {
-    status: 'OUTCOME_UNKNOWN', reason: 'NATIVE_INPUT_CLEANUP_FAILED', retrySafe: false,
-    effects: 'possible',
-    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-    nextAction: 'Native input was dispatched and cleanup may be incomplete. Inspect the visible page and input state before continuing; do not automatically replay the action. Effects are not rolled back.'
-      + (reviewFinalizationFailed ? ' Review finalization failed; its recorded state is not confirmed and must be reconciled before continuing.' : '')
-  }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-const selectionNotSubmittedResult = (result: CallToolResult): CallToolResult => {
-  const outcome = { ...result.structuredContent, status: 'NOT_DISPATCHED', effects: 'none', retrySafe: false,
-    dispatch: 'not-dispatched', postcondition: 'not-established', reconciliationRequired: false,
-    nextAction: 'No selection was submitted. Inspect the rejection and obtain fresh authority before a new request.' }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-const selectionUnknownResult = (reviewFinalizationFailed = false, policy?: Record<string, unknown>): CallToolResult => {
-  const outcome = {
-    status: 'OUTCOME_UNKNOWN', reason: 'SELECTION_UNCERTAIN', retrySafe: false, effects: 'possible',
-    ...(policy?.permission ? { permission: policy.permission } : {}),
-    ...(policy?.policyDecision ? { policyDecision: policy.policyDecision } : {}),
-    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-    nextAction: 'Semantic selection was submitted; final state or authority could not be confirmed. Inspect fresh state before continuing; do not automatically replay.'
-  }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-const nativeWheelUnknownResult = (reviewFinalizationFailed = false): CallToolResult => {
-  const outcome = {
-    status: 'OUTCOME_UNKNOWN', reason: 'WHEEL_COMMAND_UNCERTAIN', retrySafe: false, effects: 'possible',
-    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-    nextAction: 'Wheel dispatch was attempted; acknowledgement or final authority could not be confirmed. Inspect fresh page state before continuing; do not automatically replay.'
-  }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-const nativeKeyHoldUnknownResult = (progress: NativeKeyHoldProgress, reviewFinalizationFailed = false, policy?: Record<string, unknown>): CallToolResult => {
-  const outcome = {
-    status: 'OUTCOME_UNKNOWN', reason: 'KEY_HOLD_UNCERTAIN', retrySafe: false, effects: 'possible',
-    down: progress.downAcknowledged ? 'ACKNOWLEDGED' : 'ATTEMPTED',
-    release: progress.releaseAcknowledged ? 'ACKNOWLEDGED' : 'UNCONFIRMED',
-    ...(reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-    ...(policy?.permission === 'denied' || policy?.policyDecision !== undefined ? { permission: 'denied', policyDecision: policy.policyDecision } : {}),
-    nextAction: 'A key down was attempted. Inspect fresh state; never automatically replay. If release is unconfirmed, close this tab before another hold; navigation does not establish release.'
-  }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-const nativeKeyHoldNotDispatchedResult = (result: CallToolResult, policy?: Record<string, unknown>): CallToolResult => {
-  const detail = result.structuredContent ? undefined : result.content.find(item => item.type === 'text')?.text.slice(0, 500)
-  const outcome = { ...result.structuredContent, ...policy, status: 'NOT_DISPATCHED', reason: 'KEY_HOLD_NOT_DISPATCHED', effects: 'none', dispatch: 'not-dispatched', retrySafe: false,
-    postcondition: 'not-established', reconciliationRequired: false, ...(detail ? { detail } : {}),
-    nextAction: 'No key down was attempted. Inspect the rejection and obtain fresh authority before a new request.' }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-const errorResult = (error: unknown): CallToolResult => {
-  if (error instanceof NativeClickAdmissionError) return nativeClickFailureResult(error.progress, error.reason)
-  if (error instanceof NativeKeyHoldOutcomeUnknownError) return nativeKeyHoldUnknownResult(error.progress)
-  if (error instanceof NativeWheelOutcomeUnknownError) return nativeWheelUnknownResult()
-  if (error instanceof NativeInputCleanupError) return nativeInputCleanupResult()
-  if (error instanceof WorkspaceWriteLeaseError) {
-    const outcome = {
-      status: error.code === 'WORKSPACE_BUSY' ? 'BUSY' : 'LEASE_LOST',
-      reason: error.code,
-      leaseMode: 'exclusive-write',
-      dispatch: 'not-dispatched',
-      effects: 'none',
-      retrySafe: error.code === 'WORKSPACE_BUSY',
-      nextAction: error.code === 'WORKSPACE_BUSY'
-        ? 'Inspect workspace ownership later or use a separate workspace. Do not retry the mutation blindly.'
-        : 'Inspect current workspace state, claim a fresh write lease, and revalidate the target before issuing a new mutation.'
-    }
-    return { ...textResult(outcome), structuredContent: outcome, isError: true }
-  }
-  const policyDecision = error instanceof McpCapabilityAuthorizationError ? error.decision : undefined
-  const message = policyDecision
-    ? `MCP capability denied this operation: ${policyDecision.reasonCode} at ${policyDecision.firstDenyingRule}.`
-    : error instanceof Error ? error.message : String(error)
-  return {
-    isError: true,
-    content: [{ type: 'text', text: message }],
-    ...(policyDecision ? {
-      structuredContent: {
-        status: 'POLICY_REJECTED',
-        reason: policyDecision.reasonCode,
-        policyDecision,
-        dispatch: 'not-dispatched',
-        effects: 'none',
-        postcondition: 'not-established',
-        reconciliationRequired: false
-      }
-    } : isTimeoutError(error) ? { structuredContent: { status: 'TIMED_OUT' } } : {})
-  }
-}
-
 function pageObservationPublicationFailure(error: unknown): CallToolResult {
   const outcome = {
     status: 'OUTCOME_UNKNOWN',
@@ -803,55 +548,6 @@ function pageObservationPublicationFailure(error: unknown): CallToolResult {
     nextAction: 'The observation completed but publication authority changed. Its content was discarded. Capturing may have woken, selected or scrolled the page; those effects are not rolled back. Inspect current state and authorization before continuing; do not automatically replay the request.'
   }
   return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-export function closedTabWaitResult(error: unknown, targetWasRemoved = false): CallToolResult | undefined {
-  if (!(error instanceof Error)) return undefined
-  const closedDuringManagerWait = error.message.startsWith('The tab closed while waiting')
-  const removedDuringWrapperValidation = targetWasRemoved && (
-    error.message.startsWith('Workspace is not authorized for this MCP client')
-    || error.message.startsWith('Tab not found:')
-  )
-  if (!closedDuringManagerWait && !removedDuringWrapperValidation) return undefined
-  const outcome = {
-    status: 'STALE_OBSERVATION',
-    retrySafe: false,
-    nextAction: 'The waited-on tab closed. Inspect the current workspace and choose a live tab before waiting again.'
-  }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
-function safeValue(value: unknown): unknown {
-  try {
-    return JSON.parse(JSON.stringify(value))
-  } catch {
-    return String(value)
-  }
-}
-
-function mcpWorkspaceTab<T extends { mcpGroupId?: string; mcpGroupName?: string; networkConditionState?: import('../../shared/types.js').BrowserNetworkConditionState }>(tab: T): Omit<T, 'mcpGroupId' | 'mcpGroupName' | 'networkConditionState'> & {
-  networkConditionState?: { application: import('../../shared/types.js').BrowserNetworkConditionState['application']; retainedRuleCount: number }
-  workspaceId?: string
-  workspaceName?: string
-} {
-  const { mcpGroupId, mcpGroupName, networkConditionState, ...rest } = tab
-  return {
-    ...rest,
-    ...(networkConditionState ? { networkConditionState: { application: networkConditionState.application, retainedRuleCount: networkConditionState.retainedRules.length } } : {}),
-    ...(mcpGroupId ? { workspaceId: mcpGroupId } : {}),
-    ...(mcpGroupName ? { workspaceName: mcpGroupName } : {})
-  }
-}
-
-function mcpWorkspaceState(state: BrowserState): Record<string, unknown> {
-  const { tabs, closedTabs, mcpTabGroups, savedTabGroups, ...rest } = state
-  return {
-    ...rest,
-    tabs: tabs.map(mcpWorkspaceTab),
-    closedTabs: closedTabs.map(mcpWorkspaceTab),
-    workspaces: mcpTabGroups,
-    savedWorkspaces: savedTabGroups
-  }
 }
 
 function scopeBrowserStateResult(result: CallToolResult, state: BrowserState): CallToolResult {
@@ -899,28 +595,6 @@ function withCurrentOpenedTabs(result: CallToolResult, isCurrent: (tabId: string
         return { ...item, text: JSON.stringify({ ...value, tabsOpenedDuringClick: recheckOpenedTabs(report, isCurrent) }, null, 2) }
       } catch { return item }
     })
-  }
-}
-
-type PublicBrowserReconciliation = BrowserReconciliationResult & {
-  logicalItemFingerprint: string
-  targetFingerprint: string
-  sourceRevisionFingerprint: string
-}
-
-function reconciliationFingerprint(kind: 'logical-item' | 'target' | 'source-revision', value: string): string {
-  return createHash('sha256').update(`hronaut-reconciliation-${kind}-v1\0`).update(value, 'utf8').digest('hex')
-}
-
-function publicBrowserReconciliation(
-  input: { logicalItemKey: string; targetIdentity: string; sourceRevision: string; mode: BrowserReconciliationCondition['mode'] },
-  evidence: import('../../shared/browser-reconciliation.js').BrowserReconciliationEvidence
-): PublicBrowserReconciliation {
-  return {
-    ...classifyBrowserReconciliation(input.mode, evidence),
-    logicalItemFingerprint: reconciliationFingerprint('logical-item', input.logicalItemKey),
-    targetFingerprint: reconciliationFingerprint('target', input.targetIdentity),
-    sourceRevisionFingerprint: reconciliationFingerprint('source-revision', input.sourceRevision)
   }
 }
 
@@ -984,68 +658,6 @@ function withReviewContinuation(result: CallToolResult, continuation: {
   }
 }
 
-export function classifyMcpActivityResult(input: {
-  readOnly: boolean
-  dispatched: boolean
-  cancelled: boolean
-  timedOut: boolean
-  threw: boolean
-  isError: boolean
-  status?: string
-  invalidatedOutcome?: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected'
-  verificationStatus?: string
-}): McpActivityResult {
-  const base = {
-    dispatch: input.dispatched ? 'dispatched' as const : 'not-dispatched' as const,
-    evidenceSource: 'hronaut-observed' as const
-  }
-  const effects = (confirmed = false): McpActivityResult['effects'] => input.readOnly || !input.dispatched
-    ? 'none' : confirmed ? 'confirmed' : 'possible'
-  if (input.cancelled) return { ...base, outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', effects: effects() }
-  if (input.timedOut || input.status === 'TIMEOUT' || input.status === 'TIMED_OUT') {
-    return { ...base, outcome: 'timed-out', reasonCode: 'TIMEOUT', effects: effects() }
-  }
-  if (input.invalidatedOutcome === 'provenance-rejected'
-    || ['BLOCKED', 'POLICY_REJECTED', 'STALE_PRECONDITION', 'UNTRUSTED_TARGET'].includes(input.status ?? '')) {
-    return { ...base, outcome: 'blocked', reasonCode: 'POLICY_REJECTED', effects: effects() }
-  }
-  if (input.invalidatedOutcome === 'outcome-unknown' || input.status === 'OUTCOME_UNKNOWN') {
-    return { ...base, outcome: 'outcome-unknown', reasonCode: 'CONTEXT_CHANGED', effects: effects() }
-  }
-  if (input.invalidatedOutcome === 'stale-observation' || input.status === 'STALE_OBSERVATION') {
-    return { ...base, outcome: 'interrupted', reasonCode: 'CONTEXT_CHANGED', effects: effects() }
-  }
-  if (input.verificationStatus && input.verificationStatus !== 'verified') {
-    return { ...base, outcome: 'outcome-unknown', reasonCode: 'POSTCONDITION_NOT_VERIFIED', effects: effects() }
-  }
-  if (input.isError) return { ...base, outcome: 'failed', reasonCode: 'RESULT_ERROR', effects: effects() }
-  if (input.threw) return { ...base, outcome: 'failed', reasonCode: 'COMMAND_FAILED', effects: effects() }
-  return {
-    ...base,
-    outcome: 'succeeded',
-    reasonCode: input.verificationStatus === 'verified' ? 'POSTCONDITION_VERIFIED' : 'COMPLETED',
-    effects: effects(input.verificationStatus === 'verified')
-  }
-}
-
-export function browserClickPageInput<T extends object>(input: T & { postcondition?: unknown; reconciliation?: unknown }): Omit<T, 'postcondition' | 'reconciliation'> {
-  const { postcondition: _postcondition, reconciliation: _reconciliation, ...pageInput } = input
-  return pageInput
-}
-
-export function auditEvidenceExpiredReason(
-  state: { runtimeId?: string; controlRevision?: number; navigationGeneration: number; observationGeneration?: number },
-  tab: { navigationGeneration: number; observationGeneration?: number } | undefined,
-  tracker: Pick<McpActionTracker, 'runtimeId' | 'controlRevision'>
-): 'no-tab' | 'runtime-changed' | 'control-changed' | 'navigation-changed' | 'observation-changed' | undefined {
-  if (!tab) return 'no-tab'
-  if (state.runtimeId !== tracker.runtimeId) return 'runtime-changed'
-  if (state.controlRevision !== undefined && state.controlRevision !== tracker.controlRevision) return 'control-changed'
-  if (tab.navigationGeneration !== state.navigationGeneration) return 'navigation-changed'
-  if ((tab.observationGeneration ?? 0) !== (state.observationGeneration ?? 0)) return 'observation-changed'
-  return undefined
-}
-
 function createBrowserMcpServer(
   manager: BrowserTabsManager,
   showWindowInactive: () => void,
@@ -1087,11 +699,6 @@ function createBrowserMcpServer(
       if (error instanceof NativeInputCleanupError || error instanceof NativeWheelOutcomeUnknownError || error instanceof WebStorageInputError || error instanceof StorageComparisonInputError || error instanceof EmulationInputError) throw error
       return errorResult(error)
     }
-  }
-  type ResolvedTargetWakePolicy = 'before-handler' | 'handler-owned' | 'never'
-  type WorkspaceToolHandler<T> = ((input: T) => Promise<CallToolResult>) & {
-    resolvedTargetWakePolicy?: ResolvedTargetWakePolicy
-    tabActivityToolName?: string
   }
   const withResolvedTargetWakePolicy = <T>(
     handler: (input: T) => Promise<CallToolResult>,
@@ -1196,7 +803,7 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<{ labeledCreation?: { attempted: boolean; policy?: Record<string, unknown>; certificate?: () => void; refreshCertificate?: () => Promise<void>; reviewFinalizationFailed?: boolean; cancelled?: () => boolean; publication?: () => void; finish?: (result: CallToolResult) => void; knownNotSaved?: boolean }; fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; elementInspection?: PendingElementInspection; imageFinishActivity?: (result: CallToolResult) => void; imageFinishing?: boolean; videoInspection?: PendingVideoInspection; pdfExport?: PendingPdfExport; networkPublication?: () => void; tabDiscoveryPublication?: () => void; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string }>()
+  const frameRequests = new AsyncLocalStorage<McpFrameRequest>()
   const rememberInputPolicy = (error: unknown): void => {
     const request = frameRequests.getStore()
     if (request?.labeledCreation && error instanceof McpCapabilityAuthorizationError) {
@@ -1733,301 +1340,6 @@ function createBrowserMcpServer(
     agentControlContext.getStore()?.()
     if (!savedWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
   }
-  const consequentialReviewStepSchema = z.object({
-    toolName: z.string().regex(/^(?:browser|wallet)_[a-z0-9_]{1,80}$/),
-    arguments: z.record(z.string(), z.unknown()),
-    reversibility: z.enum(['reversible', 'conditionally-reversible', 'irreversible', 'unknown']),
-    representation: z.enum(['bounded-description', 'visible-browser-only']),
-    description: z.string().trim().min(1).max(512).optional(),
-    expectedPostcondition: z.string().trim().min(1).max(512).optional()
-  }).strict().refine(review => review.representation === 'visible-browser-only' || review.description !== undefined, {
-    message: 'A bounded review description is required'
-  })
-  const consequentialReviewSchema = z.union([
-    consequentialReviewStepSchema,
-    z.object({ steps: z.array(consequentialReviewStepSchema).min(2).max(4) }).strict()
-  ])
-  type ConsequentialReviewStepRequest = z.infer<typeof consequentialReviewStepSchema>
-  const reconciliationConditionSchema = z.object({
-    mode: z.enum(['create', 'update', 'upsert']),
-    expectedOrigin: z.string().max(2048).describe('Exact HTTP(S) origin for the authoritative visible record.'),
-    accountSelector: z.string().trim().min(1).max(256).describe('Unique selector whose bounded text identifies the expected account.'),
-    expectedAccount: z.string().trim().min(1).max(512).describe('Exact account marker. Used transiently and excluded from receipts.'),
-    stateSelector: z.string().trim().min(1).max(256).describe('Unique selector for the target record state.'),
-    expectedText: z.string().max(512).describe('Exact desired target text. Used transiently and excluded from receipts.'),
-    expectedCurrentText: z.string().max(512).optional().describe('Exact pre-write target text. Required for update and rechecked at dispatch.')
-  }).strict().superRefine((value, context) => {
-    if (value.mode === 'update' && value.expectedCurrentText === undefined) {
-      context.addIssue({ code: 'custom', path: ['expectedCurrentText'], message: 'Update reconciliation requires expectedCurrentText' })
-    }
-  })
-  type ReconciliationConditionRequest = z.infer<typeof reconciliationConditionSchema>
-  const reconciliationRequestSchema = reconciliationConditionSchema.safeExtend({
-    logicalItemKey: z.string().min(1).max(512),
-    targetIdentity: z.string().min(1).max(512),
-    sourceRevision: z.string().min(1).max(512)
-  })
-
-  registerTool(
-    'browser_workspaces',
-    {
-      description: toolDescription('browser_workspaces'),
-      inputSchema: {
-        action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins', 'ownership-status', 'claim-ownership', 'release-ownership']).default('list').describe('Use list to discover forkOnly sources even when direct access is disabled; create a fresh task workspace before page tools. Create and resume claim exclusive write ownership. Use ownership-status to inspect it, claim-ownership after fresh inspection to recover it, and release-ownership for handoff. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations.'),
-        workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools. A rename changes only the human name, never this ID.'),
-        resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened. Required only for resume after reconnecting. Never share it with another client or website.'),
-        name: z.string().trim().min(1).max(80).optional().describe('Human-readable workspace name for create, update, or rename.'),
-        description: z.string().max(1_000).optional().describe('Durable workspace purpose and context. Describe why it exists, current work, and what useful browser state it stores. Returned by list and resume.'),
-        color: z.enum(BROWSER_TAB_GROUP_COLORS).optional().describe('Visible workspace color for create or update.'),
-        sourceWorkspaceId: workspaceIdSchema.optional().describe('Required with storage=fork-workspace. Choose a forkOnly ID from list or any active or archived ID from list-fork-sources, including sources with direct agent access disabled. Forking never authorizes access to the source.'),
-        storage: z.enum(['scratch', 'fork-workspace']).optional().describe('Required choice for an explicit create workflow: scratch (the default when omitted) starts from a clean isolated profile. fork-workspace copies reusable cookies and localStorage from sourceWorkspaceId into a fresh isolated workspace, inheriting its navigation restrictions. Forks do not copy source tabs. Source direct access may be disabled; the new agent workspace permits direct access. No fork authorizes browsing the original workspace.'),
-        origins: z.array(z.string().url()).max(100).optional().describe('Optional HTTP(S) origins whose cookies and localStorage are copied during fork-workspace. Omit to copy all available cookies and known localStorage from the selected source.'),
-        contextClass: z.enum(['standard', 'public-observer']).default('standard').describe('Use public-observer only for a clean, origin-scoped, read-only independent observation workspace.'),
-        observerOrigin: z.string().url().optional().describe('Required with contextClass=public-observer. The clean observer workspace is restricted to this HTTP(S) origin; paths, query values, and fragments are discarded.')
-      }
-    },
-    tool(async ({ action, workspaceId, resumeKey, name, description, color, storage, origins, sourceWorkspaceId, contextClass, observerOrigin }: {
-      action: 'list' | 'list-fork-sources' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins' | 'ownership-status' | 'claim-ownership' | 'release-ownership'
-      workspaceId?: string
-      resumeKey?: string
-      name?: string
-      description?: string
-      color?: BrowserTabGroupColor
-      storage?: 'scratch' | 'fork-workspace'
-      sourceWorkspaceId?: string
-      origins?: string[]
-      contextClass: 'standard' | 'public-observer'
-      observerOrigin?: string
-    }) => {
-      if (action === 'list') return textResult([
-        ...authorizedActiveWorkspaces().map(workspace => ({
-          ...workspace,
-          writeLease: workspaceLeases.status(workspace.id, client.id)
-        })),
-        ...manager.listWorkspaceForkSources().filter(source => !source.agentAccess).map(forkOnlySource)
-      ])
-      if (action === 'list-fork-sources') return textResult(manager.listWorkspaceForkSources())
-      if (action === 'create') {
-        if (!name) throw new TypeError('name is required to create a workspace')
-        if (contextClass === 'public-observer' && !observerOrigin) throw new TypeError('observerOrigin is required for a public-observer workspace')
-        if (contextClass === 'public-observer' && storage === 'fork-workspace') throw new TypeError('A public-observer workspace must use clean scratch storage')
-        if (contextClass === 'standard' && observerOrigin !== undefined) throw new TypeError('observerOrigin is only supported with contextClass=public-observer')
-        if (storage === 'fork-workspace' && !sourceWorkspaceId) throw new TypeError('sourceWorkspaceId is required for fork-workspace')
-        if (sourceWorkspaceId !== undefined && storage !== 'fork-workspace') throw new TypeError('sourceWorkspaceId is only supported with fork-workspace')
-        if (origins !== undefined && storage !== 'fork-workspace') {
-          throw new TypeError('origins can be selected only when forking workspace storage')
-        }
-        const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId : undefined
-        const observerPolicy = contextClass === 'public-observer'
-          ? { mode: 'restricted' as const, rules: [normalizePublicObserverOrigin(observerOrigin!)] }
-          : undefined
-        const scopedOrigins = origins ?? (forkSourceId ? capabilityProfile?.origins : undefined)
-        const forkRevision = actionTracker.controlRevision
-        if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(
-          forkSourceId,
-          () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
-          undefined,
-          humanReviewSessionBinding
-        )
-        if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
-        const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
-        const forkContextCurrent = async (): Promise<boolean> => {
-          if (!forkSourceId) return true
-          try {
-            if (humanWaiting) await humanWaiting.requireDispatch(
-              forkSourceId,
-              () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
-              undefined,
-              humanReviewSessionBinding
-            )
-            if (getPaused() || actionTracker.controlRevision !== forkRevision) return false
-            manager.requireWorkspaceContinuityDispatch(forkSourceId)
-            return true
-          } catch { return false }
-        }
-        const interruptedFork = async (id: string): Promise<CallToolResult> => {
-          if (forkSourceId) manager.suspendWorkspaceContinuity(forkSourceId, 'OUTCOME_UNKNOWN')
-          const guardPersisted = await manager.requireWorkspaceContinuityReview(id)
-          const outcome = {
-            status: 'OUTCOME_UNKNOWN', effects: 'possible', workspaceId: id,
-            resumeKey: manager.mcpWorkspaceResumeKey(id), retained: true, reviewRequired: true, guardPersisted,
-            nextAction: 'Inspect and recover the retained workspace before continuing. Do not automatically repeat the fork.'
-          }
-          return { ...textResult(outcome), structuredContent: outcome, isError: true }
-        }
-        try {
-          if (!await forkContextCurrent()) {
-            throw new Error('MCP control changed before workspace creation. Obtain fresh state before retrying.')
-          }
-          requireActiveCapabilityDispatch('browser_workspaces', {
-            action, name, description, color, storage, sourceWorkspaceId, contextClass, observerOrigin,
-            ...(scopedOrigins ? { origins: scopedOrigins } : {})
-          })
-          const created = await manager.createMcpTabGroup(
-            name, color, storage, scopedOrigins, true, observerPolicy, sourceWorkspaceId, description, contextClass
-          )
-          activeWorkspaceIds.add(created.id)
-          const writeLease = workspaceLeases.claim(created.id, client.id)
-          if (!await forkContextCurrent()) return await interruptedFork(created.id)
-          return textResult({ ...withResumeKey(created), writeLease })
-        } catch (error) {
-          if (!(error instanceof RetainedBrowserWorkspaceError)) throw error
-          const retained = manager.requireMcpTabGroup(error.workspaceId)
-          activeWorkspaceIds.add(retained.id)
-          const writeLease = workspaceLeases.claim(retained.id, client.id)
-          if (!await forkContextCurrent()) return await interruptedFork(retained.id)
-          return {
-            ...textResult({
-              error: error.message,
-              workspaceId: retained.id,
-              resumeKey: manager.mcpWorkspaceResumeKey(retained.id),
-              retained: true,
-              writeLease
-            }),
-            isError: true
-          }
-        } finally {
-          finishFork?.()
-        }
-      }
-      if (!workspaceId) throw new TypeError(`workspaceId is required to ${action} a workspace`)
-      if (action === 'resume') {
-        if (!resumeKey) throw new TypeError('resumeKey is required to resume a workspace')
-        authorizeResume(workspaceId, resumeKey, false)
-        const currentLease = workspaceLeases.status(workspaceId, client.id)
-        const writeLease = currentLease.status === 'busy'
-          ? currentLease
-          : workspaceLeases.claim(workspaceId, client.id)
-        const guarded = manager.suspendWorkspaceContinuity(workspaceId)
-        const continuity = guarded ? await manager.inspectWorkspaceContinuity(workspaceId) : undefined
-        // Marker reads cross an async boundary. A resume key cannot override
-        // access revoked while the report was being captured.
-        requireAgentWorkspace(workspaceId)
-        if (writeLease.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-        return textResult({ ...withResumeKey(manager.requireMcpTabGroup(workspaceId)), writeLease, ...(continuity ? { continuity } : {}) })
-      }
-      requireAgentWorkspace(workspaceId)
-      if (action === 'ownership-status') return textResult({ workspaceId, writeLease: workspaceLeases.status(workspaceId, client.id) })
-      if (action === 'claim-ownership') return textResult({ workspaceId, writeLease: workspaceLeases.claim(workspaceId, client.id) })
-      if (action === 'release-ownership') {
-        const writeLease = workspaceLeases.release(workspaceId, client.id)
-        manager.interruptPwaLifecycleWorkspace(workspaceId, 'ownership-released')
-        return textResult({ workspaceId, writeLease })
-      }
-      if (action === 'rename') {
-        if (!name) throw new TypeError('name is required to rename a workspace')
-        return textResult(manager.renameMcpTabGroup(workspaceId, name, true))
-      }
-      if (action === 'update') {
-        if (name === undefined && description === undefined && color === undefined) throw new TypeError('name, description, or color is required to update a workspace')
-        return textResult(manager.updateMcpTabGroup(workspaceId, { name, description, color }, true))
-      }
-      if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
-      const closingLease = workspaceLeases.require(workspaceId, client.id)
-      await manager.closeMcpTabGroup(workspaceId)
-      let leaseOutcome: CallToolResult | undefined
-      try {
-        if (closingLease.generation) workspaceLeases.require(workspaceId, client.id, closingLease.generation)
-      } catch (error) {
-        leaseOutcome = leaseLostAfterDispatch(error)
-      }
-      workspaceLeases.releaseAfterMutation(workspaceId, client.id)
-      activeWorkspaceIds.delete(workspaceId)
-      return leaseOutcome ?? textResult(authorizedActiveWorkspaces())
-    })
-  )
-
-  registerTool(
-    'browser_saved_workspaces',
-    {
-      description: toolDescription('browser_saved_workspaces'),
-      inputSchema: {
-        action: z.enum(['list', 'save', 'resume', 'open', 'delete']).default('list'),
-        workspaceId: workspaceIdSchema.optional().describe('Your active UUIDv7 workspaceId. Required only for save.'),
-        savedWorkspaceId: workspaceIdSchema.optional().describe('Archived UUIDv7 workspace ID returned by your own save call. Required for resume, open, or delete.'),
-        resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned by create or save. Required only for resume after reconnecting.')
-      }
-    },
-    tool(async ({ action, workspaceId, savedWorkspaceId, resumeKey }: {
-      action: 'list' | 'save' | 'resume' | 'open' | 'delete'
-      workspaceId?: string
-      savedWorkspaceId?: string
-      resumeKey?: string
-    }) => {
-      if (action === 'list') {
-        const authorized = authorizedSavedWorkspaces()
-        const authorizedIds = new Set(authorized.map(workspace => workspace.id))
-        return textResult([
-          ...authorized,
-          ...manager.listWorkspaceForkSources()
-            .filter(source => source.archived && !authorizedIds.has(source.id))
-            .map(forkOnlySource)
-        ])
-      }
-      if (action === 'save') {
-        if (!workspaceId) throw new TypeError('workspaceId is required to save a workspace')
-        requireAgentWorkspace(workspaceId)
-        const savingLease = workspaceLeases.require(workspaceId, client.id)
-        const saved = await manager.saveAndCloseTabGroup(workspaceId)
-        let leaseOutcome: CallToolResult | undefined
-        try {
-          if (savingLease.generation) workspaceLeases.require(workspaceId, client.id, savingLease.generation)
-        } catch (error) {
-          leaseOutcome = leaseLostAfterDispatch(error)
-        }
-        workspaceLeases.releaseAfterMutation(workspaceId, client.id)
-        activeWorkspaceIds.delete(workspaceId)
-        savedWorkspaceIds.add(saved.id)
-        return leaseOutcome ?? textResult(withResumeKey(saved))
-      }
-      if (!savedWorkspaceId) throw new TypeError(`savedWorkspaceId is required to ${action} a saved workspace`)
-      if (action === 'resume') {
-        if (!resumeKey) throw new TypeError('resumeKey is required to resume an archived workspace')
-        authorizeResume(savedWorkspaceId, resumeKey, true)
-        const currentLease = workspaceLeases.status(savedWorkspaceId, client.id)
-        const writeLease = currentLease.status === 'busy'
-          ? currentLease
-          : workspaceLeases.claim(savedWorkspaceId, client.id)
-        const guarded = manager.suspendWorkspaceContinuity(savedWorkspaceId)
-        const continuity = guarded ? await manager.inspectWorkspaceContinuity(savedWorkspaceId) : undefined
-        requireSavedWorkspace(savedWorkspaceId)
-        if (writeLease.generation) workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
-        return textResult({ ...withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!), writeLease, ...(continuity ? { continuity } : {}) })
-      }
-      requireSavedWorkspace(savedWorkspaceId)
-      if (action === 'open') {
-        const writeLease = workspaceLeases.require(savedWorkspaceId, client.id)
-        try {
-          const opened = await manager.restoreSavedTabGroup(savedWorkspaceId)
-          workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
-          savedWorkspaceIds.delete(savedWorkspaceId)
-          activeWorkspaceIds.add(opened.id)
-          const guarded = manager.suspendWorkspaceContinuity(opened.id)
-          const continuity = guarded ? await manager.inspectWorkspaceContinuity(opened.id) : undefined
-          requireAgentWorkspace(opened.id)
-          return textResult({ ...withResumeKey(manager.requireMcpTabGroup(opened.id)), writeLease, ...(continuity ? { continuity } : {}) })
-        } catch (error) {
-          if (manager.listMcpTabGroups().some((workspace) => workspace.id === savedWorkspaceId)) {
-            savedWorkspaceIds.delete(savedWorkspaceId)
-            activeWorkspaceIds.add(savedWorkspaceId)
-          }
-          if (error instanceof WorkspaceWriteLeaseError) return leaseLostAfterDispatch(error)
-          throw error
-        }
-      }
-      const deletingLease = workspaceLeases.require(savedWorkspaceId, client.id)
-      await manager.deleteSavedTabGroup(savedWorkspaceId)
-      let leaseOutcome: CallToolResult | undefined
-      try {
-        if (deletingLease.generation) workspaceLeases.require(savedWorkspaceId, client.id, deletingLease.generation)
-      } catch (error) {
-        leaseOutcome = leaseLostAfterDispatch(error)
-      }
-      workspaceLeases.releaseAfterMutation(savedWorkspaceId, client.id)
-      savedWorkspaceIds.delete(savedWorkspaceId)
-      return leaseOutcome ?? textResult(authorizedSavedWorkspaces())
-    })
-  )
 
   const toolsWithoutWorkspaceTabTarget = new Set([
     'browser_status',
@@ -2090,7 +1402,6 @@ function createBrowserMcpServer(
       } : {})
     }
   }
-  type PostWriteRequest = BrowserPostcondition & { timeoutMs: number; maxAttempts: number; initialDelayMs: number }
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
@@ -2894,2730 +2205,6 @@ function createBrowserMcpServer(
     )
   }
 
-  registerTool(
-    'browser_human_waiting',
-    {
-      description: toolDescription('browser_human_waiting'),
-      inputSchema: {
-        workspaceId: workspaceIdSchema,
-        action: z.enum(['request', 'list', 'cancel']).default('list'),
-        runId: z.uuid().optional(),
-        decision: z.enum(['review-page', 'approve-action', 'provide-input', 'resolve-unknown']).optional(),
-        owner: z.string().trim().min(1).max(128).default('local-operator'),
-        fallbackOwner: z.string().trim().min(1).max(128).default('local-operator'),
-        timeoutMs: z.number().int().min(1).max(86_400_000).default(900_000),
-        id: z.uuid().optional(), revision: z.uuid().optional(),
-        review: consequentialReviewSchema.optional()
-      }
-    },
-    tool(async (input: {
-      workspaceId: string
-      action: 'request' | 'list' | 'cancel'
-      runId?: string
-      decision?: 'review-page' | 'approve-action' | 'provide-input' | 'resolve-unknown'
-      owner: string
-      fallbackOwner: string
-      timeoutMs: number
-      id?: string
-      revision?: string
-      review?: ConsequentialReviewStepRequest | { steps: ConsequentialReviewStepRequest[] }
-    }) => {
-      const authorize = (): void => {
-        if ((!activeWorkspaceIds.has(input.workspaceId) && !savedWorkspaceIds.has(input.workspaceId)) || !manager.isWorkspaceAgentAccessible(input.workspaceId)) throw workspaceAuthorizationError()
-      }
-      authorize()
-      if (!humanWaiting) throw new Error('Human waiting storage is unavailable')
-      if (input.action === 'list') return textResult(await humanWaiting.list(input.workspaceId, authorize))
-      if (input.action === 'cancel') {
-        if (!input.id || !input.revision) throw new Error('Decision ID and revision are required')
-        return textResult(await humanWaiting.change(input.workspaceId, input.id, input.revision, 'cancel', authorize))
-      }
-      requireAgentWorkspace(input.workspaceId)
-      if (!input.runId || !input.decision) throw new Error('Run ID and decision kind are required')
-      if ((input.review !== undefined) !== (input.decision === 'approve-action')) {
-        throw new Error('An approve-action request requires one consequential review artifact or bounded review group')
-      }
-      let reviewArtifact: import('../../shared/human-waiting.js').HumanWaitingReviewInput | undefined
-      if (input.review) {
-        const requestedSteps = 'steps' in input.review ? input.review.steps : [input.review]
-        const grouped = requestedSteps.length > 1
-        const workspace = manager.listMcpTabGroups().find(candidate => candidate.id === input.workspaceId)
-        if (!workspace) throw workspaceAuthorizationError()
-        const state = manager.getMcpGroupState(input.workspaceId)
-        const steps = requestedSteps.map((requested): import('../../shared/human-waiting.js').HumanWaitingReviewStep => {
-          const definition = toolDefinition(requested.toolName)
-          if (!definition.annotations.destructiveHint) throw new Error('Consequential review is only available for mutating browser tools')
-          if ('reviewId' in requested.arguments || 'reviewRevision' in requested.arguments) {
-            throw new Error('A proposed action cannot include an existing review binding')
-          }
-          const schema = workspaceToolInputSchemas.get(requested.toolName)
-          if (!schema) throw new Error('Consequential review target must be a workspace browser tool')
-          const normalized = schema.parse(requested.arguments)
-          if (normalized.workspaceId !== input.workspaceId) throw new Error('Reviewed action must target this workspace')
-          requireActiveCapabilityDispatch(requested.toolName, normalized)
-          if (grouped && (requested.toolName !== 'browser_click' || !normalized.postcondition || !requested.expectedPostcondition)) {
-            throw new Error('Every grouped review step must be a browser_click with a declarative and human-readable postcondition')
-          }
-          const tabId = typeof normalized.tabId === 'string' ? normalized.tabId : state.activeTabId ?? undefined
-          const tab = tabId ? state.tabs.find(candidate => candidate.id === tabId) : undefined
-          if (tabId && !tab) throw workspaceAuthorizationError()
-          if (grouped && !tab) throw new Error('Grouped review steps require one current page tab')
-          let origin: string | undefined
-          if (tab) {
-            try {
-              const url = new URL(tab.url)
-              origin = url.origin === 'null' ? url.protocol : url.origin
-            } catch { /* The visible tab remains reviewable without persisting a malformed URL. */ }
-          }
-          return {
-            toolName: requested.toolName,
-            actionClass: mcpCapabilityOperationClass(requested.toolName, normalized),
-            reversibility: requested.reversibility,
-            representation: requested.representation,
-            ...(requested.description ? { description: requested.description } : {}),
-            ...(requested.expectedPostcondition ? { expectedPostcondition: requested.expectedPostcondition } : {}),
-            artifactHash: humanWaitingArtifactHash(requested.toolName, reviewedActionArguments(normalized, requested.toolName)),
-            ...(origin ? { origin } : {}),
-            ...(tab ? {
-              tabId: tab.id,
-              navigationGeneration: tab.navigationGeneration,
-              humanInputGeneration: tab.humanInteractionGeneration ?? 0,
-              browserSessionGeneration: tab.browserSessionGeneration ?? 0
-            } : {})
-          }
-        })
-        if (grouped && steps.some(step => step.tabId !== steps[0]!.tabId || step.origin !== steps[0]!.origin)) {
-          throw new Error('Grouped review steps must target the same tab and origin')
-        }
-        reviewArtifact = {
-          ...steps[0]!,
-          sessionBinding: humanReviewSessionBinding,
-          workspaceName: workspace.name,
-          profileName: capabilityProfile?.name ?? 'Full access',
-          ...(grouped ? { steps, currentStep: 0 } : {})
-        }
-      }
-      if (reviewArtifact) {
-        await humanWaiting.requireDispatch(input.workspaceId, authorize, undefined, humanReviewSessionBinding)
-      }
-      // Establish durable continuity recovery before asking for a human decision.
-      if (!await manager.requireWorkspaceContinuityReview(input.workspaceId)) throw new Error('Workspace recovery could not be saved')
-      authorize()
-      const record = await humanWaiting.create({ workspaceId: input.workspaceId, runId: input.runId, decision: input.decision,
-        owner: input.owner, fallbackOwner: input.fallbackOwner, timeoutMs: input.timeoutMs, priorOutcome: 'OUTCOME_UNKNOWN',
-        ...(reviewArtifact ? { review: reviewArtifact } : {}) }, authorize)
-      if (record.state !== 'WAITING_FOR_HUMAN') return textResult(record)
-      return textResult(await humanWaiting.notify(input.workspaceId, record.id, authorize, async () => {
-        await requestUserAttention({ workspaceId: input.workspaceId, reason: `Human decision required: ${input.decision}`, expiresAt: record.deadlineAt, humanWaitingDecisionId: record.id })
-      }))
-    })
-  )
-
-  registerTool(
-    'browser_continuity',
-    {
-      description: toolDescription('browser_continuity'),
-      inputSchema: {
-        workspaceId: workspaceIdSchema,
-        action: z.enum(['checkpoint', 'status', 'reconcile']),
-        reviewId: z.uuid().optional(),
-        acknowledgeUnknownOutcome: z.boolean().optional(),
-        markerSelector: z.string().min(1).max(256).optional()
-      }
-    },
-    tool(async ({ workspaceId, action, reviewId, acknowledgeUnknownOutcome, markerSelector }: { workspaceId: string; action: 'checkpoint' | 'status' | 'reconcile'; reviewId?: string; acknowledgeUnknownOutcome?: boolean; markerSelector?: string }) => {
-      requireAgentWorkspace(workspaceId)
-      if (markerSelector !== undefined && action !== 'checkpoint') throw new TypeError('markerSelector is only accepted when creating a checkpoint')
-      if (action === 'checkpoint') return textResult({ checkpointId: await manager.armWorkspaceContinuity(workspaceId, markerSelector, () => requireAgentWorkspace(workspaceId)) })
-      if (action === 'reconcile') {
-        if (!reviewId) throw new TypeError('reviewId is required to reconcile continuity')
-        await manager.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledgeUnknownOutcome === true, () => requireAgentWorkspace(workspaceId))
-      }
-      const report = await manager.inspectWorkspaceContinuity(workspaceId)
-      requireAgentWorkspace(workspaceId)
-      return textResult(report)
-    })
-  )
-
-  registerTool(
-    'browser_preflight',
-    {
-      description: toolDescription('browser_preflight'),
-      inputSchema: {
-        workspaceId: workspaceIdSchema,
-        tabId: z.uuid().optional().describe('A tab in your workspace, or omit to check its active tab.'),
-        expectedOrigin: z.string().max(2048).optional().describe('Expected HTTP or HTTPS origin without credentials, path, query, or fragment.')
-      }
-    },
-    tool(async ({ workspaceId, tabId, expectedOrigin }: { workspaceId: string; tabId?: string; expectedOrigin?: string }, extra) => {
-      const unavailable = (): CallToolResult => textResult(workspacePreflight({
-        authorized: false, tab: null, policy: { mode: 'unrestricted', rules: [] }, paused: false, attentionRequired: false
-      }))
-      try { requireAgentWorkspace(workspaceId) } catch { return unavailable() }
-      const operation = async (): Promise<CallToolResult> => {
-        // Audit admission can await disk I/O. Recheck ownership afterwards.
-        let workspace
-        try { workspace = requireAgentWorkspace(workspaceId) } catch { return unavailable() }
-        const state = manager.getMcpGroupState(workspaceId)
-        const selected = state.tabs.find(tab => tab.id === (tabId ?? state.activeTabId))
-        const attention = getUserAttention()
-        const attentionRequired = !!attention && (
-          attention.workspaceId === workspaceId
-          || (attention.workspaceId === undefined && attention.tabId !== undefined
-            && manager.tabBelongsToMcpGroup(workspaceId, attention.tabId))
-        )
-        return textResult(workspacePreflight({
-          authorized: true,
-          tab: selected ? { url: selected.url, loading: selected.loading, sleeping: selected.sleeping } : null,
-          policy: workspace.navigationPolicy,
-          expectedOrigin, paused: selected ? (manager.isTabAgentPaused?.(selected.id) ?? getPaused()) : getPaused(), attentionRequired
-        }))
-      }
-      return auditReceipts ? auditReceipts.execute(workspaceId, {
-        toolName: 'browser_preflight', readOnly: true, authorization: auditAuthorization,
-        observeState: () => null, signal: extra?.signal,
-        operation, isErrorResult: result => result.isError === true
-      }) : operation()
-    })
-  )
-
-  registerTool(
-    'browser_audit_receipts',
-    {
-      description: toolDescription('browser_audit_receipts'),
-      inputSchema: {
-        workspaceId: workspaceIdSchema.describe('Your active or archived workspace UUID. Resume ownership before reading after reconnecting.'),
-        action: z.enum(['start', 'stop', 'list', 'read', 'evidence']).default('list'),
-        runId: z.uuid().optional().describe('Retained run ID required for read or evidence lookup. The JSON response is a sanitized export.'),
-        evidenceId: z.uuid().optional().describe('Opaque evidence reference returned by a retained audit read.')
-      }
-    },
-    tool(async ({ workspaceId, action, runId, evidenceId }: {
-      workspaceId: string
-      action: 'start' | 'stop' | 'list' | 'read' | 'evidence'
-      runId?: string
-      evidenceId?: string
-    }) => {
-      const authorize = (): void => {
-        if (action === 'start') {
-          requireAgentWorkspace(workspaceId)
-          return
-        }
-        if ((!activeWorkspaceIds.has(workspaceId) && !savedWorkspaceIds.has(workspaceId))
-          || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
-      }
-      authorize()
-      if (!auditReceipts) throw new Error('Action audit receipt storage is unavailable')
-      let result: unknown
-      if (action === 'start') result = await auditReceipts.start(workspaceId)
-      else if (action === 'stop') result = await auditReceipts.stop(workspaceId)
-      else if (action === 'list') result = await auditReceipts.list(workspaceId)
-      else if (action === 'read') {
-        if (!runId) throw new TypeError('runId is required to read a retained audit run')
-        result = await auditReceipts.read(workspaceId, runId)
-      } else {
-        if (!runId || !evidenceId) throw new TypeError('runId and evidenceId are required to resolve retained evidence')
-        const evidence = await auditReceipts.evidence(workspaceId, runId, evidenceId)
-        if (evidence.source === 'postcondition') {
-          result = {
-            ...evidence,
-            openWith: { toolName: 'browser_audit_receipts', arguments: { workspaceId, action: 'read', runId }, receiptSequence: evidence.eventSequence }
-          }
-        } else if (!evidence.state?.tabId || evidence.source === 'site-access' || evidence.source === 'unspecified') {
-          result = { ...evidence, status: 'expired', reason: 'no-tab', referenceId: null }
-        } else {
-          let tab: BrowserState['tabs'][number] | undefined
-          try {
-            tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === evidence.state!.tabId)
-          } catch {
-            tab = undefined
-          }
-          const expiredReason = auditEvidenceExpiredReason(evidence.state, tab, actionTracker)
-          if (expiredReason) result = { ...evidence, status: 'expired', reason: expiredReason, referenceId: null }
-          else {
-            const open = evidence.source === 'diagnostic' ? { toolName: 'browser_debug_report', arguments: { workspaceId, tabId: tab!.id } }
-              : evidence.source === 'network' ? { toolName: 'browser_network', arguments: { workspaceId, tabId: tab!.id } }
-                : evidence.source === 'dom-changes' ? { toolName: 'browser_dom_changes', arguments: { workspaceId, tabId: tab!.id, action: 'get' } }
-                  : evidence.source === 'storage-changes' ? { toolName: 'browser_storage_changes', arguments: { workspaceId, tabId: tab!.id, action: 'get' } }
-                    : { toolName: 'browser_repro', arguments: { workspaceId, tabId: tab!.id, action: 'get' } }
-            result = { ...evidence, openWith: open }
-          }
-        }
-      }
-      // A user can revoke agent access while bounded disk I/O is pending.
-      authorize()
-      return textResult(result)
-    })
-  )
-
-  registerTool(
-    'browser_task_runs',
-    {
-      description: toolDescription('browser_task_runs'),
-      inputSchema: {
-        workspaceId: workspaceIdSchema.describe('Authorized workspace UUID. Start and heartbeat require an active workspace; retained runs may be inspected after archiving and resuming ownership.'),
-        action: z.enum([
-          'start', 'heartbeat', 'get', 'list', 'metrics', 'complete',
-          'save', 'list-saved', 'preview', 'start-saved', 'delete-saved'
-        ]).default('list'),
-        taskRunId: z.uuid().optional(),
-        taskDefinitionId: z.uuid().optional(),
-        taskDefinitionRevision: z.uuid().optional(),
-        revision: z.uuid().optional().describe('Latest optimistic revision returned by start, heartbeat, get, or list.'),
-        deadlineMs: z.number().int().min(1_000).max(604_800_000).optional().describe('Overall run deadline, from one second through seven days.'),
-        heartbeatTimeoutMs: z.number().int().min(1_000).max(86_400_000).optional().describe('Maximum silence between heartbeats, capped by the overall deadline.'),
-        checks: z.array(z.discriminatedUnion('type', [
-          z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('page-settled'), tabId: tabIdSchema }).strict(),
-          z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('expected-origin'), tabId: tabIdSchema, expectedOrigin: z.string().url() }).strict(),
-          z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('audit-run'), runId: z.uuid() }).strict()
-        ])).max(8).optional().describe('Typed completion checks. Expected origins are persisted only as fingerprints; audit references contain no artifact body.'),
-        taskName: z.string().trim().min(1).max(80).optional(),
-        intent: z.string().trim().min(1).max(280).optional(),
-        taskInputs: z.array(z.object({
-          name: z.string().trim().min(1).max(32).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/),
-          type: z.enum(['string', 'number', 'boolean']),
-          required: z.boolean(),
-          sensitive: z.boolean()
-        }).strict()).max(12).optional(),
-        steps: z.array(z.object({
-          id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/),
-          kind: z.enum(['read-only', 'review-gated', 'mutation']),
-          capability: z.string().trim().min(1).max(64).regex(/^(browser|wallet)_[a-z0-9_]+$/),
-          humanGate: z.boolean()
-        }).strict()).min(1).max(16).optional(),
-        expectedEvidence: z.array(z.object({
-          id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/),
-          type: z.enum(['page-settled', 'expected-origin'])
-        }).strict()).min(1).max(8).optional(),
-        retryMaxAttempts: z.number().int().min(1).max(3).optional(),
-        inputBindings: z.array(z.object({
-          name: z.string().trim().min(1).max(32).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/),
-          value: z.union([z.string().max(2_000), z.number().finite(), z.boolean()])
-        }).strict()).max(12).optional(),
-        tabId: tabIdSchema.optional(),
-        expectedOrigin: z.string().url().optional(),
-        previewToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-        outcome: z.enum(['SUCCEEDED', 'FAILED', 'CANCELLED', 'BLOCKED', 'OUTCOME_UNKNOWN']).optional()
-      }
-    },
-    tool(async ({
-      workspaceId, action, taskRunId, taskDefinitionId, taskDefinitionRevision, revision,
-      deadlineMs, heartbeatTimeoutMs, checks, taskName, intent, taskInputs, steps,
-      expectedEvidence, retryMaxAttempts, inputBindings, tabId, expectedOrigin, previewToken, outcome
-    }: {
-      workspaceId: string
-      action: 'start' | 'heartbeat' | 'get' | 'list' | 'metrics' | 'complete'
-        | 'save' | 'list-saved' | 'preview' | 'start-saved' | 'delete-saved'
-      taskRunId?: string
-      taskDefinitionId?: string
-      taskDefinitionRevision?: string
-      revision?: string
-      deadlineMs?: number
-      heartbeatTimeoutMs?: number
-      checks?: Array<
-        { id: string; type: 'page-settled'; tabId: string }
-        | { id: string; type: 'expected-origin'; tabId: string; expectedOrigin: string }
-        | { id: string; type: 'audit-run'; runId: string }
-      >
-      taskName?: string
-      intent?: string
-      taskInputs?: Array<{ name: string; type: 'string' | 'number' | 'boolean'; required: boolean; sensitive: boolean }>
-      steps?: Array<{ id: string; kind: 'read-only' | 'review-gated' | 'mutation'; capability: string; humanGate: boolean }>
-      expectedEvidence?: Array<{ id: string; type: 'page-settled' | 'expected-origin' }>
-      retryMaxAttempts?: number
-      inputBindings?: Array<{ name: string; value: string | number | boolean }>
-      tabId?: string
-      expectedOrigin?: string
-      previewToken?: string
-      outcome?: 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'BLOCKED' | 'OUTCOME_UNKNOWN'
-    }) => {
-      if (!taskRuns) throw new Error('Task-run storage is unavailable')
-      const authorizeActive = (): void => { requireAgentWorkspace(workspaceId) }
-      const authorizeRetained = (): void => {
-        if ((!activeWorkspaceIds.has(workspaceId) && !savedWorkspaceIds.has(workspaceId))
-          || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
-      }
-      const exactOrigin = (): URL => {
-        if (!expectedOrigin) throw new TypeError(`expectedOrigin is required to ${action} a saved task`)
-        const parsed = new URL(expectedOrigin)
-        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password
-          || expectedOrigin !== parsed.origin) throw new TypeError('Expected origin must be an exact HTTP(S) origin')
-        return parsed
-      }
-      const requireDefinition = async (): Promise<SavedTaskDefinition> => {
-        if (!taskDefinitionId) throw new TypeError(`taskDefinitionId is required to ${action} a saved task`)
-        if (!taskDefinitionRevision) throw new TypeError(`taskDefinitionRevision is required to ${action} a saved task`)
-        const definition = await taskRuns.getTask(workspaceId, taskDefinitionId, authorizeRetained)
-        if (definition.revision !== taskDefinitionRevision) throw new Error('Saved task is unavailable or stale')
-        return definition
-      }
-      const taskPreview = (definition: SavedTaskDefinition) => {
-        authorizeActive()
-        if (!tabId) throw new TypeError(`tabId is required to ${action} a saved task`)
-        manager.requireTabInMcpGroup(workspaceId, tabId)
-        const tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === tabId)
-        if (!tab) throw new Error('Saved-task browser context is unavailable')
-        const parsedOrigin = exactOrigin()
-        const currentOrigin = (() => {
-          try {
-            const parsed = new URL(tab.url)
-            return ['http:', 'https:'].includes(parsed.protocol) ? parsed.origin : undefined
-          } catch { return undefined }
-        })()
-        const bindings = inputBindings ?? []
-        if (new Set(bindings.map(binding => binding.name)).size !== bindings.length) {
-          throw new TypeError('Duplicate saved-task input binding')
-        }
-        const definitions = new Map(definition.inputs.map(input => [input.name, input]))
-        for (const binding of bindings) {
-          const declared = definitions.get(binding.name)
-          if (!declared) throw new TypeError(`Unknown saved-task input: ${binding.name}`)
-          if (typeof binding.value !== declared.type) throw new TypeError(`Saved-task input ${binding.name} must be ${declared.type}`)
-        }
-        const missingInputs = definition.inputs
-          .filter(input => input.required && !bindings.some(binding => binding.name === input.name))
-          .map(input => input.name)
-        const lease = workspaceLeases.status(workspaceId, client.id)
-        const originFingerprint = createHash('sha256').update(parsedOrigin.origin, 'utf8').digest('hex')
-        const controlFingerprint = lease.status === 'owned' && lease.generation
-          ? createHash('sha256').update('hronaut-saved-task-control-v1\0').update(lease.generation).digest('hex')
-          : undefined
-        const originStatus = currentOrigin === undefined ? 'unknown' : currentOrigin === parsedOrigin.origin ? 'matches' : 'changed'
-        const status = missingInputs.length || !controlFingerprint || originStatus === 'unknown'
-          ? 'reconciliation_required'
-          : originStatus === 'changed' ? 'stale_context'
-            : definition.steps.some(step => step.humanGate) ? 'needs_review' : 'ready'
-        const inputDigests = bindings.map(binding => [
-          binding.name,
-          createHash('sha256').update('hronaut-saved-task-input-v1\0')
-            .update(JSON.stringify([typeof binding.value, binding.value])).digest('hex')
-        ] as [string, string]).sort((left, right) => left[0].localeCompare(right[0]))
-        const token = controlFingerprint && originStatus === 'matches' && !missingInputs.length
-          ? createHmac('sha256', savedTaskPreviewKey).update('hronaut-saved-task-preview-v1\0').update(JSON.stringify({
-            taskId: definition.id,
-            taskRevision: definition.revision,
-            workspaceId,
-            tabId,
-            navigationGeneration: tab.navigationGeneration,
-            observationGeneration: tab.observationGeneration ?? 0,
-            originFingerprint,
-            controlFingerprint,
-            inputDigests
-          })).digest('hex')
-          : undefined
-        return {
-          task: { id: definition.id, revision: definition.revision, name: definition.name, intent: definition.intent },
-          inputs: definition.inputs.map(input => ({
-            name: input.name, type: input.type, required: input.required, sensitive: input.sensitive,
-            provided: bindings.some(binding => binding.name === input.name)
-          })),
-          context: {
-            workspaceId, tabId,
-            navigationGeneration: tab.navigationGeneration,
-            observationGeneration: tab.observationGeneration ?? 0,
-            originStatus,
-            controlStatus: lease.status
-          },
-          allowedCapabilities: [...new Set(definition.steps.map(step => step.capability))],
-          steps: definition.steps,
-          expectedEvidence: definition.evidence,
-          humanGates: definition.steps.filter(step => step.humanGate).map(step => step.id),
-          retryPolicy: definition.retryPolicy,
-          status,
-          canStart: token !== undefined,
-          missingInputs,
-          ...(token ? { previewToken: token, binding: { originFingerprint, controlFingerprint } } : {})
-        }
-      }
-      if (action === 'save') {
-        authorizeActive()
-        if (!taskName || !intent || !steps?.length || !expectedEvidence?.length) {
-          throw new TypeError('taskName, intent, steps, and expectedEvidence are required to save a task')
-        }
-        for (const step of steps) {
-          if (!(step.capability in BROWSER_TOOL_METADATA)) throw new TypeError(`Unknown saved-task capability: ${step.capability}`)
-        }
-        return textResult(await taskRuns.saveTask({
-          workspaceId,
-          name: taskName,
-          intent,
-          inputs: taskInputs ?? [],
-          steps,
-          evidence: expectedEvidence,
-          retryPolicy: { maxAttempts: retryMaxAttempts ?? 1, retryable: 'read-only-only' }
-        }, authorizeActive))
-      }
-      if (action === 'list-saved') return textResult(await taskRuns.listTasks(workspaceId, authorizeRetained))
-      if (action === 'delete-saved') {
-        if (!taskDefinitionId || !taskDefinitionRevision) {
-          throw new TypeError('taskDefinitionId and taskDefinitionRevision are required to delete a saved task')
-        }
-        return textResult(await taskRuns.deleteTask(
-          workspaceId, taskDefinitionId, taskDefinitionRevision, authorizeRetained
-        ))
-      }
-      if (action === 'preview' || action === 'start-saved') {
-        const definition = await requireDefinition()
-        const preview = taskPreview(definition)
-        if (action === 'preview') {
-          const { binding: _privateBinding, ...publicPreview } = preview
-          return textResult(publicPreview)
-        }
-        if (!previewToken || preview.previewToken !== previewToken) {
-          throw new Error('Saved-task preview is stale; preview the current browser context again')
-        }
-        const binding = preview.binding
-        if (!preview.canStart || !binding?.controlFingerprint || !tabId) {
-          throw new Error('Saved-task context requires reconciliation')
-        }
-        const definitions: TaskRunCheckDefinition[] = [
-          {
-            id: 'task_context', type: 'context-binding', tabId,
-            navigationGeneration: preview.context.navigationGeneration,
-            observationGeneration: preview.context.observationGeneration,
-            originFingerprint: binding.originFingerprint,
-            controlFingerprint: binding.controlFingerprint
-          },
-          ...definition.evidence.map(evidence => evidence.type === 'page-settled'
-            ? { id: evidence.id, type: evidence.type, tabId } as const
-            : { id: evidence.id, type: evidence.type, tabId, fingerprint: binding.originFingerprint } as const)
-        ]
-        const run = await taskRuns.createFromTask(
-          workspaceId, definition.id, definition.revision,
-          {
-            deadlineMs: deadlineMs ?? 3_600_000,
-            heartbeatTimeoutMs: heartbeatTimeoutMs ?? 60_000,
-            checks: definitions
-          },
-          authorizeActive
-        )
-        return textResult(await taskRuns.heartbeat(
-          workspaceId,
-          run.id,
-          run.revision,
-          authorizeActive,
-          async contextChecks => {
-            let admissionStatus: 'PASS' | 'FAIL' | 'UNAVAILABLE' = 'UNAVAILABLE'
-            try {
-              const fresh = taskPreview(definition)
-              admissionStatus = fresh.previewToken === previewToken ? 'PASS'
-                : fresh.binding?.controlFingerprint ? 'FAIL' : 'UNAVAILABLE'
-            } catch { /* The durable run must record unavailable admission evidence. */ }
-            return {
-              results: contextChecks.map(check => ({ id: check.id, status: admissionStatus })),
-              contextToken: admissionStatus
-            }
-          }
-        ))
-      }
-      if (action === 'start') {
-        authorizeActive()
-        const definitions: TaskRunCheckDefinition[] = (checks ?? []).map(check => {
-          if (check.type === 'audit-run') return { id: check.id, type: check.type, artifactId: check.runId }
-          manager.requireTabInMcpGroup(workspaceId, check.tabId)
-          if (check.type === 'page-settled') return check
-          const parsed = new URL(check.expectedOrigin)
-          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password
-            || check.expectedOrigin !== parsed.origin) throw new TypeError('Expected origin must be an exact HTTP(S) origin')
-          return {
-            id: check.id, type: check.type, tabId: check.tabId,
-            fingerprint: createHash('sha256').update(parsed.origin, 'utf8').digest('hex')
-          }
-        })
-        return textResult(await taskRuns.create({
-          workspaceId,
-          deadlineMs: deadlineMs ?? 3_600_000,
-          heartbeatTimeoutMs: heartbeatTimeoutMs ?? 60_000,
-          checks: definitions
-        }, authorizeActive))
-      }
-      if (action === 'list') return textResult(await taskRuns.list(workspaceId, authorizeRetained))
-      if (action === 'metrics') {
-        if (!humanWaiting) throw new Error('Human waiting storage is unavailable')
-        const runs = await taskRuns.list(workspaceId, authorizeRetained)
-        const decisions = await humanWaiting.list(workspaceId, authorizeRetained)
-        authorizeRetained()
-        return textResult(taskReviewMetrics(workspaceId, runs, decisions))
-      }
-      if (!taskRunId) throw new TypeError(`taskRunId is required to ${action} a task run`)
-      if (action === 'get') return textResult(await taskRuns.get(workspaceId, taskRunId, authorizeRetained))
-      if (!revision) throw new TypeError(`revision is required to ${action} a task run`)
-      const evaluate = async (definitions: TaskRunCheckDefinition[]) => {
-        const results: Array<{ id: string; status: 'PASS' | 'FAIL' | 'UNAVAILABLE' }> = []
-        const context: unknown[] = []
-        for (const check of definitions) {
-          if (check.type === 'context-binding') {
-            let tab
-            try {
-              manager.requireTabInMcpGroup(workspaceId, check.tabId)
-              tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === check.tabId)
-            } catch { /* Report bounded unavailability below. */ }
-            const lease = workspaceLeases.status(workspaceId, client.id)
-            const controlFingerprint = lease.status === 'owned' && lease.generation
-              ? createHash('sha256').update('hronaut-saved-task-control-v1\0').update(lease.generation).digest('hex')
-              : undefined
-            let originFingerprint: string | undefined
-            if (tab) {
-              try {
-                const current = new URL(tab.url)
-                if (['http:', 'https:'].includes(current.protocol)) {
-                  originFingerprint = createHash('sha256').update(current.origin, 'utf8').digest('hex')
-                }
-              } catch { /* Report bounded unavailability below. */ }
-            }
-            const status = !tab || !originFingerprint || !controlFingerprint ? 'UNAVAILABLE'
-              : tab.navigationGeneration === check.navigationGeneration
-                && (tab.observationGeneration ?? 0) === check.observationGeneration
-                && originFingerprint === check.originFingerprint
-                && controlFingerprint === check.controlFingerprint ? 'PASS' : 'FAIL'
-            results.push({ id: check.id, status })
-            context.push([
-              check.id, check.type, check.tabId,
-              tab?.navigationGeneration ?? 'unavailable',
-              tab?.observationGeneration ?? 'unavailable',
-              originFingerprint ?? 'unavailable',
-              controlFingerprint ?? 'unavailable'
-            ])
-            continue
-          }
-          if (check.type === 'audit-run') {
-            try {
-              if (!auditReceipts) throw new Error('Audit storage unavailable')
-              const report = await auditReceipts.read(workspaceId, check.artifactId)
-              const status = report.run.status === 'stopped' && report.run.persistenceFailed === false
-                ? 'PASS' : report.run.status === 'recording' || report.run.status === 'stopping' ? 'FAIL' : 'UNAVAILABLE'
-              results.push({ id: check.id, status })
-              context.push([check.id, check.type, check.artifactId, report.run.status,
-                report.run.stoppedAt, report.run.persistenceFailed, report.receipts.length])
-            } catch {
-              results.push({ id: check.id, status: 'UNAVAILABLE' })
-              context.push([check.id, check.type, check.artifactId, 'unavailable'])
-            }
-            continue
-          }
-          let tab
-          try {
-            manager.requireTabInMcpGroup(workspaceId, check.tabId)
-            tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === check.tabId)
-          } catch { /* Report bounded unavailability below. */ }
-          if (!tab) {
-            results.push({ id: check.id, status: 'UNAVAILABLE' })
-            context.push([check.id, check.type, check.tabId, 'unavailable'])
-            continue
-          }
-          let originFingerprint = 'unavailable'
-          try {
-            const current = new URL(tab.url)
-            if (['http:', 'https:'].includes(current.protocol)) {
-              originFingerprint = createHash('sha256').update(current.origin, 'utf8').digest('hex')
-            }
-          } catch { /* Keep the bounded unavailable marker. */ }
-          const settled = !tab.loading && !tab.sleeping
-          results.push({
-            id: check.id,
-            status: check.type === 'page-settled' ? (settled ? 'PASS' : 'FAIL')
-              : originFingerprint === 'unavailable' ? 'UNAVAILABLE'
-                : originFingerprint === check.fingerprint ? 'PASS' : 'FAIL'
-          })
-          context.push([check.id, check.type, check.tabId, tab.navigationGeneration,
-            tab.observationGeneration ?? 0, tab.loading, tab.sleeping, originFingerprint])
-        }
-        return {
-          results,
-          contextToken: createHash('sha256').update(JSON.stringify(context), 'utf8').digest('hex')
-        }
-      }
-      if (action === 'heartbeat') {
-        return textResult(await taskRuns.heartbeat(workspaceId, taskRunId, revision, authorizeActive, evaluate))
-      }
-      if (!outcome) throw new TypeError('outcome is required to complete a task run')
-      return textResult(await taskRuns.complete(workspaceId, taskRunId, revision, outcome, authorizeActive, evaluate))
-    })
-  )
-
-  registerWorkspaceTool(
-    'browser_status',
-    { description: toolDescription('browser_status'), inputSchema: {} },
-    tool(async ({ workspaceId }: { workspaceId?: string }) => {
-      const attention = getUserAttention()
-      const visibleAttention = attention && (
-        (attention.workspaceId === workspaceId
-          && (attention.tabId === undefined || manager.tabBelongsToMcpGroup(workspaceId!, attention.tabId)))
-        || (attention.workspaceId === undefined
-          && attention.tabId !== undefined
-          && manager.tabBelongsToMcpGroup(workspaceId!, attention.tabId))
-      ) ? attention : null
-      return textResult({ ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), userAttention: visibleAttention })
-    })
-  )
-  registerWorkspaceTool(
-    'browser_show',
-    { description: toolDescription('browser_show'), inputSchema: {} },
-    tool(async ({ tabId }: { tabId?: string }) => {
-      if (tabId) await manager.selectTabAndWait(tabId, { focus: false })
-      showWindowInactive()
-      return textResult('Browser window is visible without taking keyboard or mouse focus.')
-    })
-  )
-  registerTool(
-    'browser_user_attention',
-    {
-      description: toolDescription('browser_user_attention'),
-      inputSchema: {
-        workspaceId: workspaceIdSchema,
-        requestId: z.uuid().describe('Exact id returned by browser_request_user_attention.'),
-        action: z.enum(['status', 'wait']).default('status'),
-        timeoutMs: z.number().int().min(1).max(60_000).default(30_000)
-      }
-    },
-    tool(async (input: { workspaceId: string; requestId: string; action: 'status' | 'wait'; timeoutMs: number }, extra) => {
-      const authorize = (): void => {
-        requireAgentWorkspace(input.workspaceId)
-        requireActiveCapabilityDispatch('browser_user_attention', input)
-      }
-      authorize()
-      if (!userAttentionLifecycle) throw new Error('Attention history unavailable')
-      return textResult(input.action === 'wait'
-        ? await userAttentionLifecycle.wait(input.requestId, input.workspaceId, input.timeoutMs, authorize, extra?.signal)
-        : userAttentionLifecycle.status(input.requestId, input.workspaceId))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_request_user_attention',
-    {
-      description: toolDescription('browser_request_user_attention'),
-      inputSchema: {
-        reason: z.string().trim().min(1).max(280).describe('What the user needs to do, without secrets or credentials.'),
-        notificationMessage: z.string().trim().min(1).max(200).optional().describe('Short, secret-free text for the system notification. Defaults to reason.'),
-        tabId: tabIdSchema.optional().describe('The browser tab that needs the user, when applicable.')
-      }
-    },
-    tabTool('browser_request_user_attention', async ({ reason, notificationMessage, workspaceId, tabId }: UserAttentionInput) => {
-      if (tabId && !manager.getState().tabs.some((tab) => tab.id === tabId)) {
-        throw new Error(`Unknown tab: ${tabId}`)
-      }
-      return textResult(await requestUserAttention({ reason, notificationMessage, workspaceId, tabId }))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_tabs',
-    { description: toolDescription('browser_tabs'), inputSchema: {
-      search: z.object({
-        query: z.string().max(TAB_DISCOVERY_LIMITS.queryChars).optional().describe('Literal, case-insensitive whitespace-separated terms; each term must match the same tab’s projected title or address. An empty query lists eligible tabs.'),
-        limit: z.number().int().min(1).max(TAB_DISCOVERY_LIMITS.results).optional().describe('Maximum compact results; defaults to 10. Output may stop earlier at its character bound.')
-      }).strict().optional().describe('Opt in to compact discovery of live HTTP(S) tabs. Addresses omit credentials, fragments and recognized secret query values. Only current-document titles confirmed by explicit native title events are included; unverified and URL fallback titles are empty. Title/address projections are bounded; counts cover projected fields only. Omit search to keep the existing full tab-state response.')
-    } },
-    tool(async ({ workspaceId, search }: { workspaceId?: string; search?: TabDiscoverySearch }) => {
-      return textResult(search === undefined
-        ? manager.getMcpGroupState(workspaceId!).tabs.map(mcpWorkspaceTab)
-        : compactTabDiscovery(manager.getMcpDiscoveryTabs(workspaceId!), search))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_new_tab',
-    {
-      description: toolDescription('browser_new_tab'),
-      inputSchema: {
-        url: z.string().optional(),
-        label: z.string().max(MAX_TAB_LABEL_INPUT_LENGTH).refine(value => { try { normalizeTabLabel(value); return true } catch { return false } }, 'Invalid tab label').optional().describe('Optional authored task label, at most 100 Unicode code points after trim/NFC. Not verified page identity. Creation reports label persistence separately.'),
-        active: z.boolean().optional().describe('Select the new tab within the agent workspace; show it only while Follow agents is enabled.'),
-        zoomIsolated: z.boolean().optional().describe('Give the new tab its own page zoom, starting at 100%, instead of sharing zoom with same-origin tabs. Set only at creation; it cannot be switched later.'),
-        defaultFontSize: z.number().int().min(DEFAULT_FONT_SIZE_LIMITS.min).max(DEFAULT_FONT_SIZE_LIMITS.max).optional()
-          .describe(`Browser default (standard) font size in CSS px for this tab, ${DEFAULT_FONT_SIZE_LIMITS.min}–${DEFAULT_FONT_SIZE_LIMITS.max}; the browser default is ${DEFAULT_FONT_SIZE_LIMITS.browserDefault}. Changes text sized by the browser default and em/rem media queries, unlike page zoom or OS text scale. Set only at creation; open another tab for another size.`)
-      }
-    },
-    tool(async ({ workspaceId, url, active, label, zoomIsolated, defaultFontSize }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean; defaultFontSize?: number }) => {
-      const construction = { ...(zoomIsolated ? { zoomIsolated: true } : {}), ...(defaultFontSize === undefined ? {} : { defaultFontSize }) }
-      if (label !== undefined) {
-        const creation = frameRequests.getStore()!.labeledCreation!
-        const validate = creation.publication!
-        validate()
-        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, label, () => creation.publication!(), tabId => {
-          const activityId = randomUUID()
-          onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
-          creation.publication = () => {
-            validate()
-            if (!manager.tabBelongsToMcpGroup(workspaceId!, tabId)) throw workspaceAuthorizationError()
-          }
-          creation.finish = result => onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: result.isError ? 'failed' : 'finished', occurredAt: Date.now(), result: classifyMcpActivityResult({ readOnly: false, dispatched: true, cancelled: creation.cancelled?.() === true, timedOut: false, threw: false, isError: result.isError === true, invalidatedOutcome: result.structuredContent?.status === 'OUTCOME_UNKNOWN' ? 'outcome-unknown' : undefined }) }, workspaceId!)
-        }, () => { creation.attempted = true })
-        creation.knownNotSaved = saved.labelPersistence === 'not-saved'
-        const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), ...saved,
-          status: creation.knownNotSaved ? 'LABEL_NOT_SAVED' : 'CREATED', retrySafe: false,
-          ...(creation.knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
-        return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(creation.knownNotSaved ? { isError: true } : {}) }
-      }
-      const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
-      const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction })
-      const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
-      if (createdTab) {
-        const activityId = randomUUID()
-        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
-        onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
-      }
-      return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_select_tab',
-    { description: toolDescription('browser_select_tab'), inputSchema: { tabId: tabIdSchema } },
-    tabTool(
-      'browser_select_tab',
-      async ({ tabId }: { tabId: string }) => textResult(await manager.selectAgentTabAndWait(tabId)),
-      'handler-owned'
-    )
-  )
-  registerWorkspaceTool(
-    'browser_close_tab',
-    { description: toolDescription('browser_close_tab'), inputSchema: { tabId: tabIdSchema } },
-    withResolvedTargetWakePolicy(
-      tool(async ({ tabId }: { tabId: string }) => textResult(await manager.closeTab(tabId))),
-      'never'
-    )
-  )
-  registerWorkspaceTool(
-    'browser_bookmarks',
-    {
-      description: toolDescription('browser_bookmarks'),
-      inputSchema: {
-        action: z.enum(['list', 'add', 'rename', 'remove', 'open']).default('list'),
-        id: z.string().optional().describe('Bookmark ID for rename, remove, or open.'),
-        url: z.string().optional().describe('HTTP or HTTPS address to bookmark.'),
-        title: z.string().optional().describe('Bookmark title for add or rename.'),
-        active: z.boolean().optional().describe('Whether an opened bookmark becomes the active tab.')
-      }
-    },
-    tool(async ({ workspaceId, action, id, url, title, active }: {
-      workspaceId?: string
-      action: 'list' | 'add' | 'rename' | 'remove' | 'open'
-      id?: string
-      url?: string
-      title?: string
-      active?: boolean
-    }) => {
-      const input = { workspaceId, action, id, url, title, active }
-      const visibleBookmarks = (profile: McpCapabilityProfile | undefined, entries: BrowserBookmark[]): BrowserBookmark[] => (
-        entries.filter((entry) => capabilityAllowsUrl(profile, entry.url))
-      )
-      if (action === 'list') {
-        const profile = requireActiveCapabilityDispatch('browser_bookmarks', input)
-        return textResult(visibleBookmarks(profile, bookmarks.list()))
-      }
-      if (action === 'add') {
-        if (!url) throw new TypeError('url is required to add a bookmark')
-        const profile = requireActiveCapabilityDispatch('browser_bookmarks', input)
-        return textResult(visibleBookmarks(profile, await bookmarks.add(url, title ?? url)))
-      }
-      if (!id) throw new TypeError(`id is required to ${action} a bookmark`)
-      const bookmark = bookmarks.list().find((candidate) => candidate.id === id)
-      if (!bookmark) throw new Error(`Bookmark not found: ${id}`)
-      const profile = requireActiveCapabilityDispatch('browser_bookmarks', { ...input, url: bookmark.url })
-      if (action === 'rename') {
-        if (title === undefined) throw new TypeError('title is required to rename a bookmark')
-        return textResult(visibleBookmarks(profile, await bookmarks.rename(id, title)))
-      }
-      if (action === 'remove') return textResult(visibleBookmarks(profile, await bookmarks.remove(id)))
-      return textResult(await manager.newAgentTab({ url: bookmark.url, active, mcpGroupId: workspaceId! }))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_visit_history',
-    {
-      description: toolDescription('browser_visit_history'),
-      inputSchema: {
-        action: z.enum(['list', 'remove', 'clear', 'open']).default('list'),
-        id: z.string().optional().describe('History entry ID for remove or open.'),
-        query: z.string().max(500).optional().describe('Optional title or URL search for list.'),
-        limit: z.number().int().min(1).max(200).default(100),
-        active: z.boolean().optional().describe('Whether a reopened history entry becomes the active tab.')
-      }
-    },
-    tool(async ({ workspaceId, action, id, query, limit, active }: {
-      workspaceId?: string
-      action: 'list' | 'remove' | 'clear' | 'open'
-      id?: string
-      query?: string
-      limit: number
-      active?: boolean
-    }) => {
-      const input = { workspaceId, action, id, query, limit, active }
-      const visibleHistory = (profile: McpCapabilityProfile | undefined, entries: BrowserHistoryEntry[]): BrowserHistoryEntry[] => (
-        entries.filter((entry) => capabilityAllowsUrl(profile, entry.url))
-      )
-      if (action === 'clear') {
-        const profile = requireActiveCapabilityDispatch('browser_visit_history', input)
-        if (profile?.origins) throw new McpCapabilityAuthorizationError()
-        return textResult(await history.clear())
-      }
-      if (action === 'list') {
-        const profile = requireActiveCapabilityDispatch('browser_visit_history', input)
-        const normalizedQuery = query?.trim().toLocaleLowerCase()
-        const entries = normalizedQuery
-          ? history.list().filter((entry) => (
-            entry.title.toLocaleLowerCase().includes(normalizedQuery)
-            || entry.url.toLocaleLowerCase().includes(normalizedQuery)
-          ))
-          : history.list()
-        return textResult(visibleHistory(profile, entries).slice(0, limit))
-      }
-      if (!id) throw new TypeError(`id is required to ${action} a history entry`)
-      const entry = history.list().find((candidate) => candidate.id === id)
-      if (!entry) throw new Error(`History entry not found: ${id}`)
-      const profile = requireActiveCapabilityDispatch('browser_visit_history', { ...input, url: entry.url })
-      if (action === 'remove') return textResult(visibleHistory(profile, await history.remove(id)))
-      return textResult(await manager.newAgentTab({ url: entry.url, active, mcpGroupId: workspaceId! }))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_site_data',
-    {
-      description: toolDescription('browser_site_data'),
-      inputSchema: {
-        action: z.enum(['inspect', 'clear']).default('inspect'),
-        origin: z.string().trim().min(1).describe('Explicit HTTP or HTTPS website origin or URL.'),
-        dataTypes: z.array(z.enum(['cookies-and-storage', 'cache', 'history'])).max(3).optional()
-          .describe('Required for clear. Cookies and storage may sign the user out; open pages are not reloaded.')
-      }
-    },
-    tool(async ({ workspaceId, action, origin, dataTypes }: {
-      workspaceId?: string
-      action: 'inspect' | 'clear'
-      origin: string
-      dataTypes?: SiteDataType[]
-    }) => {
-      if (action === 'inspect') return textResult(await siteData.inspect(workspaceId!, origin))
-      if (!dataTypes?.length) throw new TypeError('dataTypes must select at least one category to clear')
-      return textResult(await siteData.clear(workspaceId!, origin, [...new Set(dataTypes)]))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_storage',
-    {
-      description: toolDescription('browser_storage'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        kind: z.enum(['local-storage', 'session-storage', 'cookies']),
-        action: z.enum(['list', 'get', 'set', 'delete', 'clear']).default('list'),
-        key: z.string().max(512).optional().describe('Required for get, set, and delete.'),
-        value: z.string().max(256 * 1024).optional().describe('Required for set. Limited to 256 KiB.'),
-        includeValues: z.boolean().default(false).describe('Include bounded values when listing. Explicit get always returns the bounded value. HttpOnly cookie values are never exposed.'),
-        cookieDomain: z.string().min(1).max(255).optional()
-          .describe('Cookie delete only: exact domain from a cookie listing, including any leading dot. Requires cookiePath and deletes only that one cookie.'),
-        cookiePath: z.string().min(1).max(1024).startsWith('/').optional()
-          .describe('Cookie delete only: exact path from a cookie listing. Requires cookieDomain; no prefix or wildcard matching.')
-      }
-    },
-    tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath, cookieWriteHooks, webStorageHooks }: {
-      tabId?: string
-      kind: 'local-storage' | 'session-storage' | 'cookies'
-      action: 'list' | 'get' | 'set' | 'delete' | 'clear'
-      key?: string
-      value?: string
-      includeValues: boolean
-      cookieDomain?: string
-      cookiePath?: string
-      cookieWriteHooks?: CookieWriteHooks
-      webStorageHooks?: WebStorageHooks
-    }) => textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }, cookieWriteHooks, webStorageHooks)))
-  )
-  registerWorkspaceTool(
-    'browser_storage_changes',
-    {
-      description: toolDescription('browser_storage_changes'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['get', 'baseline', 'compare', 'clear']).default('get')
-          .describe('Set a baseline before the interaction, compare afterward, inspect the latest report, or clear it.'),
-        includeValues: z.boolean().default(false)
-          .describe('Include bounded before/after values when necessary. HttpOnly cookie values remain protected.')
-      }
-    },
-    tabTool('browser_storage_changes', async ({ tabId, action, includeValues, storageComparisonHooks }: {
-      storageComparisonHooks?: StorageComparisonHooks
-      tabId?: string
-      action: 'get' | 'baseline' | 'compare' | 'clear'
-      includeValues: boolean
-    }) => textResult(await manager.storageChanges(action, tabId, includeValues, storageComparisonHooks)))
-  )
-  registerWorkspaceTool(
-    'browser_storage_usage',
-    {
-      description: toolDescription('browser_storage_usage'),
-      inputSchema: {
-        tabId: tabIdSchema.optional().describe('Tab in your current workspace. Defaults to the workspace active tab.')
-      }
-    },
-    tabTool('browser_storage_usage', async ({ tabId, storageInspectionHooks }: { tabId?: string; storageInspectionHooks?: StorageInspectionHooks }) =>
-      textResult(await manager.inspectStorageUsage(tabId, storageInspectionHooks))
-    )
-  )
-  registerWorkspaceTool(
-    'browser_indexeddb',
-    {
-      description: toolDescription('browser_indexeddb'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        database: z.string().min(1).max(512).optional()
-          .describe('Select a database to inspect its object-store schema.'),
-        objectStore: z.string().min(1).max(512).optional()
-          .describe('Select an object store to return ordered records. Requires database.'),
-        offset: z.number().int().min(0).max(10_000).default(0),
-        limit: z.number().int().min(1).max(100).default(50),
-        includeValues: z.boolean().default(false)
-          .describe('Include bounded record previews. Values may contain private application data.')
-      }
-    },
-    tabTool('browser_indexeddb', async ({ tabId, database, objectStore, offset, limit, includeValues, storageInspectionHooks }: {
-      storageInspectionHooks?: StorageInspectionHooks
-      tabId?: string
-      database?: string
-      objectStore?: string
-      offset: number
-      limit: number
-      includeValues: boolean
-    }) => textResult(await manager.inspectIndexedDb({ tabId, database, objectStore, offset, limit, includeValues }, storageInspectionHooks)))
-  )
-  registerWorkspaceTool(
-    'browser_pwa_lifecycle',
-    {
-      description: toolDescription('browser_pwa_lifecycle'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        captureId: z.string().uuid().optional().describe('Read retained evidence from a previous capture in this workspace, including a closed tab.'),
-        action: z.enum(['start', 'get', 'stop', 'clear']).default('get')
-      }
-    },
-    tabTool('browser_pwa_lifecycle', async ({ validateLifecycle, ...options }: PwaLifecycleOptions & { validateLifecycle?: (origin: string) => void }) =>
-      textResult(await manager.pwaLifecycle(options, validateLifecycle)), 'never')
-  )
-  registerWorkspaceTool(
-    'browser_pwa',
-    {
-      description: toolDescription('browser_pwa'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        cacheName: z.string().min(1).max(512).optional()
-          .describe('Select one Cache Storage cache by its current website-authored name.'),
-        query: z.string().max(512).default('')
-          .describe('Filter selected-cache entries by a request URL path substring.'),
-        offset: z.number().int().min(0).max(10_000).default(0),
-        limit: z.number().int().min(1).max(100).default(50),
-        includeHeaders: z.boolean().default(false)
-          .describe('Include bounded, redacted request and response headers. Cached response bodies are never returned.')
-      }
-    },
-    tabTool('browser_pwa', async ({ tabId, cacheName, query, offset, limit, includeHeaders }: {
-      tabId?: string
-      cacheName?: string
-      query: string
-      offset: number
-      limit: number
-      includeHeaders: boolean
-    }) => textResult(await manager.inspectPwa({ tabId, cacheName, query, offset, limit, includeHeaders })))
-  )
-  registerWorkspaceTool(
-    'browser_navigate',
-    {
-      description: toolDescription('browser_navigate'),
-      inputSchema: { url: z.string().min(1), tabId: tabIdSchema.optional() }
-    },
-    tabTool('browser_navigate', async ({ url, tabId }: { url: string; tabId?: string }) => textResult(await manager.navigate(url, tabId)))
-  )
-  registerWorkspaceTool(
-    'browser_history',
-    {
-      description: toolDescription('browser_history'),
-      inputSchema: {
-        action: z.enum(['back', 'forward', 'reload', 'reload-ignoring-cache', 'stop']),
-        tabId: tabIdSchema.optional()
-      }
-    },
-    tabTool('browser_history', async ({ action, tabId }: { action: 'back' | 'forward' | 'reload' | 'reload-ignoring-cache' | 'stop'; tabId?: string }) => {
-      if (action === 'back') return textResult(await manager.back(tabId))
-      if (action === 'forward') return textResult(await manager.forward(tabId))
-      if (action === 'reload') return textResult(await manager.reload(tabId))
-      if (action === 'reload-ignoring-cache') return textResult(await manager.reloadIgnoringCache(tabId))
-      return textResult(manager.stop(tabId))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_snapshot',
-    {
-      description: toolDescription('browser_snapshot'),
-      inputSchema: {
-        action: z.enum(['capture', 'set-baseline', 'delta', 'clear-baseline', 'assess-quality']).default('capture'),
-        tabId: tabIdSchema.optional(),
-        maxChars: z.number().int().min(1_000).max(100_000).optional()
-          .describe('Bounded snapshot size for capture or set-baseline.'),
-        frameSelector: z.string().trim().min(1).max(512).optional().describe('Unique directly embedded same-origin HTTP(S) iframe; capture only, no refs or context switch. Unsupported history is unavailable.'),
-        rootSelector: z.string().trim().min(1).max(512).optional()
-          .describe('Unique CSS component root for capture or set-baseline. Delta reuses the stored root; an explicit different selector is rejected. No whole-page fallback.'),
-        baselineId: z.string().uuid().optional()
-          .describe('Opaque baseline handle required by delta and optional for clear-baseline.'),
-        maxOutputChars: z.number().int().min(1_000).max(50_000).optional()
-          .describe('Maximum compact JSON characters returned by delta.'),
-        advanceBaseline: z.boolean().optional()
-          .describe('Advance a complete, untruncated baseline after delta; defaults to true.'),
-        expectedOrigin: z.string().trim().min(1).max(2_048).optional()
-          .describe('HTTP(S) origin or URL the resolved page must match during assess-quality.'),
-        expectedText: z.string().trim().min(1).max(256).optional()
-          .describe('Private required page text checked during assess-quality and never returned.'),
-        expectedSelector: z.string().trim().min(1).max(512).optional()
-          .describe('Private required visible CSS selector checked during assess-quality and never returned.')
-      }
-    },
-    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector, rootSelector, frameSelector }: {
-      action: 'capture' | 'set-baseline' | 'delta' | 'clear-baseline' | 'assess-quality'
-      tabId?: string
-      maxChars?: number
-      rootSelector?: string
-      frameSelector?: string
-      baselineId?: string
-      maxOutputChars?: number
-      advanceBaseline?: boolean
-      expectedOrigin?: string
-      expectedText?: string
-      expectedSelector?: string
-    }) => {
-      if (frameSelector !== undefined) {
-        const request = frameRequests.getStore()!
-        if (!tabId || !request.assertCurrent) throw new Error('Frame observation authority unavailable')
-        request.pending = await manager.captureFrameObservation(tabId, frameSelector, maxChars ?? FRAME_OBSERVATION_LIMITS.defaultChars, request.assertCurrent)
-        return frameObservationResult(request.pending.snapshot)
-      }
-      if (rootSelector !== undefined && action !== 'capture' && action !== 'set-baseline' && action !== 'delta') {
-        throw new TypeError('rootSelector is supported only for capture, set-baseline and delta')
-      }
-      if (action === 'assess-quality') {
-        const assessment = await manager.observationQuality({ tabId, expectedOrigin, expectedText, expectedSelector })
-        return { ...textResult(assessment), structuredContent: { ...assessment } }
-      }
-      if (action === 'set-baseline') {
-        const snapshot = await manager.setSnapshotBaseline(tabId, maxChars, rootSelector)
-        return { ...textResult(snapshot.text), structuredContent: snapshot }
-      }
-      if (action === 'delta') {
-        if (!baselineId) throw new TypeError('baselineId is required for a snapshot delta')
-        const delta = await manager.snapshotDelta({ tabId, baselineId, rootSelector, maxOutputChars, advanceBaseline })
-        return { content: [{ type: 'text', text: JSON.stringify(delta) }], structuredContent: delta }
-      }
-      if (action === 'clear-baseline') {
-        const cleared = manager.clearSnapshotBaseline(tabId, baselineId)
-        return { ...textResult(cleared), structuredContent: cleared }
-      }
-      const snapshot = rootSelector === undefined
-        ? await manager.snapshotDetails(tabId, maxChars)
-        : await manager.snapshotDetails(tabId, maxChars, rootSelector)
-      return { ...textResult(snapshot.text), structuredContent: { ...snapshot } }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_public_outcome',
-    {
-      description: toolDescription('browser_public_outcome'),
-      inputSchema: {
-        tabId: tabIdSchema,
-        writerWorkspaceId: workspaceIdSchema
-          .describe('Distinct standard workspace containing the writer-context read-back.'),
-        writerTabId: tabIdSchema.describe('Exact writer-context tab.'),
-        targetUrl: z.string().trim().min(1).max(2_048)
-          .describe('Exact credential-free HTTP(S) target loaded in both tabs. Only a connection-keyed opaque fingerprint is returned.'),
-        expectedText: z.string().trim().min(1).max(256).optional()
-          .describe('Private required text checked independently in both contexts and never returned.'),
-        expectedSelector: z.string().trim().min(1).max(512).optional()
-          .describe('Private required visible selector checked independently in both contexts and never returned.')
-      }
-    },
-    tabTool('browser_public_outcome', async (input: {
-      workspaceId: string
-      tabId: string
-      writerWorkspaceId: string
-      writerTabId: string
-      targetUrl: string
-      expectedText?: string
-      expectedSelector?: string
-    }) => {
-      if (input.expectedText === undefined && input.expectedSelector === undefined) {
-        throw new TypeError('expectedText or expectedSelector is required for a public-outcome receipt')
-      }
-      if (input.workspaceId === input.writerWorkspaceId) {
-        throw new TypeError('Writer and public observer workspaces must be distinct')
-      }
-      const target = normalizePublicOutcomeTarget(input.targetUrl)
-      const observerWorkspace = requireAgentWorkspace(input.workspaceId)
-      const writerWorkspace = requireAgentWorkspace(input.writerWorkspaceId)
-      if (observerWorkspace.contextClass !== 'public-observer') {
-        throw new Error('browser_public_outcome requires a public-observer workspace as workspaceId')
-      }
-      if (writerWorkspace.contextClass !== 'standard') {
-        throw new Error('browser_public_outcome requires a standard writer workspace')
-      }
-      if (!manager.tabBelongsToMcpGroup(input.workspaceId, input.tabId)
-        || !manager.tabBelongsToMcpGroup(input.writerWorkspaceId, input.writerTabId)) {
-        throw workspaceAuthorizationError()
-      }
-      const actionInput = input as unknown as Record<string, unknown>
-      const authorizeWriter = (): void => {
-        requireActiveCapabilityDispatch('browser_public_outcome', actionInput, {
-          workspaceId: input.writerWorkspaceId,
-          tabId: input.writerTabId,
-          origins: [target.href]
-        })
-        requireAgentWorkspace(input.writerWorkspaceId)
-        if (!manager.tabBelongsToMcpGroup(input.writerWorkspaceId, input.writerTabId)) {
-          throw workspaceAuthorizationError()
-        }
-      }
-      authorizeWriter()
-      await manager.wakeTab(input.writerTabId)
-      authorizeWriter()
-
-      type Context = {
-        tab: BrowserTabState
-        contextClass: 'standard' | 'public-observer'
-        exactTarget: boolean
-      }
-      const captureContext = (
-        workspaceId: string,
-        tabId: string,
-        expectedClass: Context['contextClass']
-      ): Context => {
-        const state = manager.getMcpGroupState(workspaceId)
-        const contextClass = state.mcpTabGroups[0]?.contextClass ?? 'standard'
-        const tab = state.tabs.find(candidate => candidate.id === tabId)
-        if (!tab || contextClass !== expectedClass) throw workspaceAuthorizationError()
-        let exactTarget = false
-        try { exactTarget = normalizePublicOutcomeTarget(tab.url).href === target.href } catch { /* mismatch */ }
-        return { tab, contextClass, exactTarget }
-      }
-      const beforeWriter = captureContext(input.writerWorkspaceId, input.writerTabId, 'standard')
-      const beforeObserver = captureContext(input.workspaceId, input.tabId, 'public-observer')
-      const generations = (context: Context) => ({
-        navigationGeneration: context.tab.navigationGeneration,
-        observationGeneration: context.tab.observationGeneration ?? 0,
-        humanInteractionGeneration: context.tab.humanInteractionGeneration ?? 0,
-        browserSessionGeneration: context.tab.browserSessionGeneration ?? 0
-      })
-      const sameContext = (before: Context, after: Context | null): boolean => Boolean(
-        after
-        && before.contextClass === after.contextClass
-        && before.tab.id === after.tab.id
-        && before.tab.url === after.tab.url
-        && before.exactTarget
-        && after.exactTarget
-        && before.tab.navigationGeneration === after.tab.navigationGeneration
-        && (before.tab.observationGeneration ?? 0) === (after.tab.observationGeneration ?? 0)
-        && (before.tab.humanInteractionGeneration ?? 0) === (after.tab.humanInteractionGeneration ?? 0)
-        && (before.tab.browserSessionGeneration ?? 0) === (after.tab.browserSessionGeneration ?? 0)
-      )
-      const receipt = (
-        writerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
-        observerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
-        writerStable: boolean,
-        observerStable: boolean
-      ) => {
-        const observedAt = new Date().toISOString()
-        const outcome = classifyPublicObservationOutcome(observerAssessment, writerStable && observerStable)
-        const nextAction: Record<PublicObservationOutcome, string> = {
-          publicly_observed: 'Use this bounded receipt only for the observed target and time; do not infer later availability or author identity.',
-          not_publicly_observed: 'Do not repeat the write blindly. Inspect publication state or wait for an explicitly chosen later observation.',
-          unknown: 'Resolve the observer barrier or ambiguity, then request a fresh observation without repeating the write.',
-          reconciliation_required: 'Reconcile both exact tabs and target contexts before requesting a fresh observation; do not repeat the write.'
-        }
-        const freshness = (context: Context, stable: boolean, available: boolean) => ({
-          status: stable ? (available ? 'fresh' : 'unavailable') : 'reconciliation_required',
-          observedAt,
-          generations: generations(context)
-        })
-        return {
-          formatVersion: 1,
-          observedAt,
-          target: { fingerprint: publicOutcomeTargetFingerprint(publicOutcomeFingerprintKey, target.href) },
-          outcome,
-          writer: {
-            contextClass: 'standard',
-            outcome: writerStable ? classifyWriterContextOutcome(writerAssessment) : 'unknown',
-            freshness: freshness(beforeWriter, writerStable, writerAssessment !== null),
-            assessment: writerAssessment ? summarizePublicOutcomeAssessment(writerAssessment) : null
-          },
-          observer: {
-            contextClass: 'public-observer',
-            outcome,
-            freshness: freshness(beforeObserver, observerStable, observerAssessment !== null),
-            assessment: observerAssessment ? summarizePublicOutcomeAssessment(observerAssessment) : null
-          },
-          automaticRetryAllowed: false,
-          nextAction: nextAction[outcome],
-          caveats: [
-            'This is one local browser observation, not proof of author identity or long-term availability.',
-            'The receipt does not authorize a write, rollback, duplicate action, or automatic retry.',
-            'Expected markers were checked privately; page content, credentials, cookies, and account identifiers are excluded.'
-          ]
-        }
-      }
-      if (!beforeWriter.exactTarget || !beforeObserver.exactTarget) {
-        const result = receipt(null, null, false, false)
-        return { ...textResult(result), structuredContent: result }
-      }
-      const [writerResult, observerResult] = await Promise.allSettled([
-        manager.observationQuality({
-          tabId: input.writerTabId,
-          expectedOrigin: target.origin,
-          expectedText: input.expectedText,
-          expectedSelector: input.expectedSelector
-        }),
-        manager.observationQuality({
-          tabId: input.tabId,
-          expectedOrigin: target.origin,
-          expectedText: input.expectedText,
-          expectedSelector: input.expectedSelector
-        })
-      ])
-      authorizeWriter()
-      let afterWriter: Context | null = null
-      let afterObserver: Context | null = null
-      try { afterWriter = captureContext(input.writerWorkspaceId, input.writerTabId, 'standard') } catch { /* stale */ }
-      try { afterObserver = captureContext(input.workspaceId, input.tabId, 'public-observer') } catch { /* stale */ }
-      const result = receipt(
-        writerResult.status === 'fulfilled' ? writerResult.value : null,
-        observerResult.status === 'fulfilled' ? observerResult.value : null,
-        sameContext(beforeWriter, afterWriter),
-        sameContext(beforeObserver, afterObserver)
-      )
-      return { ...textResult(result), structuredContent: result }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_find',
-    {
-      description: toolDescription('browser_find'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        rootSelector: z.string().trim().min(1).max(512).optional()
-          .describe('Search only this unique non-editable light-DOM component, plus page URL/title context. No whole-page fallback; absence is scoped.'),
-        query: z.string().trim().min(1).max(200),
-        caseSensitive: z.boolean().optional(),
-        maxMatches: z.number().int().min(1).max(50).optional(),
-        contextChars: z.number().int().min(20).max(500).optional()
-      }
-    },
-    tabTool('browser_find', async (options: {
-      tabId?: string
-      rootSelector?: string
-      query: string
-      caseSensitive?: boolean
-      maxMatches?: number
-      contextChars?: number
-    }) => textResult(await manager.findSnapshot(options)))
-  )
-  registerWorkspaceTool(
-    'browser_element_inspect',
-    {
-      description: toolDescription('browser_element_inspect'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().max(200).optional(),
-        selector: z.string().max(1_000).optional(),
-        cssProperties: z.array(z.enum(CSS_INSPECTION_PROPERTIES)).min(1).max(8).optional(),
-        includeFonts: z.boolean().optional(),
-        includeScroll: z.boolean().optional(),
-        includePasswordOccupancy: z.boolean().optional(),
-        includeSizingInputs: z.boolean().optional().describe('Selected-element computed sizing inputs only; no flex participation, applicability, parent context, cause, resolved base size or cascade winner claim. Requires one unique selector in an active tab.'),
-        includeValidity: z.boolean().optional(),
-        expectedValue: z.string().max(MAX_COMPARED_TEXT_VALUE_LENGTH).optional()
-          .describe('Compare one unique rendered native text input or textarea, selected by CSS, with this exact string. Returns only match, mismatch or unavailable; neither value is echoed.')
-      }
-    },
-    tabTool('browser_element_inspect', async (options: {
-      tabId?: string
-      ref?: string
-      selector?: string
-      cssProperties?: CssInspectionProperty[]
-      includeFonts?: boolean
-      includeScroll?: boolean
-      includePasswordOccupancy?: boolean
-      includeSizingInputs?: boolean
-      includeValidity?: boolean
-      expectedValue?: string
-      validateInspection?: () => void
-    }) => {
-      const previewBefore = manager.cssStatePreviewMarker(options.tabId)
-      const inspection = await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })
-      const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
-      return textResult(cssStatePreview ? { ...inspection, cssStatePreview } : inspection)
-    })
-  )
-  registerWorkspaceTool(
-    'browser_media_state',
-    {
-      description: toolDescription('browser_media_state'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.never().optional().describe('Snapshot refs are unsupported; use a unique selector. Ref input is rejected even when selector is also supplied.'),
-        selector: z.string().min(1).max(1_000).describe('Select one unique current top-level light-DOM audio/video. This is current selector resolution, not historical snapshot identity.')
-      }
-    },
-    tabTool('browser_media_state', async (options: { tabId?: string; ref?: never; selector: string; validateInspection?: () => void }) =>
-      textResult(await manager.mediaState(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
-  )
-  registerWorkspaceTool(
-    'browser_image_state',
-    {
-      description: toolDescription('browser_image_state'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.never().optional().describe('Snapshot refs are unsupported; use a unique selector. Ref input is rejected even when selector is also supplied.'),
-        selector: z.string().min(1).max(1_000).describe('Select one unique current top-level light-DOM HTML image. This is current selector resolution, not historical snapshot identity.')
-      }
-    },
-    tabTool('browser_image_state', async (options: { tabId?: string; ref?: never; selector: string; validateInspection?: () => void }) =>
-      textResult(await manager.imageState(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
-  )
-  registerWorkspaceTool(
-    'browser_generate_locator',
-    {
-      description: toolDescription('browser_generate_locator'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().max(200).optional(),
-        selector: z.string().max(1_000).optional()
-      }
-    },
-    tabTool('browser_generate_locator', async (options: {
-      tabId?: string
-      ref?: string
-      selector?: string
-    }) => textResult(await manager.generatePlaywrightLocator(options)))
-  )
-  registerWorkspaceTool(
-    'browser_reconciliation',
-    {
-      description: toolDescription('browser_reconciliation'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ...reconciliationRequestSchema.shape
-      }
-    },
-    tabTool('browser_reconciliation', async (input: ReconciliationConditionRequest & {
-      workspaceId: string
-      tabId: string
-      logicalItemKey: string
-      targetIdentity: string
-      sourceRevision: string
-    }) => {
-      const evidence = await manager.readBrowserReconciliation(
-        input.workspaceId,
-        input.tabId,
-        input,
-        () => { requireAgentWorkspace(input.workspaceId) }
-      )
-      return textResult(publicBrowserReconciliation(input, evidence))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_click',
-    {
-      description: toolDescription('browser_click'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().optional(),
-        selector: z.string().optional(),
-        x: z.number().finite().min(0).max(100_000).optional()
-          .describe('Viewport-relative CSS x coordinate. Provide together with y and without ref or selector.'),
-        y: z.number().finite().min(0).max(100_000).optional()
-          .describe('Viewport-relative CSS y coordinate. Provide together with x and without ref or selector.'),
-        button: z.enum(['left', 'right']).optional()
-          .describe('Omit for the existing left click. Right requires native=true, an explicit tabId and one ref or selector, on an already active visible awake locked Linux page with default geometry. Opens a page menu only; selection is separate. No automatic replay.'),
-        doubleClick: z.boolean().optional()
-          .describe('Dispatch two native pointer clicks and a dblclick event instead of one native pointer click.'),
-        native: z.boolean().optional()
-          .describe('For a single ref or selector click, dispatch trusted native pointer and mouse events. Use only when the control does not respond to the default exact-element click.'),
-        dialogAction: z.enum(['accept', 'dismiss']).optional(),
-        promptText: z.string().max(4096).optional(),
-        postcondition: z.object({
-          expectedOrigin: z.string().max(2048).describe('Exact HTTP(S) origin expected after the click.'),
-          accountSelector: z.string().trim().min(1).max(256).describe('Unique selector whose bounded text identifies the expected account.'),
-          expectedAccount: z.string().trim().min(1).max(512).describe('Exact expected account-marker text. Kept local and excluded from receipts.'),
-          stateSelector: z.string().trim().min(1).max(256).describe('Unique selector for the action-relevant state.'),
-          expectedText: z.string().max(512).describe('Exact expected state text. Kept local and excluded from receipts.'),
-          timeoutMs: z.number().int().min(250).max(30_000).default(10_000),
-          maxAttempts: z.number().int().min(1).max(5).default(4),
-          initialDelayMs: z.number().int().min(50).max(5_000).default(250)
-        }).strict().optional().describe('After one click, perform bounded read-only checks with backoff. Requires an active action-receipt run; Hronaut never repeats the click.'),
-        reconciliation: reconciliationRequestSchema.optional().describe('Repeat a bounded pre-write lookup immediately before dispatch. Must describe the same target and desired state as postcondition; a missing, stale, ambiguous, or already-satisfied target prevents the click.')
-      }
-    },
-    tabTool('browser_click', async ({ validateNativeInput, recordClickProgress, retainClickAuthority, ...input }: {
-      tabId?: string
-      ref?: string
-      selector?: string
-      x?: number
-      y?: number
-      doubleClick?: boolean
-      native?: boolean
-      button?: 'left' | 'right'
-      retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void
-      recordClickProgress?: (progress: NativeClickProgress) => void
-      validateNativeInput?: (validateContext: () => void) => void
-      dialogAction?: 'accept' | 'dismiss'
-      promptText?: string
-      postcondition?: PostWriteRequest
-      reconciliation?: ReconciliationConditionRequest & {
-        logicalItemKey: string
-        targetIdentity: string
-        sourceRevision: string
-      }
-    }) => {
-      if (!validateNativeInput) throw new Error('Click authority is unavailable')
-      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress, retainClickAuthority, agentCursorIdentity(client.name)))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_dialog',
-    {
-      description: toolDescription('browser_dialog'),
-      inputSchema: {
-        action: z.enum(['accept', 'dismiss']),
-        tabId: tabIdSchema.optional()
-      }
-    },
-    tabTool('browser_dialog', async ({ action, tabId }: {
-      action: 'accept' | 'dismiss'
-      tabId?: string
-    }) => textResult(await manager.handleDialog(action, tabId)))
-  )
-  registerWorkspaceTool(
-    'browser_type',
-    {
-      description: toolDescription('browser_type'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().optional(),
-        selector: z.string().optional(),
-        text: z.string(),
-        submit: z.boolean().optional()
-      }
-    },
-    tabTool('browser_type', async (input: { tabId?: string; ref?: string; selector?: string; text: string; submit?: boolean }) =>
-      textResult(await manager.type(input))
-    )
-  )
-  registerWorkspaceTool(
-    'browser_select',
-    {
-      description: toolDescription('browser_select'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().optional(),
-        selector: z.string().optional(),
-        value: z.string().optional(),
-        values: z.array(z.string().max(1024)).max(50).optional()
-          .describe('Semantic select[multiple] replacement by exact values; empty clears. No keyboard or pointer gestures.')
-      }
-    },
-    tabTool('browser_select', async ({ validateSelect, retainSelection, markSelectionSubmitted, ...input }: { tabId?: string; ref?: string; selector?: string; value?: string; values?: string[]; validateSelect?: (validateContext: () => void) => void; retainSelection?: (authority: { validate: () => void; dispose: () => void }) => void; markSelectionSubmitted?: () => void }) => {
-      const result = await manager.select(input, validateSelect, retainSelection, markSelectionSubmitted)
-      if (input.values === undefined) return textResult(result)
-      const outcome = result as Record<string, unknown>
-      return { ...textResult(outcome), structuredContent: outcome, ...(outcome.ok === false ? { isError: true } : {}) }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_fill_form',
-    {
-      description: toolDescription('browser_fill_form'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        fields: z.array(z.object({
-          ref: z.string().optional(),
-          selector: z.string().optional(),
-          value: z.union([z.string(), z.boolean()])
-        })).min(1).max(50)
-      }
-    },
-    tabTool('browser_fill_form', async ({ tabId, fields }: {
-      tabId?: string
-      fields: Array<{ ref?: string; selector?: string; value: string | boolean }>
-    }) => textResult(await manager.fillForm(tabId, fields)))
-  )
-  registerWorkspaceTool(
-    'browser_hover',
-    {
-      description: toolDescription('browser_hover'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().optional(),
-        selector: z.string().optional(),
-        x: z.number().finite().nonnegative().optional(),
-        y: z.number().finite().nonnegative().optional()
-      }
-    },
-    tabTool('browser_hover', async ({ validateNativeInput, ...input }: {
-      validateNativeInput?: (validateContext: () => void) => void
-      tabId?: string
-      ref?: string
-      selector?: string
-      x?: number
-      y?: number
-    }) => {
-      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
-      return textResult(await manager.hover(input, validateNativeInput, agentCursorIdentity(client.name)))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_drag',
-    {
-      description: toolDescription('browser_drag'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        sourceRef: z.string().optional(),
-        sourceSelector: z.string().optional(),
-        targetRef: z.string().optional(),
-        targetSelector: z.string().optional(),
-        startX: z.number().finite().nonnegative().optional(),
-        startY: z.number().finite().nonnegative().optional(),
-        endX: z.number().finite().nonnegative().optional(),
-        endY: z.number().finite().nonnegative().optional()
-      }
-    },
-    tabTool('browser_drag', async ({ validateNativeInput, ...input }: {
-      validateNativeInput?: (validateContext: () => void) => void
-      tabId?: string
-      sourceRef?: string
-      sourceSelector?: string
-      targetRef?: string
-      targetSelector?: string
-      startX?: number
-      startY?: number
-      endX?: number
-      endY?: number
-    }) => {
-      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
-      return textResult(await manager.drag(input, validateNativeInput, agentCursorIdentity(client.name)))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_wheel',
-    {
-      description: toolDescription('browser_wheel'),
-      inputSchema: { tabId: tabIdSchema, ...nativeWheelFields }
-    },
-    tabTool('browser_wheel', async ({ validateNativeInput, markWheelAttempted, tabId, x, y, deltaX, deltaY }: NativeWheelInput & {
-      validateNativeInput?: (validateContext: () => void) => void
-      markWheelAttempted?: () => void
-    }) => {
-      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
-      if (!markWheelAttempted) throw new Error('Wheel dispatch provenance is unavailable')
-      return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, markWheelAttempted))
-    }, 'never')
-  )
-  registerWorkspaceTool(
-    'browser_scroll',
-    {
-      description: toolDescription('browser_scroll'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().optional(),
-        selector: z.string().optional(),
-        deltaX: z.number().int().min(-100_000).max(100_000).optional(),
-        deltaY: z.number().int().min(-100_000).max(100_000).optional()
-      }
-    },
-    tabTool('browser_scroll', async (input: { tabId?: string; ref?: string; selector?: string; deltaX?: number; deltaY?: number }) =>
-      textResult(await manager.scroll(input))
-    )
-  )
-  registerWorkspaceTool(
-    'browser_hold_key',
-    { description: toolDescription('browser_hold_key'), inputSchema: { tabId: tabIdSchema, ...nativeKeyHoldFields } },
-    tabTool('browser_hold_key', async ({ tabId, key, durationMs, validateNativeInput, recordHoldProgress, holdSignal }: NativeKeyHoldInput & {
-      validateNativeInput?: (validateContext: () => void) => void
-      recordHoldProgress?: (progress: NativeKeyHoldProgress) => void
-      holdSignal?: AbortSignal
-    }) => {
-      if (!validateNativeInput || !recordHoldProgress) throw new Error('Key hold authority or provenance is unavailable')
-      return textResult(await manager.holdKey({ tabId, key, durationMs }, validateNativeInput, recordHoldProgress, holdSignal))
-    }, 'never')
-  )
-  registerWorkspaceTool(
-    'browser_press',
-    {
-      description: toolDescription('browser_press'),
-      inputSchema: {
-        key: z.string().min(1).max(MAX_BROWSER_KEY_PRESS_LENGTH)
-          .describe('Key or combination such as Enter, ArrowLeft, x, Control+A, or Control+Shift+R.'),
-        tabId: tabIdSchema.optional()
-      }
-    },
-    tabTool('browser_press', async ({ key, tabId, validateNativeInput }: { key: string; tabId?: string; validateNativeInput?: (validateContext: () => void) => void }) => {
-      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
-      await manager.press(key, tabId, validateNativeInput)
-      return textResult(`Pressed ${key}`)
-    })
-  )
-  registerWorkspaceTool(
-    'browser_file_upload',
-    {
-      description: toolDescription('browser_file_upload'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        ref: z.string().optional(),
-        selector: z.string().optional(),
-        paths: z.array(z.string()).min(1).max(20)
-      }
-    },
-    tabTool('browser_file_upload', async ({ validateUpload, paths, ...target }: {
-      tabId?: string; ref?: string; selector?: string; paths: string[]
-      validateUpload?: (validateContext: () => void) => void
-    }) => {
-      if (!validateUpload) throw new Error('File upload authority is unavailable')
-      return textResult(await manager.uploadFiles(target, paths, validateUpload))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_wait',
-    {
-      description: toolDescription('browser_wait'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        text: z.union([
-          z.string().min(1).max(1_000),
-          z.array(z.string().min(1).max(1_000)).min(1).max(20)
-        ]).optional()
-          .describe('Wait until this text, or any of up to 20 candidate texts, is visible in the rendered page. Cannot be combined with textGone.'),
-        textGone: z.string().min(1).max(1_000).optional()
-          .describe('Wait until this exact text is absent from the rendered page. Cannot be combined with text.'),
-        ref: z.string().min(1).max(100).optional()
-          .describe('Snapshot element ref to wait for. Cannot be combined with selector, text, or textGone.'),
-        selector: z.string().min(1).max(2_000).optional()
-          .describe('CSS selector to wait for. Cannot be combined with ref, text, or textGone.'),
-        state: z.enum(['attached', 'detached', 'visible', 'hidden']).optional()
-          .describe('Element state to wait for. Defaults to visible when ref or selector is provided.'),
-        urlPattern: z.string().trim().min(1).max(2_048).optional()
-          .describe('Full page URL wildcard pattern to wait for, including same-document route changes. Cannot be combined with text or an element target.'),
-        timeoutMs: z.number().int().min(1).max(60_000).optional()
-      }
-    },
-    tabTool('browser_wait', async ({ tabId, text, textGone, ref, selector, state, urlPattern, timeoutMs }: {
-      tabId?: string
-      text?: string | string[]
-      textGone?: string
-      ref?: string
-      selector?: string
-      state?: 'attached' | 'detached' | 'visible' | 'hidden'
-      urlPattern?: string
-      timeoutMs?: number
-    }) => {
-      try {
-        if (text && textGone) throw new TypeError('Choose either text or textGone, not both.')
-        const hasTarget = Boolean(ref || selector)
-        if (urlPattern && (text || textGone || hasTarget || state)) {
-          throw new TypeError('Choose one wait condition: urlPattern, page text, or an element target.')
-        }
-        if (hasTarget && (text || textGone)) throw new TypeError('Choose page text or an element target, not both.')
-        if (state && !hasTarget) throw new TypeError('Provide ref or selector when waiting for an element state.')
-        if (urlPattern) {
-          const matchedUrl = await manager.waitForUrlPattern(urlPattern, tabId, timeoutMs)
-          return matchedUrl
-            ? textResult(`URL matched: ${matchedUrl}`)
-            : errorResult(new Error('Timed out waiting for the page URL pattern.'))
-        }
-        if (hasTarget) {
-          const elementState = state ?? 'visible'
-          const matched = await manager.waitForElement({ ref, selector }, tabId, timeoutMs, elementState)
-          const targetLabel = ref ? `[${ref}]` : selector!
-          return matched
-            ? textResult(`Element is ${elementState}: ${targetLabel}`)
-            : errorResult(new Error(`Timed out waiting for element to become ${elementState}: ${targetLabel}`))
-        }
-        if (text) {
-          const found = await manager.waitForText(text, tabId, timeoutMs, 'visible')
-          if (found) return textResult(`Found text: ${found}`)
-          return errorResult(new Error(Array.isArray(text)
-            ? `Timed out waiting for any of ${text.length} requested texts.`
-            : `Timed out waiting for text: ${text}`))
-        }
-        if (textGone) {
-          const disappeared = await manager.waitForText(textGone, tabId, timeoutMs, 'hidden')
-          return disappeared
-            ? textResult(`Text disappeared: ${textGone}`)
-            : errorResult(new Error(`Timed out waiting for text to disappear: ${textGone}`))
-        }
-        await manager.waitForPage(tabId, timeoutMs)
-        return textResult('Page is no longer loading.')
-      } catch (error) {
-        const closedTabResult = closedTabWaitResult(error)
-        if (closedTabResult) return closedTabResult
-        throw error
-      }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_emulate',
-    {
-      description: toolDescription('browser_emulate'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        reset: z.boolean().optional(),
-        recover: z.boolean().optional().describe('Explicitly restore the last committed settings after uncertain native application. Cannot be combined with reset or overrides; does not replay the failed request.'),
-        network: z.enum(['none', 'offline', 'slow-3g', 'slow-4g', 'fast-4g']).optional(),
-        cacheDisabled: z.boolean().optional()
-          .describe('Ignore the HTTP memory and disk cache for future requests in this tab without deleting cached data.'),
-        bypassServiceWorker: z.boolean().optional()
-          .describe('Send future requests to the network instead of service-worker fetch handlers without unregistering the worker.'),
-        dataSaver: z.enum(['auto', 'enabled', 'disabled']).optional()
-          .describe('Override navigator.connection.saveData. Use auto to restore the system value; this does not throttle bandwidth.'),
-        cpuThrottlingRate: z.number().min(1).max(20).optional(),
-        animationPlaybackRate: z.union([z.literal(0), z.literal(0.1), z.literal(0.25), z.literal(1)]).optional()
-          .describe('Pause document-timeline CSS/Web Animations at 0, slow them to 10% or 25%, or restore normal playback at 1. requestAnimationFrame loops are unaffected.'),
-        colorScheme: z.enum(['auto', 'light', 'dark']).optional(),
-        reducedMotion: z.enum(['auto', 'reduce', 'no-preference']).optional(),
-        mediaType: z.enum(['auto', 'screen', 'print']).optional(),
-        forcedColors: z.enum(['auto', 'active', 'none']).optional(),
-        contrast: z.enum(['auto', 'more', 'less', 'custom', 'no-preference']).optional(),
-        reducedTransparency: z.enum(['auto', 'reduce', 'no-preference']).optional(),
-        visionDeficiency: z.enum(['none', 'blurredVision', 'reducedContrast', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia']).optional(),
-        userAgent: z.string().max(512).optional(),
-        locale: z.string().max(64).optional()
-          .describe('BCP 47 language tag such as en-US. Empty string restores the system locale; reload to update navigator language and request headers.'),
-        timezoneId: z.string().max(100).optional()
-          .describe('IANA time-zone ID such as America/New_York. Empty string restores the system time zone.'),
-        javaScriptDisabled: z.boolean().optional()
-          .describe('Disable page JavaScript in this tab. Reload to test startup without scripts; set false or reset to restore execution.'),
-        viewport: z.object({
-          width: z.number().int().min(200).max(3840),
-          height: z.number().int().min(200).max(3840),
-          deviceScaleFactor: z.number().min(0.5).max(5).default(1),
-          mobile: z.boolean().default(false),
-          touch: z.boolean().default(false),
-          orientation: z.enum(['portrait', 'landscape']).default('portrait')
-        }).nullable().optional(),
-        viewportPreset: z.enum(BROWSER_VIEWPORT_PRESET_IDS).optional()
-          .describe('Generic responsive viewport preset. Cannot be combined with viewport.'),
-        viewportOrientation: z.enum(['portrait', 'landscape']).optional()
-          .describe('Portrait by default. Requires viewportPreset.'),
-        geolocation: z.object({
-          latitude: z.number().min(-90).max(90),
-          longitude: z.number().min(-180).max(180),
-          accuracy: z.number().min(0).max(100_000).default(100)
-        }).nullable().optional(),
-        safeAreaInsets: z.object(Object.fromEntries(SAFE_AREA_INSET_FIELDS.map(name => [name, z.number().int().min(0).max(MAX_SAFE_AREA_INSET).optional()])))
-          .strict().nullable().optional()
-          .describe('Override env(safe-area-inset-*) and env(safe-area-max-inset-*) in integer CSS pixels: top, left, bottom, right and their *Max fields. Replaces the whole override; omitted fields resolve to 0px, so CSS fallbacks do not apply. Null restores the browser values. Not a device frame or notch overlay.'),
-        osTextScale: z.number().min(MIN_OS_TEXT_SCALE).max(MAX_OS_TEXT_SCALE).nullable().optional()
-          .describe('Emulate the operating-system text-size preference from 0.85 to 2 (1 is 100%). Only pages that opt in with <meta name="text-scale" content="scale"> or use env(preferred-text-scale) respond; others are unchanged. Null restores the browser preference. This is not page zoom.'),
-        smallViewportHeightDifference: z.number().int().min(0).max(MAX_SMALL_VIEWPORT_HEIGHT_DIFFERENCE).nullable().optional()
-          .describe('Emulate mobile browser controls of this many integer CSS pixels (0 to 1000) so 100lvh is that much taller than 100svh, like a phone browser showing its address bar. With a mobile viewport the small viewport shrinks; in a desktop-size tab the large viewport grows. Top-level frame only; dvh changes and address-bar animation are not emulated. Must be smaller than an emulated viewport height. Null or reset restores the browser value.'),
-        renderingDebug: z.object({
-          paintFlashing: z.boolean().optional()
-            .describe('Flash repainted regions. This can produce rapid flashing and should be used with photosensitivity caution.'),
-          layoutShiftRegions: z.boolean().optional()
-            .describe('Briefly highlight layout shifts. Reload before reproducing startup shifts; this can produce flashing.'),
-          layerBorders: z.boolean().optional(),
-          fpsCounter: z.boolean().optional(),
-          scrollBottlenecks: z.boolean().optional()
-        }).nullable().optional()
-          .describe('Merge Chromium rendering diagnostics into the current tab state. Null clears every rendering overlay.'),
-        extraHttpHeaders: z.record(z.string(), z.string().max(8_192)).optional()
-      }
-    },
-    tabTool('browser_emulate', async ({ validateConditions, markConditionsSubmitted, ...options }: BrowserEmulationOptions & { validateConditions?: () => void; markConditionsSubmitted?: () => void }) => {
-      if (!validateConditions) throw new Error('Emulation authority is unavailable')
-      const result = await manager.emulate(options, validateConditions, markConditionsSubmitted, assert => {
-        frameRequests.getStore()!.conditionPublication = () => { validateConditions(); assert() }
-      })
-      return textResult(result)
-    })
-  )
-  registerWorkspaceTool(
-    'browser_page_lifecycle',
-    {
-      description: toolDescription('browser_page_lifecycle'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['status', 'freeze', 'resume']).default('status')
-          .describe('Status is read-only. Freeze and resume are explicit per-tab operations; an ambiguous dispatched outcome is never replayed automatically.')
-      }
-    },
-    tabTool('browser_page_lifecycle', async ({ tabId, action }: {
-      tabId?: string
-      action: 'status' | 'freeze' | 'resume'
-    }) => textResult(action === 'status'
-      ? manager.pageLifecycle(tabId!)
-      : await manager.controlPageLifecycle(tabId!, action === 'freeze' ? 'frozen' : 'active')), 'never')
-  )
-  registerWorkspaceTool(
-    'browser_zoom',
-    {
-      description: toolDescription('browser_zoom'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['in', 'out', 'reset', 'set']).default('reset'),
-        percent: z.number().int().min(50).max(400).optional()
-      }
-    },
-    tabTool('browser_zoom', async ({ tabId, action, percent }: {
-      tabId?: string
-      action: 'in' | 'out' | 'reset' | 'set'
-      percent?: number
-    }) => textResult(await manager.setZoom({ tabId, action, percent })))
-  )
-  registerWorkspaceTool(
-    'browser_audio',
-    {
-      description: toolDescription('browser_audio'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        muted: z.boolean()
-      }
-    },
-    tabTool('browser_audio', async ({ tabId, muted }: { tabId?: string; muted: boolean }) => {
-      const resolvedTabId = tabId ?? manager.getActiveTab().id
-      return textResult(manager.setTabMuted(resolvedTabId, muted))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_screenshot',
-    {
-      description: toolDescription('browser_screenshot'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        annotateRefs: z.array(z.string().regex(/^e[1-9]\d{0,5}$/)).min(1).max(50).optional(),
-        fullPage: z.boolean().optional(),
-        ref: z.string().optional(),
-        selector: z.string().optional(),
-        clip: z.object({
-          x: z.number().int().min(0).max(7680),
-          y: z.number().int().min(0).max(7680),
-          width: z.number().int().min(1).max(7680),
-          height: z.number().int().min(1).max(7680)
-        }).optional(),
-        format: z.enum(['png', 'jpeg']).optional(),
-        quality: z.number().int().min(1).max(100).optional(),
-        maxWidth: z.number().int().min(64).max(7680).optional(),
-        maxHeight: z.number().int().min(64).max(7680).optional()
-      }
-    },
-    tabTool('browser_screenshot', async (options: {
-      annotateRefs?: string[]
-      tabId?: string
-      fullPage?: boolean
-      ref?: string
-      selector?: string
-      clip?: { x: number; y: number; width: number; height: number }
-      format?: 'png' | 'jpeg'
-      quality?: number
-      maxWidth?: number
-      maxHeight?: number
-    }) => {
-      const previewBefore = manager.cssStatePreviewMarker(options.tabId)
-      const image = await manager.screenshot(options)
-      const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
-      return { content: [
-        ...(image.annotations ? [{ type: 'text' as const, text: JSON.stringify(image.annotations) }] : []),
-        ...(cssStatePreview ? [{ type: 'text' as const, text: JSON.stringify({ cssStatePreview, note: 'Captured while a forced CSS state was applied; this is not natural page state.' }) }] : []),
-        { type: 'image' as const, data: image.data.toString('base64'), mimeType: image.mimeType }
-      ] }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_pdf_save',
-    {
-      description: toolDescription('browser_pdf_save'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        filename: z.string().min(1).max(180).optional(),
-        landscape: z.boolean().optional(),
-        pageSize: z.enum(['A4', 'Letter', 'Legal']).optional(),
-        outline: z.boolean().optional()
-          .describe('Experimental: add bookmarks from the page headings. Makes a tagged PDF; off by default.'),
-        preferCSSPageSize: z.boolean().optional()
-          .describe('Use the paper size from the page\'s CSS @page rule where it sets one, over pageSize and landscape. Off by default; refused above 1,000 pages.')
-      }
-    },
-    tabTool('browser_pdf_save', async ({ validateExport, ...options }: {
-      tabId?: string
-      filename?: string
-      landscape?: boolean
-      pageSize?: 'A4' | 'Letter' | 'Legal'
-      outline?: boolean
-      preferCSSPageSize?: boolean
-      validateExport?: () => void
-    }) => {
-      if (!validateExport) throw new Error('PDF export authority is unavailable')
-      return textResult(await manager.savePdf(options, validateExport, pending => { frameRequests.getStore()!.pdfExport = pending }))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_resize',
-    {
-      description: toolDescription('browser_resize'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        width: z.number().int().min(320).max(7680).optional(),
-        height: z.number().int().min(240).max(4320).optional(),
-        reset: z.boolean().optional()
-      }
-    },
-    tabTool('browser_resize', async ({ tabId, width, height, reset }: { tabId?: string; width?: number; height?: number; reset?: boolean }) =>
-      textResult(await manager.resizeViewport(width, height, reset ?? false, tabId))
-    )
-  )
-  registerWorkspaceTool(
-    'browser_accessibility_audit',
-    {
-      description: toolDescription('browser_accessibility_audit'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['measure', 'set-baseline', 'clear-baseline']).optional()
-          .describe('Measure now, save this audit as the volatile tab baseline, or clear the baseline.'),
-        selector: z.string().min(1).max(1_024).optional(),
-        standard: z.enum(['wcag-aa', 'wcag-aaa', 'best-practice', 'all']).optional(),
-        maxViolations: z.number().int().min(1).max(50).optional(),
-        maxNodesPerViolation: z.number().int().min(1).max(10).optional()
-      }
-    },
-    tabTool('browser_accessibility_audit', async ({
-      tabId,
-      action,
-      selector,
-      standard,
-      maxViolations,
-      maxNodesPerViolation
-    }: {
-      tabId?: string
-      action?: 'measure' | 'set-baseline' | 'clear-baseline'
-      selector?: string
-      standard?: 'wcag-aa' | 'wcag-aaa' | 'best-practice' | 'all'
-      maxViolations?: number
-      maxNodesPerViolation?: number
-    }) => textResult(await manager.accessibilityAudit({
-      tabId,
-      action,
-      selector,
-      standard,
-      maxViolations,
-      maxNodesPerViolation
-    })))
-  )
-  registerWorkspaceTool(
-    'browser_quality_audit',
-    {
-      description: toolDescription('browser_quality_audit'),
-      inputSchema: { tabId: tabIdSchema.optional() }
-    },
-    tabTool('browser_quality_audit', async ({ tabId }: { tabId?: string }) =>
-      textResult(await manager.qualityAudit(tabId)))
-  )
-  registerWorkspaceTool(
-    'browser_performance',
-    {
-      description: toolDescription('browser_performance'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        settleMs: z.number().int().min(0).max(2_000).optional(),
-        action: z.enum(['measure', 'set-baseline', 'clear-baseline']).optional()
-      }
-    },
-    tabTool('browser_performance', async ({
-      tabId,
-      settleMs,
-      action
-    }: {
-      tabId?: string
-      settleMs?: number
-      action?: 'measure' | 'set-baseline' | 'clear-baseline'
-    }) => textResult(await manager.performanceReport({ tabId, settleMs, action })))
-  )
-  registerWorkspaceTool(
-    'browser_design_overview',
-    {
-      description: toolDescription('browser_design_overview'),
-      inputSchema: { tabId: tabIdSchema.optional() }
-    },
-    tabTool('browser_design_overview', async ({ tabId }: { tabId?: string }) =>
-      textResult(await manager.designOverview(tabId)))
-  )
-  registerWorkspaceTool(
-    'browser_page_metadata',
-    {
-      description: toolDescription('browser_page_metadata'),
-      inputSchema: { tabId: tabIdSchema.optional() }
-    },
-    tabTool('browser_page_metadata', async ({ tabId }: { tabId?: string }) =>
-      textResult(await manager.pageMetadata(tabId)))
-  )
-  registerWorkspaceTool(
-    'browser_memory',
-    {
-      description: toolDescription('browser_memory'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum([
-          'measure',
-          'set-baseline',
-          'clear-baseline',
-          'start-allocation-sampling',
-          'stop-allocation-sampling',
-          'clear-allocation-sampling'
-        ]).default('measure'),
-        collectGarbage: z.boolean().default(false)
-      }
-    },
-    tabTool('browser_memory', async ({
-      tabId,
-      action,
-      collectGarbage
-    }: {
-      tabId?: string
-      action:
-        | 'measure'
-        | 'set-baseline'
-        | 'clear-baseline'
-        | 'start-allocation-sampling'
-        | 'stop-allocation-sampling'
-        | 'clear-allocation-sampling'
-      collectGarbage: boolean
-    }) => textResult(await manager.memoryReport({ tabId, action, collectGarbage })))
-  )
-  registerWorkspaceTool(
-    'browser_security',
-    {
-      description: toolDescription('browser_security'),
-      inputSchema: { tabId: tabIdSchema.optional() }
-    },
-    tabTool('browser_security', async ({ tabId }: { tabId?: string }) =>
-      textResult(manager.securityReport(tabId)))
-  )
-  registerWorkspaceTool(
-    'browser_react',
-    {
-      description: toolDescription('browser_react'),
-      inputSchema: {
-        tabId: tabIdSchema,
-        action: z.enum(REACT_INSPECTION_ACTIONS),
-        subtreeId: z.string().min(1).max(240).optional()
-      }
-    },
-    tabTool('browser_react', async ({ tabId, action, subtreeId, reactAuthority }: ReactInspectionCommand & { tabId: string; reactAuthority: ReactInspectionAuthority }) =>
-      textResult(await manager.reactInspection(tabId, { action, subtreeId }, reactAuthority)), 'never')
-  )
-  registerWorkspaceTool(
-    'browser_code_coverage',
-    {
-      description: toolDescription('browser_code_coverage'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['get', 'start', 'stop', 'clear']).default('get'),
-        mode: z.enum(['function', 'block']).default('function'),
-        reload: z.boolean().default(true)
-      }
-    },
-    tabTool('browser_code_coverage', async ({
-      tabId,
-      action,
-      mode,
-      reload
-    }: {
-      tabId?: string
-      action: 'get' | 'start' | 'stop' | 'clear'
-      mode: 'function' | 'block'
-      reload: boolean
-    }) => textResult(await manager.codeCoverage({ tabId, action, mode, reload })))
-  )
-  registerWorkspaceTool(
-    'browser_cpu_profile',
-    {
-      description: toolDescription('browser_cpu_profile'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['get', 'start', 'stop', 'clear']).default('get')
-      }
-    },
-    tabTool('browser_cpu_profile', async ({
-      tabId,
-      action
-    }: {
-      tabId?: string
-      action: 'get' | 'start' | 'stop' | 'clear'
-    }) => textResult(await manager.cpuProfile({ tabId, action })))
-  )
-  registerWorkspaceTool(
-    'browser_debug_report',
-    {
-      description: toolDescription('browser_debug_report'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        maxConsoleMessages: z.number().int().min(0).max(100).optional(),
-        maxNetworkRequests: z.number().int().min(0).max(100).optional(),
-        includeSuccessfulRequests: z.boolean().optional()
-      }
-    },
-    tabTool('browser_debug_report', async ({
-      tabId,
-      maxConsoleMessages,
-      maxNetworkRequests,
-      includeSuccessfulRequests
-    }: {
-      tabId?: string
-      maxConsoleMessages?: number
-      maxNetworkRequests?: number
-      includeSuccessfulRequests?: boolean
-    }) => textResult(manager.debugReport({
-      tabId,
-      maxConsoleMessages,
-      maxNetworkRequests,
-      includeSuccessfulRequests
-    })))
-  )
-  registerWorkspaceTool(
-    'browser_video',
-    { description: toolDescription('browser_video'), inputSchema: videoOptionsShape },
-    tabTool('browser_video', async ({ validateRecording, validateInspection, recordingSignal, ...input }: BrowserVideoOptions & { validateRecording?: () => void; validateInspection?: (source: VideoSourceBinding) => void; recordingSignal?: AbortSignal }) => {
-      const options = Object.fromEntries(Object.keys(videoOptionsShape).filter(key => (input as Record<string, unknown>)[key] !== undefined).map(key => [key, (input as Record<string, unknown>)[key]])) as BrowserVideoOptions
-      if (options.action === 'inspect') {
-        if (!validateInspection) throw new Error('Video inspection authority is unavailable')
-        const pending = await manager.inspectVideo(videoInspectionSchema.parse(options), validateInspection, recordingSignal)
-        frameRequests.getStore()!.videoInspection = pending
-        return textResult(pending.report)
-      }
-      return textResult(await manager.videoRecording(options, validateRecording, recordingSignal))
-    }, 'never')
-  )
-  registerWorkspaceTool(
-    'browser_repro',
-    {
-      description: toolDescription('browser_repro'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['start', 'get', 'stop', 'clear', 'checkpoint']).default('get'),
-        format: z.enum(['json', 'playwright']).default('json'),
-        checkpoint: reproCheckpointSchema.optional()
-      }
-    },
-    tabTool('browser_repro', async ({
-      tabId,
-      action,
-      format, checkpoint
-    }: {
-      tabId?: string
-      action: 'start' | 'get' | 'stop' | 'clear' | 'checkpoint'
-      format: 'json' | 'playwright'
-      checkpoint?: z.infer<typeof reproCheckpointSchema>
-    }) => {
-      const recording = await manager.reproRecording(action, tabId, checkpoint)
-      return textResult(format === 'playwright' ? formatReproAsPlaywright(recording) : recording)
-    })
-  )
-  registerWorkspaceTool(
-    'browser_dom_changes',
-    {
-      description: toolDescription('browser_dom_changes'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['start', 'get', 'stop', 'clear']).default('get')
-      }
-    },
-    tabTool('browser_dom_changes', async ({
-      tabId,
-      action
-    }: {
-      tabId?: string
-      action: 'start' | 'get' | 'stop' | 'clear'
-    }) => textResult(await manager.domChanges(action, tabId)))
-  )
-  registerWorkspaceTool(
-    'browser_live_region',
-    {
-      description: toolDescription('browser_live_region'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['start', 'get', 'stop', 'clear']).default('get'),
-        selector: z.string().min(1).max(LIVE_REGION_LIMITS.maxSelectorChars).optional()
-          .describe('CSS selector for exactly one top-level light-DOM region; required for start')
-      }
-    },
-    tabTool('browser_live_region', async ({
-      tabId,
-      action,
-      selector
-    }: {
-      tabId?: string
-      action: 'start' | 'get' | 'stop' | 'clear'
-      selector?: string
-    }) => textResult(await manager.liveRegion(action, tabId, selector)))
-  )
-  registerWorkspaceTool(
-    'browser_css_state_preview',
-    {
-      description: toolDescription('browser_css_state_preview'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['set', 'get', 'clear']).default('get'),
-        selector: z.string().min(1).max(CSS_STATE_PREVIEW_LIMITS.maxSelectorChars).optional()
-          .describe('CSS selector for exactly one element in the top-level document; required for set'),
-        states: z.array(z.enum(CSS_STATE_PREVIEW_STATES)).min(1).max(CSS_STATE_PREVIEW_STATES.length).optional()
-          .describe('CSS states to force on that element; required for set'),
-        durationMs: z.number().int().min(CSS_STATE_PREVIEW_LIMITS.minDurationMs).max(CSS_STATE_PREVIEW_LIMITS.maxDurationMs).optional()
-          .describe(`How long the preview lasts before it clears itself; default ${CSS_STATE_PREVIEW_LIMITS.defaultDurationMs}`)
-      }
-    },
-    tabTool('browser_css_state_preview', async ({
-      tabId,
-      action,
-      ...options
-    }: {
-      tabId?: string
-      action: 'set' | 'get' | 'clear'
-      selector?: string
-      states?: Array<'hover' | 'active'>
-      durationMs?: number
-    }) => textResult(await manager.cssStatePreviewAction(action, tabId, options)))
-  )
-  registerWorkspaceTool(
-    'browser_visual_compare',
-    {
-      description: toolDescription('browser_visual_compare'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['get', 'set-baseline', 'compare', 'clear']).default('get'),
-        threshold: z.number().int().min(0).max(255).optional(),
-        settleMs: z.number().int().min(0).max(2_000).optional(),
-        clip: z.object({
-          x: z.number().finite().min(0), y: z.number().finite().min(0),
-          width: z.number().finite().positive(), height: z.number().finite().positive()
-        }).optional()
-      }
-    },
-    tabTool('browser_visual_compare', async ({
-      tabId,
-      action,
-      threshold,
-      settleMs,
-      clip,
-      validateCapture
-    }: {
-      tabId?: string
-      action: 'get' | 'set-baseline' | 'compare' | 'clear'
-      threshold?: number
-      settleMs?: number
-      clip?: { x: number; y: number; width: number; height: number }
-      validateCapture?: () => void
-    }) => {
-      const previewBefore = action === 'get' || action === 'clear' ? undefined : manager.cssStatePreviewMarker(tabId)
-      const result = await manager.visualCompare({ tabId, action, threshold, settleMs, clip }, validateCapture)
-      const cssStatePreview = action === 'get' || action === 'clear' ? undefined : previewBefore ?? manager.cssStatePreviewMarker(tabId)
-      return {
-        content: [
-          { type: 'text', text: JSON.stringify(cssStatePreview ? { ...result.report, cssStatePreview } : result.report, null, 2) },
-          ...(result.diffPng ? [{ type: 'image' as const, data: result.diffPng.toString('base64'), mimeType: 'image/png' as const }] : [])
-        ]
-      }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_console',
-    {
-      description: toolDescription('browser_console'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        level: z.enum(['debug', 'info', 'warning', 'error']).optional(),
-        clear: z.boolean().optional()
-      }
-    },
-    tabTool('browser_console', async ({ tabId, level, clear }: { tabId?: string; level?: string; clear?: boolean }) => {
-      const messages = manager.consoleMessages(tabId, clear)
-      return textResult(level ? messages.filter((message) => message.level === level) : messages)
-    })
-  )
-  registerWorkspaceTool(
-    'browser_diagnostic_logs',
-    {
-      description: toolDescription('browser_diagnostic_logs'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['get', 'set', 'clear']).default('get'),
-        preserveAcrossNavigation: z.boolean().optional().describe('Required for set. When false, a new main-frame navigation clears previous Console and Network evidence before recording the new document.')
-      }
-    },
-    tabTool('browser_diagnostic_logs', async ({ tabId, action, preserveAcrossNavigation }: {
-      tabId?: string
-      action: 'get' | 'set' | 'clear'
-      preserveAcrossNavigation?: boolean
-    }) => {
-      if (action === 'get') return textResult(manager.diagnosticLogState(tabId))
-      if (action === 'clear') return textResult(manager.clearDiagnosticLogs(tabId))
-      if (preserveAcrossNavigation === undefined) throw new TypeError('preserveAcrossNavigation is required to set diagnostic log behavior')
-      return textResult(manager.setDiagnosticLogPreservation(tabId!, preserveAcrossNavigation))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_issues',
-    {
-      description: toolDescription('browser_issues'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        action: z.enum(['list', 'clear']).default('list')
-      }
-    },
-    tabTool('browser_issues', async ({ tabId, action }: { tabId?: string; action: 'list' | 'clear' }) =>
-      textResult(await manager.inspectorIssues(tabId, action === 'clear')))
-  )
-  registerWorkspaceTool(
-    'browser_network',
-    {
-      description: toolDescription('browser_network'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        query: z.string().max(500).optional().describe(NETWORK_FILTER_QUERY_DESCRIPTION),
-        resourceType: z.string().optional(),
-        sortBy: z.enum(['start-time', 'end-time', 'duration', 'waiting', 'size', 'status']).optional(),
-        sortDirection: z.enum(['asc', 'desc']).optional(),
-        limit: z.number().int().min(1).max(500).optional(),
-        clear: z.boolean().optional()
-      }
-    },
-    tabTool('browser_network', async ({
-      tabId,
-      query,
-      resourceType,
-      sortBy,
-      sortDirection,
-      limit,
-      clear
-    }: {
-      tabId?: string
-      query?: string
-      resourceType?: string
-      sortBy?: BrowserNetworkRequestSortBy
-      sortDirection?: BrowserNetworkRequestSortDirection
-      limit?: number
-      clear?: boolean
-    }) => {
-      const requests = await manager.networkRequests(tabId, clear)
-      const filtered = filterNetworkRequests(requests, normalizeNetworkHarOptions({ query, resourceType }))
-      const sorted = sortNetworkRequests(filtered, sortBy, sortDirection)
-      return textResult(limit === undefined ? sorted : sorted.slice(0, limit))
-    })
-  )
-  registerWorkspaceTool(
-    'browser_network_wait',
-    {
-      description: toolDescription('browser_network_wait'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        urlPattern: z.string().trim().min(1).max(2_048)
-          .describe('Full URL wildcard pattern such as https://api.example.com/v1/* or *://*/orders?.'),
-        method: z.string().trim().min(1).max(32).optional(),
-        resourceType: z.string().trim().min(1).max(64).optional()
-          .describe('Chromium resource type, or fetch/xhr to match either fetch or XHR.'),
-        status: z.number().int().min(100).max(599).optional(),
-        phase: z.enum(['request', 'response', 'complete']).default('response')
-          .describe('request waits for dispatch, response waits for headers or failure, and complete waits for the body transfer or failure to finish.'),
-        from: z.enum(['retained-or-future', 'future']).default('retained-or-future')
-          .describe('Search already retained matches first, or arm only for events after this call.'),
-        afterRequestId: z.string().min(1).optional()
-          .describe('Only match requests captured after this retained Hronaut request ID. Cannot be combined with from: future.'),
-        timeoutMs: z.number().int().min(1).max(60_000).default(30_000)
-      }
-    },
-    tabTool('browser_network_wait', async (options: BrowserNetworkWaitOptions) =>
-      textResult(await manager.waitForNetworkRequest(options)))
-  )
-  registerWorkspaceTool(
-    'browser_network_search',
-    {
-      description: toolDescription('browser_network_search'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        query: z.string().min(1).max(200),
-        caseSensitive: z.boolean().optional(),
-        maxResults: z.number().int().min(1).max(100).optional(),
-        maxRequests: z.number().int().min(1).max(100).optional(),
-        maxBodyChars: z.number().int().min(1_000).max(50_000).optional()
-      }
-    },
-    tabTool('browser_network_search', async (options: {
-      tabId?: string
-      query: string
-      caseSensitive?: boolean
-      maxResults?: number
-      maxRequests?: number
-      maxBodyChars?: number
-    }) => textResult(await manager.networkSearch(options)))
-  )
-  registerWorkspaceTool(
-    'browser_network_request',
-    {
-      description: toolDescription('browser_network_request'),
-      inputSchema: {
-        requestId: z.string().min(1),
-        tabId: tabIdSchema.optional(),
-        maxChars: z.number().int().min(1_000).max(100_000).optional(),
-        copyAs: z.enum(['json', 'curl', 'powershell', 'fetch']).optional()
-      }
-    },
-    tabTool('browser_network_request', async ({ requestId, tabId, maxChars, copyAs, validateInspection }: {
-      requestId: string
-      tabId?: string
-      maxChars?: number
-      copyAs?: 'json' | BrowserNetworkRequestCopyFormat
-      validateInspection?: () => void
-    }) => {
-      const details = await manager.networkRequestDetails(tabId, requestId, maxChars, true, assertCurrent => {
-        frameRequests.getStore()!.networkPublication = () => { validateInspection?.(); assertCurrent() }
-      })
-      return textResult(copyAs && copyAs !== 'json' ? formatNetworkRequestCopy(details, copyAs) : details)
-    })
-  )
-  registerWorkspaceTool(
-    'browser_network_replay',
-    {
-      description: toolDescription('browser_network_replay'),
-      inputSchema: {
-        requestId: z.string().min(1).describe('Current Hronaut request ID returned by browser_network.'),
-        tabId: tabIdSchema.optional(),
-        confirmSideEffects: z.boolean().default(false).describe('Required for every method except GET and HEAD. Set true only after reviewing the request and accepting that replay can repeat writes or other side effects.')
-      }
-    },
-    tabTool('browser_network_replay', async ({ requestId, tabId, confirmSideEffects }: {
-      requestId: string
-      tabId?: string
-      confirmSideEffects?: boolean
-    }) => textResult(await manager.replayNetworkRequest(tabId, requestId, confirmSideEffects === true)))
-  )
-  registerWorkspaceTool(
-    'browser_network_har',
-    {
-      description: toolDescription('browser_network_har'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        query: z.string().max(500).optional().describe(NETWORK_FILTER_QUERY_DESCRIPTION),
-        resourceType: z.string().max(64).optional(),
-        errorsOnly: z.boolean().optional(),
-        includeBodies: z.boolean().optional(),
-        maxRequests: z.number().int().min(1).max(200).optional(),
-        maxBodyChars: z.number().int().min(1_000).max(20_000).optional(),
-        saveToDownloads: z.boolean().optional(),
-        filename: z.string().min(1).max(180).optional()
-      }
-    },
-    tabTool('browser_network_har', async ({ saveToDownloads, filename, ...options }: {
-      tabId?: string
-      query?: string
-      resourceType?: string
-      errorsOnly?: boolean
-      includeBodies?: boolean
-      maxRequests?: number
-      maxBodyChars?: number
-      saveToDownloads?: boolean
-      filename?: string
-    }) => textResult(saveToDownloads
-      ? await manager.saveNetworkHar({ ...options, filename })
-      : await manager.networkHar(options)))
-  )
-  registerWorkspaceTool(
-    'browser_network_routes',
-    {
-      description: toolDescription('browser_network_routes'),
-      inputSchema: {
-        action: z.enum(['list', 'add', 'move', 'remove', 'clear', 'set-enabled']).optional(),
-        tabId: tabIdSchema.optional(),
-        routeId: z.string().optional(),
-        enabled: z.boolean().optional().describe('Explicit enabled state; required with routeId for set-enabled. Only confirmed conditions can be toggled.'),
-        direction: z.enum(['up', 'down']).optional()
-          .describe('Move a first-match-wins condition one position up or down. Requires action move and routeId.'),
-        urlPattern: networkRouteInputSchema.shape.urlPattern.optional(),
-        method: networkRouteInputSchema.shape.method,
-        times: networkRouteInputSchema.shape.times,
-        response: networkRouteInputSchema.shape.response,
-        abort: networkRouteInputSchema.shape.abort,
-        throttle: networkRouteInputSchema.shape.throttle
-          .describe('Throttle only matching URLs until the condition is removed. Cannot be combined with method or times.')
-      }
-    },
-    tabTool('browser_network_routes', async ({
-      validateConditions,
-      markConditionsSubmitted,
-      action = 'list',
-      tabId,
-      routeId,
-      direction,
-      enabled,
-      urlPattern,
-      method,
-      times,
-      response,
-      abort,
-      throttle
-    }: {
-      validateConditions?: () => void
-      markConditionsSubmitted?: () => void
-      action?: 'list' | 'add' | 'move' | 'remove' | 'clear' | 'set-enabled'
-      tabId?: string
-      routeId?: string
-      enabled?: boolean
-      direction?: 'up' | 'down'
-      urlPattern?: string
-      method?: string
-      times?: number
-      response?: { status?: number; headers?: Record<string, string>; body?: string }
-      abort?: BrowserNetworkAbortReason
-      throttle?: 'fast-4g' | 'slow-4g' | 'slow-3g'
-    }) => {
-      if (!validateConditions) throw new Error('Request-condition authority is unavailable')
-      validateConditions()
-      const publish = (routes: import('../../shared/types.js').BrowserNetworkRouteSummary[]): CallToolResult => {
-        const assert = manager.networkConditionPublication(tabId, routes)
-        frameRequests.getStore()!.conditionPublication = () => { validateConditions(); assert() }
-        return textResult(routes)
-      }
-      try {
-        if (action === 'list') return publish(manager.networkRoutes(tabId))
-        if (action === 'clear') return publish(await manager.clearNetworkRoutes(tabId, validateConditions, markConditionsSubmitted))
-        if (action === 'set-enabled') {
-          if (!routeId || typeof enabled !== 'boolean') throw new Error('routeId and boolean enabled are required for set-enabled')
-          return publish(await manager.setNetworkRouteEnabled(tabId, routeId, enabled, validateConditions, markConditionsSubmitted))
-        }
-        if (action === 'move') {
-          if (!routeId || !direction) throw new Error('routeId and direction are required when moving a network route')
-          return publish(await manager.moveNetworkRoute(tabId, routeId, direction, validateConditions, markConditionsSubmitted))
-        }
-        if (action === 'remove') {
-          if (!routeId) throw new Error('routeId is required when removing a network route')
-          return publish(await manager.removeNetworkRoute(tabId, routeId, validateConditions, markConditionsSubmitted))
-        }
-        if (!urlPattern) throw new Error('urlPattern is required when adding a network route')
-        return publish(await manager.addNetworkRoute(tabId, { urlPattern, method, times, response, abort, throttle }, validateConditions, markConditionsSubmitted))
-      } catch (error) {
-        validateConditions()
-        const state = manager.networkConditionState(tabId)
-        if (state.application === 'confirmed') throw error
-        const outcome = { status: 'NETWORK_CONDITIONS_UNCONFIRMED', ...state, retrySafe: false,
-          nextAction: 'Explicitly clear conditions to recover. Future matching requests may reach their normal destination. Already-dispatched effects cannot be undone.' }
-        return { ...textResult(outcome), structuredContent: outcome, isError: true }
-      }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_downloads',
-    {
-      description: toolDescription('browser_downloads'),
-      inputSchema: {
-        action: z.enum(['list', 'cancel', 'clear', 'pause', 'resume']).optional(),
-        downloadId: z.string().optional()
-      }
-    },
-    tool(async ({ workspaceId, action, downloadId }: {
-      workspaceId?: string
-      action?: 'list' | 'cancel' | 'clear' | 'pause' | 'resume'
-      downloadId?: string
-    }) =>
-      textResult(manager.manageWorkspaceDownloads(workspaceId!, action ?? 'list', downloadId))
-    )
-  )
-  registerWorkspaceTool(
-    'browser_webmcp',
-    {
-      description: toolDescription('browser_webmcp'),
-      inputSchema: {
-        action: z.enum(['status', 'list', 'call']).default('status'),
-        tabId: tabIdSchema.optional(),
-        expectedOrigin: z.string().url().max(2_048).optional()
-          .describe('Exact HTTP(S) origin returned by action=list; required for call.'),
-        navigationGeneration: z.number().int().min(0).optional()
-          .describe('Exact navigation generation returned by action=list; required for call.'),
-        descriptorDigest: z.string().regex(/^[a-f0-9]{64}$/u).optional()
-          .describe('Exact descriptor digest returned by action=list; required for call.'),
-        toolName: z.string().min(1).max(128).optional()
-          .describe('Exact page-provided tool name returned by action=list; required for call.'),
-        arguments: z.record(z.string(), z.unknown()).optional()
-          .describe('JSON object passed to the page-provided tool. Page schemas are untrusted metadata, not authorization.')
-      }
-    },
-    tabTool('browser_webmcp', async ({ workspaceId, action, tabId, expectedOrigin, navigationGeneration, descriptorDigest, toolName, arguments: toolArguments }: {
-      workspaceId: string
-      action: 'status' | 'list' | 'call'
-      tabId?: string
-      expectedOrigin?: string
-      navigationGeneration?: number
-      descriptorDigest?: string
-      toolName?: string
-      arguments?: Record<string, unknown>
-    }) => {
-      if (action === 'status') {
-        const result = { workspaceId, ...await manager.webMcpStatus(tabId) }
-        return { ...textResult(result), structuredContent: result }
-      }
-      if (action === 'list') {
-        const result = { workspaceId, ...await manager.listWebMcpTools(tabId) }
-        return { ...textResult(result), structuredContent: result, ...(result.status ? { isError: true } : {}) }
-      }
-      if (!expectedOrigin || navigationGeneration === undefined || !descriptorDigest || !toolName) {
-        throw new TypeError('expectedOrigin, navigationGeneration, descriptorDigest, and toolName are required for a WebMCP call')
-      }
-      const result: Record<string, unknown> = {
-        workspaceId,
-        tabId,
-        ...await manager.callWebMcpTool({
-          tabId,
-          expectedOrigin,
-          navigationGeneration,
-          descriptorDigest,
-          toolName,
-          arguments: toolArguments ?? {}
-        })
-      }
-      const failed = result.status !== 'TOOL_RETURNED'
-      return { ...textResult(result), structuredContent: result, ...(failed ? { isError: true } : {}) }
-    })
-  )
-  registerWorkspaceTool(
-    'browser_evaluate_file',
-    { description: toolDescription('browser_evaluate_file'), inputSchema: { source: fileEvaluationSourceSchema, tabId: tabIdSchema } },
-    tabTool('browser_evaluate_file', async (input: {
-      workspaceId: string; tabId: string; source: FileEvaluationSource;
-      fileEvaluationSignal?: AbortSignal; validateFileEvaluation: () => void
-    }) => {
-      const progress = frameRequests.getStore()!.fileEvaluation!
-      if (input.source.workspaceId !== input.workspaceId || input.source.tabId !== input.tabId) {
-        const outcome = fileEvaluationFailure(progress, 'TUPLE_TARGET_MISMATCH')
-        return { ...textResult(outcome), structuredContent: outcome, isError: true }
-      }
-      input.validateFileEvaluation()
-      const outcome = await manager.evaluateFile(input.source, {
-        signal: input.fileEvaluationSignal, validate: input.validateFileEvaluation,
-        retainPublication: authority => { frameRequests.getStore()!.fileEvaluationPublication = authority },
-        retainCompletion: completion => { frameRequests.getStore()!.fileEvaluationCompletion = completion },
-        submitted: () => { progress.submitted = true }
-      })
-      progress.acknowledged = outcome.acknowledged === true
-      const result: Record<string, unknown> = { ...outcome, ...(Object.hasOwn(outcome, 'value') ? { value: safeValue(outcome.value) } : {}) }
-      return { ...textResult(result), structuredContent: result, ...(result.status !== 'RETURNED' ? { isError: true } : {}) }
-    }, 'never')
-  )
-  registerWorkspaceTool(
-    'browser_evaluate',
-    {
-      description: toolDescription('browser_evaluate'),
-      inputSchema: {
-        script: z.string().min(1),
-        tabId: tabIdSchema.optional(),
-        dialogAction: z.enum(['accept', 'dismiss']).optional()
-      }
-    },
-    tabTool('browser_evaluate', async ({ script, tabId, dialogAction }: {
-      script: string
-      tabId?: string
-      dialogAction?: 'accept' | 'dismiss'
-    }) =>
-      textResult(safeValue(await manager.evaluate(script, tabId, { dialogAction })))
-    )
-  )
-
-  const walletIdSchema = z.string().trim().min(1).max(128)
-  const walletRequestIdSchema = z.string().trim().min(1).max(128)
-  const walletSessionIdSchema = z.uuid()
   const requireWallets = (): WalletAgentOperations => {
     if (!wallets) throw new Error('Wallet operations are unavailable')
     return wallets
@@ -5629,138 +2216,150 @@ function createBrowserMcpServer(
   const walletTarget = (walletSessionId: string, workspaceId: string, tabId: string): WalletAgentToolTarget => (
     requireWalletSessions().resolve(walletSessionId, workspaceId, tabId, client.id)
   )
-  registerWorkspaceTool(
-    'wallet_list',
-    {
-      description: toolDescription('wallet_list'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        agentName: z.string().trim().min(1).max(128).optional().describe('Optional human-readable requesting agent name shown in trusted approvals.')
-      }
-    },
-    tabTool('wallet_list', async ({ workspaceId, tabId, agentName }: {
-      workspaceId: string; tabId: string; agentName?: string
-    }) => {
-      const session = requireWalletSessions().open(workspaceId, tabId, client, agentName)
-      return textResult({
-        walletSessionId: session.token,
-        expiresAt: new Date(session.expiresAt).toISOString(),
-        wallets: WalletAgentDescriptorSchema.array().parse(await requireWallets().list(session.target))
-      })
-    })
-  )
-  registerWorkspaceTool(
-    'wallet_balance',
-    {
-      description: toolDescription('wallet_balance'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        walletSessionId: walletSessionIdSchema,
-        walletId: walletIdSchema,
-        token: z.string().min(1).max(64).regex(/^[A-Za-z0-9]+$/).optional()
-          .describe('Optional fungible token to read instead of the native balance: an ERC-20 contract address on EVM, an SPL token mint on Solana, or a TRC-20 contract address on TRON.'),
-        spender: z.string().min(1).max(64).regex(/^[A-Za-z0-9]+$/).optional()
-          .describe('Optional, with token on EVM or TRON: also read how much of the token this spender address may still move from the wallet, such as a DEX router after an approval.')
-      }
-    },
-    tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId, token, spender }: {
-      workspaceId: string; tabId: string; walletSessionId: string; walletId: string; token?: string; spender?: string
-    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId, token, spender)))
-  )
-  registerWorkspaceTool(
-    'wallet_prepare_transaction',
-    {
-      description: toolDescription('wallet_prepare_transaction'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        walletSessionId: walletSessionIdSchema,
-        walletId: walletIdSchema,
-        transaction: WalletPublicRequestPayloadSchema.describe('Chain-specific unsigned transaction. Secret-bearing fields are rejected.')
-      }
-    },
-    tabTool('wallet_prepare_transaction', async ({ workspaceId, tabId, walletSessionId, walletId, transaction }: {
-      workspaceId: string; tabId: string; walletSessionId: string; walletId: string; transaction: unknown
-    }) => textResult(await requireWallets().prepareTransaction(
-      walletTarget(walletSessionId, workspaceId, tabId), walletId, transaction
-    )))
-  )
-  registerWorkspaceTool(
-    'wallet_request',
-    {
-      description: toolDescription('wallet_request'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        walletSessionId: walletSessionIdSchema,
-        walletId: walletIdSchema,
-        action: z.enum(['sign-transaction', 'sign-and-send', 'sign-message']),
-        transaction: WalletPublicRequestPayloadSchema.optional().describe('Required for transaction actions. Secret-bearing fields are rejected.'),
-        message: z.string().min(1).max(1_398_104).optional().describe('Required for sign-message. UTF-8 text by default, or canonical base64 when messageEncoding=base64.'),
-        messageEncoding: z.enum(['utf8', 'base64']).default('utf8')
-      }
-    },
-    tabTool('wallet_request', async ({ workspaceId, tabId, walletSessionId, walletId, action, transaction, message, messageEncoding }: {
-      workspaceId: string
-      tabId: string
-      walletSessionId: string
-      walletId: string
-      action: 'sign-transaction' | 'sign-and-send' | 'sign-message'
-      transaction?: unknown
-      message?: string
-      messageEncoding: 'utf8' | 'base64'
-    }) => {
-      const target = walletTarget(walletSessionId, workspaceId, tabId)
-      if (action === 'sign-message') {
-        if (!message) throw new TypeError('message is required for sign-message')
-        const bytes = messageEncoding === 'base64' ? Buffer.from(message, 'base64') : Buffer.from(message, 'utf8')
-        if (!bytes.length || bytes.length > 1_048_576 || (messageEncoding === 'base64' && bytes.toString('base64') !== message)) {
-          bytes.fill(0)
-          throw new TypeError('Wallet message is invalid')
-        }
-        try {
-          return textResult(await requireWallets().requestMessage(target, walletId, Uint8Array.from(bytes)))
-        } finally {
-          bytes.fill(0)
-        }
-      }
-      if (transaction === undefined) throw new TypeError('transaction is required for transaction requests')
-      return textResult(await requireWallets().requestTransaction(target, walletId, transaction, action === 'sign-and-send'))
-    })
-  )
-  registerWorkspaceTool(
-    'wallet_request_status',
-    {
-      description: toolDescription('wallet_request_status'),
-      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema, requestId: walletRequestIdSchema }
-    },
-    tabTool('wallet_request_status', async ({ workspaceId, tabId, walletSessionId, requestId }: {
-      workspaceId: string; tabId: string; walletSessionId: string; requestId: string
-    }) => textResult(await requireWallets().requestStatus(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
-  )
-  registerWorkspaceTool(
-    'wallet_page_requests',
-    {
-      description: toolDescription('wallet_page_requests'),
-      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema }
-    },
-    tabTool('wallet_page_requests', async ({ workspaceId, tabId, walletSessionId }: {
-      workspaceId: string; tabId: string; walletSessionId: string
-    }) => {
-      const target = walletTarget(walletSessionId, workspaceId, tabId)
-      const operations = requireWallets()
-      if (!operations.pageRequests) throw new Error('Wallet page requests are unavailable')
-      return textResult(await operations.pageRequests(target))
-    })
-  )
-  registerWorkspaceTool(
-    'wallet_cancel_request',
-    {
-      description: toolDescription('wallet_cancel_request'),
-      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema, requestId: walletRequestIdSchema }
-    },
-    tabTool('wallet_cancel_request', async ({ workspaceId, tabId, walletSessionId, requestId }: {
-      workspaceId: string; tabId: string; walletSessionId: string; requestId: string
-    }) => textResult(await requireWallets().cancelRequest(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
-  )
+
+  const toolContext: McpToolContext = {
+    activeWorkspaceIds,
+    auditAuthorization,
+    auditReceipts,
+    authorizeResume,
+    authorizedActiveWorkspaces,
+    authorizedSavedWorkspaces,
+    bookmarks,
+    capability,
+    capabilityAllowsUrl,
+    capabilityProfile,
+    client,
+    forkOnlySource,
+    frameRequests,
+    getPaused,
+    getUserAttention,
+    history,
+    humanReviewSessionBinding,
+    humanWaiting,
+    leaseLostAfterDispatch,
+    manager,
+    onTabActivity,
+    publicOutcomeFingerprintKey,
+    registerTool,
+    registerWorkspaceTool,
+    requestUserAttention,
+    requireActiveCapabilityDispatch,
+    requireAgentWorkspace,
+    requireSavedWorkspace,
+    requireWalletSessions,
+    requireWallets,
+    reviewedActionArguments,
+    savedTaskPreviewKey,
+    savedWorkspaceIds,
+    showWindowInactive,
+    siteData,
+    tabTool,
+    taskRuns,
+    tool,
+    userAttentionLifecycle,
+    walletTarget,
+    wallets,
+    withResolvedTargetWakePolicy,
+    withResumeKey,
+    workspaceAuthorizationError,
+    workspaceToolInputSchemas,
+    actionTracker,
+    workspaceLeases
+  }
+
+  // Each tool registers itself from tools/<tool-name>/index.ts, in this order.
+  registerBrowserWorkspaces(toolContext)
+  registerBrowserSavedWorkspaces(toolContext)
+  registerBrowserHumanWaiting(toolContext)
+  registerBrowserContinuity(toolContext)
+  registerBrowserPreflight(toolContext)
+  registerBrowserAuditReceipts(toolContext)
+  registerBrowserTaskRuns(toolContext)
+  registerBrowserStatus(toolContext)
+  registerBrowserShow(toolContext)
+  registerBrowserUserAttention(toolContext)
+  registerBrowserRequestUserAttention(toolContext)
+  registerBrowserTabs(toolContext)
+  registerBrowserNewTab(toolContext)
+  registerBrowserSelectTab(toolContext)
+  registerBrowserCloseTab(toolContext)
+  registerBrowserBookmarks(toolContext)
+  registerBrowserVisitHistory(toolContext)
+  registerBrowserSiteData(toolContext)
+  registerBrowserStorage(toolContext)
+  registerBrowserStorageChanges(toolContext)
+  registerBrowserStorageUsage(toolContext)
+  registerBrowserIndexeddb(toolContext)
+  registerBrowserPwaLifecycle(toolContext)
+  registerBrowserPwa(toolContext)
+  registerBrowserNavigate(toolContext)
+  registerBrowserHistory(toolContext)
+  registerBrowserSnapshot(toolContext)
+  registerBrowserPublicOutcome(toolContext)
+  registerBrowserFind(toolContext)
+  registerBrowserElementInspect(toolContext)
+  registerBrowserMediaState(toolContext)
+  registerBrowserImageState(toolContext)
+  registerBrowserGenerateLocator(toolContext)
+  registerBrowserReconciliation(toolContext)
+  registerBrowserClick(toolContext)
+  registerBrowserDialog(toolContext)
+  registerBrowserType(toolContext)
+  registerBrowserSelect(toolContext)
+  registerBrowserFillForm(toolContext)
+  registerBrowserHover(toolContext)
+  registerBrowserDrag(toolContext)
+  registerBrowserWheel(toolContext)
+  registerBrowserScroll(toolContext)
+  registerBrowserHoldKey(toolContext)
+  registerBrowserPress(toolContext)
+  registerBrowserFileUpload(toolContext)
+  registerBrowserWait(toolContext)
+  registerBrowserEmulate(toolContext)
+  registerBrowserPageLifecycle(toolContext)
+  registerBrowserZoom(toolContext)
+  registerBrowserAudio(toolContext)
+  registerBrowserScreenshot(toolContext)
+  registerBrowserPdfSave(toolContext)
+  registerBrowserResize(toolContext)
+  registerBrowserAccessibilityAudit(toolContext)
+  registerBrowserQualityAudit(toolContext)
+  registerBrowserPerformance(toolContext)
+  registerBrowserDesignOverview(toolContext)
+  registerBrowserPageMetadata(toolContext)
+  registerBrowserMemory(toolContext)
+  registerBrowserSecurity(toolContext)
+  registerBrowserReact(toolContext)
+  registerBrowserCodeCoverage(toolContext)
+  registerBrowserCpuProfile(toolContext)
+  registerBrowserDebugReport(toolContext)
+  registerBrowserVideo(toolContext)
+  registerBrowserRepro(toolContext)
+  registerBrowserDomChanges(toolContext)
+  registerBrowserLiveRegion(toolContext)
+  registerBrowserCssStatePreview(toolContext)
+  registerBrowserVisualCompare(toolContext)
+  registerBrowserConsole(toolContext)
+  registerBrowserDiagnosticLogs(toolContext)
+  registerBrowserIssues(toolContext)
+  registerBrowserNetwork(toolContext)
+  registerBrowserNetworkWait(toolContext)
+  registerBrowserNetworkSearch(toolContext)
+  registerBrowserNetworkRequest(toolContext)
+  registerBrowserNetworkReplay(toolContext)
+  registerBrowserNetworkHar(toolContext)
+  registerBrowserNetworkRoutes(toolContext)
+  registerBrowserDownloads(toolContext)
+  registerBrowserWebmcp(toolContext)
+  registerBrowserEvaluateFile(toolContext)
+  registerBrowserEvaluate(toolContext)
+  registerWalletList(toolContext)
+  registerWalletBalance(toolContext)
+  registerWalletPrepareTransaction(toolContext)
+  registerWalletRequest(toolContext)
+  registerWalletRequestStatus(toolContext)
+  registerWalletPageRequests(toolContext)
+  registerWalletCancelRequest(toolContext)
 
   const previousClose = server.server.onclose
   server.server.onclose = () => {

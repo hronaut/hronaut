@@ -1,0 +1,21 @@
+import { z } from 'zod'
+import { textResult, toolDescription } from '../../tool-results.js'
+import { tabIdSchema } from '../../tool-schemas.js'
+import type { McpToolContext } from '../tool-context.js'
+
+export function registerBrowserMediaState(context: McpToolContext): void {
+  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  registerWorkspaceTool(
+    'browser_media_state',
+    {
+      description: toolDescription('browser_media_state'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        ref: z.never().optional().describe('Snapshot refs are unsupported; use a unique selector. Ref input is rejected even when selector is also supplied.'),
+        selector: z.string().min(1).max(1_000).describe('Select one unique current top-level light-DOM audio/video. This is current selector resolution, not historical snapshot identity.')
+      }
+    },
+    tabTool('browser_media_state', async (options: { tabId?: string; ref?: never; selector: string; validateInspection?: () => void }) =>
+      textResult(await manager.mediaState(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
+  )
+}
