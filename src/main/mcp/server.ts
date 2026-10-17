@@ -2,9 +2,8 @@ import { browserClickSchema } from './browser-click-input.js'
 import { EMULATION_INPUT_ERRORS, EmulationInputError } from '../browser/emulation-state.js'
 import { fileEvaluationFailure, type FileEvaluationSource } from '../../shared/file-evaluation.js'
 import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure } from '../browser/storage-comparison-operation.js'
-import { nativeClickEffectsPossible, NativeClickAdmissionError } from '../browser/native-click-admission.js'
+import { NativeClickAdmissionError } from '../browser/native-click-admission.js'
 import { storageInspectionFailure } from '../browser/storage-inspection-operation.js'
-import { recheckOpenedTabs, type TabsOpenedDuringClick } from '../browser/click-opened-tabs.js'
 import { WEB_STORAGE_INPUT_ERRORS, WebStorageInputError, webStorageFailure } from '../browser/web-storage-operation.js'
 import { cookieWriteFailure } from '../browser/cookie-write-operation.js'
 import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
@@ -92,7 +91,7 @@ import { type McpToolSet } from '../../shared/mcp-tool-sets.js'
 import { type WalletAgentDescriptor } from '../../shared/wallet.js'
 import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, errorResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, selectionNotSubmittedResult, selectionUnknownResult, textResult, toolDefinition } from './tool-results.js'
 import { READ_ONLY_MULTI_ACTIONS, mcpCapabilityAction, mcpCapabilityOperationClass } from './capability-classification.js'
-import { type PostWriteRequest, type ReconciliationConditionRequest, workspaceIdSchema } from './tool-schemas.js'
+import { workspaceIdSchema } from './tool-schemas.js'
 import { registerBrowserWorkspaces } from './tools/browser-workspaces/index.js'
 import { registerBrowserSavedWorkspaces } from './tools/browser-saved-workspaces/index.js'
 import { registerBrowserHumanWaiting } from './tools/browser-human-waiting/index.js'
@@ -566,22 +565,6 @@ function withPostWriteVerification(result: CallToolResult, verification: { statu
   }
 }
 
-function withCurrentOpenedTabs(result: CallToolResult, isCurrent: (tabId: string) => boolean): CallToolResult {
-  if (result.isError) return result
-  return {
-    ...result,
-    content: result.content.map(item => {
-      if (item.type !== 'text') return item
-      try {
-        const value = JSON.parse(item.text) as { tabsOpenedDuringClick?: TabsOpenedDuringClick }
-        const report = value?.tabsOpenedDuringClick
-        if (!report || !Array.isArray(report.tabIds)) return item
-        return { ...item, text: JSON.stringify({ ...value, tabsOpenedDuringClick: recheckOpenedTabs(report, isCurrent) }, null, 2) }
-      } catch { return item }
-    })
-  }
-}
-
 function withPreWriteReconciliation(result: CallToolResult, reconciliation: PublicBrowserReconciliation): CallToolResult {
   const structured = result.structuredContent
   return {
@@ -806,7 +789,6 @@ function createBrowserMcpServer(
     if (request?.selectionSubmitted && error instanceof McpCapabilityAuthorizationError) {
       request.selectionPolicy = { permission: 'denied', policyDecision: error.decision }
     }
-    if (request?.clickProgress && error instanceof McpCapabilityAuthorizationError) request.clickPolicy = { permission: 'denied', policyDecision: error.decision }
     request?.settlement?.rememberInputPolicy?.(error)
   }
   // What a call acts on, for the shell's plain-words steps only: the name Hronaut's own snapshot of the page
@@ -919,23 +901,6 @@ function createBrowserMcpServer(
         const outcome = fileEvaluationFailure(frameRequest.fileEvaluation, typeof reason === 'string' && allowedReasons.has(reason) ? reason : 'UNAVAILABLE_OR_UNAUTHORIZED')
         const settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
         frameRequest.fileEvaluationFinishActivity?.(settled)
-        return settled
-      }
-      const settleClick = (result: CallToolResult): CallToolResult => {
-        if (!frameRequest.clickProgress) return result
-        let settled = result
-        try {
-          if (!result.isError) {
-            if (!frameRequest.clickPublication) throw new Error('Click publication guard is unavailable')
-            if (input.button === 'right' && !frameRequest.clickAuthority) throw new Error('Right-click publication authority is unavailable')
-            frameRequest.clickAuthority?.validate()
-            frameRequest.clickPublication()
-          }
-        } catch (error) { rememberInputPolicy(error); settled = errorResult(error) }
-        if (settled.isError) settled = nativeClickFailureResult(frameRequest.clickProgress,
-          typeof settled.structuredContent?.reason === 'string' ? settled.structuredContent.reason : undefined,
-          frameRequest.clickReviewFinalizationFailed, frameRequest.clickPolicy)
-        frameRequest.clickFinishActivity?.(settled)
         return settled
       }
       const settleStorageComparison = (result: CallToolResult): CallToolResult => {
@@ -1105,7 +1070,6 @@ function createBrowserMcpServer(
           if (frameRequest.fileEvaluation) return settleFileEvaluation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
             ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
-          if (frameRequest.clickProgress) return settleClick({ ...textResult(outcome), structuredContent: outcome, isError: true })
           return settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true })))))
         }
         const published = settlement?.publish?.(result)
@@ -1125,7 +1089,6 @@ function createBrowserMcpServer(
           frameRequest.conditionPublication()
           return settleConditions(result) // Publication checks never rewrite main-owned native health.
         }
-        if (frameRequest.clickProgress) return settleClick(result)
         if (name === 'browser_select' && input.values !== undefined && !frameRequest.selectionSubmitted) return settleSelection(result)
         if (name === 'browser_select' && input.values !== undefined && frameRequest.selectionSubmitted) {
           if (!frameRequest.selectionAuthority || !frameRequest.selectionPublication) throw new Error('Selection publication guard is unavailable')
@@ -1171,7 +1134,6 @@ function createBrowserMcpServer(
         if (frameRequest.webStorageProgress) { rememberInputPolicy(error); return settleWebStorage(errorResult(error)) }
         if (frameRequest.cookieProgress) { rememberInputPolicy(error); return settleCookies(errorResult(error)) }
         if (name === 'browser_network_routes' || name === 'browser_emulate') { rememberInputPolicy(error); return settleConditions(errorResult(error)) }
-        if (frameRequest.clickProgress) { rememberInputPolicy(error); return settleClick(errorResult(error)) }
         if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
           ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : frameRequest.selectionPolicy ?? errorResult(error).structuredContent)
           : errorResult(error))
@@ -1179,7 +1141,6 @@ function createBrowserMcpServer(
       } finally {
         frameRequest.fileEvaluationPublication?.dispose()
         frameRequest.storageComparison?.publication?.dispose()
-        frameRequest.clickAuthority?.dispose()
         frameRequest.selectionAuthority?.dispose()
         settlement?.dispose?.()
         if (frameRequest.fileEvaluationCompletion && finishWorkspaceMutation) {
@@ -1407,14 +1368,8 @@ function createBrowserMcpServer(
               payloadFingerprint: actionPayloadFingerprint
             })
           : undefined
-        const postWrite = name === 'browser_click' && actionInput.postcondition
-          ? actionInput.postcondition as PostWriteRequest : undefined
-        const reconciliation = name === 'browser_click' && actionInput.reconciliation
-          ? actionInput.reconciliation as ReconciliationConditionRequest & {
-            logicalItemKey: string
-            targetIdentity: string
-            sourceRevision: string
-          } : undefined
+        const postWrite = options.postcondition?.(actionInput)
+        const reconciliation = options.reconciliation?.(actionInput)
         if (postWrite && (!resolvedTabId || !auditReceipts?.isRecording(workspaceId))) {
           throw new Error('Post-write verification requires an active browser_audit_receipts run and a page tab target')
         }
@@ -1533,7 +1488,6 @@ function createBrowserMcpServer(
             if (frameRequests.getStore()?.webStorageProgress?.executionSubmitted) frameRequests.getStore()!.webStorageReviewFinalizationFailed = true
             if (frameRequests.getStore()?.cookieProgress?.attemptedWrites) frameRequests.getStore()!.cookieReviewFinalizationFailed = true
             if (frameRequests.getStore()?.conditionAttempted || frameRequests.getStore()?.emulationInputError) frameRequests.getStore()!.conditionReviewFinalizationFailed = true
-            if (frameRequests.getStore()?.clickProgress) frameRequests.getStore()!.clickReviewFinalizationFailed = true
             settlement?.reviewFinalizationFailed?.()
             finishActivity(undefined, true, error)
             throw error
@@ -1544,12 +1498,6 @@ function createBrowserMcpServer(
           requireCurrentTarget()
           requirePostWriteContext()
           if (authorityRejection()) throw new Error('Selection authority changed after submission')
-        }
-        if (name === 'browser_click') frameRequests.getStore()!.clickPublication = () => {
-          if (extra?.signal?.aborted) throw new Error('Click cancelled after preparation')
-          requireCurrentTarget()
-          requirePostWriteContext()
-          if (authorityRejection()) throw new Error('Click authority changed after preparation')
         }
         // Set only by the main-process recorder, never by caller arguments or report data.
         let lifecycleOrigin: string | undefined
@@ -1717,7 +1665,7 @@ function createBrowserMcpServer(
           } catch (error) {
             if (!(error instanceof NativeInputCleanupError) && !(error instanceof NativeWheelOutcomeUnknownError)) throw error
             const uncertainResult = error instanceof NativeClickAdmissionError
-              ? (failed = false) => nativeClickFailureResult(error.progress, error.reason, failed, frameRequests.getStore()?.clickPolicy)
+              ? (failed = false) => nativeClickFailureResult(error.progress, error.reason, failed, settlement?.inputPolicy?.())
               : error instanceof NativeKeyHoldOutcomeUnknownError
               ? (failed = false) => nativeKeyHoldUnknownResult(error.progress, failed)
               : error instanceof NativeWheelOutcomeUnknownError ? nativeWheelUnknownResult : nativeInputCleanupResult
@@ -1739,10 +1687,6 @@ function createBrowserMcpServer(
           if (settlement?.deferActivity?.(settled => finishActivity(settled, false))) return
           if (request.fileEvaluation && !request.fileEvaluationFinishing) {
             request.fileEvaluationFinishActivity = settled => { request.fileEvaluationFinishing = true; finishActivity(settled, false) }
-            return
-          }
-          if (request.clickProgress && !request.clickFinishing) {
-            request.clickFinishActivity = settled => { request.clickFinishing = true; finishActivity(settled, false) }
             return
           }
           if (request.storageComparison && !request.storageComparison.finishing) {
@@ -1776,8 +1720,8 @@ function createBrowserMcpServer(
             && typeof structured.status === 'string' ? structured.status : undefined
           const classification: ToolActivityClassification = {
             readOnly: request.storageComparison ? !request.storageComparison.changed : readOnly || request.webStorageProgress?.mutation === false,
-            dispatched: request.fileEvaluation ? request.fileEvaluation.submitted : request.storageComparison ? request.storageComparison.started : request.clickProgress ? nativeClickEffectsPossible(request.clickProgress) : request.storageInspection ? request.storageInspection.started : request.webStorageProgress ? request.webStorageProgress.executionSubmitted : request.cookieProgress ? request.cookieProgress.attemptedWrites > 0 : (name === 'browser_network_routes' || name === 'browser_emulate') ? request.conditionAttempted === true : name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : activityDispatched,
-            invalidatedOutcome: request.fileEvaluation ? (request.fileEvaluation.submitted && (threw || result?.isError) ? 'outcome-unknown' : undefined) : request.storageComparison ? (request.storageComparison.changed && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.clickProgress ? (nativeClickEffectsPossible(request.clickProgress) && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.webStorageProgress ? (request.webStorageProgress.mutation && request.webStorageProgress.executionSubmitted && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.cookieProgress ? (request.cookieProgress.attemptedWrites > 0 && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : (((name === 'browser_network_routes' || name === 'browser_emulate') && request.conditionAttempted) || (frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none')) && (threw || result?.isError === true)
+            dispatched: request.fileEvaluation ? request.fileEvaluation.submitted : request.storageComparison ? request.storageComparison.started : request.storageInspection ? request.storageInspection.started : request.webStorageProgress ? request.webStorageProgress.executionSubmitted : request.cookieProgress ? request.cookieProgress.attemptedWrites > 0 : (name === 'browser_network_routes' || name === 'browser_emulate') ? request.conditionAttempted === true : name === 'browser_select' && actionInput.values !== undefined ? request.selectionSubmitted === true && result?.structuredContent?.effects !== 'none' : activityDispatched,
+            invalidatedOutcome: request.fileEvaluation ? (request.fileEvaluation.submitted && (threw || result?.isError) ? 'outcome-unknown' : undefined) : request.storageComparison ? (request.storageComparison.changed && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.webStorageProgress ? (request.webStorageProgress.mutation && request.webStorageProgress.executionSubmitted && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.cookieProgress ? (request.cookieProgress.attemptedWrites > 0 && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : (((name === 'browser_network_routes' || name === 'browser_emulate') && request.conditionAttempted) || (frameRequests.getStore()?.selectionSubmitted && result?.structuredContent?.effects !== 'none')) && (threw || result?.isError === true)
               ? 'outcome-unknown' : name === 'browser_select' && actionInput.values !== undefined && (!request.selectionSubmitted || result?.structuredContent?.effects === 'none') ? undefined : invalidatedOutcome
           }
           const classified = settlement?.classifyActivity?.(classification, threw || result?.isError === true) ?? classification
@@ -1960,7 +1904,7 @@ function createBrowserMcpServer(
         }
         else if (verificationResult?.status === 'unknown' || finalResult.isError) await finishReviewedAttempt('unknown')
         validateLifecycleResult()
-        if (name === 'browser_click') finalResult = withCurrentOpenedTabs(finalResult, tabId => manager.tabBelongsToMcpGroup(workspaceId, tabId))
+        finalResult = settlement?.finalize?.(finalResult) ?? finalResult
         finishActivity(finalResult, false)
         return finalResult
       }),

@@ -47,6 +47,8 @@ export const reconciliationRequestSchema = reconciliationConditionSchema.safeExt
   sourceRevision: z.string().min(1).max(512)
 })
 
+export type PreWriteReconciliationRequest = ReconciliationConditionRequest & { logicalItemKey: string; targetIdentity: string; sourceRevision: string }
+
 export type PostWriteRequest = BrowserPostcondition & { timeoutMs: number; maxAttempts: number; initialDelayMs: number }
 
 export const walletIdSchema = z.string().trim().min(1).max(128)
