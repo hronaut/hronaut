@@ -933,7 +933,7 @@ export const deDE = {
       "error": "MCP-Fehler",
       "ready": "MCP bereit",
       "failed": "MCP fehlgeschlagen: {error}",
-      "startingAt": "MCP wird unter {url} gestartet", "portInUse": "Eine andere App verwendet Port {port}, daher können sich Agenten nicht verbinden.", "portDenied": "Ihr System erlaubt Hronaut Port {port} nicht, daher können sich Agenten nicht verbinden.", "portNote": "Hronaut kann stattdessen einen freien Port verwenden; geben Sie Ihrem Coding-Agenten danach die neue Adresse.", "portNoneFree": "Wählen Sie unter Einstellungen → MCP-Sicherheit einen anderen Port.", "usePort": "Port {port} verwenden", "portTaken": "Port {port} wurde inzwischen belegt. Versuchen Sie den nächsten freien.",
+      "startingAt": "MCP wird unter {url} gestartet", "portInUse": "Eine andere App verwendet Port {port}, daher können sich Agenten nicht verbinden.", "portDenied": "Ihr System erlaubt Hronaut Port {port} nicht, daher können sich Agenten nicht verbinden.", "portNote": "Hronaut kann stattdessen einen freien Port verwenden; geben Sie Ihrem Coding-Agenten danach die neue Adresse.", "portNoneFree": "Wählen Sie unter Einstellungen → MCP-Sicherheit einen anderen Port.", "usePort": "Port {port} verwenden", "portTaken": "Port {port} wurde inzwischen belegt.", "portMoveFailed": "Hronaut konnte nicht zu Port {port} wechseln. Wählen Sie unter Einstellungen → MCP-Sicherheit einen anderen Port.",
       "title": "MCP: {url}",
       "unknown": "Unbekannter Startfehler",
       "settling": "Agenten pausiert · {count} laufen noch",

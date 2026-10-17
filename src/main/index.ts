@@ -101,7 +101,7 @@ import { ClaudeCodeSetup, claudeCodeConfigPath } from './claude-code-setup.js'
 import { detectAgentClients } from './agent-client-detection.js'
 import type { HomeSetupState } from '../shared/claude-code-setup.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
-import { mcpListenErrorCode, suggestMcpPort } from './mcp-port-suggestion.js'
+import { McpPortRecovery } from './mcp-port-suggestion.js'
 import {
   shouldStartMinimized,
   StartupLaunchManager
@@ -180,7 +180,8 @@ import {
   type HelpMenuAction,
   type LanguagePreference,
   type McpControlState,
-  type McpListenErrorCode,
+  type McpPortMoveResponse,
+  type McpPortMoveResult,
   type McpServerStatus,
   type McpCapabilityProfileCreateInput,
   type PanelDock,
@@ -342,8 +343,13 @@ const mcpActionTracker = new McpActionTracker(() => {
 })
 let mcpRuntimeStatus: Exclude<McpServerStatus, 'paused'> = 'starting'
 let mcpStartupError: string | undefined
-/** Why the listener could not start on its port, and a free port to offer instead; cleared once it listens. */
-let mcpStartupFailure: { code: McpListenErrorCode; port: number; suggestedPort?: number } | undefined
+/** Why the listener could not start on its port, and the free port to offer instead; cleared once it listens. */
+const mcpPortRecovery = new McpPortRecovery({
+  host: () => MCP_HOST,
+  failed: () => mcpRuntimeStatus === 'error',
+  listen: (port) => setMcpPort(port),
+  changed: () => publishMcpControlState({ refreshHome: false })
+})
 let tray: Tray | null = null
 let quitting = false
 let windowStateStore: WindowStateStore | null = null
@@ -760,43 +766,48 @@ function currentMcpControlState(): McpControlState {
         : initialized.length ? 'unknown' : 'blocked'
     },
     ...(mcpStartupError ? { error: mcpStartupError } : {}),
-    ...(mcpRuntimeStatus === 'error' && mcpStartupFailure ? {
-      errorCode: mcpStartupFailure.code,
-      failedPort: mcpStartupFailure.port,
-      ...(mcpStartupFailure.suggestedPort ? { suggestedPort: mcpStartupFailure.suggestedPort } : {})
+    ...(mcpRuntimeStatus === 'error' && mcpPortRecovery.failure ? {
+      errorCode: mcpPortRecovery.failure.code,
+      failedPort: mcpPortRecovery.failure.port,
+      ...(mcpPortRecovery.failure.suggestedPort ? { suggestedPort: mcpPortRecovery.failure.suggestedPort } : {})
     } : {})
   }
 }
 
-/** Records why the listener could not start on `port`; a busy or refused port gets a free one to offer. */
-async function recordMcpStartupFailure(error: unknown, port: number): Promise<void> {
-  const code = mcpListenErrorCode(error)
-  const suggestedPort = code === 'other' ? undefined : await suggestMcpPort(port, MCP_HOST)
-  mcpStartupFailure = { code, port, ...(suggestedPort ? { suggestedPort } : {}) }
-}
-
 /**
- * Moves a listener that could not start to the free port Hronaut offered. Only that exact port is accepted, so a page
- * cannot pick an arbitrary one; if it was taken meanwhile, the next free port is offered instead.
+ * The startup dialog for a listener that could not start. A busy or refused port offers the free one; if that was taken
+ * meanwhile, the dialog comes back with the next offer. It closes itself once the listener starts from Home or Settings.
  */
-async function moveMcpToSuggestedPort(port: unknown): Promise<McpControlState> {
-  const failure = mcpStartupFailure
-  if (mcpRuntimeStatus !== 'error' || !failure?.suggestedPort || port !== failure.suggestedPort) {
-    throw new Error('That port is no longer offered.')
-  }
-  try {
-    await setMcpPort(failure.suggestedPort)
-  } catch (error) {
-    if (mcpStartupFailure === failure && mcpRuntimeStatus === 'error') {
-      const suggestedPort = await suggestMcpPort(failure.suggestedPort, MCP_HOST)
-      if (mcpStartupFailure === failure && mcpRuntimeStatus === 'error') {
-        mcpStartupFailure = { code: failure.code, port: failure.port, ...(suggestedPort ? { suggestedPort } : {}) }
-        publishMcpControlState({ refreshHome: false })
-      }
+async function showMcpStartupFailure(): Promise<void> {
+  for (let attempt = 0; attempt < 3 && mcpRuntimeStatus === 'error'; attempt++) {
+    const failure = mcpPortRecovery.failure
+    const problem = failure && failure.code !== 'other' ? failure : undefined
+    const signal = mcpPortRecovery.signal
+    const { response } = await showMessageBox({
+      type: 'error',
+      title: text('native.dialog.mcpFailedTitle'),
+      message: problem
+        ? text(problem.code === 'port-in-use' ? 'native.dialog.mcpPortInUseMessage' : 'native.dialog.mcpPortDeniedMessage', { port: problem.port })
+        : text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: mcpPort }),
+      detail: problem
+        ? (problem.suggestedPort ? text('native.dialog.mcpPortSuggestion', { port: problem.suggestedPort }) : text('native.dialog.mcpPortNoneFree'))
+        : mcpStartupError,
+      signal,
+      ...(problem?.suggestedPort ? {
+        buttons: [text('native.dialog.notNow'), text('native.dialog.mcpUsePort', { port: problem.suggestedPort })],
+        defaultId: 1,
+        cancelId: 0,
+        noLink: true
+      } : {})
+    })
+    // A port the person changed meanwhile, from Home or Settings, wins over this older answer.
+    if (signal.aborted || response !== 1 || !problem?.suggestedPort || mcpPortRecovery.failure !== failure) return
+    const result = await mcpPortRecovery.move(problem.suggestedPort)
+    if (result.outcome === 'failed') {
+      await showMessageBox({ type: 'error', title: text('native.dialog.mcpFailedTitle'), message: text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: result.port }) })
     }
-    throw error
+    if (result.outcome !== 'taken') return
   }
-  return currentMcpControlState()
 }
 
 function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
@@ -2719,9 +2730,10 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return currentMcpControlState()
   })
-  handleBrowserIpc('mcp:move-to-suggested-port', (event, port: unknown) => {
+  handleBrowserIpc('mcp:move-to-suggested-port', async (event, port: unknown): Promise<McpPortMoveResponse> => {
     assertTrustedShellSender(event)
-    return moveMcpToSuggestedPort(port)
+    const result = await mcpPortRecovery.move(port)
+    return { result, state: currentMcpControlState() }
   })
   handleBrowserIpc('mcp:set-paused', (event, paused: unknown) => {
     assertTrustedShellSender(event)
@@ -2857,9 +2869,9 @@ function registerIpc(): void {
     'hronaut-home:open-agent-guide',
     agentGuideHandler(assertHomePageSender, (url) => shell.openExternal(url))
   )
-  handleBrowserIpc('hronaut-home:use-mcp-port', async (event, port: unknown) => {
+  handleBrowserIpc('hronaut-home:use-mcp-port', async (event, port: unknown): Promise<McpPortMoveResult> => {
     assertHomeMainFrame(event)
-    await moveMcpToSuggestedPort(port)
+    return mcpPortRecovery.move(port)
   })
   handleBrowserIpc('hronaut-home:setup-state', async (event): Promise<HomeSetupState> => {
     assertHomeMainFrame(event)
@@ -4914,7 +4926,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
     await candidate.start()
   } catch (error) {
     await candidate.stop().catch(() => undefined)
-    throw new Error(`Could not listen on ${MCP_HOST}:${port}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`Could not listen on ${MCP_HOST}:${port}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
   }
 
   try {
@@ -4935,7 +4947,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
   mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${port}/mcp`
   mcpRuntimeStatus = 'ready'
   mcpStartupError = undefined
-  mcpStartupFailure = undefined
+  mcpPortRecovery.clear()
   tabsManager?.setMcpUrl(mcpUrl)
   publishSettings()
   publishMcpControlState()
@@ -5001,7 +5013,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${DEFAULT_MCP_PORT}/mcp`
   mcpRuntimeStatus = 'ready'
   mcpStartupError = undefined
-  mcpStartupFailure = undefined
+  mcpPortRecovery.clear()
   tabsManager?.setMcpUrl(mcpUrl)
   publishSettings()
   publishMcpControlState()
@@ -5105,7 +5117,7 @@ app.whenReady().then(async () => {
     const url = await mcpServer.start()
     mcpRuntimeStatus = 'ready'
     mcpStartupError = undefined
-    mcpStartupFailure = undefined
+    mcpPortRecovery.clear()
     // Listener status is polled by Home; startup changes no bootstrap settings.
     // Reloading here races module initialization and discards early setup input.
     publishMcpControlState({ refreshHome: false })
@@ -5113,31 +5125,10 @@ app.whenReady().then(async () => {
   } catch (error) {
     mcpRuntimeStatus = 'error'
     mcpStartupError = error instanceof Error ? error.message : String(error)
-    await recordMcpStartupFailure(error, mcpPort)
+    await mcpPortRecovery.record(error, mcpPort)
     publishMcpControlState({ refreshHome: false })
     console.error('[mcp] Failed to start:', error)
-    const failure = mcpStartupFailure
-    const problem = failure && failure.code !== 'other' ? failure : undefined
-    const { response } = await showMessageBox({
-      type: 'error',
-      title: text('native.dialog.mcpFailedTitle'),
-      message: problem
-        ? text(problem.code === 'port-in-use' ? 'native.dialog.mcpPortInUseMessage' : 'native.dialog.mcpPortDeniedMessage', { port: problem.port })
-        : text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: mcpPort }),
-      detail: problem
-        ? (problem.suggestedPort ? text('native.dialog.mcpPortSuggestion', { port: problem.suggestedPort }) : text('native.dialog.mcpPortNoneFree'))
-        : mcpStartupError,
-      ...(problem?.suggestedPort ? {
-        buttons: [text('native.dialog.notNow'), text('native.dialog.mcpUsePort', { port: problem.suggestedPort })],
-        defaultId: 1,
-        cancelId: 0,
-        noLink: true
-      } : {})
-    })
-    // A port the person changed meanwhile, from Home or Settings, wins over this older answer.
-    if (response === 1 && problem?.suggestedPort && mcpStartupFailure === failure) {
-      await moveMcpToSuggestedPort(problem.suggestedPort).catch((moveError) => console.error('[mcp] Could not move to the suggested port:', moveError))
-    }
+    await showMcpStartupFailure()
   }
   if (settings.checkForUpdatesOnStartup) {
     setTimeout(() => void checkForUpdates(), 5_000)

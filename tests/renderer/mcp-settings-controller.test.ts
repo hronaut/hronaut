@@ -2,7 +2,7 @@ import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
-import type { AppSettings, McpCapabilityCredentialResult, McpCapabilityProfileSummary } from '../../src/shared/types.js'
+import type { AppSettings, McpCapabilityCredentialResult, McpCapabilityProfileSummary, McpPortMoveResult } from '../../src/shared/types.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -19,6 +19,11 @@ function createController() {
   const endpoint = ref('http://127.0.0.1:47812/mcp')
   const listenerFailed = ref(false)
   const suggestedPort = ref<number | undefined>(undefined)
+  const moveToSuggestedPort = vi.fn(async (): Promise<McpPortMoveResult | null> => {
+    const port = suggestedPort.value!
+    settings.value = { ...settings.value, mcpPort: port }
+    return { outcome: 'moved', port }
+  })
   const setAuthentication = vi.fn(async (enabled: boolean) => {
     settings.value = { ...settings.value, mcpAuthentication: enabled }
     return settings.value
@@ -59,6 +64,7 @@ function createController() {
     endpoint,
     listenerFailed,
     suggestedPort,
+    moveToSuggestedPort,
     setRemoteAccess,
     setAuthentication,
     setPort,
@@ -76,6 +82,7 @@ function createController() {
   })
   return {
     controller,
+    moveToSuggestedPort,
     confirmDisableAuthentication,
     listenerFailed,
     suggestedPort,
@@ -95,19 +102,39 @@ function createController() {
 }
 
 describe('MCP settings controller', () => {
-  it('moves to the suggested port only while the listener failed, through the normal port path', async () => {
-    const { controller, listenerFailed, suggestedPort, setPort } = createController()
+  it('moves to the suggested port only while the listener failed, through main\'s offer rather than Apply port', async () => {
+    const { controller, listenerFailed, suggestedPort, setPort, moveToSuggestedPort } = createController()
     suggestedPort.value = 47813
     expect(await controller.applySuggestedPort()).toBe(false)
-    expect(setPort).not.toHaveBeenCalled()
+    expect(moveToSuggestedPort).not.toHaveBeenCalled()
     listenerFailed.value = true
     expect(await controller.applySuggestedPort()).toBe(true)
-    expect(setPort).toHaveBeenCalledWith(47813)
+    expect(moveToSuggestedPort).toHaveBeenCalledTimes(1)
+    expect(setPort).not.toHaveBeenCalled()
     expect(controller.portDraft.value).toBe('47813')
     expect(controller.portState.value).toBe('saved')
+    expect(controller.portMessage.value).toBe('runtimeActions.mcp.active:{"port":47813}')
     suggestedPort.value = undefined
     expect(await controller.applySuggestedPort()).toBe(false)
-    expect(setPort).toHaveBeenCalledTimes(1)
+    expect(moveToSuggestedPort).toHaveBeenCalledTimes(1)
+    controller.dispose()
+  })
+
+  it('says when the suggested port was taken or the move failed, and keeps the field', async () => {
+    const { controller, listenerFailed, suggestedPort, moveToSuggestedPort } = createController()
+    listenerFailed.value = true
+    suggestedPort.value = 47813
+    moveToSuggestedPort.mockResolvedValueOnce({ outcome: 'taken', port: 47813 })
+    expect(await controller.applySuggestedPort()).toBe(false)
+    expect(controller.portState.value).toBe('error')
+    expect(controller.portMessage.value).toBe('runtime.mcp.portTaken:{"port":47813}')
+    expect(controller.portDraft.value).toBe(String(DEFAULT_RENDERER_SETTINGS.mcpPort))
+    moveToSuggestedPort.mockResolvedValueOnce({ outcome: 'failed', port: 47813 })
+    expect(await controller.applySuggestedPort()).toBe(false)
+    expect(controller.portMessage.value).toBe('runtime.mcp.portMoveFailed:{"port":47813}')
+    moveToSuggestedPort.mockResolvedValueOnce({ outcome: 'not-offered' })
+    expect(await controller.applySuggestedPort()).toBe(false)
+    expect(controller.portState.value).toBe('idle')
     controller.dispose()
   })
 

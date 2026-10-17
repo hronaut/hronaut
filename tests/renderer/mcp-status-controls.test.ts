@@ -17,7 +17,7 @@ function control(overrides: Partial<McpControlState> = {}): McpControlState {
   return { status: 'ready', paused: false, ...overrides }
 }
 
-function renderControls(initial = control(), moveToSuggestedPort: HronautMcpApi['moveToSuggestedPort'] = vi.fn(async () => control())) {
+function renderControls(initial = control(), moveToSuggestedPort: HronautMcpApi['moveToSuggestedPort'] = vi.fn(async (port: number) => ({ result: { outcome: 'moved' as const, port }, state: control() }))) {
   const setPaused = vi.fn(async (paused: boolean) => control({ status: paused ? 'paused' : 'ready', paused }))
   const api: HronautMcpApi = {
     getState: vi.fn(async () => initial),
@@ -43,7 +43,8 @@ function renderControls(initial = control(), moveToSuggestedPort: HronautMcpApi[
 describe('McpStatusControls', () => {
   it('says another app has the port and moves to the free one it offers, or says it was taken', async () => {
     const failed = control({ status: 'error', error: 'listen EADDRINUSE: address already in use 127.0.0.1:47812', errorCode: 'port-in-use', failedPort: 47812, suggestedPort: 47813 })
-    const move = vi.fn(async (): Promise<McpControlState> => { throw new Error('taken') })
+    // Main found 47813 taken meanwhile and offers 47814 in the state it returns.
+    const move = vi.fn(async (port: number) => ({ result: { outcome: 'taken' as const, port }, state: { ...failed, suggestedPort: 47814 } }))
     const { controller } = renderControls(failed, move)
     const user = userEvent.setup()
     const trigger = screen.getByRole('button', { name: 'Agents can’t connect' })
@@ -52,12 +53,37 @@ describe('McpStatusControls', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Another app is using port 47812')
     await user.click(screen.getByRole('button', { name: 'Use port 47813' }))
     expect(move).toHaveBeenCalledWith(47813)
-    await vi.waitFor(() => expect(screen.getByText('Port 47813 was taken in the meantime. Try the next free one.')).toBeVisible())
+    await vi.waitFor(() => expect(screen.getByText('Port 47813 was taken in the meantime.')).toBeVisible())
+    expect(screen.getByRole('button', { name: 'Use port 47814' })).toBeVisible()
     controller.accept({ ...failed, suggestedPort: undefined })
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: /Use port/ })).toBeNull())
     expect(screen.getByRole('alert')).toHaveTextContent('Choose another port in Settings → MCP security.')
     controller.accept(control({ status: 'error', error: 'boom', errorCode: 'other', failedPort: 47812 }))
     await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    controller.dispose()
+  })
+
+  it('moves to the offered port and puts focus on copying the new address', async () => {
+    const failed = control({ status: 'error', errorCode: 'port-in-use', failedPort: 47812, suggestedPort: 47813 })
+    const move = vi.fn(async (port: number) => ({ result: { outcome: 'moved' as const, port }, state: control() }))
+    const { controller } = renderControls(failed, move)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Agents can’t connect' }))
+    await user.click(screen.getByRole('button', { name: 'Use port 47813' }))
+    await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(screen.getByRole('button', { name: 'Copy URL' })).toHaveFocus()
+    controller.dispose()
+  })
+
+  it('says a move that failed for another reason, without calling the port taken', async () => {
+    const failed = control({ status: 'error', errorCode: 'port-in-use', failedPort: 47812, suggestedPort: 47813 })
+    const move = vi.fn(async (port: number) => ({ result: { outcome: 'failed' as const, port }, state: failed }))
+    const { controller } = renderControls(failed, move)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Agents can’t connect' }))
+    await user.click(screen.getByRole('button', { name: 'Use port 47813' }))
+    await vi.waitFor(() => expect(screen.getByText('Hronaut couldn\'t switch to port 47813. Choose another port in Settings → MCP security.')).toBeVisible())
+    expect(screen.queryByText(/was taken/u)).toBeNull()
     controller.dispose()
   })
 

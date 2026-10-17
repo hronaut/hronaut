@@ -933,7 +933,7 @@ export const frFR = {
       "error": "Erreur MCP",
       "ready": "MCP prêt",
       "failed": "Échec de MCP : {error}",
-      "startingAt": "MCP démarre à l’adresse {url}", "portInUse": "Une autre application utilise le port {port} : les agents ne peuvent pas se connecter.", "portDenied": "Votre système n’autorise pas Hronaut à utiliser le port {port} : les agents ne peuvent pas se connecter.", "portNote": "Hronaut peut utiliser un port libre ; donnez ensuite la nouvelle adresse à votre agent de code.", "portNoneFree": "Choisissez un autre port dans Paramètres → Sécurité MCP.", "usePort": "Utiliser le port {port}", "portTaken": "Le port {port} a été pris entre-temps. Essayez le suivant libre.",
+      "startingAt": "MCP démarre à l’adresse {url}", "portInUse": "Une autre application utilise le port {port} : les agents ne peuvent pas se connecter.", "portDenied": "Votre système n’autorise pas Hronaut à utiliser le port {port} : les agents ne peuvent pas se connecter.", "portNote": "Hronaut peut utiliser un port libre ; donnez ensuite la nouvelle adresse à votre agent de code.", "portNoneFree": "Choisissez un autre port dans Paramètres → Sécurité MCP.", "usePort": "Utiliser le port {port}", "portTaken": "Le port {port} a été pris entre-temps.", "portMoveFailed": "Hronaut n’a pas pu passer au port {port}. Choisissez un autre port dans Paramètres → Sécurité MCP.",
       "title": "MCP : {url}",
       "unknown": "Erreur de démarrage inconnue",
       "settling": "Agents en pause · {count} en cours",

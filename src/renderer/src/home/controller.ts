@@ -320,18 +320,18 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   }
   /** A busy or refused port says so and offers the free port main found; anything else stays under Details. */
   let portSequence = 0
-  let portTaken: number | null = null
+  let portFailure: { outcome: 'taken' | 'failed'; port: number } | null = null
   function renderPortProblem(): void {
     const problem = mcpPortProblem(dashboard)
     element('mcp-port-problem').hidden = !problem
-    if (!problem) { portTaken = null; return }
+    if (!problem) { portFailure = null; return }
     const mcp = data.messages.runtime.mcp
     const suggested = dashboard.suggestedPort
+    // Only changed text is written: Home refreshes every few seconds and the section is an alert.
     text('mcp-port-problem-text', `${interpolate(mcp[problem.key], { port: problem.port })} ${suggested ? mcp.portNote : mcp.portNoneFree}`)
-    const use = element<HTMLButtonElement>('mcp-port-use')
-    use.hidden = !suggested
-    if (suggested) use.textContent = interpolate(mcp.usePort, { port: suggested })
-    text('mcp-port-status', portTaken === null ? '' : interpolate(mcp.portTaken, { port: portTaken }))
+    element<HTMLButtonElement>('mcp-port-use').hidden = !suggested
+    if (suggested) text('mcp-port-use', interpolate(mcp.usePort, { port: suggested }))
+    text('mcp-port-status', portFailure ? interpolate(portFailure.outcome === 'taken' ? mcp.portTaken : mcp.portMoveFailed, { port: portFailure.port }) : '')
   }
   element<HTMLButtonElement>('mcp-port-use').addEventListener('click', async () => {
     const button = element<HTMLButtonElement>('mcp-port-use')
@@ -339,13 +339,17 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (!port || button.disabled || !api?.useMcpPort) return
     const current = ++portSequence
     button.disabled = true
-    portTaken = null
+    portFailure = null
     text('mcp-port-status', '')
     try {
-      // Home reloads on the new address once the listener moves.
-      await api.useMcpPort(port)
+      // Home reloads on the new address once the listener moves; a taken port comes back with the next offer.
+      const result = await api.useMcpPort(port)
+      if (current === portSequence && !signal.aborted && (result.outcome === 'taken' || result.outcome === 'failed')) {
+        portFailure = { outcome: result.outcome, port: result.port }
+        renderPortProblem()
+      }
     } catch {
-      if (current === portSequence && !signal.aborted) { portTaken = port; renderPortProblem() }
+      if (current === portSequence && !signal.aborted) { portFailure = { outcome: 'failed', port }; renderPortProblem() }
     } finally {
       if (current === portSequence && !signal.aborted) button.disabled = false
     }

@@ -215,6 +215,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     endpoint: computed(() => options.browserState.value.mcpUrl),
     listenerFailed: computed(() => mcpStatusController.state.value.status === 'error'),
     suggestedPort: computed(() => mcpStatusController.state.value.status === 'error' ? mcpStatusController.state.value.suggestedPort : undefined),
+    moveToSuggestedPort: () => mcpStatusController.moveToSuggestedPort(),
     listenerProblem: computed(() => {
       const problem = mcpPortProblem(mcpStatusController.state.value)
       return problem ? options.translate(`runtime.mcp.${problem.key}`, { port: problem.port }) : ''

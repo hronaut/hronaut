@@ -933,7 +933,7 @@ export const esES = {
       "error": "Error de MCP",
       "ready": "MCP listo",
       "failed": "MCP ha fallado: {error}",
-      "startingAt": "MCP se está iniciando en {url}", "portInUse": "Otra aplicación está usando el puerto {port}, así que los agentes no pueden conectarse.", "portDenied": "Tu sistema no permite que Hronaut use el puerto {port}, así que los agentes no pueden conectarse.", "portNote": "Hronaut puede usar un puerto libre; después, da la nueva dirección a tu agente de programación.", "portNoneFree": "Elige otro puerto en Configuración → Seguridad MCP.", "usePort": "Usar el puerto {port}", "portTaken": "El puerto {port} se ocupó mientras tanto. Prueba el siguiente libre.",
+      "startingAt": "MCP se está iniciando en {url}", "portInUse": "Otra aplicación está usando el puerto {port}, así que los agentes no pueden conectarse.", "portDenied": "Tu sistema no permite que Hronaut use el puerto {port}, así que los agentes no pueden conectarse.", "portNote": "Hronaut puede usar un puerto libre; después, da la nueva dirección a tu agente de programación.", "portNoneFree": "Elige otro puerto en Configuración → Seguridad MCP.", "usePort": "Usar el puerto {port}", "portTaken": "El puerto {port} se ocupó mientras tanto.", "portMoveFailed": "Hronaut no pudo cambiar al puerto {port}. Elige otro puerto en Configuración → Seguridad MCP.",
       "title": "MCP: {url}",
       "unknown": "Error de inicio desconocido",
       "settling": "Agentes en pausa · {count} en curso",

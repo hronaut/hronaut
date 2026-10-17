@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { UiButton, UiCheckbox } from '../ui/index.js'
-import { onMounted, onUnmounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
@@ -42,6 +42,14 @@ const {
   revokeCapabilityProfile,
   clearCapabilityCredential
 } = props.controller
+
+const portInput = ref<HTMLInputElement | null>(null)
+/** After a move the offer disappears with its button, so focus goes back to the port field. */
+async function useSuggestedPort(): Promise<void> {
+  if (!(await applySuggestedPort())) return
+  await nextTick()
+  if (!document.activeElement || document.activeElement === document.body) portInput.value?.focus()
+}
 
 const profileName = ref('')
 const profilePreset = ref<McpCapabilityProfilePreset>('read-only')
@@ -204,6 +212,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <div>
             <input
               id="setting-mcp-port"
+              ref="portInput"
               :value="portDraft"
               type="number"
               inputmode="numeric"
@@ -225,7 +234,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           </div>
           <div v-if="listenerProblem" class="mcp-port-problem" role="alert">
             <span>{{ listenerProblem }} {{ suggestedPort ? t('runtime.mcp.portNote') : t('runtime.mcp.portNoneFree') }}</span>
-            <UiButton v-if="suggestedPort" size="small" variant="primary" :disabled="busy" @click="applySuggestedPort">{{ t('runtime.mcp.usePort', { port: suggestedPort }) }}</UiButton>
+            <UiButton v-if="suggestedPort" size="small" variant="primary" :disabled="busy" @click="useSuggestedPort">{{ t('runtime.mcp.usePort', { port: suggestedPort }) }}</UiButton>
           </div>
           <output
             class="mcp-port-status"

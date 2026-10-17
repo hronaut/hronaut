@@ -333,6 +333,7 @@
 .mcp-port-status.saved { @apply [color:var(--success)]; }
 .mcp-port-status.error { @apply [color:#d9534f]; }
 .mcp-port-control > .mcp-port-problem { @apply grid [justify-items:end] [margin-top:8px] [gap:6px] text-copy text-right [font-size:var(--type-small-size)] [line-height:1.4]; }
+.mcp-port-control > .mcp-port-problem .ui-button { @apply [min-height:32px]; }
 .mcp-capabilities { @apply [margin-top:30px] [padding-top:26px] [border-top:1px_solid_var(--border-soft)]; }
 .mcp-capability-form { @apply grid [margin-top:18px] [gap:14px] [grid-template-columns:repeat(2,_minmax(0,_1fr))]; }
 .mcp-capability-form label { @apply flex min-w-0 flex-col [gap:6px] [font-size:var(--type-body-size)]; }

@@ -27,3 +27,4 @@
 .mcp-port-problem { display: grid; gap: 8px; justify-items: start; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); border-radius: var(--corner-2); background: color-mix(in srgb, var(--danger) 7%, var(--panel)); }
 .mcp-readiness-summary .mcp-port-problem p { color: var(--text); }
 .mcp-readiness-summary .mcp-port-problem .mcp-port-taken { color: var(--danger); }
+.mcp-port-problem .ui-button { min-height: 32px; }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import UiPopover from '../ui/UiPopover.vue'
 import '../styles/mcp-readiness.css'
 import { useI18n } from 'vue-i18n'
@@ -41,6 +41,17 @@ const portProblem = computed(() => {
   const problem = mcpPortProblem(state.value)
   return problem ? t(`runtime.mcp.${problem.key}`, { port: problem.port }) : ''
 })
+const portFailure = computed(() => portFailed.value
+  ? t(`runtime.mcp.${portFailed.value.outcome === 'taken' ? 'portTaken' : 'portMoveFailed'}`, { port: portFailed.value.port })
+  : '')
+const summary = ref<HTMLElement | null>(null)
+/** After a move the offer disappears with its button, so focus goes to copying the new address. */
+async function usePort(): Promise<void> {
+  const result = await moveToSuggestedPort()
+  if (result?.outcome !== 'moved') return
+  await nextTick()
+  if (!document.activeElement || document.activeElement === document.body) summary.value?.querySelector<HTMLElement>('.mcp-copy-endpoint')?.focus()
+}
 const statusTitle = computed(() => {
   if (portProblem.value) return portProblem.value
   if (state.value.status === 'error') return t('runtime.mcp.failed', { error: state.value.error ?? t('runtime.mcp.unknown') })
@@ -78,12 +89,12 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
   <div class="mcp-controls" :class="[state.status, { 'needs-you': agents.kind === 'needs-you' }]">
     <UiPopover v-model="summaryOpen" class="mcp-summary" trigger-class="mcp-pill" :label="statusLabel" :title="statusTitle" placement="bottom-end" holds-page>
       <template #trigger><span class="status-dot" /><span class="mcp-pill-label">{{ statusLabel }}</span></template>
-      <section class="mcp-readiness-summary" :aria-label="t('home.readiness.heading')">
+      <section ref="summary" class="mcp-readiness-summary" :aria-label="t('home.readiness.heading')">
         <strong>{{ t('home.readiness.heading') }}</strong>
         <div v-if="portProblem" class="mcp-port-problem" role="alert">
           <p>{{ portProblem }} {{ state.suggestedPort ? t('runtime.mcp.portNote') : t('runtime.mcp.portNoneFree') }}</p>
-          <p v-if="portFailed" class="mcp-port-taken">{{ t('runtime.mcp.portTaken', { port: portFailed }) }}</p>
-          <UiButton v-if="state.suggestedPort" size="small" variant="primary" :busy="portBusy" @click="moveToSuggestedPort">{{ t('runtime.mcp.usePort', { port: state.suggestedPort }) }}</UiButton>
+          <p v-if="portFailure" class="mcp-port-taken">{{ portFailure }}</p>
+          <UiButton v-if="state.suggestedPort" size="small" variant="primary" :busy="portBusy" @click="usePort">{{ t('runtime.mcp.usePort', { port: state.suggestedPort }) }}</UiButton>
         </div>
         <dl>
           <div><dt>{{ t('home.readiness.checks.endpoint') }}</dt><dd>{{ t(`runtime.mcp.${state.status === 'ready' ? 'ready' : state.status === 'paused' ? 'paused' : state.status === 'error' ? 'error' : 'starting'}`) }}</dd></div>
@@ -93,7 +104,7 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
         <p v-if="props.controller.refreshFailed.value" role="status">{{ t('home.journey.unavailable') }}</p>
         <p v-else>{{ t(state.paused ? 'runtime.mcp.pauseGuidance' : !state.readiness?.initializedClientCount ? 'home.readiness.nextAction.connect_client' : state.readiness.probe === 'probe_verified' ? 'home.readiness.nextAction.none' : state.readiness.probe === 'probe_failed' ? 'home.readiness.nextAction.retry_read_only_probe' : 'home.readiness.nextAction.run_read_only_probe') }}</p>
         <code>{{ endpoint }}</code>
-        <UiButton size="small" @click="copyEndpoint">{{ t(copied ? 'runtime.mcp.copied' : 'home.copyUrl') }}</UiButton>
+        <UiButton class="mcp-copy-endpoint" size="small" @click="copyEndpoint">{{ t(copied ? 'runtime.mcp.copied' : 'home.copyUrl') }}</UiButton>
       </section>
     </UiPopover>
     <UiButton appearance="application"

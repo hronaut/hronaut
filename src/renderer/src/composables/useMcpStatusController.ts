@@ -1,6 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
-import type { HronautMcpApi, McpControlState } from '../../../shared/types.js'
+import type { HronautMcpApi, McpControlState, McpPortMoveResult } from '../../../shared/types.js'
 
 export interface McpStatusControllerOptions {
   api: HronautMcpApi
@@ -16,8 +16,8 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   const refreshFailed = ref(false)
   const pauseBusy = ref(false)
   const portBusy = ref(false)
-  /** The suggested port that could not be used, so the person sees why the button changed. */
-  const portFailed = ref<number | null>(null)
+  /** The last move to the offered port that did not happen: the port was taken meanwhile, or the move failed. */
+  const portFailed = ref<{ outcome: 'taken' | 'failed'; port: number } | null>(null)
   let generation = 0
   let listenerGeneration = 0
   let revision = 0
@@ -151,22 +151,24 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     }
   }
 
-  /** Moves the listener to the free port main suggested after the configured one failed. */
-  async function moveToSuggestedPort(): Promise<boolean> {
+  /** Moves the listener to the free port main suggested after the configured one failed; null when nothing was tried. */
+  async function moveToSuggestedPort(): Promise<McpPortMoveResult | null> {
     const port = state.value.suggestedPort
-    if (portBusy.value || state.value.status !== 'error' || !port) return false
+    if (portBusy.value || state.value.status !== 'error' || !port) return null
     const operationGeneration = generation
     const startingRevision = revision
     portBusy.value = true
     portFailed.value = null
     try {
-      const next = await options.api.moveToSuggestedPort(port)
-      if (operationGeneration !== generation) return false
+      const { result, state: next } = await options.api.moveToSuggestedPort(port)
+      if (operationGeneration !== generation) return null
       if (revision === startingRevision) accept(next)
-      return true
+      if (result.outcome === 'taken' || result.outcome === 'failed') portFailed.value = { outcome: result.outcome, port: result.port }
+      return result
     } catch {
-      if (operationGeneration === generation) portFailed.value = port
-      return false
+      if (operationGeneration !== generation) return null
+      portFailed.value = { outcome: 'failed', port }
+      return { outcome: 'failed', port }
     } finally {
       if (operationGeneration === generation) portBusy.value = false
     }

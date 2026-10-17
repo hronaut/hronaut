@@ -1,6 +1,6 @@
 import type { AgentGuide, ClientConfigurationOptions } from './client-configuration.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from './home-workspaces.js'
-import type { McpActivityOutcome, McpActivityResult, McpListenErrorCode, McpServerStatus } from './types.js'
+import type { McpActivityOutcome, McpActivityResult, McpListenErrorCode, McpPortMoveResult, McpServerStatus } from './types.js'
 import type { ResolvedThemeName } from './theme.js'
 import type { ConnectedAgent } from './agent-status.js'
 import type { AgentPresenceState, AgentRecentStep } from './agent-presence.js'
@@ -96,5 +96,5 @@ export interface HronautHomeApi {
   /** Main asks the person natively, then makes the planned change. */
   applyClaudeCodeSetup?(planId: string): Promise<ClaudeCodeSetupResult>
   /** Moves a listener that could not start to the free port main offered; only that port is accepted. */
-  useMcpPort?(port: number): Promise<void>
+  useMcpPort?(port: number): Promise<McpPortMoveResult>
 }
