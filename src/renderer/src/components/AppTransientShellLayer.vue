@@ -292,6 +292,7 @@ defineExpose({
     ref="commandPalette"
     v-model:open="commandsOpen"
     :website-available="websiteAvailable"
+    :active-workspace-id="activeTab?.mcpGroupId"
     :format-number="formatNumber"
     :run-command="runCommand"
     :report-command-error="reportCommandError"

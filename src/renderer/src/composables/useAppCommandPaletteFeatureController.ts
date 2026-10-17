@@ -141,7 +141,9 @@ export function useAppCommandPaletteFeatureController<
       'mcp-security': () => options.settings.openSection('mcp'),
       updates: options.site.openUpdateSettings,
       'keyboard-shortcuts': () => options.settings.openHelp('shortcuts'),
-      'toggle-mcp-pause': options.settings.toggleMcpPaused
+      'toggle-mcp-pause': options.settings.toggleMcpPaused,
+      'agent-card': () => options.browser.runShortcut('agent-card'),
+      'take-over': () => options.browser.runShortcut('take-over')
     }
   })
 }

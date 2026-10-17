@@ -1,4 +1,4 @@
-export type CommandPaletteCategory = 'Navigation' | 'Current website' | 'Application'
+export type CommandPaletteCategory = 'Agents' | 'Navigation' | 'Current website' | 'Application'
 
 export type CommandPaletteCommandId =
   | 'home'
@@ -47,6 +47,8 @@ export type CommandPaletteCommandId =
   | 'updates'
   | 'keyboard-shortcuts'
   | 'toggle-mcp-pause'
+  | 'agent-card'
+  | 'take-over'
 
 export interface CommandPaletteCommand {
   id: CommandPaletteCommandId
@@ -56,6 +58,8 @@ export interface CommandPaletteCommand {
   keywords?: readonly string[]
   shortcut?: string
   websiteOnly?: boolean
+  /** Offered only while an agent works in the workspace in view. */
+  agentOnly?: boolean
 }
 
 export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
@@ -104,8 +108,45 @@ export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
   { id: 'mcp-security', label: 'Open MCP security', description: 'Change authentication and server port', category: 'Application', keywords: ['agent', 'token', 'port'] },
   { id: 'updates', label: 'Check for updates', description: 'Open software update settings', category: 'Application', keywords: ['upgrade', 'version'] },
   { id: 'keyboard-shortcuts', label: 'Show keyboard shortcuts', description: 'Review Hronaut keyboard controls', category: 'Application', keywords: ['help', 'keys'] },
-  { id: 'toggle-mcp-pause', label: 'Pause or resume agents', description: 'Control whether Hronaut accepts new MCP commands', category: 'Application', keywords: ['mcp', 'safety', 'stop'] }
+  { id: 'agent-card', label: 'Show agent details', description: 'Open the card of the agent working in this workspace', category: 'Agents', keywords: ['agent', 'status', 'steps', 'claude', 'codex', 'cursor'], shortcut: 'Ctrl/Cmd+.', agentOnly: true },
+  { id: 'take-over', label: 'Take over from the agent', description: 'Pause the agent on this tab and carry on yourself', category: 'Agents', keywords: ['agent', 'control', 'pause', 'hand back'], shortcut: 'Ctrl/Cmd+Shift+O', agentOnly: true, websiteOnly: true },
+  { id: 'toggle-mcp-pause', label: 'Pause or resume agents', description: 'Control whether Hronaut accepts new MCP commands', category: 'Agents', keywords: ['mcp', 'safety', 'stop'] }
 ]
+
+/** How the list is divided, in the order it shows when nothing is typed. */
+export type CommandPaletteSectionId = 'recent' | 'agents' | 'navigation' | 'website' | 'application'
+
+export interface CommandPaletteSection<T extends CommandPaletteCommand = CommandPaletteCommand> {
+  id: CommandPaletteSectionId
+  commands: T[]
+}
+
+export interface CommandPaletteContext {
+  websiteAvailable: boolean
+  /** An agent works in the workspace in view: its commands come first. */
+  agentActive: boolean
+  /** Commands run lately, the latest first. */
+  recentIds?: readonly CommandPaletteCommandId[]
+}
+
+/** Recent commands listed when nothing is typed. */
+export const COMMAND_PALETTE_RECENT_LIMIT = 5
+
+const SECTION_OF_CATEGORY: Record<CommandPaletteCategory, Exclude<CommandPaletteSectionId, 'recent'>> = {
+  Agents: 'agents',
+  Navigation: 'navigation',
+  'Current website': 'website',
+  Application: 'application'
+}
+
+// By id, since the palette shows commands with their category translated.
+const SECTION_OF_COMMAND = new Map<string, Exclude<CommandPaletteSectionId, 'recent'>>(
+  COMMAND_PALETTE_COMMANDS.map((command) => [command.id, SECTION_OF_CATEGORY[command.category]])
+)
+
+function sectionOf(command: CommandPaletteCommand): Exclude<CommandPaletteSectionId, 'recent'> {
+  return SECTION_OF_COMMAND.get(command.id) ?? SECTION_OF_CATEGORY[command.category] ?? 'application'
+}
 
 function normalizedWords(value: string): string[] {
   return value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
@@ -128,11 +169,11 @@ function commandScore(command: CommandPaletteCommand, query: string): number {
   return 0
 }
 
-export function filterCommandPaletteCommands(
+export function filterCommandPaletteCommands<T extends CommandPaletteCommand = CommandPaletteCommand>(
   query: string,
   websiteAvailable: boolean,
-  commands: readonly CommandPaletteCommand[] = COMMAND_PALETTE_COMMANDS
-): CommandPaletteCommand[] {
+  commands: readonly T[] = COMMAND_PALETTE_COMMANDS as readonly T[]
+): T[] {
   const words = normalizedWords(query)
   return commands
     .filter((command) => websiteAvailable || !command.websiteOnly)
@@ -144,4 +185,54 @@ export function filterCommandPaletteCommands(
     .map((command, index) => ({ command, index, score: commandScore(command, query) }))
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map(({ command }) => command)
+}
+
+/**
+ * The commands available now, in sections. With nothing typed: recent commands, then the agent's when one works in
+ * the workspace in view, then navigation, the current website and the application, with agents last otherwise. With
+ * a search, the best match comes first, and each section shows where its best match ranks.
+ */
+export function commandPaletteSections<T extends CommandPaletteCommand>(
+  query: string,
+  context: CommandPaletteContext,
+  commands: readonly T[] = COMMAND_PALETTE_COMMANDS as readonly T[]
+): CommandPaletteSection<T>[] {
+  const available = commands.filter((command) => (
+    (context.websiteAvailable || !command.websiteOnly) && (context.agentActive || !command.agentOnly)
+  ))
+  const sections = new Map<CommandPaletteSectionId, T[]>()
+  const add = (id: CommandPaletteSectionId, command: T): void => {
+    const list = sections.get(id)
+    if (list) list.push(command)
+    else sections.set(id, [command])
+  }
+  if (query.trim()) {
+    for (const command of filterCommandPaletteCommands(query, true, available)) add(sectionOf(command), command)
+    return [...sections].map(([id, list]) => ({ id, commands: list }))
+  }
+  const recent = (context.recentIds ?? [])
+    .map((id) => available.find((command) => command.id === id))
+    .filter((command): command is T => command !== undefined)
+    .slice(0, COMMAND_PALETTE_RECENT_LIMIT)
+  const order: CommandPaletteSectionId[] = context.agentActive
+    ? ['recent', 'agents', 'navigation', 'website', 'application']
+    : ['recent', 'navigation', 'website', 'application', 'agents']
+  for (const command of recent) add('recent', command)
+  for (const command of available) if (!recent.includes(command)) add(sectionOf(command), command)
+  return order.flatMap((id) => {
+    const list = sections.get(id)
+    return list ? [{ id, commands: list }] : []
+  })
+}
+
+const MAC_KEYS: Record<string, string> = { Cmd: '⌘', Shift: '⇧', Option: '⌥', Alt: '⌥', Ctrl: '⌃', Control: '⌃' }
+
+/**
+ * A catalog shortcut's keys on this platform, such as ['⌘', '⇧', 'A'] on macOS and ['Ctrl', 'Shift', 'A'] elsewhere.
+ * Of alternatives such as 'Ctrl+H / Cmd+Y', the one for this platform.
+ */
+export function commandShortcutKeys(shortcut: string, mac: boolean): string[] {
+  const choices = shortcut.split(' / ')
+  const chosen = choices.find((choice) => /(^|\+)(Cmd|Option)(\+|$)/u.test(choice) === mac) ?? choices[0]!
+  return chosen.split(/\+(?=.)/u).map((key) => key === 'Ctrl/Cmd' ? (mac ? '⌘' : 'Ctrl') : mac ? MAC_KEYS[key] ?? key : key)
 }
