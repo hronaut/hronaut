@@ -1,7 +1,8 @@
 import { agentAvatarColorHex } from '../../../shared/agent-presence.js'
+import { agentStepKind } from '../../../shared/agent-steps.js'
 import { agentStatus, agentStatusText, agentStatusTone } from '../../../shared/agent-status.js'
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
-import { element, escapeText as h, interpolate, pluralText, remember, renderStatus } from './dom.js'
+import { element, escapeText as h, interpolate, messageAt, pluralText, remember, renderStatus } from './dom.js'
 import { mountWorkspaces } from './workspaces.js'
 
 export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof fetch = fetch) {
@@ -147,7 +148,12 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       const complete = advertised.length > 0 && !missing.length
       report.checks.clientVisibility = { state: complete ? 'client_tools_verified' : 'partial_tool_inventory', nextAction: complete ? 'none' : 'list_tools_in_active_client', evidence: { observedToolCount: advertised.length - missing.length, missingToolCount: missing.length, ...(missing.length ? { missingTools: missing.slice(0, 12) } : {}) } }
     }
-    element('readiness-checks').innerHTML = Object.entries(report.checks).map(([name, check]) => `<div class="readiness-check"><div><strong>${h(messages.readiness.checks[name as keyof typeof report.checks])}</strong><span>${h(messages.readiness.nextAction[check.nextAction])}</span></div><code class="readiness-state ${h(check.state)}">${h(check.state)}</code></div>`).join('')
+    // Each check in words; its typed state stays in the copied diagnostic below.
+    const tone = (state: string): string => /_(?:ready|initialized|advertised|verified)$/u.test(state) ? 'ok' : state === 'blocked' || state.endsWith('_failed') ? 'failed' : 'pending'
+    element('readiness-checks').innerHTML = Object.entries(report.checks).map(([name, check]) => {
+      const state = tone(check.state) as 'ok' | 'failed' | 'pending'
+      return `<div class="readiness-check"><span class="readiness-dot ${state}" aria-hidden="true"></span><div><div class="readiness-title"><strong>${h(messages.readiness.checks[name as keyof typeof report.checks])}</strong><span class="readiness-tone ${state}">${h(mission.checks[state])}</span></div><span class="readiness-next">${h(messages.readiness.nextAction[check.nextAction])}</span></div></div>`
+    }).join('')
     text('readiness-report', JSON.stringify(report, null, 2))
   }
   element('readiness-verify').addEventListener('click', () => {
@@ -271,7 +277,11 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     const outcomes = { succeeded: messages.activity.done, failed: messages.activity.failed, cancelled: messages.activity.cancelled, blocked: messages.activity.blocked, 'timed-out': messages.activity.timedOut, interrupted: messages.activity.interrupted, 'outcome-unknown': messages.activity.unknown }
     element('activity-list').innerHTML = dashboard.recentActivity.length ? dashboard.recentActivity.slice(0, 8).map(activity => {
       const outcome = activity.result?.outcome ?? (activity.outcome === 'failed' ? 'failed' : 'succeeded')
-      return `<div class="activity-item"><div><code>${h(activity.toolName)}</code><div class="activity-meta">${h(relativeTime(activity.completedAt))} · ${h(new Intl.NumberFormat(locale).format(activity.durationMs))} ms</div></div><span class="outcome ${outcome === 'succeeded' ? '' : outcome === 'failed' ? 'failed' : 'attention'}">${h(outcomes[outcome])}</span></div>`
+      // Plain words, as in the live activity: what was done, or what was tried when it did not succeed. The tool's name
+      // and timing stay in the row's tooltip.
+      const technical = `${activity.toolName} · ${new Intl.NumberFormat(locale).format(activity.durationMs)} ms`
+      const words = messageAt(data.messages, `shell.${outcome === 'succeeded' ? 'agentCard' : 'agents'}.steps.${agentStepKind(activity.toolName)}`)
+      return `<div class="activity-item" title="${h(technical)}"><div><div class="activity-step">${h(words)}</div><div class="activity-meta">${h(relativeTime(activity.completedAt))}</div></div><span class="outcome ${outcome === 'succeeded' ? '' : outcome === 'failed' ? 'failed' : 'attention'}">${h(outcomes[outcome])}</span></div>`
     }).join('') : `<div class="empty"><div><strong>${h(messages.activity.emptyHeading)}</strong><span>${h(messages.activity.emptyDescription)}</span></div></div>`
     text('connection-note', dashboard.clients.length ? messages.journey.observed : messages.journey.waiting)
     const verified = dashboard.readiness.checks.probe.state === 'probe_verified'
@@ -322,7 +332,12 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       if (next >= 0) { event.preventDefault(); selectView(views[next]!, true) }
     }, { signal })
   })
-  document.querySelectorAll<HTMLElement>('[data-open-view]').forEach(button => button.addEventListener('click', () => { if (isView(button.dataset.openView)) selectView(button.dataset.openView, true) }, { signal }))
+  document.querySelectorAll<HTMLElement>('[data-open-view]').forEach(button => button.addEventListener('click', () => {
+    if (!isView(button.dataset.openView)) return
+    // The connection check's link leads to the checks themselves, not to Details folded over them.
+    if (button.dataset.openDetails !== undefined) document.querySelector<HTMLDetailsElement>('.overview-details')!.open = true
+    selectView(button.dataset.openView, true)
+  }, { signal }))
   const unsubscribe = api?.onShowWorkspaces?.(() => selectView('workspaces'))
   element<HTMLInputElement>('agent-search').addEventListener('input', event => {
     const query = (event.target as HTMLInputElement).value.trim().toLocaleLowerCase(locale)
