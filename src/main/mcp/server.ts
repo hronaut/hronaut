@@ -1,6 +1,5 @@
 import { browserClickSchema } from './browser-click-input.js'
 import { EmulationInputError } from '../browser/emulation-state.js'
-import { fileEvaluationFailure, type FileEvaluationSource } from '../../shared/file-evaluation.js'
 import { StorageComparisonInputError } from '../browser/storage-comparison-operation.js'
 import { NativeClickAdmissionError } from '../browser/native-click-admission.js'
 import { WebStorageInputError } from '../browser/web-storage-operation.js'
@@ -838,7 +837,6 @@ function createBrowserMcpServer(
       const settlement = options.settlement?.(input)
       frameRequest.settlement = settlement
       if (name === 'browser_new_tab' && input.label !== undefined) frameRequest.labeledCreation = { attempted: false }
-      if (name === 'browser_evaluate_file') frameRequest.fileEvaluation = { submitted: false, acknowledged: false }
       const settleLabeledCreation = (result: CallToolResult): CallToolResult => {
         const creation = frameRequest.labeledCreation
         if (!creation || (!creation.attempted && result.isError)) return result
@@ -870,16 +868,6 @@ function createBrowserMcpServer(
         finish?.(settled)
         return settled
       }
-      const settleFileEvaluation = (result: CallToolResult): CallToolResult => {
-        if (!frameRequest.fileEvaluation) return result
-        if (!result.isError) { frameRequest.fileEvaluationFinishActivity?.(result); return result }
-        const allowedReasons = new Set(['UNSUPPORTED_PLATFORM', 'INVALID_PATH', 'INVALID_REQUEST', 'CANCELLED', 'DEADLINE', 'BUSY', 'CLEANUP_UNKNOWN', 'INVALID_FILE_TYPE', 'FILE_CHANGED', 'TOO_LARGE', 'DIGEST_MISMATCH', 'INVALID_UTF8', 'IO_FAILURE', 'SCRIPT_FAILED', 'CANCELLED_OR_DEADLINE', 'TUPLE_TARGET_MISMATCH'])
-        const reason = result.structuredContent?.reason
-        const outcome = fileEvaluationFailure(frameRequest.fileEvaluation, typeof reason === 'string' && allowedReasons.has(reason) ? reason : 'UNAVAILABLE_OR_UNAUTHORIZED')
-        const settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
-        frameRequest.fileEvaluationFinishActivity?.(settled)
-        return settled
-      }
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
         if (!options.recordsReadiness?.(input)) return
         // Only browser_status and browser_snapshot declare recordsReadiness.
@@ -889,17 +877,6 @@ function createBrowserMcpServer(
       try {
         const admission = settlement?.admit?.()
         if (admission) return admission
-        if (name === 'browser_evaluate_file' && !capability) {
-          const outcome = fileEvaluationFailure({ submitted: false, acknowledged: false }, 'SEPARATE_GRANT_REQUIRED')
-          return { ...textResult(outcome), structuredContent: outcome, isError: true }
-        }
-        if (name === 'browser_evaluate_file') {
-          const source = input.source as FileEvaluationSource
-          if (source.workspaceId !== input.workspaceId || source.tabId !== input.tabId) {
-            const outcome = fileEvaluationFailure(frameRequest.fileEvaluation!, 'TUPLE_TARGET_MISMATCH')
-            return { ...textResult(outcome), structuredContent: outcome, isError: true }
-          }
-        }
         requireAgentControl(name, input)
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
@@ -957,7 +934,6 @@ function createBrowserMcpServer(
           const settledDenial = settlement?.settleDenied?.({ ...textResult(outcome), structuredContent: outcome, isError: true }, outcome)
           if (settledDenial) return settledDenial
           if (frameRequest.labeledCreation) return settleLabeledCreation({ ...textResult(outcome), structuredContent: outcome, isError: true })
-          if (frameRequest.fileEvaluation) return settleFileEvaluation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         const published = settlement?.publish?.(result)
@@ -966,15 +942,10 @@ function createBrowserMcpServer(
           recordReadinessProbe(publication.isError ? 'failed' : 'verified')
           return publication // No await after the tool's final publication check.
         }
-        if (frameRequest.fileEvaluation && !result.isError) {
-          if (!frameRequest.fileEvaluationRefreshCertificate || !frameRequest.fileEvaluationPublication) throw new Error('File publication authority unavailable')
-          await frameRequest.fileEvaluationRefreshCertificate()
-          frameRequest.fileEvaluationPublication.validate()
-        }
         if (frameRequest.labeledCreation?.refreshCertificate) await frameRequest.labeledCreation.refreshCertificate()
         // No await after the final publication guard.
         recordReadinessProbe(result.isError ? 'failed' : 'verified')
-        return settleLabeledCreation(settleFileEvaluation(result))
+        return settleLabeledCreation(result)
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
           && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
@@ -987,15 +958,14 @@ function createBrowserMcpServer(
         const settledError = settlement?.settleError?.(error)
         if (settledError) return settledError
         if (frameRequest.labeledCreation) { rememberInputPolicy(error); return settleLabeledCreation(errorResult(error)) }
-        if (frameRequest.fileEvaluation) return settleFileEvaluation({ content: [], isError: true })
         return errorResult(error)
       } finally {
-        frameRequest.fileEvaluationPublication?.dispose()
         settlement?.dispose?.()
-        if (frameRequest.fileEvaluationCompletion && finishWorkspaceMutation) {
+        const completion = settlement?.pendingCompletion?.()
+        if (completion && finishWorkspaceMutation) {
           // Cancellation returns a bounded response but cannot release the writer
-          // while queued/submitted native evaluation and its cleanup remain owned.
-          void frameRequest.fileEvaluationCompletion.then(finishWorkspaceMutation, finishWorkspaceMutation)
+          // while queued/submitted native work and its cleanup remain owned.
+          void completion.then(finishWorkspaceMutation, finishWorkspaceMutation)
         } else finishWorkspaceMutation?.()
       }
     }))) as never)
@@ -1455,16 +1425,9 @@ function createBrowserMcpServer(
               }
               await creation.refreshCertificate()
             }
-            if (name === 'browser_evaluate_file') {
-              if (!humanWaiting) throw new Error('Human waiting authority unavailable')
-              const request = frameRequests.getStore()!
-              request.fileEvaluationRefreshCertificate = async () => {
-                request.fileEvaluationCertificate = await humanWaiting.certifyDispatch(
-                  workspaceId, () => { requireAgentWorkspace(workspaceId) }, undefined, humanReviewSessionBinding, reviewAttempt?.id
-                )
-              }
-              await request.fileEvaluationRefreshCertificate()
-            }
+            if (settlement?.certify) await settlement.certify(humanWaiting ? () => humanWaiting.certifyDispatch(
+              workspaceId, () => { requireAgentWorkspace(workspaceId) }, undefined, humanReviewSessionBinding, reviewAttempt?.id
+            ) : undefined)
             settlement?.beforeDispatch?.()
             activityDispatched = true
             const result = toolsWithoutWorkspaceTabTarget.has(name)
@@ -1519,12 +1482,7 @@ function createBrowserMcpServer(
           }
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
-          const request = frameRequests.getStore()!
           if (settlement?.deferActivity?.(settled => finishActivity(settled, false))) return
-          if (request.fileEvaluation && !request.fileEvaluationFinishing) {
-            request.fileEvaluationFinishActivity = settled => { request.fileEvaluationFinishing = true; finishActivity(settled, false) }
-            return
-          }
           if (!activityStarted || !activityId || !activityToolName || !resolvedTabId) return
           activityStarted = false
           const structured = result?.structuredContent
@@ -1532,8 +1490,8 @@ function createBrowserMcpServer(
             && typeof structured.status === 'string' ? structured.status : undefined
           const classification: ToolActivityClassification = {
             readOnly,
-            dispatched: request.fileEvaluation ? request.fileEvaluation.submitted : activityDispatched,
-            invalidatedOutcome: request.fileEvaluation ? (request.fileEvaluation.submitted && (threw || result?.isError) ? 'outcome-unknown' : undefined) : invalidatedOutcome
+            dispatched: activityDispatched,
+            invalidatedOutcome
           }
           const classified = settlement?.classifyActivity?.(classification, threw || result?.isError === true, result) ?? classification
           const activityResult = classifyMcpActivityResult({
@@ -1614,7 +1572,7 @@ function createBrowserMcpServer(
           authorization: auditAuthorization,
           signal: extra?.signal,
           isErrorResult: result => result.isError === true,
-          classifyErrorResult: () => frameRequests.getStore()?.fileEvaluation?.submitted ? 'outcome-unknown' : invalidatedOutcome,
+          classifyErrorResult: () => settlement?.effectsPossible?.() ? 'outcome-unknown' : invalidatedOutcome,
           observeState: observeAuditState,
           observeEvidence: () => {
             const state = observeAuditState()

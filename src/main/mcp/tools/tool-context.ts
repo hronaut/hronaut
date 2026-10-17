@@ -2,7 +2,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { z } from 'zod'
-import type { FileEvaluationProgress } from '../../../shared/file-evaluation.js'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
 import type { BrowserTabsManager } from '../../browser/tabs-manager.js'
 import type { UserAttentionLifecycle } from '../../user-attention-lifecycle.js'
@@ -94,12 +93,19 @@ export interface ToolCallSettlement {
   rememberInputPolicy?(error: unknown): void
   /** The capability or input denial the tool recorded, for results the shared handling builds. */
   inputPolicy?(): Record<string, unknown> | undefined
+  /**
+   * Obtains the tool's own dispatch certificate once the call's review is settled, from `certifyDispatch`, or
+   * undefined when this server has no human-waiting authority.
+   */
+  certify?(certifyDispatch: (() => Promise<() => void>) | undefined): Promise<void>
   /** Runs right before the handler, after every check that admits the dispatch. */
   beforeDispatch?(): void
   /** Records what the handler returned, before the post-dispatch checks. */
   afterDispatch?(result: CallToolResult): void
   /** Notes that recording the call's human review outcome failed after dispatch. */
   reviewFinalizationFailed?(): void
+  /** Whether the tool submitted work that may have had effects, so an error result leaves the outcome unknown. */
+  effectsPossible?(): boolean
   /** Adjusts how the call's tab activity is classified, from the tool's own dispatch progress. */
   classifyActivity?(activity: ToolActivityClassification, failed: boolean, result: CallToolResult | undefined): ToolActivityClassification
   /** Settles a result whose capability was withdrawn after dispatch, or returns undefined. */
@@ -114,6 +120,8 @@ export interface ToolCallSettlement {
   settleError?(error: unknown): CallToolResult | undefined
   /** Rewrites the call's final result after its review is recorded, just before its tab activity finishes. */
   finalize?(result: CallToolResult): CallToolResult
+  /** Work the tool still owns after the call returns; the workspace writer is released only once it settles. */
+  pendingCompletion?(): Promise<void> | undefined
   /** Releases what the call retained, however it ended. */
   dispose?(): void
 }
@@ -143,7 +151,7 @@ export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: Workspace
 }
 
 /** What one MCP call carries through its handler, for the publication and settlement checks in server.ts. */
-export type McpFrameRequest = { labeledCreation?: { attempted: boolean; policy?: Record<string, unknown>; certificate?: () => void; refreshCertificate?: () => Promise<void>; reviewFinalizationFailed?: boolean; cancelled?: () => boolean; publication?: () => void; finish?: (result: CallToolResult) => void; knownNotSaved?: boolean }; fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; settlement?: ToolCallSettlement }
+export type McpFrameRequest = { labeledCreation?: { attempted: boolean; policy?: Record<string, unknown>; certificate?: () => void; refreshCertificate?: () => Promise<void>; reviewFinalizationFailed?: boolean; cancelled?: () => boolean; publication?: () => void; finish?: (result: CallToolResult) => void; knownNotSaved?: boolean }; settlement?: ToolCallSettlement }
 
 /**
  * What a tool's registration may use from the MCP server it is registered on: the browser, the calling client,
