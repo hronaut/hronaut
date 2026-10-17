@@ -100,6 +100,11 @@ const api: HronautApi = {
     ipcRenderer.on('undo:offered', handler)
     return () => ipcRenderer.removeListener('undo:offered', handler)
   },
+  onUndoEnded: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, token: string): void => listener(token)
+    ipcRenderer.on('undo:ended', handler)
+    return () => ipcRenderer.removeListener('undo:ended', handler)
+  },
   undo: (token) => ipcRenderer.invoke('undo:run', token),
   holdUndo: (token) => ipcRenderer.invoke('undo:hold', token),
   finishUndo: (token) => ipcRenderer.invoke('undo:finish', token),

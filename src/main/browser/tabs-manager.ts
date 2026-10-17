@@ -405,6 +405,7 @@ import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { handBackNote, pageShortcut, type TakeOverMark } from './take-over.js'
 import type { UndoableAction } from '../undo-offers.js'
+import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 type BrowserClickTarget = {
@@ -418,7 +419,7 @@ type BrowserClickTarget = {
   button?: 'left' | 'right'
 } & BrowserDialogHandlingOptions
 const MAX_TABS = MAX_BROWSER_TABS
-const MAX_SAVED_TAB_GROUPS = 50
+const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SNAPSHOT_BASELINES = 64
@@ -777,6 +778,8 @@ interface BrowserWorkspaceOperation {
   action: string
   blocksNewTabs: boolean
   token: symbol
+  /** Settles when an archived workspace's operation ends. */
+  settled?: Promise<void>
 }
 
 function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string | undefined {
@@ -947,6 +950,8 @@ export interface TabsManagerOptions {
   onActionFailed?: (action: string, error: unknown) => void
   /** The person did something Undo can put back. */
   offerUndo?: (action: UndoableAction) => void
+  /** Ends the Undo on offer, completing what its action held back. */
+  endUndo?: () => Promise<void>
   onPageVisited?: (visit: { url: string; title: string }) => void
   onPageTitleUpdated?: (page: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
@@ -1257,6 +1262,8 @@ export class BrowserTabsManager {
   private readonly savedTabGroups = this.workspaceRegistry.archived
   private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   private readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
+  /** A workspace the person closed with Undo on offer: archived, and deleted when Undo is gone unless kept meanwhile. */
+  private closingWorkspace: { id: string; kept: boolean } | undefined
   private readonly pendingWorkspaceOperationPromises = new Set<Promise<unknown>>()
   private workspaceStorageOperation: BrowserWorkspaceOperation | null = null
   private readonly store: TabStateStore
@@ -1938,7 +1945,8 @@ export class BrowserTabsManager {
 
   isWorkspaceAgentAccessible(workspaceId: string): boolean {
     const group = this.mcpTabGroups.get(workspaceId) ?? this.savedTabGroups.get(workspaceId)
-    return !!group && group.agentAccess !== false
+    // Agents cannot bring back a workspace the person just closed while it waits to be deleted.
+    return !!group && group.agentAccess !== false && !this.isClosingWorkspace(workspaceId)
   }
 
   captureWorkspaceObservationGuard(workspaceId: string): () => void {
@@ -2625,9 +2633,24 @@ export class BrowserTabsManager {
     this.options.offerUndo?.({
       kind: 'workspace-archived',
       name: archived.name,
-      undo: () => this.restoreSavedTabGroup(archived.id)
+      undo: () => this.restoreArchiveForUndo(archived.id)
     })
     return archived
+  }
+
+  /** Restores an archive for Undo; false when it was already restored or deleted. */
+  private async restoreArchiveForUndo(savedGroupId: string): Promise<boolean> {
+    if (!this.savedTabGroups.has(savedGroupId)) {
+      if (this.closingWorkspace?.id === savedGroupId) this.closingWorkspace = undefined
+      return false
+    }
+    await this.restoreSavedTabGroup(savedGroupId)
+    return true
+  }
+
+  /** Whether the person just closed this workspace and it waits to be deleted. */
+  isClosingWorkspace(workspaceId: string): boolean {
+    return this.closingWorkspace?.id === workspaceId
   }
 
   /**
@@ -2638,17 +2661,30 @@ export class BrowserTabsManager {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
     if (group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
-    // With no room left to archive it, it closes at once, without Undo.
-    if (this.savedTabGroups.size >= MAX_SAVED_TAB_GROUPS) return this.closeWorkspace(groupId)
+    // A workspace closed just before is deleted first, so it does not take the archive place this one needs.
+    await this.options.endUndo?.()
+    // Undo needs an archive place; the editor asks first and closes without Undo when the archive is full.
+    if (this.savedTabGroups.size >= MAX_SAVED_TAB_GROUPS) {
+      throw new Error(`Hronaut keeps at most ${MAX_SAVED_TAB_GROUPS} archived workspaces, so "${group.name}" cannot be closed with Undo. Delete an archived workspace in Home, then try again.`)
+    }
     const archived = await this.saveAndCloseTabGroup(groupId)
     // Only this archive is deleted: not one made after the workspace was restored and archived again.
     const saved = this.savedTabGroups.get(archived.id)
+    const closing = { id: archived.id, kept: false }
+    this.closingWorkspace = closing
     this.options.offerUndo?.({
       kind: 'workspace-closed',
       name: archived.name,
-      undo: () => this.restoreSavedTabGroup(archived.id),
+      undo: () => this.restoreArchiveForUndo(archived.id),
       finalize: async () => {
-        if (!saved || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
+        if (this.closingWorkspace === closing) this.closingWorkspace = undefined
+        if (closing.kept || !saved || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
+        // A transfer or fork running on the archive finishes first.
+        for (let operation = this.savedWorkspaceOperations.get(archived.id); operation?.settled; operation = this.savedWorkspaceOperations.get(archived.id)) {
+          await operation.settled
+          await new Promise<void>((resolve) => setImmediate(resolve))
+        }
+        if (closing.kept || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
         await this.deleteSavedTabGroup(archived.id)
       }
     })
@@ -2656,6 +2692,11 @@ export class BrowserTabsManager {
   }
 
   async restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
+    // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
+    if (this.closingWorkspace?.id === savedGroupId) {
+      this.closingWorkspace.kept = true
+      this.closingWorkspace = undefined
+    }
     return this.withTabLabelLifecycle(() => this.workspaceRegistry.restore(savedGroupId))
   }
 
@@ -4766,16 +4807,19 @@ export class BrowserTabsManager {
   }
 
   /** Reopens tabs closed together, the last closed first, so each goes back where it was; one tab is shown again. */
-  private reopenClosedTabsInPlace(closed: readonly { closedTabId: string; index: number }[]): Promise<BrowserState> {
+  /** False when none of them could be reopened, such as after Reopen closed tab took them. */
+  private reopenClosedTabsInPlace(closed: readonly { closedTabId: string; index: number }[]): Promise<boolean> {
     return this.withTabLabelLifecycle(async () => {
+      let reopened = 0
       for (const { closedTabId, index } of [...closed].reverse()) {
         const tab = await this.reopenClosedTabEntry(closedTabId, closed.length === 1)
         if (!tab) continue
+        reopened += 1
         const peers = this.tabPeers(tab).filter((candidate) => candidate !== tab)
         const target = peers[Math.min(index, peers.length - 1)]
         if (target) this.reorderTab(tab.id, target.id, index < peers.length ? 'before' : 'after')
       }
-      return this.getState()
+      return reopened > 0
     })
   }
 
@@ -9906,7 +9950,9 @@ export class BrowserTabsManager {
     const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
     this.savedWorkspaceOperations.set(savedWorkspaceId, current)
     try {
-      return await this.trackWorkspaceOperation(operation)
+      const running = this.trackWorkspaceOperation(operation)
+      current.settled = running.then(() => undefined, () => undefined)
+      return await running
     } finally {
       if (this.savedWorkspaceOperations.get(savedWorkspaceId)?.token === current.token) {
         this.savedWorkspaceOperations.delete(savedWorkspaceId)

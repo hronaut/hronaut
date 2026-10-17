@@ -17,8 +17,10 @@ export interface AppToastOptions {
   duration?: number
   /** The person moved onto it, so it stays until they close it. */
   onRetain?: () => void
-  /** It left without its action being used: timed out, dismissed or replaced. */
+  /** It left without its action being used: timed out or dismissed. */
   onClose?: () => void
+  /** Another toast took its place, so its action is no longer shown. */
+  onReplaced?: () => void
 }
 
 export function friendlyUiError(error: unknown, fallback: string): string {
@@ -34,20 +36,25 @@ export function useAppToastController() {
   const toasts = ref<AppToast[]>([])
   const timers = new Map<number, { handle: number; generation: number }>()
   const retainedIds = new Set<number>()
-  const hooks = new Map<number, Pick<AppToastOptions, 'action' | 'onRetain' | 'onClose'>>()
+  const hooks = new Map<number, Pick<AppToastOptions, 'action' | 'onRetain' | 'onClose' | 'onReplaced'>>()
   let nextId = 1
   let nextTimerGeneration = 1
   let disposed = false
 
-  function dismiss(id: number): void {
+  function remove(id: number, reason: 'closed' | 'replaced'): void {
     const timer = timers.get(id)
     if (timer !== undefined) window.clearTimeout(timer.handle)
     timers.delete(id)
     retainedIds.delete(id)
-    const onClose = hooks.get(id)?.onClose
+    const hook = hooks.get(id)
     hooks.delete(id)
     toasts.value = toasts.value.filter((toast) => toast.id !== id)
-    onClose?.()
+    if (reason === 'closed') hook?.onClose?.()
+    else hook?.onReplaced?.()
+  }
+
+  function dismiss(id: number): void {
+    remove(id, 'closed')
   }
 
   /** Runs the toast's action and closes it. */
@@ -68,24 +75,27 @@ export function useAppToastController() {
     timers.delete(id)
   }
 
-  function show(tone: AppToastTone, title: string, message: string, options: AppToastOptions = {}): void {
-    if (disposed) return
+  /** Shows a toast in the one toast slot, replacing the toast there; returns its id, or undefined once disposed. */
+  function show(tone: AppToastTone, title: string, message: string, options: AppToastOptions = {}): number | undefined {
+    if (disposed) return undefined
     const boundedTitle = title.trim().slice(0, 120)
     const boundedMessage = message.trim().slice(0, 1_000)
     const replacementId = toasts.value[0]?.id
     const retained = replacementId !== undefined && retainedIds.has(replacementId)
-    for (const toast of [...toasts.value]) dismiss(toast.id)
+    for (const toast of [...toasts.value]) remove(toast.id, 'replaced')
     // Preserve the rendered key when replacing the single toast slot. A new
     // key makes TransitionGroup keep the old alert in its leave animation
     // while mounting the replacement, briefly exposing duplicate live alerts.
     const id = replacementId ?? nextId++
     const action = options.action ? { label: options.action.label.slice(0, 40), ...(options.action.ariaLabel ? { ariaLabel: options.action.ariaLabel.slice(0, 200) } : {}) } : undefined
     toasts.value = [{ id, tone, title: boundedTitle, message: boundedMessage, ...(action ? { action } : {}) }]
-    if (options.action || options.onRetain || options.onClose) hooks.set(id, { action: options.action, onRetain: options.onRetain, onClose: options.onClose })
+    if (options.action || options.onRetain || options.onClose || options.onReplaced) {
+      hooks.set(id, { action: options.action, onRetain: options.onRetain, onClose: options.onClose, onReplaced: options.onReplaced })
+    }
     if (retained) {
       retainedIds.add(id)
       options.onRetain?.()
-      return
+      return id
     }
     const duration = options.duration ?? (tone === 'error' ? 8_000 : 3_600)
     const generation = nextTimerGeneration++
@@ -94,6 +104,7 @@ export function useAppToastController() {
       dismiss(id)
     }, duration)
     timers.set(id, { handle, generation })
+    return id
   }
 
   function dispose(): void {

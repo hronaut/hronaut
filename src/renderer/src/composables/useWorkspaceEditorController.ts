@@ -6,6 +6,7 @@ import type {
   BrowserWorkspaceNavigationPolicy,
   HronautApi
 } from '../../../shared/types.js'
+import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { suggestWorkspaceName } from '../workspace-names.js'
 import { createWorkspaceOriginLoader } from './useWorkspaceOriginLoader.js'
 
@@ -405,13 +406,16 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     const current = workspace.value
     // The global lock blocks human page input, not trusted Hronaut controls, as
     // with Home's Clear, which never required unlocking. Closing asks nothing:
-    // Undo brings the workspace back until its toast closes.
+    // Undo brings the workspace back until its toast closes. Undo keeps it in the
+    // archive meanwhile, so with the archive full it asks first and closes for good.
     if (!current || current.deletionProtected || actionPending.value || storageState.value === 'saving') return
+    const undoable = options.state.value.savedTabGroups.length < MAX_ARCHIVED_WORKSPACES
+    if (!undoable && !options.confirm(options.translate('runtimeActions.workspace.closeConfirm', { name: current.name }))) return
     const presentation = presentationGeneration
     actionState.value = 'closing'
     error.value = ''
     try {
-      await options.syncState(options.browser.closeWorkspace(current.id, { undoable: true }))
+      await options.syncState(undoable ? options.browser.closeWorkspace(current.id, { undoable: true }) : options.browser.closeWorkspace(current.id))
       if (!isPresentationCurrent(presentation)) return
       finishAndClose()
     } catch (cause) {

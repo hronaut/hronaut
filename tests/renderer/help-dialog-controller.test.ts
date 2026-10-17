@@ -66,7 +66,7 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.pinnedWorkspace',
       keys: ['Alt', '1–9']
     })
-    expect(controller.shortcuts.value).toHaveLength(24)
+    expect(controller.shortcuts.value).toHaveLength(25)
     controller.dispose()
   })
 })

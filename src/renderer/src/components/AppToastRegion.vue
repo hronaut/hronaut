@@ -39,6 +39,7 @@ const { t } = useI18n({ useScope: 'global' })
       :aria-label="toast.title"
       v-tooltip="`${toast.title}: ${toast.message}`"
       @focusin="$emit('retain', toast.id)"
+      @pointerenter="toast.action && $emit('retain', toast.id)"
     >
       <span class="app-toast-mark" aria-hidden="true">
         <IconError v-if="toast.tone === 'error'" />
@@ -90,7 +91,7 @@ const { t } = useI18n({ useScope: 'global' })
 .app-toast.with-action {
   min-height: 40px;
   max-height: 40px;
-  grid-template-columns: 24px minmax(0, 1fr) auto 24px;
+  grid-template-columns: 24px minmax(0, 1fr) auto 0 24px;
 }
 .app-toast.error { border-color: color-mix(in srgb, var(--danger) 54%, var(--border)); }
 .app-toast.success { border-color: color-mix(in srgb, var(--success) 48%, var(--border)); }
@@ -133,6 +134,8 @@ const { t } = useI18n({ useScope: 'global' })
   font-weight: 600;
 }
 .app-toast > .app-toast-action:hover { color: var(--accent); }
+/* An empty column between Undo and dismiss, so a near miss does not end the offer. */
+.app-toast > .app-toast-action + button { grid-column: 5; }
 .app-toast > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .app-toast > button svg { width: 14px; height: 14px; }
 .app-toast-enter-active { transition: opacity var(--motion-base) var(--motion-ease-out), transform var(--motion-base) var(--motion-ease-spring); }

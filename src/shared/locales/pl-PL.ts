@@ -853,6 +853,7 @@ export const plPL = {
       "newTab": "Otwórz nową kartę",
       "closeTab": "Zamknij bieżącą kartę",
       "reopenTab": "Otwórz ponownie ostatnio zamkniętą kartę",
+      "undo": "Cofnij zamknięcie lub usunięcie, dopóki dostępne jest Cofnij",
       "searchTabs": "Szukaj w otwartych kartach",
       "commands": "Otwórz paletę poleceń",
       "pick": "Wybierz element do kontekstu agenta",

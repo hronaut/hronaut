@@ -2748,9 +2748,11 @@ export interface HronautApi {
   onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void
   /** Main offers to undo the person's latest reversible action, such as closing a tab. */
   onUndoOffered(listener: (offer: import('./undo.js').UndoOffer) => void): () => void
-  /** Undoes the offered action. False when it is no longer offered. */
+  /** Main ended an offer: Undo was used, the toast closed, a newer action replaced it or its time ran out. */
+  onUndoEnded(listener: (token: string) => void): () => void
+  /** Undoes the offered action. False when it is no longer offered or nothing came back. */
   undo(token: string): Promise<boolean>
-  /** The person is on the Undo toast, so the offer stays until the toast closes. */
+  /** The person is on the Undo toast, so the offer stays while the toast does, up to a minute. */
   holdUndo(token: string): Promise<void>
   /** The Undo toast closed without Undo. */
   finishUndo(token: string): Promise<void>

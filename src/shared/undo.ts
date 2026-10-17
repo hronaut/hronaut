@@ -1,6 +1,9 @@
 /** How long the Undo toast stays after a reversible action, unless the person is on it. */
 export const UNDO_OFFER_MS = 6_000
 
+/** How many archived workspaces Hronaut keeps; a workspace closed with Undo waits among them. */
+export const MAX_ARCHIVED_WORKSPACES = 50
+
 /** What the person did that Undo puts back. */
 export type UndoKind = 'tabs-closed' | 'workspace-archived' | 'workspace-closed' | 'bookmark-removed'
 

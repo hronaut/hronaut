@@ -89,4 +89,19 @@ test('offers Undo after closing tabs, closing a workspace and removing a bookmar
     return (await api.collections.list()).collections.find((entry) => entry.id === collectionId)?.bookmarkIds ?? []
   }, bookmark.collectionId)
   expect(collectionIds).toContain(bookmark.id)
+
+  // Ctrl+Z outside a text field undoes the latest action, and the toast leaves with the offer.
+  const beta = (await appWindow.evaluate(() => (window as unknown as { hronaut: UndoApi }).hronaut.createWorkspace({ name: 'Undo beta', storage: 'scratch' })))
+    .mcpTabGroups.find((group) => group.name === 'Undo beta')!
+  for (const page of ['four', 'five']) {
+    await appWindow.evaluate(({ id, url }) => (window as unknown as { hronaut: UndoApi }).hronaut.newTab({ url, active: true, mcpGroupId: id }), { id: beta.id, url: `data:text/html,<title>${page}</title>${page}` })
+  }
+  const betaUrls = await workspaceTabUrls(appWindow, beta.id)
+  const four = (await state(appWindow)).tabs.find((tab) => tab.url.includes('four'))!
+  await appWindow.evaluate((tabId) => (window as unknown as { hronaut: UndoApi }).hronaut.closeTab(tabId), four.id)
+  await expect(toast).toBeVisible()
+  await appWindow.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await appWindow.keyboard.press(process.platform === 'darwin' ? 'Meta+Z' : 'Control+Z')
+  await expect(toast).toBeHidden()
+  await expect.poll(() => workspaceTabUrls(appWindow, beta.id)).toEqual(betaUrls)
 })

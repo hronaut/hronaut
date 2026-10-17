@@ -10,9 +10,21 @@ const UNDO_TITLE_KEYS: Record<UndoKind, string> = {
 }
 
 export interface UndoToastsOptions {
-  browser: Pick<HronautApi, 'onUndoOffered' | 'undo' | 'holdUndo' | 'finishUndo'>
-  toasts: Pick<AppToastController, 'show'>
+  browser: Pick<HronautApi, 'onUndoOffered' | 'onUndoEnded' | 'undo' | 'holdUndo' | 'finishUndo'>
+  toasts: Pick<AppToastController, 'show' | 'dismiss' | 'act'>
   translate: (key: string, values?: Record<string, unknown>, plural?: number) => string
+  /** Where Ctrl/Cmd+Z undoes the latest action; the shell window by default. */
+  keyTarget?: Pick<Window, 'addEventListener' | 'removeEventListener'>
+  mac?: boolean
+}
+
+const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'])
+
+/** A field that keeps Ctrl/Cmd+Z for undoing its own text. */
+function editsText(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(target.type)
+  return target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable
 }
 
 function validOffer(offer: unknown): offer is UndoOffer {
@@ -24,16 +36,25 @@ function validOffer(offer: unknown): offer is UndoOffer {
 
 /**
  * Shows main's offers to undo the person's latest reversible action as a toast with an Undo button. The toast drives
- * the offer: being on it holds the offer, and closing it any other way ends the offer.
+ * the offer: being on it holds the offer, and closing it any other way ends the offer. A toast that takes its place
+ * leaves the offer to main's own timer. Ctrl/Cmd+Z in the shell, outside text fields, undoes the offer while main
+ * still has it, toast shown or not.
  */
 export function useUndoToasts(options: UndoToastsOptions) {
   const { translate: t } = options
+  const mac = options.mac ?? window.hronautShell?.windowChrome.platform === 'darwin'
   let disposed = false
+  /** The offer main still has, whose Undo the person can use. */
+  let live: UndoOffer | undefined
+  /** The toast showing it, until it closes or another toast takes its place. */
+  let visible: { token: string; id: number } | undefined
 
   async function undo(offer: UndoOffer): Promise<void> {
+    if (live?.token === offer.token) live = undefined
     try {
       const undone = await options.browser.undo(offer.token)
-      if (!disposed && !undone) options.toasts.show('info', t('undo.expiredTitle'), t('undo.expired'))
+      // A newer offer keeps its toast: "Nothing to undo" about an older one would replace it.
+      if (!disposed && !undone && !live) options.toasts.show('info', t('undo.expiredTitle'), t('undo.expired'))
     } catch (error) {
       if (!disposed) options.toasts.show('error', t('undo.failed'), friendlyUiError(error, t('undo.failedDescription')))
     }
@@ -41,21 +62,64 @@ export function useUndoToasts(options: UndoToastsOptions) {
 
   function show(offer: unknown): void {
     if (disposed || !validOffer(offer)) return
+    live = offer
     const title = t(UNDO_TITLE_KEYS[offer.kind], { count: offer.count }, offer.count)
-    options.toasts.show('success', title, offer.name, {
+    const forget = (): void => {
+      if (visible?.token === offer.token) visible = undefined
+    }
+    const id = options.toasts.show('success', title, offer.name, {
       duration: UNDO_OFFER_MS,
-      action: { label: t('undo.action'), ariaLabel: t('undo.actionAria', { title }), run: () => undo(offer) },
+      action: {
+        label: t('undo.action'),
+        ariaLabel: t('undo.actionAria', { title }),
+        run: () => {
+          forget()
+          void undo(offer)
+        }
+      },
       onRetain: () => { void options.browser.holdUndo(offer.token).catch(() => undefined) },
-      onClose: () => { void options.browser.finishUndo(offer.token).catch(() => undefined) }
+      onClose: () => {
+        forget()
+        void options.browser.finishUndo(offer.token).catch(() => undefined)
+      },
+      onReplaced: forget
     })
+    if (id !== undefined) visible = { token: offer.token, id }
   }
 
-  const stop = options.browser.onUndoOffered(show)
+  function ended(token: unknown): void {
+    if (disposed || typeof token !== 'string') return
+    if (live?.token === token) live = undefined
+    // Main ended it: its toast leaves rather than offer an Undo that would do nothing.
+    if (visible?.token === token) {
+      const { id } = visible
+      visible = undefined
+      options.toasts.dismiss(id)
+    }
+  }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    const offer = live
+    if (!offer || event.defaultPrevented || event.isComposing || event.repeat) return
+    if (event.key.toLowerCase() !== 'z' || event.shiftKey || event.altKey || (mac ? !event.metaKey || event.ctrlKey : !event.ctrlKey || event.metaKey)) return
+    if (editsText(event.target)) return
+    event.preventDefault()
+    // Through the toast's own action, so closing the toast does not end the offer first.
+    if (visible?.token === offer.token) options.toasts.act(visible.id)
+    else void undo(offer)
+  }
+
+  const keyTarget = options.keyTarget ?? window
+  const stopOffered = options.browser.onUndoOffered(show)
+  const stopEnded = options.browser.onUndoEnded(ended)
+  keyTarget.addEventListener('keydown', handleKeydown as EventListener)
 
   function dispose(): void {
     if (disposed) return
     disposed = true
-    stop()
+    stopOffered()
+    stopEnded()
+    keyTarget.removeEventListener('keydown', handleKeydown as EventListener)
   }
 
   return { dispose }

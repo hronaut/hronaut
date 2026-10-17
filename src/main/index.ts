@@ -360,6 +360,8 @@ let historyStore: HistoryStore | null = null
 // The person's latest reversible action, until its Undo toast closes.
 const undoOffers = new UndoOffers((offer) => {
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('undo:offered', offer)
+}, (token) => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('undo:ended', token)
 }, (action, error) => {
   console.error(`[undo] Could not ${action}:`, error)
   reportBrowserActionFailure(action, error)
@@ -3300,8 +3302,9 @@ function registerIpc(): void {
       undo: async () => {
         if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
         // A bookmark saved again meanwhile stays as it is.
-        await bookmarkStore.restore(removed)
+        if (!await bookmarkStore.restore(removed)) return false
         publishBookmarks()
+        return true
       }
     })
   })
@@ -4234,6 +4237,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     onClipboardCopyFailed: reportClipboardFailure,
     onActionFailed: reportBrowserActionFailure,
     offerUndo: (action) => undoOffers.offer(action),
+    endUndo: () => undoOffers.end(),
     onStateChanged: (state) => {
       reconcileUserAttention(state)
       sendToPanelWindow('browser:state-changed', state)
@@ -4285,13 +4289,16 @@ async function createWindow(startMinimized = false): Promise<void> {
     clearWindowControlsScrim()
     shellTooltips.hide()
     agentCards.shellReset()
+    // Its Undo toast is gone with the shell.
+    void undoOffers.end()
   })
-  // A new shell document has no dialog open, whatever the previous one reported.
+  // A new shell document has no dialog or toast open, whatever the previous one reported.
   mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) {
       clearWindowControlsScrim()
       shellTooltips.hide()
       agentCards.shellReset()
+      void undoOffers.end()
     }
   })
   // A tooltip belongs beside a control that just moved, or in a window that is no longer in front.
@@ -4541,8 +4548,8 @@ async function releaseRuntimeResources(): Promise<void> {
     const results = [
       ...await Promise.allSettled([server?.stop()]),
       ...await Promise.allSettled([auditReceipts?.stopAll()]),
-      // A workspace closed with Undo still on offer is deleted now.
-      ...await Promise.allSettled([undoOffers.end()]),
+      // A workspace closed with Undo still on offer is deleted now, and so is one closed while quitting.
+      ...await Promise.allSettled([undoOffers.close()]),
       ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
       ...await Promise.allSettled([broker?.shutdown()]),
       ...await Promise.allSettled([

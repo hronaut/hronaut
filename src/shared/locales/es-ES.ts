@@ -853,6 +853,7 @@ export const esES = {
       "newTab": "Abrir una pestaña nueva",
       "closeTab": "Cerrar la pestaña actual",
       "reopenTab": "Volver a abrir la última pestaña cerrada",
+      "undo": "Deshacer un cierre o una eliminación mientras se ofrezca Deshacer",
       "searchTabs": "Buscar pestañas abiertas",
       "commands": "Abrir la paleta de comandos",
       "pick": "Seleccionar un elemento para el contexto del agente",
