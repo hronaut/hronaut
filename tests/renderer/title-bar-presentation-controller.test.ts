@@ -176,6 +176,38 @@ describe('title bar presentation controller', () => {
     expect(rightInset()).toBe('113px')
     expect(frames.size).toBe(0)
 
+    // Widening with the overlay's area late: the resize alone reads nothing, so the old area never counts against the
+    // new viewport, however late the area comes.
+    viewportWidth = 1_920
+    resizeTarget.dispatchEvent(new Event('resize'))
+    runFrames()
+    time += 400
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(frames.size).toBe(0)
+    overlay.rect = new DOMRect(0, 0, 1_807, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+
+    // A size waiting when the overlay hides, as on entering full screen, starts over when it shows again.
+    overlay.rect = new DOMRect(0, 0, 1_327, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    overlay.visible = false
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    time += 300
+    overlay.visible = true
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    viewportWidth = 1_440
+    resizeTarget.dispatchEvent(new Event('resize'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(frames.size).toBe(0)
+
     // A hidden overlay, as in full screen, reports an empty area; the controls keep their room.
     overlay.visible = false
     overlay.rect = new DOMRect(0, 0, 0, 0)

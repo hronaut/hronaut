@@ -118,7 +118,7 @@ export function createTitleBarPresentationController(
     let area = normalizeTitleBarArea(overlay.getTitlebarAreaRect(), viewportWidth)
     const measured = { left: area.leftInset, right: area.rightInset }
     if (fromOverlay && overlay.visible && (measured.left > 0 || measured.right > 0)) {
-      const now = environment.now?.() ?? 0
+      const now = environment.now?.() ?? performance.now()
       if (
         !lastControlInsets
         || !environment.requestFrame
@@ -131,6 +131,9 @@ export function createTitleBarPresentationController(
         if (!candidateInsets || !sameInsets(measured, candidateInsets.insets)) candidateInsets = { insets: measured, since: now }
         requestOverlayRead()
       }
+    } else if (fromOverlay) {
+      // A hidden or empty area says nothing about the controls; a size waiting before it starts over when it is back.
+      candidateInsets = undefined
     }
     if (lastControlInsets && lastControlInsets.left + lastControlInsets.right < viewportWidth) {
       area = {
@@ -149,13 +152,14 @@ export function createTitleBarPresentationController(
   }
 
   /**
-   * Follows a resize of the window, which keeps the controls' room until the overlay reports again. A new size for
-   * the controls read before it may have been read against the old viewport, so it starts over with a fresh read, which
-   * also corrects a size that a viewport even slower to catch up let through.
+   * Follows a resize of the window, which keeps the controls' room until the overlay reports again. A new size waiting
+   * for the controls may have been read against the old viewport, so it starts over with a fresh read. Without one, the
+   * resize reads nothing: widening, the viewport grows before the overlay's area, and only the overlay's own report
+   * measures the controls.
    */
   function syncGeometry(): void {
     applyGeometry(false)
-    if (!started || !environment.windowControlsOverlay?.visible) return
+    if (!started || !candidateInsets) return
     candidateInsets = undefined
     requestOverlayRead()
   }
