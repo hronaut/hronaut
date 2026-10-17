@@ -6,9 +6,20 @@ describe('agent status', () => {
   it('names MCP clients as people know them', () => {
     expect(agentDisplayName('claude-code')).toBe('Claude Code')
     expect(agentDisplayName('codex-mcp-client')).toBe('Codex')
-    expect(agentDisplayName('my-review-bot-client')).toBe('My Review Bot')
+    expect(agentDisplayName('CURSOR-VSCODE')).toBe('Cursor')
+    // Other names stay as sent, so a generic one never turns into something it is not.
+    expect(agentDisplayName('mcp-client')).toBe('mcp-client')
+    expect(agentDisplayName('kiro-cli')).toBe('kiro-cli')
     expect(agentDisplayName('Visual Studio Code')).toBe('Visual Studio Code')
     expect(agentDisplayName('  Zed ')).toBe('Zed')
+  })
+
+  it('never reads a client name as a pattern or a placeholder, and counts a blank name instead of showing it', () => {
+    const en = localeMessages['en-US'].agentStatus
+    expect(agentStatusText(agentStatus('ready', [{ key: 'a', name: "$' x", state: 'idle' }]), en, 'en-US')).toBe("$' x connected")
+    expect(agentStatusText(agentStatus('ready', [{ key: 'a', name: '{count} bot', state: 'working' }]), en, 'en-US')).toBe('{count} bot is working')
+    expect(agentStatus('ready', [{ key: 'a', name: ' ', state: 'idle' }])).toEqual({ kind: 'connected', message: 'connectedMany', count: 1 })
+    expect(agentStatusText(agentStatus('ready', [{ key: 'a', name: '', state: 'working' }]), en, 'en-US')).toBe('1 agent working')
   })
 
   it('puts the server first, then needs you, working and connected', () => {
@@ -42,6 +53,7 @@ describe('agent status', () => {
     expect(agentStatusText(many, localeMessages['en-US'].agentStatus, 'en-US')).toBe('5 agents connected')
     expect(agentStatusText(many, localeMessages['ru-RU'].agentStatus, 'ru-RU')).toBe('5 агентов подключено')
     expect(agentStatusText(agentStatus('ready', []), localeMessages['en-US'].agentStatus, 'en-US')).toBe('Ready for agents')
-    expect(agentStatusTone('needs-you')).toBe('paused')
+    expect(agentStatusTone('needs-you')).toBe('needs-you')
+    expect(agentStatusTone('connected')).toBe('ready')
   })
 })

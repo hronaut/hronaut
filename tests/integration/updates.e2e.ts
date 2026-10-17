@@ -40,7 +40,7 @@ test('configures and checks updates through the Settings dialog', async ({ appWi
   await expect(updateStatus).toContainText('Update checks are available in packaged builds.')
 })
 
-injectedUpdateTest('shows update status beside MCP ready and opens update details without moving the webpage', async ({
+injectedUpdateTest('shows update status beside the agent status and opens update details without moving the webpage', async ({
   appWindow,
   electronApp
 }) => {

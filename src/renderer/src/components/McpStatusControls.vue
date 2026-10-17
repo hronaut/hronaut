@@ -67,7 +67,7 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
 <template>
   <div class="mcp-controls" :class="[state.status, { 'needs-you': agents.kind === 'needs-you' }]">
     <UiPopover v-model="summaryOpen" class="mcp-summary" trigger-class="mcp-pill" :label="statusLabel" :title="statusTitle" placement="bottom-end" holds-page>
-      <template #trigger><span class="status-dot" />{{ statusLabel }}</template>
+      <template #trigger><span class="status-dot" /><span class="mcp-pill-label">{{ statusLabel }}</span></template>
       <section class="mcp-readiness-summary" :aria-label="t('home.readiness.heading')">
         <strong>{{ t('home.readiness.heading') }}</strong>
         <dl>

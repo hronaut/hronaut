@@ -103,11 +103,11 @@ import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
-import { AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type AgentCall } from './agent-presence.js'
+import { AGENT_PRESENCE_WINDOW_MS, AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type AgentCall } from './agent-presence.js'
 import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
 import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
-import { agentDisplayName, strongerAgentState, type AgentStatusAgent } from '../../shared/agent-status.js'
+import { strongerAgentState, type AgentStatusAgent } from '../../shared/agent-status.js'
 import { webAddress } from '../browser/url.js'
 export {
   WorkspaceWriteLeaseError,
@@ -5978,6 +5978,8 @@ export class McpHttpServer {
         completed = true
         this.activeRequests = Math.max(0, this.activeRequests - 1)
         client.activeRequests = Math.max(0, client.activeRequests - 1)
+        // A long-held stream closing is the last sign of a session whose window already passed.
+        if (client.activeRequests === 0 && client.initializedAt && !McpHttpServer.sessionLive(client, Date.now())) this.agentPresenceChanged()
       }
       response.once('finish', completeRequest)
       response.once('close', completeRequest)
@@ -6110,18 +6112,44 @@ export class McpHttpServer {
 
   /**
    * Each connected agent once, by its opaque presence key (never the session id) and display name, with its strongest
-   * state in any open workspace. Home and the toolbar status say the same thing from this.
+   * state in any open workspace. Home and the toolbar status say the same thing from this. A session counts while it
+   * holds a request open (such as its event stream) or for the presence window after its last one, so a client that
+   * quit without closing its session leaves as its avatar does; an agent still waiting for you stays until answered.
    */
-  getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence()): AgentStatusAgent[] {
+  getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence(), now = Date.now()): AgentStatusAgent[] {
     const states = new Map<string, AgentStatusAgent['state']>()
-    for (const agent of Object.values(presence).flat()) states.set(agent.clientKey, strongerAgentState(states.get(agent.clientKey), agent.state))
+    const names = new Map<string, string>()
+    for (const agent of Object.values(presence).flat()) {
+      states.set(agent.clientKey, strongerAgentState(states.get(agent.clientKey), agent.state))
+      names.set(agent.clientKey, agent.name)
+    }
     const agents: AgentStatusAgent[] = []
-    for (const [sessionId, session] of this.transportSessions) {
-      if (!session.client.initializedAt) continue
+    for (const [sessionId, { client }] of this.transportSessions) {
+      if (!client.initializedAt || !McpHttpServer.sessionLive(client, now)) continue
       const key = this.agentPresence.clientKey(sessionId)
-      agents.push({ key, name: agentDisplayName(sanitizeAgentName(session.client.name)), state: states.get(key) ?? 'idle' })
+      agents.push({ key, name: sanitizeAgentName(client.name), state: states.get(key) ?? 'idle' })
+    }
+    const listed = new Set(agents.map((agent) => agent.key))
+    for (const [key, state] of states) {
+      if (state === 'needs-you' && !listed.has(key)) agents.push({ key, name: names.get(key) ?? '', state })
     }
     return agents
+  }
+
+  /** Whether a session still counts as connected: a request open, or one within the presence window. */
+  private static sessionLive(client: McpClientActivity, now: number): boolean {
+    return client.activeRequests > 0 || now - Date.parse(client.lastSeenAt) < AGENT_PRESENCE_WINDOW_MS
+  }
+
+  /** When an idle session next stops counting as connected, so the status changes without a request. */
+  private nextSessionExpiry(now: number): number | undefined {
+    let next: number | undefined
+    for (const { client } of this.transportSessions.values()) {
+      if (!client.initializedAt || client.activeRequests > 0) continue
+      const at = Date.parse(client.lastSeenAt) + AGENT_PRESENCE_WINDOW_MS
+      if (at > now && (next === undefined || at < next)) next = at
+    }
+    return next
   }
 
   /** Increases whenever an agent's step history changes, including a step getting its picture. */
@@ -6203,6 +6231,8 @@ export class McpHttpServer {
       ? suppliedInfo.name
       : existing?.name ?? userAgent).slice(0, 128)
     const version = typeof suppliedInfo?.version === 'string' ? suppliedInfo.version.slice(0, 64) : undefined
+    // A session past its window counts as connected again from this request on.
+    const lapsed = existing?.initializedAt !== undefined && !McpHttpServer.sessionLive(existing, Date.now())
     const now = new Date().toISOString()
     if (!existing && this.clients.size >= McpHttpServer.MAX_CLIENTS) {
       const oldestId = this.clients.keys().next().value as string | undefined
@@ -6230,6 +6260,7 @@ export class McpHttpServer {
     if (existing) this.clients.delete(id)
     this.clients.set(id, client)
     this.activeRequests += 1
+    if (lapsed) this.agentPresenceChanged()
     this.totalRequests += 1
     return client
   }
@@ -6302,7 +6333,9 @@ export class McpHttpServer {
     clearTimeout(this.agentPresenceTimer)
     this.agentPresenceTimer = undefined
     const now = Date.now()
-    const next = this.agentPresence.nextTransitionAt(now)
+    const transition = this.agentPresence.nextTransitionAt(now)
+    const expiry = this.nextSessionExpiry(now)
+    const next = transition === undefined ? expiry : expiry === undefined ? transition : Math.min(transition, expiry)
     if (next !== undefined && this.httpServer) {
       this.agentPresenceTimer = setTimeout(() => this.agentPresenceChanged(), next - now + 1)
       this.agentPresenceTimer.unref?.()

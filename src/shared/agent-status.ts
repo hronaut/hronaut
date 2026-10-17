@@ -17,17 +17,10 @@ const KNOWN_CLIENT_NAMES: ReadonlyMap<string, string> = new Map([
   ['windsurf-client', 'Windsurf']
 ])
 
-/**
- * An MCP client's name as people know the product: `claude-code` is "Claude Code". Unknown names lose a trailing
- * "-mcp-client" or "-client" and, when written in lower case with dashes, read as words; other names stay as sent.
- */
+/** An MCP client's name as people know the product: `claude-code` is "Claude Code". Other names stay as sent. */
 export function agentDisplayName(name: string): string {
   const trimmed = name.trim()
-  const known = KNOWN_CLIENT_NAMES.get(trimmed.toLocaleLowerCase())
-  if (known) return known
-  if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u.test(trimmed)) return trimmed
-  const words = trimmed.replace(/[-_](?:mcp[-_])?client$/u, '').split(/[-_]/u)
-  return words.map((word) => word.charAt(0).toLocaleUpperCase() + word.slice(1)).join(' ')
+  return KNOWN_CLIENT_NAMES.get(trimmed.toLocaleLowerCase()) ?? trimmed
 }
 
 /** Every Hronaut surface says the same thing about agents, in this order of importance. */
@@ -72,10 +65,11 @@ export function agentStatus(server: McpServerStatus, agents: readonly AgentStatu
   const all = [...strongest.values()]
   const needing = all.filter((agent) => agent.state === 'needs-you')
   if (needing.length) return { kind: 'needs-you', message: 'needsYou', count: needing.length }
+  // A name with nothing visible reads as "1 agent working" rather than " is working".
   const working = all.filter((agent) => agent.state === 'working')
-  if (working.length === 1) return { kind: 'working', message: 'working', name: working[0]!.name, count: 1 }
+  if (working.length === 1 && working[0]!.name.trim()) return { kind: 'working', message: 'working', name: working[0]!.name, count: 1 }
   if (working.length) return { kind: 'working', message: 'workingMany', count: working.length }
-  if (all.length === 1) return { kind: 'connected', message: 'connected', name: all[0]!.name, count: 1 }
+  if (all.length === 1 && all[0]!.name.trim()) return { kind: 'connected', message: 'connected', name: all[0]!.name, count: 1 }
   if (all.length) return { kind: 'connected', message: 'connectedMany', count: all.length }
   return { kind: 'ready', message: 'ready', count: 0 }
 }
@@ -89,13 +83,13 @@ export function agentStatusText(
 ): string {
   const forms = messages[status.message].split(' | ')
   const form = forms[pluralFormIndex(locale, status.count, forms.length)] ?? forms[0]!
-  return form.replaceAll('{name}', status.name ?? '').replaceAll('{count}', formatNumber(status.count))
+  // One pass with a function, so a client's name is never read as a pattern or as another placeholder.
+  return form.replace(/\{(name|count)\}/gu, (_, key: string) => key === 'name' ? status.name ?? '' : formatNumber(status.count))
 }
 
-/** Its dot: green when agents can work, amber when they wait on the person, red when they cannot connect. */
-export function agentStatusTone(kind: AgentStatusKind): 'ready' | 'starting' | 'paused' | 'error' {
-  if (kind === 'error') return 'error'
-  if (kind === 'starting') return 'starting'
-  if (kind === 'paused' || kind === 'needs-you') return 'paused'
+/** Its dot, as the toolbar draws it: green when agents can work, the needs-you color, amber when paused, red when they
+ * cannot connect. */
+export function agentStatusTone(kind: AgentStatusKind): 'ready' | 'starting' | 'paused' | 'needs-you' | 'error' {
+  if (kind === 'error' || kind === 'starting' || kind === 'paused' || kind === 'needs-you') return kind
   return 'ready'
 }

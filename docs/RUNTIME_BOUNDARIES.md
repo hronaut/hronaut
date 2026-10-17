@@ -61,7 +61,7 @@ Complete D1/D4's observed-user criteria in a fresh disposable profile:
 1. Ask a first-time user to connect their chosen local client and report a heading
    from a benign page. Record time from launch to the verified snapshot, errors,
    help requests, and successful recovery from a copy failure.
-2. Before connecting, ask whether “MCP ready” proves the client is connected.
+2. Before connecting, ask whether “Ready for agents” proves the client is connected.
    Have the user open the summary and identify listener, client, and probe states.
 3. Ask them to stop new agent commands and then block page input. Record whether
    they choose the correct separate controls and understand a settling command.

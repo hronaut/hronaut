@@ -42,10 +42,12 @@ h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; lett
 .status-details .status-value { font-size: var(--type-body-size); }
 .status-value { font-size: var(--type-title-size); font-weight: 600; letter-spacing: -.02em; }
 .status-detail { max-width: 165px; color: var(--muted); font-size: var(--type-micro-size); line-height: 1.4; text-align: right; }
-.dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 12%, transparent); }
-.dot.starting { background: var(--accent); }
-.dot.paused { background: var(--warning); }
-.dot.error { background: var(--danger); }
+/* The same dots as the toolbar's agent status. */
+.dot { --dot-color: var(--success); width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--dot-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot-color) 14%, transparent); }
+.dot.starting { --dot-color: #4f8cff; }
+.dot.paused { --dot-color: var(--warning); }
+.dot.needs-you { --dot-color: var(--needs-you); }
+.dot.error { --dot-color: var(--danger); }
 .home-navigation { display: flex; align-items: stretch; gap: 22px; overflow-x: auto; overflow-y: hidden; margin: 20px 0 24px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
 .home-navigation button { position: relative; min-height: 44px; padding: 10px 2px; border: 0; color: var(--muted); background: transparent; font-size: var(--type-body-size); font-weight: 500; }
 .home-navigation button:hover { color: var(--text); }
