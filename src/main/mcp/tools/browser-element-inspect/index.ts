@@ -3,10 +3,11 @@ import { CSS_INSPECTION_PROPERTIES, type CssInspectionProperty } from '../../../
 import { MAX_COMPARED_TEXT_VALUE_LENGTH } from '../../../../shared/value-comparison.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import { type ElementInspectionSettlement, elementInspectionSettlement } from '../element-inspection-settlement.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 
 export function registerBrowserElementInspect(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_element_inspect',
     {
@@ -36,11 +37,13 @@ export function registerBrowserElementInspect(context: McpToolContext): void {
       includeSizingInputs?: boolean
       includeValidity?: boolean
       expectedValue?: string
-    }, call) => {
+    }, call: WorkspaceToolCall<ElementInspectionSettlement>) => {
       const previewBefore = manager.cssStatePreviewMarker(options.tabId)
-      const inspection = await manager.elementInspection(options, call.requireCurrentTarget, pending => { frameRequests.getStore()!.elementInspection = pending })
+      const inspection = await manager.elementInspection(options, call.requireCurrentTarget, pending => { call.settlement.retain(pending) })
       const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
       return textResult(cssStatePreview ? { ...inspection, cssStatePreview } : inspection)
-    })
+    }),
+    // Sizing inputs describe images, so that report waits for the settled result like browser_image_state.
+    { settlement: input => elementInspectionSettlement(input.includeSizingInputs === true) }
   )
 }

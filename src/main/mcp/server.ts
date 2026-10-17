@@ -929,14 +929,6 @@ function createBrowserMcpServer(
         finish?.(settled)
         return settled
       }
-      const settleImageState = (result: CallToolResult): CallToolResult => {
-        if (name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) {
-          const finish = frameRequest.imageFinishActivity
-          frameRequest.imageFinishActivity = undefined
-          finish?.(result)
-        }
-        return result
-      }
       const settleFileEvaluation = (result: CallToolResult): CallToolResult => {
         if (!frameRequest.fileEvaluation) return result
         if (!result.isError) { frameRequest.fileEvaluationFinishActivity?.(result); return result }
@@ -1126,8 +1118,9 @@ function createBrowserMcpServer(
               ? 'The capability changed while this observation was running. Obtain a fresh credential before reading again.'
               : 'The capability changed after dispatch. Inspect current state before deciding what to do next; do not automatically repeat a possible side effect.'
           }
+          const settledDenial = settlement?.settleDenied?.({ ...textResult(outcome), structuredContent: outcome, isError: true }, outcome)
+          if (settledDenial) return settledDenial
           if (frameRequest.labeledCreation) return settleLabeledCreation({ ...textResult(outcome), structuredContent: outcome, isError: true })
-          if (name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) return settleImageState({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.fileEvaluation) return settleFileEvaluation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (name === 'browser_select' && input.values !== undefined) return settleSelection(frameRequest.selectionSubmitted
             ? selectionUnknownResult(frameRequest.selectionReviewFinalizationFailed, outcome) : { ...textResult(outcome), structuredContent: outcome, isError: true })
@@ -1145,15 +1138,6 @@ function createBrowserMcpServer(
           frameRequest.assertCurrent?.()
           frameRequest.pending.assertCurrent()
           return settled
-        }
-        if ((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state') && !result.isError) {
-          // Validate the captured context after every audit/capability await.
-          // Opt-in occupancy also settles its page-side identity/type guard.
-          const inspection = frameRequest.elementInspection
-          if (!inspection) throw new Error('Element inspection publication guard is unavailable')
-          await inspection.finish()
-          inspection.assertCurrent()
-          return settleImageState(result) // No await between final authority check and publication.
         }
         if (name === 'browser_emulate') {
           if (!result.isError) {
@@ -1219,7 +1203,7 @@ function createBrowserMcpServer(
         // No await after the final publication guard.
         const settled = settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(result))))
         recordReadinessProbe(settled.isError ? 'failed' : 'verified')
-        return settleLabeledCreation(settleImageState(settleFileEvaluation(settled)))
+        return settleLabeledCreation(settleFileEvaluation(settled))
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
           && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
@@ -1229,8 +1213,9 @@ function createBrowserMcpServer(
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
         recordReadinessProbe('failed')
+        const settledError = settlement?.settleError?.(error)
+        if (settledError) return settledError
         if (frameRequest.labeledCreation) { rememberInputPolicy(error); return settleLabeledCreation(errorResult(error)) }
-        if (name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) return settleImageState(errorResult(error))
         if (frameRequest.fileEvaluation) return settleFileEvaluation({ content: [], isError: true })
         if (frameRequest.storageComparison) { rememberInputPolicy(error); return settleStorageComparison(errorResult(error)) }
         if (frameRequest.storageInspection) { rememberInputPolicy(error); return settleStorageInspection(errorResult(error)) }
@@ -1251,7 +1236,6 @@ function createBrowserMcpServer(
         frameRequest.storageComparison?.publication?.dispose()
         frameRequest.clickAuthority?.dispose()
         frameRequest.selectionAuthority?.dispose()
-        frameRequest.elementInspection?.discard()
         frameRequest.pending?.discard()
         settlement?.dispose?.()
         if (frameRequest.fileEvaluationCompletion && finishWorkspaceMutation) {
@@ -1415,6 +1399,7 @@ function createBrowserMcpServer(
         const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state' || name === 'browser_image_state'
         const preservePresentation = passiveObservation || name === 'browser_wheel' || name === 'browser_hold_key'
           || (name === 'browser_click' && input.button === 'right')
+        const settlement = frameRequests.getStore()!.settlement as S
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
           if (actionTracker.controlRevision !== controlRevision) {
@@ -1534,7 +1519,7 @@ function createBrowserMcpServer(
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
           requireActiveCapabilityDispatch(name, actionInput, isFrameObservation || isPageObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
           if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
-          if ((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state') && extra?.signal?.aborted) throw new Error('Element inspection cancelled')
+          if (settlement?.cancelledMessage && extra?.signal?.aborted) throw new Error(settlement.cancelledMessage)
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -1684,9 +1669,9 @@ function createBrowserMcpServer(
           rememberInputPolicy,
           setInvalidatedOutcome: outcome => { invalidatedOutcome = outcome },
           validateLifecycle,
-          settlement: frameRequests.getStore()!.settlement as S
+          settlement
         }
-        call.settlement?.prepare?.(call)
+        settlement?.prepare?.(call)
         const operation = async (): Promise<CallToolResult> => {
           const admissionRejection = authorityRejection()
           if (admissionRejection) return admissionRejection
@@ -1791,7 +1776,7 @@ function createBrowserMcpServer(
               await requireHumanDecision(false, reviewAttempt?.id)
               if (name === 'browser_wheel') frameRequests.getStore()!.wheelPublication!()
               if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldPublication!()
-              if (name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state') requireCurrentTarget()
+              settlement?.recheckAfterDispatch?.()
               validateLifecycleResult()
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl(true)
@@ -1837,10 +1822,7 @@ function createBrowserMcpServer(
         }
         const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
           const request = frameRequests.getStore()!
-          if ((name === 'browser_image_state' || (name === 'browser_element_inspect' && input.includeSizingInputs === true)) && !request.imageFinishing) {
-            request.imageFinishActivity = settled => { request.imageFinishing = true; finishActivity(settled, false) }
-            return
-          }
+          if (settlement?.deferActivity?.(settled => finishActivity(settled, false))) return
           if (request.fileEvaluation && !request.fileEvaluationFinishing) {
             request.fileEvaluationFinishActivity = settled => { request.fileEvaluationFinishing = true; finishActivity(settled, false) }
             return
