@@ -60,6 +60,8 @@ export interface CommandPaletteCommand {
   websiteOnly?: boolean
   /** Offered only while an agent works in the workspace in view. */
   agentOnly?: boolean
+  /** Only while an agent is working on the tab in view and the person can take it over. */
+  takeOverOnly?: boolean
 }
 
 export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
@@ -109,7 +111,7 @@ export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
   { id: 'updates', label: 'Check for updates', description: 'Open software update settings', category: 'Application', keywords: ['upgrade', 'version'] },
   { id: 'keyboard-shortcuts', label: 'Show keyboard shortcuts', description: 'Review Hronaut keyboard controls', category: 'Application', keywords: ['help', 'keys'] },
   { id: 'agent-card', label: 'Show agent details', description: 'Open the card of the agent working in this workspace', category: 'Agents', keywords: ['agent', 'status', 'steps', 'claude', 'codex', 'cursor'], shortcut: 'Ctrl/Cmd+.', agentOnly: true },
-  { id: 'take-over', label: 'Take over from the agent', description: 'Pause the agent on this tab and carry on yourself', category: 'Agents', keywords: ['agent', 'control', 'pause', 'hand back'], shortcut: 'Ctrl/Cmd+Shift+O', agentOnly: true, websiteOnly: true },
+  { id: 'take-over', label: 'Take over from the agent', description: 'Pause the agent on this tab and carry on yourself', category: 'Agents', keywords: ['agent', 'control', 'pause', 'hand back'], shortcut: 'Ctrl/Cmd+Shift+O', agentOnly: true, websiteOnly: true, takeOverOnly: true },
   { id: 'toggle-mcp-pause', label: 'Pause or resume agents', description: 'Control whether Hronaut accepts new MCP commands', category: 'Agents', keywords: ['mcp', 'safety', 'stop'] }
 ]
 
@@ -125,6 +127,8 @@ export interface CommandPaletteContext {
   websiteAvailable: boolean
   /** An agent works in the workspace in view: its commands come first. */
   agentActive: boolean
+  /** An agent is working on the tab in view, and the person can take it over. */
+  takeOverAvailable?: boolean
   /** Commands run lately, the latest first. */
   recentIds?: readonly CommandPaletteCommandId[]
 }
@@ -169,6 +173,10 @@ function commandScore(command: CommandPaletteCommand, query: string): number {
   return 0
 }
 
+/**
+ * The commands matching a search, best first, leaving out website commands without a website. Agent commands are
+ * not filtered here; commandPaletteSections offers them only while they can run.
+ */
 export function filterCommandPaletteCommands<T extends CommandPaletteCommand = CommandPaletteCommand>(
   query: string,
   websiteAvailable: boolean,
@@ -198,7 +206,9 @@ export function commandPaletteSections<T extends CommandPaletteCommand>(
   commands: readonly T[] = COMMAND_PALETTE_COMMANDS as readonly T[]
 ): CommandPaletteSection<T>[] {
   const available = commands.filter((command) => (
-    (context.websiteAvailable || !command.websiteOnly) && (context.agentActive || !command.agentOnly)
+    (context.websiteAvailable || !command.websiteOnly)
+    && (context.agentActive || !command.agentOnly)
+    && (context.takeOverAvailable === true || !command.takeOverOnly)
   ))
   const sections = new Map<CommandPaletteSectionId, T[]>()
   const add = (id: CommandPaletteSectionId, command: T): void => {
@@ -210,7 +220,7 @@ export function commandPaletteSections<T extends CommandPaletteCommand>(
     for (const command of filterCommandPaletteCommands(query, true, available)) add(sectionOf(command), command)
     return [...sections].map(([id, list]) => ({ id, commands: list }))
   }
-  const recent = (context.recentIds ?? [])
+  const recent = [...new Set(context.recentIds ?? [])]
     .map((id) => available.find((command) => command.id === id))
     .filter((command): command is T => command !== undefined)
     .slice(0, COMMAND_PALETTE_RECENT_LIMIT)

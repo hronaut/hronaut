@@ -36,7 +36,7 @@
 
 .command-palette-overlay { @apply items-start [padding-top:max(56px,_8vh)] [background:rgba(14,_14,_20,_0.32)] [backdrop-filter:blur(12px)_saturate(1.1)]; }
 .command-palette {
-  @apply flex [width:min(700px,_calc(100vw_-_56px))] [max-height:min(650px,_calc(100vh_-_112px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] text-copy [background:color-mix(in_srgb,_var(--surface-raised)_84%,_transparent)] [backdrop-filter:blur(28px)_saturate(1.5)] [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply flex [width:min(700px,_calc(100vw_-_56px))] [max-height:min(650px,_calc(100vh_-_112px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] text-copy [background:color-mix(in_srgb,_var(--surface-raised)_92%,_transparent)] [box-shadow:var(--elevation-3)] [user-select:text];
 }
 :root[data-theme="cyberpunk"] .command-palette { @apply [border-color:#78309b] [box-shadow:0_0_0_1px_rgba(0,_245,_255,_.16),_0_28px_90px_rgba(0,_0,_0,_.62)]; }
 .command-palette-header { @apply grid [min-height:66px] [grid-template-columns:36px_minmax(0,_1fr)_32px] items-center [gap:11px] [padding:12px_15px] [border-bottom:1px_solid_var(--border-soft)] [background:color-mix(in_srgb,_var(--surface)_55%,_transparent)]; }
@@ -75,12 +75,15 @@
 .command-palette-empty span { @apply [max-width:440px] [margin-top:6px] [font-size:var(--type-body-size)] [line-height:1.45]; }
 .command-palette > footer { @apply flex [min-height:40px] flex-none items-center [gap:18px] [padding:7px_14px] [border-top:1px_solid_var(--border-soft)] text-muted [background:color-mix(in_srgb,_var(--surface)_55%,_transparent)] [font-size:var(--type-small-size)]; }
 .command-palette > footer span { @apply flex items-center [gap:4px]; }
-/* The workspace switcher shares the palette's frame; each workspace keeps its color. */
+/* The frame stays at least 92% opaque, so muted text keeps 4.5:1 over a dark page; the overlay's blur frosts it. */
 @media (prefers-reduced-transparency: reduce) {
-  .command-palette { @apply bg-surface-raised [backdrop-filter:none]; }
+  .command-palette-overlay { @apply [backdrop-filter:none]; }
+  .command-palette { @apply bg-surface-raised; }
   .command-palette-header,
   .command-palette > footer { @apply bg-surface; }
+  .command-palette-field { @apply bg-surface-muted; }
 }
+/* The workspace switcher shares the palette's frame; each workspace keeps its color. */
 .workspace-switcher-section + .workspace-switcher-section { @apply [margin-top:6px]; }
 .workspace-switcher-heading { @apply [margin:8px_10px_4px] text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [letter-spacing:.04em] uppercase; }
 .workspace-switcher-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:var(--corner-2)] [color:var(--workspace-color)] [background:color-mix(in_srgb,_var(--workspace-color)_14%,_transparent)]; }

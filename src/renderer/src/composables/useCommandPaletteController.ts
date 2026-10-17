@@ -10,7 +10,7 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { readLocalPreference, writeLocalPreference, type LocalPreferenceStorageProvider } from '../local-preferences.js'
 
 /** Where the palette remembers the commands run lately, for this window's profile only. */
-export const RECENT_COMMANDS_KEY = 'hronaut.commandPalette.recent'
+export const RECENT_COMMANDS_KEY = 'hronaut:command-palette-recent'
 const COMMAND_IDS = new Set<string>(COMMAND_PALETTE_COMMANDS.map((command) => command.id))
 
 function readRecentCommands(storage?: LocalPreferenceStorageProvider): CommandPaletteCommandId[] {
@@ -30,6 +30,8 @@ export interface CommandPaletteControllerOptions {
   websiteAvailable: Readonly<Ref<boolean>>
   /** An agent works in the workspace in view. */
   agentActive?: Readonly<Ref<boolean>>
+  /** An agent is working on the tab in view, and the person can take it over. */
+  takeOverAvailable?: Readonly<Ref<boolean>>
   storage?: LocalPreferenceStorageProvider
   translate: Translate
   runCommand: (commandId: CommandPaletteCommandId) => unknown
@@ -51,6 +53,7 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
   const sections = computed(() => commandPaletteSections(query.value, {
     websiteAvailable: options.websiteAvailable.value,
     agentActive: options.agentActive?.value ?? false,
+    takeOverAvailable: options.takeOverAvailable?.value ?? false,
     recentIds: recentIds.value
   }, localizedCommands.value))
   const commands = computed(() => sections.value.flatMap((section) => section.commands))

@@ -8,6 +8,7 @@ import IconKeyboardCommandKey from '~icons/material-symbols/keyboard-command-key
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconSchedule from '~icons/material-symbols/schedule-outline-rounded'
 import type { HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
+import type { BrowserTabState } from '../../../shared/types.js'
 import { commandShortcutKeys, type CommandPaletteCommandId, type CommandPaletteSectionId } from '../../../shared/command-palette.js'
 import { COMMAND_PALETTE_ICONS } from '../command-palette-icons.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
@@ -16,8 +17,9 @@ import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 
 const props = defineProps<{
   websiteAvailable: boolean
-  /** The workspace in view, whose agents' commands come first while they work there. */
-  activeWorkspaceId?: string
+  /** The tab in view: its workspace's agents' commands come first while they work there. */
+  activeTab?: Pick<BrowserTabState, 'id' | 'mcpGroupId' | 'agentPaused'>
+  agentControlLocked?: boolean
   presenceApi?: HronautAgentPresenceApi
   formatNumber: (value: number) => string
   runCommand: (commandId: CommandPaletteCommandId) => unknown
@@ -30,7 +32,11 @@ const panel = ref<HTMLElement | null>(null)
 const websiteAvailable = toRef(props, 'websiteAvailable')
 const presenceApi = props.presenceApi ?? (window as { hronautAgentPresence?: HronautAgentPresenceApi }).hronautAgentPresence
 const presence = presenceApi ? useAgentPresence(presenceApi) : undefined
-const agentActive = computed(() => Boolean(props.activeWorkspaceId && presence?.snapshot.value.workspaces[props.activeWorkspaceId]?.length))
+const workspaceAgents = computed(() => (props.activeTab?.mcpGroupId && presence?.snapshot.value.workspaces[props.activeTab.mcpGroupId]) || [])
+const agentActive = computed(() => workspaceAgents.value.length > 0)
+// As the take-over shortcut: an agent working on the tab in view, which is not paused, with agent control unlocked.
+const takeOverAvailable = computed(() => Boolean(props.activeTab && !props.activeTab.agentPaused && !props.agentControlLocked
+  && workspaceAgents.value.some((agent) => agent.state === 'working' && agent.lastTabId === props.activeTab!.id)))
 const mac = window.hronautShell?.windowChrome.platform === 'darwin'
 const paletteKeys = mac ? ['⌘', '⇧', 'P'] : ['Ctrl', 'Shift', 'P']
 const SECTION_LABEL_KEYS: Record<Exclude<CommandPaletteSectionId, 'recent'>, string> = {
@@ -59,6 +65,7 @@ const {
   open,
   websiteAvailable,
   agentActive,
+  takeOverAvailable,
   translate: (key, parameters) => t(key, parameters ?? {}),
   runCommand: props.runCommand,
   onRunError: props.reportCommandError
@@ -69,7 +76,8 @@ useModalDialogFocus({ open, panel, focusOnOpen: false })
 const liveListPointerGuardMs = 150
 let lastPointerPosition: { x: number; y: number } | null = null
 let pointerSelectionBlockedUntil = 0
-const stopWebsiteAvailabilityTracking = watch(websiteAvailable, () => {
+// Commands that come and go with the website or an agent move the list under a resting pointer.
+const stopWebsiteAvailabilityTracking = watch([websiteAvailable, agentActive, takeOverAvailable], () => {
   pointerSelectionBlockedUntil = Date.now() + liveListPointerGuardMs
 })
 const stopOpenTracking = watch(open, (isOpen) => {

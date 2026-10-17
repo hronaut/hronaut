@@ -9,6 +9,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import IconTabSearch from '~icons/material-symbols/tab-search-rounded'
 import IconWorkspaces from '~icons/material-symbols/workspaces-outline'
 import type { HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
+import { commandShortcutKeys } from '../../../shared/command-palette.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
 import type { BrowserState, BrowserTabState, HronautApi, UserAttentionRequest } from '../../../shared/types.js'
 import {
@@ -43,6 +44,7 @@ const emit = defineEmits<{
 
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
+const switcherKeys = commandShortcutKeys('Ctrl/Cmd+K', window.hronautShell?.windowChrome.platform === 'darwin')
 const presence = useAgentPresence(props.presenceApi)
 const panel = ref<HTMLElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
@@ -293,7 +295,7 @@ onBeforeUnmount(() => {
             :placeholder="t('workspaceSwitcher.placeholder')"
             @keydown="handleKeydown"
           />
-          <kbd>⌃/⌘ K</kbd>
+          <span class="command-palette-keys" aria-hidden="true"><kbd v-for="key in switcherKeys" :key="key">{{ key }}</kbd></span>
         </div>
         <span class="sr-only" role="status" aria-live="polite">
           {{ status }}
