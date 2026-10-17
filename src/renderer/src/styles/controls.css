@@ -93,8 +93,9 @@ input[type="checkbox"].ui-checkbox--switch {
   height: 22px;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  /* The muted outline keeps an off switch at 3:1 or more against the card in every theme. */
+  border: 1px solid var(--muted);
+  border-radius: var(--corner-pill);
   background-color: var(--surface-muted);
   cursor: pointer;
   transition:

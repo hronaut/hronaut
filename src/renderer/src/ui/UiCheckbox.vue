@@ -38,7 +38,7 @@ function onChange(event: Event): void {
 <template>
   <input v-if="bare" v-bind="$attrs" ref="input" :class="['ui-checkbox', { 'ui-checkbox--switch': appearance === 'switch' }]" type="checkbox" :checked="isChecked" :disabled="disabled" @change="onChange" />
   <label v-else class="ui-check" :class="{ 'ui-check--disabled': disabled }">
-    <input v-bind="$attrs" ref="input" type="checkbox" :checked="isChecked" :disabled="disabled" @change="onChange" />
+    <input v-bind="$attrs" ref="input" :class="{ 'ui-checkbox--switch': appearance === 'switch' }" type="checkbox" :checked="isChecked" :disabled="disabled" @change="onChange" />
     <span v-if="label || $slots.default"><slot>{{ label }}</slot></span>
   </label>
 </template>
