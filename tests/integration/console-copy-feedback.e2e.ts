@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+import { visibleToastText } from './toast-view.js'
 
 test('clears Console copy success while a later clipboard write is pending and after it fails', async ({ capabilities, appWindow, electronApp }) => {
   const { client, tabId, openPageTool } = capabilities
@@ -36,7 +37,7 @@ test('clears Console copy success while a later clipboard write is pending and a
     await electronApp.evaluate(() => (globalThis as typeof globalThis & {
       __consoleClipboard?: { reject?: (error: Error) => void }
     }).__consoleClipboard?.reject?.(new Error('Synthetic clipboard refusal')))
-    await expect(appWindow.getByText('Synthetic clipboard refusal', { exact: false })).toBeVisible()
+    await expect.poll(() => visibleToastText(electronApp, appWindow)).toContain('Synthetic clipboard refusal')
     await expect(copyAll).toHaveText('Copy all')
     expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(previous)
     await expect(panel.locator('.console-message')).toHaveCount(1)

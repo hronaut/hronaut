@@ -88,6 +88,13 @@ export function validToastOverlayId(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 1
 }
 
+/** The id of the toast a request asks main to draw, even one main will not draw; undefined without a valid one. */
+export function toastOverlayRequestId(value: unknown): number | undefined {
+  const toast = value && typeof value === 'object' ? (value as { toast?: unknown }).toast : undefined
+  const id = toast && typeof toast === 'object' ? (toast as { id?: unknown }).id : undefined
+  return validToastOverlayId(id) ? id : undefined
+}
+
 function boundedText(value: unknown, limit: number, allowEmpty: boolean): string {
   if (typeof value !== 'string' || value.length > limit || (!allowEmpty && value.trim().length === 0)) {
     throw new TypeError('Invalid toast text')

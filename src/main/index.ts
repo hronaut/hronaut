@@ -13,7 +13,7 @@ import {
   parseToastOverlayMeasurement,
   parseToastOverlayMessage,
   parseToastOverlayRequest,
-  validToastOverlayId,
+  toastOverlayRequestId,
   type ToastOverlayEvent,
   type ToastOverlayRequest
 } from '../shared/toast-overlay.js'
@@ -330,7 +330,9 @@ const toastOverlay = new ToastOverlay({
   surface: () => ensureToastOverlaySurface(),
   layout: () => {
     if (workspaceStartupFailure || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return null
-    const area = tabsManager?.pageArea()
+    // No page area until the saved workspaces are up, or after they failed to come up; the shell shows its own copy.
+    if (!tabsManager || initializedTabsManager !== tabsManager) return null
+    const area = tabsManager.pageArea()
     return area ? { area, zoom: mainWindow.webContents.getZoomFactor() } : null
   },
   emit: (event: ToastOverlayEvent) => {
@@ -2688,15 +2690,22 @@ function registerIpc(): void {
     if (message) agentCards.received(message)
   })
   ipcMain.on('toast-overlay:show', (event, value: unknown) => {
+    const refuse = (): void => {
+      const id = toastOverlayRequestId(value)
+      if (id !== undefined) toastOverlay.refused(id)
+    }
+    // As for the other shell overlays, nothing is drawn while startup has stopped; the shell keeps its own copy.
+    if (workspaceStartupFailure) {
+      refuse()
+      return
+    }
     assertMainShellSender(event)
     let request: ToastOverlayRequest
     try {
       request = parseToastOverlayRequest(value)
     } catch (error) {
       // Nothing outside the contract is drawn; the shell hears the toast is not shown and shows its own copy.
-      const toast = value && typeof value === 'object' ? (value as { toast?: unknown }).toast : undefined
-      const id = toast && typeof toast === 'object' ? (toast as { id?: unknown }).id : undefined
-      if (validToastOverlayId(id)) toastOverlay.refused(id)
+      refuse()
       throw error
     }
     toastOverlay.show(request)

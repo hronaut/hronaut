@@ -1,5 +1,6 @@
 import type { BrowserState } from '../../src/shared/types.js'
 import { test, expect } from './capability-fixtures.js'
+import { visibleToastText } from './toast-view.js'
 
 test('global unlock preserves successful frozen-page behavior without thawing it', async ({ appWindow, electronApp }) => {
   const url = 'data:text/html,' + encodeURIComponent('<title>Frozen unlock fixture</title><button>Action</button>')
@@ -50,7 +51,7 @@ test('global unlock rejects a blocked debugger queue without applying a late unl
   try {
     await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { held: boolean } }).unlockQueueProbe?.held)).toBe(true)
     await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
-    await expect(appWindow.getByText('A page is busy. Input locks were not changed.', { exact: false })).toBeVisible({ timeout: 5000 })
+    await expect.poll(() => visibleToastText(electronApp, appWindow), { timeout: 5000 }).toContain('A page is busy. Input locks were not changed.')
     await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toBeEnabled()
     expect(await appWindow.evaluate('window.hronaut.getState().then(state=>state.allHumanInteractionLocked)')).toBe(true)
     await electronApp.evaluate(() => (globalThis as typeof globalThis & { unlockQueueProbe?: { release: () => void } }).unlockQueueProbe?.release())
