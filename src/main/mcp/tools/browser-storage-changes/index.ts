@@ -2,10 +2,11 @@ import { z } from 'zod'
 import type { StorageComparisonHooks } from '../../../browser/storage-comparison-operation.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { type StorageComparisonSettlement, storageComparisonSettlement } from './storage-comparison-settlement.js'
 
 export function registerBrowserStorageChanges(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_storage_changes',
     {
@@ -22,19 +23,20 @@ export function registerBrowserStorageChanges(context: McpToolContext): void {
       tabId?: string
       action: 'get' | 'baseline' | 'compare' | 'clear'
       includeValues: boolean
-    }, call) => {
-      const storageComparisonHooks = frameRequests.getStore()!.storageComparison ? {
+    }, call: WorkspaceToolCall<StorageComparisonSettlement>) => {
+      const storageComparisonHooks = {
         validate: () => {
           try {
             if (call.signal?.aborted) throw new Error('Storage comparison cancelled')
             call.requireCurrentTarget()
           } catch (error) { call.rememberInputPolicy(error); throw error }
         },
-        started: () => { frameRequests.getStore()!.storageComparison!.started = true },
-        comparisonChanged: () => { frameRequests.getStore()!.storageComparison!.changed = true },
-        retainPublication: (guard: { validate(): void; dispose(): void }) => { frameRequests.getStore()!.storageComparison!.publication = guard }
-      } satisfies StorageComparisonHooks : undefined
+        started: call.settlement.markStarted,
+        comparisonChanged: call.settlement.markChanged,
+        retainPublication: call.settlement.retainPublication
+      } satisfies StorageComparisonHooks
       return textResult(await manager.storageChanges(action, tabId, includeValues, storageComparisonHooks))
-    })
+    }),
+    { settlement: () => storageComparisonSettlement() }
   )
 }
