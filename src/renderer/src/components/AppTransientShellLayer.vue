@@ -13,6 +13,8 @@ import type {
 } from '../../../shared/types.js'
 import type { AppBrowserCollectionsFeatureController } from '../composables/useAppBrowserCollectionsFeatureController.js'
 import type { CommandPaletteView } from '../composables/useCommandPaletteShellController.js'
+import type { AgentStepHistoryTarget } from '../composables/useAgentStepHistory.js'
+import AgentStepsDialog from './AgentStepsDialog.vue'
 import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
 import CommandPalette from './CommandPalette.vue'
 import CredentialPicker from './CredentialPicker.vue'
@@ -54,6 +56,8 @@ const props = defineProps<{
   runCommand: (commandId: CommandPaletteCommandId) => unknown
   reportCommandError: (error: unknown, commandId: CommandPaletteCommandId) => void
   reportZoomError: (error: unknown) => void
+  /** The agent and workspace whose steps "All steps" shows. */
+  agentStepsTarget?: AgentStepHistoryTarget | null
 }>()
 
 const emit = defineEmits<{ newTab: []; searchTabs: []; createWorkspace: [] }>()
@@ -64,6 +68,7 @@ const workspaceEditorOpen = defineModel<boolean>('workspaceEditorOpen', { requir
 const credentialPickerOpen = defineModel<boolean>('credentialPickerOpen', { required: true })
 const commandPaletteOpen = defineModel<boolean>('commandPaletteOpen', { required: true })
 const commandPaletteView = defineModel<CommandPaletteView>('commandPaletteView', { default: 'commands' })
+const agentStepsOpen = defineModel<boolean>('agentStepsOpen', { default: false })
 // The palette shows one list at a time: commands, or the workspace switcher. Each list opens the palette on
 // itself and only closes it while it is the one shown, so a late close from the other list changes nothing.
 function paletteList(view: CommandPaletteView) {
@@ -136,6 +141,13 @@ onMounted(() => {
   })
 })
 onBeforeUnmount(() => unsubscribeHomeEditor?.())
+
+// A step's tab may sit in a folded workspace; its group opens around it, as from the switcher.
+async function showStepTab(tabId: string): Promise<unknown> {
+  const tab = props.state.tabs.find((candidate) => candidate.id === tabId)
+  if (tab) props.expandTabGroup(tab)
+  return props.selectTab(tabId)
+}
 
 async function openTabSearch(): Promise<void> {
   await tabSearchPanel.value?.openPanel()
@@ -298,5 +310,15 @@ defineExpose({
     :show-error="showError"
     @search-tabs="emit('searchTabs')"
     @create-workspace="emit('createWorkspace')"
+  />
+  <AgentStepsDialog
+    v-model:open="agentStepsOpen"
+    :target="agentStepsTarget ?? null"
+    :state="state"
+    :select-tab="showStepTab"
+    :format-time="formatTime"
+    :format-number="formatNumber"
+    :format-error="formatError"
+    :show-error="showError"
   />
 </template>

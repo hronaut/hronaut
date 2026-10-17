@@ -21,7 +21,7 @@ import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-o
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
 import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
@@ -633,7 +633,8 @@ function agentPresenceSnapshot(): AgentPresenceSnapshot {
   } catch (error) {
     console.error('[mcp] Failed to read agent presence:', error)
   }
-  const serialized = JSON.stringify(workspaces)
+  // A step getting its picture changes only the history "All steps" reads, so it counts as a change too.
+  const serialized = JSON.stringify([workspaces, mcpServer?.agentStepHistoryRevision ?? 0])
   if (serialized !== agentPresenceSerialized) {
     agentPresenceSerialized = serialized
     agentPresenceRevision += 1
@@ -2591,6 +2592,11 @@ function registerIpc(): void {
     assertMainShellSender(event)
     return agentPresenceSnapshot()
   })
+  ipcMain.handle('agent-presence:steps', (event, value: unknown): AgentStepHistoryEntry[] | null => {
+    assertMainShellSender(event)
+    const request = parseAgentStepHistoryRequest(value)
+    return mcpServer?.getAgentStepHistory(request.clientKey, request.workspaceId, request.known) ?? null
+  })
   handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     const tabIds = validateTabOverviewPreviewIds(value)
@@ -4114,6 +4120,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       auditReceipts?.recordSiteAccess(workspaceId, decision, source)
     },
     onWorkspaceClosed: (workspaceId) => {
+      mcpServer?.forgetAgentWorkspaceSteps(workspaceId)
       // Closing can itself be part of an active browser operation. Finalize
       // asynchronously so that operation can write its reserved outcome first.
       void Promise.resolve().then(() => auditReceipts?.stop(workspaceId)).catch(() => {
@@ -4623,7 +4630,8 @@ function createRuntimeMcpServer(
         mainWindow.webContents.send('browser:mcp-tab-activity', activity)
       }
     },
-    onAgentPresenceChanged: scheduleAgentPresencePublish
+    onAgentPresenceChanged: scheduleAgentPresencePublish,
+    captureAgentStepThumbnail: async (tabId, workspaceId) => tabsManager ? tabsManager.captureAgentStepThumbnail(tabId, workspaceId) : undefined
   })
 }
 

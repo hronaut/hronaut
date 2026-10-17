@@ -1,5 +1,6 @@
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import type { BrowserTabState } from '../../../shared/types.js'
+import type { AgentStepHistoryTarget } from './useAgentStepHistory.js'
 import type { CommandPaletteView } from './useCommandPaletteShellController.js'
 import { useWorkspaceEditorShellController } from './useWorkspaceEditorShellController.js'
 
@@ -32,6 +33,9 @@ export function useAppTransientShellLayerController() {
   const tabSearchOpen = ref(false)
   const commandPaletteOpen = ref(false)
   const commandPaletteView = ref<CommandPaletteView>('commands')
+  // An agent's "All steps", opened from its card; the agent stays named while the dialog closes.
+  const agentStepsOpen = ref(false)
+  const agentStepsTarget = shallowRef<AgentStepHistoryTarget | null>(null)
 
   const tabSearchPanel = computed(() => {
     const surface = layer.value
@@ -75,6 +79,15 @@ export function useAppTransientShellLayerController() {
     await layer.value?.setZoom(action)
   }
 
+  function showAgentSteps(clientKey: string, workspaceId: string): void {
+    agentStepsTarget.value = { clientKey, workspaceId }
+    agentStepsOpen.value = true
+  }
+
+  function closeAgentSteps(): void {
+    agentStepsOpen.value = false
+  }
+
   return {
     layer,
     credentialPickerOpen,
@@ -83,6 +96,10 @@ export function useAppTransientShellLayerController() {
     tabSearchOpen,
     commandPaletteOpen,
     commandPaletteView,
+    agentStepsOpen,
+    agentStepsTarget,
+    showAgentSteps,
+    closeAgentSteps,
     tabSearchPanel,
     zoomBar,
     commandPalettePanel,

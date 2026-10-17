@@ -198,6 +198,18 @@ describe('agent card content', () => {
     expect(parseAgentCardModel(long)).toEqual(long)
   })
 
+  it('offers All steps under the recent steps when the shell can show them, and main accepts only that action there', () => {
+    const steps = [{ step: 'click' as const, outcome: 'done' as const, at: 3 }]
+    const card = agentCardModel(agent({ recentSteps: steps }), context({ allSteps: true }), t)
+    expect(card.recent).toEqual({ heading: 'Recent steps', empty: 'No finished steps yet', steps: [{ text: 'Clicked on the page' }], all: { action: 'all-steps', label: 'All steps' } })
+    expect(parseAgentCardModel(card)).toEqual(card)
+    // Not without steps, not where the shell cannot show them, and not once the agent disconnected.
+    expect(agentCardModel(agent(), context({ allSteps: true }), t).recent).not.toHaveProperty('all')
+    expect(agentCardModel(agent({ recentSteps: steps }), context(), t).recent).not.toHaveProperty('all')
+    expect(agentCardModel(agent({ recentSteps: steps }), context({ allSteps: true, gone: true }), t).recent).not.toHaveProperty('all')
+    expect(() => parseAgentCardModel({ ...card, recent: { ...card.recent, all: { action: 'take-over', label: 'All steps' } } })).toThrow(TypeError)
+  })
+
   it('offers no tab actions without a tab, and says when an idle agent waits or a disconnected one left', () => {
     expect(agentCardModel(agent({ state: 'idle' }), context({ tab: undefined }), t)).toMatchObject({ buttons: [], now: { text: 'Waiting for its next step' } })
     const gone = agentCardModel(agent({ state: 'needs-you' }), context({ gone: true, attentionReason: 'Old request.' }), t)
@@ -219,7 +231,7 @@ describe('agent card content', () => {
   it('has every card phrase in every language', () => {
     const keys = [
       'label', 'connected', 'states.idle', 'states.working', 'states.needsYou', 'states.gone', 'reason', 'now', 'nowIdle', 'gone',
-      'recent', 'noSteps', 'stepFailed', 'follow', 'cursor', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
+      'recent', 'noSteps', 'allSteps', 'stepFailed', 'follow', 'cursor', 'showTab', 'pause', 'resume', 'takeOver', 'handBack', 'dismiss', 'reviewDecision', 'close',
       'openDecision', 'looksGood', 'somethingWrong', 'whatToFix', 'sendBack', 'send', 'reviewAndApprove', 'whatItWillDo', 'stepDetail', 'rejectToggle',
       'rejectReason', 'reject', 'checked', 'checkedPage', 'confirmPage', 'checking', 'checkUnavailable', 'answerSending', 'answerSent', 'answerFailed', 'answerChanged', 'moreSteps',
       'decisionReasons.review-page', 'decisionReasons.provide-input', 'decisionReasons.approve-action', 'decisionReasons.resolve-unknown',

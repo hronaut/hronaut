@@ -28,6 +28,52 @@ export interface AgentRecentStep {
   at: number
 }
 
+/** Finished steps kept per agent and workspace, for the agent card's "All steps". */
+export const AGENT_STEP_HISTORY_LIMIT = 20
+
+/** A small JPEG of the page an agent acted on, taken once the step settled. Memory only, shell only. */
+export interface AgentStepThumbnail {
+  width: number
+  height: number
+  /** A `data:image/jpeg;base64,` URL; left out when the shell said it already has this step's picture. */
+  dataUrl?: string
+}
+
+/** A finished step in "All steps": an opaque id, the tab it acted on, and the page as it looked afterwards. */
+export interface AgentStepHistoryEntry extends AgentRecentStep {
+  /** Opaque, stable for the step. */
+  id: string
+  /** The tab it acted on, while that tab is still in the workspace. */
+  tabId?: string
+  /** It acted on a tab that has since closed or left the workspace. */
+  tabClosed?: true
+  thumbnail?: AgentStepThumbnail
+}
+
+/** Asks for one agent's steps in one workspace; `known` names steps whose pictures the shell already has. */
+export interface AgentStepHistoryRequest {
+  clientKey: string
+  workspaceId: string
+  known: string[]
+}
+
+const AGENT_CLIENT_KEY = /^[\w-]{22}$/u
+const AGENT_STEP_ID = /^s[0-9a-z]{1,12}$/u
+
+export function isAgentStepId(value: unknown): value is string {
+  return typeof value === 'string' && AGENT_STEP_ID.test(value)
+}
+
+export function parseAgentStepHistoryRequest(value: unknown): AgentStepHistoryRequest {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+  if (!source || typeof source.clientKey !== 'string' || !AGENT_CLIENT_KEY.test(source.clientKey)
+    || typeof source.workspaceId !== 'string' || source.workspaceId.length < 1 || source.workspaceId.length > 128
+    || !Array.isArray(source.known) || source.known.length > AGENT_STEP_HISTORY_LIMIT || !source.known.every(isAgentStepId)) {
+    throw new TypeError('Invalid agent steps request')
+  }
+  return { clientKey: source.clientKey, workspaceId: source.workspaceId, known: [...source.known] }
+}
+
 /**
  * One MCP client seen in a workspace recently. Main derives it from the
  * client's own tool calls and attention requests; it carries no session id or
@@ -78,6 +124,8 @@ export interface HronautAgentPresenceApi {
   onChanged(listener: (snapshot: AgentPresenceSnapshot) => void): () => void
   /** Hears each offer to take over from the agent working on a tab the person just touched. */
   onTakeOverOffer?(listener: (offer: AgentTakeOverOffer) => void): () => void
+  /** One agent's last steps in a workspace, newest first; null once its session has closed. */
+  steps?(request: AgentStepHistoryRequest): Promise<AgentStepHistoryEntry[] | null>
 }
 
 export const EMPTY_AGENT_PRESENCE: AgentPresenceSnapshot = Object.freeze({ revision: 0, workspaces: Object.freeze({}) }) as AgentPresenceSnapshot

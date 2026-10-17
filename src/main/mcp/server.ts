@@ -104,7 +104,8 @@ import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
 import { AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type AgentCall } from './agent-presence.js'
-import type { AgentPresence } from '../../shared/agent-presence.js'
+import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
+import type { AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
 import { webAddress } from '../browser/url.js'
 export {
@@ -339,6 +340,8 @@ export interface McpHttpServerOptions {
   onTabActivity?: (activity: McpTabActivity, agent: { id: string; name: string }) => void
   /** Agent presence may have changed; read it with getAgentPresence(). Called often and synchronously. */
   onAgentPresenceChanged?: () => void
+  /** Pictures a tab once an agent's step on it settles, for the shell's "All steps". Memory only. */
+  captureAgentStepThumbnail?: AgentStepThumbnailCapture
 }
 
 export interface McpClientActivity {
@@ -5780,6 +5783,7 @@ export class McpHttpServer {
   private readonly actionTracker: McpActionTracker
   private readonly agentPresence = new AgentPresenceRegistry()
   private agentPresenceTimer: NodeJS.Timeout | undefined
+  private readonly agentStepThumbnails: AgentStepThumbnailScheduler | undefined
 
   constructor(
     private readonly manager: BrowserTabsManager,
@@ -5791,6 +5795,10 @@ export class McpHttpServer {
     this.walletSessions = new WalletAgentSessionRegistry((requesterId) => (
       this.options.wallets?.cancelRequester?.(requesterId)
     ))
+    const capture = options.captureAgentStepThumbnail
+    this.agentStepThumbnails = capture && new AgentStepThumbnailScheduler(capture, (step, thumbnail) => {
+      if (this.agentPresence.attachThumbnail(step, thumbnail)) this.agentPresenceChanged()
+    })
   }
 
   setAuthenticationToken(token: string | undefined): void {
@@ -6083,6 +6091,7 @@ export class McpHttpServer {
     this.clients.clear()
     clearTimeout(this.agentPresenceTimer)
     this.agentPresenceTimer = undefined
+    this.agentStepThumbnails?.clear()
     this.agentPresence.clear()
     this.agentPresenceChanged()
   }
@@ -6094,6 +6103,24 @@ export class McpHttpServer {
       currentAttentionId: this.options.getOpenUserAttentionId ? this.options.getOpenUserAttentionId() : this.options.getUserAttention()?.id ?? null,
       tabInWorkspace: (workspaceId, tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
     })
+  }
+
+  /** Increases whenever an agent's step history changes, including a step getting its picture. */
+  get agentStepHistoryRevision(): number {
+    return this.agentPresence.historyRevision
+  }
+
+  /** A workspace closed: the steps agents took there, and their pictures, are not kept. */
+  forgetAgentWorkspaceSteps(workspaceId: string): void {
+    this.agentPresence.forgetWorkspaceSteps(workspaceId)
+  }
+
+  /** One agent's last steps in an open workspace, newest first, for the shell only; null once its session closed. */
+  getAgentStepHistory(clientKey: string, workspaceId: string, known: readonly string[]): AgentStepHistoryEntry[] | null {
+    if (!this.manager.isOpenAgentWorkspace(workspaceId)) return null
+    return this.agentPresence.history(clientKey, workspaceId, {
+      tabInWorkspace: (workspace, tabId) => this.manager.tabBelongsToMcpGroup(workspace, tabId)
+    }, new Set(known))
   }
 
   private authenticateRequest(authorization: string | undefined): McpRequestAuthorization | null {
@@ -6190,9 +6217,22 @@ export class McpHttpServer {
   private trackAgentCall(call: AgentCall, client: McpClientActivity, workspaceId: string): void {
     let movedOn: string | undefined
     try {
-      movedOn = this.agentPresence.track({ id: client.id, name: client.name }, workspaceId, call)
+      movedOn = this.agentPresence.track(
+        { id: client.id, name: client.name },
+        workspaceId,
+        call,
+        (tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
+      )
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
+    }
+    // Only a step that went through gets a picture: a refused one may name a tab the agent cannot use, or a page
+    // the person has taken over.
+    if (call.source === 'call' && call.phase === 'finished' && this.agentStepThumbnails) {
+      const step = this.agentPresence.latestStep(client.id, workspaceId)
+      if (step?.tabId && this.manager.tabBelongsToMcpGroup(workspaceId, step.tabId)) {
+        this.agentStepThumbnails.request(step.tabId, { sessionId: client.id, workspaceId, stepId: step.id })
+      }
     }
     if (movedOn) {
       try {

@@ -317,7 +317,9 @@ function build(cardId: number, model: AgentCardModel, measureAgain: () => void):
       item.append(icon(step.failed ? FAILED : DONE), element('span', '', step.text))
       list.append(item)
     }
-    card.append(section('agent-card-recent', model.recent.heading, list))
+    card.append(model.recent.all
+      ? section('agent-card-recent', model.recent.heading, list, actions(cardId, 'agent-card-all-steps', [model.recent.all]))
+      : section('agent-card-recent', model.recent.heading, list))
   } else {
     card.append(section('agent-card-recent', model.recent.heading, element('p', 'agent-card-subtitle', model.recent.empty)))
   }

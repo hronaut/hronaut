@@ -10,7 +10,7 @@ import { isResolvedThemeName, type ResolvedThemeName } from './theme.js'
  */
 export const AGENT_CARD_ACTIONS = [
   'show-tab', 'pause', 'resume', 'take-over', 'follow-on', 'follow-off', 'cursor-on', 'cursor-off', 'pin-on', 'pin-off', 'hand-back', 'dismiss',
-  'review-decision', 'answer-check', 'answer-resolve', 'answer-reject'
+  'review-decision', 'answer-check', 'answer-resolve', 'answer-reject', 'all-steps'
 ] as const
 export type AgentCardAction = typeof AGENT_CARD_ACTIONS[number]
 /** Answers to an agent's decision; only these carry the person's note. */
@@ -102,7 +102,8 @@ export interface AgentCardModel {
   /** Why the agent asked for you, while it needs you, and how you can answer it here. */
   reason?: { heading: string; text: string; answers?: AgentCardButton[]; decision?: AgentCardDecision }
   now: { heading: string; text: string }
-  recent: { heading: string; steps: AgentCardStep[]; empty: string }
+  /** The last few steps, and the button that opens all of them with pictures of the page. */
+  recent: { heading: string; steps: AgentCardStep[]; empty: string; all?: AgentCardButton & { action: 'all-steps' } }
   follow: AgentCardSwitch
   /** Whether agents' cursors are drawn on the page. */
   cursor: AgentCardSwitch
@@ -277,6 +278,8 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
   if (!/^#[0-9a-f]{6}$/iu.test(color)) throw new TypeError('Invalid agent card color')
   const recent = record(source.recent)
   if (!recent || !Array.isArray(recent.steps) || recent.steps.length > RECENT_LIMIT) throw new TypeError('Invalid agent card steps')
+  const all = recent.all === undefined ? undefined : button(recent.all)
+  if (all && all.action !== 'all-steps') throw new TypeError('Invalid agent card steps')
   return {
     label: text(source.label),
     name: text(source.name),
@@ -294,7 +297,8 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
         const step = record(value)
         if (!step || (step.failed !== undefined && typeof step.failed !== 'boolean')) throw new TypeError('Invalid agent card step')
         return { text: text(step.text), ...(step.failed ? { failed: true } : {}) }
-      })
+      }),
+      ...(all ? { all: { ...all, action: 'all-steps' as const } } : {})
     },
     follow: cardSwitch(source.follow, 'follow'),
     cursor: cardSwitch(source.cursor, 'cursor'),

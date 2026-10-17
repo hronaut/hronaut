@@ -407,7 +407,7 @@ async function decisionCard(electronApp: ElectronApplication): Promise<DecisionC
       reason: document.querySelector('.agent-card-reason')?.textContent ?? '',
       check: document.querySelector('.agent-card-check-text')?.textContent ?? null,
       confirm: document.querySelector('[data-focus="answer-check"]')?.checked === true,
-      enabled: [...document.querySelectorAll('.agent-card-section button:not(:disabled)')].filter((button) => !button.closest('[hidden]'))
+      enabled: [...document.querySelectorAll('[aria-labelledby="agent-card-reason"] button:not(:disabled)')].filter((button) => !button.closest('[hidden]'))
         .map((button) => button.dataset.focus ?? button.dataset.action),
       field: !!document.querySelector('.agent-card-field:not([hidden])'),
       plan: [...document.querySelectorAll('.agent-card-plan li')].map((item) => item.textContent),

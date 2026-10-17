@@ -55,6 +55,8 @@ export interface AgentCardContext {
   name: string
   /** The agent disconnected while its card was open; the card stays until you close it. */
   gone?: boolean
+  /** The shell can open all of the agent's steps, with pictures of the page. */
+  allSteps?: boolean
 }
 
 /** The card's content for one agent, in the user's language. */
@@ -104,7 +106,8 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
       steps: agent.recentSteps.map((step) => {
         const text = fitAgentCardText(agentStepText(t, step.step, step.target, 'done'))
         return step.outcome === 'failed' ? { text: t('shell.agentCard.stepFailed', { step: text }), failed: true } : { text }
-      })
+      }),
+      ...(context.allSteps && !context.gone && agent.recentSteps.length ? { all: { action: 'all-steps' as const, label: t('shell.agentCard.allSteps') } } : {})
     },
     follow: { label: t('shell.agentCard.follow'), checked: context.follow },
     cursor: { label: t('shell.agentCard.cursor'), checked: context.showCursor },

@@ -3,10 +3,12 @@ import {
   AGENT_AVATAR_COLORS,
   AGENT_AVATAR_INK,
   AGENT_RECENT_STEPS_LIMIT,
+  AGENT_STEP_HISTORY_LIMIT,
   agentAvatarColorHex,
   type AgentPresence,
   type AgentPresenceState,
-  type AgentRecentStep
+  type AgentRecentStep,
+  type AgentStepHistoryEntry
 } from '../../shared/agent-presence.js'
 import { agentStepActs, agentStepKind, type AgentStepKind } from '../../shared/agent-steps.js'
 import type { McpTabActivity } from '../../shared/types.js'
@@ -25,8 +27,9 @@ export const AGENT_NAME_MAX_GRAPHEMES = 64
 export const AGENT_STEP_TARGET_MAX_GRAPHEMES = 60
 export const AGENT_STEP_TARGET_MAX_UNITS = 120
 const AGENT_PRESENCE_MAX_ENTRIES = 200
-/** Finished steps kept per agent and workspace, for the agent card's history. */
-export const AGENT_STEP_HISTORY_LIMIT = 20
+export { AGENT_STEP_HISTORY_LIMIT }
+/** Step pictures kept in memory across all agents; the oldest give way first. */
+export const AGENT_STEP_THUMBNAIL_LIMIT = 60
 /** Closed sessions remembered, so a call that settles after its session closed cannot bring it back. */
 export const AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT = 1024
 
@@ -110,6 +113,31 @@ interface InFlightStep {
   startedAt: number
   step: AgentStepKind
   target?: string
+  /** The tool call itself, rather than the tab activity it caused. */
+  call: boolean
+  toolName: string
+  /** The tab the call acts on: named in the call, or the tab its own tab activity used. */
+  tabId?: string
+}
+
+/** A step's picture of its page, a small JPEG. */
+export interface AgentStepThumbnailImage {
+  jpeg: Buffer
+  width: number
+  height: number
+}
+
+interface StepRecord extends AgentRecentStep {
+  id: string
+  tabId?: string
+  thumbnail?: AgentStepThumbnailImage
+}
+
+/** A finished step, found again by its session, workspace and id. */
+export interface AgentStepReference {
+  sessionId: string
+  workspaceId: string
+  stepId: string
 }
 
 /** One authorized tool call in a workspace, or the tab activity it caused. */
@@ -135,7 +163,7 @@ interface WorkspaceActivity {
   lastTabId?: string
   inFlight: Map<string, InFlightStep>
   /** Finished calls, oldest first, at most AGENT_STEP_HISTORY_LIMIT. */
-  steps: AgentRecentStep[]
+  steps: StepRecord[]
 }
 
 interface AttentionRecord {
@@ -181,6 +209,8 @@ const STATE_ORDER: Record<AgentPresenceState, number> = { 'needs-you': 0, workin
 export class AgentPresenceRegistry {
   private readonly clients = new Map<string, ClientRecord>()
   private readonly closedSessions = new Set<string>()
+  private stepCount = 0
+  private revision = 0
 
   constructor(private readonly secret: Buffer = randomBytes(32)) {}
 
@@ -188,9 +218,15 @@ export class AgentPresenceRegistry {
    * Records a call; calls of a closed session are ignored. Returns the id of the agent's own plain
    * request for you in this workspace when the call finishes a step, started after the request, that
    * acted on the page or tabs, and not on another tab than the one it asked about: the agent has then
-   * moved on from it.
+   * moved on from it. A step keeps its tab only when `tabInWorkspace` accepts it, so a step that named another
+   * workspace's tab is listed as on no tab.
    */
-  track(client: AgentPresenceClient, workspaceId: string, call: AgentCall): string | undefined {
+  track(
+    client: AgentPresenceClient,
+    workspaceId: string,
+    call: AgentCall,
+    tabInWorkspace: (tabId: string) => boolean = () => true
+  ): string | undefined {
     if (this.closedSessions.has(client.id)) return undefined
     const record = this.client(client, call.occurredAt)
     let workspace = record.workspaces.get(workspaceId)
@@ -205,15 +241,38 @@ export class AgentPresenceRegistry {
     workspace.step = step
     if (call.tabId) workspace.lastTabId = call.tabId
     let startedAt: number | undefined
+    // A call that names no tab acts on the one its own tab activity uses.
+    if (call.source !== 'call' && call.tabId) {
+      for (const pending of workspace.inFlight.values()) if (pending.call && !pending.tabId && pending.toolName === call.toolName) pending.tabId = call.tabId
+    }
     if (call.phase === 'started') {
-      workspace.inFlight.set(call.activityId, { startedAt: call.occurredAt, step: workspace.step, ...(workspace.target ? { target: workspace.target } : {}) })
+      workspace.inFlight.set(call.activityId, {
+        startedAt: call.occurredAt,
+        step: workspace.step,
+        ...(workspace.target ? { target: workspace.target } : {}),
+        call: call.source === 'call',
+        toolName: call.toolName,
+        ...(call.tabId ? { tabId: call.tabId } : {})
+      })
       while (workspace.inFlight.size > ACTIVITY_HISTORY_LIMIT) workspace.inFlight.delete(workspace.inFlight.keys().next().value!)
     } else {
-      startedAt = workspace.inFlight.get(call.activityId)?.startedAt
+      const pending = workspace.inFlight.get(call.activityId)
+      startedAt = pending?.startedAt
       workspace.inFlight.delete(call.activityId)
       workspace.settledAt = call.occurredAt
       if (call.source === 'call') {
-        workspace.steps.push({ step: workspace.step, ...(workspace.target ? { target: workspace.target } : {}), outcome: call.phase === 'failed' ? 'failed' : 'done', at: call.occurredAt })
+        const named = call.tabId ?? pending?.tabId
+        const tabId = named && tabInWorkspace(named) ? named : undefined
+        this.stepCount += 1
+        this.revision += 1
+        workspace.steps.push({
+          id: `s${this.stepCount.toString(36)}`,
+          step: workspace.step,
+          ...(workspace.target ? { target: workspace.target } : {}),
+          outcome: call.phase === 'failed' ? 'failed' : 'done',
+          at: call.occurredAt,
+          ...(tabId ? { tabId } : {})
+        })
         if (workspace.steps.length > AGENT_STEP_HISTORY_LIMIT) workspace.steps.splice(0, workspace.steps.length - AGENT_STEP_HISTORY_LIMIT)
       }
     }
@@ -289,7 +348,7 @@ export class AgentPresenceRegistry {
           colorIndex: record.colorIndex,
           state,
           ...(asking ? { step: 'askYou' as const } : this.currentStep(workspace!)),
-          recentSteps: workspace ? workspace.steps.slice(-AGENT_RECENT_STEPS_LIMIT).reverse() : [],
+          recentSteps: workspace ? workspace.steps.slice(-AGENT_RECENT_STEPS_LIMIT).reverse().map(({ step, target, outcome, at }) => ({ step, ...(target ? { target } : {}), outcome, at })) : [],
           ...(lastTabId ? { lastTabId } : {}),
           ...(attentionTabId ? { attentionTabId } : {}),
           firstSeenAt: workspace?.firstSeenAt ?? asking!.requestedAt
@@ -305,6 +364,76 @@ export class AgentPresenceRegistry {
         .map(({ firstSeenAt: _firstSeenAt, ...agent }) => agent)
     }
     return ordered
+  }
+
+  /** Increases whenever a step is added or gets its picture. */
+  get historyRevision(): number {
+    return this.revision
+  }
+
+  /** The newest finished step of a session in a workspace, and the tab it acted on. */
+  latestStep(sessionId: string, workspaceId: string): { id: string; tabId?: string } | undefined {
+    const step = this.clients.get(sessionId)?.workspaces.get(workspaceId)?.steps.at(-1)
+    return step && (step.tabId ? { id: step.id, tabId: step.tabId } : { id: step.id })
+  }
+
+  /**
+   * Gives a step its picture, once; false when the step is gone. Past AGENT_STEP_THUMBNAIL_LIMIT pictures in all, the
+   * oldest steps lose theirs.
+   */
+  attachThumbnail(reference: AgentStepReference, thumbnail: AgentStepThumbnailImage): boolean {
+    const step = this.clients.get(reference.sessionId)?.workspaces.get(reference.workspaceId)?.steps.find((candidate) => candidate.id === reference.stepId)
+    if (!step || step.thumbnail) return false
+    step.thumbnail = thumbnail
+    const pictured: StepRecord[] = []
+    for (const record of this.clients.values()) {
+      for (const workspace of record.workspaces.values()) for (const candidate of workspace.steps) if (candidate.thumbnail) pictured.push(candidate)
+    }
+    if (pictured.length > AGENT_STEP_THUMBNAIL_LIMIT) {
+      pictured.sort((left, right) => left.at - right.at)
+      for (const old of pictured.slice(0, pictured.length - AGENT_STEP_THUMBNAIL_LIMIT)) delete old.thumbnail
+    }
+    this.revision += 1
+    return step.thumbnail !== undefined
+  }
+
+  /** A workspace closed: every agent's steps there go, pictures included. */
+  forgetWorkspaceSteps(workspaceId: string): void {
+    let forgot = false
+    for (const record of this.clients.values()) {
+      const workspace = record.workspaces.get(workspaceId)
+      if (!workspace?.steps.length) continue
+      workspace.steps = []
+      forgot = true
+    }
+    if (forgot) this.revision += 1
+  }
+
+  /**
+   * An agent's finished steps in a workspace, newest first, for "All steps"; null when no open session has that key. A
+   * step names its tab only while the tab is in the workspace, and carries its picture only when the shell lacks it.
+   */
+  history(clientKey: string, workspaceId: string, context: Pick<AgentPresenceContext, 'tabInWorkspace'>, known: ReadonlySet<string>): AgentStepHistoryEntry[] | null {
+    const record = [...this.clients.values()].find((candidate) => candidate.key === clientKey && !candidate.closed)
+    if (!record) return null
+    return (record.workspaces.get(workspaceId)?.steps ?? []).slice().reverse().map(({ id, step, target, outcome, at, tabId, thumbnail }) => {
+      const open = tabId !== undefined && context.tabInWorkspace(workspaceId, tabId)
+      return {
+        id,
+        step,
+        ...(target ? { target } : {}),
+        outcome,
+        at,
+        ...(open ? { tabId } : tabId ? { tabClosed: true as const } : {}),
+        ...(thumbnail ? {
+          thumbnail: {
+            width: thumbnail.width,
+            height: thumbnail.height,
+            ...(known.has(id) ? {} : { dataUrl: `data:image/jpeg;base64,${thumbnail.jpeg.toString('base64')}` })
+          }
+        } : {})
+      }
+    })
   }
 
   /** When the next state change happens without a new call, if any. */

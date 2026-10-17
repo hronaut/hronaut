@@ -626,6 +626,7 @@ export const esES = {
     "fill": "Rellenar"
   },
   "workspaceSwitcher": { "kicker": "Espacios de trabajo", "heading": "Cambiar de espacio", "close": "Cerrar el selector de espacios", "search": "Buscar espacios de trabajo", "placeholder": "Buscar por nombre, agente o sitio", "results": "Espacios de trabajo", "openGroup": "Espacios abiertos", "archived": "Archivados", "current": "Actual", "needsYou": "Te necesita", "working": "{names} trabajando", "tabs": "{count} pestaña | {count} pestañas", "matches": "{count} espacio coincidente. | {count} espacios coincidentes.", "selected": "{name} seleccionado.", "empty": "Ningún espacio coincide", "emptyDescription": "Prueba con un nombre, un agente como «Claude Code» o un sitio.", "none": "Aún no hay espacios de trabajo", "noneDescription": "Crea un espacio de trabajo para mantener juntas las pestañas y sesiones de un proyecto.", "navigate": "Navegar", "choose": "Cambiar", "searchTabs": "Buscar pestañas", "newWorkspace": "Nuevo espacio", "switchFailed": "No se pudo cambiar de espacio", "switchDescription": "No se pudo abrir {name}." },
+  "agentSteps": { "kicker": "Todos los pasos", "heading": "Pasos de {name}", "close": "Cerrar todos los pasos", "summary": "Hasta {count} de sus últimos pasos en {workspace}, del más reciente al más antiguo.", "summaryNoWorkspace": "Hasta {count} de sus últimos pasos, del más reciente al más antiguo.", "ended": "{name} ya no trabaja en este espacio. Estos fueron sus últimos pasos.", "loadFailed": "No se pudieron cargar estos pasos.", "retry": "Reintentar", "closedTab": "Una pestaña que ya no está en este espacio", "noTab": "Fuera de una pestaña", "untitledTab": "Pestaña sin título", "showTab": "Mostrar pestaña", "showTabNamed": "Mostrar pestaña: {title}", "showTabFailed": "No se pudo mostrar la pestaña", "showTabFailedDescription": "Es posible que la pestaña se haya cerrado.", "empty": "Aún no hay pasos terminados", "emptyDescription": "Los pasos aparecen aquí mientras {name} trabaja.", "privacy": "Las imágenes solo se toman de una página en pantalla y se guardan solo en memoria: nunca en disco ni se envían a los agentes." },
   "commandPalette": {
     "kicker": "Acciones rápidas",
     "heading": "Comandos",
@@ -1420,6 +1421,7 @@ export const esES = {
       "gone": "Ya no está conectado a este espacio de trabajo",
       "recent": "Pasos recientes",
       "noSteps": "Aún no hay pasos terminados",
+      "allSteps": "Todos los pasos",
       "stepFailed": "{step}, falló",
       "follow": "Seguir a los agentes en todos los espacios",
       "cursor": "Mostrar los cursores de los agentes en la página",
