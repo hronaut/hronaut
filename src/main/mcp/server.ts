@@ -2061,7 +2061,8 @@ function createBrowserMcpServer(
         if (name === 'browser_click') finalResult = withCurrentOpenedTabs(finalResult, tabId => manager.tabBelongsToMcpGroup(workspaceId, tabId))
         finishActivity(finalResult, false)
         return finalResult
-      })
+      }),
+      options.settlement
     )
   }
 
