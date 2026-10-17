@@ -11090,6 +11090,7 @@ export class BrowserTabsManager {
     // The overview keeps showing the page as it was; the frame is dropped when the tab wakes or closes.
     const lastFrame = this.tabOverviewPreviews.get(tab.id)
     if (lastFrame?.navigationGeneration === tab.navigationGeneration) this.tabOverviewSleepPreviews.set(tab.id, lastFrame)
+    else this.tabOverviewSleepPreviews.delete(tab.id)
     tab.sleeping = true
     tab.walletPageUnloading = true
     tab.loading = false
