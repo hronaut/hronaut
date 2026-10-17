@@ -26,3 +26,15 @@ export function foldRailWorkspaces<T extends { id: string }>(
   })
   return folded.length > 1 ? { listed, folded } : { listed: [...workspaces], folded: [] }
 }
+
+function pinnedTime(pinnedAt: string): number {
+  const time = Date.parse(pinnedAt)
+  return Number.isFinite(time) ? time : 0
+}
+
+/** Pinned workspaces first, the earliest pinned first, then the rest in their order. */
+export function pinnedWorkspacesFirst<T extends { pinnedAt?: string }>(workspaces: readonly T[]): T[] {
+  const pinned = workspaces.filter((workspace) => workspace.pinnedAt !== undefined)
+    .sort((left, right) => pinnedTime(left.pinnedAt!) - pinnedTime(right.pinnedAt!))
+  return [...pinned, ...workspaces.filter((workspace) => workspace.pinnedAt === undefined)]
+}

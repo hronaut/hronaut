@@ -27,6 +27,8 @@ export interface WorkspaceSwitcherEntry {
   sites: string[]
   /** When it was last used, or archived, in epoch milliseconds; 0 when unknown. */
   usedAt: number
+  /** When the person pinned it to the top of the rail, in epoch milliseconds; 0 when it is not pinned. */
+  pinnedAt: number
   /** Lower case text the query is matched against: name, description, agents, sites and allowed sites. */
   searchText: string
 }
@@ -69,8 +71,8 @@ function searchText(parts: readonly (string | undefined)[]): string {
 const STATUS_RANK: Record<WorkspaceSwitcherStatus, number> = { 'needs-you': 0, working: 1, idle: 2 }
 
 /**
- * Every workspace, open ones sorted by who needs them (an agent waiting on you, then one working) and then by
- * recent use, archived ones last by when they were archived.
+ * Every workspace, open ones sorted by who needs them (an agent waiting on you, then one working), then pinned ones in
+ * the order they were pinned, then by recent use; archived ones last by when they were archived.
  */
 export function workspaceSwitcherEntries(
   source: WorkspaceSwitcherSource,
@@ -104,10 +106,14 @@ export function workspaceSwitcherEntries(
       tabCount: group.tabCount,
       sites,
       usedAt: time(group.lastUsedAt),
+      // Pinned at the epoch still counts as pinned.
+      pinnedAt: group.pinnedAt ? Math.max(1, time(group.pinnedAt)) : 0,
       searchText: searchText([group.name, group.description, ...agentNames, ...sites, ...group.navigationPolicy.rules])
     }
   })
   open.sort((left, right) => STATUS_RANK[left.status] - STATUS_RANK[right.status]
+    || Number(right.pinnedAt > 0) - Number(left.pinnedAt > 0)
+    || left.pinnedAt - right.pinnedAt
     || right.usedAt - left.usedAt
     || left.name.localeCompare(right.name))
   const archived = source.savedTabGroups.map((group): WorkspaceSwitcherEntry => {
@@ -124,6 +130,7 @@ export function workspaceSwitcherEntries(
       tabCount: group.tabs.length,
       sites,
       usedAt: time(group.savedAt),
+      pinnedAt: 0,
       searchText: searchText([group.name, group.description, ...sites, ...group.navigationPolicy.rules])
     }
   })

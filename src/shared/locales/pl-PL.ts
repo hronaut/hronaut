@@ -625,7 +625,7 @@ export const plPL = {
     "select": "Wybierz",
     "fill": "Wypełnij"
   },
-  "workspaceSwitcher": { "kicker": "Obszary robocze", "heading": "Przełącz obszar", "close": "Zamknij przełącznik obszarów", "search": "Szukaj obszarów roboczych", "placeholder": "Szukaj po nazwie, agencie lub witrynie", "results": "Obszary robocze", "openGroup": "Otwarte obszary", "archived": "Zarchiwizowane", "current": "Bieżący", "needsYou": "Czeka na Ciebie", "working": "{names} przy pracy", "tabs": "{count} karta | {count} karty | {count} kart", "matches": "{count} pasujący obszar. | {count} pasujące obszary. | {count} pasujących obszarów.", "selected": "Wybrano {name}.", "empty": "Brak pasujących obszarów", "emptyDescription": "Spróbuj nazwy, agenta, np. „Claude Code”, lub witryny.", "none": "Nie ma jeszcze obszarów roboczych", "noneDescription": "Utwórz obszar roboczy, aby trzymać razem karty i logowania projektu.", "navigate": "Nawigacja", "choose": "Przełącz", "searchTabs": "Szukaj kart", "newWorkspace": "Nowy obszar", "switchFailed": "Nie udało się przełączyć obszaru", "switchDescription": "Nie udało się otworzyć {name}." },
+  "workspaceSwitcher": { "kicker": "Obszary robocze", "heading": "Przełącz obszar", "close": "Zamknij przełącznik obszarów", "search": "Szukaj obszarów roboczych", "placeholder": "Szukaj po nazwie, agencie lub witrynie", "results": "Obszary robocze", "openGroup": "Otwarte obszary", "archived": "Zarchiwizowane", "current": "Bieżący", "pinned": "Przypięty", "needsYou": "Czeka na Ciebie", "working": "{names} przy pracy", "tabs": "{count} karta | {count} karty | {count} kart", "matches": "{count} pasujący obszar. | {count} pasujące obszary. | {count} pasujących obszarów.", "selected": "Wybrano {name}.", "empty": "Brak pasujących obszarów", "emptyDescription": "Spróbuj nazwy, agenta, np. „Claude Code”, lub witryny.", "none": "Nie ma jeszcze obszarów roboczych", "noneDescription": "Utwórz obszar roboczy, aby trzymać razem karty i logowania projektu.", "navigate": "Nawigacja", "choose": "Przełącz", "searchTabs": "Szukaj kart", "newWorkspace": "Nowy obszar", "switchFailed": "Nie udało się przełączyć obszaru", "switchDescription": "Nie udało się otworzyć {name}." },
   "agentSteps": { "kicker": "Wszystkie kroki", "heading": "Kroki: {name}", "close": "Zamknij wszystkie kroki", "summary": "Do {count} ostatnich kroków w obszarze {workspace}, od najnowszego.", "summaryNoWorkspace": "Do {count} ostatnich kroków, od najnowszego.", "ended": "{name} nie działa już w tym obszarze. To były ostatnie kroki.", "loadFailed": "Nie udało się wczytać tych kroków.", "retry": "Spróbuj ponownie", "closedTab": "Karta, której nie ma już w tym obszarze", "noTab": "Poza kartą", "untitledTab": "Karta bez tytułu", "showTab": "Pokaż kartę", "showTabNamed": "Pokaż kartę {title}", "showTabFailed": "Nie udało się pokazać karty", "showTabFailedDescription": "Karta mogła zostać zamknięta.", "empty": "Brak ukończonych kroków", "emptyDescription": "Kroki pojawią się tutaj, gdy {name} będzie działać.", "privacy": "Obrazy powstają tylko ze strony widocznej na ekranie i są przechowywane wyłącznie w pamięci: nigdy nie są zapisywane ani wysyłane do agentów." },
   "commandPalette": {
     "kicker": "Szybkie działania",
@@ -1308,6 +1308,7 @@ export const plPL = {
       "agentAttention": "Agent wymaga Twojej uwagi",
       "needsYou": "Czeka na Ciebie",
       "followingAgent": "Śledzenie: {name}",
+      "pinnedWorkspace": "Przypięty na górze",
       "groupAgents": "Agenci tutaj: {agents}",
       "groupAgent": "{name} ({state})",
       "stayHere": "Zostań tutaj",
@@ -3460,6 +3461,8 @@ export const plPL = {
       "editWorkspace": "Edytuj obszar roboczy…",
       "sleepWorkspaceTabs": "Uśpij kwalifikujące się karty",
       "archiveWorkspace": "Archiwizuj obszar roboczy",
+      "pinWorkspace": "Przypnij obszar roboczy na górze",
+      "unpinWorkspace": "Odepnij obszar roboczy",
       "workspaceUnavailable": "Obszar roboczy niedostępny",
       "splitView": "Widok dzielony",
       "sideBySide": "Obok siebie",

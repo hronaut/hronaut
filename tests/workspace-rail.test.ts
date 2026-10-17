@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RAIL_WORKSPACE_LIMIT, foldRailWorkspaces } from '../src/shared/workspace-rail.js'
+import { RAIL_WORKSPACE_LIMIT, foldRailWorkspaces, pinnedWorkspacesFirst } from '../src/shared/workspace-rail.js'
 
 const workspaces = (count: number) => Array.from({ length: count }, (_, index) => ({ id: `w${index + 1}` }))
 const ids = (list: Array<{ id: string }>) => list.map((workspace) => workspace.id)
@@ -36,5 +36,25 @@ describe('foldRailWorkspaces', () => {
     const result = foldRailWorkspaces(workspaces(5), new Set(['w5']), 2)
     expect(ids(result.listed)).toEqual(['w1', 'w2', 'w5'])
     expect(ids(result.folded)).toEqual(['w3', 'w4'])
+  })
+})
+
+describe('pinnedWorkspacesFirst', () => {
+  it('puts pinned workspaces first, the earliest pinned first, and keeps the rest in their order', () => {
+    const list = [
+      { id: 'w1' },
+      { id: 'w2', pinnedAt: '2026-10-17T02:00:00.000Z' },
+      { id: 'w3' },
+      { id: 'w4', pinnedAt: '2026-10-17T01:00:00.000Z' },
+      { id: 'w5' }
+    ]
+    expect(ids(pinnedWorkspacesFirst(list))).toEqual(['w4', 'w2', 'w1', 'w3', 'w5'])
+    expect(ids(list)).toEqual(['w1', 'w2', 'w3', 'w4', 'w5'])
+  })
+
+  it('keeps the order of workspaces pinned at the same moment, and of an unreadable pin, which counts as earliest', () => {
+    const list = [{ id: 'w1', pinnedAt: '2026-10-17T01:00:00.000Z' }, { id: 'w2', pinnedAt: 'not a time' }, { id: 'w3', pinnedAt: '2026-10-17T01:00:00.000Z' }]
+    expect(ids(pinnedWorkspacesFirst(list))).toEqual(['w2', 'w1', 'w3'])
+    expect(pinnedWorkspacesFirst([])).toEqual([])
   })
 })

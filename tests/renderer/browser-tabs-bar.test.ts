@@ -441,6 +441,39 @@ describe('BrowserTabsBar', () => {
     expect(screen.getByRole('button', { name: /^Expand workspace Research, 1 tab/u })).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('keeps pinned workspaces on top of the rail and the strip, in the order they were pinned, marked as pinned', async () => {
+    const named = (id: string, name: string, pinnedAt?: string): BrowserTabGroupState => ({ ...workspace(id), name, ...(pinnedAt ? { pinnedAt } : {}) })
+    const groups = [named('w-a', 'Alpha'), named('w-b', 'Beta', '2026-10-17T02:00:00.000Z'), named('w-c', 'Gamma'), named('w-d', 'Delta', '2026-10-17T01:00:00.000Z')]
+    const state = browserState({
+      tabs: groups.map((group) => tab(`tab-${group.id}`, { mcpGroupId: group.id, mcpGroupName: group.name })),
+      activeTabId: null,
+      mcpTabGroups: groups
+    })
+    const view = renderTabs(state, true, 'vertical')
+    const order = () => [...document.querySelectorAll('.tab-group-label')].map((label) => label.querySelector('.tab-group-name')?.textContent)
+    expect(order()).toEqual(['Delta', 'Beta', 'Alpha', 'Gamma'])
+    const delta = screen.getByRole('button', { name: 'Collapse workspace Delta, 1 tab' })
+    expect(within(delta).getByTestId('workspace-pinned')).toBeInTheDocument()
+    // Pinned is said in the description; the name stays the visible name.
+    expect(delta).toHaveAccessibleDescription(/^Pinned to the top/u)
+    expect(within(screen.getByRole('button', { name: 'Collapse workspace Alpha, 1 tab' })).queryByTestId('workspace-pinned')).toBeNull()
+    // Unpinning puts it back in its place.
+    await view.rerender({ state: { ...state, mcpTabGroups: groups.map((group) => group.id === 'w-d' ? named('w-d', 'Delta') : group) } })
+    expect(order()).toEqual(['Beta', 'Alpha', 'Gamma', 'Delta'])
+    await view.rerender({ orientation: 'horizontal' })
+    expect(order()).toEqual(['Beta', 'Alpha', 'Gamma', 'Delta'])
+
+    // Pinned workspaces never fold away into the All workspaces row, however many there are.
+    const many = [
+      ...Array.from({ length: 12 }, (_, index) => named(`p${index + 1}`, `Pinned ${index + 1}`, `2026-10-17T00:${String(index).padStart(2, '0')}:00.000Z`)),
+      named('w-x', 'Loose 1'),
+      named('w-y', 'Loose 2')
+    ]
+    await view.rerender({ orientation: 'vertical', state: browserState({ tabs: many.map((group) => tab(`tab-${group.id}`, { mcpGroupId: group.id, mcpGroupName: group.name })), activeTabId: null, mcpTabGroups: many }) })
+    expect(order()).toEqual(many.slice(0, 12).map((group) => group.name))
+    expect(screen.getByRole('button', { name: 'All 14 workspaces' })).toBeVisible()
+  })
+
   it('describes agent activity without replacing the tab name or its navigation controls', async () => {
     const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }))
     const first = screen.getByRole('tab', { name: 'Page first' })

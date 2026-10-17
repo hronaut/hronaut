@@ -408,6 +408,11 @@ export interface BrowserTabGroupState {
   activeTabId: string | null
   storageOriginCount: number
   navigationPolicy: BrowserWorkspaceNavigationPolicy
+  /**
+   * When the person pinned it to the top of the tab rail, from its menu; absent when it is not pinned. Pinned
+   * workspaces come first, the earliest pinned first. Archiving a workspace unpins it.
+   */
+  pinnedAt?: string
 }
 
 export interface BrowserTabGroupUpdate {

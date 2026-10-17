@@ -34,7 +34,7 @@ import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { AGENT_AVATAR_VISIBLE_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
-import { foldRailWorkspaces } from '../../../shared/workspace-rail.js'
+import { foldRailWorkspaces, pinnedWorkspacesFirst } from '../../../shared/workspace-rail.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
 import { useWorkspaceGroupAgents } from '../composables/useWorkspaceGroupAgents.js'
 import { vTooltip } from '../ui/tooltip.js'
@@ -315,14 +315,16 @@ function tabGroupAgentsDescription(workspaceId: string): string {
 
 function tabGroupLabelDescription(workspace: BrowserTabGroupState): string | undefined {
   const reason = workspaceNeedsYou(workspace.id) && props.userAttention ? `${t('shell.tabs.agentAttention')}: ${props.userAttention.reason}` : ''
-  return [reason, tabGroupAgentsDescription(workspace.id), workspace.description].filter(Boolean).join('\n\n') || undefined
+  const pinned = workspace.pinnedAt ? t('shell.tabs.pinnedWorkspace') : ''
+  return [reason, pinned, tabGroupAgentsDescription(workspace.id), workspace.description].filter(Boolean).join('\n\n') || undefined
 }
 
 function isTabGroupCollapsed(groupId: string): boolean {
   return collapsedTabGroupIds.value.has(groupId)
 }
 
-const sidebarWorkspaces = computed(() => props.state.mcpTabGroups.filter(group => !vertical.value || !group.hiddenFromSidebar))
+// Pinned workspaces stay on top, in the order the person pinned them.
+const sidebarWorkspaces = computed(() => pinnedWorkspacesFirst(props.state.mcpTabGroups.filter(group => !vertical.value || !group.hiddenFromSidebar)))
 // The workspace of the last active website tab, which Home, having none of its own, leaves in place.
 const lastActiveWorkspaceId = ref<string | undefined>()
 watch(() => props.state.tabs.find((tab) => tab.active)?.mcpGroupId, (groupId) => {
@@ -333,7 +335,7 @@ watch(() => props.state.tabs.find((tab) => tab.active)?.mcpGroupId, (groupId) =>
 // working in stays listed, under Home or Settings too, and so does one that needs you.
 const railFold = computed(() => {
   if (!vertical.value) return { listed: sidebarWorkspaces.value, folded: [] }
-  const keep = new Set(sidebarWorkspaces.value.filter((group) => group.id === lastActiveWorkspaceId.value || workspaceNeedsYou(group.id)).map((group) => group.id))
+  const keep = new Set(sidebarWorkspaces.value.filter((group) => group.pinnedAt !== undefined || group.id === lastActiveWorkspaceId.value || workspaceNeedsYou(group.id)).map((group) => group.id))
   return foldRailWorkspaces(sidebarWorkspaces.value, keep)
 })
 const railWorkspaces = computed(() => railFold.value.listed)
@@ -711,7 +713,7 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         <IconKeyboardArrowRight v-if="isTabGroupCollapsed(workspace.id)" aria-hidden="true" />
         <IconKeyboardArrowDown v-else aria-hidden="true" />
         <!-- The space keeps the visible name and count apart for label-in-name checks; inline-flex does not render it. -->
-        <span class="tab-group-name">{{ workspace.name }}</span> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span>
+        <span class="tab-group-name">{{ workspace.name }}</span> <IconKeep v-if="workspace.pinnedAt" class="tab-group-pinned" aria-hidden="true" data-testid="workspace-pinned" /> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span>
         <!-- The agents' names are in the header's description; the initials are drawn, not text, so the name matches the label. -->
         <span v-if="groupAgents.agents(workspace.id).length" class="tab-group-agents" aria-hidden="true" data-testid="workspace-agents">
           <span

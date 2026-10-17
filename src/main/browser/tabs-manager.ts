@@ -1907,7 +1907,8 @@ export class BrowserTabsManager {
       navigationPolicy: {
         mode: group.navigationPolicy.mode,
         rules: [...group.navigationPolicy.rules]
-      }
+      },
+      ...(group.pinnedAt ? { pinnedAt: group.pinnedAt } : {})
     }))
   }
 
@@ -2081,6 +2082,20 @@ export class BrowserTabsManager {
     return this.listMcpTabGroups().find((candidate) => candidate.id === groupId)!
   }
 
+  /**
+   * Pins a workspace to the top of the tab rail, after those pinned before it, or unpins it. Only the person does this,
+   * from the workspace's menu; it changes neither when the workspace was last used nor what agents may do in it.
+   */
+  setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
+    const group = this.mcpTabGroups.get(groupId)
+    if (!group) throw new Error(`Unknown workspace: ${groupId}`)
+    if (pinned === (group.pinnedAt !== undefined)) return this.getState()
+    if (pinned) group.pinnedAt = new Date().toISOString()
+    else delete group.pinnedAt
+    this.changed()
+    return this.getState()
+  }
+
   requireMcpTabGroup(groupId: string): BrowserTabGroupState {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
@@ -2101,7 +2116,8 @@ export class BrowserTabsManager {
       navigationPolicy: {
         mode: group.navigationPolicy.mode,
         rules: [...group.navigationPolicy.rules]
-      }
+      },
+      ...(group.pinnedAt ? { pinnedAt: group.pinnedAt } : {})
     }
   }
 
@@ -4145,6 +4161,11 @@ export class BrowserTabsManager {
         click: () => runAction('edit the workspace', () => {
           this.window.webContents.send('browser:edit-tab-group', group.id)
         })
+      },
+      {
+        id: 'pin-workspace',
+        label: this.text(group.pinnedAt ? 'native.context.unpinWorkspace' : 'native.context.pinWorkspace'),
+        click: () => runAction('pin the workspace', () => this.setWorkspacePinned(group.id, group.pinnedAt === undefined))
       },
       { type: 'separator' },
       {

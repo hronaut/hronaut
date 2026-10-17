@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
+import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconTabSearch from '~icons/material-symbols/tab-search-rounded'
 import IconWorkspaces from '~icons/material-symbols/workspaces-outline'
@@ -107,6 +108,7 @@ function label(entry: WorkspaceSwitcherEntry): string {
   return [
     entry.name,
     entry.current ? t('workspaceSwitcher.current') : '',
+    entry.pinnedAt ? t('workspaceSwitcher.pinned') : '',
     entry.kind === 'archived' ? t('workspaceSwitcher.archived') : '',
     statusText(entry),
     details(entry)
@@ -317,6 +319,7 @@ onBeforeUnmount(() => {
                 </small>
               </span>
               <span class="command-palette-meta">
+                <small v-if="entry.pinnedAt" class="workspace-switcher-pinned"><IconKeep aria-hidden="true" />{{ t('workspaceSwitcher.pinned') }}</small>
                 <small v-if="entry.current">{{ t('workspaceSwitcher.current') }}</small>
               </span>
             </UiButton>

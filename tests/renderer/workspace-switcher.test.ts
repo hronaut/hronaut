@@ -222,6 +222,18 @@ describe('WorkspaceSwitcher', () => {
     expect(options()).toEqual(['Docs', 'Ops', 'Empty', 'Shop', 'Old client'])
   })
 
+  it('lists pinned workspaces after those with agents at work, the earliest pinned first, and says they are pinned', async () => {
+    const state = browserState()
+    const pins: Record<string, string> = { ops: '2026-10-16T12:00:00.000Z', empty: '2026-10-15T12:00:00.000Z' }
+    state.mcpTabGroups = state.mcpTabGroups.map((entry) => pins[entry.id] ? { ...entry, pinnedAt: pins[entry.id] } : entry)
+    const { openPanel } = await setup({ state, agents: { docs: [agent('Codex', 'working')] } })
+    await openPanel()
+    expect(options()).toEqual(['Docs', 'Empty', 'Ops', 'Shop', 'Old client'])
+    const ops = screen.getByRole('option', { name: /^Ops, Pinned, 1 tab · grafana\.example$/ })
+    expect(within(ops).getByText('Pinned')).toBeVisible()
+    expect(screen.getByRole('option', { name: /^Shop, Current, 2 tabs/ })).not.toHaveTextContent('Pinned')
+  })
+
   it('moves the selection in the order on screen when a workspace appears while it is open', async () => {
     const { wrapper, openPanel } = await setup()
     await openPanel()
