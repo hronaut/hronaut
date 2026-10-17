@@ -413,6 +413,7 @@ const {
 } = browserTabActionsController
 const {
   input: addressInput,
+  focused: addressFocused,
   open: addressSuggestionsOpen,
   close: closeAddressSuggestions,
   handleResize: resizeAddressSuggestions
@@ -777,6 +778,12 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     handleSplitViewError
   }
 })
+// Only website tabs have the toolbar row, with the address field, under tabs along the top; Home and Settings have just
+// the tab strip. Full-page view keeps toasts at the top edge, so one does not move as its bars show and hide.
+const toolbarShown = computed(() => !activeIsHome.value && !settingsOpen.value)
+const toastsBelowTabStrip = computed(() => tabOrientation.value === 'horizontal' && !isDetachedPanelWindow
+  && toolbarShown.value && !fullPageActive.value)
+const toastsYield = computed(() => addressFocused.value && toolbarShown.value)
 const {
   expandTabGroupForTab,
   handleWindowResize,
@@ -1028,5 +1035,5 @@ useAppLifecycleController({
       @reset="resetPanelDockSize"
     />
   </header>
-  <AppToastRegion :toasts="appToasts" :home="activeIsHome" :rail-width="pageRailWidth" @dismiss="dismissAppToast" @retain="retainAppToast" @release="releaseAppToast" @act="actAppToast" />
+  <AppToastRegion :toasts="appToasts" :home="activeIsHome" :rail-width="pageRailWidth" :below-tab-strip="toastsBelowTabStrip" :yielding="toastsYield" @dismiss="dismissAppToast" @retain="retainAppToast" @release="releaseAppToast" @act="actAppToast" />
 </template>

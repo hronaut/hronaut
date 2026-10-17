@@ -7,6 +7,9 @@ test('refreshes recently closed labels in an idle overview without moving focus'
   const tabId = opened.activeTabId!
   await expect.poll(() => appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.getState().then(state => state.tabs.find(tab => tab.id === id)?.title), tabId)).toBe('Recency fixture')
   await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.closeTab(id), tabId)
+  // Home has only the tab strip, so its Undo toast sits over the strip's buttons; the paused clock below would keep it.
+  await appWindow.getByRole('button', { name: 'Dismiss Tab closed', exact: true }).click()
+  await expect(appWindow.getByRole('status', { name: 'Tab closed' })).toHaveCount(0)
   const before = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
   const closed = before.closedTabs.find(tab => tab.url === url)!
   const start = new Date(Date.parse(closed.closedAt) + 10_000)
