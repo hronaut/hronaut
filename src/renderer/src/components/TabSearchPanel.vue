@@ -102,8 +102,11 @@ const pagePreview = useTabPagePreview({
 })
 const { tabId: previewTabId, tab: previewTab, preview: fullPreview, status: pagePreviewStatus, error: pagePreviewError, fit: previewFit } = pagePreview
 const previewBack = ref<{ focus: () => void } | null>(null)
-/** The card whose ⋯ menu is open; one at a time. */
+/** The card whose ⋯ menu is open; one at a time, and none when the overview opens again. */
 const cardMenuTabId = ref<string | null>(null)
+watch(open, (isOpen) => {
+  if (!isOpen) cardMenuTabId.value = null
+})
 
 /** The card's rarer actions, kept out of sight until its ⋯ menu opens. */
 function cardMenuItems(tab: BrowserTabState): UiMenuItem[] {

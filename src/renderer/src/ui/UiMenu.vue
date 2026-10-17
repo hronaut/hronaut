@@ -63,6 +63,14 @@ function onDocumentPointerDown(event: PointerEvent): void {
   if (props.open && !root.value?.contains(event.target as Node)) setOpen(false)
 }
 
+/** Esc closes an open menu, from the trigger as well as its items, and goes no further. */
+function onEscape(event: KeyboardEvent): void {
+  if (!props.open) return
+  event.preventDefault()
+  setOpen(false)
+  trigger.value?.focus()
+}
+
 /** Tabbing away closes the menu; a click elsewhere is left to the pointer handler. */
 function onFocusOut(event: FocusEvent): void {
   const next = event.relatedTarget
@@ -74,7 +82,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
 </script>
 
 <template>
-  <span ref="root" :class="['ui-menu', `ui-menu--${align}`]" @focusout="onFocusOut">
+  <span ref="root" :class="['ui-menu', `ui-menu--${align}`]" @focusout="onFocusOut" @keydown.esc="onEscape">
     <UiButton
       :id="triggerId"
       ref="trigger"
@@ -97,7 +105,6 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
         @keydown.up="move($event, -1)"
         @keydown.home.prevent="focusAt(0)"
         @keydown.end.prevent="focusAt(-1)"
-        @keydown.esc.prevent="setOpen(false); trigger?.focus()"
       >
         <UiButton
           v-for="item in items"

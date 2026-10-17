@@ -125,7 +125,9 @@
 .tab-overview-more > .ui-button:hover,
 .tab-overview-more > .ui-button[aria-expanded="true"] { @apply bg-surface-muted; }
 .tab-overview-more > .ui-button svg { @apply [width:18px] [height:18px]; }
-.tab-overview-more .ui-menu__panel { @apply [top:calc(100%_+_6px)] [right:-3px] [min-width:min(176px,_calc(100cqw_-_16px))] [max-width:calc(100cqw_-_16px)]; }
+.tab-overview-more { @apply static; }
+/* Anchored to the whole action cluster, 7 px in from the card's edge, so the card's width bounds it. */
+.tab-overview-more .ui-menu__panel { @apply [top:calc(100%_+_6px)] [right:-1px] [min-width:min(176px,_calc(100cqw_-_16px))] [max-width:calc(100cqw_-_16px)]; }
 .tab-overview-more .ui-menu__panel .ui-button { @apply text-left [white-space:normal]; }
 .tab-overview-card-actions button:disabled { @apply cursor-not-allowed [opacity:.4]; }
 .compact-results { @apply [margin-top:9px] [padding-top:7px] [border-top:1px_solid_var(--border-soft)]; }

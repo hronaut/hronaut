@@ -3909,6 +3909,7 @@ export class BrowserTabsManager {
     const navigationGeneration = tab.navigationGeneration
     const wake = (async () => {
       tab.sleeping = false
+      this.tabOverviewSleepPreviews.delete(tab.id)
       tab.sleepNavigationHistory = undefined
       tab.loading = true
       tab.suppressInitialHistory = true
@@ -8819,9 +8820,12 @@ export class BrowserTabsManager {
         return { data: Buffer.from(data, 'base64'), mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' }
       }
       const navigationGeneration = tab.navigationGeneration
+      // A screenshot of a tab in the background is also the overview's picture of it, once its page has settled in its
+      // natural state: not mid-navigation, which would still show the previous page, and not under a forced CSS state.
+      const settledForOverview = () => !tab.loading && !webContents.isLoadingMainFrame() && !this.cssStatePreview.active(tab)
+      const overviewEligible = settledForOverview()
       const captured = await webContents.capturePage()
-      // An agent's view of a tab in the background is also the overview's picture of it.
-      if (tab.id !== this.activeTabId && !this.splitViewContains(tab.id)) {
+      if (overviewEligible && settledForOverview() && tab.id !== this.activeTabId && !this.splitViewContains(tab.id)) {
         this.storeTabOverviewPreview(tab, captured, navigationGeneration, false)
       }
       const original = captured.getSize()
@@ -9664,6 +9668,7 @@ export class BrowserTabsManager {
     this.tabOverviewPreviewCaptures.clear()
     this.tabOverviewPreviewableTabs.clear()
     this.tabOverviewPreviews.clear()
+    this.tabOverviewSleepPreviews.clear()
     this.networkWaitController.dispose()
     for (const session of this.screenshotAreaSessions.values()) {
       session.canceled = true
