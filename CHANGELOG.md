@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-17
+
 ### Changed
 
 - Every theme now sits on the redesigned shell through its colors, corners and edges. Cyberpunk Turbo's hard 4 px corners reach Home and every newer panel instead of a fixed list of controls (pills and round marks stay round, and the page keeps its rounded corners); Cyberpunk's and Turbo's glowing edges reach every dialog and panel instead of four dialogs; and Matrix's background no longer scrolls while nothing happens. Each theme's text, warning, error and success colors now stay readable on every surface: Light and Sepia get darker error and success colors and a gold warning that no longer looks like the amber of a request waiting for you, Sepia's secondary text is slightly darker, Cyberpunk Turbo's error color is lighter, and the dark themes get a brighter warning orange. Sepia no longer borrows the dark themes' pale amber and pink for the paused and error agent status, and error messages in Downloads, Bookmarks, History, site storage and Settings use the theme's error color.
@@ -53,6 +55,20 @@ All notable changes to Hronaut are documented in this file.
 - Resizing Hronaut's window no longer makes the tab strip or the toolbar jump for a moment. The room kept for the window's own buttons, such as minimize, maximize and close, now stays the same while the window gets wider or narrower. Before, it briefly grew by the change in width, which could push the toolbar's commands onto a second row for a few frames.
 - In Polish, Russian and Ukrainian, counts in Hronaut's window now use the right word form, such as "1 вкладка", "2 вкладки", "5 вкладок" and "21 вкладка", instead of "1 вкладки" and "2 вкладок". Panels, Settings, the workspace switcher, Commands and other dialogs were affected; Home already counted correctly.
 - When an agent removed a page's viewport with `browser_resize` and `reset: true` right after setting a smaller one, it could get the old emulated size back, such as 600 × 360, on a busy computer. It now gets the size the page takes in its view, waiting up to a second for the page to catch up.
+
+### Known issues
+
+- A panel opened in its own window keeps the operating system's tooltips instead of the themed ones.
+- While a notification such as **Tab closed** shows at the bottom of the page, the page does not get clicks or wheel scrolling in the area just around the notification, about 10 px on each side.
+- `wallet_sendCalls` batches are not atomic: when a later call is rejected, fails or reverts, the earlier calls stay on chain, as separate transactions would. A dApp that requires an atomic batch gets error code 5760. A batch whose transaction the network dropped while its nonce is still unused stays pending, and `wallet_showCallsStatus` is not supported.
+- An EVM node that lags behind for more than a minute, or has pruned old transactions, can make a mined transaction look replaced, so Hronaut reports it as failed.
+- A link or form on a dApp that starts a download, or that the server answers with no content, counts as leaving the page for wallet requests: Hronaut cancels the page's open wallet requests and returns it to its default network without a `chainChanged` event, although the page stays.
+- `wallet_balance` marks an allowance `unlimited` only at 2^160 − 1 or more, so a token that stores allowances in 96 bits, such as UNI, shows its maximum approval as a large amount.
+- Typed-data meta-transactions are recognized by type name, by a `bytes` call-data field named `data`, `callData`, `calldata` or `functionSignature`, or as a MetaMask delegation. One that uses another name and another field name is still signed on mainnet when **Also sign typed data on mainnet** is on, so that switch is not a general spending limit.
+- Wallet policies saved by 2.45.0 or earlier that list a token method (`erc20.`, `trc20.` or `nft.`) do not sign token calls without a click. Remove such a policy and add it again with its token contract, or with **Allow any token contract**.
+- Websites' raw `eth_sign`, Solana and TRON requests still need a person to approve, even under a website sign-in policy, and typed data is signed without a click only by a dedicated agent wallet with the typed-data switch on.
+- Hronaut does not inject `window.tronLink` or `window.tronWeb` as a full TronWeb instance; Tron dApps that require TronLink specifically will not detect it.
+- jsdom is held at 30.1.1 because 30.1.2 breaks focus in 6 Home page tests. This affects the test environment only.
 
 ## [2.50.0] - 2026-10-16
 
