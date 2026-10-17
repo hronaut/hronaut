@@ -1,6 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { AsyncLocalStorage } from 'node:async_hooks'
 import { z } from 'zod'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
 import type { BrowserTabsManager } from '../../browser/tabs-manager.js'
@@ -150,9 +149,6 @@ export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: Workspace
   tabActivityToolName?: string
 }
 
-/** What one MCP call carries through its handler, for the publication and settlement checks in server.ts. */
-export type McpFrameRequest = { labeledCreation?: { attempted: boolean; policy?: Record<string, unknown>; certificate?: () => void; refreshCertificate?: () => Promise<void>; reviewFinalizationFailed?: boolean; cancelled?: () => boolean; publication?: () => void; finish?: (result: CallToolResult) => void; knownNotSaved?: boolean }; settlement?: ToolCallSettlement }
-
 /**
  * What a tool's registration may use from the MCP server it is registered on: the browser, the calling client,
  * its authorizations, and the shared wrappers that admit, guard and settle each call (see server.ts).
@@ -178,7 +174,6 @@ export interface McpToolContext {
   savedTaskPreviewKey: Buffer
   activeWorkspaceIds: Set<string>
   savedWorkspaceIds: Set<string>
-  frameRequests: AsyncLocalStorage<McpFrameRequest>
   workspaceToolInputSchemas: Map<string, z.ZodObject<Record<string, z.ZodType>>>
   actionTracker: McpActionTracker
   workspaceLeases: WorkspaceWriteLeaseRegistry
