@@ -7047,11 +7047,14 @@ export class BrowserTabsManager {
         viewport: { width, height, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'portrait' }
       })
     }
-    const read = (): Promise<PageViewportSize> => webContents.executeJavaScript(`({ width: innerWidth, height: innerHeight, devicePixelRatio })`, true)
+    // A size read needs no user activation, and a reset may read several times.
+    const read = (): Promise<PageViewportSize> => webContents.executeJavaScript(`({ width: innerWidth, height: innerHeight, devicePixelRatio })`, false)
     // An override pins the page's size; without one the agent gets the size the page settles at in its view.
     if (!reset || tab.emulation.viewport) return read()
+    const revision = tab.emulationRevision
     return settledViewportSize(read, () => {
-      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return null
+      // A newer emulation change owns the view's size, so the wait ends with the page as it is.
+      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.emulationRevision !== revision) return null
       const { width: viewWidth, height: viewHeight } = tab.view.getBounds()
       const zoom = webContents.getZoomFactor()
       return { width: viewWidth / zoom, height: viewHeight / zoom }
