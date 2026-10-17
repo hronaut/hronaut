@@ -3396,6 +3396,7 @@ export const frFR = {
       "requests": "{count} requêtes"
     }
   },
+  "undo": { "action": "Annuler", "actionAria": "Annuler : {title}", "tabsClosed": "Onglet fermé | {count} onglets fermés", "workspaceArchived": "Espace de travail archivé", "workspaceClosed": "Espace de travail fermé", "bookmarkRemoved": "Favori supprimé", "expiredTitle": "Rien à annuler", "expired": "Cette action ne peut plus être annulée.", "failed": "Impossible d’annuler", "failedDescription": "Impossible de le rétablir." },
   "panels": {
     "siteControls": "Contrôles du site",
     "siteStorage": "Stockage du site",

@@ -3396,6 +3396,7 @@ export const ruRU = {
       "requests": "Запросов: {count}"
     }
   },
+  "undo": { "action": "Отменить", "actionAria": "Отменить: {title}", "tabsClosed": "Закрыта {count} вкладка | Закрыто {count} вкладки | Закрыто {count} вкладок", "workspaceArchived": "Рабочее пространство в архиве", "workspaceClosed": "Рабочее пространство закрыто", "bookmarkRemoved": "Закладка удалена", "expiredTitle": "Нечего отменять", "expired": "Это уже нельзя отменить.", "failed": "Не удалось отменить", "failedDescription": "Не удалось вернуть." },
   "panels": {
     "siteControls": "Управление сайтом",
     "siteStorage": "Хранилище сайта",

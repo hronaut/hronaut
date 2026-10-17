@@ -3396,6 +3396,7 @@ export const esES = {
       "requests": "{count} solicitudes"
     }
   },
+  "undo": { "action": "Deshacer", "actionAria": "Deshacer: {title}", "tabsClosed": "Pestaña cerrada | {count} pestañas cerradas", "workspaceArchived": "Espacio de trabajo archivado", "workspaceClosed": "Espacio de trabajo cerrado", "bookmarkRemoved": "Marcador eliminado", "expiredTitle": "Nada que deshacer", "expired": "Ya no se puede deshacer.", "failed": "No se pudo deshacer", "failedDescription": "No se pudo restaurar." },
   "panels": {
     "siteControls": "Controles del sitio",
     "siteStorage": "Almacenamiento del sitio",

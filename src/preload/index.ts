@@ -89,11 +89,20 @@ import type {
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions.js'
 import type { ShellTooltipRequest } from '../shared/shell-tooltip.js'
+import type { UndoOffer } from '../shared/undo.js'
 
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
   getUserAttention: () => ipcRenderer.invoke('attention:get'),
   answerUserAttention: (id, answer) => ipcRenderer.invoke('attention:answer', id, answer),
+  onUndoOffered: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, offer: UndoOffer): void => listener(offer)
+    ipcRenderer.on('undo:offered', handler)
+    return () => ipcRenderer.removeListener('undo:offered', handler)
+  },
+  undo: (token) => ipcRenderer.invoke('undo:run', token),
+  holdUndo: (token) => ipcRenderer.invoke('undo:hold', token),
+  finishUndo: (token) => ipcRenderer.invoke('undo:finish', token),
   onUserAttentionChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, request: UserAttentionRequest | null): void => listener(request)
     ipcRenderer.on('attention:changed', handler)
@@ -140,7 +149,7 @@ const api: HronautApi = {
   },
   listWorkspaceStorageOrigins: (workspaceId: string) => ipcRenderer.invoke('browser:list-workspace-storage-origins', workspaceId),
   transferWorkspaceStorage: (options: BrowserWorkspaceStorageTransferOptions) => ipcRenderer.invoke('browser:transfer-workspace-storage', options),
-  closeWorkspace: (workspaceId: string) => ipcRenderer.invoke('browser:close-workspace', workspaceId),
+  closeWorkspace: (workspaceId: string, options?: { undoable?: boolean }) => ipcRenderer.invoke('browser:close-workspace', workspaceId, options),
   saveAndCloseTabGroup: (groupId: string) => ipcRenderer.invoke('browser:save-and-close-tab-group', groupId),
   restoreSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:restore-saved-tab-group', savedGroupId),
   deleteSavedTabGroup: (savedGroupId: string) => ipcRenderer.invoke('browser:delete-saved-tab-group', savedGroupId),

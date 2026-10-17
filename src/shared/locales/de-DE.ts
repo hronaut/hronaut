@@ -3396,6 +3396,7 @@ export const deDE = {
       "requests": "{count} Anfragen"
     }
   },
+  "undo": { "action": "Rückgängig", "actionAria": "Rückgängig: {title}", "tabsClosed": "Tab geschlossen | {count} Tabs geschlossen", "workspaceArchived": "Arbeitsbereich archiviert", "workspaceClosed": "Arbeitsbereich geschlossen", "bookmarkRemoved": "Lesezeichen entfernt", "expiredTitle": "Nichts rückgängig zu machen", "expired": "Das lässt sich nicht mehr rückgängig machen.", "failed": "Rückgängig machen fehlgeschlagen", "failedDescription": "Es konnte nicht wiederhergestellt werden." },
   "panels": {
     "siteControls": "Website-Steuerung",
     "siteStorage": "Website-Speicher",

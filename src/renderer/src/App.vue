@@ -35,6 +35,7 @@ import { useAppShellInteractionFeatureController } from './composables/useAppShe
 import { useAppSiteNavigationFeatureController } from './composables/useAppSiteNavigationFeatureController'
 import { useAppStartupFeatureController } from './composables/useAppStartupFeatureController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
+import { useUndoToasts } from './composables/useUndoToasts'
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useAppShellLayoutFeatureController } from './composables/useAppShellLayoutFeatureController'
@@ -78,8 +79,14 @@ const {
   show: showAppToast,
   dismiss: dismissAppToast,
   retain: retainAppToast,
+  act: actAppToast,
   dispose: disposeAppToastController
 } = appToastController
+const { dispose: disposeUndoToasts } = useUndoToasts({
+  browser,
+  toasts: appToastController,
+  translate: (key, values, plural) => plural === undefined ? t(key, values ?? {}) : t(key, values ?? {}, plural)
+})
 const {
   reportActionError: reportShellActionError,
   reportStartupFailure: reportAppBootstrapFailure,
@@ -815,6 +822,7 @@ useAppLifecycleController({
     disposeAppSiteNavigationFeatureController,
     disposeAppSettingsFeatureController,
     disposeAppBrowserCollectionsFeatureController,
+    disposeUndoToasts,
     disposeAppToastController
   ]
 })
@@ -1018,5 +1026,5 @@ useAppLifecycleController({
       @reset="resetPanelDockSize"
     />
   </header>
-  <AppToastRegion :toasts="appToasts" :home="activeIsHome" @dismiss="dismissAppToast" @retain="retainAppToast" />
+  <AppToastRegion :toasts="appToasts" :home="activeIsHome" @dismiss="dismissAppToast" @retain="retainAppToast" @act="actAppToast" />
 </template>

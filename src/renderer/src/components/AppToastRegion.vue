@@ -16,6 +16,7 @@ defineProps<{
 defineEmits<{
   dismiss: [id: number]
   retain: [id: number]
+  act: [id: number]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -33,7 +34,7 @@ const { t } = useI18n({ useScope: 'global' })
       v-for="toast in toasts"
       :key="toast.id"
       class="app-toast"
-      :class="toast.tone"
+      :class="[toast.tone, { 'with-action': toast.action }]"
       :role="toast.tone === 'error' ? 'alert' : 'status'"
       :aria-label="toast.title"
       v-tooltip="`${toast.title}: ${toast.message}`"
@@ -45,6 +46,15 @@ const { t } = useI18n({ useScope: 'global' })
         <IconInfo v-else />
       </span>
       <span class="app-toast-copy"><strong>{{ toast.title }}</strong><span>{{ toast.message }}</span></span>
+      <UiButton
+        v-if="toast.action"
+        appearance="application"
+        class="app-toast-action"
+        type="button"
+        data-testid="app-toast-action"
+        :aria-label="toast.action.ariaLabel"
+        @click="$emit('act', toast.id)"
+      >{{ toast.action.label }}</UiButton>
       <UiButton appearance="application" type="button" :aria-label="t('panels.dismiss', { title: toast.title })" @click="$emit('dismiss', toast.id)"><IconClose aria-hidden="true" /></UiButton>
     </article>
   </TransitionGroup>
@@ -77,6 +87,11 @@ const { t } = useI18n({ useScope: 'global' })
   backdrop-filter: blur(14px);
   pointer-events: auto;
 }
+.app-toast.with-action {
+  min-height: 40px;
+  max-height: 40px;
+  grid-template-columns: 24px minmax(0, 1fr) auto 24px;
+}
 .app-toast.error { border-color: color-mix(in srgb, var(--danger) 54%, var(--border)); }
 .app-toast.success { border-color: color-mix(in srgb, var(--success) 48%, var(--border)); }
 .app-toast.info { border-color: color-mix(in srgb, var(--accent) 48%, var(--border)); }
@@ -108,6 +123,16 @@ const { t } = useI18n({ useScope: 'global' })
   cursor: pointer;
 }
 .app-toast > button:hover { color: var(--text); background: var(--hover); }
+.app-toast > .app-toast-action {
+  width: auto;
+  min-width: 56px;
+  height: 32px;
+  padding: 0 12px;
+  color: var(--accent);
+  font-size: var(--type-small-size);
+  font-weight: 600;
+}
+.app-toast > .app-toast-action:hover { color: var(--accent); }
 .app-toast > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .app-toast > button svg { width: 14px; height: 14px; }
 .app-toast-enter-active { transition: opacity var(--motion-base) var(--motion-ease-out), transform var(--motion-base) var(--motion-ease-spring); }

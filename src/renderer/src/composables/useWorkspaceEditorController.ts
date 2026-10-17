@@ -403,15 +403,15 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
 
   async function closeWorkspace(): Promise<void> {
     const current = workspace.value
-    // The global lock blocks human page input, not trusted Hronaut controls. This
-    // confirmed action matches Home's Clear, which never required unlocking.
+    // The global lock blocks human page input, not trusted Hronaut controls, as
+    // with Home's Clear, which never required unlocking. Closing asks nothing:
+    // Undo brings the workspace back until its toast closes.
     if (!current || current.deletionProtected || actionPending.value || storageState.value === 'saving') return
-    if (!options.confirm(options.translate('runtimeActions.workspace.closeConfirm', { name: current.name }))) return
     const presentation = presentationGeneration
     actionState.value = 'closing'
     error.value = ''
     try {
-      await options.syncState(options.browser.closeWorkspace(current.id))
+      await options.syncState(options.browser.closeWorkspace(current.id, { undoable: true }))
       if (!isPresentationCurrent(presentation)) return
       finishAndClose()
     } catch (cause) {

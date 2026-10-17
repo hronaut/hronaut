@@ -3396,6 +3396,7 @@ export const plPL = {
       "requests": "{count} żądań"
     }
   },
+  "undo": { "action": "Cofnij", "actionAria": "Cofnij: {title}", "tabsClosed": "Zamknięto {count} kartę | Zamknięto {count} karty | Zamknięto {count} kart", "workspaceArchived": "Obszar roboczy zarchiwizowany", "workspaceClosed": "Obszar roboczy zamknięty", "bookmarkRemoved": "Zakładka usunięta", "expiredTitle": "Nie ma czego cofnąć", "expired": "Tego nie można już cofnąć.", "failed": "Nie udało się cofnąć", "failedDescription": "Nie udało się tego przywrócić." },
   "panels": {
     "siteControls": "Ustawienia witryny",
     "siteStorage": "Pamięć witryny",
