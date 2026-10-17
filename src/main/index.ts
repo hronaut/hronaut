@@ -118,7 +118,6 @@ import {
 import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import {
   McpHttpServer,
-  mcpCapabilityProfileInputFromPreset,
   mcpToolCatalogForSet,
   type SiteDataType,
   type WalletAgentToolTarget,
@@ -137,14 +136,10 @@ import {
   stageMcpRuntimeCandidate,
   synchronizeMcpRuntimeCandidate
 } from './mcp-runtime-candidate.js'
-import { DEFAULT_SETTINGS, isThemeName, SettingsStore } from './settings-store.js'
-import {
-  DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
-  isMemorySaverTimeoutMinutes
-} from '../shared/memory-saver.js'
-import { isInterfaceScale, scaleShellMetric } from '../shared/interface-scale.js'
-import { isTabPosition } from '../shared/tab-position.js'
-import { DEFAULT_MCP_TOOL_SET, isMcpToolSet } from '../shared/mcp-tool-sets.js'
+import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
+import { scaleShellMetric } from '../shared/interface-scale.js'
+import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
+import { registerSettingsIpc } from './settings-ipc.js'
 import {
   isSitePermissionDecision,
   normalizeSitePermissionOrigin,
@@ -160,7 +155,6 @@ import {
 import {
   DETACHABLE_PANEL_IDS,
   PANEL_DOCKS,
-  isAttentionSoundCue,
   validateTabOverviewPreviewIds,
   type AppSettings,
   type AppUpdateState,
@@ -192,7 +186,6 @@ import {
   type McpPortMoveResponse,
   type McpPortMoveResult,
   type McpServerStatus,
-  type McpCapabilityProfileCreateInput,
   type PanelDock,
   type RendererSettingsState,
   type SitePermissionDecision,
@@ -201,7 +194,6 @@ import {
 } from '../shared/types.js'
 import { CYBERPUNK_TURBO_COLORS, isResolvedThemeName, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
 import {
-  isLanguagePreference,
   resolveLocalePreference,
   resolveSupportedLocale
 } from '../shared/locale.js'
@@ -209,7 +201,6 @@ import { isBrowserTabGroupColor } from '../shared/tab-groups.js'
 import { isBrowserViewportEmulation } from '../shared/viewport-presets.js'
 import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
-import { isSearchEngineName } from '../shared/search-engine.js'
 import {
   dimTitleBarOverlay,
   createAutoHideMenuGesture,
@@ -697,8 +688,6 @@ let connectedAgentsSent = '[]'
 let agentPresencePublishScheduled = false
 /** The Home feed revision Home was last told about. */
 let homeFeedSentRevision = 0
-/** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
-let followAgentActivityIntent = 0
 
 /** Offers a take over when the person touches a page an agent is working on, and takes it from the page's key. */
 const takeOvers = new TakeOverOffers({
@@ -3841,352 +3830,41 @@ function registerIpc(): void {
     quitting = true
     app.quit()
   })
-  ipcMain.handle('settings:get', (event) => { assertTrustedShellSender(event); return { ...settings } })
-  ipcMain.handle('settings:get-renderer-state', (event) => {
-    assertTrustedShellSender(event)
-    return currentRendererSettingsState()
-  })
-  ipcMain.handle('settings:get-system-theme', (event) => {
-    assertTrustedShellSender(event)
-    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-  })
-  ipcMain.handle('settings:reset-appearance', async (event) => {
-    assertTrustedShellSender(event)
-    if (app.isPackaged && !startupLaunchManager) {
-      throw new Error('Startup integration is unavailable')
-    }
-    await updateSettings({
-      theme: DEFAULT_SETTINGS.theme,
-      interfaceScale: DEFAULT_SETTINGS.interfaceScale,
-      tabPosition: DEFAULT_SETTINGS.tabPosition,
-      useSystemTitleBar: DEFAULT_SETTINGS.useSystemTitleBar,
-      hideInTray: DEFAULT_SETTINGS.hideInTray,
-      launchAtStartup: DEFAULT_SETTINGS.launchAtStartup,
-      launchMinimized: DEFAULT_SETTINGS.launchMinimized,
-      attentionSound: DEFAULT_SETTINGS.attentionSound,
-      attentionSoundCue: DEFAULT_SETTINGS.attentionSoundCue,
-      showAgentCursor: DEFAULT_SETTINGS.showAgentCursor,
-      pinAgentLiveStatus: DEFAULT_SETTINGS.pinAgentLiveStatus,
-      languagePreference: DEFAULT_SETTINGS.languagePreference
-    }, app.isPackaged
-      ? (next) => startupLaunchManager!.setEnabled(next.launchAtStartup)
-      : undefined)
-    applyTheme(settings.theme)
-    applyInterfaceScale(settings.interfaceScale)
-    await applyLanguagePreferenceRuntime(settings.languagePreference)
-    return currentRendererSettingsState()
-  })
-  ipcMain.handle('settings:set-theme', async (event, theme: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isThemeName(theme)) throw new TypeError('Unsupported theme')
-    await updateSettings({ theme })
-    applyTheme(theme)
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-interface-scale', async (event, scale: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isInterfaceScale(scale)) throw new TypeError('Unsupported interface size')
-    await updateSettings({ interfaceScale: scale })
-    applyInterfaceScale(scale)
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-tab-position', async (event, position: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isTabPosition(position)) throw new TypeError('Invalid tab position')
-    await updateSettings({ tabPosition: position })
-    applyMainWindowTitleBarOverlay()
-    applyMainWindowBackground()
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-use-system-title-bar', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('System title bar preference must be a boolean')
-    await updateSettings({ useSystemTitleBar: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-search-engine', async (event, searchEngine: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isSearchEngineName(searchEngine)) throw new TypeError('Unsupported search engine')
-    await updateSettings({ searchEngine })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:get-default-download-directory', (event) => {
-    assertTrustedShellSender(event)
-    return defaultDownloadDirectory()
-  })
-  ipcMain.handle('settings:choose-download-directory', async (event) => {
-    assertTrustedShellSender(event)
-    if (!mainWindow) throw new Error('The Hronaut window is not available')
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: text('native.dialog.chooseDownloadFolder'),
-      defaultPath: effectiveDownloadDirectory(),
-      buttonLabel: text('native.dialog.useFolder'),
-      properties: ['openDirectory', 'createDirectory', 'promptToCreate']
-    })
-    const directory = result.filePaths[0]
-    if (result.canceled || !directory) return { settings: { ...settings }, canceled: true }
-    return {
-      settings: await applyDownloadSettings({ downloadDirectory: resolve(directory) }),
-      canceled: false
-    }
-  })
-  ipcMain.handle('settings:set-ask-where-to-save-downloads', (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Ask-before-saving must be a boolean')
-    return applyDownloadSettings({ askWhereToSaveDownloads: enabled })
-  })
-  ipcMain.handle('settings:reset-downloads', (event) => {
-    assertTrustedShellSender(event)
-    return applyDownloadSettings({ downloadDirectory: null, askWhereToSaveDownloads: false })
-  })
-  ipcMain.handle('settings:open-download-directory', async (event) => {
-    assertTrustedShellSender(event)
-    const directory = effectiveDownloadDirectory()
-    await mkdir(directory, { recursive: true })
-    const error = await shell.openPath(directory)
-    if (error) throw new Error(error)
-  })
-  handleBrowserIpc('settings:set-memory-saver-enabled', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Memory Saver state must be a boolean')
-    await updateSettings({ memorySaverEnabled: enabled })
-    tabsManager?.setMemorySaverSettings(settings.memorySaverEnabled, settings.memorySaverTimeoutMinutes)
-    publishSettings()
-    return { ...settings }
-  })
-  handleBrowserIpc('settings:set-memory-saver-timeout', async (event, timeoutMinutes: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
-    await updateSettings({ memorySaverTimeoutMinutes: timeoutMinutes })
-    tabsManager?.setMemorySaverSettings(settings.memorySaverEnabled, settings.memorySaverTimeoutMinutes)
-    publishSettings()
-    return { ...settings }
-  })
-  handleBrowserIpc('settings:reset-memory-saver', async (event) => {
-    assertTrustedShellSender(event)
-    await updateSettings({
-      memorySaverEnabled: true,
-      memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
-    })
-    tabsManager?.setMemorySaverSettings(settings.memorySaverEnabled, settings.memorySaverTimeoutMinutes)
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-hide-in-tray', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Hide in tray must be a boolean')
-    await updateSettings({ hideInTray: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-launch-at-startup', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Launch-at-startup preference must be a boolean')
-    if (!startupLaunchManager) throw new Error('Startup integration is unavailable')
-    await updateSettings(
-      { launchAtStartup: enabled },
-      (next) => startupLaunchManager!.setEnabled(next.launchAtStartup)
-    )
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-launch-minimized', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Launch-minimized preference must be a boolean')
-    await updateSettings({ launchMinimized: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-attention-sound', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Attention sound must be a boolean')
-    await updateSettings({ attentionSound: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-attention-sound-cue', async (event, cue: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isAttentionSoundCue(cue)) throw new TypeError('Unsupported attention sound')
-    await updateSettings({ attentionSoundCue: cue })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-show-agent-cursor', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Show agent cursor must be a boolean')
-    await updateSettings({ showAgentCursor: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-pin-agent-live-status', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Pin agent live status must be a boolean')
-    await updateSettings({ pinAgentLiveStatus: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-follow-agent-activity', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Follow agent activity must be a boolean')
-    // Applied at once, in the order asked, so following cannot move the view after the person
-    // turned it off, such as with Stay here, while the setting is still being saved.
-    const intent = ++followAgentActivityIntent
-    tabsManager?.setFollowAgentActivity(enabled)
-    try {
-      await updateSettings({ followAgentActivity: enabled })
-    } catch (error) {
-      if (intent === followAgentActivityIntent) tabsManager?.setFollowAgentActivity(settings.followAgentActivity)
-      throw error
-    }
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-challenge-detection', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Challenge detection must be a boolean')
-    await updateSettings({ challengeDetectionEnabled: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-mcp-remote-access', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Remote MCP access must be a boolean')
-    const next = await updateSettings({ mcpRemoteAccess: enabled })
-    mcpServer?.setAuthenticationToken(next.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
-    publishSettings()
-    refreshHomeAfterCommittedChange('mcp')
-    return next
-  })
-  ipcMain.handle('settings:set-mcp-authentication', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('MCP authentication must be a boolean')
-    const next = await updateSettings({ mcpAuthentication: enabled })
-    mcpServer?.setAuthenticationToken(next.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
-    publishSettings()
-    refreshHomeAfterCommittedChange('mcp')
-    console.warn(enabled
-      ? '[mcp] Authentication enabled.'
-      : '[mcp] Authentication disabled in Settings. Anyone who can reach the listener can control this profile.')
-    return { ...settings }
-  })
-  handleBrowserIpc('settings:set-mcp-port', async (event, port: unknown) => {
-    assertTrustedShellSender(event)
-    return setMcpPort(port as number)
-  })
-  ipcMain.handle('settings:set-mcp-tool-set', async (event, toolSet: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isMcpToolSet(toolSet)) throw new TypeError('Unsupported MCP tool set')
-    await updateSettings(
-      { mcpToolSet: toolSet },
-      (next) => mcpServer?.setToolSet(next.mcpToolSet)
-    )
-    publishSettings()
-    refreshHomeAfterCommittedChange('mcp')
-    return { ...settings }
-  })
-  handleBrowserIpc('settings:reset-mcp', async (event) => {
-    assertTrustedShellSender(event)
-    return resetMcpSettings()
-  })
-  const capabilityProfileInput = (value: unknown): McpCapabilityProfileCreateInput => {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new TypeError('MCP capability profile input is required')
-    }
-    const input = value as Partial<McpCapabilityProfileCreateInput>
-    const argumentConstraints = input.argumentConstraints
-    const jsonSafe = (candidate: unknown, depth = 0): boolean => {
-      if (candidate === null || typeof candidate === 'string' || typeof candidate === 'boolean') return true
-      if (typeof candidate === 'number') return Number.isFinite(candidate)
-      if (depth >= 12) return false
-      if (Array.isArray(candidate)) return candidate.length <= 256
-        && candidate.every(entry => jsonSafe(entry, depth + 1))
-      return !!candidate && typeof candidate === 'object'
-        && Object.keys(candidate).length <= 256
-        && Object.values(candidate as Record<string, unknown>).every(entry => jsonSafe(entry, depth + 1))
-    }
-    const invalidArgumentConstraints = argumentConstraints !== undefined && (
-      !argumentConstraints || typeof argumentConstraints !== 'object' || Array.isArray(argumentConstraints)
-      || Object.keys(argumentConstraints).length > 256
-      || Object.values(argumentConstraints).some(values => !Array.isArray(values) || !values.length
-        || values.length > 256 || !values.every(entry => jsonSafe(entry)))
-      || (() => {
-        try { return JSON.stringify(argumentConstraints).length > 65_536 } catch { return true }
-      })()
-    )
-    if (typeof input.name !== 'string'
-      || typeof input.preset !== 'string'
-      || (input.parentProfileId !== undefined && typeof input.parentProfileId !== 'string')
-      || (input.workspaceIds !== undefined && (!Array.isArray(input.workspaceIds)
-        || input.workspaceIds.some(id => typeof id !== 'string')))
-      || (input.origins !== undefined && (!Array.isArray(input.origins)
-        || input.origins.some(origin => typeof origin !== 'string')))
-      || invalidArgumentConstraints
-      || (input.expiresInMinutes !== undefined && typeof input.expiresInMinutes !== 'number')
-      || (input.singleUse !== undefined && typeof input.singleUse !== 'boolean')) {
-      throw new TypeError('MCP capability profile input is invalid')
-    }
-    return input as McpCapabilityProfileCreateInput
-  }
-  const requireCapabilityProfiles = (): McpCapabilityProfileStore => {
-    if (!mcpCapabilityProfiles) throw new Error('MCP capability profile storage is unavailable')
-    return mcpCapabilityProfiles
-  }
-  ipcMain.handle('settings:list-mcp-capability-profiles', (event) => {
-    assertTrustedShellSender(event)
-    return requireCapabilityProfiles().list()
-  })
-  ipcMain.handle('settings:create-mcp-capability-profile', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    const input = capabilityProfileInput(value)
-    const profiles = requireCapabilityProfiles()
-    const normalized = mcpCapabilityProfileInputFromPreset(input)
-    if (!input.parentProfileId) return profiles.create(normalized)
-    const parent = profiles.list().find(profile => profile.id === input.parentProfileId)
-    if (!parent) throw new Error('Parent MCP capability profile not found')
-    return profiles.derive({
-      profileId: parent.id,
-      revision: parent.revision,
-      credentialId: parent.credentialId
-    }, normalized)
-  })
-  ipcMain.handle('settings:update-mcp-capability-profile', async (event, id: unknown, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
-    const input = capabilityProfileInput(value)
-    if (input.parentProfileId !== undefined) throw new TypeError('An existing MCP capability profile cannot be reparented')
-    const result = await requireCapabilityProfiles().update(id, mcpCapabilityProfileInputFromPreset(input))
-    return result
-  })
-  ipcMain.handle('settings:rotate-mcp-capability-profile', async (event, id: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
-    const result = await requireCapabilityProfiles().rotate(id)
-    return result
-  })
-  ipcMain.handle('settings:revoke-mcp-capability-profile', async (event, id: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
-    const profile = await requireCapabilityProfiles().revoke(id)
-    return profile
-  })
-  ipcMain.handle('settings:set-check-on-startup', async (event, enabled: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof enabled !== 'boolean') throw new TypeError('Startup update check must be a boolean')
-    await updateSettings({ checkForUpdatesOnStartup: enabled })
-    publishSettings()
-    return { ...settings }
-  })
-  ipcMain.handle('settings:set-language-preference', async (event, preference: unknown) => {
-    assertTrustedShellSender(event)
-    if (!isLanguagePreference(preference)) throw new TypeError('Invalid language preference')
-    await updateSettings({ languagePreference: preference })
-    await applyLanguagePreferenceRuntime(preference)
-    return currentRendererSettingsState()
+  registerSettingsIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    settings: () => settings,
+    currentRendererSettingsState,
+    updateSettings,
+    publishSettings,
+    isPackaged: () => app.isPackaged,
+    shouldUseDarkColors: () => nativeTheme.shouldUseDarkColors,
+    applyTheme,
+    applyInterfaceScale,
+    applyLanguagePreferenceRuntime,
+    applyMainWindowTitleBarOverlay,
+    applyMainWindowBackground,
+    startupLaunchManager: () => startupLaunchManager,
+    defaultDownloadDirectory,
+    effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
+    chooseDownloadDirectory: () => {
+      if (!mainWindow) throw new Error('The Hronaut window is not available')
+      return dialog.showOpenDialog(mainWindow, {
+        title: text('native.dialog.chooseDownloadFolder'),
+        defaultPath: effectiveDownloadDirectory(),
+        buttonLabel: text('native.dialog.useFolder'),
+        properties: ['openDirectory', 'createDirectory', 'promptToCreate']
+      })
+    },
+    applyDownloadSettings,
+    openPath: (path) => shell.openPath(path),
+    tabs: () => tabsManager,
+    mcpServer: () => mcpServer,
+    mcpTokenConfiguration: () => mcpTokenConfiguration,
+    refreshHomeAfterCommittedChange,
+    setMcpPort,
+    resetMcpSettings,
+    mcpCapabilityProfiles: () => mcpCapabilityProfiles
   })
   ipcMain.handle('permissions:list', (event) => { assertTrustedShellSender(event); return sitePermissionStore!.list() })
   ipcMain.handle(
