@@ -15,6 +15,8 @@ import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-in
 import { storageChanges } from './site-storage/storage-changes.js'
 import type { PageWaitsAccess } from './page-waits/page-waits-access.js'
 import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './page-waits/page-waits.js'
+import type { VisualCompareAccess } from './visual-compare/visual-compare-access.js'
+import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -220,7 +222,7 @@ import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
-import { compareBgraBitmaps, normalizeVisualCompareThreshold, normalizeVisualCompareClip, visualCompareBitmapClip } from '../../shared/visual-compare.js'
+import { visualCompareBitmapClip } from '../../shared/visual-compare.js'
 import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
 import {
   SPLIT_VIEW_GAP,
@@ -274,7 +276,6 @@ import type {
   BrowserPdfOptions,
   BrowserScreenshotOptions,
   BrowserScreenshotClip,
-  BrowserVisualCompareAction,
   BrowserVisualCompareOptions,
   BrowserVisualCompareReport,
   BrowserVisualSnapshot,
@@ -465,7 +466,6 @@ const MAX_NETWORK_ROUTES = 50
 const MAX_INSPECTOR_ISSUES = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
-const MAX_VISUAL_COMPARE_SETTLE_MS = 2_000
 const MAX_TAB_OVERVIEW_PREVIEW_WIDTH = 480
 const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
 const MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_WIDTH = 960
@@ -864,10 +864,7 @@ interface BrowserVisualComparisonInternal {
   diffPng?: Buffer
 }
 
-export interface BrowserVisualCompareResult {
-  report: BrowserVisualCompareReport
-  diffPng?: Buffer
-}
+export type { BrowserVisualCompareResult }
 
 export interface BrowserCredentialCandidate {
   origin: string
@@ -7929,19 +7926,6 @@ export class BrowserTabsManager {
     return { handled: true, action }
   }
 
-  private visualCompareCaveats(threshold: number, urlsDiffer = false, scope?: BrowserVisualCompareScope): string[] {
-    return [
-      scope?.kind === 'region'
-        ? 'Only the selected viewport CSS rectangle is compared. Complete native pixels inside it are cropped before normalization to at most 1920 x 1080 pixels. The denominator and diff bounds refer to the cropped normalized bitmap; unchanged does not describe the rest of the page.'
-        : 'The baseline, current capture, and diff cover the visible viewport only and are normalized to at most 1920 x 1080 pixels.',
-      ...(scope?.kind === 'region' ? ['Region comparisons require unchanged viewport, zoom, device pixel ratio, scroll position and document. Cropping is not anonymization; review image contents before sharing.'] : []),
-      `A pixel is marked changed when any native bitmap channel differs by more than ${threshold}; animations, caret blinking, video, and delayed content can create noise.`,
-      'Generate the baseline and comparison in the same Hronaut environment; browser, operating-system, font, and GPU differences can change rendering.',
-      'Baseline and diff images stay only in memory and are discarded when cleared, when the tab closes, or when Hronaut exits.',
-      ...(urlsDiffer ? ['The page URL changed after the baseline; this is a cross-navigation comparison.'] : [])
-    ]
-  }
-
   private async visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
     const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(VISUAL_COMPARE_WORLD_ID, [{
       code: '({ viewportWidth: innerWidth, viewportHeight: innerHeight, devicePixelRatio, scrollX, scrollY, pageScale: visualViewport?.scale ?? 1, offsetX: visualViewport?.offsetLeft ?? 0, offsetY: visualViewport?.offsetTop ?? 0 })'
@@ -8011,141 +7995,28 @@ export class BrowserTabsManager {
     })
   }
 
-  async visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
-    const tab = this.getTab(options.tabId)
-    const action: BrowserVisualCompareAction = options.action
-    const requestedClip = normalizeVisualCompareClip(options.clip)
-    if (requestedClip && action !== 'set-baseline') throw new Error('Provide clip only when setting a new visual baseline')
-    const threshold = normalizeVisualCompareThreshold(options.threshold)
-    const rawSettleMs = options.settleMs ?? 200
-    if (!Number.isFinite(rawSettleMs)) throw new TypeError('Visual comparison settleMs must be finite')
-    const settleMs = Math.min(MAX_VISUAL_COMPARE_SETTLE_MS, Math.max(0, Math.round(rawSettleMs)))
-    const baseReport = {
-      action,
-      tabId: tab.id,
-      title: tab.title,
-      url: tab.webContents.getURL() || tab.url,
-      threshold
+  /**
+   * The narrow view visual comparison gets of this manager's private tabs,
+   * observation context and page capture. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. The delegate below returns the feature's promise
+   * directly, so no extra ticks separate its final checks from the caller.
+   */
+  private visualCompareAccess(): VisualCompareAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
+      captureVisual: (tab, settleMs, clip) => this.captureVisual(tab, settleMs, clip)
     }
+  }
 
-    if (action === 'clear') {
-      tab.visualComparisonGeneration += 1
-      tab.visualComparison = undefined
-      return {
-        report: {
-          ...baseReport,
-          status: 'empty',
-          cleared: true,
-          caveats: this.visualCompareCaveats(threshold)
-        }
-      }
-    }
-
-    if (action === 'get') {
-      const comparison = tab.visualComparison
-      if (!comparison) {
-        return {
-          report: {
-            ...baseReport,
-            status: 'empty',
-            caveats: this.visualCompareCaveats(threshold)
-          }
-        }
-      }
-      if (comparison.lastReport) {
-        return {
-          report: { ...comparison.lastReport, action: 'get' },
-          ...(comparison.diffPng ? { diffPng: comparison.diffPng } : {})
-        }
-      }
-      return {
-        report: {
-          ...baseReport,
-          status: 'baseline',
-          baseline: comparison.baseline.snapshot,
-          scope: comparison.baseline.snapshot.scope,
-          caveats: this.visualCompareCaveats(threshold, false, comparison.baseline.snapshot.scope)
-        }
-      }
-    }
-
-    const operationGeneration = ++tab.visualComparisonGeneration
-    const retained = tab.visualComparison?.baseline
-    if (action === 'compare' && !retained) throw new Error('Set a visual baseline before comparing the page')
-    const clip = action === 'set-baseline' ? requestedClip : retained?.snapshot.scope?.kind === 'region' ? retained.snapshot.scope.clip : undefined
-    const current = await this.captureVisual(tab, settleMs, clip)
-    if (this.tabs.get(tab.id) !== tab || tab.visualComparisonGeneration !== operationGeneration) {
-      throw new Error('Visual comparison changed while the page capture was pending. Run the requested action again.')
-    }
-    if (snapshotDeltaInvalidationReason(current.observationContext, this.snapshotDeltaContext(tab))) throw new Error('The page changed while the visual capture was pending. Capture it again.')
-    // MCP supplies its existing live authority checks before retaining image state.
-    validateCapture?.()
-    if (action === 'set-baseline') {
-      tab.visualComparison = { baseline: { snapshot: current.snapshot, png: current.png, navigationGeneration: current.navigationGeneration } }
-      return {
-        report: {
-          ...baseReport,
-          url: current.snapshot.url,
-          status: 'baseline',
-          baseline: current.snapshot,
-          scope: current.snapshot.scope,
-          caveats: this.visualCompareCaveats(threshold, false, current.snapshot.scope)
-        }
-      }
-    }
-
-    const comparison = tab.visualComparison
-    if (!comparison) throw new Error('Set a visual baseline before comparing the page')
-    if (comparison.baseline.snapshot.scope?.kind === 'region'
-      && (comparison.baseline.navigationGeneration !== current.navigationGeneration
-        || JSON.stringify(comparison.baseline.snapshot.context) !== JSON.stringify(current.snapshot.context)
-        || JSON.stringify(comparison.baseline.snapshot.scope) !== JSON.stringify(current.snapshot.scope))) {
-      throw new Error('The region capture context changed (viewport, zoom, pixel ratio, scroll or document); set a new visual baseline')
-    }
-    const baselineImage = nativeImage.createFromBuffer(comparison.baseline.png)
-    if (baselineImage.isEmpty()) throw new Error('The visual baseline could not be decoded; set it again')
-    const baselineSize = baselineImage.getSize()
-    if (baselineSize.width !== current.snapshot.width || baselineSize.height !== current.snapshot.height) {
-      throw new Error(
-        `The viewport changed from ${baselineSize.width} x ${baselineSize.height} to ${current.snapshot.width} x ${current.snapshot.height}; set a new baseline at this size`
-      )
-    }
-    const baselineBitmap = Buffer.from(baselineImage.toBitmap({ scaleFactor: 1 }))
-    const diff = compareBgraBitmaps(
-      baselineBitmap,
-      current.bitmap,
-      current.snapshot.width,
-      current.snapshot.height,
-      threshold
-    )
-    const diffPng = nativeImage.createFromBitmap(diff.bitmap, {
-      width: current.snapshot.width,
-      height: current.snapshot.height,
-      scaleFactor: 1
-    }).toPNG()
-    const report: BrowserVisualCompareReport = {
-      ...baseReport,
-      url: current.snapshot.url,
-      status: 'compared',
-      baseline: comparison.baseline.snapshot,
-      current: current.snapshot,
-      scope: current.snapshot.scope,
-      identical: diff.changedPixels === 0,
-      changedPixels: diff.changedPixels,
-      totalPixels: diff.totalPixels,
-      changedPercent: diff.changedPercent,
-      ...(diff.bounds ? { diffBounds: diff.bounds } : {}),
-      caveats: this.visualCompareCaveats(threshold, comparison.baseline.snapshot.url !== current.snapshot.url, current.snapshot.scope)
-    }
-    comparison.lastReport = report
-    comparison.diffPng = diffPng
-    return { report, diffPng }
+  visualCompare(options: BrowserVisualCompareOptions, validateCapture?: () => void): Promise<BrowserVisualCompareResult> {
+    return visualCompare(this.visualCompareAccess(), options, validateCapture)
   }
 
   visualDiff(tabId?: string): Buffer {
-    const diff = this.getTab(tabId).visualComparison?.diffPng
-    if (!diff) throw new Error('Compare the current page with a visual baseline first')
-    return diff
+    return visualDiff(this.visualCompareAccess(), tabId)
   }
 
   async screenshot(options: BrowserScreenshotOptions = {}): Promise<{ annotations?: ScreenshotAnnotationReport; data: Buffer; mimeType: 'image/png' | 'image/jpeg' }> {
