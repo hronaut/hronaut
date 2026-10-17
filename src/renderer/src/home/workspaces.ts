@@ -1,8 +1,9 @@
 import type { AgentStepKind } from '../../../shared/agent-steps.js'
-import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
+import type { HomeBootstrap, HomeDashboard, HomeFeedEntry, HronautHomeApi } from '../../../shared/home.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from '../../../shared/home-workspaces.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../../shared/undo.js'
 import { agentStepText } from '../../../shared/agent-step-text.js'
+import { mountActivityFeed } from './activity-feed.js'
 import { element, interpolate, messageAt, pluralText, timeAgo } from './dom.js'
 import { renderNewWorkspaceTile, renderWorkspaceCard, renderWorkspaceEmpty, updateCardStatus, type CardStatus } from './workspace-card.js'
 
@@ -26,6 +27,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
   const undo = element<HTMLButtonElement>('workspace-undo')
   const cards = new Map<string, { node: HTMLElement; signature: string }>()
   const newTile = document.createElement('div')
+  const feed = mountActivityFeed(data)
   const count = (message: string, value: number): string => pluralText(data.locale, message, value)
   const t = (key: string, values?: Record<string, unknown>): string => messageAt(data.messages, key, values as Record<string, string | number>)
   const stepText = (step: AgentStepKind, target: string | undefined, tense: 'now' | 'done'): string => agentStepText(t, step, target, tense)
@@ -43,6 +45,20 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     }
     if (activity && lead) return { tone: 'idle', text: interpolate(data.messages.shell.agents.idle, { name: lead }) }
     return { tone: 'quiet', text: interpolate(mission.lastUsed, { time: timeAgo(data.locale, group.lastUsedAt ?? '') }) }
+  }
+  /** The newest request of each agent that still needs you in a workspace; older or failed requests are history. */
+  function waitingFor(): (entry: HomeFeedEntry) => boolean {
+    const seen = new Set<string>()
+    const waiting = new Set<string>()
+    for (const entry of live.feed ?? []) {
+      if (entry.step !== 'askYou' || entry.outcome !== 'done') continue
+      const key = `${entry.workspaceId}\n${entry.agentKey}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const activity = live.workspaceActivity?.[entry.workspaceId]
+      if (activity?.state === 'needs-you' && activity.agentKeys[0] === entry.agentKey) waiting.add(entry.id)
+    }
+    return entry => waiting.has(entry.id)
   }
   function render(): void {
     const groups = [
@@ -93,6 +109,11 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       if (grid.lastElementChild !== newTile) grid.append(newTile)
     } else newTile.remove()
     if (!visible.length) renderWorkspaceEmpty(grid, messages[query ? 'noMatches' : view === 'archived' ? 'noArchived' : 'empty'], messages[query ? 'searchHelp' : view === 'archived' ? 'archiveHelp' : 'emptyHelp'])
+    feed.update(live.feed ?? [], {
+      workspaceName: id => state.mcpTabGroups.find(group => group.id === id)?.name,
+      waiting: waitingFor(),
+      initial: entry => live.agents?.find(agent => agent.key === entry.agentKey)?.initial
+    })
     root.setAttribute('aria-busy', String(pending))
     root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[data-workspace-action],input[data-workspace-preference]').forEach(control => {
       if (pending) { control.dataset.wasDisabled ??= String(control.disabled); control.disabled = true }
@@ -173,12 +194,12 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     menu.open = false
     menu.querySelector('summary')?.focus()
   }, { signal })
-  // A click outside an open menu only closes it, so it does not open the card under it as well.
+  // A click outside an open menu only closes it, so it does not open a card or feed step under it as well.
   document.addEventListener('click', event => {
     const open = [...root.querySelectorAll<HTMLDetailsElement>('.card-menu[open]')].filter(menu => !menu.contains(event.target as Node))
     if (!open.length) return
     open.forEach(menu => { menu.open = false })
-    if ((event.target as Element).closest?.('.card-open')) { event.preventDefault(); event.stopPropagation() }
+    if ((event.target as Element).closest?.('.card-open, .feed-open')) { event.preventDefault(); event.stopPropagation() }
   }, { capture: true, signal })
   // Tabbing out of a menu closes it; a click is left to the listener above.
   let pointing = false
