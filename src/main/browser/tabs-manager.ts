@@ -9971,12 +9971,14 @@ export class BrowserTabsManager {
         event.preventDefault()
         const shortcut = input.type === 'keyDown' ? browserShortcutAction({
           key: input.key,
+          code: input.code,
           control: input.control,
           meta: input.meta,
           alt: input.alt,
           shift: input.shift,
           repeat: input.isAutoRepeat,
-          composing: input.isComposing
+          composing: input.isComposing,
+          mac: process.platform === 'darwin'
         }) : null
         if (shortcut) this.options.onShortcutRequested?.(shortcut)
         return
@@ -9998,12 +10000,14 @@ export class BrowserTabsManager {
         event.preventDefault()
         const shortcut = (input.type === 'keyDown' || input.type === 'rawKeyDown') ? browserShortcutAction({
           key: input.key,
+          code: input.code,
           control: input.control,
           meta: input.meta,
           alt: input.alt,
           shift: input.shift,
           repeat: input.isAutoRepeat,
-          composing: input.isComposing
+          composing: input.isComposing,
+          mac: process.platform === 'darwin'
         }) : null
         if (
           input.type === 'keyDown'
@@ -10017,12 +10021,14 @@ export class BrowserTabsManager {
       }
       const requested = input.type === 'keyDown' ? browserShortcutAction({
         key: input.key,
+        code: input.code,
         control: input.control,
         meta: input.meta,
         alt: input.alt,
         shift: input.shift,
         repeat: input.isAutoRepeat,
-        composing: input.isComposing
+        composing: input.isComposing,
+        mac: process.platform === 'darwin'
       }) : null
       // Consume one expected event even on unlocked tabs. An awaited agent
       // operation does not establish the origin of every arriving key event.

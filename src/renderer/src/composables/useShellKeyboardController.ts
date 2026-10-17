@@ -40,12 +40,14 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
     const composing = isImeCompositionEvent(event)
     const shortcut = browserShortcutAction({
       key: event.key,
+      code: event.code,
       control: event.ctrlKey,
       meta: event.metaKey,
       alt: event.altKey,
       shift: event.shiftKey,
       repeat: event.repeat,
-      composing
+      composing,
+      mac: window.hronautShell?.windowChrome.platform === 'darwin'
     })
     guardInteraction(event)
     if (event.defaultPrevented || composing) return

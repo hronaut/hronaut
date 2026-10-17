@@ -111,6 +111,7 @@ import {
 } from './mcp/server.js'
 import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
 import { agentAnswerForDecision } from './mcp/agent-presence.js'
+import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { AuditReceiptService } from './mcp/audit-receipt-service.js'
@@ -4172,6 +4173,9 @@ async function createWindow(startMinimized = false): Promise<void> {
     shortcutAvailable: (action, workspaceId, tabId) => action === 'take-over' ? takeOvers.available(tabId, workspaceId) !== undefined
       // Ctrl/Cmd+K is a common website key, such as for a site's own search, so websites keep it; Home does not use it.
       : action === 'switch-workspace' ? tabsManager?.isHomeTab(tabId) === true
+      // A page keeps a workspace key while there is no workspace for it to go to.
+      : action === 'previous-workspace' ? (tabsManager?.listMcpTabGroups().some((workspace) => workspace.id !== workspaceId) ?? false)
+      : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(tabsManager?.listMcpTabGroups() ?? [], Number(action.slice(-1))) !== undefined
       : action !== 'agent-card' || (workspaceId !== undefined && (agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0),
     onShortcutRequested: (action, page) => {
       // From a page, the key takes over that page's tab, which may not be the one the shell shows.

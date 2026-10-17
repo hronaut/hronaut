@@ -24,15 +24,32 @@ export type BrowserShortcutAction =
   | 'toggle-full-page'
   | 'take-over'
   | 'switch-workspace'
+  | `select-workspace-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
+  | 'previous-workspace'
 
 export interface BrowserShortcutInput {
   key: string
+  /** The physical key, such as Digit1; workspace keys go by it so they work in every keyboard layout. */
+  code?: string
   control: boolean
   meta: boolean
   alt: boolean
   shift: boolean
   repeat?: boolean
   composing?: boolean
+  /** On macOS the workspace keys use Control, since Option with a digit types a character. */
+  mac?: boolean
+}
+
+/**
+ * Pinned workspaces 1 to 9, and the workspace used before this one, from the number row: Alt elsewhere, Control on
+ * macOS. Ctrl/Cmd with a digit stays with the tabs, and Ctrl+Alt is AltGr on Windows, which types characters.
+ */
+function workspaceShortcut(input: BrowserShortcutInput): BrowserShortcutAction | null {
+  const digit = /^Digit([0-9])$/u.exec(input.code ?? '')?.[1]
+  if (!digit || input.shift || input.meta) return null
+  if (input.mac ? !input.control || input.alt : input.control || !input.alt) return null
+  return digit === '0' ? 'previous-workspace' : `select-workspace-${digit}` as BrowserShortcutAction
 }
 
 export function browserShortcutAction(input: BrowserShortcutInput): BrowserShortcutAction | null {
@@ -47,6 +64,8 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
     (key === 'c' && input.control && input.shift && !input.meta && !input.alt)
     || (key === 'c' && input.meta && input.alt && !input.control && !input.shift)
   ) return 'pick-element'
+  const workspace = workspaceShortcut(input)
+  if (workspace) return workspace
   if (input.alt) return null
 
   if (input.control && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'

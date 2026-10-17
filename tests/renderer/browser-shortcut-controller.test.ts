@@ -55,7 +55,8 @@ function createController(canRunAction = (_action: string) => true) {
     reopenClosedTab: vi.fn(async (_closedTabId?: string) => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
     reload: vi.fn(async (_tabId?: string) => state.value),
-    reloadIgnoringCache: vi.fn(async (_tabId?: string) => state.value)
+    reloadIgnoringCache: vi.fn(async (_tabId?: string) => state.value),
+    newTab: vi.fn(async (_options?: { mcpGroupId?: string; active?: boolean }) => state.value)
   }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
   const settingsOpen = ref(false)
