@@ -148,12 +148,27 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       const complete = advertised.length > 0 && !missing.length
       report.checks.clientVisibility = { state: complete ? 'client_tools_verified' : 'partial_tool_inventory', nextAction: complete ? 'none' : 'list_tools_in_active_client', evidence: { observedToolCount: advertised.length - missing.length, missingToolCount: missing.length, ...(missing.length ? { missingTools: missing.slice(0, 12) } : {}) } }
     }
-    // Each check in words; its typed state stays in the copied diagnostic below.
-    const tone = (state: string): string => /_(?:ready|initialized|advertised|verified)$/u.test(state) ? 'ok' : state === 'blocked' || state.endsWith('_failed') ? 'failed' : 'pending'
-    element('readiness-checks').innerHTML = Object.entries(report.checks).map(([name, check]) => {
-      const state = tone(check.state) as 'ok' | 'failed' | 'pending'
-      return `<div class="readiness-check"><span class="readiness-dot ${state}" aria-hidden="true"></span><div><div class="readiness-title"><strong>${h(messages.readiness.checks[name as keyof typeof report.checks])}</strong><span class="readiness-tone ${state}">${h(mission.checks[state])}</span></div><span class="readiness-next">${h(messages.readiness.nextAction[check.nextAction])}</span></div></div>`
-    }).join('')
+    // Each check in words; its typed state stays in the copied diagnostic below. Built as nodes: the pasted tool list
+    // feeds this report, so none of it is read as markup.
+    const tone = (state: string): 'ok' | 'failed' | 'pending' => /_(?:ready|initialized|advertised|verified)$/u.test(state) ? 'ok' : state === 'blocked' || state.endsWith('_failed') ? 'failed' : 'pending'
+    const node = (tag: string, className: string, value = ''): HTMLElement => {
+      const created = document.createElement(tag)
+      if (className) created.className = className
+      created.textContent = value
+      return created
+    }
+    element('readiness-checks').replaceChildren(...Object.entries(report.checks).map(([name, check]) => {
+      const state = tone(check.state)
+      const dot = node('span', `readiness-dot ${state}`)
+      dot.setAttribute('aria-hidden', 'true')
+      const title = node('div', 'readiness-title')
+      title.append(node('strong', '', messages.readiness.checks[name as keyof typeof report.checks]), node('span', `readiness-tone ${state}`, mission.checks[state]))
+      const words = node('div', '')
+      words.append(title, node('span', 'readiness-next', messages.readiness.nextAction[check.nextAction]))
+      const row = node('div', 'readiness-check')
+      row.append(dot, words)
+      return row
+    }))
     text('readiness-report', JSON.stringify(report, null, 2))
   }
   element('readiness-verify').addEventListener('click', () => {
