@@ -62,7 +62,7 @@ describe('toolbar agent status label', () => {
     }
   })
 
-  it('cuts the label at 190 px with an ellipsis, and at two lines in the rail\'s fixed-width row', () => {
+  it('cuts the label at 190 px with an ellipsis, and to one line in the rail\'s fixed-width row', () => {
     const shell = readFileSync(join(process.cwd(), 'src/renderer/src/styles/shell.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//gu, '')
     const rule = (selector: string): string => {
       const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
@@ -73,10 +73,12 @@ describe('toolbar agent status label', () => {
     const toolbar = rule('.mcp-pill-label')
     for (const utility of ['overflow-hidden', 'text-ellipsis', 'whitespace-nowrap', '[max-width:190px]']) expect(toolbar).toContain(utility)
 
+    // 3.0 let the rail's label wrap, so "2 agents working" took two lines beside "Pause agents" in a 250 px rail.
     const rail = rule('.vertical-tabs-shell .mcp-pill-label')
-    for (const utility of ['[max-width:none]', 'whitespace-normal', '[-webkit-line-clamp:2]', '[-webkit-box-orient:vertical]', 'min-w-0']) {
-      expect(rail).toContain(utility)
-    }
+    for (const utility of ['[max-width:none]', 'min-w-0']) expect(rail).toContain(utility)
+    for (const utility of ['whitespace-normal', 'line-clamp']) expect(rail).not.toContain(utility)
+    expect(rule('.vertical-tabs-shell .topbar-actions')).toContain('[container:rail-footer_/_inline-size]')
+    expect(shell).toMatch(/@container rail-footer \(width < 340px\) \{\s*\.mcp-pause-label \{ @apply hidden; \}/u)
   })
 
   it('says it is getting ready while the server starts, with the address in the tooltip', () => {

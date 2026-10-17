@@ -383,8 +383,9 @@
 .tab-group-following-name {
   @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap;
 }
+/* A quiet text action in the workspace's color: the 32 px target fills the row, so a drawn pill would touch its edges. */
 .tab-group-stay {
-  @apply flex-none [min-height:32px] [padding:0_10px] [border-radius:var(--corner-pill)] [color:var(--text)] [font-size:var(--type-small-size)] [font-weight:var(--weight-medium)];
+  @apply flex-none [min-height:32px] [padding:0_8px] [border:0] [border-radius:var(--corner-2)] [color:color-mix(in_srgb,_var(--tab-group-color)_45%,_var(--text))] [background:transparent] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap;
 }
 .tab-group-stay:hover,
 .tab-group-stay:focus-visible {
@@ -422,7 +423,7 @@
   @apply flex flex-none [align-items:end] [margin-left:6px];
 }
 .vertical-tabs-shell .topbar-actions {
-  @apply grid w-full flex-none items-center [gap:4px_2px] m-0 [padding:8px] [border-top:1px_solid_var(--border-soft)] [background:color-mix(in_srgb,_var(--toolbar)_94%,_var(--shell-bottom))] [grid-template-columns:repeat(7,_minmax(0,_1fr))];
+  @apply grid w-full flex-none items-center [gap:4px_2px] m-0 [padding:8px] [border-top:1px_solid_var(--border-soft)] [background:color-mix(in_srgb,_var(--toolbar)_94%,_var(--shell-bottom))] [grid-template-columns:repeat(7,_minmax(0,_1fr))] [container:rail-footer_/_inline-size];
 }
 .vertical-tabs-shell .topbar-icon-button {
   @apply w-full min-w-0 [height:32px] m-0 p-0 [grid-row:1];
@@ -622,8 +623,13 @@
 .mcp-pill { @apply flex items-center [gap:7px] [padding:0_9px_0_10px]; }
 /* A client names itself, so a long name or translation is cut here; the button's name keeps it whole, and the tooltip too when it names an agent. */
 .mcp-pill-label { @apply flex-none overflow-hidden text-ellipsis whitespace-nowrap [max-width:190px]; }
-/* The rail's row has a fixed width, so there the label takes two lines before it is cut. */
-.vertical-tabs-shell .mcp-pill-label { @apply [flex:0_1_auto] min-w-0 [max-width:none] whitespace-normal [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]; }
+/* The rail's row has a fixed width, so there the label takes what the row leaves and stays on one line. */
+.vertical-tabs-shell .mcp-pill-label { @apply [flex:0_1_auto] min-w-0 [max-width:none]; }
+/* Below 340 px the rail's footer has no room for both labels on one line, so Pause agents keeps its icon, tooltip and
+   accessible name and the status keeps its words. */
+@container rail-footer (width < 340px) {
+  .mcp-pause-label { @apply hidden; }
+}
 .mcp-pause-button { @apply grid [min-width:30px] [padding:0_8px] place-items-center [border-left:1px_solid_var(--pill-border)]; }
 .mcp-pause-button svg { @apply [width:15px] [height:15px]; }
 .mcp-pause-button:hover { @apply bg-accent-soft; }
