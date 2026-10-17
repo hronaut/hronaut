@@ -1,17 +1,18 @@
 import { type NativeWheelInput, nativeWheelFields } from '../../../browser/native-wheel.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { type WheelSettlement, wheelSettlement } from './wheel-settlement.js'
 
 export function registerBrowserWheel(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_wheel',
     {
       description: toolDescription('browser_wheel'),
       inputSchema: { tabId: tabIdSchema, ...nativeWheelFields }
     },
-    tabTool('browser_wheel', async ({ tabId, x, y, deltaX, deltaY }: NativeWheelInput, call) => {
+    tabTool('browser_wheel', async ({ tabId, x, y, deltaX, deltaY }: NativeWheelInput, call: WorkspaceToolCall<WheelSettlement>) => {
       // Re-checks the call before each native input event.
       const validateNativeInput = (validateContext: () => void): void => {
         try {
@@ -28,9 +29,8 @@ export function registerBrowserWheel(context: McpToolContext): void {
           throw error
         }
       }
-      const markWheelAttempted = (): void => { frameRequests.getStore()!.wheelAttempted = true }
-      return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, markWheelAttempted))
+      return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, call.settlement.markAttempted))
     }, 'never'),
-    { preservesPresentation: () => true }
+    { settlement: () => wheelSettlement(), preservesPresentation: () => true }
   )
 }

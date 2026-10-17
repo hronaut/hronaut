@@ -1,14 +1,15 @@
-import { type NativeKeyHoldInput, type NativeKeyHoldProgress, nativeKeyHoldFields } from '../../../browser/native-key-hold.js'
+import { type NativeKeyHoldInput, nativeKeyHoldFields } from '../../../browser/native-key-hold.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { type KeyHoldSettlement, keyHoldSettlement } from './key-hold-settlement.js'
 
 export function registerBrowserHoldKey(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_hold_key',
     { description: toolDescription('browser_hold_key'), inputSchema: { tabId: tabIdSchema, ...nativeKeyHoldFields } },
-    tabTool('browser_hold_key', async ({ tabId, key, durationMs }: NativeKeyHoldInput, call) => {
+    tabTool('browser_hold_key', async ({ tabId, key, durationMs }: NativeKeyHoldInput, call: WorkspaceToolCall<KeyHoldSettlement>) => {
       // Re-checks the call before each native input event.
       const validateNativeInput = (validateContext: () => void): void => {
         try {
@@ -21,13 +22,12 @@ export function registerBrowserHoldKey(context: McpToolContext): void {
           // Preparation or an earlier click in a double-click may
           // already have effects. Never classify this as safe replay.
           call.rememberInputPolicy(error)
-          call.setInvalidatedOutcome(frameRequests.getStore()?.keyHoldProgress?.downAttempted ? 'outcome-unknown' : undefined)
+          call.setInvalidatedOutcome(call.settlement.progress()?.downAttempted ? 'outcome-unknown' : undefined)
           throw error
         }
       }
-      const recordHoldProgress = (progress: NativeKeyHoldProgress): void => { frameRequests.getStore()!.keyHoldProgress = { ...progress } }
-      return textResult(await manager.holdKey({ tabId, key, durationMs }, validateNativeInput, recordHoldProgress, call.signal))
+      return textResult(await manager.holdKey({ tabId, key, durationMs }, validateNativeInput, call.settlement.recordProgress, call.signal))
     }, 'never'),
-    { preservesPresentation: () => true }
+    { settlement: () => keyHoldSettlement(), preservesPresentation: () => true }
   )
 }
