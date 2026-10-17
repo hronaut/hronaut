@@ -25,8 +25,16 @@ tab access.
 ## Making changes
 
 - Use TypeScript and follow the existing ESM import style.
-- Reuse existing components, composables, stores, and shared contracts before
-  introducing parallel abstractions.
+- Prefer a self-contained module per feature. A reader should understand one
+  feature, or one MCP tool, from its own folder without hopping across shared
+  files. Duplicating a few lines is fine; a shared helper that couples
+  unrelated features is not. Shared contracts in `src/shared/` stay the one
+  source of truth for data crossing a process boundary.
+- Keep functions autonomous and clearly on one layer (main, preload, renderer
+  or shared), and aim for files under about 800 lines. When a file grows past
+  that, split it by feature, not by technical layer.
+- Do not branch on MCP tool names in shared code. Behavior that one tool needs
+  belongs in that tool's own module, even if another tool repeats it.
 - Keep `src/renderer/src/App.vue` focused on composition. Move cohesive state
   transitions or reusable UI into a focused composable or component, with a
   targeted test.
