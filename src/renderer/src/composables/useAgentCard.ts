@@ -13,7 +13,7 @@ import {
 } from '../../../shared/agent-card.js'
 import type { AgentPresence } from '../../../shared/agent-presence.js'
 import { isResolvedThemeName } from '../../../shared/theme.js'
-import { agentStepText } from './agent-step-text.js'
+import { agentFinishedStepText, agentStepText } from './agent-step-text.js'
 import { agentCardCompletes, type AgentDecisionAnswerState } from './useAgentDecisionAnswers.js'
 
 type Translate = (key: string, values?: Record<string, unknown>) => string
@@ -55,6 +55,8 @@ export interface AgentCardContext {
   name: string
   /** The agent disconnected while its card was open; the card stays until you close it. */
   gone?: boolean
+  /** The time of day in the user's language, for when you answered the agent. */
+  formatTime?: (at: number) => string
   /** The shell can open all of the agent's steps, with pictures of the page. */
   allSteps?: boolean
 }
@@ -104,6 +106,11 @@ export function agentCardModel(agent: AgentPresence, context: AgentCardContext, 
       heading: t('shell.agentCard.recent'),
       empty: t('shell.agentCard.noSteps'),
       steps: agent.recentSteps.map((step) => {
+        // Your answer to the agent, with when you gave it, in place of the request that is no longer shown.
+        if (step.answer) {
+          const answer = agentFinishedStepText(t, step)
+          return { text: fitAgentCardText(context.formatTime ? t('shell.agentCard.answeredAt', { answer, time: context.formatTime(step.at) }) : answer), you: true as const }
+        }
         const text = fitAgentCardText(agentStepText(t, step.step, step.target, 'done'))
         return step.outcome === 'failed' ? { text: t('shell.agentCard.stepFailed', { step: text }), failed: true } : { text }
       }),

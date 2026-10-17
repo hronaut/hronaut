@@ -47,6 +47,8 @@ const PLAN_LIMIT = 4
 export interface AgentCardStep {
   text: string
   failed?: boolean
+  /** Your answer to the agent's request, drawn with a person rather than a check. */
+  you?: true
 }
 
 export interface AgentCardButton {
@@ -295,8 +297,10 @@ export function parseAgentCardModel(value: unknown): AgentCardModel {
       empty: text(recent.empty),
       steps: recent.steps.map((value) => {
         const step = record(value)
-        if (!step || (step.failed !== undefined && typeof step.failed !== 'boolean')) throw new TypeError('Invalid agent card step')
-        return { text: text(step.text), ...(step.failed ? { failed: true } : {}) }
+        if (!step || (step.failed !== undefined && typeof step.failed !== 'boolean') || (step.you !== undefined && step.you !== true)) {
+          throw new TypeError('Invalid agent card step')
+        }
+        return { text: text(step.text), ...(step.failed ? { failed: true } : {}), ...(step.you ? { you: true as const } : {}) }
       }),
       ...(all ? { all: { ...all, action: 'all-steps' as const } } : {})
     },

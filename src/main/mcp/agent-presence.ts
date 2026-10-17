@@ -5,12 +5,14 @@ import {
   AGENT_RECENT_STEPS_LIMIT,
   AGENT_STEP_HISTORY_LIMIT,
   agentAvatarColorHex,
+  type AgentAnswerKind,
   type AgentPresence,
   type AgentPresenceState,
   type AgentRecentStep,
   type AgentStepHistoryEntry
 } from '../../shared/agent-presence.js'
 import { agentStepActs, agentStepKind, type AgentStepKind } from '../../shared/agent-steps.js'
+import type { HumanWaitingDecision } from '../../shared/human-waiting.js'
 import type { McpTabActivity } from '../../shared/types.js'
 import type { AgentPointerIdentity } from '../browser/page-scripts.js'
 import { ACTIVITY_HISTORY_LIMIT } from './activity-history.js'
@@ -32,6 +34,15 @@ export { AGENT_STEP_HISTORY_LIMIT }
 export const AGENT_STEP_THUMBNAIL_LIMIT = 60
 /** Closed sessions remembered, so a call that settles after its session closed cannot bring it back. */
 export const AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT = 1024
+/** Requests for you remembered with the agent that made them, so an answer finds its agent after the request ended. */
+export const AGENT_ANSWERABLE_REQUESTS_LIMIT = 64
+
+/** How your answer to an agent's decision reads in its steps. */
+export function agentAnswerForDecision(decision: HumanWaitingDecision, action: 'resolve' | 'reject' | 'cancel'): AgentAnswerKind {
+  if (action === 'cancel') return 'cancelled'
+  if (action === 'reject') return decision === 'review-page' ? 'sentBack' : 'rejected'
+  return decision === 'review-page' ? 'handedBack' : decision === 'approve-action' ? 'approved' : decision === 'provide-input' ? 'answered' : 'resolved'
+}
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
@@ -175,6 +186,17 @@ interface AttentionRecord {
   decision: boolean
 }
 
+/** Who made a request for you, and where. */
+interface AskedRecord {
+  sessionId: string
+  workspaceId: string
+  tabId?: string
+  /** The human-waiting decision the request is for. */
+  decisionId?: string
+  /** You dismissed it; the request stays open until you answer it another way. */
+  dismissed?: true
+}
+
 interface ClientRecord {
   key: string
   name: string
@@ -209,6 +231,7 @@ const STATE_ORDER: Record<AgentPresenceState, number> = { 'needs-you': 0, workin
 export class AgentPresenceRegistry {
   private readonly clients = new Map<string, ClientRecord>()
   private readonly closedSessions = new Set<string>()
+  private readonly asked = new Map<string, AskedRecord>()
   private stepCount = 0
   private revision = 0
 
@@ -286,7 +309,8 @@ export class AgentPresenceRegistry {
 
   /** Records a request for you. One that arrives after its session closed still
    * shows until it is answered, but brings back none of the session's activity. */
-  recordAttention(client: AgentPresenceClient, workspaceId: string, attentionId: string, tabId: string | undefined, now: number, decision = false): void {
+  recordAttention(client: AgentPresenceClient, workspaceId: string, attentionId: string, tabId: string | undefined, now: number, decisionId?: string): void {
+    const decision = decisionId !== undefined
     const closed = this.closedSessions.has(client.id)
     const record = this.client(client, now)
     if (closed) {
@@ -298,7 +322,53 @@ export class AgentPresenceRegistry {
       else record.workspaces.set(workspaceId, { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map(), steps: [] })
     }
     record.attention = { attentionId, workspaceId, ...(tabId ? { tabId } : {}), requestedAt: now, decision }
+    this.asked.delete(attentionId)
+    this.asked.set(attentionId, { sessionId: client.id, workspaceId, ...(tabId ? { tabId } : {}), ...(decisionId !== undefined ? { decisionId } : {}) })
+    while (this.asked.size > AGENT_ANSWERABLE_REQUESTS_LIMIT) this.asked.delete(this.asked.keys().next().value!)
     this.trim()
+  }
+
+  /**
+   * You answered a request for you: the agent that made it gets an entry in its steps in that workspace saying how and
+   * when. Dismissing leaves the request open, so one later answer of another kind gets its own entry; a repeated
+   * dismissal does not. Your answer counts as activity there, so its avatar stays in view, idle, for the presence window
+   * and its card shows the answer. False when no open session made the request or its workspace is no longer open.
+   */
+  recordAnswer(attentionId: string, answer: AgentAnswerKind, now: number, workspaceOpen: (workspaceId: string) => boolean = () => true): boolean {
+    const asked = this.asked.get(attentionId)
+    if (!asked || (answer === 'dismissed' && asked.dismissed)) return false
+    if (answer === 'dismissed') asked.dismissed = true
+    else this.asked.delete(attentionId)
+    const record = this.clients.get(asked.sessionId)
+    if (!record || record.closed || this.closedSessions.has(asked.sessionId) || !workspaceOpen(asked.workspaceId)) return false
+    let workspace = record.workspaces.get(asked.workspaceId)
+    if (!workspace) {
+      workspace = { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map(), steps: [] }
+      record.workspaces.set(asked.workspaceId, workspace)
+    }
+    workspace.lastActivityAt = Math.max(workspace.lastActivityAt, now)
+    this.stepCount += 1
+    this.revision += 1
+    workspace.steps.push({
+      id: `s${this.stepCount.toString(36)}`,
+      step: 'askYou',
+      answer,
+      outcome: 'done',
+      at: now,
+      ...(asked.tabId ? { tabId: asked.tabId } : {})
+    })
+    if (workspace.steps.length > AGENT_STEP_HISTORY_LIMIT) workspace.steps.splice(0, workspace.steps.length - AGENT_STEP_HISTORY_LIMIT)
+    this.trim()
+    return true
+  }
+
+  /** The request an agent made for a human-waiting decision, newest first, while it is remembered. */
+  decisionRequest(workspaceId: string, decisionId: string): string | undefined {
+    let found: string | undefined
+    for (const [attentionId, asked] of this.asked) {
+      if (asked.workspaceId === workspaceId && asked.decisionId === decisionId) found = attentionId
+    }
+    return found
   }
 
   /** The session closed: its activity ends, but a request for you stays until it is answered. */
@@ -318,6 +388,7 @@ export class AgentPresenceRegistry {
   clear(): void {
     for (const sessionId of this.clients.keys()) this.markClosed(sessionId)
     this.clients.clear()
+    this.asked.clear()
   }
 
   derive(now: number, context: AgentPresenceContext): Record<string, AgentPresence[]> {
@@ -348,7 +419,13 @@ export class AgentPresenceRegistry {
           colorIndex: record.colorIndex,
           state,
           ...(asking ? { step: 'askYou' as const } : this.currentStep(workspace!)),
-          recentSteps: workspace ? workspace.steps.slice(-AGENT_RECENT_STEPS_LIMIT).reverse().map(({ step, target, outcome, at }) => ({ step, ...(target ? { target } : {}), outcome, at })) : [],
+          recentSteps: workspace ? workspace.steps.slice(-AGENT_RECENT_STEPS_LIMIT).reverse().map(({ step, target, answer, outcome, at }) => ({
+            step,
+            ...(target ? { target } : {}),
+            ...(answer ? { answer } : {}),
+            outcome,
+            at
+          })) : [],
           ...(lastTabId ? { lastTabId } : {}),
           ...(attentionTabId ? { attentionTabId } : {}),
           firstSeenAt: workspace?.firstSeenAt ?? asking!.requestedAt
@@ -416,12 +493,13 @@ export class AgentPresenceRegistry {
   history(clientKey: string, workspaceId: string, context: Pick<AgentPresenceContext, 'tabInWorkspace'>, known: ReadonlySet<string>): AgentStepHistoryEntry[] | null {
     const record = [...this.clients.values()].find((candidate) => candidate.key === clientKey && !candidate.closed)
     if (!record) return null
-    return (record.workspaces.get(workspaceId)?.steps ?? []).slice().reverse().map(({ id, step, target, outcome, at, tabId, thumbnail }) => {
+    return (record.workspaces.get(workspaceId)?.steps ?? []).slice().reverse().map(({ id, step, target, answer, outcome, at, tabId, thumbnail }) => {
       const open = tabId !== undefined && context.tabInWorkspace(workspaceId, tabId)
       return {
         id,
         step,
         ...(target ? { target } : {}),
+        ...(answer ? { answer } : {}),
         outcome,
         at,
         ...(open ? { tabId } : tabId ? { tabClosed: true as const } : {}),

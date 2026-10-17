@@ -105,7 +105,7 @@ export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
 import { AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type AgentCall } from './agent-presence.js'
 import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
-import type { AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
+import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
 import { webAddress } from '../browser/url.js'
 export {
@@ -6110,6 +6110,24 @@ export class McpHttpServer {
     return this.agentPresence.historyRevision
   }
 
+  /** You answered an agent's request for you: its steps in that workspace say how and when. */
+  recordAgentAnswer(attentionId: string, answer: AgentAnswerKind): void {
+    let recorded = false
+    try {
+      recorded = this.agentPresence.recordAnswer(attentionId, answer, Date.now(), (workspaceId) => this.manager.isOpenAgentWorkspace(workspaceId))
+    } catch (error) {
+      console.error('[mcp] Failed to record an answer to an agent:', error)
+    }
+    if (recorded) this.agentPresenceChanged()
+  }
+
+  /** You answered a human-waiting decision: the agent whose request asked for it sees how, even when that request is
+   * no longer the current one. */
+  recordAgentDecisionAnswer(workspaceId: string, decisionId: string, answer: AgentAnswerKind): void {
+    const attentionId = this.agentPresence.decisionRequest(workspaceId, decisionId)
+    if (attentionId) this.recordAgentAnswer(attentionId, answer)
+  }
+
   /** A workspace closed: the steps agents took there, and their pictures, are not kept. */
   forgetAgentWorkspaceSteps(workspaceId: string): void {
     this.agentPresence.forgetWorkspaceSteps(workspaceId)
@@ -6248,7 +6266,7 @@ export class McpHttpServer {
     const workspaceId = input.workspaceId ?? attention.workspaceId
     if (!workspaceId) return
     try {
-      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now(), input.humanWaitingDecisionId !== undefined)
+      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now(), input.humanWaitingDecisionId)
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
     }

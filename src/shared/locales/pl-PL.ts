@@ -1426,6 +1426,17 @@ export const plPL = {
       "noSteps": "Brak ukończonych kroków",
       "allSteps": "Wszystkie kroki",
       "stepFailed": "{step}, nie udało się",
+      "answeredAt": "{answer} · {time}",
+      "answers": {
+        "handedBack": "Oddane agentowi przez Ciebie",
+        "sentBack": "Odesłane do poprawy przez Ciebie",
+        "dismissed": "Prośba zamknięta przez Ciebie",
+        "approved": "Działanie zatwierdzone przez Ciebie",
+        "rejected": "Odrzucone przez Ciebie",
+        "answered": "Odpowiedź wysłana przez Ciebie",
+        "resolved": "Rozstrzygnięte przez Ciebie",
+        "cancelled": "Decyzja anulowana przez Ciebie"
+      },
       "follow": "Śledź agentów we wszystkich obszarach",
       "cursor": "Pokazuj kursory agentów na stronie",
       "pin": "Przypnij stan na żywo pod paskiem narzędzi",

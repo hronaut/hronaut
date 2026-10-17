@@ -5,10 +5,11 @@ import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
+import IconPerson from '~icons/material-symbols/person-outline-rounded'
 import IconSmartToy from '~icons/material-symbols/smart-toy-outline-rounded'
 import { AGENT_STEP_HISTORY_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import type { BrowserState } from '../../../shared/types.js'
-import { agentStepText } from '../composables/agent-step-text.js'
+import { agentFinishedStepText } from '../composables/agent-step-text.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import { useAgentStepHistory, type AgentStepHistoryTarget, type ShownAgentStep } from '../composables/useAgentStepHistory.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
@@ -94,7 +95,7 @@ function canShow(group: StepGroup): boolean {
 }
 
 function stepText(step: ShownAgentStep): string {
-  return agentStepText(t, step.step, step.target, 'done')
+  return agentFinishedStepText(t, step)
 }
 
 let showing = 0
@@ -170,7 +171,7 @@ onBeforeUnmount(() => {
               >{{ t('agentSteps.showTab') }}</UiButton>
             </header>
             <ol class="agent-steps-items">
-              <li v-for="step in group.steps" :key="step.id" class="agent-steps-item" :data-outcome="step.outcome">
+              <li v-for="step in group.steps" :key="step.id" class="agent-steps-item" :data-outcome="step.outcome" :data-answer="step.answer">
                 <img
                   v-if="step.thumbnail"
                   class="agent-steps-picture"
@@ -183,7 +184,8 @@ onBeforeUnmount(() => {
                 <span v-else-if="group.kind !== 'none'" class="agent-steps-picture agent-steps-picture--none" aria-hidden="true"><IconHistory /></span>
                 <span class="agent-steps-copy">
                   <span class="agent-steps-text">
-                    <IconError v-if="step.outcome === 'failed'" aria-hidden="true" />
+                    <IconPerson v-if="step.answer" aria-hidden="true" />
+                    <IconError v-else-if="step.outcome === 'failed'" aria-hidden="true" />
                     <IconCheck v-else aria-hidden="true" />
                     <span>{{ step.outcome === 'failed' ? t('shell.agentCard.stepFailed', { step: stepText(step) }) : stepText(step) }}</span>
                   </span>
