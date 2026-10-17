@@ -25,7 +25,13 @@ jobs:
         run: |
           npm ci
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Blocks on the same advisories as the release gate: those in what ships. Development-only advisories are
+          # listed as a warning, so one without a fix yet does not stop native checks of the app.
+          npm audit --omit=dev --audit-level=high
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npm audit --audit-level=high
+          if ($LASTEXITCODE -ne 0) { Write-Output "::warning title=Development dependency advisories::npm audit found high advisories in development dependencies; see this step's log" }
+          exit 0
       - name: Build unsigned native app without publishing
         run: |
           npm run build:app

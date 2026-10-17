@@ -198,6 +198,19 @@ describe('release quality gates', () => {
     ]) expect(validate).toContain(path)
   })
 
+  it('blocks native preflights on the release gate\'s advisories and only reports development ones', async () => {
+    const mac = await readFile('.github/workflows/macos-native-preflight.yml', 'utf8')
+    const windows = await readFile('.github/workflows/windows-native-preflight.yml', 'utf8')
+    const warning = '::warning title=Development dependency advisories::'
+    // macOS steps stop at the first failing command, so the full audit must not be able to fail the step.
+    expect(mac).toMatch(/run: \|\n +npm audit --omit=dev --audit-level=high\n +npm audit --audit-level=high \|\| echo "::warning title=Development dependency advisories::/)
+    expect(mac.match(/npm audit --/g)).toHaveLength(2)
+    // PowerShell carries on after a failing command, so each result is checked and the step ends successfully.
+    expect(windows).toMatch(/npm audit --omit=dev --audit-level=high\n +if \(\$LASTEXITCODE -ne 0\) \{ exit \$LASTEXITCODE \}\n +npm audit --audit-level=high\n +if \(\$LASTEXITCODE -ne 0\) \{ Write-Output "::warning title=Development dependency advisories::.*\n +exit 0\n/)
+    expect(windows.match(/npm audit --/g)).toHaveLength(2)
+    expect(windows).toContain(warning)
+  })
+
   it('validates the immutable tag before any platform release build starts', async () => {
     const workflow = await readFile('.github/workflows/release.yml', 'utf8')
     const validate = job(workflow, 'validate')
