@@ -76,6 +76,114 @@ describe('title bar presentation controller', () => {
     expect(document.documentElement.style.getPropertyValue('--titlebar-area-x-runtime')).toBe('')
   })
 
+  it('keeps the controls\' room while the window narrows or widens and the overlay reports at another moment', () => {
+    const overlay = new FakeWindowControlsOverlay()
+    overlay.rect = new DOMRect(0, 0, 1_807, 44)
+    const resizeTarget = new EventTarget()
+    let viewportWidth = 1_920
+    const frames = new Map<number, () => void>()
+    let nextFrame = 0
+    const runFrames = (): void => {
+      const pending = [...frames.values()]
+      frames.clear()
+      for (const callback of pending) callback()
+    }
+    const rightInset = (): string => document.documentElement.style.getPropertyValue('--titlebar-controls-right-runtime')
+    const controller = createTitleBarPresentationController(chrome(), {
+      documentElement: document.documentElement,
+      viewportWidth: () => viewportWidth,
+      windowControlsOverlay: overlay,
+      resizeTarget,
+      requestFrame: (callback) => {
+        nextFrame += 1
+        frames.set(nextFrame, callback)
+        return nextFrame
+      },
+      cancelFrame: (handle) => { frames.delete(handle) }
+    })
+    controller.start()
+    expect(rightInset()).toBe('113px')
+
+    // Chromium reports the new window's whole width before the viewport shrinks and before the controls move in; read
+    // against the old width, the controls would seem 480 px wide and wrap the toolbar.
+    overlay.rect = new DOMRect(0, 0, 1_440, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    expect(rightInset()).toBe('113px')
+    viewportWidth = 1_440
+    resizeTarget.dispatchEvent(new Event('resize'))
+    expect(rightInset()).toBe('113px')
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-width-runtime')).toBe('1327px')
+
+    overlay.rect = new DOMRect(0, 0, 1_327, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    overlay.dispatchEvent(new Event('geometrychange'))
+    expect(frames.size).toBe(1)
+    runFrames()
+    expect(rightInset()).toBe('113px')
+
+    // Widening, the viewport grows before the overlay reports its area for the new width; read with the old area, the
+    // controls would seem 593 px wide. A shell resize handler that syncs as well keeps their room too.
+    viewportWidth = 1_920
+    resizeTarget.dispatchEvent(new Event('resize'))
+    expect(rightInset()).toBe('113px')
+    controller.syncGeometry()
+    expect(rightInset()).toBe('113px')
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-width-runtime')).toBe('1807px')
+    overlay.rect = new DOMRect(0, 0, 1_807, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+
+    // Even a frame later the viewport can still have the old width. Narrowing, the area for the new width read against
+    // 1920 px would make the controls 593 px wide; that reading only counts if the next frame reads it again, and by
+    // then the viewport has caught up.
+    overlay.rect = new DOMRect(0, 0, 1_327, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(frames.size).toBe(1)
+    viewportWidth = 1_440
+    resizeTarget.dispatchEvent(new Event('resize'))
+    expect(rightInset()).toBe('113px')
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-width-runtime')).toBe('1327px')
+    expect(frames.size).toBe(0)
+
+    // A hidden overlay, as in full screen, reports an empty area; the controls keep their room.
+    overlay.visible = false
+    overlay.rect = new DOMRect(0, 0, 0, 0)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-width-runtime')).toBe('1327px')
+    overlay.visible = true
+    overlay.rect = new DOMRect(0, 0, 1_327, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(frames.size).toBe(0)
+
+    // Controls that really change, without a resize, apply once the next frame reads the same.
+    overlay.rect = new DOMRect(0, 0, 1_296, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    expect(rightInset()).toBe('113px')
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    runFrames()
+    expect(rightInset()).toBe('144px')
+    expect(frames.size).toBe(0)
+
+    // A frame still pending when presentation stops changes nothing.
+    overlay.rect = new DOMRect(0, 0, 1_000, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    controller.stop()
+    expect(frames.size).toBe(0)
+    expect(rightInset()).toBe('')
+  })
+
   it.each([
     chrome({ mode: 'system' }),
     chrome({ mainWindow: false })

@@ -4,6 +4,7 @@ import { INTERFACE_SCALE_OPTIONS } from '../src/shared/interface-scale.js'
 import { RESOLVED_THEME_NAMES } from '../src/shared/theme.js'
 import {
   TITLE_BAR_BASE_HEIGHT,
+  createAutoHideMenuGesture,
   dimTitleBarOverlay,
   isAutoHideMenuToggleInput,
   mainWindowChromeOptions,
@@ -62,6 +63,52 @@ describe('hybrid title bar configuration', () => {
 
   it('leaves bare Alt to the native macOS menu bar', () => {
     expect(isAutoHideMenuToggleInput('darwin', { type: 'keyDown', key: 'Alt' })).toBe(false)
+    const gesture = createAutoHideMenuGesture('darwin')
+    expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBeUndefined()
+  })
+
+  it.each(['linux', 'win32'] as const)('shows the menu when bare Alt is released on %s and lets the press reach the window', (platform) => {
+    const gesture = createAutoHideMenuGesture(platform)
+    // Chromium drops the release of a press held back in before-input-event, so the press must go through.
+    expect(gesture({ type: 'rawKeyDown', key: 'Alt', code: 'AltLeft' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt', code: 'AltLeft' })).toBe('toggle')
+    // Held down, the press repeats and the release still shows the menu.
+    expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
+    expect(gesture({ type: 'keyDown', key: 'Alt', isAutoRepeat: true })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('toggle')
+  })
+
+  it.each(['linux', 'win32'] as const)('keeps Alt with another key from the menu on %s and holds every Alt release back', (platform) => {
+    const gesture = createAutoHideMenuGesture(platform)
+    expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
+    expect(gesture({ type: 'keyDown', key: '1', code: 'Digit1' })).toBeUndefined()
+    // Released before the digit, too: the native menu never sees this release, so it opens nothing either.
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('suppress')
+    expect(gesture({ type: 'keyUp', key: '1', code: 'Digit1' })).toBeUndefined()
+    expect(gesture({ type: 'keyDown', key: 'Alt', control: true })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('suppress')
+    // A release without its press shows nothing.
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('suppress')
+  })
+
+  it.each(['linux', 'win32'] as const)('forgets an Alt press on %s after a click, an Alt-drag or a switch away', (platform) => {
+    const gesture = createAutoHideMenuGesture(platform)
+    expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
+    gesture.reset()
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('suppress')
+    expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('toggle')
+  })
+
+  it.each(['linux', 'win32'] as const)('leaves AltGr to typing on %s: it shows no menu and its release goes through', (platform) => {
+    expect(isAutoHideMenuToggleInput(platform, { type: 'keyDown', key: 'AltGraph', code: 'AltRight' })).toBe(false)
+    const gesture = createAutoHideMenuGesture(platform)
+    expect(gesture({ type: 'keyDown', key: 'AltGraph', code: 'AltRight' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'AltGraph', code: 'AltRight' })).toBeUndefined()
+    // Right Alt on a layout without AltGr is still Alt.
+    expect(gesture({ type: 'keyDown', key: 'Alt', code: 'AltRight' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt', code: 'AltRight' })).toBe('toggle')
   })
 
   it('retains macOS traffic lights and enables the overlay safe-area APIs', () => {

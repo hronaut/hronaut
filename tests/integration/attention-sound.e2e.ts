@@ -234,14 +234,25 @@ test('marks a folded workspace that needs the user until the request is answered
     await expect(groupHeader).toHaveAttribute('aria-expanded', 'false')
     await expect(workspaceGroup).not.toHaveClass(/needs-you/)
 
-    // Without a tab the request selects nothing, so the folded workspace is the only place it shows in the rail.
+    // Without a tab the request selects nothing, so its workspace is the only place it shows in the rail. A folded
+    // workspace opens by itself when it starts waiting for the person.
     const requested = await client.callTool({
       name: 'browser_request_user_attention',
       arguments: { reason: 'Choose a shipping address.' }
     }) as CallToolResult
     expect(requested.isError, text(requested)).not.toBe(true)
     await expect(workspaceGroup).toHaveClass(/needs-you/)
+    await expect(groupHeader).toHaveAttribute('aria-expanded', 'true')
+
+    // Folded again, it stays folded while the request waits, and its header carries the mark. Folding it is a click
+    // in Hronaut: agents see the request as seen, but the mark stays until it is answered.
+    await groupHeader.click()
+    await expect.poll(async () => {
+      const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
+      return JSON.parse(text(status)).userAttention
+    }).toBeNull()
     await expect(groupHeader).toHaveAttribute('aria-expanded', 'false')
+    await expect(workspaceGroup).toHaveClass(/needs-you/)
     await expect(groupHeader).toHaveAccessibleName(/^Expand workspace Folded attention, \d+ tabs?, Needs you$/)
     await expect(groupHeader).toHaveAttribute('aria-description', /Agent needs your attention: Choose a shipping address\./)
     await expect(groupHeader.locator('.tab-group-needs-you')).toHaveText('Needs you')
@@ -249,13 +260,9 @@ test('marks a folded workspace that needs the user until the request is answered
     await expect.poll(() => hasNeedsYouBorder(workspaceGroup)).toBe(true)
     await expect(appWindow.locator('.workspace-tab-section.needs-you')).toHaveCount(1)
 
-    // Opening the workspace is a click in Hronaut: agents see the request as seen, but the mark stays until it is answered.
+    // Opened again, it keeps the mark until the request is answered.
     await groupHeader.click()
     await expect(groupHeader).toHaveAttribute('aria-expanded', 'true')
-    await expect.poll(async () => {
-      const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
-      return JSON.parse(text(status)).userAttention
-    }).toBeNull()
     await expect(workspaceGroup).toHaveClass(/needs-you/)
     await expect(groupHeader).toHaveAccessibleName(/^Collapse workspace Folded attention, \d+ tabs?, Needs you$/)
 
