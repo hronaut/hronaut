@@ -49,6 +49,11 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
       ipcRenderer.on('hronaut-home:show-workspaces', handler)
       return () => ipcRenderer.removeListener('hronaut-home:show-workspaces', handler)
     },
+    onChanged: (listener: () => void) => {
+      const handler = (): void => listener()
+      ipcRenderer.on('hronaut-home:changed', handler)
+      return () => ipcRenderer.removeListener('hronaut-home:changed', handler)
+    },
     getWorkspaces: () => ipcRenderer.invoke('hronaut-home:workspaces'),
     workspaceAction: (request: HomeWorkspaceAction) => ipcRenderer.invoke('hronaut-home:workspace-action', request),
     copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text),

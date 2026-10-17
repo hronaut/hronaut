@@ -4,6 +4,7 @@ const electron = vi.hoisted(() => ({
   exposeInMainWorld: vi.fn(),
   invoke: vi.fn(async () => undefined),
   on: vi.fn(),
+  removeListener: vi.fn(),
   send: vi.fn(),
   sendSync: vi.fn(() => ({ enabled: false })),
   executeInMainWorld: vi.fn()
@@ -17,6 +18,7 @@ vi.mock('electron', () => ({
   ipcRenderer: {
     invoke: electron.invoke,
     on: electron.on,
+    removeListener: electron.removeListener,
     send: electron.send,
     sendSync: electron.sendSync
   }
@@ -50,6 +52,20 @@ describe('Hronaut Home page preload', () => {
     await api.workspaceAction({ view: 'preferences', workspaceId: 'project', deletionProtected: true })
     expect(electron.invoke).toHaveBeenCalledWith('hronaut-home:workspaces')
     expect(electron.invoke).toHaveBeenCalledWith('hronaut-home:workspace-action', { view: 'preferences', workspaceId: 'project', deletionProtected: true })
+  })
+
+  it('passes change notices to Home without their arguments, and stops on unsubscribe', async () => {
+    vi.stubGlobal('location', { protocol: 'hronaut:', hostname: 'home' })
+    vi.stubGlobal('addEventListener', vi.fn())
+    await import('../src/preload/page.js')
+    const api = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautHome')?.[1] as { onChanged: (listener: (...values: unknown[]) => void) => () => void }
+    const listener = vi.fn()
+    const unsubscribe = api.onChanged(listener)
+    const registered = electron.on.mock.calls.find(([channel]) => channel === 'hronaut-home:changed')?.[1] as (...values: unknown[]) => void
+    registered({ sender: 'event' }, 'unexpected payload')
+    expect(listener).toHaveBeenCalledWith()
+    unsubscribe()
+    expect(electron.removeListener).toHaveBeenCalledWith('hronaut-home:changed', registered)
   })
 
   it('forwards only the selected client ID through its narrow guide bridge', async () => {

@@ -2780,6 +2780,13 @@ export class BrowserTabsManager {
     return tab
   }
 
+  /** Tells each open Home that what it shows changed, so it reads its status again. The message carries nothing. */
+  notifyHomeChanged(): void {
+    for (const tab of this.tabs.values()) {
+      if (isHronautHomeUrl(tab.url) && !tab.webContents.isDestroyed()) tab.webContents.send('hronaut-home:changed')
+    }
+  }
+
   async openHome(): Promise<BrowserState> {
     const home = [...this.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
     if (home) {

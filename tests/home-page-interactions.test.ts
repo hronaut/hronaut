@@ -262,7 +262,7 @@ describe('Home setup journey', () => {
     button('[data-home-view="connect"]').click()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
-    home.update({ ...state, clients: [{ id: 'client', name: 'Example agent', version: '1', lastSeenAt: '2026-09-04T12:00:00.000Z', activeRequests: 0, requestCount: 1 }] })
+    home.update({ ...state, clients: [{ name: 'Example agent', version: '1', lastSeenAt: '2026-09-04T12:00:00.000Z', activeRequests: 0, requestCount: 1 }] })
     expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(false)
     expect(document.activeElement).toBe(guide)
     expect(document.querySelector('#connection-note')?.textContent).toContain('A client has been seen')
