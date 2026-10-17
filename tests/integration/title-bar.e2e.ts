@@ -81,44 +81,49 @@ test('uses the horizontal tab strip as the title bar without swallowing tab or a
 
   await electronApp.evaluate(({ BrowserWindow, Menu }) => {
     const mainGlobal = globalThis as typeof globalThis & {
-      __hronautAltMenuShown?: boolean
-      __hronautAltMenuClosed?: boolean
+      __hronautAltMenu?: { shown: number; closed: number; stop: () => void }
     }
     const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
     const menu = Menu.getApplicationMenu()
-    mainGlobal.__hronautAltMenuShown = false
-    mainGlobal.__hronautAltMenuClosed = false
-    menu?.once('menu-will-show', () => {
-      mainGlobal.__hronautAltMenuShown = true
+    const record = { shown: 0, closed: 0, stop: (): void => undefined }
+    const listener = (): void => {
+      record.shown += 1
       // A visible native menu can block a later Playwright main-process
       // evaluation under hosted-runner load. Close it from the same native
       // event turn so the Alt-access assertion cannot strand teardown.
       setImmediate(() => {
-        if (main && !main.isDestroyed()) menu.closePopup(main)
-        mainGlobal.__hronautAltMenuClosed = true
+        if (main && !main.isDestroyed()) menu?.closePopup(main)
+        record.closed += 1
       })
-    })
+    }
+    menu?.on('menu-will-show', listener)
+    record.stop = () => { menu?.off('menu-will-show', listener) }
+    mainGlobal.__hronautAltMenu = record
   })
+  // Alt with a digit is a workspace key and opens nothing, even when Alt is released first; Alt alone shows the menu
+  // when it is released. Keys reach the window in order, so the single bare Alt menu proves the digit opened none.
   await electronApp.evaluate(({ BrowserWindow }) => {
     const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
     main?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Alt' })
+    main?.webContents.sendInputEvent({ type: 'keyDown', keyCode: '1', modifiers: ['alt'] })
+    main?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Alt' })
+    main?.webContents.sendInputEvent({ type: 'keyUp', keyCode: '1' })
+    main?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Alt' })
     main?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Alt' })
   })
-  await expect.poll(() => electronApp.evaluate(() => {
-    const mainGlobal = globalThis as typeof globalThis & {
-      __hronautAltMenuShown?: boolean
-      __hronautAltMenuClosed?: boolean
-    }
-    return { shown: mainGlobal.__hronautAltMenuShown, closed: mainGlobal.__hronautAltMenuClosed }
-  })).toEqual({ shown: true, closed: true })
-  await electronApp.evaluate(() => {
-    const mainGlobal = globalThis as typeof globalThis & {
-      __hronautAltMenuShown?: boolean
-      __hronautAltMenuClosed?: boolean
-    }
-    delete mainGlobal.__hronautAltMenuShown
-    delete mainGlobal.__hronautAltMenuClosed
+  const altMenu = () => electronApp.evaluate(() => {
+    const record = (globalThis as typeof globalThis & { __hronautAltMenu?: { shown: number; closed: number } }).__hronautAltMenu
+    return { shown: record?.shown, closed: record?.closed }
   })
+  try {
+    await expect.poll(altMenu).toEqual({ shown: 1, closed: 1 })
+  } finally {
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & { __hronautAltMenu?: { stop: () => void } }
+      mainGlobal.__hronautAltMenu?.stop()
+      delete mainGlobal.__hronautAltMenu
+    })
+  }
 })
 
 test('keeps the vertical rail on the left and confines Home and navigation surfaces to the right column', async ({
@@ -247,6 +252,66 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   await expect.poll(() => railTitle.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(56)
 })
 
+test('keeps the window controls\' room steady while the window widens and narrows', async ({ appWindow, electronApp }) => {
+  await expect(appWindow.locator('html')).toHaveAttribute('data-title-bar-mode', 'overlay')
+  const resize = (width: number) => electronApp.evaluate(({ BrowserWindow }, width) => {
+    const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
+    if (!main) throw new Error('Missing main window')
+    main.setSize(width, 900)
+  }, width)
+  // The room the overlay leaves right of the title bar area, and the room the shell keeps for the controls.
+  const room = () => appWindow.evaluate(() => {
+    const overlay = (navigator as Navigator & { windowControlsOverlay: { getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay
+    const area = overlay.getTitlebarAreaRect()
+    return {
+      viewport: window.innerWidth,
+      overlay: `${window.innerWidth - area.x - area.width}px`,
+      shell: document.documentElement.style.getPropertyValue('--titlebar-controls-right-runtime')
+    }
+  })
+  await expect.poll(async () => {
+    const { overlay, shell } = await room()
+    return overlay !== '0px' && overlay === shell
+  }).toBe(true)
+  const { shell: steady } = await room()
+
+  // Every value the shell gives the controls' room meanwhile, from each change of its style.
+  await appWindow.evaluate(() => {
+    const read = (style: string | null) => /--titlebar-controls-right-runtime:\s*([^;]+)/u.exec(style ?? '')?.[1]?.trim()
+    const seen = new Set<string>([read(document.documentElement.getAttribute('style')) ?? ''])
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const before = read(record.oldValue)
+        if (before) seen.add(before)
+      }
+      const now = read(document.documentElement.getAttribute('style'))
+      if (now) seen.add(now)
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'], attributeOldValue: true })
+    ;(window as Window & { __hronautControlsRoom?: { seen: Set<string>; stop: () => void } }).__hronautControlsRoom = {
+      seen,
+      stop: () => observer.disconnect()
+    }
+  })
+  try {
+    // Chromium reports the overlay's area and the viewport's width at different moments while the window changes size;
+    // the controls keep their room throughout instead of seeming to cover the whole difference for a few frames.
+    for (const width of [1920, 1440, 1920]) {
+      await resize(width)
+      await expect.poll(room).toEqual({ viewport: width, overlay: steady, shell: steady })
+    }
+    expect(await appWindow.evaluate(() => [
+      ...(window as Window & { __hronautControlsRoom?: { seen: Set<string> } }).__hronautControlsRoom!.seen
+    ])).toEqual([steady])
+  } finally {
+    await appWindow.evaluate(() => {
+      const scope = window as Window & { __hronautControlsRoom?: { stop: () => void } }
+      scope.__hronautControlsRoom?.stop()
+      delete scope.__hronautControlsRoom
+    })
+  }
+})
+
 test('dims the native window controls with the dialog backdrop and restores them when it closes', async ({
   appWindow,
   electronApp
@@ -314,6 +379,29 @@ test('persists the system-title-bar fallback across restart on every platform', 
     await expect(restarted.window.locator('.shell-title-bar-surface')).toHaveCount(0)
     await expect(restarted.window.locator('[data-titlebar-drag-surface]')).toHaveCount(0)
     await expect.poll(() => restarted.window.locator('.topbar').evaluate((element) => element.getBoundingClientRect().y)).toBe(0)
+
+    // The system title bar's auto-hidden menu bar appears when Alt alone is released and hides on the next, once each:
+    // Alt with a digit, a workspace key, shows nothing, and the native menu bar does not toggle a second time.
+    const menuBar = () => restarted.app.evaluate(({ BrowserWindow }) => (
+      BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')?.isMenuBarVisible()
+    ))
+    const press = (events: Array<{ type: 'keyDown' | 'keyUp'; keyCode: string; modifiers?: Array<'alt'> }>) => restarted.app.evaluate(({ BrowserWindow }, events) => {
+      const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
+      for (const event of events) main?.webContents.sendInputEvent(event)
+    }, events)
+    await expect.poll(menuBar).toBe(false)
+    await press([
+      { type: 'keyDown', keyCode: 'Alt' },
+      { type: 'keyDown', keyCode: '1', modifiers: ['alt'] },
+      { type: 'keyUp', keyCode: 'Alt' },
+      { type: 'keyUp', keyCode: '1' },
+      { type: 'keyDown', keyCode: 'Alt' },
+      { type: 'keyUp', keyCode: 'Alt' }
+    ])
+    await expect.poll(menuBar).toBe(true)
+    await press([{ type: 'keyDown', keyCode: 'Alt' }, { type: 'keyUp', keyCode: 'Alt' }])
+    await expect.poll(menuBar).toBe(false)
+
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
     await expect(restarted.window.getByRole('checkbox', { name: 'Use system title bar' })).toBeChecked()
     await expect(restarted.window.getByRole('status')).toHaveCount(0)

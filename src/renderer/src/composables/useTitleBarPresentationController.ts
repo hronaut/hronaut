@@ -23,6 +23,9 @@ interface TitleBarPresentationEnvironment {
   viewportWidth: () => number
   windowControlsOverlay?: WindowControlsOverlayLike
   resizeTarget?: EventTarget
+  /** Runs a callback before the next frame; without it, geometry changes apply at once. */
+  requestFrame?: (callback: () => void) => number
+  cancelFrame?: (handle: number) => void
 }
 
 const RUNTIME_PROPERTIES = [
@@ -43,13 +46,16 @@ export function createTitleBarPresentationController(
     documentElement: document.documentElement,
     viewportWidth: () => window.innerWidth,
     windowControlsOverlay: defaultWindowControlsOverlay(),
-    resizeTarget: window
+    resizeTarget: window,
+    requestFrame: (callback) => window.requestAnimationFrame(callback),
+    cancelFrame: (handle) => window.cancelAnimationFrame(handle)
   }
 ) {
   const overlayEnabled = windowChrome.mainWindow && windowChrome.mode === 'overlay'
   let started = false
   let lastControlInsets: { left: number, right: number } | undefined
   let listenerDisposers: (() => void)[] = []
+  let pendingFrame: number | undefined
 
   function clearRuntimeGeometry(): void {
     for (const property of RUNTIME_PROPERTIES) environment.documentElement.style.removeProperty(property)
@@ -79,7 +85,15 @@ export function createTitleBarPresentationController(
     throw new AggregateError(failures, 'Title-bar presentation startup failed and rollback was incomplete')
   }
 
-  function syncGeometry(): void {
+  /**
+   * Publishes the area beside the native window controls. The controls keep their size when the window changes size,
+   * but Chromium reports the overlay's area and the viewport's width at different moments while it does: narrowing,
+   * the area for the new width comes before the viewport has it; widening, the viewport grows before the area. Read
+   * together, either pair would make the controls seem to cover the whole difference and wrap the toolbar for a few
+   * frames. So only the overlay's own report measures the controls, a frame later, once the resize that goes with it
+   * has landed (`fromOverlay`); a resize keeps the room they had.
+   */
+  function applyGeometry(fromOverlay: boolean): void {
     const overlay = environment.windowControlsOverlay
     if (!overlayEnabled || !overlay || (!overlay.visible && !lastControlInsets)) {
       clearRuntimeGeometry()
@@ -89,8 +103,7 @@ export function createTitleBarPresentationController(
     let area = normalizeTitleBarArea(overlay.getTitlebarAreaRect(), viewportWidth)
     if (
       lastControlInsets
-      && area.leftInset === 0
-      && area.rightInset === 0
+      && (!fromOverlay || (area.leftInset === 0 && area.rightInset === 0))
       && lastControlInsets.left + lastControlInsets.right < viewportWidth
     ) {
       area = {
@@ -100,7 +113,7 @@ export function createTitleBarPresentationController(
         leftInset: lastControlInsets.left,
         rightInset: lastControlInsets.right
       }
-    } else if (area.leftInset > 0 || area.rightInset > 0) {
+    } else if (fromOverlay && (area.leftInset > 0 || area.rightInset > 0)) {
       lastControlInsets = { left: area.leftInset, right: area.rightInset }
     }
     environment.documentElement.style.setProperty('--titlebar-area-x-runtime', `${area.x}px`)
@@ -110,8 +123,33 @@ export function createTitleBarPresentationController(
     environment.documentElement.style.setProperty('--titlebar-controls-right-runtime', `${area.rightInset}px`)
   }
 
+  /** Follows a resize of the window, which keeps the controls' room until the overlay reports again. */
+  function syncGeometry(): void {
+    applyGeometry(false)
+  }
+
   function syncActiveGeometry(): void {
     if (started) syncGeometry()
+  }
+
+  function syncOverlayGeometry(): void {
+    if (!started) return
+    if (!environment.requestFrame) {
+      applyGeometry(true)
+      return
+    }
+    if (pendingFrame !== undefined) return
+    pendingFrame = environment.requestFrame(() => {
+      pendingFrame = undefined
+      if (started) applyGeometry(true)
+    })
+  }
+
+  function cancelPendingFrame(): void {
+    if (pendingFrame === undefined) return
+    const frame = pendingFrame
+    pendingFrame = undefined
+    environment.cancelFrame?.(frame)
   }
 
   function start(): void {
@@ -127,8 +165,11 @@ export function createTitleBarPresentationController(
     const overlay = environment.windowControlsOverlay
     const resizeTarget = environment.resizeTarget
     if (overlay) registrations.push(() => {
-      overlay.addEventListener('geometrychange', syncActiveGeometry)
-      return () => overlay.removeEventListener('geometrychange', syncActiveGeometry)
+      overlay.addEventListener('geometrychange', syncOverlayGeometry)
+      return () => {
+        cancelPendingFrame()
+        overlay.removeEventListener('geometrychange', syncOverlayGeometry)
+      }
     })
     if (resizeTarget) registrations.push(() => {
       resizeTarget.addEventListener('resize', syncActiveGeometry)
@@ -139,7 +180,7 @@ export function createTitleBarPresentationController(
       resetPresentation()
     })
     try {
-      syncGeometry()
+      applyGeometry(true)
     } catch (error) {
       rollbackStartedPresentation(error)
     }
