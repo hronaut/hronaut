@@ -8948,7 +8948,9 @@ export class BrowserTabsManager {
           landscape: options.landscape ?? false,
           pageSize: options.pageSize ?? 'Letter',
           printBackground: true,
-          preferCSSPageSize: false
+          preferCSSPageSize: false,
+          // Chromium 152 writes no outline into an untagged PDF.
+          ...(options.outline ? { generateDocumentOutline: true, generateTaggedPDF: true } : {})
         })
       }, 'print')
       assertCurrent()
