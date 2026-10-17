@@ -1760,6 +1760,7 @@ describe('WalletBroker', () => {
     ])
   })
 
+  // 21 approved and signed batches take about 2 s of CPU on their own, so the default 5 s ran out on a busy CI runner.
   it('lists the newest 20 batches for an agent, says why one stopped before a call went out, and hides the wallet in a batch ID', async () => {
     const { service, wallet } = await setup('testnet')
     const chain = adapter()
@@ -1810,7 +1811,7 @@ describe('WalletBroker', () => {
       ...Array.from({ length: 19 }, (_, index) => `0xbatch-${index + 1}`)
     ])
     expect(listed.every(({ state }) => state === 'sent')).toBe(true)
-  })
+  }, 15_000)
 
   it('returns batch call refusals to the page with their codes intact', async () => {
     const { service } = await setup('testnet')
