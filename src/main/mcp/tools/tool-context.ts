@@ -26,7 +26,42 @@ import { WorkspaceWriteLeaseRegistry } from '../workspace-write-leases.js'
 import type { BookmarkOperations, HistoryOperations, McpClientActivity, SiteDataOperations, WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from '../server.js'
 
 export type ResolvedTargetWakePolicy = 'before-handler' | 'handler-owned' | 'never'
-export type WorkspaceToolHandler<T> = ((input: T) => Promise<CallToolResult>) & {
+
+/**
+ * One admitted workspace tool call, passed to the tool's handler next to its input. It carries the call's
+ * target and cancellation signal, and the checks server.ts ran before dispatch, so a tool can repeat them
+ * before each step that acts on the page or publishes a result.
+ */
+export interface WorkspaceToolCall {
+  /** The call's arguments without its review binding, as the capability and review checks saw them. */
+  input: Record<string, unknown>
+  workspaceId: string
+  /** The tab the call resolved to; undefined for tools that act on the whole workspace. */
+  tabId: string | undefined
+  signal: AbortSignal | undefined
+  /** The MCP control revision when the call was admitted. */
+  controlRevision: number
+  /** The write lease generation the call holds, when it needs one. */
+  writeLeaseGeneration: string | undefined
+  /** Throws unless the lease, capability, workspace, control, human input and tab are still the admitted ones. */
+  requireCurrentTarget: () => void
+  /** Throws when a requested postcondition's page context changed since admission. */
+  requirePostWriteContext: () => void
+  /** Throws when MCP control changed since admission. */
+  requireCurrentControl: (settled?: boolean) => void
+  /** Throws when a person used the target page since admission. */
+  requireCurrentHumanInput: () => void
+  /** A rejection when a destructive action's recorded authority no longer holds, else undefined. */
+  authorityRejection: () => CallToolResult | undefined
+  /** Records a capability or input denial so the call's settlement can report it. */
+  rememberInputPolicy: (error: unknown) => void
+  /** Whether a failure from here on leaves the call's effects unknown, for its activity and audit record. */
+  setInvalidatedOutcome: (outcome: 'outcome-unknown' | undefined) => void
+  /** Checks authority for a service worker origin the recorder observed, and re-checks it when the call settles. */
+  validateLifecycle: (origin: string) => void
+}
+
+export type WorkspaceToolHandler<T> = ((input: T, call: WorkspaceToolCall) => Promise<CallToolResult>) & {
   resolvedTargetWakePolicy?: ResolvedTargetWakePolicy
   tabActivityToolName?: string
 }
@@ -52,6 +87,8 @@ export interface McpToolContext {
   capability: { store: McpCapabilityProfileStore; grant: McpCapabilityGrant } | undefined
   capabilityProfile: McpCapabilityProfile | undefined
   auditAuthorization: AuditReceiptAuthorization
+  /** Fingerprint of this server's capability grant, or of full access without one. */
+  capabilityAuthorizationFingerprint: string
   humanReviewSessionBinding: string
   publicOutcomeFingerprintKey: Buffer
   savedTaskPreviewKey: Buffer
@@ -71,14 +108,14 @@ export interface McpToolContext {
     description?: string
     inputSchema?: Record<string, z.ZodType>
   }, handler: WorkspaceToolHandler<T>) => void
-  tool: <T>(handler: (input: T, extra?: { signal?: AbortSignal }) => Promise<CallToolResult> | CallToolResult) => (input: T, extra?: { signal?: AbortSignal }) => Promise<CallToolResult>
+  tool: <T, E = { signal?: AbortSignal }>(handler: (input: T, extra: E) => Promise<CallToolResult> | CallToolResult) => (input: T, extra: E) => Promise<CallToolResult>
   tabTool: <T>(
     toolName: string,
-    handler: (input: T) => Promise<CallToolResult> | CallToolResult,
+    handler: (input: T, call: WorkspaceToolCall) => Promise<CallToolResult> | CallToolResult,
     resolvedTargetWakePolicy?: ResolvedTargetWakePolicy
   ) => WorkspaceToolHandler<T>
   withResolvedTargetWakePolicy: <T>(
-    handler: (input: T) => Promise<CallToolResult>,
+    handler: (input: T, call: WorkspaceToolCall) => Promise<CallToolResult>,
     resolvedTargetWakePolicy: ResolvedTargetWakePolicy
   ) => WorkspaceToolHandler<T>
   requireActiveCapabilityDispatch: (

@@ -15,7 +15,7 @@ export function registerBrowserImageState(context: McpToolContext): void {
         selector: z.string().min(1).max(1_000).describe('Select one unique current top-level light-DOM HTML image. This is current selector resolution, not historical snapshot identity.')
       }
     },
-    tabTool('browser_image_state', async (options: { tabId?: string; ref?: never; selector: string; validateInspection?: () => void }) =>
-      textResult(await manager.imageState(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })))
+    tabTool('browser_image_state', async (options: { tabId?: string; ref?: never; selector: string }, call) =>
+      textResult(await manager.imageState(options, call.requireCurrentTarget, pending => { frameRequests.getStore()!.elementInspection = pending })))
   )
 }

@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import type { CookieWriteHooks } from '../../../browser/cookie-write-operation.js'
-import type { WebStorageHooks } from '../../../browser/web-storage-operation.js'
+import type { CookieWriteHooks, CookieWriteProgress } from '../../../browser/cookie-write-operation.js'
+import type { WebStorageHooks, WebStorageProgress } from '../../../browser/web-storage-operation.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 
 export function registerBrowserStorage(context: McpToolContext): void {
-  const { manager, registerWorkspaceTool, tabTool } = context
+  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_storage',
     {
@@ -24,7 +24,7 @@ export function registerBrowserStorage(context: McpToolContext): void {
           .describe('Cookie delete only: exact path from a cookie listing. Requires cookieDomain; no prefix or wildcard matching.')
       }
     },
-    tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath, cookieWriteHooks, webStorageHooks }: {
+    tabTool('browser_storage', async ({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }: {
       tabId?: string
       kind: 'local-storage' | 'session-storage' | 'cookies'
       action: 'list' | 'get' | 'set' | 'delete' | 'clear'
@@ -33,8 +33,29 @@ export function registerBrowserStorage(context: McpToolContext): void {
       includeValues: boolean
       cookieDomain?: string
       cookiePath?: string
-      cookieWriteHooks?: CookieWriteHooks
-      webStorageHooks?: WebStorageHooks
-    }) => textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }, cookieWriteHooks, webStorageHooks)))
+    }, call) => {
+      // The base wrapper starts tracking progress only for cookie writes and for local or session storage.
+      const webStorageHooks = frameRequests.getStore()!.webStorageProgress ? {
+        validate: () => {
+          try {
+            if (call.signal?.aborted) throw new Error('Storage operation cancelled')
+            call.requireCurrentTarget()
+          } catch (error) { call.rememberInputPolicy(error); throw error }
+        },
+        progress: (progress: WebStorageProgress) => { frameRequests.getStore()!.webStorageProgress = { ...progress } },
+        retainPublication: (validate: () => void) => { frameRequests.getStore()!.webStoragePublication = validate }
+      } satisfies WebStorageHooks : undefined
+      const cookieWriteHooks = frameRequests.getStore()!.cookieProgress ? {
+        validate: () => {
+          try {
+            if (call.signal?.aborted) throw new Error('Cookie operation cancelled')
+            call.requireCurrentTarget()
+          } catch (error) { call.rememberInputPolicy(error); throw error }
+        },
+        progress: (progress: CookieWriteProgress) => { frameRequests.getStore()!.cookieProgress = { ...progress } },
+        retainPublication: (validate: () => void) => { frameRequests.getStore()!.cookiePublication = validate }
+      } satisfies CookieWriteHooks : undefined
+      return textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }, cookieWriteHooks, webStorageHooks))
+    })
   )
 }

@@ -1,21 +1,19 @@
 import { browserClickSchema } from './browser-click-input.js'
 import { EMULATION_INPUT_ERRORS, EmulationInputError } from '../browser/emulation-state.js'
 import { fileEvaluationFailure, type FileEvaluationSource } from '../../shared/file-evaluation.js'
-import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure, type StorageComparisonHooks } from '../browser/storage-comparison-operation.js'
-import { nativeClickEffectsPossible, NativeClickAdmissionError, type NativeClickProgress } from '../browser/native-click-admission.js'
-import { storageInspectionFailure, type StorageInspectionHooks } from '../browser/storage-inspection-operation.js'
+import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure } from '../browser/storage-comparison-operation.js'
+import { nativeClickEffectsPossible, NativeClickAdmissionError } from '../browser/native-click-admission.js'
+import { storageInspectionFailure } from '../browser/storage-inspection-operation.js'
 import { recheckOpenedTabs, type TabsOpenedDuringClick } from '../browser/click-opened-tabs.js'
-import { WEB_STORAGE_INPUT_ERRORS, WebStorageInputError, webStorageFailure, type WebStorageHooks, type WebStorageProgress } from '../browser/web-storage-operation.js'
-import { cookieWriteFailure, type CookieWriteHooks, type CookieWriteProgress } from '../browser/cookie-write-operation.js'
+import { WEB_STORAGE_INPUT_ERRORS, WebStorageInputError, webStorageFailure } from '../browser/web-storage-operation.js'
+import { cookieWriteFailure } from '../browser/cookie-write-operation.js'
 import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
 import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
-import { NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldProgress } from '../browser/native-key-hold.js'
+import { NativeKeyHoldOutcomeUnknownError } from '../browser/native-key-hold.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
-import type { VideoSourceBinding } from '../browser/video-recorder.js'
 import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
 import { frameObservationResult } from './frame-observation-result.js'
-import type { ReactInspectionAuthority } from '../browser/react-inspection.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
@@ -189,7 +187,7 @@ import { registerWalletRequest } from './tools/wallet-request/index.js'
 import { registerWalletRequestStatus } from './tools/wallet-request-status/index.js'
 import { registerWalletPageRequests } from './tools/wallet-page-requests/index.js'
 import { registerWalletCancelRequest } from './tools/wallet-cancel-request/index.js'
-import type { McpFrameRequest, McpToolContext, ResolvedTargetWakePolicy, WorkspaceToolHandler } from './tools/tool-context.js'
+import type { McpFrameRequest, McpToolContext, ResolvedTargetWakePolicy, WorkspaceToolCall, WorkspaceToolHandler } from './tools/tool-context.js'
 export { assertMcpCapabilityClassificationContract, mcpCapabilityAction, mcpCapabilityOperationClass, READ_ONLY_MULTI_ACTIONS } from './capability-classification.js'
 export { classifyMcpActivityResult, closedTabWaitResult } from './tool-results.js'
 export { auditEvidenceExpiredReason } from './tools/browser-audit-receipts/index.js'
@@ -689,7 +687,7 @@ function createBrowserMcpServer(
     { instructions: BROWSER_SERVER_INSTRUCTIONS }
   )
   const savedTaskPreviewKey = randomBytes(32)
-  const tool = <T>(handler: (input: T, extra?: { signal?: AbortSignal }) => Promise<CallToolResult> | CallToolResult) => async (input: T, extra?: { signal?: AbortSignal }): Promise<CallToolResult> => {
+  const tool = <T, E = { signal?: AbortSignal }>(handler: (input: T, extra: E) => Promise<CallToolResult> | CallToolResult) => async (input: T, extra: E): Promise<CallToolResult> => {
     try {
       return await handler(input, extra)
     } catch (error) {
@@ -701,12 +699,12 @@ function createBrowserMcpServer(
     }
   }
   const withResolvedTargetWakePolicy = <T>(
-    handler: (input: T) => Promise<CallToolResult>,
+    handler: (input: T, call: WorkspaceToolCall) => Promise<CallToolResult>,
     resolvedTargetWakePolicy: ResolvedTargetWakePolicy
   ): WorkspaceToolHandler<T> => Object.assign(handler, { resolvedTargetWakePolicy })
   const tabTool = <T>(
     toolName: string,
-    handler: (input: T) => Promise<CallToolResult> | CallToolResult,
+    handler: (input: T, call: WorkspaceToolCall) => Promise<CallToolResult> | CallToolResult,
     resolvedTargetWakePolicy: ResolvedTargetWakePolicy = 'before-handler'
   ): WorkspaceToolHandler<T> => Object.assign(tool(handler), {
     resolvedTargetWakePolicy,
@@ -1782,146 +1780,26 @@ function createBrowserMcpServer(
             }
             if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldProgress = { downAttempted: false, downAcknowledged: false, releaseStarted: false, releaseAttempted: false, releaseAcknowledged: false }
             activityDispatched = true
+            // What a tool may re-check while it runs. Each tool builds its own hooks from these.
+            const call: WorkspaceToolCall = {
+              input: actionInput,
+              workspaceId,
+              tabId: resolvedTabId,
+              signal: extra?.signal,
+              controlRevision,
+              writeLeaseGeneration: writeLease?.generation,
+              requireCurrentTarget,
+              requirePostWriteContext,
+              requireCurrentControl,
+              requireCurrentHumanInput,
+              authorityRejection,
+              rememberInputPolicy,
+              setInvalidatedOutcome: outcome => { invalidatedOutcome = outcome },
+              validateLifecycle
+            }
             const result = toolsWithoutWorkspaceTabTarget.has(name)
-              ? await handler(actionInput as unknown as T)
-              : await handler({
-                ...actionInput,
-                tabId: resolvedTabId,
-                ...((name === 'browser_element_inspect' || name === 'browser_media_state' || name === 'browser_image_state' || name === 'browser_network_request') ? { validateInspection: requireCurrentTarget } : {}),
-                ...(['browser_click', 'browser_hover', 'browser_drag', 'browser_press', 'browser_wheel', 'browser_hold_key'].includes(name) ? { validateNativeInput: (validateContext: () => void) => {
-                  try {
-                    if (extra?.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
-                    requireCurrentTarget()
-                    requirePostWriteContext()
-                    validateContext()
-                    if (authorityRejection()) throw new Error('Native input authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
-                  } catch (error) {
-                    // Preparation or an earlier click in a double-click may
-                    // already have effects. Never classify this as safe replay.
-                    rememberInputPolicy(error)
-                    invalidatedOutcome = name === 'browser_hold_key' && !frameRequests.getStore()?.keyHoldProgress?.downAttempted ? undefined : 'outcome-unknown'
-                    throw error
-                  }
-                } } : {}),
-                ...(frameRequests.getStore()!.storageComparison ? { storageComparisonHooks: {
-                  validate: () => {
-                    try {
-                      if (extra?.signal?.aborted) throw new Error('Storage comparison cancelled')
-                      requireCurrentTarget()
-                    } catch (error) { rememberInputPolicy(error); throw error }
-                  },
-                  started: () => { frameRequests.getStore()!.storageComparison!.started = true },
-                  comparisonChanged: () => { frameRequests.getStore()!.storageComparison!.changed = true },
-                  retainPublication: (guard: { validate(): void; dispose(): void }) => { frameRequests.getStore()!.storageComparison!.publication = guard }
-                } satisfies StorageComparisonHooks } : {}),
-                ...(frameRequests.getStore()!.storageInspection ? { storageInspectionHooks: {
-                  validate: () => {
-                    try {
-                      if (extra?.signal?.aborted) throw new Error('Storage inspection cancelled')
-                      requireCurrentTarget()
-                    } catch (error) { rememberInputPolicy(error); throw error }
-                  },
-                  readStarted: () => { frameRequests.getStore()!.storageInspection!.started = true },
-                  retainPublication: (validate: () => void) => { frameRequests.getStore()!.storageInspection!.publication = validate }
-                } satisfies StorageInspectionHooks } : {}),
-                ...(frameRequests.getStore()!.webStorageProgress ? { webStorageHooks: {
-                  validate: () => {
-                    try {
-                      if (extra?.signal?.aborted) throw new Error('Storage operation cancelled')
-                      requireCurrentTarget()
-                    } catch (error) { rememberInputPolicy(error); throw error }
-                  },
-                  progress: (progress: WebStorageProgress) => { frameRequests.getStore()!.webStorageProgress = { ...progress } },
-                  retainPublication: (validate: () => void) => { frameRequests.getStore()!.webStoragePublication = validate }
-                } satisfies WebStorageHooks } : {}),
-                ...(frameRequests.getStore()!.cookieProgress ? { cookieWriteHooks: {
-                  validate: () => {
-                    try {
-                      if (extra?.signal?.aborted) throw new Error('Cookie operation cancelled')
-                      requireCurrentTarget()
-                    } catch (error) { rememberInputPolicy(error); throw error }
-                  },
-                  progress: (progress: CookieWriteProgress) => { frameRequests.getStore()!.cookieProgress = { ...progress } },
-                  retainPublication: (validate: () => void) => { frameRequests.getStore()!.cookiePublication = validate }
-                } satisfies CookieWriteHooks } : {}),
-                ...((name === 'browser_network_routes' || name === 'browser_emulate') ? {
-                  validateConditions: () => {
-                    const assert = (): void => {
-                      if (extra?.signal?.aborted) throw new Error('Request-condition operation cancelled')
-                      requireCurrentTarget()
-                      requirePostWriteContext()
-                      if (authorityRejection()) throw new Error('Request-condition authority changed')
-                    }
-                    assert()
-                    if (name !== 'browser_emulate') frameRequests.getStore()!.conditionPublication = assert
-                  },
-                  markConditionsSubmitted: () => { frameRequests.getStore()!.conditionAttempted = true }
-                } : {}),
-                ...(name === 'browser_wheel' ? { markWheelAttempted: () => { frameRequests.getStore()!.wheelAttempted = true } } : {}),
-                ...(name === 'browser_click' ? { retainClickAuthority: (authority: { validate(): void; dispose(): void }) => { frameRequests.getStore()!.clickAuthority = authority }, recordClickProgress: (progress: NativeClickProgress) => { frameRequests.getStore()!.clickProgress = { ...progress } } } : {}),
-                ...(name === 'browser_hold_key' ? { holdSignal: extra?.signal, recordHoldProgress: (progress: NativeKeyHoldProgress) => { frameRequests.getStore()!.keyHoldProgress = { ...progress } } } : {}),
-                ...(name === 'browser_select' && actionInput.values !== undefined ? {
-                  retainSelection: (authority: { validate: () => void; dispose: () => void }) => { frameRequests.getStore()!.selectionAuthority = authority },
-                  markSelectionSubmitted: () => { frameRequests.getStore()!.selectionSubmitted = true },
-                  validateSelect: (validateContext: () => void) => {
-                  if (extra?.signal?.aborted) throw new Error('Selection cancelled')
-                  requireCurrentTarget()
-                  requirePostWriteContext()
-                  validateContext()
-                  if (authorityRejection()) throw new Error('Selection authority changed')
-                } } : {}),
-                ...(name === 'browser_evaluate_file' ? { fileEvaluationSignal: extra?.signal, validateFileEvaluation: () => {
-                  if (extra?.signal?.aborted) throw new Error('File evaluation cancelled')
-                  requireCurrentTarget()
-                  const certificate = frameRequests.getStore()!.fileEvaluationCertificate
-                  if (!certificate) throw new Error('File evaluation certificate unavailable')
-                  certificate()
-                  if (authorityRejection()) throw new Error('File evaluation authority changed')
-                } } : {}),
-                ...(name === 'browser_file_upload' ? { validateUpload: (validateContext: () => void) => {
-                  try {
-                    if (extra?.signal?.aborted) throw new Error('File upload cancelled; earlier effects are not rolled back')
-                    requireCurrentTarget()
-                    requirePostWriteContext()
-                    validateContext()
-                    if (authorityRejection()) throw new Error('File upload authority changed; inspect fresh state before continuing')
-                  } catch (error) {
-                    invalidatedOutcome = 'outcome-unknown'
-                    throw error
-                  }
-                } } : {}),
-                ...(name === 'browser_pdf_save' ? { validateExport: () => {
-                  if (extra?.signal?.aborted) throw new Error('PDF export cancelled')
-                  requireCurrentTarget()
-                } } : {}),
-                ...(name === 'browser_react' ? { reactAuthority: {
-                  assertCurrent: requireCurrentTarget,
-                  epoch: createHash('sha256').update(JSON.stringify([client.id, controlRevision, writeLease?.generation, capabilityAuthorizationFingerprint])).digest('hex')
-                } satisfies ReactInspectionAuthority } : {}),
-                ...(name === 'browser_visual_compare' ? { validateCapture: () => {
-                  if (extra?.signal?.aborted) throw new Error('Visual comparison was cancelled')
-                  requireCurrentControl()
-                  requireCurrentHumanInput()
-                  requireActiveCapabilityDispatch(name, actionInput)
-                  requireAgentWorkspace(workspaceId)
-                  if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-                  if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
-                } } : {}),
-                ...(name === 'browser_pwa_lifecycle' ? { validateLifecycle } : {}),
-                ...(name === 'browser_video' ? { validateInspection: (source: VideoSourceBinding) => {
-                  if (extra?.signal?.aborted) throw new Error('Video inspection cancelled')
-                  requireCurrentTarget()
-                  if (source.workspaceId !== workspaceId || source.tabId !== resolvedTabId) throw workspaceAuthorizationError()
-                  requireActiveCapabilityDispatch(name, actionInput, { workspaceId, tabId: resolvedTabId, origins: [source.origin] })
-                }, recordingSignal: extra?.signal, validateRecording: () => {
-                  if (extra?.signal?.aborted) throw new Error('Video operation was cancelled')
-                  requireCurrentControl()
-                  requireActiveCapabilityDispatch(name, actionInput)
-                  requireAgentWorkspace(workspaceId)
-                  if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-                  if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
-                } } : {})
-              } as unknown as T)
+              ? await handler(actionInput as unknown as T, call)
+              : await handler({ ...actionInput, tabId: resolvedTabId } as unknown as T, call)
             if (name === 'browser_select' && result.structuredContent?.status === 'OUTCOME_UNKNOWN') invalidatedOutcome = 'outcome-unknown'
             if (name === 'browser_hold_key' && result.isError && result.structuredContent?.policyDecision !== undefined) {
               frameRequests.getStore()!.keyHoldPolicy = { permission: 'denied', policyDecision: result.structuredContent.policyDecision }
@@ -2227,6 +2105,7 @@ function createBrowserMcpServer(
     bookmarks,
     capability,
     capabilityAllowsUrl,
+    capabilityAuthorizationFingerprint,
     capabilityProfile,
     client,
     forkOnlySource,

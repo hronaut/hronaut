@@ -36,10 +36,9 @@ export function registerBrowserElementInspect(context: McpToolContext): void {
       includeSizingInputs?: boolean
       includeValidity?: boolean
       expectedValue?: string
-      validateInspection?: () => void
-    }) => {
+    }, call) => {
       const previewBefore = manager.cssStatePreviewMarker(options.tabId)
-      const inspection = await manager.elementInspection(options, options.validateInspection, pending => { frameRequests.getStore()!.elementInspection = pending })
+      const inspection = await manager.elementInspection(options, call.requireCurrentTarget, pending => { frameRequests.getStore()!.elementInspection = pending })
       const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
       return textResult(cssStatePreview ? { ...inspection, cssStatePreview } : inspection)
     })

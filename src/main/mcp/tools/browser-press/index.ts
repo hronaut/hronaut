@@ -16,8 +16,23 @@ export function registerBrowserPress(context: McpToolContext): void {
         tabId: tabIdSchema.optional()
       }
     },
-    tabTool('browser_press', async ({ key, tabId, validateNativeInput }: { key: string; tabId?: string; validateNativeInput?: (validateContext: () => void) => void }) => {
-      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
+    tabTool('browser_press', async ({ key, tabId }: { key: string; tabId?: string }, call) => {
+      // Re-checks the call before each native input event.
+      const validateNativeInput = (validateContext: () => void): void => {
+        try {
+          if (call.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
+          call.requireCurrentTarget()
+          call.requirePostWriteContext()
+          validateContext()
+          if (call.authorityRejection()) throw new Error('Native input authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+        } catch (error) {
+          // Preparation or an earlier click in a double-click may
+          // already have effects. Never classify this as safe replay.
+          call.rememberInputPolicy(error)
+          call.setInvalidatedOutcome('outcome-unknown')
+          throw error
+        }
+      }
       await manager.press(key, tabId, validateNativeInput)
       return textResult(`Pressed ${key}`)
     })

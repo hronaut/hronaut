@@ -22,8 +22,7 @@ export function registerBrowserDrag(context: McpToolContext): void {
         endY: z.number().finite().nonnegative().optional()
       }
     },
-    tabTool('browser_drag', async ({ validateNativeInput, ...input }: {
-      validateNativeInput?: (validateContext: () => void) => void
+    tabTool('browser_drag', async (input: {
       tabId?: string
       sourceRef?: string
       sourceSelector?: string
@@ -33,8 +32,23 @@ export function registerBrowserDrag(context: McpToolContext): void {
       startY?: number
       endX?: number
       endY?: number
-    }) => {
-      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
+    }, call) => {
+      // Re-checks the call before each native input event.
+      const validateNativeInput = (validateContext: () => void): void => {
+        try {
+          if (call.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
+          call.requireCurrentTarget()
+          call.requirePostWriteContext()
+          validateContext()
+          if (call.authorityRejection()) throw new Error('Native input authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+        } catch (error) {
+          // Preparation or an earlier click in a double-click may
+          // already have effects. Never classify this as safe replay.
+          call.rememberInputPolicy(error)
+          call.setInvalidatedOutcome('outcome-unknown')
+          throw error
+        }
+      }
       return textResult(await manager.drag(input, validateNativeInput, agentCursorIdentity(client.name)))
     })
   )

@@ -5,7 +5,7 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 
 export function registerBrowserIndexeddb(context: McpToolContext): void {
-  const { manager, registerWorkspaceTool, tabTool } = context
+  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_indexeddb',
     {
@@ -22,14 +22,25 @@ export function registerBrowserIndexeddb(context: McpToolContext): void {
           .describe('Include bounded record previews. Values may contain private application data.')
       }
     },
-    tabTool('browser_indexeddb', async ({ tabId, database, objectStore, offset, limit, includeValues, storageInspectionHooks }: {
-      storageInspectionHooks?: StorageInspectionHooks
+    tabTool('browser_indexeddb', async ({ tabId, database, objectStore, offset, limit, includeValues }: {
       tabId?: string
       database?: string
       objectStore?: string
       offset: number
       limit: number
       includeValues: boolean
-    }) => textResult(await manager.inspectIndexedDb({ tabId, database, objectStore, offset, limit, includeValues }, storageInspectionHooks)))
+    }, call) => {
+      const storageInspectionHooks = frameRequests.getStore()!.storageInspection ? {
+        validate: () => {
+          try {
+            if (call.signal?.aborted) throw new Error('Storage inspection cancelled')
+            call.requireCurrentTarget()
+          } catch (error) { call.rememberInputPolicy(error); throw error }
+        },
+        readStarted: () => { frameRequests.getStore()!.storageInspection!.started = true },
+        retainPublication: (validate: () => void) => { frameRequests.getStore()!.storageInspection!.publication = validate }
+      } satisfies StorageInspectionHooks : undefined
+      return textResult(await manager.inspectIndexedDb({ tabId, database, objectStore, offset, limit, includeValues }, storageInspectionHooks))
+    })
   )
 }

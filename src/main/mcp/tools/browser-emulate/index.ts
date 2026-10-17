@@ -77,8 +77,14 @@ export function registerBrowserEmulate(context: McpToolContext): void {
         extraHttpHeaders: z.record(z.string(), z.string().max(8_192)).optional()
       }
     },
-    tabTool('browser_emulate', async ({ validateConditions, markConditionsSubmitted, ...options }: BrowserEmulationOptions & { validateConditions?: () => void; markConditionsSubmitted?: () => void }) => {
-      if (!validateConditions) throw new Error('Emulation authority is unavailable')
+    tabTool('browser_emulate', async (options: BrowserEmulationOptions, call) => {
+      const validateConditions = (): void => {
+        if (call.signal?.aborted) throw new Error('Request-condition operation cancelled')
+        call.requireCurrentTarget()
+        call.requirePostWriteContext()
+        if (call.authorityRejection()) throw new Error('Request-condition authority changed')
+      }
+      const markConditionsSubmitted = (): void => { frameRequests.getStore()!.conditionAttempted = true }
       const result = await manager.emulate(options, validateConditions, markConditionsSubmitted, assert => {
         frameRequests.getStore()!.conditionPublication = () => { validateConditions(); assert() }
       })

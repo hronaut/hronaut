@@ -26,4 +26,14 @@ describe('MCP tool folders', () => {
     const calls = [...server.matchAll(/^ {2}(register(?:Browser|Wallet)\w+)\(toolContext\)$/gmu)].map(match => match[1])
     expect(calls).toHaveLength(BROWSER_TOOL_CATALOG.length)
   })
+
+  it('lets each tool build its own call hooks instead of server.ts adding them by tool name', () => {
+    const server = readFileSync('src/main/mcp/server.ts', 'utf8')
+    const hooks = ['validateInspection', 'validateNativeInput', 'storageComparisonHooks', 'storageInspectionHooks', 'webStorageHooks',
+      'cookieWriteHooks', 'validateConditions', 'markConditionsSubmitted', 'markWheelAttempted', 'retainClickAuthority', 'recordClickProgress',
+      'holdSignal', 'recordHoldProgress', 'retainSelection', 'markSelectionSubmitted', 'validateSelect', 'fileEvaluationSignal',
+      'validateFileEvaluation', 'validateUpload', 'validateExport', 'reactAuthority', 'validateCapture', 'validateRecording', 'recordingSignal']
+    expect(hooks.filter(hook => new RegExp(`\\b${hook}\\b`, 'u').test(server))).toEqual([])
+    expect(server).toMatch(/await handler\(\{ \.\.\.actionInput, tabId: resolvedTabId \} as unknown as T, call\)/u)
+  })
 })

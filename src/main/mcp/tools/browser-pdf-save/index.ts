@@ -20,16 +20,18 @@ export function registerBrowserPdfSave(context: McpToolContext): void {
           .describe('Use the paper size from the page\'s CSS @page rule where it sets one, over pageSize and landscape. Off by default; refused above 1,000 pages.')
       }
     },
-    tabTool('browser_pdf_save', async ({ validateExport, ...options }: {
+    tabTool('browser_pdf_save', async (options: {
       tabId?: string
       filename?: string
       landscape?: boolean
       pageSize?: 'A4' | 'Letter' | 'Legal'
       outline?: boolean
       preferCSSPageSize?: boolean
-      validateExport?: () => void
-    }) => {
-      if (!validateExport) throw new Error('PDF export authority is unavailable')
+    }, call) => {
+      const validateExport = (): void => {
+        if (call.signal?.aborted) throw new Error('PDF export cancelled')
+        call.requireCurrentTarget()
+      }
       return textResult(await manager.savePdf(options, validateExport, pending => { frameRequests.getStore()!.pdfExport = pending }))
     })
   )
