@@ -367,6 +367,12 @@ describe('settings Pinia store lifecycle', () => {
     expect(store.resolvedLocale).toBe('uk-UA')
     expect(store.systemTheme).toBe('dark')
     expect(store.settings.languagePreference).toBe('uk-UA')
+    // Main says what shows behind the rail; a state without it means the solid surface.
+    expect(store.windowMaterial).toBeNull()
+    listener?.({ ...settingsState('uk-UA'), windowMaterial: 'mica' })
+    expect(store.windowMaterial).toBe('mica')
+    listener?.(settingsState('uk-UA'))
+    expect(store.windowMaterial).toBeNull()
   })
 
   it('preserves settings delivered while the listener is being attached', async () => {

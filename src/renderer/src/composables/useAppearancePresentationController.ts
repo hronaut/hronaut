@@ -1,6 +1,7 @@
 import { play as playFoley, set as setFoley } from '@foleyjs/core'
 import { computed, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
+import type { WindowMaterial } from '../../../shared/window-material.js'
 import { themeColorScheme } from '../../../shared/theme.js'
 import { useTabRailInteractionController } from './useTabRailInteractionController.js'
 import { useTabRailCollapseMotion } from './useTabRailCollapseMotion.js'
@@ -9,6 +10,8 @@ import { useTabRailResizeController } from './useTabRailResizeController.js'
 interface AppearancePresentationOptions {
   settings: Ref<AppSettings>
   systemTheme: Ref<'light' | 'dark'>
+  /** What main shows behind the tab rail, so the shell lets it through there. */
+  windowMaterial?: Readonly<Ref<WindowMaterial | null>>
   detachedWindow: boolean
 }
 
@@ -95,6 +98,14 @@ export function useAppearancePresentationController(options: AppearancePresentat
     [options.settings, options.systemTheme],
     () => applySettings(options.settings.value),
     { deep: true, immediate: true }
+  )
+  watch(
+    () => (options.detachedWindow ? null : options.windowMaterial?.value ?? null),
+    (material) => {
+      if (material) document.documentElement.dataset.windowMaterial = material
+      else delete document.documentElement.dataset.windowMaterial
+    },
+    { immediate: true }
   )
 
   return {

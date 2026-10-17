@@ -18,6 +18,30 @@
   background-attachment: fixed;
 }
 .shell.vertical-tabs-shell { @apply [min-height:60px]; }
+
+/* Behind the rail, the system's material shows through: macOS vibrancy or Windows 11 Mica. Main sets
+   data-window-material only for the main window with the rail and the plain light or dark theme, when the system allows
+   transparency. The window is then clear, so the page's surface right of the rail comes from .window-material-surface,
+   and the rail lays one veil of its own surface over the material. Group cards stay opaque: a group's sticky header
+   hides the tabs scrolling under it. A rail opened over the page in a narrow window keeps its solid surface. */
+.window-material-surface { @apply hidden; }
+:root[data-window-material]:has(.shell.vertical-tabs-shell:not(.detached-panel-window)),
+:root[data-window-material] body:has(.shell.vertical-tabs-shell:not(.detached-panel-window)) { background: transparent; }
+:root[data-window-material] body:has(.shell.vertical-tabs-shell:not(.detached-panel-window)) .window-material-surface {
+  @apply fixed block [top:0] [right:0] [bottom:0] [z-index:-1] pointer-events-none;
+  background: var(--shell-wash) fixed, var(--shell-bottom);
+}
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) { background: none; }
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) .topbar:not(.compact-vertical-tab-rail:not(.rail-collapsed)) {
+  background-color: color-mix(in srgb, var(--shell-bottom) 58%, transparent);
+}
+/* The rail runs under the title strip, so the strip adds no veil of its own. */
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window, .compact-vertical-tab-rail-revealed) .shell-title-bar-surface.surface-rail {
+  background: none;
+}
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) .topbar-actions {
+  background: color-mix(in srgb, var(--toolbar) 36%, transparent);
+}
 .shell.vertical-tabs-shell.home-shell {
   @apply min-h-0 [border-bottom:0] [box-shadow:none];
 }

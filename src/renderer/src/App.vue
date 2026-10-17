@@ -53,7 +53,7 @@ const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
 const settingsStore = useSettingsStore()
 const { state, initialized: browserStateInitialized } = storeToRefs(browserStore)
-const { settings, systemTheme, resolvedLocale } = storeToRefs(settingsStore)
+const { settings, systemTheme, windowMaterial, resolvedLocale } = storeToRefs(settingsStore)
 const {
   formatBytes,
   formatNumber: localNumber,
@@ -113,6 +113,7 @@ const {
 const appShellPresentationFeatureController = useAppShellPresentationFeatureController({
   settings,
   systemTheme,
+  windowMaterial,
   search: window.location.search,
   translate: (key, params) => params ? t(key, params) : t(key),
   targetDocument: document,
@@ -819,6 +820,8 @@ useAppLifecycleController({
 </script>
 
 <template>
+  <!-- With a material behind the rail, the window is clear: this paints the shell's surface beside the rail. -->
+  <div v-if="!isDetachedPanelWindow" class="window-material-surface" :style="{ left: `${pageRailWidth}px` }" aria-hidden="true" />
   <PageCard v-if="!isDetachedPanelWindow" :user-attention="userAttention" :tabs="state.tabs" />
   <SplitViewDivider v-if="!isDetachedPanelWindow" />
   <EmulationFrame

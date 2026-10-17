@@ -11,6 +11,7 @@ import type { InterfaceScale } from './interface-scale.js'
 import type { LanguagePreference, SupportedLocale } from './locale.js'
 import type { TabPosition } from './tab-position.js'
 import type { DesktopWindowPlatform, WindowChromeMode } from './title-bar.js'
+import type { WindowMaterial } from './window-material.js'
 import type {
   WalletCreateInput,
   WalletDescriptor,
@@ -663,6 +664,8 @@ export interface RendererSettingsState {
   systemTheme: 'light' | 'dark'
   systemLocale: SupportedLocale
   resolvedLocale: SupportedLocale
+  /** What main shows behind the main window's tab rail; absent or null for the theme's solid surface. */
+  windowMaterial?: WindowMaterial | null
 }
 
 export interface DownloadDirectorySelection {

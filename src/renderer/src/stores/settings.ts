@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
 import { DEFAULT_TAB_POSITION } from '../../../shared/tab-position.js'
+import type { WindowMaterial } from '../../../shared/window-material.js'
 import type {
   AppSettings,
   AttentionSoundCue,
@@ -45,6 +46,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
   const systemTheme = ref<'light' | 'dark'>('light')
+  const windowMaterial = ref<WindowMaterial | null>(null)
   const systemLocale = ref<SupportedLocale>('en-US')
   const resolvedLocale = ref<SupportedLocale>('en-US')
   const initialized = ref(false)
@@ -63,6 +65,7 @@ export const useSettingsStore = defineStore('settings', () => {
     revision += 1
     settings.value = next.settings
     systemTheme.value = next.systemTheme
+    windowMaterial.value = next.windowMaterial ?? null
     systemLocale.value = next.systemLocale
     resolvedLocale.value = next.resolvedLocale
   }
@@ -76,6 +79,7 @@ export const useSettingsStore = defineStore('settings', () => {
   function hydrate(next: RendererSettingsState): void {
     settings.value = next.settings
     systemTheme.value = next.systemTheme
+    windowMaterial.value = next.windowMaterial ?? null
     systemLocale.value = next.systemLocale
     resolvedLocale.value = next.resolvedLocale
   }
@@ -209,6 +213,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     settings,
     systemTheme,
+    windowMaterial,
     systemLocale,
     resolvedLocale,
     effectiveTheme,

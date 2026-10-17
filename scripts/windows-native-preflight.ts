@@ -49,6 +49,10 @@ try {
   assert.match(image, /^\d+x\d+$/)
   await writeFile(join(proof, 'native-image.txt'), image)
   checks.push('independent Windows clipboard image reader'); await save()
+  // What shows behind the tab rail, as main reports it to the shell; the screenshot shows how it looks.
+  await writeFile(join(proof, 'window-material.json'), JSON.stringify({
+    windowMaterial: await window.evaluate('window.hronautSettings.getRendererState().then((state) => state.windowMaterial ?? null)')
+  }))
   screenshot('normal')
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide())
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible())).toBe(false)
