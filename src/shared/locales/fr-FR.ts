@@ -625,7 +625,7 @@ export const frFR = {
     "select": "Sélectionner",
     "fill": "Remplir"
   },
-  "workspaceSwitcher": { "kicker": "Espaces de travail", "heading": "Changer d’espace", "close": "Fermer le sélecteur d’espaces", "search": "Rechercher des espaces de travail", "placeholder": "Rechercher par nom, agent ou site", "results": "Espaces de travail", "openGroup": "Espaces ouverts", "archived": "Archivés", "current": "Actuel", "needsYou": "Vous attend", "working": "{names} au travail", "tabs": "{count} onglet | {count} onglets", "matches": "{count} espace correspondant. | {count} espaces correspondants.", "selected": "{name} sélectionné.", "empty": "Aucun espace correspondant", "emptyDescription": "Essayez un nom, un agent comme « Claude Code » ou un site.", "none": "Aucun espace de travail pour l’instant", "noneDescription": "Créez un espace de travail pour garder ensemble les onglets et connexions d’un projet.", "navigate": "Naviguer", "choose": "Changer", "searchTabs": "Rechercher des onglets", "newWorkspace": "Nouvel espace", "switchFailed": "Impossible de changer d’espace", "switchDescription": "Impossible d’ouvrir {name}." },
+  "workspaceSwitcher": { "kicker": "Espaces de travail", "heading": "Changer d’espace", "close": "Fermer le sélecteur d’espaces", "search": "Rechercher des espaces de travail", "placeholder": "Rechercher par nom, agent ou site", "results": "Espaces de travail", "openGroup": "Espaces ouverts", "archived": "Archivés", "current": "Actuel", "pinned": "Épinglé", "needsYou": "Vous attend", "working": "{names} au travail", "tabs": "{count} onglet | {count} onglets", "matches": "{count} espace correspondant. | {count} espaces correspondants.", "selected": "{name} sélectionné.", "empty": "Aucun espace correspondant", "emptyDescription": "Essayez un nom, un agent comme « Claude Code » ou un site.", "none": "Aucun espace de travail pour l’instant", "noneDescription": "Créez un espace de travail pour garder ensemble les onglets et connexions d’un projet.", "navigate": "Naviguer", "choose": "Changer", "searchTabs": "Rechercher des onglets", "newWorkspace": "Nouvel espace", "switchFailed": "Impossible de changer d’espace", "switchDescription": "Impossible d’ouvrir {name}." },
   "agentSteps": { "kicker": "Toutes les étapes", "heading": "Étapes de {name}", "close": "Fermer toutes les étapes", "summary": "Jusqu’à {count} de ses dernières étapes dans {workspace}, de la plus récente à la plus ancienne.", "summaryNoWorkspace": "Jusqu’à {count} de ses dernières étapes, de la plus récente à la plus ancienne.", "ended": "{name} ne travaille plus dans cet espace. Voici ses dernières étapes.", "loadFailed": "Impossible de charger ces étapes.", "retry": "Réessayer", "closedTab": "Un onglet qui n’est plus dans cet espace", "noTab": "Hors d’un onglet", "untitledTab": "Onglet sans titre", "showTab": "Afficher l’onglet", "showTabNamed": "Afficher l’onglet {title}", "showTabFailed": "Impossible d’afficher l’onglet", "showTabFailedDescription": "L’onglet a peut-être été fermé.", "empty": "Aucune étape terminée pour l’instant", "emptyDescription": "Les étapes apparaissent ici pendant que {name} travaille.", "privacy": "Les images ne sont prises que d’une page à l’écran et restent uniquement en mémoire : jamais enregistrées ni envoyées aux agents." },
   "commandPalette": {
     "kicker": "Actions rapides",
@@ -1308,6 +1308,7 @@ export const frFR = {
       "agentAttention": "L’agent a besoin de votre attention",
       "needsYou": "Vous attend",
       "followingAgent": "Suivi de {name}",
+      "pinnedWorkspace": "Épinglé en haut",
       "groupAgents": "Agents ici : {agents}",
       "groupAgent": "{name} ({state})",
       "stayHere": "Rester ici",
@@ -3460,6 +3461,8 @@ export const frFR = {
       "editWorkspace": "Modifier l’espace de travail…",
       "sleepWorkspaceTabs": "Mettre les onglets éligibles en veille",
       "archiveWorkspace": "Archiver l’espace de travail",
+      "pinWorkspace": "Épingler l’espace de travail en haut",
+      "unpinWorkspace": "Désépingler l’espace de travail",
       "workspaceUnavailable": "Espace de travail indisponible",
       "splitView": "Vue fractionnée",
       "sideBySide": "Côte à côte",

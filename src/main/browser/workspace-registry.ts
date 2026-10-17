@@ -16,6 +16,8 @@ export interface ActiveWorkspace {
   origins: string[]
   navigationPolicy: BrowserWorkspaceNavigationPolicy
   navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
+  /** When the person pinned it to the top of the tab rail; see BrowserTabGroupState.pinnedAt. */
+  pinnedAt?: string
 }
 export interface ArchivedWorkspace extends BrowserSavedTabGroupState {
   contextClass: BrowserWorkspaceContextClass

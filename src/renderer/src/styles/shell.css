@@ -210,6 +210,7 @@
 .browser-tabs-bar.vertical.rail-collapsed .app-home-button > .app-home-label,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-label > span,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-default-badge,
+.browser-tabs-bar.vertical.rail-collapsed .tab-group-pinned,
 .browser-tabs-bar.vertical.rail-collapsed .tab-title,
 .browser-tabs-bar.vertical.rail-collapsed .tab-close,
 .browser-tabs-bar.vertical.rail-collapsed .tab-sleep-mark,
@@ -273,7 +274,8 @@
   .browser-tabs-bar.horizontal .tab-group-label { @apply [width:86px] [max-width:86px] [padding:0_3px]; }
   .browser-tabs-bar.horizontal .tab-group-label::before { @apply m-0; }
   .browser-tabs-bar.horizontal .tab-group-count,
-  .browser-tabs-bar.horizontal .tab-group-default-badge { @apply hidden; }
+  .browser-tabs-bar.horizontal .tab-group-default-badge,
+  .browser-tabs-bar.horizontal .tab-group-pinned { @apply hidden; }
   .browser-tabs-bar.horizontal .tab:not(.pinned) { @apply [width:112px] [flex-basis:112px]; }
 }
 @media (max-width: 1040px) {
@@ -316,6 +318,8 @@
   content: "";
 }
 .tab-group-label > .tab-group-default-badge { @apply [width:13px] [height:13px] [opacity:.84]; }
+/* A pinned workspace, which stays on top of the rail, says so with a small pin after its name. */
+.tab-group-label > .tab-group-pinned { @apply [width:13px] [height:13px] flex-none text-muted; }
 .tab-group-label > span:not(.tab-group-count, .tab-group-needs-you, .tab-group-agents) {
   @apply overflow-hidden text-ellipsis;
 }

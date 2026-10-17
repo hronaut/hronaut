@@ -200,6 +200,24 @@ describe('TabStateStore', () => {
     })
   })
 
+  it('keeps when a workspace was pinned and drops a pin that is not a time', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.mcpTabGroups![0]!.pinnedAt = '2026-10-17T01:00:00.000Z'
+    ;(state.mcpTabGroups![1] as unknown as Record<string, unknown>).pinnedAt = 'soon'
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.mcpTabGroups?.[0]?.pinnedAt).toBe('2026-10-17T01:00:00.000Z')
+    expect(restored?.mcpTabGroups?.[1]).not.toHaveProperty('pinnedAt')
+    // The unreadable pin is removed from the file too, not repaired to the time it loaded.
+    const repaired = JSON.parse(await readFile(path, 'utf8')) as PersistedBrowserState
+    expect(repaired.mcpTabGroups?.[0]?.pinnedAt).toBe('2026-10-17T01:00:00.000Z')
+    expect(repaired.mcpTabGroups?.[1]).not.toHaveProperty('pinnedAt')
+  })
+
   it('repairs malformed, future, and inverted workspace timestamps', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-16T12:00:00.000Z'))

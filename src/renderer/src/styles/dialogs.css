@@ -74,6 +74,8 @@
 .workspace-switcher-mark:empty::before { @apply [content:""] [width:10px] [height:10px] [border-radius:var(--corner-pill)] [background:var(--workspace-color)]; }
 .workspace-switcher-mark > svg { @apply [width:18px] [height:18px]; }
 .workspace-switcher-item.archived strong { @apply text-muted; }
+.workspace-switcher-pinned { @apply inline-flex items-center [gap:3px]; }
+.workspace-switcher-pinned > svg { @apply [width:12px] [height:12px]; }
 .workspace-switcher-status { @apply text-copy [font-weight:var(--weight-strong)]; }
 /* An opaque fill keeps the amber text readable on the raised surface and on the selected row. */
 .workspace-switcher-item[data-status="needs-you"] .workspace-switcher-status {

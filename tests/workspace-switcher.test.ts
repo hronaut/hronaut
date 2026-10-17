@@ -90,6 +90,20 @@ describe('workspace switcher entries', () => {
     expect(entries.find((entry) => entry.id === 'old')).toMatchObject({ kind: 'archived', tabCount: 2, sites: ['old.example'], current: false })
   })
 
+  it('lists pinned workspaces after those that need you or where an agent works, in the order they were pinned', () => {
+    const pinned = source()
+    pinned.mcpTabGroups = pinned.mcpTabGroups.map((workspace) => workspace.id === 'docs'
+      ? { ...workspace, pinnedAt: '2026-10-17T01:00:00.000Z' }
+      : workspace.id === 'ops' ? { ...workspace, pinnedAt: '2026-10-17T00:30:00.000Z' } : workspace)
+    const entries = workspaceSwitcherEntries(pinned, {}, { tabId: 'blog-1' }, 'Agent')
+    // Ops and Docs were used before Shop, so recent use alone would list them after it.
+    expect(entries.map((entry) => entry.id)).toEqual(['blog', 'ops', 'docs', 'shop', 'old', 'older'])
+    expect(entries.map((entry) => entry.pinnedAt > 0)).toEqual([false, true, true, false, false, false])
+    // An agent working there still comes first.
+    const working = workspaceSwitcherEntries(pinned, { shop: [agent('Claude Code', 'working')] }, null, 'Agent')
+    expect(working.map((entry) => entry.id)).toEqual(['shop', 'ops', 'docs', 'blog', 'old', 'older'])
+  })
+
   it('takes needs you from a request without a tab, or from an agent waiting there, and names an unnamed agent', () => {
     const fromWorkspace = workspaceSwitcherEntries(source(), {}, { workspaceId: 'docs' }, 'Agent')
     expect(fromWorkspace[0]).toMatchObject({ id: 'docs', status: 'needs-you' })

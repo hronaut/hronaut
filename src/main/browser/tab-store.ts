@@ -55,6 +55,7 @@ export interface PersistedTabGroup {
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
+  pinnedAt?: string
 }
 
 export interface PersistedSavedTabGroup {
@@ -137,6 +138,13 @@ function isPublicObserverPolicy(policy: BrowserWorkspaceNavigationPolicy): boole
 function persistedWorkspaceDescription(value: unknown): string {
   if (typeof value !== 'string') return ''
   try { return normalizeWorkspaceDescription(value) } catch { return '' }
+}
+
+/** When a workspace was pinned, as an ISO time, or undefined when it is not pinned or the value is not a time. */
+function persistedWorkspacePinnedAt(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined
 }
 
 function repairedWorkspaceTimestamp(value: string, currentTime: number): string {
@@ -400,6 +408,9 @@ export class TabStateStore {
         if (candidate.description !== undefined && candidate.description !== description) {
           repairedPersistedState = true
         }
+        // A pin that is not a time is dropped, not repaired to now, which would move the workspace.
+        const pinnedAt = persistedWorkspacePinnedAt(candidate.pinnedAt)
+        if (candidate.pinnedAt !== undefined && candidate.pinnedAt !== pinnedAt) repairedPersistedState = true
         mcpTabGroups.push({
           id: candidate.id,
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
@@ -415,7 +426,8 @@ export class TabStateStore {
           storageId,
           origins,
           navigationPolicy,
-          navigationAudit
+          navigationAudit,
+          ...(pinnedAt ? { pinnedAt } : {})
         })
         if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
