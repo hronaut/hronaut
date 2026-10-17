@@ -420,6 +420,9 @@ export const ukUA = {
       navigation: 'Навігація вкладками', list: 'Вкладки й робочі простори браузера', scrollBack: 'Показати попередні вкладки', scrollForward: 'Показати наступні вкладки', pageAttention: 'Сторінка потребує уваги', agentAttention: 'Агент потребує вашої уваги', needsYou: 'Чекає на вас', followingAgent: 'Відстеження: {name}', stayHere: 'Залишитися тут', stayHereDescription: 'Припинити стеження за агентами й залишитися на цій вкладці', sleeping: 'Приспано для заощадження ресурсів', frozen: 'Сторінку заморожено для перевірки', freezeUnknown: 'Результат зупинки сторінки невідомий', stackedVisible: 'Відображається у вертикально складеному розділеному перегляді', sideVisible: 'Відображається у розділеному перегляді поруч', inputLocked: 'Введення на сторінці заблоковано',
       switchWorkspace: "Змінити простір",
       switchWorkspaceTitle: "Змінити простір (Ctrl/Cmd+K)",
+      allWorkspaces: "Усі простори ({count}) | Усі простори ({count}) | Усі простори ({count})",
+      allWorkspacesTitle: "Показати всі простори (Ctrl/Cmd+K)",
+      unlistedWorkspaceNeedsYou: "На вас чекає простір, якого тут немає",
       createWorkspaceTitle: 'Створити новий ізольований робочий простір', createWorkspace: 'Створити робочий простір', workspace: 'Робочий простір', collapseRail: 'Згортати панель вкладок, коли вона не використовується', keepRailExpanded: 'Залишати панель вкладок розгорнутою', workspacesHeading: 'Робочі простори', locked: 'Введення заблоковано', lock: 'Блокувати введення'
     },
     actions: {
