@@ -13,6 +13,10 @@ defineProps<{
   home: boolean
   /** How far the page column starts from the left, past the tab rail; toasts center over the page column. */
   railWidth?: number
+  /** Tabs run along the top above a toolbar, so toasts sit in the toolbar's row and leave the tabs clickable. */
+  belowTabStrip?: boolean
+  /** The person is typing in the address field, which a toast would cover; toasts step aside until it loses focus. */
+  yielding?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,7 +39,7 @@ const { t } = useI18n({ useScope: 'global' })
     name="app-toast"
     tag="aside"
     class="app-toast-region"
-    :class="{ home }"
+    :class="{ home, 'below-tab-strip': belowTabStrip, yielding }"
     :style="{ '--toast-rail-width': `${railWidth ?? 0}px` }"
     :aria-label="t('panels.notifications')"
   >
@@ -73,7 +77,8 @@ const { t } = useI18n({ useScope: 'global' })
 
 <style scoped>
 .app-toast-region {
-  /* Over the page column's top bar, never over tabs in the rail, which stay clickable while a toast is up. */
+  /* Over the page column's top bar, never over tabs in the rail, which stay clickable while a toast is up. The page
+     itself is a native view the shell cannot draw over, so this bar is the only room. */
   --toast-column: calc(100vw - var(--toast-rail-width, 0px));
 
   position: fixed;
@@ -85,6 +90,10 @@ const { t } = useI18n({ useScope: 'global' })
   transform: translateX(-50%);
   pointer-events: none;
 }
+/* Level with the address field's row (the 44 px tab strip, then the toolbar's top padding), clear of the tabs. */
+.app-toast-region.below-tab-strip { top: 52px; }
+/* Hidden toasts take no clicks and keep their time; a toast still showing comes back when the field loses focus. */
+.app-toast-region.yielding { visibility: hidden; }
 .app-toast {
   display: grid;
   min-height: 36px;

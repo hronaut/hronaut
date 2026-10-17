@@ -413,6 +413,7 @@ const {
 } = browserTabActionsController
 const {
   input: addressInput,
+  focused: addressFocused,
   open: addressSuggestionsOpen,
   close: closeAddressSuggestions,
   handleResize: resizeAddressSuggestions
@@ -777,6 +778,9 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     handleSplitViewError
   }
 })
+// Only website tabs have the toolbar row under tabs along the top; Home and Settings have just the tab strip.
+const toastsBelowTabStrip = computed(() => tabOrientation.value === 'horizontal' && !isDetachedPanelWindow
+  && !activeIsHome.value && !settingsOpen.value && !fullPageConcealed.value)
 const {
   expandTabGroupForTab,
   handleWindowResize,
@@ -1028,5 +1032,5 @@ useAppLifecycleController({
       @reset="resetPanelDockSize"
     />
   </header>
-  <AppToastRegion :toasts="appToasts" :home="activeIsHome" :rail-width="pageRailWidth" @dismiss="dismissAppToast" @retain="retainAppToast" @release="releaseAppToast" @act="actAppToast" />
+  <AppToastRegion :toasts="appToasts" :home="activeIsHome" :rail-width="pageRailWidth" :below-tab-strip="toastsBelowTabStrip" :yielding="addressFocused" @dismiss="dismissAppToast" @retain="retainAppToast" @release="releaseAppToast" @act="actAppToast" />
 </template>
