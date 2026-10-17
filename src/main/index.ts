@@ -92,8 +92,7 @@ import { UndoOffers } from './undo-offers.js'
 import { isUndoToken } from '../shared/undo.js'
 import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
-import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
-import { readCredentialImportFile } from './credential-import-file.js'
+import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
 import {
@@ -173,7 +172,6 @@ import {
   type BrowsingDataSummary,
   type BrowsingDataWebsiteSummary,
   type CredentialStorageStatus,
-  type CredentialImportResult,
   type CommercialLicenseState,
   type DetachablePanelId,
   type HelpMenuAction,
@@ -1015,80 +1013,6 @@ async function handleCredentialCandidate(candidate: BrowserCredentialCandidate):
   if (response !== 1) return
   await credentialStore.save(candidate.origin, candidate.username, candidate.password)
   publishCredentials()
-}
-
-function credentialImportErrorMessage(error: unknown): string {
-  if (!(error instanceof CredentialImportError)) return text('native.errors.passwordImportInvalid')
-  const keys = {
-    invalid_csv: 'native.errors.passwordImportInvalid',
-    missing_columns: 'native.errors.passwordImportColumns',
-    too_many_rows: 'native.errors.passwordImportRows',
-    no_credentials: 'native.errors.passwordImportEmpty'
-  } as const
-  return text(keys[error.code])
-}
-
-async function importCredentialsFromCsv(): Promise<CredentialImportResult> {
-  const canceled: CredentialImportResult = { canceled: true, added: 0, updated: 0, skipped: 0 }
-  if (!credentialStorageStatus.available || !credentialStore) {
-    throw new Error(credentialStorageStatus.reason || text('native.errors.secureStorage'))
-  }
-  if (!mainWindow || mainWindow.isDestroyed()) throw new Error(text('native.errors.actionFailed'))
-  const selection = await dialog.showOpenDialog(mainWindow, {
-    title: text('native.dialog.importPasswordsFile'),
-    buttonLabel: text('native.dialog.choosePasswordFile'),
-    filters: [{ name: 'CSV', extensions: ['csv'] }],
-    properties: ['openFile', 'dontAddToRecent']
-  })
-  const path = selection.filePaths[0]
-  if (selection.canceled || !path) return canceled
-
-  let source: string
-  try {
-    source = await readCredentialImportFile(path)
-  } catch (error) {
-    if (error instanceof Error && error.message === 'too-large') {
-      throw new Error(text('native.errors.passwordImportTooLarge'))
-    }
-    throw new Error(text('native.errors.passwordImportRead'))
-  }
-
-  let parsed
-  try {
-    parsed = parseCredentialImportCsv(source)
-  } catch (error) {
-    throw new Error(credentialImportErrorMessage(error))
-  }
-  const current = new Set(credentialStore.list().map((entry) => `${entry.origin}\u0000${entry.username}`))
-  const unique = new Set(parsed.credentials.map((entry) => `${entry.origin}\u0000${entry.username}`))
-  const updated = [...unique].filter((identity) => current.has(identity)).length
-  const added = unique.size - updated
-  const skipped = parsed.skippedRows + parsed.credentials.length - unique.size
-  const confirmation = await dialog.showMessageBox(mainWindow, {
-    type: 'warning',
-    title: text('native.dialog.importPasswordsTitle'),
-    message: text('native.dialog.importPasswordsMessage', { count: unique.size }),
-    detail: text('native.dialog.importPasswordsDetail', {
-      added,
-      updated,
-      skipped,
-      backend: credentialStorageStatus.backend || text('common.system')
-    }),
-    buttons: [text('native.dialog.cancel'), text('native.dialog.importPasswords')],
-    defaultId: 1,
-    cancelId: 0,
-    noLink: true
-  })
-  if (confirmation.response !== 1) return canceled
-
-  const result = await credentialStore.importMany(parsed.credentials)
-  publishCredentials()
-  return {
-    canceled: false,
-    added: result.added,
-    updated: result.updated,
-    skipped: parsed.skippedRows + result.duplicateRows
-  }
 }
 
 async function configureCredentialStore(): Promise<void> {
@@ -3785,50 +3709,21 @@ function registerIpc(): void {
     await sitePermissionStore!.clear()
     publishSitePermissions()
   })
-  ipcMain.handle('credentials:status', (event) => {
-    assertTrustedShellSender(event)
-    return { ...credentialStorageStatus }
-  })
-  ipcMain.handle('credentials:list', (event) => {
-    assertTrustedShellSender(event)
-    return credentialStore?.list() ?? []
-  })
-  ipcMain.handle('credentials:import-csv', async (event) => {
-    assertTrustedShellSender(event)
-    return importCredentialsFromCsv()
-  })
-  handleBrowserIpc('credentials:fill', async (event, tabId: unknown, credentialId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    if (typeof credentialId !== 'string') throw new TypeError('Invalid credential ID')
-    const activeCredentialStore = credentialStore
-    const activeTabsManager = tabsManager
-    if (!credentialStorageStatus.available || !activeCredentialStore || !activeTabsManager) return false
-    const context = activeTabsManager.credentialContext(tabId)
-    if (!context) return false
-    const selected = activeCredentialStore.list().find((credential) => credential.id === credentialId && credential.origin === context.origin)
-    if (!selected) return false
-    return fillCredentialWhileMcpPaused({
-      pausePersistently: () => { setMcpPaused(true) },
-      acquireTemporaryPause: acquireTemporaryMcpPause,
-      getActiveRequestCount: () => mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
-      fill: async () => {
-        const password = await activeCredentialStore.password(selected.id)
-        return activeTabsManager.fillCredential(tabId, context, selected.username, password)
-      }
-    })
-  })
-  ipcMain.handle('credentials:remove', async (event, id: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string') throw new TypeError('Invalid credential ID')
-    const removed = await credentialStore?.remove(id) ?? false
-    if (removed) publishCredentials()
-    return removed
-  })
-  ipcMain.handle('credentials:clear', async (event) => {
-    assertTrustedShellSender(event)
-    await credentialStore?.clear()
-    publishCredentials()
+  registerCredentialsIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    credentialStorageStatus: () => credentialStorageStatus,
+    credentialStore: () => credentialStore,
+    publishCredentials,
+    tabs: () => tabsManager,
+    mainWindow: () => mainWindow,
+    showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
+    showWindowMessageBox: (window, options) => dialog.showMessageBox(window, options),
+    text,
+    setMcpPaused,
+    acquireTemporaryMcpPause,
+    mcpServer: () => mcpServer,
+    mcpActionTracker: () => mcpActionTracker
   })
   ipcMain.handle('license:get-state', (event) => {
     assertTrustedShellSender(event)
