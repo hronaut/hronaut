@@ -1,17 +1,15 @@
 import { resolve } from 'node:path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import Icons from 'unplugin-icons/vite'
 
 export default defineConfig({
-  main: {
-    plugins: [externalizeDepsPlugin()]
-  },
+  // electron-vite keeps main and preload dependencies external by default (build.externalizeDeps).
+  main: {},
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         input: {
           index: resolve('src/preload/index.ts'),
           page: resolve('src/preload/page.ts'),
@@ -36,7 +34,7 @@ export default defineConfig({
     plugins: [tailwindcss(), vue(), Icons({ compiler: 'vue3' })],
     build: {
       manifest: true,
-      rollupOptions: {
+      rolldownOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
           videoExport: resolve('src/renderer/video-export.html'),
