@@ -99,6 +99,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
       mcp: {
         getState: vi.fn(async (): Promise<McpControlState> => ({ status: 'ready', paused: false })),
         setPaused: vi.fn(),
+        moveToSuggestedPort: vi.fn(),
         onChanged: vi.fn(() => mcpUnsubscribe)
       },
       permissions: {

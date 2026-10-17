@@ -1,6 +1,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type {
   AppSettings,
+  McpPortMoveResult,
   McpCapabilityCredentialResult,
   McpCapabilityProfileCreateInput,
   McpCapabilityProfileSummary
@@ -20,6 +21,12 @@ export interface McpSettingsControllerOptions {
   settings: Readonly<Ref<AppSettings>>
   endpoint: Readonly<Ref<string>>
   listenerFailed: Readonly<Ref<boolean>>
+  /** A free port main found after the configured one was busy or refused; absent otherwise. */
+  suggestedPort?: Readonly<Ref<number | undefined>>
+  /** Why the listener could not use its port, in plain words; empty when it can or failed otherwise. */
+  listenerProblem?: Readonly<Ref<string>>
+  /** Moves the listener to `suggestedPort` through main, which re-checks the port and offers the next one if needed. */
+  moveToSuggestedPort?: () => Promise<McpPortMoveResult | null>
   setRemoteAccess: (enabled: boolean) => Promise<AppSettings>
   setAuthentication: (enabled: boolean) => Promise<AppSettings>
   setChallengeDetectionEnabled: (enabled: boolean) => Promise<AppSettings>
@@ -191,6 +198,38 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     operation.value = 'port'
     try {
       return await movePort(requestedPort, operationGeneration, startingDraftRevision)
+    } finally {
+      if (operationGeneration === generation) operation.value = 'idle'
+    }
+  }
+
+  /** Moves the listener to the free port main offered; a port taken meanwhile is said so, and main offers the next one. */
+  async function applySuggestedPort(): Promise<boolean> {
+    const port = options.suggestedPort?.value
+    if (busy.value || !port || !options.listenerFailed.value || !options.moveToSuggestedPort) return false
+    const operationGeneration = generation
+    const startingDraftRevision = draftRevision
+    operation.value = 'port'
+    portState.value = 'saving'
+    portMessage.value = options.translate('runtimeActions.mcp.moving', { port })
+    try {
+      const result = await options.moveToSuggestedPort()
+      if (operationGeneration !== generation) return false
+      if (result?.outcome === 'moved') {
+        // A port the person typed meanwhile stays in the field.
+        if (draftRevision === startingDraftRevision) {
+          portDraft.value = String(result.port)
+          dirtyPortDraft = false
+        }
+        portState.value = 'saved'
+        portMessage.value = options.translate('runtimeActions.mcp.active', { port: result.port })
+        return true
+      }
+      portState.value = result?.outcome === 'taken' || result?.outcome === 'failed' ? 'error' : 'idle'
+      portMessage.value = result?.outcome === 'taken' ? options.translate('runtime.mcp.portTaken', { port: result.port })
+        : result?.outcome === 'failed' ? options.translate('runtime.mcp.portMoveFailed', { port: result.port })
+          : ''
+      return false
     } finally {
       if (operationGeneration === generation) operation.value = 'idle'
     }
@@ -373,6 +412,9 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     setChallengeDetectionEnabled,
     setToolSet,
     applyPort,
+    applySuggestedPort,
+    suggestedPort: computed(() => options.suggestedPort?.value),
+    listenerProblem: computed(() => options.listenerProblem?.value ?? ''),
     capabilityProfiles,
     capabilityCredential,
     capabilityError,

@@ -25,6 +25,7 @@ function createController(getState: () => Promise<McpControlState> = async () =>
   const api: HronautMcpApi = {
     getState: vi.fn(getState),
     setPaused,
+    moveToSuggestedPort: vi.fn(async (port: number) => ({ result: { outcome: 'moved' as const, port }, state: control({ status: 'ready', paused: false }) })),
     onChanged: vi.fn((next: (state: McpControlState) => void) => {
       listener = next
       return unsubscribe
@@ -67,6 +68,7 @@ describe('MCP status controller', () => {
     const api: HronautMcpApi = {
       getState: vi.fn(async () => control({ status: 'starting' })),
       setPaused: vi.fn(async (paused: boolean) => control({ status: paused ? 'paused' : 'ready', paused })),
+      moveToSuggestedPort: vi.fn(async (port: number) => ({ result: { outcome: 'moved' as const, port }, state: control() })),
       onChanged: vi.fn((next: (state: McpControlState) => void) => {
         next(control())
         return () => undefined

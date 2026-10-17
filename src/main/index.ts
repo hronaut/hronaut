@@ -101,6 +101,7 @@ import { ClaudeCodeSetup, claudeCodeConfigPath } from './claude-code-setup.js'
 import { detectAgentClients } from './agent-client-detection.js'
 import type { HomeSetupState } from '../shared/claude-code-setup.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
+import { McpPortRecovery } from './mcp-port-suggestion.js'
 import {
   shouldStartMinimized,
   StartupLaunchManager
@@ -179,6 +180,8 @@ import {
   type HelpMenuAction,
   type LanguagePreference,
   type McpControlState,
+  type McpPortMoveResponse,
+  type McpPortMoveResult,
   type McpServerStatus,
   type McpCapabilityProfileCreateInput,
   type PanelDock,
@@ -340,6 +343,13 @@ const mcpActionTracker = new McpActionTracker(() => {
 })
 let mcpRuntimeStatus: Exclude<McpServerStatus, 'paused'> = 'starting'
 let mcpStartupError: string | undefined
+/** Why the listener could not start on its port, and the free port to offer instead; cleared once it listens. */
+const mcpPortRecovery = new McpPortRecovery({
+  host: () => MCP_HOST,
+  failed: () => mcpRuntimeStatus === 'error',
+  listen: (port) => setMcpPort(port),
+  changed: () => publishMcpControlState({ refreshHome: false })
+})
 let tray: Tray | null = null
 let quitting = false
 let windowStateStore: WindowStateStore | null = null
@@ -755,7 +765,48 @@ function currentMcpControlState(): McpControlState {
       probe: probe ? (probe.outcome === 'verified' ? 'probe_verified' : 'probe_failed')
         : initialized.length ? 'unknown' : 'blocked'
     },
-    ...(mcpStartupError ? { error: mcpStartupError } : {})
+    ...(mcpStartupError ? { error: mcpStartupError } : {}),
+    ...(mcpRuntimeStatus === 'error' && mcpPortRecovery.failure ? {
+      errorCode: mcpPortRecovery.failure.code,
+      failedPort: mcpPortRecovery.failure.port,
+      ...(mcpPortRecovery.failure.suggestedPort ? { suggestedPort: mcpPortRecovery.failure.suggestedPort } : {})
+    } : {})
+  }
+}
+
+/**
+ * The startup dialog for a listener that could not start. A busy or refused port offers the free one; if that was taken
+ * meanwhile, the dialog comes back with the next offer. It closes itself once the listener starts from Home or Settings.
+ */
+async function showMcpStartupFailure(): Promise<void> {
+  for (let attempt = 0; attempt < 3 && mcpRuntimeStatus === 'error'; attempt++) {
+    const failure = mcpPortRecovery.failure
+    const problem = failure && failure.code !== 'other' ? failure : undefined
+    const signal = mcpPortRecovery.signal
+    const { response } = await showMessageBox({
+      type: 'error',
+      title: text('native.dialog.mcpFailedTitle'),
+      message: problem
+        ? text(problem.code === 'port-in-use' ? 'native.dialog.mcpPortInUseMessage' : 'native.dialog.mcpPortDeniedMessage', { port: problem.port })
+        : text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: mcpPort }),
+      detail: problem
+        ? (problem.suggestedPort ? text('native.dialog.mcpPortSuggestion', { port: problem.suggestedPort }) : text('native.dialog.mcpPortNoneFree'))
+        : mcpStartupError,
+      signal,
+      ...(problem?.suggestedPort ? {
+        buttons: [text('native.dialog.notNow'), text('native.dialog.mcpUsePort', { port: problem.suggestedPort })],
+        defaultId: 1,
+        cancelId: 0,
+        noLink: true
+      } : {})
+    })
+    // A port the person changed meanwhile, from Home or Settings, wins over this older answer.
+    if (signal.aborted || response !== 1 || !problem?.suggestedPort || mcpPortRecovery.failure !== failure) return
+    const result = await mcpPortRecovery.move(problem.suggestedPort)
+    if (result.outcome === 'failed') {
+      await showMessageBox({ type: 'error', title: text('native.dialog.mcpFailedTitle'), message: text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: result.port }) })
+    }
+    if (result.outcome !== 'taken') return
   }
 }
 
@@ -1397,6 +1448,11 @@ function homeAgentData(): Required<Pick<HomeDashboard, 'agents' | 'workspaceActi
   }
 }
 
+function mcpPortFailureForHome(): Pick<HomeDashboard, 'errorCode' | 'failedPort' | 'suggestedPort'> {
+  const { errorCode, failedPort, suggestedPort } = currentMcpControlState()
+  return { ...(errorCode ? { errorCode } : {}), ...(failedPort ? { failedPort } : {}), ...(suggestedPort ? { suggestedPort } : {}) }
+}
+
 function homeDashboardState(): HomeDashboard {
   const serverState = mcpServer?.getDashboardState()
   const tools = mcpToolCatalogForSet(settings.mcpToolSet)
@@ -1432,7 +1488,8 @@ function homeDashboardState(): HomeDashboard {
     theme: resolvedTheme(settings.theme),
     status,
     ...homeAgentData(),
-    ...(mcpStartupError ? { error: mcpStartupError } : {})
+    ...(mcpStartupError ? { error: mcpStartupError } : {}),
+    ...mcpPortFailureForHome()
   }
   return {
     ...state,
@@ -2673,6 +2730,11 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return currentMcpControlState()
   })
+  handleBrowserIpc('mcp:move-to-suggested-port', async (event, port: unknown): Promise<McpPortMoveResponse> => {
+    assertTrustedShellSender(event)
+    const result = await mcpPortRecovery.move(port)
+    return { result, state: currentMcpControlState() }
+  })
   handleBrowserIpc('mcp:set-paused', (event, paused: unknown) => {
     assertTrustedShellSender(event)
     if (typeof paused !== 'boolean') throw new TypeError('MCP paused state must be a boolean')
@@ -2807,6 +2869,10 @@ function registerIpc(): void {
     'hronaut-home:open-agent-guide',
     agentGuideHandler(assertHomePageSender, (url) => shell.openExternal(url))
   )
+  handleBrowserIpc('hronaut-home:use-mcp-port', async (event, port: unknown): Promise<McpPortMoveResult> => {
+    assertHomeMainFrame(event)
+    return mcpPortRecovery.move(port)
+  })
   handleBrowserIpc('hronaut-home:setup-state', async (event): Promise<HomeSetupState> => {
     assertHomeMainFrame(event)
     const setup = claudeCodeSetupService()
@@ -4860,7 +4926,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
     await candidate.start()
   } catch (error) {
     await candidate.stop().catch(() => undefined)
-    throw new Error(`Could not listen on ${MCP_HOST}:${port}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`Could not listen on ${MCP_HOST}:${port}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
   }
 
   try {
@@ -4881,6 +4947,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
   mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${port}/mcp`
   mcpRuntimeStatus = 'ready'
   mcpStartupError = undefined
+  mcpPortRecovery.clear()
   tabsManager?.setMcpUrl(mcpUrl)
   publishSettings()
   publishMcpControlState()
@@ -4946,6 +5013,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${DEFAULT_MCP_PORT}/mcp`
   mcpRuntimeStatus = 'ready'
   mcpStartupError = undefined
+  mcpPortRecovery.clear()
   tabsManager?.setMcpUrl(mcpUrl)
   publishSettings()
   publishMcpControlState()
@@ -5049,6 +5117,7 @@ app.whenReady().then(async () => {
     const url = await mcpServer.start()
     mcpRuntimeStatus = 'ready'
     mcpStartupError = undefined
+    mcpPortRecovery.clear()
     // Listener status is polled by Home; startup changes no bootstrap settings.
     // Reloading here races module initialization and discards early setup input.
     publishMcpControlState({ refreshHome: false })
@@ -5056,14 +5125,10 @@ app.whenReady().then(async () => {
   } catch (error) {
     mcpRuntimeStatus = 'error'
     mcpStartupError = error instanceof Error ? error.message : String(error)
+    await mcpPortRecovery.record(error, mcpPort)
     publishMcpControlState({ refreshHome: false })
     console.error('[mcp] Failed to start:', error)
-    await showMessageBox({
-      type: 'error',
-      title: text('native.dialog.mcpFailedTitle'),
-      message: text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: mcpPort }),
-      detail: mcpStartupError
-    })
+    await showMcpStartupFailure()
   }
   if (settings.checkForUpdatesOnStartup) {
     setTimeout(() => void checkForUpdates(), 5_000)

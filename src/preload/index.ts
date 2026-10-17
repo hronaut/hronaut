@@ -353,6 +353,7 @@ contextBridge.exposeInMainWorld('hronautBrowsingData', browsingDataApi)
 const mcpApi: HronautMcpApi = {
   getState: () => ipcRenderer.invoke('mcp:get-state'),
   setPaused: (paused: boolean) => ipcRenderer.invoke('mcp:set-paused', paused),
+  moveToSuggestedPort: (port: number) => ipcRenderer.invoke('mcp:move-to-suggested-port', port),
   onChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, state: McpControlState): void => listener(state)
     ipcRenderer.on('mcp:changed', handler)

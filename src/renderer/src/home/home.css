@@ -332,6 +332,14 @@ button[data-open-view=workspaces] { background: var(--panel); color: var(--text)
 .onboarding [data-complete=true] { color: var(--success); }
 .onboarding button { border: 0; border-radius: var(--corner-2); padding: 12px 18px; }
 #copy-status { min-height: 1.5em; color: var(--danger); }
+/* A port another app holds: what happened and the free port to use instead. */
+.port-problem { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 18px; padding: 14px 18px; border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); background: color-mix(in srgb, var(--danger) 7%, var(--panel)); }
+.port-problem[hidden] { display: none; }
+.port-problem p { flex: 1 1 320px; color: var(--text); line-height: 1.5; }
+.port-problem-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.port-problem button { min-height: 32px; padding: 7px 14px; border: 0; border-radius: var(--corner-2); color: var(--button-text); background: var(--accent); font-weight: 600; }
+.port-problem-status { color: var(--danger); font-size: var(--type-small-size); }
+.port-problem-status:empty { display: none; }
 /* "Set up Claude Code": the exact change, then a native confirmation from Hronaut itself. */
 .claude-setup { margin-top: 16px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--corner-2); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
 .claude-setup-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }

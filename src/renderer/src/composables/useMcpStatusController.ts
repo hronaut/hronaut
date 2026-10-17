@@ -1,6 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { CopyTextWithFeedback } from './useShellFeedbackController.js'
-import type { HronautMcpApi, McpControlState } from '../../../shared/types.js'
+import type { HronautMcpApi, McpControlState, McpPortMoveResult } from '../../../shared/types.js'
 
 export interface McpStatusControllerOptions {
   api: HronautMcpApi
@@ -15,6 +15,9 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   const copied = ref(false)
   const refreshFailed = ref(false)
   const pauseBusy = ref(false)
+  const portBusy = ref(false)
+  /** The last move to the offered port that did not happen: the port was taken meanwhile, or the move failed. */
+  const portFailed = ref<{ outcome: 'taken' | 'failed'; port: number } | null>(null)
   let generation = 0
   let listenerGeneration = 0
   let revision = 0
@@ -148,6 +151,29 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     }
   }
 
+  /** Moves the listener to the free port main suggested after the configured one failed; null when nothing was tried. */
+  async function moveToSuggestedPort(): Promise<McpPortMoveResult | null> {
+    const port = state.value.suggestedPort
+    if (portBusy.value || state.value.status !== 'error' || !port) return null
+    const operationGeneration = generation
+    const startingRevision = revision
+    portBusy.value = true
+    portFailed.value = null
+    try {
+      const { result, state: next } = await options.api.moveToSuggestedPort(port)
+      if (operationGeneration !== generation) return null
+      if (revision === startingRevision) accept(next)
+      if (result.outcome === 'taken' || result.outcome === 'failed') portFailed.value = { outcome: result.outcome, port: result.port }
+      return result
+    } catch {
+      if (operationGeneration !== generation) return null
+      portFailed.value = { outcome: 'failed', port }
+      return { outcome: 'failed', port }
+    } finally {
+      if (operationGeneration === generation) portBusy.value = false
+    }
+  }
+
   const stopEndpointTracking = watch(options.endpoint, () => {
     copySequence += 1
     clearCopiedFeedback()
@@ -161,6 +187,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     copySequence += 1
     initializePromise = null
     pauseBusy.value = false
+    portBusy.value = false
     clearCopiedFeedback()
     detachListener()
   }
@@ -171,6 +198,8 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     copied,
     refreshFailed,
     pauseBusy,
+    portBusy,
+    portFailed,
     canTogglePaused,
     initialize,
     refresh,
@@ -178,6 +207,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     accept,
     copyEndpoint,
     togglePaused,
+    moveToSuggestedPort,
     dispose
   }
 }
