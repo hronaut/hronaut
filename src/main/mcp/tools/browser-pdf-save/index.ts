@@ -1,10 +1,27 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
+import type { PendingPdfExport } from '../../../browser/pdf-export-publication.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+
+// Holds the written PDF until the call settles: it is published only if the call still has its authority then.
+function pdfExportSettlement() {
+  let pending: PendingPdfExport | undefined
+  return {
+    retain: (exported: PendingPdfExport): void => { pending = exported },
+    publish: (result: CallToolResult): CallToolResult | undefined => {
+      if (result.isError) return undefined
+      if (!pending) throw new Error('PDF export publication guard is unavailable')
+      pending.assertCurrent()
+      return result // No await after the final cancellation/context/authority check.
+    },
+    dispose: (): void => { pending?.discard() }
+  }
+}
 
 export function registerBrowserPdfSave(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_pdf_save',
     {
@@ -27,12 +44,13 @@ export function registerBrowserPdfSave(context: McpToolContext): void {
       pageSize?: 'A4' | 'Letter' | 'Legal'
       outline?: boolean
       preferCSSPageSize?: boolean
-    }, call) => {
+    }, call: WorkspaceToolCall<ReturnType<typeof pdfExportSettlement>>) => {
       const validateExport = (): void => {
         if (call.signal?.aborted) throw new Error('PDF export cancelled')
         call.requireCurrentTarget()
       }
-      return textResult(await manager.savePdf(options, validateExport, pending => { frameRequests.getStore()!.pdfExport = pending }))
-    })
+      return textResult(await manager.savePdf(options, validateExport, pending => { call.settlement.retain(pending) }))
+    }),
+    { settlement: pdfExportSettlement }
   )
 }

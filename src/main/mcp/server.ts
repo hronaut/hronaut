@@ -187,7 +187,7 @@ import { registerWalletRequest } from './tools/wallet-request/index.js'
 import { registerWalletRequestStatus } from './tools/wallet-request-status/index.js'
 import { registerWalletPageRequests } from './tools/wallet-page-requests/index.js'
 import { registerWalletCancelRequest } from './tools/wallet-cancel-request/index.js'
-import type { McpFrameRequest, McpToolContext, ResolvedTargetWakePolicy, WorkspaceToolCall, WorkspaceToolHandler } from './tools/tool-context.js'
+import type { McpFrameRequest, McpToolContext, ResolvedTargetWakePolicy, ToolCallSettlement, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 export { assertMcpCapabilityClassificationContract, mcpCapabilityAction, mcpCapabilityOperationClass, READ_ONLY_MULTI_ACTIONS } from './capability-classification.js'
 export { classifyMcpActivityResult, closedTabWaitResult } from './tool-results.js'
 export { auditEvidenceExpiredReason } from './tools/browser-audit-receipts/index.js'
@@ -698,15 +698,15 @@ function createBrowserMcpServer(
       return errorResult(error)
     }
   }
-  const withResolvedTargetWakePolicy = <T>(
-    handler: (input: T, call: WorkspaceToolCall) => Promise<CallToolResult>,
+  const withResolvedTargetWakePolicy = <T, S = undefined>(
+    handler: (input: T, call: WorkspaceToolCall<S>) => Promise<CallToolResult>,
     resolvedTargetWakePolicy: ResolvedTargetWakePolicy
-  ): WorkspaceToolHandler<T> => Object.assign(handler, { resolvedTargetWakePolicy })
-  const tabTool = <T>(
+  ): WorkspaceToolHandler<T, S> => Object.assign(handler, { resolvedTargetWakePolicy })
+  const tabTool = <T, S = undefined>(
     toolName: string,
-    handler: (input: T, call: WorkspaceToolCall) => Promise<CallToolResult> | CallToolResult,
+    handler: (input: T, call: WorkspaceToolCall<S>) => Promise<CallToolResult> | CallToolResult,
     resolvedTargetWakePolicy: ResolvedTargetWakePolicy = 'before-handler'
-  ): WorkspaceToolHandler<T> => Object.assign(tool(handler), {
+  ): WorkspaceToolHandler<T, S> => Object.assign(tool(handler), {
     resolvedTargetWakePolicy,
     tabActivityToolName: toolName
   })
@@ -867,7 +867,13 @@ function createBrowserMcpServer(
       finish(failed)
     }
   }
-  const registerTool = ((name: string, config: unknown, handler: unknown) => {
+  // A tool's settlement, when it has one, is created per call before admission (see ToolCallSettlement).
+  const registerToolWithSettlement = (
+    name: string,
+    config: unknown,
+    handler: unknown,
+    settlementFor?: (input: Record<string, unknown>) => ToolCallSettlement | undefined
+  ): ReturnType<typeof baseRegisterTool> => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
     const registered = baseRegisterTool(name, {
@@ -880,6 +886,8 @@ function createBrowserMcpServer(
       const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
       const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
       const frameRequest = frameRequests.getStore()!
+      const settlement = settlementFor?.(input)
+      frameRequest.settlement = settlement
       if (name === 'browser_new_tab' && input.label !== undefined) frameRequest.labeledCreation = { attempted: false }
       if (name === 'browser_evaluate_file') frameRequest.fileEvaluation = { submitted: false, acknowledged: false }
       if (name === 'browser_storage' && input.kind === 'cookies' && ['set', 'delete', 'clear'].includes(String(input.action))) {
@@ -1128,6 +1136,9 @@ function createBrowserMcpServer(
           if (frameRequest.keyHoldProgress) return nativeKeyHoldNotDispatchedResult({ ...textResult(outcome), structuredContent: outcome, isError: true })
           return settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true })))))
         }
+        const published = settlement?.publish?.(result)
+        if (published instanceof Promise) return await published
+        if (published) return published // No await after the tool's final publication check.
         if (isFrameObservation && frameRequest.pending && !result.isError) {
           await frameRequest.pending.finish()
           const settled = frameObservationResult(frameRequest.pending.snapshot)
@@ -1144,25 +1155,6 @@ function createBrowserMcpServer(
           inspection.assertCurrent()
           return settleImageState(result) // No await between final authority check and publication.
         }
-        if (name === 'browser_video' && input.action === 'inspect' && frameRequest.videoInspection && !result.isError) {
-          // No await after this check: capability/human/audit settlement must precede pixel publication.
-          const inspection = frameRequest.videoInspection
-          inspection.assertCurrent()
-          return { content: [
-            { type: 'text', text: JSON.stringify(inspection.report) },
-            ...(inspection.image ? [{ type: 'image' as const, data: Buffer.from(inspection.image).toString('base64'), mimeType: 'image/png' as const }] : [])
-          ] }
-        }
-        if (name === 'browser_tabs' && input.search !== undefined && !result.isError) {
-          if (!frameRequest.tabDiscoveryPublication) throw new Error('Tab discovery publication guard is unavailable')
-          frameRequest.tabDiscoveryPublication()
-          return result // No await after final workspace/control/capability checks.
-        }
-        if (name === 'browser_network_request' && !result.isError) {
-          if (!frameRequest.networkPublication) throw new Error('Network detail publication guard is unavailable')
-          frameRequest.networkPublication()
-          return result // No await after validating the retained request and its authority.
-        }
         if (name === 'browser_emulate') {
           if (!result.isError) {
             if (!frameRequest.conditionPublication) throw new Error('Emulation publication guard is unavailable')
@@ -1173,12 +1165,6 @@ function createBrowserMcpServer(
         if (name === 'browser_network_routes' && frameRequest.conditionPublication) {
           frameRequest.conditionPublication()
           return settleConditions(result) // Publication checks never rewrite main-owned native health.
-        }
-        if (name === 'browser_pdf_save' && !result.isError) {
-          const publication = frameRequest.pdfExport
-          if (!publication) throw new Error('PDF export publication guard is unavailable')
-          publication.assertCurrent()
-          return result // No await after the final cancellation/context/authority check.
         }
         if (frameRequest.clickProgress) return settleClick(result)
         if (name === 'browser_hold_key' && frameRequest.keyHoldProgress && !frameRequest.keyHoldProgress.downAttempted && result.isError) return nativeKeyHoldNotDispatchedResult(result, frameRequest.keyHoldPolicy)
@@ -1267,8 +1253,7 @@ function createBrowserMcpServer(
         frameRequest.selectionAuthority?.dispose()
         frameRequest.elementInspection?.discard()
         frameRequest.pending?.discard()
-        frameRequest.videoInspection?.discard()
-        frameRequest.pdfExport?.discard()
+        settlement?.dispose?.()
         if (frameRequest.fileEvaluationCompletion && finishWorkspaceMutation) {
           // Cancellation returns a bounded response but cannot release the writer
           // while queued/submitted native evaluation and its cleanup remain owned.
@@ -1279,7 +1264,8 @@ function createBrowserMcpServer(
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
     return registered
-  }) as typeof baseRegisterTool
+  }
+  const registerTool = ((name: string, config: unknown, handler: unknown) => registerToolWithSettlement(name, config, handler)) as typeof baseRegisterTool
   const activeWorkspaceIds = new Set<string>()
   const savedWorkspaceIds = new Set<string>()
   const workspaceAuthorizationError = (): Error => new Error(
@@ -1400,10 +1386,10 @@ function createBrowserMcpServer(
       } : {})
     }
   }
-  const registerWorkspaceTool = <T extends object>(name: string, config: {
+  const registerWorkspaceTool = <T extends object, S extends ToolCallSettlement | undefined = undefined>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
-  }, handler: WorkspaceToolHandler<T>): void => {
+  }, handler: WorkspaceToolHandler<T, S>, options: WorkspaceToolOptions<S> = {}): void => {
     const inputSchema: Record<string, z.ZodType> = {
       workspaceId: workspaceIdSchema.describe('Stable UUIDv7 id returned by your own browser_workspaces create call or by reopening your own archive. After reconnecting, resume that workspace with its private resume key before using page tools.'),
       reviewId: z.uuid().optional().describe('Approved consequential-review ID. Supply it together with reviewRevision only for the exact proposed action.'),
@@ -1416,7 +1402,7 @@ function createBrowserMcpServer(
       : name === 'browser_hold_key' ? z.object(inputSchema).strict()
         : name === 'browser_click' ? browserClickSchema(inputSchema) : z.object(inputSchema)
     workspaceToolInputSchemas.set(name, schema)
-    registerTool(
+    registerToolWithSettlement(
       name,
       {
         ...config,
@@ -1444,7 +1430,7 @@ function createBrowserMcpServer(
         const hasReviewedBinding = typeof input.reviewId === 'string'
         if (hasReviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
         const actionInput = reviewedActionArguments(input, name)
-        const readOnly = toolDefinition(name).annotations.readOnlyHint || (name === 'browser_video' && actionInput.action === 'inspect')
+        const readOnly = toolDefinition(name).annotations.readOnlyHint || options.readOnly?.(actionInput) === true
         const continuityInspection = continuityInspectionTools.has(name)
           || (name === 'browser_webmcp' && actionInput.action !== 'call')
         requireActiveCapabilityDispatch(name, actionInput)
@@ -1578,12 +1564,6 @@ function createBrowserMcpServer(
             requireObservationWorkspace()
           }
         }
-        if (name === 'browser_tabs' && input.search !== undefined) {
-          frameRequests.getStore()!.tabDiscoveryPublication = () => {
-            if (extra?.signal?.aborted) throw new Error('Tab discovery cancelled')
-            requireCurrentTarget()
-          }
-        }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
         let activityStarted = false
@@ -1688,6 +1668,25 @@ function createBrowserMcpServer(
         const validateLifecycleResult = (): void => {
           if (lifecycleOrigin !== undefined) validateLifecycle(lifecycleOrigin)
         }
+        // What a tool may re-check while it runs. Each tool builds its own hooks from these.
+        const call: WorkspaceToolCall<S> = {
+          input: actionInput,
+          workspaceId,
+          tabId: resolvedTabId,
+          signal: extra?.signal,
+          controlRevision,
+          writeLeaseGeneration: writeLease?.generation,
+          requireCurrentTarget,
+          requirePostWriteContext,
+          requireCurrentControl,
+          requireCurrentHumanInput,
+          authorityRejection,
+          rememberInputPolicy,
+          setInvalidatedOutcome: outcome => { invalidatedOutcome = outcome },
+          validateLifecycle,
+          settlement: frameRequests.getStore()!.settlement as S
+        }
+        call.settlement?.prepare?.(call)
         const operation = async (): Promise<CallToolResult> => {
           const admissionRejection = authorityRejection()
           if (admissionRejection) return admissionRejection
@@ -1780,23 +1779,6 @@ function createBrowserMcpServer(
             }
             if (name === 'browser_hold_key') frameRequests.getStore()!.keyHoldProgress = { downAttempted: false, downAcknowledged: false, releaseStarted: false, releaseAttempted: false, releaseAcknowledged: false }
             activityDispatched = true
-            // What a tool may re-check while it runs. Each tool builds its own hooks from these.
-            const call: WorkspaceToolCall = {
-              input: actionInput,
-              workspaceId,
-              tabId: resolvedTabId,
-              signal: extra?.signal,
-              controlRevision,
-              writeLeaseGeneration: writeLease?.generation,
-              requireCurrentTarget,
-              requirePostWriteContext,
-              requireCurrentControl,
-              requireCurrentHumanInput,
-              authorityRejection,
-              rememberInputPolicy,
-              setInvalidatedOutcome: outcome => { invalidatedOutcome = outcome },
-              validateLifecycle
-            }
             const result = toolsWithoutWorkspaceTabTarget.has(name)
               ? await handler(actionInput as unknown as T, call)
               : await handler({ ...actionInput, tabId: resolvedTabId } as unknown as T, call)
@@ -2079,7 +2061,8 @@ function createBrowserMcpServer(
         if (name === 'browser_click') finalResult = withCurrentOpenedTabs(finalResult, tabId => manager.tabBelongsToMcpGroup(workspaceId, tabId))
         finishActivity(finalResult, false)
         return finalResult
-      })
+      }),
+      options.settlement
     )
   }
 
