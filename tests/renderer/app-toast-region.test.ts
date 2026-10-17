@@ -24,4 +24,23 @@ describe('AppToastRegion', () => {
 
     expect(view.emitted().dismiss).toEqual([[4]])
   })
+
+  it('centers toasts over the page column so tabs in the rail stay clickable', () => {
+    const toasts = [{ id: 5, tone: 'success' as const, title: 'Tab closed', message: 'Example' }]
+    const view = render(AppToastRegion, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { home: false, toasts, railWidth: 248 }
+    })
+
+    expect(view.container.querySelector<HTMLElement>('.app-toast-region')?.style.getPropertyValue('--toast-rail-width')).toBe('248px')
+  })
+
+  it('spans the window when there is no tab rail', () => {
+    const view = render(AppToastRegion, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { home: false, toasts: [] }
+    })
+
+    expect(view.container.querySelector<HTMLElement>('.app-toast-region')?.style.getPropertyValue('--toast-rail-width')).toBe('0px')
+  })
 })
