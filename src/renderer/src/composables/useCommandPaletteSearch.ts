@@ -4,6 +4,8 @@ import { labelMatchScore } from '../../../shared/command-palette.js'
 import {
   COMMAND_PALETTE_RESULT_LIMITS,
   DETAIL_MATCH_SCORE,
+  paletteHistoryIndex,
+  paletteOpenAddress,
   searchPaletteHistory,
   searchPaletteSettings,
   searchPaletteTabs,
@@ -13,7 +15,7 @@ import {
 import type { BrowserHistoryEntry, BrowserState, UserAttentionRequest } from '../../../shared/types.js'
 import { filterWorkspaceSwitcherEntries, workspaceSwitcherEntries, type WorkspaceSwitcherEntry } from '../../../shared/workspace-switcher.js'
 import { SETTINGS_NAVIGATION } from '../settings-navigation.js'
-import { goToTab, goToWorkspace, type WorkspaceNavigation } from '../workspace-navigation.js'
+import { goToTab, goToWorkspace, workspaceEntryDetails, workspaceEntryStatus, type WorkspaceNavigation } from '../workspace-navigation.js'
 import type { SettingsSection } from './useSettingsDialogController.js'
 
 type Translate = (key: string, parameters?: Record<string, unknown>, plural?: number) => string
@@ -49,19 +51,16 @@ export function useCommandPaletteSearch(options: CommandPaletteSearchOptions) {
     label: t(item.labelKey),
     description: t(item.descriptionKey)
   })))
-  const openUrls = computed(() => new Set(options.state.value.tabs.map((tab) => tab.url)))
+  const history = computed(() => paletteHistoryIndex(options.history.value))
+  const openAddresses = computed(() => new Set(options.state.value.tabs.map((tab) => paletteOpenAddress(tab.url))))
   // Each choice is newer than the one before; only the newest one reports a failure.
   let choice = 0
 
   function workspaceDescription(entry: WorkspaceSwitcherEntry): string {
-    const status = entry.status === 'needs-you'
-      ? t('workspaceSwitcher.needsYou')
-      : entry.status === 'working' ? t('workspaceSwitcher.working', { names: entry.workingAgents.slice(0, 2).join(', ') }) : ''
     return [
-      status,
+      workspaceEntryStatus(entry, t, options.formatNumber),
       entry.kind === 'archived' ? t('workspaceSwitcher.archived') : '',
-      t('workspaceSwitcher.tabs', { count: options.formatNumber(entry.tabCount) }, entry.tabCount),
-      entry.sites.slice(0, 2).join(' · ')
+      workspaceEntryDetails(entry, t, options.formatNumber)
     ].filter(Boolean).join(' · ')
   }
 
@@ -85,8 +84,8 @@ export function useCommandPaletteSearch(options: CommandPaletteSearchOptions) {
       { id: 'tabs' as const, results: searchPaletteTabs(state, query, t('commandPalette.untitledTab')) },
       { id: 'workspaces' as const, results: searchWorkspaces(query) },
       { id: 'settings' as const, results: searchPaletteSettings(settings.value, query) },
-      { id: 'history' as const, results: searchPaletteHistory(options.history.value, openUrls.value, query) }
-    ].filter((section) => section.results.length)
+      { id: 'history' as const, results: searchPaletteHistory(history.value, openAddresses.value, query) }
+    ]
   }
 
   function navigation(): WorkspaceNavigation {
@@ -110,6 +109,11 @@ export function useCommandPaletteSearch(options: CommandPaletteSearchOptions) {
     return Boolean(entry)
   }
 
+  /** Forgets choices in flight, so their late failures stay quiet; for when the palette opens or runs a command. */
+  function invalidate(): void {
+    choice += 1
+  }
+
   /** Goes to a result. A failure is shown unless the person has chosen something newer meanwhile. */
   async function open(result: CommandPaletteResult): Promise<void> {
     const current = ++choice
@@ -122,5 +126,5 @@ export function useCommandPaletteSearch(options: CommandPaletteSearchOptions) {
     }
   }
 
-  return { search, open }
+  return { search, open, invalidate }
 }

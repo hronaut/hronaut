@@ -23,7 +23,7 @@ describe('CommandPalette', () => {
 
     await view.rerender({ open: true })
     await screen.findByRole('dialog', { name: 'Commands' })
-    screen.getByRole('combobox', { name: 'Search commands' }).focus()
+    screen.getByRole('combobox', { name: 'Search commands, tabs and pages' }).focus()
     await view.rerender({ open: false })
 
     await vi.waitFor(() => expect(trigger).toHaveFocus())
@@ -43,7 +43,7 @@ describe('CommandPalette', () => {
       }
     })
     const user = userEvent.setup()
-    const search = screen.getByRole('combobox', { name: 'Search commands' })
+    const search = screen.getByRole('combobox', { name: 'Search commands, tabs and pages' })
 
     expect(screen.getByRole('dialog', { name: 'Commands' })).toBeVisible()
     await user.type(search, 'settings')
@@ -69,7 +69,7 @@ describe('CommandPalette', () => {
     })
     const user = userEvent.setup()
 
-    await user.type(screen.getByRole('combobox', { name: 'Search commands' }), 'downloads')
+    await user.type(screen.getByRole('combobox', { name: 'Search commands, tabs and pages' }), 'downloads')
     await user.keyboard('{Enter}')
 
     await vi.waitFor(() => expect(reportCommandError).toHaveBeenCalledWith(failure, 'downloads'))

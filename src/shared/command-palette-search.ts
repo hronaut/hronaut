@@ -1,4 +1,4 @@
-import { labelMatchScore } from './command-palette.js'
+import { labelMatchScore, normalizedWords } from './command-palette.js'
 import { isHronautHomeUrl } from './home-url.js'
 import type { BrowserHistoryEntry, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState } from './types.js'
 import { workspaceSiteHost } from './workspace-switcher.js'
@@ -33,10 +33,6 @@ export interface CommandPaletteResult {
 export interface CommandPaletteResultSection {
   id: CommandPaletteResultKind
   results: CommandPaletteResult[]
-}
-
-function searchWords(query: string): string[] {
-  return query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
 }
 
 function matchesEvery(text: string, words: readonly string[]): boolean {
@@ -77,7 +73,7 @@ export interface PaletteTabSource {
 
 /** Open tabs other than the one in view and Home, matched by title and address. */
 export function searchPaletteTabs(source: PaletteTabSource, query: string, untitled: string): CommandPaletteResult[] {
-  const words = searchWords(query)
+  const words = normalizedWords(query)
   if (!words.length) return []
   const groups = new Map(source.mcpTabGroups.map((group) => [group.id, group]))
   const results: CommandPaletteResult[] = []
@@ -100,27 +96,62 @@ export function searchPaletteTabs(source: PaletteTabSource, query: string, untit
 }
 
 /**
- * Visited pages matched by title and address, the most recent first among equals. Pages open in a tab are left to
- * the tab results, and an address is listed once.
+ * An open tab's address as History stores it, without its fragment or sign-in details, so a page open in a tab is
+ * recognized in History.
  */
-export function searchPaletteHistory(
-  entries: readonly BrowserHistoryEntry[],
-  openUrls: ReadonlySet<string>,
-  query: string
-): CommandPaletteResult[] {
-  const words = searchWords(query)
-  if (!words.length) return []
+export function paletteOpenAddress(url: string): string {
+  const fragmentStart = url.indexOf('#')
+  const address = fragmentStart < 0 ? url : url.slice(0, fragmentStart)
+  try {
+    const parsed = new URL(address)
+    parsed.username = ''
+    parsed.password = ''
+    return parsed.href
+  } catch {
+    return address
+  }
+}
+
+export interface PaletteHistoryItem {
+  id: string
+  url: string
+  label: string
+  address: string
+  /** Label and address, lowercased, as searches match them. */
+  text: string
+}
+
+/**
+ * Visited websites ready to search, the most recent first and each address once. Built when History changes, so a
+ * keystroke only scans text.
+ */
+export function paletteHistoryIndex(entries: readonly BrowserHistoryEntry[]): PaletteHistoryItem[] {
   const seen = new Set<string>()
-  const results: CommandPaletteResult[] = []
+  const items: PaletteHistoryItem[] = []
   const recent = [...entries].sort((left, right) => Date.parse(right.visitedAt) - Date.parse(left.visitedAt) || 0)
   for (const entry of recent) {
-    if (openUrls.has(entry.url) || seen.has(entry.url)) continue
+    if (seen.has(entry.url)) continue
     const address = paletteAddress(entry.url)
     if (!address) continue
-    const title = entry.title.trim() || address
-    if (!matchesEvery(`${title} ${address}`, words)) continue
     seen.add(entry.url)
-    results.push({ kind: 'history', id: entry.id, label: title, description: address, score: scored(title, query) })
+    const label = entry.title.trim() || address
+    items.push({ id: entry.id, url: entry.url, label, address, text: `${label} ${address}`.toLocaleLowerCase() })
+  }
+  return items
+}
+
+/** Visited pages matched by title and address, the best title matches first and the most recent among equals. */
+export function searchPaletteHistory(
+  index: readonly PaletteHistoryItem[],
+  openAddresses: ReadonlySet<string>,
+  query: string
+): CommandPaletteResult[] {
+  const words = normalizedWords(query)
+  if (!words.length) return []
+  const results: CommandPaletteResult[] = []
+  for (const item of index) {
+    if (openAddresses.has(item.url) || !words.every((word) => item.text.includes(word))) continue
+    results.push({ kind: 'history', id: item.id, label: item.label, description: item.address, score: scored(item.label, query) })
   }
   return best(results, COMMAND_PALETTE_RESULT_LIMITS.history)
 }
@@ -133,7 +164,7 @@ export interface PaletteSettingsItem {
 
 /** Settings sections matched by their name and description, as Settings' own search matches them. */
 export function searchPaletteSettings(items: readonly PaletteSettingsItem[], query: string): CommandPaletteResult[] {
-  const words = searchWords(query)
+  const words = normalizedWords(query)
   if (!words.length) return []
   return best(items
     .filter((item) => matchesEvery(`${item.label} ${item.description}`, words))

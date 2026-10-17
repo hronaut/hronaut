@@ -1,4 +1,7 @@
 import type { BrowserState, BrowserTabState, HronautApi } from '../../shared/types.js'
+import type { WorkspaceSwitcherEntry } from '../../shared/workspace-switcher.js'
+
+type Translate = (key: string, parameters?: Record<string, unknown>, plural?: number) => string
 
 export interface WorkspaceNavigation {
   state: BrowserState
@@ -37,4 +40,21 @@ export async function goToTab(tabId: string, navigation: Pick<WorkspaceNavigatio
   navigation.expandTabGroup(tab)
   await navigation.selectTab(tab.id)
   return true
+}
+
+/** "Needs you", or which agents are working there, as the workspace switcher and the command palette write it. */
+export function workspaceEntryStatus(entry: WorkspaceSwitcherEntry, t: Translate, formatNumber: (value: number) => string): string {
+  if (entry.status === 'needs-you') return t('workspaceSwitcher.needsYou')
+  if (entry.status !== 'working') return ''
+  const shown = entry.workingAgents.slice(0, 2).join(', ')
+  const more = entry.workingAgents.length - 2
+  return t('workspaceSwitcher.working', { names: more > 0 ? `${shown} +${formatNumber(more)}` : shown })
+}
+
+/** A workspace's tab count and first two sites. */
+export function workspaceEntryDetails(entry: WorkspaceSwitcherEntry, t: Translate, formatNumber: (value: number) => string): string {
+  return [
+    t('workspaceSwitcher.tabs', { count: formatNumber(entry.tabCount) }, entry.tabCount),
+    entry.sites.slice(0, 2).join(' · ')
+  ].filter(Boolean).join(' · ')
 }

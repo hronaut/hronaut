@@ -632,8 +632,8 @@ export const frFR = {
     "kicker": "Actions rapides",
     "heading": "Commandes",
     "close": "Fermer la palette de commandes",
-    "search": "Rechercher des commandes",
-    "placeholder": "Saisir une commande, ou trouver un onglet, un espace de travail, une page ou un paramètre",
+    "search": "Rechercher des commandes, onglets et pages",
+    "placeholder": "Commande, onglet, espace, page ou paramètre",
     "matches": "{count} résultat. | {count} résultats.",
     "selected": "{label} sélectionné.",
     "available": "Commandes disponibles",
@@ -649,7 +649,7 @@ export const frFR = {
     },
     "untitledTab": "Onglet sans titre",
     "openFailed": "Impossible d’ouvrir {name}",
-    "openFailedDescription": "Il a peut-être été fermé après l’affichage de la liste."
+    "openFailedDescription": "L’élément a peut-être été fermé ou supprimé après l’affichage de la liste."
   },
   "commandCatalog": {
     "categories": {

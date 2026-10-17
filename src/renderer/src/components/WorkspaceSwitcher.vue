@@ -20,7 +20,7 @@ import {
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
-import { goToWorkspace } from '../workspace-navigation.js'
+import { goToWorkspace, workspaceEntryDetails, workspaceEntryStatus } from '../workspace-navigation.js'
 import UiButton from '../ui/UiButton.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
 
@@ -93,18 +93,11 @@ function colorStyle(entry: WorkspaceSwitcherEntry): Record<string, string> {
 }
 
 function statusText(entry: WorkspaceSwitcherEntry): string {
-  if (entry.status === 'needs-you') return t('workspaceSwitcher.needsYou')
-  if (entry.status !== 'working') return ''
-  const shown = entry.workingAgents.slice(0, 2).join(', ')
-  const more = entry.workingAgents.length - 2
-  return t('workspaceSwitcher.working', { names: more > 0 ? `${shown} +${props.formatNumber(more)}` : shown })
+  return workspaceEntryStatus(entry, t, props.formatNumber)
 }
 
 function details(entry: WorkspaceSwitcherEntry): string {
-  return [
-    t('workspaceSwitcher.tabs', { count: props.formatNumber(entry.tabCount) }, entry.tabCount),
-    entry.sites.slice(0, 2).join(' · ')
-  ].filter(Boolean).join(' · ')
+  return workspaceEntryDetails(entry, t, props.formatNumber)
 }
 
 function label(entry: WorkspaceSwitcherEntry): string {

@@ -64,6 +64,8 @@ export interface CommandPaletteControllerOptions {
   search?: (query: string) => readonly CommandPaletteResultSection[]
   /** Goes to a search result; it reports its own failures. */
   openResult?: (result: CommandPaletteResult) => unknown
+  /** Called when the palette opens or runs a command, so a result still opening stays quiet if it fails. */
+  forgetResults?: () => void
 }
 
 export function useCommandPaletteController(options: CommandPaletteControllerOptions) {
@@ -84,42 +86,49 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     takeOverAvailable: options.takeOverAvailable?.value ?? false,
     recentIds: recentIds.value
   }, localizedCommands.value))
-  const commands = computed(() => sections.value.flatMap((section) => section.commands))
-  const resultSections = computed(() => query.value.trim() && options.search ? options.search(query.value) : [])
+  // Searched only while open: a closed palette keeps its last results through its exit instead of searching again on
+  // every tab change.
+  let lastResultSections: readonly CommandPaletteResultSection[] = []
+  const resultSections = computed(() => {
+    if (!options.open.value) return lastResultSections
+    lastResultSections = query.value.trim() && options.search ? options.search(query.value) : []
+    return lastResultSections
+  })
   // One list: the best match first, commands ahead of results that match as well.
   const groups = computed<CommandPaletteGroup[]>(() => {
     const searching = Boolean(query.value.trim())
-    const ranked = [
-      ...sections.value.map((section) => ({
+    const commandGroups = sections.value.map((section) => {
+      const labelMatch = searching ? Math.max(0, ...section.commands.map((command) => labelMatchScore(command.label, query.value))) : 0
+      return {
         id: section.id,
-        rank: searching
-          ? COMMAND_RANK_BONUS + Math.max(DETAIL_MATCH_SCORE, ...section.commands.map((command) => labelMatchScore(command.label, query.value)))
-          : 0,
+        labelMatch,
+        rank: searching ? COMMAND_RANK_BONUS + Math.max(DETAIL_MATCH_SCORE, labelMatch) : 0,
         entries: section.commands.map((command): CommandPaletteEntry => ({ kind: 'command', key: `command:${command.id}`, command }))
-      })),
-      ...resultSections.value.filter((section) => section.results.length).map((section) => ({
+      }
+    })
+    // Settings sections share names with commands, such as Downloads and Performance; the command people know wins.
+    const commandLabelRank = Math.max(0, ...commandGroups.filter((group) => group.labelMatch > 0).map((group) => group.rank))
+    const resultGroups = resultSections.value.filter((section) => section.results.length).map((section) => {
+      const best = Math.max(...section.results.map((result) => result.score))
+      return {
         id: section.id,
-        rank: Math.max(...section.results.map((result) => result.score)),
+        rank: section.id === 'settings' && commandLabelRank ? Math.min(best, commandLabelRank - 1) : best,
         entries: section.results.map((result): CommandPaletteEntry => ({ kind: 'result', key: `${result.kind}:${result.id}`, result }))
-      }))
-    ]
-    return ranked
+      }
+    })
+    return [...commandGroups, ...resultGroups]
       .map((group, index) => ({ group, index }))
       .sort((left, right) => right.group.rank - left.group.rank || left.index - right.index)
       .map(({ group }) => ({ id: group.id, entries: group.entries }))
   })
   const entries = computed(() => groups.value.flatMap((group) => group.entries))
-  const entryKeys = computed(() => entries.value.map((entry) => entry.key))
+  // Compared as one string, so state updates that leave the same rows do not move the selection, focus or scroll.
+  const entryKeys = computed(() => entries.value.map((entry) => entry.key).join('\u0000'))
   const selectedEntry = computed<CommandPaletteEntry | undefined>(() => entries.value[selection.value])
-  const selectedCommand = computed(() => selectedEntry.value?.kind === 'command' ? selectedEntry.value.command : undefined)
   let presentationGeneration = 0
 
-  function commandElementId(command: CommandPaletteCommand): string {
-    return `command-palette-${command.id}`
-  }
-
   function entryElementId(entry: CommandPaletteEntry): string {
-    if (entry.kind === 'command') return commandElementId(entry.command)
+    if (entry.kind === 'command') return `command-palette-${entry.command.id}`
     return `command-palette-${entry.result.kind}-${entry.result.id.replace(/[^\w-]/gu, '-')}`
   }
 
@@ -144,6 +153,7 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
 
   async function openPanel(): Promise<void> {
     presentationGeneration += 1
+    options.forgetResults?.()
     recentIds.value = readRecentCommands(options.storage)
     query.value = ''
     selection.value = 0
@@ -163,6 +173,7 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
 
   async function run(commandId: CommandPaletteCommandId): Promise<void> {
     close()
+    options.forgetResults?.()
     rememberCommand(commandId)
     try {
       await options.runCommand(commandId)
@@ -211,7 +222,9 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
 
   const stopCommandTracking = watch(
     [query, entryKeys],
-    ([nextQuery, nextIds], [previousQuery, previousIds]) => {
+    ([nextQuery, nextKeys], [previousQuery, previousKeys]) => {
+      const nextIds = nextKeys ? nextKeys.split('\u0000') : []
+      const previousIds = previousKeys ? previousKeys.split('\u0000') : []
       if (nextQuery !== previousQuery) {
         selection.value = 0
       } else {
@@ -239,17 +252,12 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     input,
     query,
     selection,
-    sections,
-    commands,
     groups,
     entries,
     selectedEntry,
-    selectedCommand,
-    commandElementId,
     entryElementId,
     openPanel,
     close,
-    run,
     runEntry,
     moveSelection,
     handleKeydown,

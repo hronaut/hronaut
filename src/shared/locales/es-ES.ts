@@ -632,8 +632,8 @@ export const esES = {
     "kicker": "Acciones rápidas",
     "heading": "Comandos",
     "close": "Cerrar la paleta de comandos",
-    "search": "Buscar comandos",
-    "placeholder": "Escribe un comando o busca una pestaña, espacio de trabajo, página o ajuste",
+    "search": "Buscar comandos, pestañas y páginas",
+    "placeholder": "Comando, pestaña, espacio, página o ajuste",
     "matches": "{count} resultado. | {count} resultados.",
     "selected": "{label} seleccionado.",
     "available": "Comandos disponibles",
@@ -649,7 +649,7 @@ export const esES = {
     },
     "untitledTab": "Pestaña sin título",
     "openFailed": "No se pudo abrir {name}",
-    "openFailedDescription": "Puede que se cerrara después de mostrarse la lista."
+    "openFailedDescription": "Puede que se cerrara o eliminara después de mostrarse la lista."
   },
   "commandCatalog": {
     "categories": {

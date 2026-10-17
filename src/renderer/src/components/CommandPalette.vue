@@ -12,7 +12,7 @@ import IconTab from '~icons/material-symbols/tab-outline-rounded'
 import type { HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import type { BrowserTabState } from '../../../shared/types.js'
 import { commandShortcutKeys, type CommandPaletteCommandId, type CommandPaletteSectionId } from '../../../shared/command-palette.js'
-import type { CommandPaletteResult, CommandPaletteResultKind, CommandPaletteResultSection } from '../../../shared/command-palette-search.js'
+import { COMMAND_PALETTE_RESULT_LIMITS, type CommandPaletteResult, type CommandPaletteResultKind, type CommandPaletteResultSection } from '../../../shared/command-palette-search.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
 import { SETTINGS_NAVIGATION } from '../settings-navigation.js'
 import { COMMAND_PALETTE_ICONS } from '../command-palette-icons.js'
@@ -32,6 +32,7 @@ const props = defineProps<{
   /** Tabs, workspaces, settings and visited pages that match what is typed. */
   search?: (query: string) => readonly CommandPaletteResultSection[]
   openResult?: (result: CommandPaletteResult) => unknown
+  forgetResults?: () => void
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -53,7 +54,7 @@ const SECTION_LABEL_KEYS: Record<Exclude<CommandPaletteSectionId, 'recent'>, str
   website: 'commandCatalog.categories.Current website',
   application: 'commandCatalog.categories.Application'
 }
-const RESULT_KINDS = new Set<string>(['tabs', 'workspaces', 'settings', 'history'] satisfies CommandPaletteResultKind[])
+const RESULT_KINDS = new Set<string>(Object.keys(COMMAND_PALETTE_RESULT_LIMITS))
 function sectionLabel(id: CommandPaletteSectionId | CommandPaletteResultKind): string {
   if (id === 'recent') return t('commandPalette.recent')
   if (RESULT_KINDS.has(id)) return t(`commandPalette.sections.${id}`)
@@ -90,7 +91,8 @@ const {
   runCommand: props.runCommand,
   onRunError: props.reportCommandError,
   ...(props.search ? { search: props.search } : {}),
-  ...(props.openResult ? { openResult: props.openResult } : {})
+  ...(props.openResult ? { openResult: props.openResult } : {}),
+  ...(props.forgetResults ? { forgetResults: props.forgetResults } : {})
 })
 
 useModalDialogFocus({ open, panel, focusOnOpen: false })
@@ -98,10 +100,10 @@ useModalDialogFocus({ open, panel, focusOnOpen: false })
 const liveListPointerGuardMs = 150
 let lastPointerPosition: { x: number; y: number } | null = null
 let pointerSelectionBlockedUntil = 0
-// Commands that come and go with the website or an agent, and tabs or workspaces that open or close while a search
-// shows them, move the list under a resting pointer.
-const resultKeys = computed(() => entries.value.filter((entry) => entry.kind === 'result').map((entry) => entry.key).join('\n'))
-const stopWebsiteAvailabilityTracking = watch([websiteAvailable, agentActive, takeOverAvailable, resultKeys], () => {
+// Commands that come and go with the website or an agent, and tabs or workspaces that open, close or are renamed while
+// a search shows them, move the list under a resting pointer.
+const entryKeys = computed(() => entries.value.map((entry) => entry.key).join('\u0000'))
+const stopWebsiteAvailabilityTracking = watch([websiteAvailable, agentActive, takeOverAvailable, entryKeys], () => {
   pointerSelectionBlockedUntil = Date.now() + liveListPointerGuardMs
 })
 const stopOpenTracking = watch(open, (isOpen) => {
@@ -185,7 +187,7 @@ onBeforeUnmount(disposeComponent)
               :id="entryElementId(entry)"
               :key="entry.key"
               class="command-palette-item"
-              :class="{ selected: entry.key === selectedEntry?.key, 'command-palette-result': entry.kind === 'result' }"
+              :class="{ selected: entry.key === selectedEntry?.key }"
               type="button"
               role="option"
               tabindex="-1"

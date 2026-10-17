@@ -328,6 +328,7 @@ defineExpose({
     :report-command-error="reportCommandError"
     :search="paletteSearch.search"
     :open-result="paletteSearch.open"
+    :forget-results="paletteSearch.invalidate"
   />
   <WorkspaceSwitcher
     ref="workspaceSwitcher"

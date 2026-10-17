@@ -632,8 +632,8 @@ export const deDE = {
     "kicker": "Schnellaktionen",
     "heading": "Befehle",
     "close": "Befehlspalette schließen",
-    "search": "Befehle durchsuchen",
-    "placeholder": "Befehl eingeben oder Tab, Arbeitsbereich, Seite oder Einstellung finden",
+    "search": "Befehle, Tabs und Seiten durchsuchen",
+    "placeholder": "Befehl, Tab, Arbeitsbereich, Seite oder Einstellung",
     "matches": "{count} Ergebnis. | {count} Ergebnisse.",
     "selected": "{label} ausgewählt.",
     "available": "Verfügbare Befehle",
@@ -647,9 +647,9 @@ export const deDE = {
       "settings": "Einstellungen",
       "history": "Verlauf"
     },
-    "untitledTab": "Unbenannter Tab",
+    "untitledTab": "Tab ohne Titel",
     "openFailed": "{name} konnte nicht geöffnet werden",
-    "openFailedDescription": "Möglicherweise wurde es geschlossen, nachdem die Liste angezeigt wurde."
+    "openFailedDescription": "Möglicherweise wurde es geschlossen oder entfernt, nachdem die Liste angezeigt wurde."
   },
   "commandCatalog": {
     "categories": {

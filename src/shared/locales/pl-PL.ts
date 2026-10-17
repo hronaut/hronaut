@@ -632,8 +632,8 @@ export const plPL = {
     "kicker": "Szybkie działania",
     "heading": "Polecenia",
     "close": "Zamknij paletę poleceń",
-    "search": "Szukaj poleceń",
-    "placeholder": "Wpisz polecenie albo znajdź kartę, obszar roboczy, stronę lub ustawienie",
+    "search": "Szukaj poleceń, kart i stron",
+    "placeholder": "Polecenie, karta, obszar roboczy, strona lub ustawienie",
     "matches": "{count} wynik. | {count} wyniki. | {count} wyników.",
     "selected": "Wybrano {label}.",
     "available": "Dostępne polecenia",
@@ -648,8 +648,8 @@ export const plPL = {
       "history": "Historia"
     },
     "untitledTab": "Karta bez tytułu",
-    "openFailed": "Nie można otworzyć: {name}",
-    "openFailedDescription": "Mogło zostać zamknięte po wyświetleniu listy."
+    "openFailed": "Nie udało się otworzyć: {name}",
+    "openFailedDescription": "Element mógł zostać zamknięty lub usunięty po wyświetleniu listy."
   },
   "commandCatalog": {
     "categories": {

@@ -152,7 +152,8 @@ function sectionOf(command: CommandPaletteCommand): Exclude<CommandPaletteSectio
   return SECTION_OF_COMMAND.get(command.id) ?? SECTION_OF_CATEGORY[command.category] ?? 'application'
 }
 
-function normalizedWords(value: string): string[] {
+/** A search's words, lowercased, as the palette matches them. */
+export function normalizedWords(value: string): string[] {
   return value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
 }
 
@@ -174,10 +175,6 @@ export function labelMatchScore(name: string, query: string): number {
   return 0
 }
 
-function commandScore(command: CommandPaletteCommand, query: string): number {
-  return labelMatchScore(command.label, query)
-}
-
 /**
  * The commands matching a search, best first, leaving out website commands without a website. Agent commands are
  * not filtered here; commandPaletteSections offers them only while they can run.
@@ -195,7 +192,7 @@ export function filterCommandPaletteCommands<T extends CommandPaletteCommand = C
       const searchText = commandSearchText(command)
       return words.every((word) => searchText.includes(word))
     })
-    .map((command, index) => ({ command, index, score: commandScore(command, query) }))
+    .map((command, index) => ({ command, index, score: labelMatchScore(command.label, query) }))
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map(({ command }) => command)
 }
