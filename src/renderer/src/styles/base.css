@@ -12,7 +12,7 @@ button, input { @apply [font:inherit]; }
 button { @apply [color:inherit]; }
 
 .startup-failure {
-  @apply [width:min(560px,_calc(100%_-_40px))] [margin:clamp(40px,_12vh,_120px)_auto_0] [padding:28px] [border:1px_solid_var(--border)] [border-radius:var(--corner-4)] bg-surface [box-shadow:var(--elevation-3)];
+  @apply [width:min(560px,_calc(100%_-_40px))] [margin:clamp(40px,_12vh,_120px)_auto_0] [padding:28px] [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-4)] bg-surface [box-shadow:var(--overlay-ring),_var(--elevation-3)];
 }
 .startup-failure-brand { @apply flex items-center [gap:10px] text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [letter-spacing:0.16em]; }
 .startup-failure-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:var(--corner-2)] text-button-copy bg-accent [box-shadow:0_5px_16px_var(--shadow)] [letter-spacing:0]; }

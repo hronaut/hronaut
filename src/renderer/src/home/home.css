@@ -285,7 +285,7 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .card-menu > summary { display: grid; width: 32px; height: 32px; place-items: center; border-radius: var(--corner-1); color: var(--muted); cursor: pointer; list-style: none; font-size: var(--type-title-size); line-height: 1; }
 .card-menu > summary::-webkit-details-marker { display: none; }
 .card-menu > summary:hover, .card-menu[open] > summary { color: var(--text); background: var(--soft); }
-.card-menu-list { position: absolute; top: calc(100% + 4px); right: 0; z-index: 3; display: grid; min-width: 220px; padding: 6px; border: 1px solid var(--border); border-radius: var(--corner-2); background: var(--panel); box-shadow: var(--elevation-3); }
+.card-menu-list { position: absolute; top: calc(100% + 4px); right: 0; z-index: 3; display: grid; min-width: 220px; padding: 6px; border: 1px solid var(--overlay-border); border-radius: var(--corner-2); background: var(--panel); box-shadow: var(--overlay-ring), var(--elevation-3); }
 .home-workspace-card .card-menu-list button, .card-menu-list label { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 6px 10px; border: 0; border-radius: var(--corner-1); color: var(--text); background: transparent; font-size: var(--type-small-size); font-weight: 500; text-align: left; cursor: pointer; }
 .home-workspace-card .card-menu-list button:hover:not(:disabled), .card-menu-list label:hover { background: var(--soft); }
 .home-workspace-card .card-menu-list .danger { color: var(--danger); }

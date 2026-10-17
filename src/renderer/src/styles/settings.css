@@ -240,7 +240,7 @@
 .clear-data-button { @apply [min-width:172px]; }
 .privacy-data-status { @apply text-muted [font-size:var(--type-small-size)] [line-height:1.45]; }
 .privacy-data-status.cleared { @apply [color:var(--success)]; }
-.privacy-data-status.error { @apply [color:#d9534f]; }
+.privacy-data-status.error { @apply [color:var(--danger)]; }
 
 .privacy-websites-heading { @apply flex items-start justify-between [gap:18px] [margin-top:20px]; }
 .privacy-websites-heading > div { @apply min-w-0; }
@@ -320,7 +320,7 @@
 .download-location-actions svg { @apply [width:16px] [height:16px]; }
 .download-settings-status { @apply block [min-height:20px] [margin-top:10px] text-muted [font-size:var(--type-small-size)] [line-height:1.5]; }
 .download-settings-status.saved { @apply [color:var(--success)]; }
-.download-settings-status.error { @apply [color:#d9534f]; }
+.download-settings-status.error { @apply [color:var(--danger)]; }
 .mcp-port-row > label { @apply min-w-0 [flex:1]; }
 .mcp-port-control { @apply [width:236px] [flex:0_0_236px]; }
 .mcp-port-control > div { @apply flex justify-end [gap:8px]; }
@@ -331,7 +331,7 @@
 .mcp-port-control button { @apply [min-width:104px] whitespace-nowrap; }
 .mcp-port-status { @apply block [margin-top:6px] [overflow-wrap:anywhere] text-muted text-right [font-size:var(--type-small-size)] [line-height:1.4]; }
 .mcp-port-status.saved { @apply [color:var(--success)]; }
-.mcp-port-status.error { @apply [color:#d9534f]; }
+.mcp-port-status.error { @apply [color:var(--danger)]; }
 .mcp-port-control > .mcp-port-problem { @apply grid [justify-items:end] [margin-top:8px] [gap:6px] text-copy text-right [font-size:var(--type-small-size)] [line-height:1.4]; }
 .mcp-port-control > .mcp-port-problem .ui-button { @apply [min-height:32px]; }
 .mcp-capabilities { @apply [margin-top:30px] [padding-top:26px] [border-top:1px_solid_var(--border-soft)]; }
@@ -354,7 +354,7 @@
 .mcp-capability-card { @apply grid items-center [gap:10px] [padding:14px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface [grid-template-columns:minmax(0,_1fr)_auto]; }
 .mcp-capability-card strong, .mcp-capability-card small { @apply block; }
 .mcp-capability-card small { @apply [margin-top:4px] text-muted [font-size:var(--type-small-size)] [line-height:1.4]; }
-.mcp-capability-card .mcp-capability-revoked { @apply [color:#d9534f] [font-weight:var(--weight-strong)]; }
+.mcp-capability-card .mcp-capability-revoked { @apply [color:var(--danger)] [font-weight:var(--weight-strong)]; }
 .mcp-capability-actions { @apply flex [gap:7px]; }
 .mcp-capability-card details { @apply [grid-column:1/-1] [padding-top:8px] [border-top:1px_solid_var(--border-soft)] text-muted [font-size:var(--type-small-size)]; }
 .mcp-capability-card details code { @apply block [margin-top:8px] overflow-auto [max-height:90px] [font:var(--type-micro-size)/1.5_var(--font-code)] whitespace-normal; }
