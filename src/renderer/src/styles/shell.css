@@ -31,15 +31,18 @@
   @apply fixed block [top:0] [right:0] [bottom:0] [z-index:-1] pointer-events-none;
   background: var(--shell-wash) fixed, var(--shell-bottom);
 }
+/* The veil keeps muted rail text at 4.5:1 over a light material as dark as #a0a0a0 and a dark one as light as #707070. */
+:root[data-window-material] { --window-material-veil: 78%; }
+:root[data-window-material][data-theme="dark"] { --window-material-veil: 58%; }
 :root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) { background: none; }
 :root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) .topbar:not(.compact-vertical-tab-rail:not(.rail-collapsed)) {
-  background-color: color-mix(in srgb, var(--shell-bottom) 58%, transparent);
+  background-color: color-mix(in srgb, var(--shell-bottom) var(--window-material-veil), transparent);
 }
 /* The rail runs under the title strip, so the strip adds no veil of its own. */
 :root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window, .compact-vertical-tab-rail-revealed) .shell-title-bar-surface.surface-rail {
   background: none;
 }
-:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window) .topbar-actions {
+:root[data-window-material] .shell.vertical-tabs-shell:not(.detached-panel-window, .compact-vertical-tab-rail-revealed) .topbar-actions {
   background: color-mix(in srgb, var(--toolbar) 36%, transparent);
 }
 .shell.vertical-tabs-shell.home-shell {

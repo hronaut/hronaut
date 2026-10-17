@@ -1,4 +1,4 @@
-import type { DesktopWindowPlatform } from './title-bar.js'
+import type { DesktopWindowPlatform, WindowChromeMode } from './title-bar.js'
 import type { TabPosition } from './tab-position.js'
 import type { ResolvedThemeName } from './theme.js'
 
@@ -17,9 +17,14 @@ export interface WindowMaterialInput {
   osRelease: string
   theme: ResolvedThemeName
   tabPosition: TabPosition
+  /**
+   * The main window's title bar, fixed when the window is created. Windows draws Mica under the page only when the
+   * window draws its own title bar; with the system title bar the content stays opaque and a cleared background is black.
+   */
+  chrome: WindowChromeMode
   /** The system asks for less transparency (macOS Reduce transparency, Windows transparency effects off). */
   reducedTransparency: boolean
-  /** A high-contrast or forced-colors mode is on. */
+  /** A high-contrast, increased-contrast or forced-colors mode is on. */
   forcedColors: boolean
 }
 
@@ -30,13 +35,14 @@ function windowsBuild(osRelease: string): number {
 
 /**
  * The material behind the tab rail of the main window, or null for the theme's solid surface. Only the plain light and
- * dark themes are drawn over a material; the others keep their own colors, and Linux always keeps the solid surface.
+ * dark themes are drawn over a material; the others keep their own colors, and Linux always keeps the solid surface, as
+ * does Windows with the system title bar.
  */
 export function windowMaterialFor(input: WindowMaterialInput): WindowMaterial | null {
   if (input.tabPosition !== 'left' || input.reducedTransparency || input.forcedColors) return null
   if (input.theme !== 'light' && input.theme !== 'dark') return null
   if (input.platform === 'darwin') return 'vibrancy'
-  if (input.platform === 'win32' && windowsBuild(input.osRelease) >= MICA_MINIMUM_WINDOWS_BUILD) return 'mica'
+  if (input.platform === 'win32' && input.chrome === 'overlay' && windowsBuild(input.osRelease) >= MICA_MINIMUM_WINDOWS_BUILD) return 'mica'
   return null
 }
 

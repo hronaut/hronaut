@@ -22,7 +22,7 @@ import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../share
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
-import { WINDOW_MATERIAL_BACKGROUND, windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
+import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
 import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
@@ -133,6 +133,7 @@ import {
   SitePermissionStore
 } from './site-permission-store.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
+import { applyWindowMaterial } from './window-material.js'
 import {
   linuxUpdateExecutable,
   scheduleLinuxUpdateRelaunch,
@@ -1296,26 +1297,15 @@ function currentWindowMaterial(): WindowMaterial | null {
     osRelease: osRelease(),
     theme: resolvedTheme(settings.theme),
     tabPosition: settings.tabPosition,
+    chrome: mainWindowChromeMode,
     reducedTransparency: nativeTheme.prefersReducedTransparency,
-    forcedColors: nativeTheme.inForcedColorsMode
+    forcedColors: nativeTheme.inForcedColorsMode || nativeTheme.shouldUseHighContrastColors
   })
 }
 
-/**
- * Shows or removes the material behind the main window's rail and sets the window's background to match: clear while
- * the material shows through, the theme's surface otherwise. The shell learns the result from its renderer state.
- */
+/** Shows or removes the material behind the main window's rail; the shell learns the result from its renderer state. */
 function applyMainWindowBackground(): void {
-  const material = currentWindowMaterial()
-  const window = mainWindow
-  if (window && !window.isDestroyed()) {
-    if (material !== mainWindowMaterial) {
-      if (process.platform === 'darwin') window.setVibrancy(material ? 'sidebar' : null)
-      else if (process.platform === 'win32') window.setBackgroundMaterial(material ? 'mica' : 'none')
-    }
-    window.setBackgroundColor(material ? WINDOW_MATERIAL_BACKGROUND : THEME_BACKGROUND[resolvedTheme(settings.theme)])
-  }
-  mainWindowMaterial = material
+  mainWindowMaterial = applyWindowMaterial(mainWindow, process.platform, mainWindowMaterial, currentWindowMaterial(), THEME_BACKGROUND[resolvedTheme(settings.theme)])
 }
 
 function applyTheme(theme: ThemeName): void {

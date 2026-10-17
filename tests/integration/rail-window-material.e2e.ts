@@ -1,5 +1,5 @@
 import type { HronautApi, RendererSettingsState } from '../../src/shared/types.js'
-import { expect, test } from './fixtures.js'
+import { expect, settleShellMotion, test } from './fixtures.js'
 
 type Pixel = [red: number, green: number, blue: number]
 
@@ -31,8 +31,14 @@ test('lets a window material show behind the tab rail only, and keeps the solid 
     const rect = element.getBoundingClientRect()
     return { x: Math.round(rect.left + 12), y: Math.round(rect.top + rect.height / 2) }
   })
+  const toolbar = await appWindow.locator('.toolbar').evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    // Bare toolbar, left of its first control.
+    return { x: Math.round(rect.left + 5), y: Math.round(rect.top + rect.height / 2) }
+  })
   const sample = async (points: Record<string, [number, number]>): Promise<Record<string, Pixel>> => {
-    await new Promise((resolve) => setTimeout(resolve, 400))
+    // The workspace's tint crossfades in when its tab opens, and the bars slide in.
+    await settleShellMotion(appWindow)
     return electronApp.evaluate(async ({ BrowserWindow }, points) => {
       const window = BrowserWindow.getAllWindows()[0]!
       const image = await window.webContents.capturePage()
@@ -50,11 +56,12 @@ test('lets a window material show behind the tab rail only, and keeps the solid 
     railEmpty: [Math.round(railWidth / 2), 560],
     railTop: [Math.round(railWidth / 2), 14],
     groupCard: [card.x, card.y],
-    toolbar: [railWidth + 260, 22],
+    toolbar: [toolbar.x, toolbar.y],
     besidePage: [1276, 600],
     belowPage: [railWidth + 400, 797]
   }
-  const magenta = ([red, green, blue]: Pixel): boolean => red - green > 60 && blue - green > 60
+  // The light veil lets about a fifth of the material through.
+  const magenta = ([red, green, blue]: Pixel): boolean => red - green > 30 && blue - green > 30
 
   await electronApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]!.setBackgroundColor('#ff00ff') })
   // Without a material, nothing is clear.
@@ -73,6 +80,21 @@ test('lets a window material show behind the tab rail only, and keeps the solid 
     // The surface beside the rail is the one it had.
     for (const channel of [0, 1, 2]) expect(Math.abs(clear[name]![channel]! - solid[name]![channel]!), name).toBeLessThanOrEqual(3)
   }
+
+  // Find opens beside the rail, like the toolbar, never across it.
+  await appWindow.getByRole('button', { name: 'Find in page', exact: true }).click()
+  const findBar = appWindow.locator('.find-bar')
+  await expect(findBar).toBeVisible()
+  const find = await findBar.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { left: Math.round(rect.left), y: Math.round(rect.top + rect.height / 2) }
+  })
+  expect(find.left).toBe(railWidth)
+  const withFind = await sample({ railBesideFind: [Math.round(railWidth / 2), find.y], findBar: [railWidth + 8, find.y] })
+  expect(magenta(withFind.railBesideFind!), withFind.railBesideFind!.join(',')).toBe(true)
+  expect(magenta(withFind.findBar!), withFind.findBar!.join(',')).toBe(false)
+  await appWindow.keyboard.press('Escape')
+  await expect(findBar).toBeHidden()
 
   // A rail opened over the page in a narrow window keeps its solid surface.
   await electronApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0]!.setContentSize(820, 640) })

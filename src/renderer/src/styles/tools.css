@@ -1175,3 +1175,8 @@
   .network-request-list { @apply [max-height:270px] [border-right:0] [border-bottom:1px_solid_var(--border-soft)] overflow-y-auto; }
   .network-request-details { @apply [min-height:220px] overflow-visible; }
 }
+/* Beside the tab rail, like the toolbar, never under it: the rail can be translucent, and the problem's text starts at
+   the bar's left edge. */
+.vertical-tabs-shell :is(.page-problem-bar, .find-bar, .zoom-bar) {
+  @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)];
+}

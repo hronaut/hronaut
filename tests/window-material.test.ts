@@ -12,6 +12,7 @@ const mac: WindowMaterialInput = {
   osRelease: '24.6.0',
   theme: 'light',
   tabPosition: 'left',
+  chrome: 'overlay',
   reducedTransparency: false,
   forcedColors: false
 }
@@ -39,6 +40,12 @@ describe('window material', () => {
     expect(windowMaterialFor({ ...mac, reducedTransparency: true })).toBeNull()
     expect(windowMaterialFor({ ...windows11, reducedTransparency: true })).toBeNull()
     expect(windowMaterialFor({ ...windows11, forcedColors: true })).toBeNull()
+  })
+
+  it('keeps the solid surface on Windows with the system title bar, where a clear background would be black', () => {
+    expect(windowMaterialFor({ ...windows11, chrome: 'system' })).toBeNull()
+    // macOS draws vibrancy under the content with either title bar.
+    expect(windowMaterialFor({ ...mac, chrome: 'system' })).toBe('vibrancy')
   })
 
   it('creates the window with its material and a clear background, and with neither without one', () => {
