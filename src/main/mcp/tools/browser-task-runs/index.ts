@@ -405,6 +405,7 @@ export function registerBrowserTaskRuns(context: McpToolContext): void {
       }
       if (!outcome) throw new TypeError('outcome is required to complete a task run')
       return textResult(await taskRuns.complete(workspaceId, taskRunId, revision, outcome, authorizeActive, evaluate))
-    })
+    }),
+    { pageOrigins: 'none' }
   )
 }

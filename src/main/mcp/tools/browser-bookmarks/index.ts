@@ -57,6 +57,6 @@ export function registerBrowserBookmarks(context: McpToolContext): void {
       if (action === 'remove') return textResult(visibleBookmarks(profile, await bookmarks.remove(id)))
       return textResult(await manager.newAgentTab({ url: bookmark.url, active, mcpGroupId: workspaceId! }))
     }),
-    { tabTarget: 'none' }
+    { tabTarget: 'none', pageOrigins: 'none' }
   )
 }

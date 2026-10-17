@@ -19,6 +19,7 @@ export function registerBrowserType(context: McpToolContext): void {
     },
     tabTool('browser_type', async (input: { tabId?: string; ref?: string; selector?: string; text: string; submit?: boolean }) =>
       textResult(await manager.type(input))
-    )
+    ),
+    { stepTarget: input => ({ ref: input.ref }) }
   )
 }

@@ -26,6 +26,7 @@ export function registerBrowserUserAttention(context: McpToolContext): void {
       return textResult(input.action === 'wait'
         ? await userAttentionLifecycle.wait(input.requestId, input.workspaceId, input.timeoutMs, authorize, extra?.signal)
         : userAttentionLifecycle.status(input.requestId, input.workspaceId))
-    })
+    }),
+    { pageOrigins: 'none' }
   )
 }

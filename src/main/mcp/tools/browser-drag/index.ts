@@ -50,6 +50,7 @@ export function registerBrowserDrag(context: McpToolContext): void {
         }
       }
       return textResult(await manager.drag(input, validateNativeInput, agentCursorIdentity(client.name)))
-    })
+    }),
+    { stepTarget: input => ({ ref: input.sourceRef }) }
   )
 }

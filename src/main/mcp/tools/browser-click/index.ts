@@ -83,7 +83,8 @@ export function registerBrowserClick(context: McpToolContext): void {
       preservesPresentation: input => input.button === 'right',
       postcondition: input => input.postcondition ? input.postcondition as PostWriteRequest : undefined,
       reconciliation: input => input.reconciliation ? input.reconciliation as PreWriteReconciliationRequest : undefined,
-      inputSchema: browserClickSchema
+      inputSchema: browserClickSchema,
+      stepTarget: input => ({ ref: input.ref })
     }
   )
 }

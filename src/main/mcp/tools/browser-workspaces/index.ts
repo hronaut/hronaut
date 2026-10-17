@@ -201,6 +201,10 @@ export function registerBrowserWorkspaces(context: McpToolContext): void {
       workspaceLeases.releaseAfterMutation(workspaceId, client.id)
       activeWorkspaceIds.delete(workspaceId)
       return leaseOutcome ?? textResult(authorizedActiveWorkspaces())
-    })
+    }),
+    {
+      leaseExempt: input => ['create', 'resume', 'ownership-status', 'claim-ownership', 'release-ownership'].includes(String(input.action)),
+      pageOrigins: 'none'
+    }
   )
 }

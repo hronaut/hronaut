@@ -38,6 +38,11 @@ export function registerBrowserTabs(context: McpToolContext): void {
         ? manager.getMcpGroupState(workspaceId!).tabs.map(mcpWorkspaceTab)
         : compactTabDiscovery(manager.getMcpDiscoveryTabs(workspaceId!), search))
     }),
-    { settlement: input => input.search !== undefined ? tabDiscoverySettlement() : undefined, tabTarget: 'none', continuityInspection: () => true }
+    {
+      settlement: input => input.search !== undefined ? tabDiscoverySettlement() : undefined,
+      tabTarget: 'none',
+      continuityInspection: () => true,
+      pageOrigins: 'all-tabs'
+    }
   )
 }
