@@ -5348,7 +5348,7 @@ function createBrowserMcpServer(
         requestId: z.string().min(1),
         tabId: tabIdSchema.optional(),
         maxChars: z.number().int().min(1_000).max(100_000).optional(),
-        copyAs: z.enum(['json', 'curl', 'fetch']).optional()
+        copyAs: z.enum(['json', 'curl', 'powershell', 'fetch']).optional()
       }
     },
     tabTool('browser_network_request', async ({ requestId, tabId, maxChars, copyAs, validateInspection }: {

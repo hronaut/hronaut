@@ -2526,6 +2526,8 @@ export const esES = {
       "copyJson": "Copiar JSON",
       "copiedCurl": "cURL copiado (shell POSIX)",
       "copyCurl": "Copiar cURL depurado (shell POSIX)",
+      "copiedPowerShell": "PowerShell copiado",
+      "copyPowerShell": "Copiar PowerShell depurado",
       "copiedFetch": "fetch copiado",
       "copyFetch": "Copiar fetch depurado",
       "initiator": "Iniciador",

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The Network panel can copy a request as a PowerShell command. **Copy sanitized PowerShell** sits next to cURL and fetch and writes one `Invoke-WebRequest` command for Windows PowerShell 5.1 or PowerShell 7 and later, with the same secret filtering and body omissions as the other copies. Quotes, `$`, backticks and brackets in the request stay literal, and the body is sent as UTF-8. A request PowerShell cannot send faithfully, such as one with a repeated header or an uncommon method, gets an explicit error instead of a changed command. Agents can ask for the same text with `copyAs: "powershell"` on `browser_network_request`.
+
 ## [3.0.0] - 2026-10-17
 
 ### Changed
