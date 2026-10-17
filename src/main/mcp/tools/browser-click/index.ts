@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import type { NativeClickProgress } from '../../../browser/native-click-admission.js'
 import { agentCursorIdentity } from '../../agent-presence.js'
 import { textResult, toolDescription } from '../../tool-results.js'
-import { type PostWriteRequest, type ReconciliationConditionRequest, reconciliationRequestSchema, tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import { type PostWriteRequest, type PreWriteReconciliationRequest, reconciliationRequestSchema, tabIdSchema } from '../../tool-schemas.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { type ClickSettlement, clickSettlement } from './click-settlement.js'
 
 export function browserClickPageInput<T extends object>(input: T & { postcondition?: unknown; reconciliation?: unknown }): Omit<T, 'postcondition' | 'reconciliation'> {
   const { postcondition: _postcondition, reconciliation: _reconciliation, ...pageInput } = input
@@ -11,7 +11,7 @@ export function browserClickPageInput<T extends object>(input: T & { postconditi
 }
 
 export function registerBrowserClick(context: McpToolContext): void {
-  const { client, frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { client, manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_click',
     {
@@ -57,12 +57,8 @@ export function registerBrowserClick(context: McpToolContext): void {
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest
-      reconciliation?: ReconciliationConditionRequest & {
-        logicalItemKey: string
-        targetIdentity: string
-        sourceRevision: string
-      }
-    }, call) => {
+      reconciliation?: PreWriteReconciliationRequest
+    }, call: WorkspaceToolCall<ClickSettlement>) => {
       // Re-checks the call before each native input event.
       const validateNativeInput = (validateContext: () => void): void => {
         try {
@@ -79,10 +75,13 @@ export function registerBrowserClick(context: McpToolContext): void {
           throw error
         }
       }
-      const retainClickAuthority = (authority: { validate(): void; dispose(): void }): void => { frameRequests.getStore()!.clickAuthority = authority }
-      const recordClickProgress = (progress: NativeClickProgress): void => { frameRequests.getStore()!.clickProgress = { ...progress } }
-      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress, retainClickAuthority, agentCursorIdentity(client.name)))
+      return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, call.settlement.recordProgress, call.settlement.retainAuthority, agentCursorIdentity(client.name)))
     }),
-    { preservesPresentation: input => input.button === 'right' }
+    {
+      settlement: input => clickSettlement(manager, input.button === 'right'),
+      preservesPresentation: input => input.button === 'right',
+      postcondition: input => input.postcondition ? input.postcondition as PostWriteRequest : undefined,
+      reconciliation: input => input.reconciliation ? input.reconciliation as PreWriteReconciliationRequest : undefined
+    }
   )
 }
