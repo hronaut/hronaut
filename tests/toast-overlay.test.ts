@@ -4,6 +4,7 @@ import {
   parseToastOverlayMeasurement,
   parseToastOverlayMessage,
   parseToastOverlayRequest,
+  toastOverlayRequestId,
   type ToastOverlayEvent,
   type ToastOverlayRequest,
   type ToastOverlayState
@@ -41,6 +42,14 @@ describe('toast overlay contracts', () => {
       { toast: withoutAction, focus: 'action', theme: 'dark' }
     ]
     for (const value of bad) expect(() => parseToastOverlayRequest(value)).toThrow(TypeError)
+  })
+
+  it('finds the id of a toast even in a request main refuses, so the shell can show its own copy', () => {
+    expect(toastOverlayRequestId(request(7))).toBe(7)
+    expect(toastOverlayRequestId({ ...request(8), theme: 'system' })).toBe(8)
+    for (const value of [null, 'toast', { toast: null }, { toast: { id: 0 } }, { toast: { id: '3' } }, { toast: { id: 2.5 } }]) {
+      expect(toastOverlayRequestId(value)).toBeUndefined()
+    }
   })
 
   it('reads only well-formed measurements and messages from the view', () => {
@@ -263,6 +272,28 @@ describe('ToastOverlay', () => {
     // A request outside the contract hides what shows and hands that toast to the shell.
     overlay.refused(3)
     expect(events.at(-1)).toEqual({ id: 3, kind: 'unavailable' })
+  })
+
+  it('hands the toast to the shell when the window refuses its view, and does not throw', async () => {
+    const { overlay, surface, events, flush } = harness()
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const present = vi.spyOn(surface, 'present').mockImplementation(() => { throw new Error('synthetic native view failure') })
+    overlay.show(request(1))
+    await flush()
+    expect(() => overlay.measured({ revision: 1, height: 40 })).not.toThrow()
+    expect(events).toEqual([{ id: 1, kind: 'unavailable' }])
+    expect(overlay.shownId).toBeUndefined()
+    // Shown once, a restack the window refuses hands it over too.
+    present.mockRestore()
+    overlay.show(request(2))
+    await flush()
+    overlay.measured({ revision: 2, height: 40 })
+    expect(events.at(-1)).toEqual({ id: 2, kind: 'shown' })
+    vi.spyOn(surface, 'present').mockImplementation(() => { throw new Error('synthetic native view failure') })
+    expect(() => overlay.restack()).not.toThrow()
+    expect(events.at(-1)).toEqual({ id: 2, kind: 'unavailable' })
+    expect(error).toHaveBeenCalledTimes(2)
+    error.mockRestore()
   })
 
   it('hands the toast to the shell when its view goes away', async () => {

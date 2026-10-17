@@ -1,4 +1,5 @@
 import { expect, test } from './capability-fixtures.js'
+import { visibleToastText } from './toast-view.js'
 
 test('clears Site Storage copy success while a later clipboard write is pending and after it fails', async ({ capabilities, appWindow, electronApp }) => {
   const { tabId, openPageTool } = capabilities
@@ -31,7 +32,7 @@ test('clears Site Storage copy success while a later clipboard write is pending 
     await electronApp.evaluate(() => (globalThis as typeof globalThis & {
       __storageClipboard?: { reject?: (error: Error) => void }
     }).__storageClipboard?.reject?.(new Error('Synthetic clipboard refusal')))
-    await expect(appWindow.getByText('Synthetic clipboard refusal', { exact: false })).toBeVisible()
+    await expect.poll(() => visibleToastText(electronApp, appWindow)).toContain('Synthetic clipboard refusal')
     await expect(copyReport).toHaveText('Copy report')
     expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(previous)
     await expect(panel).toContainText('Chromium quota detail')

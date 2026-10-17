@@ -185,8 +185,9 @@ export class ToastOverlay {
   /** A page view attached meanwhile would cover the toast; put it back on top. */
   restack(): void {
     const surface = this.current
-    if (!this.toast?.presented || !surface || surface.isDestroyed()) return
-    surface.present()
+    const shown = this.toast
+    if (!shown?.presented || !surface || surface.isDestroyed()) return
+    this.present(shown, surface)
   }
 
   hide(): void {
@@ -250,17 +251,30 @@ export class ToastOverlay {
     }
     const room = TOAST_OVERLAY_SHADOW_ROOM * layout.zoom
     // The size the view laid the toast out at; a newer page area that needs another width is laid out again first.
-    surface.setBounds(placeToastOverlay(
+    const bounds = placeToastOverlay(
       layout.area,
       { width: shown.width * shown.zoom, height: shown.height * shown.zoom },
       TOAST_OVERLAY_EDGE * layout.zoom,
       room
-    ))
-    surface.present()
+    )
+    if (!this.present(shown, surface, bounds)) return
     shown.presented = true
     if (shown.reported !== 'shown') {
       shown.reported = 'shown'
       this.ports.emit({ id: shown.request.toast.id, kind: 'shown' })
+    }
+  }
+
+  /** Puts the view on top, at `bounds` when given; true unless the window refused, and the shell shows its own copy. */
+  private present(shown: ShownToast, surface: ToastOverlaySurface, bounds?: ShellTooltipRect): boolean {
+    try {
+      if (bounds) surface.setBounds(bounds)
+      surface.present()
+      return true
+    } catch (error) {
+      console.error('[toast overlay] Failed to show the toast:', error)
+      this.unavailable(shown)
+      return false
     }
   }
 

@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
+import { visibleToastText } from './toast-view.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 
 // Set in beforeAll, not at import: tests run as parallel groups, afterAll runs after each group, and a later group
@@ -482,7 +483,7 @@ test('keeps the current tab selected when presentation actions cannot wake their
       if (!item?.click) throw new Error('Requested-tab tray action was not found')
       item.click(item, undefined, { triggeredByAccelerator: false })
     })
-    await expect(appWindow.getByText('simulated requested tray wake failure')).toBeVisible()
+    await expect.poll(() => visibleToastText(electronApp, appWindow)).toContain('simulated requested tray wake failure')
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({
       activeTabId: state.activeTabId,
       sleeping: state.tabs.find((tab) => tab.id === ${JSON.stringify(targetTabId)})?.sleeping

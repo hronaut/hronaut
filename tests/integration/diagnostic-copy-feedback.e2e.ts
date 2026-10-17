@@ -1,4 +1,5 @@
 import { expect, test } from './capability-fixtures.js'
+import { visibleToastText } from './toast-view.js'
 
 test('clears Debug report copy success while a later clipboard write is pending and after it fails', async ({ capabilities, appWindow, electronApp }) => {
   const { tabId, openPageTool } = capabilities
@@ -30,7 +31,7 @@ test('clears Debug report copy success while a later clipboard write is pending 
     await electronApp.evaluate(() => (globalThis as typeof globalThis & {
       __diagnosticClipboard?: { reject?: (error: Error) => void }
     }).__diagnosticClipboard?.reject?.(new Error('Synthetic clipboard refusal')))
-    await expect(appWindow.getByText('Synthetic clipboard refusal', { exact: false })).toBeVisible()
+    await expect.poll(() => visibleToastText(electronApp, appWindow)).toContain('Synthetic clipboard refusal')
     await expect(copyReport).toHaveText('Copy report')
     expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(previous)
     await expect(panel).toContainText('failed requests')
