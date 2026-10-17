@@ -1,5 +1,5 @@
-import type { AgentRecentStep } from '../../../shared/agent-presence.js'
-import { agentStepTakesTarget, type AgentStepKind } from '../../../shared/agent-steps.js'
+import type { AgentRecentStep } from './agent-presence.js'
+import { agentStepTakesTarget, type AgentStepKind } from './agent-steps.js'
 
 type Translate = (key: string, values?: Record<string, unknown>) => string
 

@@ -13,7 +13,7 @@ import {
 } from '../../../shared/agent-card.js'
 import type { AgentPresence } from '../../../shared/agent-presence.js'
 import { isResolvedThemeName } from '../../../shared/theme.js'
-import { agentFinishedStepText, agentStepText } from './agent-step-text.js'
+import { agentFinishedStepText, agentStepText } from '../../../shared/agent-step-text.js'
 import { agentCardCompletes, type AgentDecisionAnswerState } from './useAgentDecisionAnswers.js'
 
 type Translate = (key: string, values?: Record<string, unknown>) => string

@@ -3250,6 +3250,7 @@ export const plPL = {
   "home": {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Sekcje główne", "overview": "Przegląd", "connect": "Połącz agenta", "tools": "Biblioteka narzędzi"},
+    "mission": {"greeting": {"morning": "Dzień dobry", "afternoon": "Dzień dobry", "evening": "Dobry wieczór"}, "agentsConnected": "Połączono {count} agenta. | Połączono {count} agentów. | Połączono {count} agentów.", "workspacesNeedYou": "{count} obszar czeka na Ciebie. | {count} obszary czekają na Ciebie. | {count} obszarów czeka na Ciebie.", "agents": "Połączeni agenci", "needsYou": "{name} czeka na Ciebie", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Ostatnio używany {time}", "open": "Otwórz {name}", "moreActions": "Więcej działań: {name}", "newWorkspaceHelp": "Własne karty i logowania"},
     journey: {
       heading: 'Zacznij od swojego agenta',
       connect: 'Połącz',

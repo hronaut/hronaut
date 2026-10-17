@@ -496,10 +496,12 @@ describe('Home workspace hub', () => {
     const card = document.querySelector<HTMLElement>('.home-workspace-card')!
     expect(card.getAttribute('aria-label')).toBe(name)
     expect(card.querySelector('h2')?.textContent).toBe(name)
-    expect(card.querySelector('.home-workspace-preview')?.textContent).toBe(title)
+    expect(card.querySelector('.card-tab-title')?.textContent).toBe(title)
     expect(card.querySelectorAll('img,[data-unexpected]')).toHaveLength(0)
-    expect(Array.from(card.querySelectorAll<HTMLButtonElement>('footer button'), control => control.dataset.workspaceAction))
-      .toEqual(archived ? ['open', 'transfer', 'delete'] : ['open', 'edit', 'archive', 'clear'])
+    // The menu's actions, then the card's own open or restore button.
+    expect(Array.from(card.querySelectorAll<HTMLButtonElement>('button[data-workspace-action]'), control => control.dataset.workspaceAction))
+      .toEqual(archived ? ['transfer', 'delete', 'open'] : ['edit', 'transfer', 'archive', 'clear', 'open'])
+    expect(button('[data-workspace-action="open"]').textContent).toBe(archived ? 'Restore workspace' : `Open ${name}`)
     expect(button(`[data-workspace-action="${archived ? 'delete' : 'clear'}"]`).disabled).toBe(true)
     for (const input of card.querySelectorAll<HTMLInputElement>('input')) {
       expect(input.checked).toBe(true)
@@ -559,23 +561,28 @@ describe('Home workspace hub', () => {
     expect(action).toHaveBeenCalledWith({ view: 'archive', workspaceId: 'project' })
   })
 
-  it('confirms and clears an open workspace beside Archive even while website input is locked', async () => {
-    const locked = { ...inventory, allHumanInteractionLocked: true }
-    const cleared = { ...locked, mcpTabGroups: [] }
+  it.each([false, true])('clears an open workspace from its menu even while website input is locked, asking first only with a full archive (full=%s)', async full => {
+    const archive = full ? Array.from({ length: 50 }, (_, index) => ({ ...workspace, id: `archived-${index}`, savedAt: workspace.lastUsedAt, tabs: [] })) : []
+    const locked = { ...inventory, allHumanInteractionLocked: true, savedTabGroups: archive }
+    const cleared = { ...locked, mcpTabGroups: [], savedTabGroups: full ? archive : [{ ...workspace, savedAt: workspace.lastUsedAt, tabs: [] }] }
     const action = vi.fn().mockResolvedValue(cleared)
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     mount({ getWorkspaces: vi.fn().mockResolvedValue(locked), workspaceAction: action })
     await settle()
 
-    const actions = [...document.querySelectorAll<HTMLButtonElement>('.home-workspace-card footer button')]
-    expect(actions.map(item => item.textContent)).toEqual(['Open workspace', 'Manage', 'Archive', 'Clear…'])
+    const actions = [...document.querySelectorAll<HTMLButtonElement>('.home-workspace-card .card-menu-list button')]
+    expect(actions.map(item => item.textContent)).toEqual(['Manage', 'Copy or move data', 'Archive', 'Clear…'])
     expect(button('[data-workspace-action="clear"]').disabled).toBe(false)
     button('[data-workspace-action="clear"]').click()
     await settle()
 
-    expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
-    expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project' })
+    if (full) expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
+    else expect(confirm).not.toHaveBeenCalled()
+    expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project', undoable: !full })
     expect(document.querySelector('#workspace-notice')?.textContent).toBe('“Research <safe>” cleared.')
+    // With Undo, Home offers it too and keeps keyboard focus on it.
+    expect(button('#workspace-undo').hidden).toBe(full)
+    if (!full) expect(document.activeElement).toBe(button('#workspace-undo'))
   })
 
   it.each([

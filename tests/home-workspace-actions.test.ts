@@ -11,7 +11,7 @@ function harness() {
   } as unknown as BrowserState
   const manager = {
     getState: () => state, openHome: vi.fn(), selectTab: vi.fn(), newTab: vi.fn(),
-    saveAndCloseTabGroup: vi.fn(), closeWorkspace: vi.fn(), restoreSavedTabGroup: vi.fn(), deleteSavedTabGroup: vi.fn(),
+    archiveWorkspaceForPerson: vi.fn(), closeWorkspace: vi.fn(), closeWorkspaceForPerson: vi.fn(), restoreSavedTabGroup: vi.fn(), deleteSavedTabGroup: vi.fn(),
     updateMcpTabGroup: vi.fn(), updateArchivedWorkspacePreferences: vi.fn()
   }
   const edit = vi.fn()
@@ -54,7 +54,7 @@ describe('trusted Home workspace actions', () => {
     h.state.tabs = [{ id: 'page', mcpGroupId: 'active' }] as BrowserState['tabs']
     await expect(h.run({ view: 'archive', workspaceId: 'active' })).rejects.toThrow('Unlock')
     await expect(h.run({ view: 'delete', workspaceId: 'archived' })).rejects.toThrow('Unlock')
-    expect(h.manager.saveAndCloseTabGroup).not.toHaveBeenCalled()
+    expect(h.manager.archiveWorkspaceForPerson).not.toHaveBeenCalled()
     expect(h.manager.deleteSavedTabGroup).not.toHaveBeenCalled()
   })
 
@@ -63,7 +63,7 @@ describe('trusted Home workspace actions', () => {
     h.state.allHumanInteractionLocked = true
     h.state.tabs = [{ id: 'other-page', mcpGroupId: 'other' }] as BrowserState['tabs']
     await h.run({ view: 'archive', workspaceId: 'active' })
-    expect(h.manager.saveAndCloseTabGroup).toHaveBeenCalledWith('active')
+    expect(h.manager.archiveWorkspaceForPerson).toHaveBeenCalledWith('active')
   })
 
   it('clears an active workspace from trusted Home even while website input is locked', async () => {
@@ -73,6 +73,31 @@ describe('trusted Home workspace actions', () => {
     await h.run({ view: 'clear', workspaceId: 'active' })
 
     expect(h.manager.closeWorkspace).toHaveBeenCalledWith('active')
-    expect(h.manager.saveAndCloseTabGroup).not.toHaveBeenCalled()
+    expect(h.manager.archiveWorkspaceForPerson).not.toHaveBeenCalled()
+  })
+
+  it('clears with the shell\'s Undo when Home says the archive has room, and checks the flag', async () => {
+    const h = harness()
+
+    await h.run({ view: 'clear', workspaceId: 'active', undoable: true })
+    await expect(h.run({ view: 'clear', workspaceId: 'active', undoable: 'yes' })).rejects.toThrow('Invalid workspace action')
+
+    expect(h.manager.closeWorkspaceForPerson).toHaveBeenCalledOnce()
+    expect(h.manager.closeWorkspaceForPerson).toHaveBeenCalledWith('active')
+    expect(h.manager.closeWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('sends Home only small image icons for the tabs a card shows', async () => {
+    const h = harness()
+    const icon = 'data:image/png;base64,AAAA'
+    h.state.tabs = [
+      ...Array.from({ length: 5 }, (_, index) => ({ id: `tab-${index}`, mcpGroupId: 'active', title: `Tab ${index}`, url: 'https://example.com/', faviconDataUrl: icon })),
+      { id: 'large', mcpGroupId: 'other', title: 'Large', url: 'https://example.com/', faviconDataUrl: `data:image/png;base64,${'A'.repeat(20_000)}` },
+      { id: 'script', mcpGroupId: 'other', title: 'Not an image', url: 'https://example.com/', faviconDataUrl: 'data:text/html;base64,AAAA' }
+    ] as BrowserState['tabs']
+
+    const result = await h.run({ view: 'open', workspaceId: 'active' })
+
+    expect(result.tabs.map(tab => Boolean(tab.faviconDataUrl))).toEqual([true, true, true, true, false, false, false])
   })
 })
