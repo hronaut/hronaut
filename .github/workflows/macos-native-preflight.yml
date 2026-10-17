@@ -50,6 +50,10 @@ jobs:
         run: |
           npm run build:app
           npx --no-install electron-builder --mac dir "--$PACKAGE_ARCH" --publish never
+      # Hosted runners ask for reduced transparency, which keeps the tab rail solid. Turning it off where the runner
+      # allows it lets the screenshot show the vibrancy behind the rail; window-material.json records what applied.
+      - name: Allow window transparency for the rail material
+        run: defaults write com.apple.universalaccess reduceTransparency -bool false || echo "::warning title=Reduce transparency::The runner did not allow turning off Reduce transparency"
       - name: Verify native packaged runtime, clipboard and tray lifecycle
         env:
           CANDIDATE_APP: ${{ matrix.app }}
