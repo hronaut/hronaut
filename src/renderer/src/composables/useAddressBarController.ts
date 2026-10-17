@@ -155,6 +155,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const staysInForm = next instanceof Node && (event.currentTarget as HTMLElement).contains(next)
     const leftInput = event.target === input.value && next !== input.value
     if (leftInput) {
+      // Focus has left now, even if a tab change cancels the rest of the blur below.
+      focused.value = false
       // The native suggestion view is outside this DOM and may deliver its
       // selection after the input loses focus. Other DOM controls invalidate it.
       hideSuggestions(next === null)

@@ -15,7 +15,8 @@ defineProps<{
   railWidth?: number
   /** Tabs run along the top above a toolbar, so toasts sit in the toolbar's row and leave the tabs clickable. */
   belowTabStrip?: boolean
-  /** The person is typing in the address field, which a toast would cover; toasts step aside until it loses focus. */
+  /** The person is typing in the address field, which a toast can cover; toasts other than errors step aside until it
+   * loses focus. */
   yielding?: boolean
 }>()
 
@@ -90,10 +91,12 @@ const { t } = useI18n({ useScope: 'global' })
   transform: translateX(-50%);
   pointer-events: none;
 }
-/* Level with the address field's row (the 44 px tab strip, then the toolbar's top padding), clear of the tabs. */
-.app-toast-region.below-tab-strip { top: 52px; }
-/* Hidden toasts take no clicks and keep their time; a toast still showing comes back when the field loses focus. */
-.app-toast-region.yielding { visibility: hidden; }
+/* Level with the toolbar's first row, below the tab strip however many rows that strip wraps into on a narrow window
+   (44 px when it does not). */
+.app-toast-region.below-tab-strip { top: calc(anchor(--page-toolbar top, 44px) + 8px); }
+/* Hidden, a toast takes no clicks and its time keeps running; still showing when the field loses focus, it comes back.
+   Errors stay, so they are still seen and announced. */
+.app-toast-region.yielding .app-toast:not(.error) { visibility: hidden; }
 .app-toast {
   display: grid;
   min-height: 36px;

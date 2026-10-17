@@ -220,6 +220,22 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('https://typed.example/path')
   })
 
+  it('stops counting as focused when focus leaves, even if a tab change cancels the rest of the blur', async () => {
+    vi.useFakeTimers()
+    const rendered = createHarness()
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    expect(rendered.controller.focused.value).toBe(true)
+
+    // Ctrl+W or Ctrl+Tab from the field: main focuses the page and sends the new tab before the blur timer runs.
+    await fireEvent.focusOut(input, { relatedTarget: null })
+    rendered.activeTab.value = tab('second')
+    await nextTick()
+    await vi.runAllTimersAsync()
+
+    expect(rendered.controller.focused.value).toBe(false)
+  })
+
   it('restores the committed URL after focus loss when there is no typed draft', async () => {
     vi.useFakeTimers()
     const rendered = createHarness()

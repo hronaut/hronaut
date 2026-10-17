@@ -47,10 +47,12 @@ describe('AppToastRegion', () => {
     })
 
     expect(view.container.querySelector('.app-toast-region')).toHaveClass('below-tab-strip')
-    expect(styles).toMatch(/\.app-toast-region\.below-tab-strip\s*\{\s*top:\s*52px;\s*\}/u)
+    // Level with the toolbar's first row wherever the tab strip above it wraps; 44 px is the strip on one row.
+    expect(styles).toMatch(/\.app-toast-region\.below-tab-strip\s*\{\s*top:\s*calc\(anchor\(--page-toolbar top, 44px\) \+ 8px\);\s*\}/u)
+    expect(readFileSync(join(process.cwd(), 'src/renderer/src/styles/shell.css'), 'utf8')).toMatch(/\.toolbar \{[^}]*anchor-name: --page-toolbar;/u)
   })
 
-  it('steps aside while the address field it would cover has focus, and keeps the toast', async () => {
+  it('steps aside while the address field has focus, except for errors, and keeps the toast', async () => {
     const toasts = [{ id: 7, tone: 'success' as const, title: 'Tab closed', message: 'Example', action: { label: 'Undo', ariaLabel: 'Undo closing Example' } }]
     const view = render(AppToastRegion, {
       global: { plugins: [createHronautI18n('en-US')] },
@@ -58,7 +60,7 @@ describe('AppToastRegion', () => {
     })
 
     expect(view.container.querySelector('.app-toast-region')).toHaveClass('yielding')
-    expect(styles).toMatch(/\.app-toast-region\.yielding\s*\{\s*visibility:\s*hidden;\s*\}/u)
+    expect(styles).toMatch(/\.app-toast-region\.yielding \.app-toast:not\(\.error\)\s*\{\s*visibility:\s*hidden;\s*\}/u)
     await view.rerender({ home: false, toasts, yielding: false })
     expect(view.container.querySelector('.app-toast-region')).not.toHaveClass('yielding')
     expect(screen.getByRole('button', { name: 'Undo closing Example' })).toBeInTheDocument()

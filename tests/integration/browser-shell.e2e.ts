@@ -9097,17 +9097,22 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     const captureFeedbackPlacement = await appWindow.locator('.address-form').evaluate((address) => {
       const toast = address.ownerDocument.querySelector('.app-toast')
       const shell = address.ownerDocument.querySelector('.shell')
+      const toolbar = address.closest('.toolbar')!
       const toastBounds = toast?.getBoundingClientRect()
       const shellBounds = shell?.getBoundingClientRect()
+      const tabStripBottom = Math.max(...[...address.ownerDocument.querySelectorAll('.topbar [role="tab"], .topbar button')]
+        .map((control) => control.getBoundingClientRect().bottom))
       return {
         insideAddress: Boolean(toast && address.contains(toast)),
-        toolbarOverflow: address.closest('.toolbar')!.scrollWidth - address.closest('.toolbar')!.clientWidth,
-        topWindowOverlay: Boolean(toastBounds && shellBounds
-          && toastBounds.top <= 8
+        toolbarOverflow: toolbar.scrollWidth - toolbar.clientWidth,
+        // With tabs along the top, feedback sits in the toolbar's row over the shell, clear of the tab strip.
+        toolbarRowOverlay: Boolean(toastBounds && shellBounds
+          && toastBounds.top >= tabStripBottom
+          && toastBounds.top <= toolbar.getBoundingClientRect().top + 12
           && toastBounds.bottom <= shellBounds.bottom)
       }
     })
-    expect(captureFeedbackPlacement).toEqual({ insideAddress: false, toolbarOverflow: 0, topWindowOverlay: true })
+    expect(captureFeedbackPlacement).toEqual({ insideAddress: false, toolbarOverflow: 0, toolbarRowOverlay: true })
     const clipboardImage = await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
       const items = await clipboard.read()
       const png = items.find((item) => item.types.includes('image/png'))

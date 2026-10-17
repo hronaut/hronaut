@@ -106,34 +106,43 @@ test('offers Undo after closing tabs, closing a workspace and removing a bookmar
   await expect.poll(() => workspaceTabUrls(appWindow, beta.id)).toEqual(betaUrls)
 })
 
-test('keeps an Undo toast off tabs along the top and out of the way of the address field', async ({ appWindow }) => {
-  const created = await appWindow.evaluate(() => (window as unknown as { hronaut: UndoApi }).hronaut.createWorkspace({ name: 'Undo strip', storage: 'scratch' }))
-  const workspace = created.mcpTabGroups.find((group) => group.name === 'Undo strip')!
-  for (const page of ['first', 'second', 'third']) {
-    await appWindow.evaluate(({ id, url }) => (window as unknown as { hronaut: UndoApi }).hronaut.newTab({ url, active: true, mcpGroupId: id }), { id: workspace.id, url: `data:text/html,<title>Strip ${page}</title>${page}` })
-  }
-  const third = (await state(appWindow)).tabs.find((tab) => tab.url.includes('third'))!
-  await appWindow.evaluate((tabId) => (window as unknown as { hronaut: UndoApi }).hronaut.closeTab(tabId), third.id)
-  const toast = appWindow.getByRole('status', { name: 'Tab closed' })
-  await expect(toast).toBeVisible()
+for (const width of [1320, 960, 760]) {
+  test(`keeps an Undo toast off tabs along the top and out of the way of the address field at ${width} px`, async ({ appWindow, electronApp }) => {
+    await electronApp.evaluate(({ BrowserWindow }, size) => { BrowserWindow.getAllWindows()[0]!.setContentSize(size, 800) }, width)
+    await expect.poll(() => appWindow.evaluate(() => window.innerWidth)).toBe(width)
+    const created = await appWindow.evaluate(() => (window as unknown as { hronaut: UndoApi }).hronaut.createWorkspace({ name: 'Undo strip', storage: 'scratch' }))
+    const workspace = created.mcpTabGroups.find((group) => group.name === 'Undo strip')!
+    for (const page of ['first', 'second', 'third', 'fourth']) {
+      await appWindow.evaluate(({ id, url }) => (window as unknown as { hronaut: UndoApi }).hronaut.newTab({ url, active: true, mcpGroupId: id }), { id: workspace.id, url: `data:text/html,<title>Strip ${page}</title>${page}` })
+    }
+    const close = async (page: string): Promise<void> => {
+      const target = (await state(appWindow)).tabs.find((tab) => tab.url.includes(page))!
+      await appWindow.evaluate((tabId) => (window as unknown as { hronaut: UndoApi }).hronaut.closeTab(tabId), target.id)
+    }
+    const toast = appWindow.getByRole('status', { name: 'Tab closed' })
 
-  // The toast sits in the toolbar's row, below every tab in the strip, so the next tab takes a click at once.
-  const toastBox = (await toast.boundingBox())!
-  for (const tab of await appWindow.getByRole('tab').all()) {
-    const box = await tab.boundingBox()
-    if (box) expect(box.y + box.height).toBeLessThanOrEqual(toastBox.y)
-  }
-  await appWindow.getByRole('tab', { name: /^Strip first/ }).click()
-  await expect.poll(async () => (await state(appWindow)).tabs.find((tab) => tab.active)?.url).toContain('first')
-  await expect(toast).toBeVisible()
+    // The toast sits in the toolbar's row, below everything in the tab strip however it wraps, so the next tab takes a
+    // click at once.
+    await close('fourth')
+    await expect(toast).toBeVisible()
+    const placement = await appWindow.evaluate(() => {
+      const toastBox = document.querySelector('.app-toast')!.getBoundingClientRect()
+      const strip = [...document.querySelectorAll('.topbar [role="tab"], .topbar button')].map((control) => control.getBoundingClientRect())
+      const toolbarTop = document.querySelector('.toolbar')!.getBoundingClientRect().top
+      return { clearOfStrip: strip.every((box) => box.bottom <= toastBox.top), inToolbarRow: toastBox.top >= toolbarTop && toastBox.top <= toolbarTop + 12 }
+    })
+    expect(placement).toEqual({ clearOfStrip: true, inToolbarRow: true })
+    await appWindow.getByRole('tab', { name: /^Strip first/ }).click()
+    await expect.poll(async () => (await state(appWindow)).tabs.find((tab) => tab.active)?.url).toContain('first')
 
-  // Typing an address under it hides the toast without ending it; it is back once the field loses focus.
-  await appWindow.keyboard.press('Control+L')
-  await expect(appWindow.getByRole('combobox', { name: /address/i })).toBeFocused()
-  await expect(toast).toBeHidden()
-  await appWindow.keyboard.press('Escape')
-  await appWindow.getByRole('tab', { name: /^Strip second/ }).click()
-  await expect(toast).toBeVisible()
-  await toast.getByRole('button', { name: 'Undo: Tab closed' }).click()
-  await expect.poll(async () => (await state(appWindow)).tabs.some((tab) => tab.url.includes('third'))).toBe(true)
-})
+    // Typing an address hides the toast without ending it; it is back once the field loses focus, and Undo works.
+    await close('third')
+    await expect(toast).toBeVisible()
+    await appWindow.keyboard.press('Control+L')
+    await expect(appWindow.getByRole('combobox', { name: 'Address' })).toBeFocused()
+    await expect(toast).toBeHidden()
+    await appWindow.getByRole('tab', { name: /^Strip second/ }).click()
+    await toast.getByRole('button', { name: 'Undo: Tab closed' }).click()
+    await expect.poll(async () => (await state(appWindow)).tabs.some((tab) => tab.url.includes('third'))).toBe(true)
+  })
+}
