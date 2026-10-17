@@ -95,10 +95,8 @@ import { CredentialStore } from './credential-store.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
-import {
-  COMMERCIAL_LICENSE_API_BASE_URL,
-  commercialLicensePurchaseHandler
-} from './commercial-license-links.js'
+import { COMMERCIAL_LICENSE_API_BASE_URL } from './commercial-license-links.js'
+import { registerLicenseIpc } from './license-ipc.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
 import { registerUpdatesIpc } from './updates-ipc.js'
@@ -3724,26 +3722,14 @@ function registerIpc(): void {
     mcpServer: () => mcpServer,
     mcpActionTracker: () => mcpActionTracker
   })
-  ipcMain.handle('license:get-state', (event) => {
-    assertTrustedShellSender(event)
-    return currentCommercialLicenseState()
+  registerLicenseIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    currentCommercialLicenseState,
+    activateCommercialLicense,
+    refreshCommercialLicense,
+    deactivateCommercialLicense,
+    openExternal: (url) => shell.openExternal(url)
   })
-  ipcMain.handle('license:activate', (event, licenseKey: unknown) => {
-    assertTrustedShellSender(event)
-    return activateCommercialLicense(licenseKey)
-  })
-  ipcMain.handle('license:refresh', (event) => {
-    assertTrustedShellSender(event)
-    return refreshCommercialLicense()
-  })
-  ipcMain.handle('license:deactivate', (event) => {
-    assertTrustedShellSender(event)
-    return deactivateCommercialLicense()
-  })
-  ipcMain.handle(
-    'license:open-purchase',
-    commercialLicensePurchaseHandler(assertTrustedShellSender, (url) => shell.openExternal(url))
-  )
   registerUpdatesIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
     updateState: () => updateState,
