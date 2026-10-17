@@ -116,8 +116,12 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     })
     root.setAttribute('aria-busy', String(pending))
     root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[data-workspace-action],input[data-workspace-preference]').forEach(control => {
-      if (pending) { control.dataset.wasDisabled ??= String(control.disabled); control.disabled = true }
-      else if (control.dataset.wasDisabled !== undefined) { control.disabled = control.dataset.wasDisabled === 'true'; delete control.dataset.wasDisabled }
+      if (pending) {
+        // The control the person is on stays enabled: Chromium drops focus from a disabled control, which would close
+        // its menu and send focus to the search field. Pressing it again meanwhile does nothing, as `action` ignores it.
+        if (control === document.activeElement) return
+        control.dataset.wasDisabled ??= String(control.disabled); control.disabled = true
+      } else if (control.dataset.wasDisabled !== undefined) { control.disabled = control.dataset.wasDisabled === 'true'; delete control.dataset.wasDisabled }
     })
   }
   async function action(input: HomeWorkspaceAction): Promise<void> {

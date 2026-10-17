@@ -618,6 +618,37 @@ describe('Home workspace hub', () => {
     expect(input.checked).toBe(stored)
   })
 
+  it.each(['hiddenFromSidebar', 'deletionProtected'] as const)('keeps the card menu open and focus on %s while the option saves', async preference => {
+    let finish!: (value: unknown) => void
+    const action = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory), workspaceAction: action })
+    await settle()
+    const card = document.querySelector<HTMLElement>('.home-workspace-card')!
+    card.querySelector('details')!.open = true
+    const selector = `[data-workspace-preference="${preference}"]`
+    const input = card.querySelector<HTMLInputElement>(selector)!
+    input.focus()
+    input.checked = true
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(action).toHaveBeenCalledWith({ view: 'preferences', workspaceId: workspace.id, [preference]: true })
+    // Chromium drops focus from a control once it is disabled, which the menu reads as leaving it; jsdom does not.
+    if (input.disabled) input.blur()
+    expect(input.disabled).toBe(false)
+    expect(button('[data-workspace-action="archive"]').disabled).toBe(true)
+    expect(card.querySelector('details')!.open).toBe(true)
+    // A second press while the save runs changes nothing.
+    input.checked = false
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(action).toHaveBeenCalledTimes(1)
+    finish({ ...inventory, mcpTabGroups: [{ ...workspace, [preference]: true }] })
+    await settle()
+    // The card is rebuilt for the change with its menu open and focus on the same option, not sent to the search field.
+    expect(card.querySelector('details')!.open).toBe(true)
+    expect(document.activeElement).toBe(card.querySelector(selector))
+    expect(card.querySelector<HTMLInputElement>(selector)!.checked).toBe(true)
+    expect(button('[data-workspace-action="archive"]').disabled).toBe(false)
+  })
+
   it('reconciles a preference save that returns unchanged workspace state', async () => {
     mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory), workspaceAction: vi.fn().mockResolvedValue(inventory) })
     await settle()
