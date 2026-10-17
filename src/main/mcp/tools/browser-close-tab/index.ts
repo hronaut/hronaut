@@ -11,6 +11,6 @@ export function registerBrowserCloseTab(context: McpToolContext): void {
       tool(async ({ tabId }: { tabId: string }) => textResult(await manager.closeTab(tabId))),
       'never'
     ),
-    { closesTargetTab: true }
+    { closesTargetTab: true, publicObserverAllowed: true }
   )
 }

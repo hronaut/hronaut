@@ -49,6 +49,6 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         { type: 'image' as const, data: image.data.toString('base64'), mimeType: image.mimeType }
       ] }
     }),
-    { settlement: () => pageObservationSettlement(manager), continuityInspection: () => true }
+    { settlement: () => pageObservationSettlement(manager), continuityInspection: () => true, publicObserverAllowed: true }
   )
 }

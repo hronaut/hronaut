@@ -96,6 +96,7 @@ export function registerBrowserAuditReceipts(context: McpToolContext): void {
       // A user can revoke agent access while bounded disk I/O is pending.
       authorize()
       return textResult(result)
-    })
+    }),
+    { leaseExempt: () => true }
   )
 }

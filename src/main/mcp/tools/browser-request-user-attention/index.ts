@@ -22,6 +22,6 @@ export function registerBrowserRequestUserAttention(context: McpToolContext): vo
       }
       return textResult(await requestUserAttention({ reason, notificationMessage, workspaceId, tabId }))
     }),
-    { tabTarget: 'optional', continuityInspection: () => true, pageOrigins: 'none' }
+    { tabTarget: 'optional', continuityInspection: () => true, pageOrigins: 'none', leaseExempt: () => true }
   )
 }

@@ -431,22 +431,8 @@ export function mcpRequestAuthorized(configuredToken: string | undefined, author
   return bearer?.[1] === configuredToken
 }
 
-const WORKSPACE_LEASE_OBSERVATION_TOOLS = new Set([
-  'browser_human_waiting',
-  'browser_continuity',
-  'browser_audit_receipts',
-  'browser_task_runs',
-  'browser_request_user_attention',
-  'wallet_list',
-  'wallet_balance',
-  'wallet_prepare_transaction',
-  'wallet_request_status',
-  'wallet_page_requests'
-])
-
-function requiresWorkspaceWriteLease(toolName: string, input: Record<string, unknown>): boolean {
-  return mcpCapabilityOperationClass(toolName, input) !== 'read'
-    && !WORKSPACE_LEASE_OBSERVATION_TOOLS.has(toolName)
+function requiresWorkspaceWriteLease(toolName: string, input: Record<string, unknown>, exempt: boolean): boolean {
+  return mcpCapabilityOperationClass(toolName, input) !== 'read' && !exempt
 }
 
 export function assertMcpToolRegistrationContract(
@@ -468,21 +454,8 @@ export function assertMcpToolRegistrationContract(
   if (issues.length) throw new Error(`Invalid MCP tool contract (${issues.join('; ')})`)
 }
 
-const PUBLIC_OBSERVER_LOCAL_TOOLS = new Set([
-  'browser_audit_receipts',
-  'browser_close_tab',
-  'browser_continuity',
-  'browser_navigate',
-  'browser_new_tab',
-  'browser_preflight',
-  'browser_screenshot',
-  'browser_select_tab',
-  'browser_task_runs'
-])
-
-function publicObserverAllowsTool(name: string): boolean {
-  return name.startsWith('browser_')
-    && (toolDefinition(name).annotations.readOnlyHint || PUBLIC_OBSERVER_LOCAL_TOOLS.has(name))
+function publicObserverAllowsTool(name: string, allowed: boolean): boolean {
+  return name.startsWith('browser_') && (toolDefinition(name).annotations.readOnlyHint || allowed)
 }
 
 export function mcpCapabilityProfileInputFromPreset(
@@ -841,7 +814,7 @@ function createBrowserMcpServer(
         requireAgentControl(name, input)
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
-        const leaseExemptWorkspaceAction = options.leaseExempt?.(input) === true
+        const leaseExempt = options.leaseExempt?.(input) === true
         const leaseTarget = options.leaseTarget?.(input)
         const leaseWorkspaceId = typeof input.workspaceId === 'string'
           ? input.workspaceId
@@ -856,8 +829,8 @@ function createBrowserMcpServer(
           && workspaceLeases.status(leaseWorkspaceId, client.id).status === 'unclaimed') {
           workspaceLeases.claim(leaseWorkspaceId, client.id)
         }
-        if (!leaseExemptWorkspaceAction && leaseWorkspaceId && authorizedLeaseWorkspace
-          && requiresWorkspaceWriteLease(name, input)) {
+        if (leaseWorkspaceId && authorizedLeaseWorkspace
+          && requiresWorkspaceWriteLease(name, input, leaseExempt)) {
           finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
         }
         await authorizeCapability(name, input, 'consume')
@@ -1073,10 +1046,10 @@ function createBrowserMcpServer(
         const continuityInspection = options.continuityInspection?.(actionInput) === true
         requireActiveCapabilityDispatch(name, actionInput)
         const workspace = requireAgentWorkspace(workspaceId)
-        const writeLease = requiresWorkspaceWriteLease(name, actionInput)
+        const writeLease = requiresWorkspaceWriteLease(name, actionInput, options.leaseExempt?.(actionInput) === true)
           ? workspaceLeases.require(workspaceId, client.id)
           : undefined
-        if (workspace.contextClass === 'public-observer' && !publicObserverAllowsTool(name)) {
+        if (workspace.contextClass === 'public-observer' && !publicObserverAllowsTool(name, options.publicObserverAllowed === true)) {
           throw new Error(`Tool ${name} is unavailable in a read-only public observer workspace`)
         }
         const reviewedBinding = reviewBinding(name, input)

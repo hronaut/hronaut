@@ -28,6 +28,7 @@ export function registerBrowserContinuity(context: McpToolContext): void {
       const report = await manager.inspectWorkspaceContinuity(workspaceId)
       requireAgentWorkspace(workspaceId)
       return textResult(report)
-    })
+    }),
+    { leaseExempt: () => true }
   )
 }

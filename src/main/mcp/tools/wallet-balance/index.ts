@@ -21,6 +21,7 @@ export function registerWalletBalance(context: McpToolContext): void {
     },
     tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId, token, spender }: {
       workspaceId: string; tabId: string; walletSessionId: string; walletId: string; token?: string; spender?: string
-    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId, token, spender)))
+    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId, token, spender))),
+    { leaseExempt: () => true }
   )
 }

@@ -12,6 +12,6 @@ export function registerBrowserNavigate(context: McpToolContext): void {
       inputSchema: { url: z.string().min(1), tabId: tabIdSchema.optional() }
     },
     tabTool('browser_navigate', async ({ url, tabId }: { url: string; tabId?: string }) => textResult(await manager.navigate(url, tabId))),
-    { stepTarget: input => ({ url: input.url }) }
+    { stepTarget: input => ({ url: input.url }), publicObserverAllowed: true }
   )
 }

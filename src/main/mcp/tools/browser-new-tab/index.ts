@@ -57,7 +57,8 @@ export function registerBrowserNewTab(context: McpToolContext): void {
       settlement: input => input.label !== undefined ? labeledCreationSettlement(manager, input) : undefined,
       tabTarget: 'none',
       pageOrigins: 'none',
-      stepTarget: input => ({ url: input.url })
+      stepTarget: input => ({ url: input.url }),
+      publicObserverAllowed: true
     }
   )
 }

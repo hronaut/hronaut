@@ -139,6 +139,6 @@ export function registerBrowserHumanWaiting(context: McpToolContext): void {
         await requestUserAttention({ workspaceId: input.workspaceId, reason: `Human decision required: ${input.decision}`, expiresAt: record.deadlineAt, humanWaitingDecisionId: record.id })
       }))
     }),
-    { pageOrigins: 'none' }
+    { pageOrigins: 'none', leaseExempt: () => true }
   )
 }

@@ -145,7 +145,7 @@ export interface ToolOptions<S extends ToolCallSettlement | undefined> {
    * by snapshot ref. The shell shows only Hronaut's own name for that control or the address's host and path.
    */
   stepTarget?: (input: Record<string, unknown>) => { url: unknown } | { ref: unknown }
-  /** Whether this call needs no workspace write lease although it may change state. */
+  /** Whether this call needs no workspace write lease although it may change state, such as an observation or wallet call. */
   leaseExempt?: (input: Record<string, unknown>) => boolean
   /**
    * The workspace whose write lease the call takes when it has no workspaceId argument. saved: the call opens or
@@ -158,6 +158,8 @@ export interface ToolOptions<S extends ToolCallSettlement | undefined> {
 export interface WorkspaceToolOptions<S extends ToolCallSettlement | undefined> extends ToolOptions<S> {
   /** Whether a call with this input only reads, for a tool not annotated read-only. */
   readOnly?: (input: Record<string, unknown>) => boolean
+  /** A read-only public observer workspace still allows this tool, although it is not annotated read-only. */
+  publicObserverAllowed?: boolean
   /**
    * Whether this call must leave the page as the person sees it: it does not select or wake its tab, and its
    * activity does not make the window follow it.

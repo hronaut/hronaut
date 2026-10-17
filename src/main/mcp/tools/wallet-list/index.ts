@@ -24,6 +24,7 @@ export function registerWalletList(context: McpToolContext): void {
         expiresAt: new Date(session.expiresAt).toISOString(),
         wallets: WalletAgentDescriptorSchema.array().parse(await requireWallets().list(session.target))
       })
-    })
+    }),
+    { leaseExempt: () => true }
   )
 }

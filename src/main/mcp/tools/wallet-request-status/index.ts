@@ -12,6 +12,7 @@ export function registerWalletRequestStatus(context: McpToolContext): void {
     },
     tabTool('wallet_request_status', async ({ workspaceId, tabId, walletSessionId, requestId }: {
       workspaceId: string; tabId: string; walletSessionId: string; requestId: string
-    }) => textResult(await requireWallets().requestStatus(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
+    }) => textResult(await requireWallets().requestStatus(walletTarget(walletSessionId, workspaceId, tabId), requestId))),
+    { leaseExempt: () => true }
   )
 }
