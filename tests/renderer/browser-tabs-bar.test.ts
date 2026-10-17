@@ -384,27 +384,61 @@ describe('BrowserTabsBar', () => {
     const avatars = () => [...within(header).getByTestId('workspace-agents').children].map((avatar) => [avatar.getAttribute('data-initial'), avatar.getAttribute('data-state')])
     expect(avatars()).toEqual([['C', 'idle']])
 
-    await publish([presenceAgent('Claude Code', 'working'), presenceAgent('Cursor', 'idle', 2)])
+    // The agent already there resuming after a pause opens nothing.
+    await publish([presenceAgent('Claude Code', 'working')])
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    // Another agent starting to work there does.
+    await publish([presenceAgent('Claude Code', 'working'), presenceAgent('Cursor', 'working', 2)])
     expect(header).toHaveAttribute('aria-expanded', 'true')
     expect(header).toHaveAccessibleName('Collapse workspace Research, 1 tab')
-    expect(header).toHaveAccessibleDescription('Agents here: Claude Code (Working), Cursor (Idle)')
-    expect(avatars()).toEqual([['C', 'working'], ['C', 'idle']])
-    // Folding it again holds while nothing changes there.
+    expect(header).toHaveAccessibleDescription('Agents here: Claude Code (Working), Cursor (Working)')
+    expect(avatars()).toEqual([['C', 'working'], ['C', 'working']])
+    // Folding it again holds while the same agents work.
     await fireEvent.click(header)
+    await publish([presenceAgent('Claude Code', 'idle'), presenceAgent('Cursor', 'working', 2)])
     await publish([presenceAgent('Claude Code', 'working'), presenceAgent('Cursor', 'working', 2)])
     expect(header).toHaveAttribute('aria-expanded', 'false')
     await publish([presenceAgent('Claude Code', 'needs-you'), presenceAgent('Cursor', 'working', 2)])
     expect(header).toHaveAttribute('aria-expanded', 'true')
     expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual([])
 
-    // Past three agents the rest are counted, and the header's name never includes the drawn initials.
+    // Past three agents the rest are counted, in the avatars and the description, and the header's name never
+    // includes the drawn initials.
     await publish(['Claude Code', 'Cursor', 'Windsurf', 'Codex', 'Zed'].map((name) => presenceAgent(name, 'idle')))
     expect(avatars().at(-1)).toEqual(['+2', null])
     expect(within(header).getByTestId('workspace-agents').children).toHaveLength(4)
     expect(header).toHaveAccessibleName('Collapse workspace Research, 1 tab')
+    expect(header).toHaveAccessibleDescription('Agents here: Claude Code (Idle), Cursor (Idle), Windsurf (Idle), +2')
     await publish([])
     expect(within(header).queryByTestId('workspace-agents')).toBeNull()
     expect(header.getAttribute('aria-description')).not.toContain('Agents here')
+  })
+
+  it('opens no folded workspace by itself in the top tab strip', async () => {
+    let listener!: (snapshot: AgentPresenceSnapshot) => void
+    const presenceApi: HronautAgentPresenceApi = {
+      get: () => Promise.resolve({ revision: 1, workspaces: {} }),
+      onChanged: (next) => { listener = next; return () => undefined }
+    }
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
+    render(BrowserTabsBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        state: browserState(),
+        hydrated: true,
+        orientation: 'horizontal',
+        railPinned: true,
+        presenceApi,
+        mcpActivityByTab: {},
+        formatNumber: (value: number) => String(value),
+        tabTooltip: (value: BrowserTabState) => value.title,
+        describeEmulation: () => ''
+      }
+    })
+    await flushPromises()
+    listener({ revision: 2, workspaces: { 'workspace-1': [{ clientKey: 'key-claude', name: 'Claude Code', initial: 'C', colorIndex: 1, state: 'needs-you', step: 'askYou', recentSteps: [] }] } })
+    await nextTick()
+    expect(screen.getByRole('button', { name: /^Expand workspace Research, 1 tab/u })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('describes agent activity without replacing the tab name or its navigation controls', async () => {

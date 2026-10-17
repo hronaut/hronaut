@@ -12,12 +12,21 @@ export interface WorkspaceGroupAgents {
   dispose: () => void
 }
 
+/** What decides whether a group opens: whether it needs you, and which agents are there at all. */
+interface GroupSighting {
+  needsYou: boolean
+  present: ReadonlySet<string>
+  working: readonly string[]
+}
+
 const NO_AGENTS: readonly AgentPresence[] = []
 
 /**
- * The agents of each workspace group in the tab rail. A group opens by itself when an agent there starts working or
- * starts waiting for you; once the person folds it again, it stays folded until that changes again. The activity
- * present when presence first loads, or when a workspace first appears, is where it starts, so a reload opens nothing.
+ * The agents of each workspace group in the tab rail. A group opens by itself when an agent starts working there, one
+ * that was not there before, or when the workspace starts waiting for you. An agent pausing between its own steps, or a
+ * request for you ending while it carries on, opens nothing, so a group the person folds stays folded while the same
+ * agents work in it. What presence shows when it first loads, or when a workspace first appears, is where it starts,
+ * so a reload opens nothing.
  */
 export function useWorkspaceGroupAgents(options: {
   api: HronautAgentPresenceApi | undefined
@@ -27,22 +36,32 @@ export function useWorkspaceGroupAgents(options: {
 }): WorkspaceGroupAgents {
   const presence = options.api ? useAgentPresence(options.api) : undefined
   const agents = (workspaceId: string): readonly AgentPresence[] => presence?.snapshot.value.workspaces[workspaceId] ?? NO_AGENTS
+  const needsYou = (workspaceId: string): boolean => options.needsYou(workspaceId) || agents(workspaceId).some((agent) => agent.state === 'needs-you')
   const activity = (workspaceId: string): WorkspaceGroupActivity => {
-    const present = agents(workspaceId)
-    if (options.needsYou(workspaceId) || present.some((agent) => agent.state === 'needs-you')) return 'needs-you'
-    return present.some((agent) => agent.state === 'working') ? 'working' : 'quiet'
+    if (needsYou(workspaceId)) return 'needs-you'
+    return agents(workspaceId).some((agent) => agent.state === 'working') ? 'working' : 'quiet'
   }
-  const activities = computed(() => new Map(options.workspaceIds().map((workspaceId) => [workspaceId, activity(workspaceId)])))
+  const sightings = computed(() => new Map(options.workspaceIds().map((workspaceId): [string, GroupSighting] => {
+    const present = agents(workspaceId)
+    return [workspaceId, {
+      needsYou: needsYou(workspaceId),
+      present: new Set(present.map((agent) => agent.clientKey)),
+      working: present.filter((agent) => agent.state === 'working').map((agent) => agent.clientKey)
+    }]
+  })))
 
-  let seen: Map<string, WorkspaceGroupActivity> | undefined
-  const stop = watch([() => presence?.loaded.value ?? false, activities], ([loaded, next]) => {
+  let seen: Map<string, GroupSighting> | undefined
+  const stop = watch([() => presence?.loaded.value ?? false, sightings], ([loaded, next]) => {
     if (!loaded) return
     const previous = seen
     seen = next
     if (!previous) return
-    for (const [workspaceId, state] of next) {
+    for (const [workspaceId, sighting] of next) {
       const before = previous.get(workspaceId)
-      if (before !== undefined && state !== 'quiet' && state !== before) options.open(workspaceId)
+      if (!before) continue
+      if ((sighting.needsYou && !before.needsYou) || sighting.working.some((clientKey) => !before.present.has(clientKey))) {
+        options.open(workspaceId)
+      }
     }
   }, { immediate: true })
 

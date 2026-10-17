@@ -44,22 +44,38 @@ describe('useWorkspaceGroupAgents', () => {
     stop()
   })
 
-  it('opens a group each time an agent there starts working or starts waiting for you', async () => {
+  it('opens a group when an agent that was not there starts working, not when one resumes after a pause', async () => {
     const { open, publish, stop } = setup({ shop: [agent('Claude Code', 'idle')] })
     await flushPromises()
+    // The same agent between its own steps: idle after a pause, then working again. The person's fold wins.
     await publish({ shop: [agent('Claude Code', 'working')] })
+    await publish({ shop: [agent('Claude Code', 'idle')] })
+    await publish({ shop: [agent('Claude Code', 'working')] })
+    expect(open).not.toHaveBeenCalled()
+    // Another agent arrives and starts working.
+    await publish({ shop: [agent('Claude Code', 'working'), agent('Cursor', 'working')] })
     expect(open.mock.calls).toEqual([['shop']])
-    // Still working: the person's fold since then wins.
-    await publish({ shop: [agent('Claude Code', 'working'), agent('Cursor', 'idle')] })
+    // An agent that arrives idle opens nothing until it works, and then it was already there.
+    await publish({ shop: [agent('Claude Code', 'working'), agent('Cursor', 'working'), agent('Codex', 'idle')] })
+    await publish({ shop: [agent('Claude Code', 'working'), agent('Cursor', 'working'), agent('Codex', 'working')] })
+    expect(open).toHaveBeenCalledTimes(1)
+    // Once every agent has gone, the next one to work is a start again.
+    await publish({})
+    await publish({ shop: [agent('Claude Code', 'working')] })
+    expect(open.mock.calls).toEqual([['shop'], ['shop']])
+    stop()
+  })
+
+  it('opens a group when it starts waiting for you, and not when the request ends while the agent carries on', async () => {
+    const { open, publish, stop } = setup({ shop: [agent('Claude Code', 'working')] })
+    await flushPromises()
+    await publish({ shop: [agent('Claude Code', 'needs-you')] })
+    expect(open.mock.calls).toEqual([['shop']])
+    await publish({ shop: [agent('Claude Code', 'needs-you'), agent('Cursor', 'idle')] })
+    await publish({ shop: [agent('Claude Code', 'working')] })
     expect(open).toHaveBeenCalledTimes(1)
     await publish({ shop: [agent('Claude Code', 'needs-you')] })
-    expect(open.mock.calls).toEqual([['shop'], ['shop']])
-    // Going quiet opens nothing, and the next start opens it again.
-    await publish({ shop: [agent('Claude Code', 'idle')] })
-    await publish({})
     expect(open).toHaveBeenCalledTimes(2)
-    await publish({ shop: [agent('Claude Code', 'working')] })
-    expect(open).toHaveBeenCalledTimes(3)
     stop()
   })
 
@@ -84,13 +100,26 @@ describe('useWorkspaceGroupAgents', () => {
     stop()
   })
 
-  it('opens nothing before presence loads, and stops listening once disposed', async () => {
-    const { open, publish, unsubscribe, stop } = setup({})
+  it('takes the first presence it hears as the start, even a change before its first read returns', async () => {
+    const { attention, open, publish, stop } = setup({})
+    // An attention request before presence loads is part of where it starts too. Neither waits, so the change arrives
+    // before the first read returns.
+    attention.value = 'blog'
     await publish({ shop: [agent('Claude Code', 'working')] })
-    // That change was the first presence seen, so it is the start.
+    await flushPromises()
     expect(open).not.toHaveBeenCalled()
     stop()
+  })
+
+  it('stops listening and opens nothing once disposed', async () => {
+    const { groups, attention, open, publish, unsubscribe, stop } = setup({ shop: [agent('Claude Code', 'idle')] })
+    await flushPromises()
+    groups.dispose()
     expect(unsubscribe).toHaveBeenCalledTimes(1)
+    attention.value = 'shop'
+    await publish({ shop: [agent('Claude Code', 'needs-you'), agent('Cursor', 'working')] })
+    expect(open).not.toHaveBeenCalled()
+    stop()
   })
 
   it('shows no agents without a presence channel', () => {

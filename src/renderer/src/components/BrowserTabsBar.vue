@@ -32,7 +32,7 @@ import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
-import { agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
+import { AGENT_AVATAR_VISIBLE_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { foldRailWorkspaces } from '../../../shared/workspace-rail.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
@@ -304,10 +304,12 @@ const AGENT_STATE_KEYS: Record<AgentPresence['state'], string> = { idle: 'idle',
 function tabGroupAgentsDescription(workspaceId: string): string {
   const agents = groupAgents.agents(workspaceId)
   if (!agents.length) return ''
-  const names = agents.map((agent) => t('shell.tabs.groupAgent', {
+  const names = agents.slice(0, AGENT_AVATAR_VISIBLE_LIMIT).map((agent) => t('shell.tabs.groupAgent', {
     name: agent.name || t('shell.agents.unnamed'),
     state: t(`shell.agentCard.states.${AGENT_STATE_KEYS[agent.state]}`)
   }))
+  // The rest are counted, as the avatars do.
+  if (agents.length > AGENT_AVATAR_VISIBLE_LIMIT) names.push(`+${props.formatNumber(agents.length - AGENT_AVATAR_VISIBLE_LIMIT)}`)
   return t('shell.tabs.groupAgents', { agents: names.join(', ') })
 }
 
@@ -444,12 +446,13 @@ function expandTabGroup(groupId: string): void {
   persistCollapsedTabGroups()
 }
 
-// A group opens by itself when an agent there starts working or waits for you, and shows those agents in its header.
+// In the rail, a group shows its agents in its header and opens by itself when an agent starts working there or it
+// starts waiting for you. The top strip has room for neither; the toolbar shows the agents of the workspace in view.
 const groupAgents = useWorkspaceGroupAgents({
   api: props.presenceApi ?? window.hronautAgentPresence,
   workspaceIds: () => props.state.mcpTabGroups.map((group) => group.id),
   needsYou: workspaceNeedsYou,
-  open: expandTabGroup
+  open: (groupId) => { if (vertical.value) expandTabGroup(groupId) }
 })
 
 function expandTabGroupForTab(tab: BrowserTabState): void {
@@ -708,18 +711,18 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         <IconKeyboardArrowRight v-if="isTabGroupCollapsed(workspace.id)" aria-hidden="true" />
         <IconKeyboardArrowDown v-else aria-hidden="true" />
         <!-- The space keeps the visible name and count apart for label-in-name checks; inline-flex does not render it. -->
-        <span>{{ workspace.name }}</span> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span>
+        <span class="tab-group-name">{{ workspace.name }}</span> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span>
         <!-- The agents' names are in the header's description; the initials are drawn, not text, so the name matches the label. -->
         <span v-if="groupAgents.agents(workspace.id).length" class="tab-group-agents" aria-hidden="true" data-testid="workspace-agents">
           <span
-            v-for="agent in groupAgents.agents(workspace.id).slice(0, 3)"
+            v-for="agent in groupAgents.agents(workspace.id).slice(0, AGENT_AVATAR_VISIBLE_LIMIT)"
             :key="agent.clientKey"
             class="tab-group-agent"
             :data-state="agent.state"
             :data-initial="agent.initial || '•'"
             :style="{ '--agent-color': agentAvatarColorHex(agent.colorIndex) }"
           />
-          <span v-if="groupAgents.agents(workspace.id).length > 3" class="tab-group-agent more" :data-initial="`+${formatNumber(groupAgents.agents(workspace.id).length - 3)}`" />
+          <span v-if="groupAgents.agents(workspace.id).length > AGENT_AVATAR_VISIBLE_LIMIT" class="tab-group-agent more" :data-initial="`+${formatNumber(groupAgents.agents(workspace.id).length - AGENT_AVATAR_VISIBLE_LIMIT)}`" />
         </span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
       <!-- Beside the header, not in it: the header is a button. -->
