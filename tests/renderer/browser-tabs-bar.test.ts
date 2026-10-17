@@ -154,6 +154,33 @@ describe('BrowserTabsBar', () => {
     expect(screen.getByRole('tab', { name: 'Page first' })).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('draws a tab\'s own lock and mute, not the browser-wide ones on every row', async () => {
+    // 3.0 drew a lock and a muted speaker on every row while the browser-wide lock and mute were on.
+    const view = renderTabs(browserState({ tabs: [
+      tab('own-lock', { humanInteractionLocked: true, humanInteractionInputLocked: true }),
+      tab('own-mute', { muted: true }),
+      tab('plain')
+    ] }), true, 'vertical')
+    const marks = (id: string) => ({
+      lock: view.container.querySelector(`[data-tab-id="${id}"] .tab-lock-mark`) !== null,
+      speaker: view.container.querySelector(`[data-tab-id="${id}"] .tab-audio`) !== null
+    })
+    expect(marks('own-lock')).toEqual({ lock: true, speaker: false })
+    expect(marks('own-mute')).toEqual({ lock: false, speaker: true })
+    expect(marks('plain')).toEqual({ lock: false, speaker: false })
+
+    // The pressed browser-wide buttons say it for every tab; a row keeps only the speaker of a tab that plays sound.
+    await view.rerender({ state: browserState({ allHumanInteractionLocked: true, allTabsMuted: true, tabs: [
+      tab('silent', { muted: true, humanInteractionLocked: true, humanInteractionInputLocked: true }),
+      tab('playing', { muted: true, audible: true, humanInteractionInputLocked: true }),
+      tab('exception', { humanInteractionInputLocked: false })
+    ] }) })
+    expect(marks('silent')).toEqual({ lock: false, speaker: false })
+    expect(marks('playing')).toEqual({ lock: false, speaker: true })
+    expect(marks('exception')).toEqual({ lock: false, speaker: false })
+    expect(view.container.querySelector('[data-tab-id="playing"] .tab-audio')).toHaveClass('muted')
+  })
+
   it.each(['horizontal', 'vertical'] as const)('marks only the requested tab in the %s rail and clears it with the request', async orientation => {
     const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }), true, orientation)
     const first = screen.getByRole('tab', { name: 'Page first' })

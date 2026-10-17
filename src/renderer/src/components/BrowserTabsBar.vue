@@ -819,9 +819,11 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
           />
           <IconSpeed v-if="tab.emulation" class="tab-emulation-mark" :aria-label="t('runtime.emulation.reset', { description: describeEmulation(tab) })" />
           <IconRoute v-if="tab.networkRouteCount || (tab.networkConditionState && tab.networkConditionState.application !== 'confirmed')" class="tab-network-route-mark" :aria-label="tab.networkConditionState && tab.networkConditionState.application !== 'confirmed' ? t('network.conditions.unconfirmed') : t('runtime.tabs.routes', { count: formatNumber(tab.networkRouteCount ?? 0) }, tab.networkRouteCount ?? 0)" />
-          <IconLock v-if="tab.humanInteractionInputLocked ?? (state.allHumanInteractionLocked || tab.humanInteractionLocked)" class="tab-lock-mark" :aria-label="t('shell.tabs.inputLocked')" />
+          <!-- The browser-wide lock and mute already show as pressed buttons, so a tab draws its own lock, and a muted tab
+               its speaker while it plays sound, instead of repeating them on every row. Its name still says both. -->
+          <IconLock v-if="!state.allHumanInteractionLocked && (tab.humanInteractionInputLocked ?? tab.humanInteractionLocked)" class="tab-lock-mark" :aria-label="t('shell.tabs.inputLocked')" />
           <span
-            v-if="tab.audible || tab.muted"
+            v-if="tab.audible || (tab.muted && !state.allTabsMuted)"
             class="tab-audio"
             :class="{ muted: tab.muted }"
             v-tooltip="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tab.title || t('runtime.tabs.unnamed') })"
