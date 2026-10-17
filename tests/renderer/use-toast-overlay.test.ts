@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import { useAppToastController } from '../../src/renderer/src/composables/useAppToastController.js'
-import { useToastOverlay } from '../../src/renderer/src/composables/useToastOverlay.js'
+import { shellToastFocusedPart, useToastOverlay } from '../../src/renderer/src/composables/useToastOverlay.js'
 import type { ResolvedThemeName } from '../../src/shared/theme.js'
-import type { HronautToastOverlayApi, ToastOverlayEvent, ToastOverlayRequest } from '../../src/shared/toast-overlay.js'
+import type { HronautToastOverlayApi, ToastOverlayEvent, ToastOverlayFocus, ToastOverlayRequest } from '../../src/shared/toast-overlay.js'
 
-function setup(options: { focusInside?: boolean } = {}) {
+function setup(options: { focusedPart?: ToastOverlayFocus | null } = {}) {
   const shown: ToastOverlayRequest[] = []
   let listener: ((event: ToastOverlayEvent) => void) | undefined
   const unsubscribe = vi.fn()
@@ -14,7 +14,7 @@ function setup(options: { focusInside?: boolean } = {}) {
     onEvent: (next) => { listener = next; return unsubscribe }
   }
   const theme = ref<ResolvedThemeName>('dark')
-  const focusInside = ref(options.focusInside ?? false)
+  const focusedPart = ref<ToastOverlayFocus | null>(options.focusedPart ?? null)
   const scope = effectScope()
   const controller = scope.run(() => useAppToastController())!
   const overlay = scope.run(() => useToastOverlay({
@@ -22,10 +22,10 @@ function setup(options: { focusInside?: boolean } = {}) {
     toasts: controller.toasts,
     controller,
     theme: () => theme.value,
-    focusInside: () => focusInside.value
+    focusedPart: () => focusedPart.value
   }))!
   const lastId = () => shown.at(-1)?.toast?.id ?? 0
-  return { shown, emit: (event: ToastOverlayEvent) => listener?.(event), unsubscribe, theme, focusInside, scope, controller, overlay, lastId }
+  return { shown, emit: (event: ToastOverlayEvent) => listener?.(event), unsubscribe, theme, focusedPart, scope, controller, overlay, lastId }
 }
 
 describe('useToastOverlay', () => {
@@ -98,17 +98,51 @@ describe('useToastOverlay', () => {
     scope.stop()
   })
 
+  it('takes the focus of a new toast from the document, so a button removed with focus in it leaves no ring', async () => {
+    const { shown, controller, overlay, focusedPart, scope } = setup()
+    controller.show('success', 'Tab closed', 'Example', { action: { label: 'Undo', run: () => undefined } })
+    await nextTick()
+    overlay.focusChanged('action')
+    await nextTick()
+    expect(shown.at(-1)?.focus).toBe('action')
+    // Enter on Undo: the toast and its focused button go without a focusout.
+    controller.act(controller.toasts.value[0].id)
+    controller.show('success', 'Tab closed', 'Docs', { action: { label: 'Undo', run: () => undefined } })
+    await nextTick()
+    expect(shown.at(-1)).toMatchObject({ toast: { message: 'Docs' }, focus: null })
+    // Focus that stays in the shell copy as it shows the next toast stays drawn.
+    focusedPart.value = 'dismiss'
+    controller.show('info', 'Bookmark removed', 'Docs')
+    await nextTick()
+    expect(shown.at(-1)).toMatchObject({ toast: { title: 'Bookmark removed' }, focus: 'dismiss' })
+    scope.stop()
+  })
+
+  it('reads which shell toast button has keyboard focus', () => {
+    document.body.innerHTML = `<div class="app-toast-region">
+      <article class="app-toast app-toast-leave-active"><button data-toast-part="action" id="leaving"></button></article>
+      <article class="app-toast"><button data-toast-part="action"><span></span></button><button data-toast-part="dismiss"></button></article>
+    </div><button data-toast-part="action" id="elsewhere"></button>`
+    expect(shellToastFocusedPart(document.querySelector('.app-toast:not(.app-toast-leave-active) [data-toast-part="action"] span'))).toBe('action')
+    expect(shellToastFocusedPart(document.querySelector('[data-toast-part="dismiss"]'))).toBe('dismiss')
+    // Undo pressed with Enter: its toast keeps focus while it fades out, but the next toast's buttons do not have it.
+    expect(shellToastFocusedPart(document.querySelector('#leaving'))).toBeNull()
+    expect(shellToastFocusedPart(document.querySelector('#elsewhere'))).toBeNull()
+    expect(shellToastFocusedPart(null)).toBeNull()
+    document.body.innerHTML = ''
+  })
+
   it('lets the pointer leaving release the toast only while keyboard focus is not in the shell copy', async () => {
     vi.useFakeTimers()
     try {
-      const { emit, controller, focusInside, lastId, scope } = setup({ focusInside: true })
+      const { emit, controller, focusedPart, lastId, scope } = setup({ focusedPart: 'action' })
       controller.show('success', 'Tab closed', 'Example', { action: { label: 'Undo', run: () => undefined } })
       await nextTick()
       emit({ id: lastId(), kind: 'retain' })
       emit({ id: lastId(), kind: 'release' })
       vi.advanceTimersByTime(10_000)
       expect(controller.toasts.value).toHaveLength(1)
-      focusInside.value = false
+      focusedPart.value = null
       emit({ id: lastId(), kind: 'release' })
       vi.advanceTimersByTime(3_600)
       expect(controller.toasts.value).toEqual([])
@@ -149,7 +183,7 @@ describe('useToastOverlay', () => {
   it('keeps toasts in the shell where there is no overlay, as in the detached panel window', () => {
     const scope = effectScope()
     const controller = scope.run(() => useAppToastController())!
-    const overlay = scope.run(() => useToastOverlay({ api: undefined, toasts: controller.toasts, controller, theme: () => 'dark', focusInside: () => false }))!
+    const overlay = scope.run(() => useToastOverlay({ api: undefined, toasts: controller.toasts, controller, theme: () => 'dark', focusedPart: () => null }))!
     expect(overlay.mirrored.value).toBe(false)
     expect(() => overlay.focusChanged('dismiss')).not.toThrow()
     scope.stop()

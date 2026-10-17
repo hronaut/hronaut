@@ -16,6 +16,7 @@ interface UndoApi {
   newTab: (options: { url: string; active: boolean; mcpGroupId: string }) => Promise<UndoState>
   closeTab: (tabId: string) => Promise<UndoState>
   closeWorkspace: (workspaceId: string, options?: { undoable?: boolean }) => Promise<UndoState>
+  selectTab: (tabId: string) => Promise<UndoState>
 }
 
 function state(appWindow: Page): Promise<UndoState> {
@@ -56,12 +57,19 @@ async function toastText(electronApp: ElectronApplication): Promise<string | nul
   return view?.visible ? view.text : null
 }
 
-/** Moves the pointer onto a button in the drawn toast and clicks it, as the person would. */
-async function clickInToast(electronApp: ElectronApplication, selector: string): Promise<void> {
-  await electronApp.evaluate(async ({ BrowserWindow }, selector) => {
-    const view = BrowserWindow.getAllWindows().flatMap((window) => window.contentView.children).find((child) => (
-      'webContents' in child && (child as Electron.WebContentsView).webContents.getURL().endsWith('toast-overlay.html')
-    )) as Electron.WebContentsView
+/**
+ * Moves the pointer onto a part of the drawn toast and clicks it, as the person would. Injected input gives the view
+ * no keyboard focus, so the `focus` step gives it the focus a real click does; `steps` picks some of them only. No page
+ * view may cover the toast: only Hronaut's other overlays go above it.
+ */
+async function clickInToast(electronApp: ElectronApplication, selector: string, steps: ReadonlyArray<'move' | 'focus' | 'click'> = ['move', 'focus', 'click']): Promise<void> {
+  await electronApp.evaluate(async ({ BrowserWindow }, { selector, steps }) => {
+    const url = (child: Electron.View): string => ('webContents' in child ? (child as Electron.WebContentsView).webContents.getURL() : '')
+    const children = BrowserWindow.getAllWindows().find((window) => window.contentView.children.some((child) => url(child).endsWith('toast-overlay.html')))!.contentView.children
+    const index = children.findIndex((child) => url(child).endsWith('toast-overlay.html'))
+    const view = children[index] as Electron.WebContentsView
+    const covering = children.slice(index + 1).filter((child) => !/\/(agent-card|tooltip-overlay|address-overlay)\.html$/.test(url(child)))
+    if (covering.length) throw new Error(`${covering.length} page view(s) cover the toast`)
     const point = await view.webContents.executeJavaScript(`(() => {
       const box = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect()
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 }
@@ -69,10 +77,22 @@ async function clickInToast(electronApp: ElectronApplication, selector: string):
     const zoom = view.webContents.getZoomFactor()
     const x = Math.round(point.x * zoom)
     const y = Math.round(point.y * zoom)
-    view.webContents.sendInputEvent({ type: 'mouseMove', x, y })
+    if (steps.includes('move')) view.webContents.sendInputEvent({ type: 'mouseMove', x, y })
+    if (steps.includes('focus')) view.webContents.focus()
+    if (!steps.includes('click')) return
     view.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 })
     view.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 })
-  }, selector)
+  }, { selector, steps })
+}
+
+/** Which contents have keyboard focus: 'shell' for Hronaut's own window, a page's decoded address for a page. */
+async function focusedContents(electronApp: ElectronApplication): Promise<string | null> {
+  return electronApp.evaluate(({ BrowserWindow, webContents }) => {
+    const focused = webContents.getFocusedWebContents()
+    if (!focused) return null
+    if (BrowserWindow.getAllWindows().some((window) => window.webContents === focused)) return 'shell'
+    return decodeURIComponent(focused.getURL())
+  })
 }
 
 test('offers Undo after closing tabs, closing a workspace and removing a bookmark', async ({ appWindow, electronApp }) => {
@@ -165,10 +185,10 @@ test('offers Undo after closing tabs, closing a workspace and removing a bookmar
   await expect.poll(() => workspaceTabUrls(appWindow, beta.id)).toEqual(betaUrls)
 })
 
-/** The native view of the active page, which fills the page area when it is the only one shown. */
-async function activePageBounds(electronApp: ElectronApplication, appWindow: Page): Promise<{ x: number; y: number; width: number; height: number }> {
+/** The native view of the active page, which fills the page area when it is the only one shown; focused if asked. */
+async function activePageBounds(electronApp: ElectronApplication, appWindow: Page, focus = false): Promise<{ x: number; y: number; width: number; height: number }> {
   const url = (await state(appWindow)).tabs.find((tab) => tab.active)!.url
-  return electronApp.evaluate(({ BrowserWindow }, url) => {
+  return electronApp.evaluate(({ BrowserWindow }, { url, focus }) => {
     const views: Electron.WebContentsView[] = []
     const visit = (view: Electron.View): void => {
       if ('webContents' in view) views.push(view as Electron.WebContentsView)
@@ -177,8 +197,9 @@ async function activePageBounds(electronApp: ElectronApplication, appWindow: Pag
     for (const window of BrowserWindow.getAllWindows()) visit(window.contentView)
     const page = views.find((view) => view.getVisible() && decodeURIComponent(view.webContents.getURL()) === decodeURIComponent(url))
     if (!page) throw new Error(`No page view for ${url}`)
+    if (focus) page.webContents.focus()
     return page.getBounds()
-  }, url)
+  }, { url, focus })
 }
 
 /** The bottom of the tab strip's controls and of the toolbar, in CSS pixels, which are window pixels at scale 1. */
@@ -218,8 +239,12 @@ for (const width of [1320, 960, 760]) {
     expect(view.bounds.width).toBe(Math.min(560, page.width - 32) + 20)
     await appWindow.getByRole('tab', { name: /^Strip first/ }).click()
     await expect.poll(async () => (await state(appWindow)).tabs.find((tab) => tab.active)?.url).toContain('first')
+    // Typing in the page goes on there after a click on the toast.
+    await activePageBounds(electronApp, appWindow, true)
+    await expect.poll(() => focusedContents(electronApp)).toContain('Strip first')
     await clickInToast(electronApp, '.toast-overlay-dismiss')
     await expect.poll(() => toastText(electronApp)).toBeNull()
+    await expect.poll(() => focusedContents(electronApp)).toContain('Strip first')
 
     // Typing an address leaves the toast up, and a click on Undo leaves keyboard focus in the address field.
     await close('third')
@@ -276,6 +301,19 @@ test('shows the toast beside the tab rail, scaled with the interface, and in the
     expect(view.bounds.width).toBe(Math.ceil((560 + 20) * 1.25))
     expect(Math.abs(view.bounds.x + view.bounds.width / 2 - (page.x + page.width / 2))).toBeLessThanOrEqual(1)
     expect(Math.abs(view.bounds.y + view.bounds.height - (page.y + page.height - 6 * 1.25))).toBeLessThanOrEqual(1)
+
+    // Focus goes back to a page only while it shows: after a switch to another tab under the pointer, a click on the
+    // toast leaves it with the page shown now or with Hronaut's own controls, never with the hidden one.
+    await activePageBounds(app, appWindow, true)
+    await expect.poll(() => focusedContents(app)).toContain('Rail two')
+    await clickInToast(app, '.toast-overlay-copy', ['move'])
+    const one = (await state(appWindow)).tabs.find((tab) => tab.url.includes('one'))!
+    await appWindow.evaluate((tabId) => (window as unknown as { hronaut: UndoApi }).hronaut.selectTab(tabId), one.id)
+    await expect.poll(async () => (await state(appWindow)).tabs.find((tab) => tab.active)?.url).toContain('one')
+    // The press lands on the toast without moving the pointer again, as when the tab switched under it.
+    await clickInToast(app, '.toast-overlay-copy', ['focus'])
+    await expect.poll(() => focusedContents(app)).toMatch(/^shell$|^data:.*Rail one/)
+    expect(await toastText(app)).toContain('Tab closed')
 
     // Without its view, as after the view's renderer exits, the shell shows its own copy; the next toast is drawn again.
     const region = appWindow.locator('.app-toast-region')

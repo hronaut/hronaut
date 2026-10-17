@@ -3,6 +3,15 @@ import type { ResolvedThemeName } from '../../../shared/theme'
 import type { HronautToastOverlayApi, ToastOverlayFocus, ToastOverlayRequest } from '../../../shared/toast-overlay'
 import type { AppToast, AppToastController } from './useAppToastController'
 
+/**
+ * Which button of the shell's copy of a toast `active`, the element with keyboard focus, is; null for any other,
+ * including one of a toast still on its way out, which keeps focus while it fades.
+ */
+export function shellToastFocusedPart(active: Element | null): ToastOverlayFocus | null {
+  const part = active?.closest<HTMLElement>('.app-toast-region .app-toast:not(.app-toast-leave-active) [data-toast-part]')?.dataset.toastPart
+  return part === 'action' || part === 'dismiss' ? part : null
+}
+
 // One counter for every toast shown, so a toast after a remount never reuses the id of one main still shows.
 let lastOverlayId = 0
 
@@ -12,8 +21,11 @@ export interface ToastOverlayOptions {
   toasts: Readonly<Ref<readonly AppToast[]>>
   controller: Pick<AppToastController, 'act' | 'dismiss' | 'retain' | 'release'>
   theme: () => ResolvedThemeName
-  /** True while keyboard focus is in the shell's copy of the toast, which then keeps it when the pointer leaves. */
-  focusInside: () => boolean
+  /**
+   * Which button of the shell's copy of the toast has keyboard focus now, or null. The toast stays while it has focus,
+   * when the pointer leaves the drawn one.
+   */
+  focusedPart: () => ToastOverlayFocus | null
 }
 
 export interface ToastOverlayController {
@@ -60,6 +72,8 @@ export function useToastOverlay(options: ToastOverlayOptions): ToastOverlayContr
       if (toast !== current?.toast) {
         current = toast ? { overlayId: ++lastOverlayId, toast } : null
         unavailable.value = false
+        // A button removed with focus in it, as after Enter on Undo, reports no focus leaving; ask the document.
+        focus.value = options.focusedPart()
       }
       // Nothing to hide before the first toast.
       if (!current && !sent) return
@@ -69,7 +83,8 @@ export function useToastOverlay(options: ToastOverlayOptions): ToastOverlayContr
       sent = current ? serialized : ''
       api.show(next)
     },
-    { immediate: true }
+    // After the shell's copy has rendered, so the focus it reports is the new toast's.
+    { immediate: true, flush: 'post' }
   )
 
   const unsubscribe = api.onEvent((event) => {
@@ -94,7 +109,7 @@ export function useToastOverlay(options: ToastOverlayOptions): ToastOverlayContr
         options.controller.retain(id)
         return
       case 'release':
-        if (!options.focusInside()) options.controller.release(id)
+        if (!options.focusedPart()) options.controller.release(id)
     }
   })
 

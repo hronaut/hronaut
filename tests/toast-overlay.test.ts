@@ -201,9 +201,10 @@ describe('ToastOverlay', () => {
     overlay.relayout()
     expect(surface.bounds.at(-1)).toEqual({ x: 210, y: 100 + 900 - 16 - 40 - 10, width: 580, height: 60 })
     expect(surface.sent).toHaveLength(1)
-    // A narrower one: laid out again at the new width before it moves.
+    // A narrower one: laid out again at the new width, and moved at once at its last height so it stays over the page.
     layout.current = { area: { x: 240, y: 100, width: 400, height: 900 }, zoom: 1 }
     overlay.relayout()
+    expect(surface.bounds.at(-1)).toEqual({ x: 240 + 16 - 10, y: 100 + 900 - 16 - 40 - 10, width: 388, height: 60 })
     await flush()
     expect(surface.sent.at(-1)).toMatchObject({ revision: 2, width: 368 })
     overlay.measured({ revision: 2, height: 52 })
@@ -214,13 +215,36 @@ describe('ToastOverlay', () => {
     expect(surface.withdrawn).toBe(1)
     expect(events).toEqual([{ id: 1, kind: 'shown' }, { id: 1, kind: 'unavailable' }])
     overlay.measured({ revision: 2, height: 52 })
-    expect(surface.presented).toBe(3)
+    expect(surface.presented).toBe(4)
     // Room again: it comes back.
     layout.current = { area: { x: 240, y: 100, width: 600, height: 900 }, zoom: 1 }
     overlay.relayout()
     await flush()
     overlay.measured({ revision: 3, height: 40 })
     expect(events.at(-1)).toEqual({ id: 1, kind: 'shown' })
+  })
+
+  it('hands the toast to the shell where the page area is too short for it, as at a high interface scale', async () => {
+    const { overlay, surface, events, layout, flush } = harness()
+    // 64 px of toast, 16 px above the bottom edge and 10 px of shadow room: 90 CSS px at the least.
+    layout.current = { area: { x: 0, y: 100, width: 1000, height: 89 * 1.25 }, zoom: 1.25 }
+    overlay.show(request(1))
+    await flush()
+    expect(surface.sent).toEqual([])
+    expect(events).toEqual([{ id: 1, kind: 'unavailable' }])
+    layout.current = { area: { x: 0, y: 100, width: 1000, height: 90 * 1.25 }, zoom: 1.25 }
+    overlay.relayout()
+    await flush()
+    overlay.measured({ revision: 1, height: 64 })
+    expect(events.at(-1)).toEqual({ id: 1, kind: 'shown' })
+    expect(surface.bounds.at(-1)?.y).toBe(100)
+    // A window made shorter while a measurement was on its way: the toast is not placed above the page area.
+    overlay.show(request(2))
+    layout.current = { area: { x: 0, y: 100, width: 1000, height: 60 }, zoom: 1.25 }
+    await flush()
+    overlay.measured({ revision: 2, height: 40 })
+    expect(surface.withdrawn).toBe(1)
+    expect(events.at(-1)).toEqual({ id: 2, kind: 'unavailable' })
   })
 
   it('tells the shell when the view cannot show the toast', async () => {
@@ -283,6 +307,11 @@ describe('ToastOverlay', () => {
     overlay.viewFocused()
     expect(focus.restored.at(-1)).toBe('shell')
     overlay.shellReset()
+    overlay.viewFocused()
+    expect(focus.restored.at(-1)).toBeNull()
+    // Nor is whoever had it before a toast that has gone, such as a page closed since.
+    overlay.pointerActivity()
+    overlay.hide()
     overlay.viewFocused()
     expect(focus.restored.at(-1)).toBeNull()
   })

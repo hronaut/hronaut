@@ -36,7 +36,7 @@ import { useAppSiteNavigationFeatureController } from './composables/useAppSiteN
 import { useAppStartupFeatureController } from './composables/useAppStartupFeatureController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
 import { useUndoToasts } from './composables/useUndoToasts'
-import { useToastOverlay } from './composables/useToastOverlay'
+import { shellToastFocusedPart, useToastOverlay } from './composables/useToastOverlay'
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useAppShellLayoutFeatureController } from './composables/useAppShellLayoutFeatureController'
@@ -153,7 +153,7 @@ const { mirrored: toastsMirrored, focusChanged: toastFocusChanged } = useToastOv
   toasts: appToasts,
   controller: appToastController,
   theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
-  focusInside: () => document.activeElement?.closest('.app-toast-region') != null
+  focusedPart: () => shellToastFocusedPart(document.activeElement)
 })
 const shell = ref<HTMLElement | null>(null)
 const appTransientShellLayerController = useAppTransientShellLayerController()

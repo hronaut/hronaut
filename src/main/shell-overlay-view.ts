@@ -11,6 +11,8 @@ export interface ShellOverlayViewOptions {
   urlMatches: (actual: string | undefined, expected: string) => boolean
   /** The view's renderer went away, with anything it showed. */
   onLost: () => void
+  /** Other overlay views that stay above this one when both show, such as the agent card above a toast. */
+  keepAbove?: () => readonly unknown[]
 }
 
 export interface LoadedShellOverlayView {
@@ -45,6 +47,11 @@ export class ShellOverlayView {
     return this.current?.webContents === contents
   }
 
+  /** The loaded view, whether or not it is in the window now. */
+  currentView(): WebContentsView | null {
+    return this.current?.view ?? null
+  }
+
   ensure(): Promise<LoadedShellOverlayView> {
     if (this.loading) return this.loading
     const opening = this.open()
@@ -52,13 +59,26 @@ export class ShellOverlayView {
     return opening
   }
 
-  /** Puts the view on top of the window's views, above a page attached meanwhile, and shows it. */
+  /**
+   * Puts the view on top of the window's views, above a page attached meanwhile, and shows it; below the overlays it
+   * keeps above it, when they show.
+   */
   present(): void {
     const loaded = this.current
     const window = this.options.window()
     if (!loaded || loaded.webContents.isDestroyed() || !window || window.isDestroyed()) return
-    // Adding a child view again moves it to the top; a view already there keeps its focus.
-    if (window.contentView.children.at(-1) !== loaded.view) window.contentView.addChildView(loaded.view)
+    const above = this.options.keepAbove?.() ?? []
+    const children = window.contentView.children
+    const index = children.indexOf(loaded.view)
+    // In place while only those overlays sit above it: a view already there keeps its focus, and they keep theirs.
+    if (index < 0 || !children.slice(index + 1).every((child) => above.includes(child))) {
+      // Adding a child view again moves it to the top, whatever index it is given, so it comes out first.
+      if (above.length && index >= 0) window.contentView.removeChildView(loaded.view)
+      const rest = window.contentView.children
+      const at = rest.findLastIndex((child) => !above.includes(child)) + 1
+      if (at < rest.length) window.contentView.addChildView(loaded.view, at)
+      else window.contentView.addChildView(loaded.view)
+    }
     loaded.view.setVisible(true)
   }
 

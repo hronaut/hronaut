@@ -63,6 +63,13 @@ export function toastOverlayWidth(areaWidth: number): number {
   return width >= TOAST_OVERLAY_MIN_WIDTH ? width : 0
 }
 
+/** The toast's width in this layout, in CSS pixels; 0 when the page area is too narrow or too short for it. */
+function fit(layout: ToastOverlayLayout | null): number {
+  if (!layout) return 0
+  if (layout.area.height / layout.zoom < TOAST_OVERLAY_MAX_HEIGHT + TOAST_OVERLAY_EDGE + TOAST_OVERLAY_SHADOW_ROOM) return 0
+  return toastOverlayWidth(layout.area.width / layout.zoom)
+}
+
 /**
  * The view's box for a toast of `size` centered at the bottom of `area`, `edge` above its bottom edge, with `room`
  * around the toast for its shadow. All in window coordinates.
@@ -136,17 +143,18 @@ export class ToastOverlay {
     const shown = this.toast
     if (this.disposed || !shown) return
     const layout = this.ports.layout()
-    const width = layout ? toastOverlayWidth(layout.area.width / layout.zoom) : 0
+    const width = fit(layout)
     if (!layout || !width) {
       this.unavailable(shown)
       return
     }
-    if (shown.revision !== 0 && width === shown.width && layout.zoom === shown.zoom) {
-      // Same size; a toast still waiting for its measurement is placed when that comes.
-      if (shown.presented && shown.height !== undefined && this.current && !this.current.isDestroyed()) this.place(shown, this.current)
-      return
+    const resized = shown.revision === 0 || width !== shown.width || layout.zoom !== shown.zoom
+    if (resized) this.lay(shown)
+    // A toast still waiting for its first measurement is placed when that comes. One already up moves at once, at its
+    // new width and last height, so it stays over the page while the window is dragged; the measurement corrects it.
+    if (this.toast === shown && shown.presented && shown.height !== undefined && this.current && !this.current.isDestroyed()) {
+      this.place(shown, this.current)
     }
-    this.lay(shown)
   }
 
   /** The shell could not describe this toast within the contract; nothing is drawn and the shell shows its own copy. */
@@ -182,6 +190,8 @@ export class ToastOverlay {
   }
 
   hide(): void {
+    // Who had focus before a click on this toast says nothing about where it goes after a click on the next one.
+    this.focusBefore = null
     const shown = this.toast
     if (!shown) return
     this.toast = null
@@ -191,7 +201,6 @@ export class ToastOverlay {
   /** A new shell document has no toast, whatever the previous one showed. */
   shellReset(): void {
     this.hide()
-    this.focusBefore = null
   }
 
   /** The view is gone, such as after its renderer exited; the shell shows its own copy of the toast. */
@@ -211,7 +220,7 @@ export class ToastOverlay {
 
   private lay(shown: ShownToast): void {
     const layout = this.ports.layout()
-    const width = layout ? toastOverlayWidth(layout.area.width / layout.zoom) : 0
+    const width = fit(layout)
     if (!layout || !width) {
       this.unavailable(shown)
       return
@@ -234,7 +243,11 @@ export class ToastOverlay {
 
   private place(shown: ShownToast, surface: ToastOverlaySurface): void {
     const layout = this.ports.layout()
-    if (!layout || shown.height === undefined) return
+    if (shown.height === undefined) return
+    if (!layout || !fit(layout)) {
+      this.unavailable(shown)
+      return
+    }
     const room = TOAST_OVERLAY_SHADOW_ROOM * layout.zoom
     // The size the view laid the toast out at; a newer page area that needs another width is laid out again first.
     surface.setBounds(placeToastOverlay(

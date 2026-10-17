@@ -322,7 +322,9 @@ const toastOverlayView = new ShellOverlayView({
   url: () => trustedToastOverlayUrl(),
   window: () => mainWindow,
   urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
-  onLost: () => toastOverlay.surfaceLost()
+  onLost: () => toastOverlay.surfaceLost(),
+  // A toast is about something the person did; the agent card, a tooltip or address suggestions they open go above it.
+  keepAbove: () => [agentCardView.currentView(), tooltipView.currentView(), addressSuggestionSurface?.view].filter((view) => !!view)
 })
 const toastOverlay = new ToastOverlay({
   surface: () => ensureToastOverlaySurface(),
@@ -341,12 +343,19 @@ const toastOverlay = new ToastOverlay({
   restoreFocus: (owner) => {
     // Focus moves to the view while the click lands; moving it back in the same task does not stick.
     setImmediate(() => {
+      const window = mainWindow
+      if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
       const focused = allWebContents.getFocusedWebContents()
       // Only while the view still has it: the toast's action may have moved focus on purpose meanwhile.
       if (!focused || !toastOverlayView.owns(focused)) return
       const previous = owner as Electron.WebContents | null
-      if (previous && !previous.isDestroyed() && !toastOverlayView.owns(previous)) previous.focus()
-      else if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.focus()
+      const overlay = !!previous && (toastOverlayView.owns(previous) || agentCardView.owns(previous) || tooltipView.owns(previous)
+        || addressSuggestionSurface?.webContents === previous)
+      // Back to a page only while it still shows; from an overlay that has since closed, or a page that went, the shell.
+      const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
+        child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
+      )) ? previous : null
+      ;(page ?? window.webContents).focus()
     })
   }
 })
@@ -4578,6 +4587,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     // Its Undo toast is gone with the shell.
     void undoOffers.end()
   })
+  // The previous shell document can still ask for a toast until the new one commits; the new one has none.
+  mainWindow.webContents.on('did-navigate', () => toastOverlay.shellReset())
   // A new shell document has no dialog or toast open, whatever the previous one reported.
   mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) {
