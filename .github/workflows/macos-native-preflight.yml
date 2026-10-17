@@ -38,8 +38,12 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      # Blocks on the same advisories as the release gate: those in what ships. Development-only advisories are listed
+      # as a warning, so one without a fix yet does not stop native checks of the app.
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high || echo "::warning title=Development dependency advisories::npm audit found high advisories in development dependencies; see this step's log"
       - name: Build native unsigned application without publishing
         env:
           PACKAGE_ARCH: ${{ matrix.arch }}
