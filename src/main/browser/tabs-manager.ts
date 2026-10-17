@@ -81,6 +81,7 @@ import { suggestWorkspaceName } from '../../shared/workspace-names.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
+import { settledViewportSize, type PageViewportSize } from './viewport-settle.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import { decodeWebsiteFavicon } from './favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
@@ -7046,7 +7047,18 @@ export class BrowserTabsManager {
         viewport: { width, height, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'portrait' }
       })
     }
-    return webContents.executeJavaScript(`({ width: innerWidth, height: innerHeight, devicePixelRatio })`, true)
+    // A size read needs no user activation, and a reset may read several times.
+    const read = (): Promise<PageViewportSize> => webContents.executeJavaScript(`({ width: innerWidth, height: innerHeight, devicePixelRatio })`, false)
+    // An override pins the page's size; without one the agent gets the size the page settles at in its view.
+    if (!reset || tab.emulation.viewport) return read()
+    const revision = tab.emulationRevision
+    return settledViewportSize(read, () => {
+      // A newer emulation change owns the view's size, so the wait ends with the page as it is.
+      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.emulationRevision !== revision) return null
+      const { width: viewWidth, height: viewHeight } = tab.view.getBounds()
+      const zoom = webContents.getZoomFactor()
+      return { width: viewWidth / zoom, height: viewHeight / zoom }
+    })
   }
 
   private emulationResult(tab: BrowserTab): BrowserEmulationResult {
