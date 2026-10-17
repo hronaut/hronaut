@@ -4,10 +4,11 @@ import { BROWSER_VIEWPORT_PRESET_IDS } from '../../../../shared/viewport-presets
 import { MAX_OS_TEXT_SCALE, MAX_SAFE_AREA_INSET, MAX_SMALL_VIEWPORT_HEIGHT_DIFFERENCE, MIN_OS_TEXT_SCALE, SAFE_AREA_INSET_FIELDS } from '../../../browser/emulation-state.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import { type RequestConditionsSettlement, requestConditionsSettlement } from '../request-conditions-settlement.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 
 export function registerBrowserEmulate(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_emulate',
     {
@@ -77,18 +78,18 @@ export function registerBrowserEmulate(context: McpToolContext): void {
         extraHttpHeaders: z.record(z.string(), z.string().max(8_192)).optional()
       }
     },
-    tabTool('browser_emulate', async (options: BrowserEmulationOptions, call) => {
+    tabTool('browser_emulate', async (options: BrowserEmulationOptions, call: WorkspaceToolCall<RequestConditionsSettlement>) => {
       const validateConditions = (): void => {
         if (call.signal?.aborted) throw new Error('Request-condition operation cancelled')
         call.requireCurrentTarget()
         call.requirePostWriteContext()
         if (call.authorityRejection()) throw new Error('Request-condition authority changed')
       }
-      const markConditionsSubmitted = (): void => { frameRequests.getStore()!.conditionAttempted = true }
-      const result = await manager.emulate(options, validateConditions, markConditionsSubmitted, assert => {
-        frameRequests.getStore()!.conditionPublication = () => { validateConditions(); assert() }
+      const result = await manager.emulate(options, validateConditions, call.settlement.markSubmitted, assert => {
+        call.settlement.retainPublication(() => { validateConditions(); assert() })
       })
       return textResult(result)
-    })
+    }),
+    { settlement: input => requestConditionsSettlement(true, input) }
   )
 }
