@@ -17,15 +17,14 @@ export function registerBrowserNetworkRequest(context: McpToolContext): void {
         copyAs: z.enum(['json', 'curl', 'powershell', 'fetch']).optional()
       }
     },
-    tabTool('browser_network_request', async ({ requestId, tabId, maxChars, copyAs, validateInspection }: {
+    tabTool('browser_network_request', async ({ requestId, tabId, maxChars, copyAs }: {
       requestId: string
       tabId?: string
       maxChars?: number
       copyAs?: 'json' | BrowserNetworkRequestCopyFormat
-      validateInspection?: () => void
-    }) => {
+    }, call) => {
       const details = await manager.networkRequestDetails(tabId, requestId, maxChars, true, assertCurrent => {
-        frameRequests.getStore()!.networkPublication = () => { validateInspection?.(); assertCurrent() }
+        frameRequests.getStore()!.networkPublication = () => { call.requireCurrentTarget(); assertCurrent() }
       })
       return textResult(copyAs && copyAs !== 'json' ? formatNetworkRequestCopy(details, copyAs) : details)
     })

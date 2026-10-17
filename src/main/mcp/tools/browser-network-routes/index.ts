@@ -29,8 +29,6 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       }
     },
     tabTool('browser_network_routes', async ({
-      validateConditions,
-      markConditionsSubmitted,
       action = 'list',
       tabId,
       routeId,
@@ -43,8 +41,6 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       abort,
       throttle
     }: {
-      validateConditions?: () => void
-      markConditionsSubmitted?: () => void
       action?: 'list' | 'add' | 'move' | 'remove' | 'clear' | 'set-enabled'
       tabId?: string
       routeId?: string
@@ -56,8 +52,19 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       response?: { status?: number; headers?: Record<string, string>; body?: string }
       abort?: BrowserNetworkAbortReason
       throttle?: 'fast-4g' | 'slow-4g' | 'slow-3g'
-    }) => {
-      if (!validateConditions) throw new Error('Request-condition authority is unavailable')
+    }, call) => {
+      // Checks the call before each configuration step, and keeps the check for publication.
+      const validateConditions = (): void => {
+        const assert = (): void => {
+          if (call.signal?.aborted) throw new Error('Request-condition operation cancelled')
+          call.requireCurrentTarget()
+          call.requirePostWriteContext()
+          if (call.authorityRejection()) throw new Error('Request-condition authority changed')
+        }
+        assert()
+        frameRequests.getStore()!.conditionPublication = assert
+      }
+      const markConditionsSubmitted = (): void => { frameRequests.getStore()!.conditionAttempted = true }
       validateConditions()
       const publish = (routes: import('../../../../shared/types.js').BrowserNetworkRouteSummary[]): CallToolResult => {
         const assert = manager.networkConditionPublication(tabId, routes)

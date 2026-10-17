@@ -4,19 +4,31 @@ import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
 
 export function registerBrowserWheel(context: McpToolContext): void {
-  const { manager, registerWorkspaceTool, tabTool } = context
+  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_wheel',
     {
       description: toolDescription('browser_wheel'),
       inputSchema: { tabId: tabIdSchema, ...nativeWheelFields }
     },
-    tabTool('browser_wheel', async ({ validateNativeInput, markWheelAttempted, tabId, x, y, deltaX, deltaY }: NativeWheelInput & {
-      validateNativeInput?: (validateContext: () => void) => void
-      markWheelAttempted?: () => void
-    }) => {
-      if (!validateNativeInput) throw new Error('Native input authority is unavailable')
-      if (!markWheelAttempted) throw new Error('Wheel dispatch provenance is unavailable')
+    tabTool('browser_wheel', async ({ tabId, x, y, deltaX, deltaY }: NativeWheelInput, call) => {
+      // Re-checks the call before each native input event.
+      const validateNativeInput = (validateContext: () => void): void => {
+        try {
+          if (call.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
+          call.requireCurrentTarget()
+          call.requirePostWriteContext()
+          validateContext()
+          if (call.authorityRejection()) throw new Error('Native input authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+        } catch (error) {
+          // Preparation or an earlier click in a double-click may
+          // already have effects. Never classify this as safe replay.
+          call.rememberInputPolicy(error)
+          call.setInvalidatedOutcome('outcome-unknown')
+          throw error
+        }
+      }
+      const markWheelAttempted = (): void => { frameRequests.getStore()!.wheelAttempted = true }
       return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, markWheelAttempted))
     }, 'never')
   )

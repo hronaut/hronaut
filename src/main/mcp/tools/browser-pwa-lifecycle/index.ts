@@ -16,7 +16,7 @@ export function registerBrowserPwaLifecycle(context: McpToolContext): void {
         action: z.enum(['start', 'get', 'stop', 'clear']).default('get')
       }
     },
-    tabTool('browser_pwa_lifecycle', async ({ validateLifecycle, ...options }: PwaLifecycleOptions & { validateLifecycle?: (origin: string) => void }) =>
-      textResult(await manager.pwaLifecycle(options, validateLifecycle)), 'never')
+    tabTool('browser_pwa_lifecycle', async (options: PwaLifecycleOptions, call) =>
+      textResult(await manager.pwaLifecycle(options, call.validateLifecycle)), 'never')
   )
 }

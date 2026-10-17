@@ -11,7 +11,7 @@ export function browserClickPageInput<T extends object>(input: T & { postconditi
 }
 
 export function registerBrowserClick(context: McpToolContext): void {
-  const { client, manager, registerWorkspaceTool, tabTool } = context
+  const { client, frameRequests, manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_click',
     {
@@ -45,7 +45,7 @@ export function registerBrowserClick(context: McpToolContext): void {
         reconciliation: reconciliationRequestSchema.optional().describe('Repeat a bounded pre-write lookup immediately before dispatch. Must describe the same target and desired state as postcondition; a missing, stale, ambiguous, or already-satisfied target prevents the click.')
       }
     },
-    tabTool('browser_click', async ({ validateNativeInput, recordClickProgress, retainClickAuthority, ...input }: {
+    tabTool('browser_click', async (input: {
       tabId?: string
       ref?: string
       selector?: string
@@ -54,9 +54,6 @@ export function registerBrowserClick(context: McpToolContext): void {
       doubleClick?: boolean
       native?: boolean
       button?: 'left' | 'right'
-      retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void
-      recordClickProgress?: (progress: NativeClickProgress) => void
-      validateNativeInput?: (validateContext: () => void) => void
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest
@@ -65,8 +62,25 @@ export function registerBrowserClick(context: McpToolContext): void {
         targetIdentity: string
         sourceRevision: string
       }
-    }) => {
-      if (!validateNativeInput) throw new Error('Click authority is unavailable')
+    }, call) => {
+      // Re-checks the call before each native input event.
+      const validateNativeInput = (validateContext: () => void): void => {
+        try {
+          if (call.signal?.aborted) throw new Error('Native input cancelled; earlier input effects are not rolled back')
+          call.requireCurrentTarget()
+          call.requirePostWriteContext()
+          validateContext()
+          if (call.authorityRejection()) throw new Error('Native input authority changed; inspect fresh state before continuing. Earlier input effects are not rolled back')
+        } catch (error) {
+          // Preparation or an earlier click in a double-click may
+          // already have effects. Never classify this as safe replay.
+          call.rememberInputPolicy(error)
+          call.setInvalidatedOutcome('outcome-unknown')
+          throw error
+        }
+      }
+      const retainClickAuthority = (authority: { validate(): void; dispose(): void }): void => { frameRequests.getStore()!.clickAuthority = authority }
+      const recordClickProgress = (progress: NativeClickProgress): void => { frameRequests.getStore()!.clickProgress = { ...progress } }
       return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress, retainClickAuthority, agentCursorIdentity(client.name)))
     })
   )
