@@ -10,6 +10,10 @@ All notable changes to Hronaut are documented in this file.
 - Agents can save a page as PDF with bookmarks for its headings by passing `outline: true` to `browser_pdf_save`, so a long document exported from a wiki or docs site can be navigated from the PDF viewer's outline. The option is experimental and off by default. It makes a tagged PDF, which also carries the page's structure and image alt text and is larger. Bookmarks cover the headings Chromium prints, nested by level; a page without headings gets none. The result still returns only the file name, path and size.
 - Agents can save a page as PDF at the paper size its CSS asks for by passing `preferCSSPageSize: true` to `browser_pdf_save`, to check a print stylesheet at its own size. A CSS `@page` size wins over `pageSize` and `landscape`, which still apply when the page sets none. The option is off by default, and a PDF that would have more than 1,000 pages at the CSS size is refused instead of saved.
 
+### Changed
+
+- The address field now fills the toolbar between the navigation buttons and the commands instead of stopping at 520 px in the middle of a wide window. The take-over prompt still fits beside it by taking room only while the field stays at least 520 px wide, and address suggestions open at the field's full width.
+
 ## [3.0.0] - 2026-10-17
 
 ### Changed

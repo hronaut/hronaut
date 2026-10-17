@@ -7,8 +7,11 @@ import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../.
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
-/** The toolbar's address field is centered and never wider than this (shell.css), unless status pills or a wrapped command row lift the cap. */
-export const ADDRESS_FIELD_MAX_WIDTH = 520
+/**
+ * The toolbar's address field fills the free space (shell.css). The take-over prompt takes room from it only while it
+ * stays at least this wide, and its suggestions are never narrower than this.
+ */
+export const ADDRESS_FIELD_COMFORT_WIDTH = 520
 
 interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
@@ -253,9 +256,9 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const formBounds = form.value.getBoundingClientRect()
     const viewportMargin = 12
     const availableWidth = Math.max(1, window.innerWidth - viewportMargin * 2)
-    // At least as wide as the address field at its widest centered size, so a capped field and
-    // its suggestions share both edges.
-    const width = Math.min(availableWidth, Math.max(formBounds.width + 2, Math.min(ADDRESS_FIELD_MAX_WIDTH + 2, availableWidth)))
+    // As wide as the address field, and never narrower than its comfortable width, so a field squeezed by a narrow
+    // window still gets readable suggestions.
+    const width = Math.min(availableWidth, Math.max(formBounds.width + 2, Math.min(ADDRESS_FIELD_COMFORT_WIDTH + 2, availableWidth)))
     const x = Math.max(viewportMargin, Math.min(formBounds.left - 1, window.innerWidth - width - viewportMargin))
     const y = Math.ceil(formBounds.bottom + 7)
     const maxHeight = Math.max(1, Math.min(440, window.innerHeight - y - viewportMargin))
