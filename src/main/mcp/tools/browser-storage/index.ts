@@ -1,12 +1,14 @@
 import { z } from 'zod'
-import type { CookieWriteHooks, CookieWriteProgress } from '../../../browser/cookie-write-operation.js'
-import type { WebStorageHooks, WebStorageProgress } from '../../../browser/web-storage-operation.js'
+import type { CookieWriteHooks } from '../../../browser/cookie-write-operation.js'
+import type { WebStorageHooks } from '../../../browser/web-storage-operation.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { type CookieWriteSettlement, cookieWriteSettlement } from './cookie-write-settlement.js'
+import { type WebStorageSettlement, webStorageSettlement } from './web-storage-settlement.js'
 
 export function registerBrowserStorage(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_storage',
     {
@@ -33,29 +35,37 @@ export function registerBrowserStorage(context: McpToolContext): void {
       includeValues: boolean
       cookieDomain?: string
       cookiePath?: string
-    }, call) => {
-      // The base wrapper starts tracking progress only for cookie writes and for local or session storage.
-      const webStorageHooks = frameRequests.getStore()!.webStorageProgress ? {
+    }, call: WorkspaceToolCall<CookieWriteSettlement | WebStorageSettlement | undefined>) => {
+      // Progress is tracked only for cookie writes and for local or session storage.
+      const settlement = call.settlement
+      const webStorageHooks = settlement?.storage === 'web' ? {
         validate: () => {
           try {
             if (call.signal?.aborted) throw new Error('Storage operation cancelled')
             call.requireCurrentTarget()
           } catch (error) { call.rememberInputPolicy(error); throw error }
         },
-        progress: (progress: WebStorageProgress) => { frameRequests.getStore()!.webStorageProgress = { ...progress } },
-        retainPublication: (validate: () => void) => { frameRequests.getStore()!.webStoragePublication = validate }
+        progress: settlement.recordProgress,
+        retainPublication: settlement.retainPublication
       } satisfies WebStorageHooks : undefined
-      const cookieWriteHooks = frameRequests.getStore()!.cookieProgress ? {
+      const cookieWriteHooks = settlement?.storage === 'cookies' ? {
         validate: () => {
           try {
             if (call.signal?.aborted) throw new Error('Cookie operation cancelled')
             call.requireCurrentTarget()
           } catch (error) { call.rememberInputPolicy(error); throw error }
         },
-        progress: (progress: CookieWriteProgress) => { frameRequests.getStore()!.cookieProgress = { ...progress } },
-        retainPublication: (validate: () => void) => { frameRequests.getStore()!.cookiePublication = validate }
+        progress: settlement.recordProgress,
+        retainPublication: settlement.retainPublication
       } satisfies CookieWriteHooks : undefined
       return textResult(await manager.manageStorage({ tabId, kind, action, key, value, includeValues, cookieDomain, cookiePath }, cookieWriteHooks, webStorageHooks))
-    })
+    }),
+    {
+      settlement: input => {
+        const writes = ['set', 'delete', 'clear'].includes(String(input.action))
+        if (input.kind === 'cookies' && writes) return cookieWriteSettlement()
+        return ['local-storage', 'session-storage'].includes(String(input.kind)) ? webStorageSettlement(writes) : undefined
+      }
+    }
   )
 }

@@ -1,11 +1,9 @@
 import { browserClickSchema } from './browser-click-input.js'
 import { EmulationInputError } from '../browser/emulation-state.js'
 import { fileEvaluationFailure, type FileEvaluationSource } from '../../shared/file-evaluation.js'
-import { STORAGE_COMPARISON_INPUT_ERRORS, StorageComparisonInputError, storageComparisonFailure } from '../browser/storage-comparison-operation.js'
+import { StorageComparisonInputError } from '../browser/storage-comparison-operation.js'
 import { NativeClickAdmissionError } from '../browser/native-click-admission.js'
-import { storageInspectionFailure } from '../browser/storage-inspection-operation.js'
-import { WEB_STORAGE_INPUT_ERRORS, WebStorageInputError, webStorageFailure } from '../browser/web-storage-operation.js'
-import { cookieWriteFailure } from '../browser/cookie-write-operation.js'
+import { WebStorageInputError } from '../browser/web-storage-operation.js'
 import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
 import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
 import { NativeKeyHoldOutcomeUnknownError } from '../browser/native-key-hold.js'
@@ -776,12 +774,6 @@ function createBrowserMcpServer(
     if (request?.labeledCreation && error instanceof McpCapabilityAuthorizationError) {
       request.labeledCreation.policy = { ...request.labeledCreation.policy, permission: 'denied', ...(error.decision ? { policyDecision: error.decision } : {}) }
     }
-    if (request?.storageComparison && error instanceof StorageComparisonInputError) request.storageComparison.inputError = error.reason
-    if (request?.storageComparison && error instanceof McpCapabilityAuthorizationError) request.storageComparison.policy = { permission: 'denied', policyDecision: error.decision }
-    if (request?.storageInspection && error instanceof McpCapabilityAuthorizationError) request.storageInspection.policy = { permission: 'denied', policyDecision: error.decision }
-    if (request?.webStorageProgress && !request.webStorageProgress.executionSubmitted && error instanceof WebStorageInputError) request.webStorageInputError = error.reason
-    if (request?.webStorageProgress && error instanceof McpCapabilityAuthorizationError) request.webStoragePolicy = { permission: 'denied', policyDecision: error.decision }
-    if (request?.cookieProgress && error instanceof McpCapabilityAuthorizationError) request.cookiePolicy = { permission: 'denied', policyDecision: error.decision }
     request?.settlement?.rememberInputPolicy?.(error)
   }
   // What a call acts on, for the shell's plain-words steps only: the name Hronaut's own snapshot of the page
@@ -847,14 +839,6 @@ function createBrowserMcpServer(
       frameRequest.settlement = settlement
       if (name === 'browser_new_tab' && input.label !== undefined) frameRequest.labeledCreation = { attempted: false }
       if (name === 'browser_evaluate_file') frameRequest.fileEvaluation = { submitted: false, acknowledged: false }
-      if (name === 'browser_storage' && input.kind === 'cookies' && ['set', 'delete', 'clear'].includes(String(input.action))) {
-        frameRequest.cookieProgress = { attemptedWrites: 0, acknowledgedWrites: 0 }
-      }
-      if (name === 'browser_storage' && ['local-storage', 'session-storage'].includes(String(input.kind))) {
-        frameRequest.webStorageProgress = { mutation: ['set', 'delete', 'clear'].includes(String(input.action)), executionSubmitted: false, executionAcknowledged: false }
-      }
-      if (name === 'browser_storage_changes') frameRequest.storageComparison = { started: false, changed: false }
-      if (name === 'browser_indexeddb' || name === 'browser_storage_usage') frameRequest.storageInspection = { started: false }
       const settleLabeledCreation = (result: CallToolResult): CallToolResult => {
         const creation = frameRequest.labeledCreation
         if (!creation || (!creation.attempted && result.isError)) return result
@@ -894,70 +878,6 @@ function createBrowserMcpServer(
         const outcome = fileEvaluationFailure(frameRequest.fileEvaluation, typeof reason === 'string' && allowedReasons.has(reason) ? reason : 'UNAVAILABLE_OR_UNAUTHORIZED')
         const settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
         frameRequest.fileEvaluationFinishActivity?.(settled)
-        return settled
-      }
-      const settleStorageComparison = (result: CallToolResult): CallToolResult => {
-        const comparison = frameRequest.storageComparison
-        if (!comparison) return result
-        let settled = result
-        let current = false
-        try {
-          if (!result.isError && !comparison.publication) throw new Error('Storage comparison publication guard is unavailable')
-          comparison.publication?.validate()
-          current = comparison.publication !== undefined
-        } catch (error) { rememberInputPolicy(error); settled = errorResult(error) }
-        if (settled.isError) {
-          const outcome = { ...storageComparisonFailure(comparison.changed), ...comparison.policy,
-            ...(current && !comparison.changed && !comparison.policy && !comparison.reviewFinalizationFailed && comparison.inputError
-              ? { status: 'REJECTED', reason: comparison.inputError, message: STORAGE_COMPARISON_INPUT_ERRORS[comparison.inputError] } : {}),
-            ...(comparison.reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-            ...(result.structuredContent?.permission === 'denied' ? { permission: 'denied', policyDecision: result.structuredContent.policyDecision } : {}) }
-          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
-        }
-        comparison.finishActivity?.(settled)
-        return settled
-      }
-      const settleStorageInspection = (result: CallToolResult): CallToolResult => {
-        const inspection = frameRequest.storageInspection
-        if (!inspection) return result
-        let settled = result
-        try {
-          if (!result.isError && !inspection.publication) throw new Error('Storage inspection publication guard is unavailable')
-          inspection.publication?.()
-        } catch (error) { rememberInputPolicy(error); settled = errorResult(error) }
-        if (settled.isError && (inspection.publication || inspection.started || inspection.policy)) {
-          const outcome = { ...storageInspectionFailure(), ...inspection.policy,
-            ...(inspection.reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-            ...(result.structuredContent?.permission === 'denied' ? { permission: 'denied', policyDecision: result.structuredContent.policyDecision } : {}) }
-          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
-        }
-        inspection.finishActivity?.(settled)
-        return settled
-      }
-      const settleWebStorage = (result: CallToolResult): CallToolResult => {
-        if (!frameRequest.webStorageProgress) return result
-        let settled = result
-        if (result.isError) {
-          const outcome = { ...webStorageFailure(frameRequest.webStorageProgress), ...frameRequest.webStoragePolicy,
-            ...(!frameRequest.webStorageProgress.executionSubmitted && frameRequest.webStorageInputError
-              ? { reason: frameRequest.webStorageInputError, message: WEB_STORAGE_INPUT_ERRORS[frameRequest.webStorageInputError] } : {}),
-            ...(frameRequest.webStorageReviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-            ...(result.structuredContent?.permission === 'denied' ? { permission: 'denied', policyDecision: result.structuredContent.policyDecision } : {}) }
-          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
-        }
-        frameRequest.webStorageFinishActivity?.(settled)
-        return settled
-      }
-      const settleCookies = (result: CallToolResult): CallToolResult => {
-        if (!frameRequest.cookieProgress) return result
-        let settled = result
-        if (result.isError) {
-          const outcome = { ...cookieWriteFailure(frameRequest.cookieProgress), ...frameRequest.cookiePolicy,
-            ...(frameRequest.cookieReviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-            ...(result.structuredContent?.permission === 'denied' ? { permission: 'denied', policyDecision: result.structuredContent.policyDecision } : {}) }
-          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
-        }
-        frameRequest.cookieFinishActivity?.(settled)
         return settled
       }
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
@@ -1038,21 +958,13 @@ function createBrowserMcpServer(
           if (settledDenial) return settledDenial
           if (frameRequest.labeledCreation) return settleLabeledCreation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           if (frameRequest.fileEvaluation) return settleFileEvaluation({ ...textResult(outcome), structuredContent: outcome, isError: true })
-          return settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies({ ...textResult(outcome), structuredContent: outcome, isError: true }))))
+          return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         const published = settlement?.publish?.(result)
         const publication = published instanceof Promise ? await published : published
         if (publication) {
           recordReadinessProbe(publication.isError ? 'failed' : 'verified')
           return publication // No await after the tool's final publication check.
-        }
-        if (frameRequest.cookieProgress && !result.isError) {
-          if (!frameRequest.cookiePublication) throw new Error('Cookie publication guard is unavailable')
-          frameRequest.cookiePublication()
-        }
-        if (frameRequest.webStorageProgress && !result.isError) {
-          if (!frameRequest.webStoragePublication) throw new Error('Storage publication guard is unavailable')
-          frameRequest.webStoragePublication()
         }
         if (frameRequest.fileEvaluation && !result.isError) {
           if (!frameRequest.fileEvaluationRefreshCertificate || !frameRequest.fileEvaluationPublication) throw new Error('File publication authority unavailable')
@@ -1061,9 +973,8 @@ function createBrowserMcpServer(
         }
         if (frameRequest.labeledCreation?.refreshCertificate) await frameRequest.labeledCreation.refreshCertificate()
         // No await after the final publication guard.
-        const settled = settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(result))))
-        recordReadinessProbe(settled.isError ? 'failed' : 'verified')
-        return settleLabeledCreation(settleFileEvaluation(settled))
+        recordReadinessProbe(result.isError ? 'failed' : 'verified')
+        return settleLabeledCreation(settleFileEvaluation(result))
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
           && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
@@ -1077,14 +988,9 @@ function createBrowserMcpServer(
         if (settledError) return settledError
         if (frameRequest.labeledCreation) { rememberInputPolicy(error); return settleLabeledCreation(errorResult(error)) }
         if (frameRequest.fileEvaluation) return settleFileEvaluation({ content: [], isError: true })
-        if (frameRequest.storageComparison) { rememberInputPolicy(error); return settleStorageComparison(errorResult(error)) }
-        if (frameRequest.storageInspection) { rememberInputPolicy(error); return settleStorageInspection(errorResult(error)) }
-        if (frameRequest.webStorageProgress) { rememberInputPolicy(error); return settleWebStorage(errorResult(error)) }
-        if (frameRequest.cookieProgress) { rememberInputPolicy(error); return settleCookies(errorResult(error)) }
         return errorResult(error)
       } finally {
         frameRequest.fileEvaluationPublication?.dispose()
-        frameRequest.storageComparison?.publication?.dispose()
         settlement?.dispose?.()
         if (frameRequest.fileEvaluationCompletion && finishWorkspaceMutation) {
           // Cancellation returns a bounded response but cannot release the writer
@@ -1425,10 +1331,6 @@ function createBrowserMcpServer(
             })
           } catch (error) {
             if (frameRequests.getStore()?.labeledCreation) frameRequests.getStore()!.labeledCreation!.reviewFinalizationFailed = true
-            if (frameRequests.getStore()?.storageComparison?.started) frameRequests.getStore()!.storageComparison!.reviewFinalizationFailed = true
-            if (frameRequests.getStore()?.storageInspection?.started) frameRequests.getStore()!.storageInspection!.reviewFinalizationFailed = true
-            if (frameRequests.getStore()?.webStorageProgress?.executionSubmitted) frameRequests.getStore()!.webStorageReviewFinalizationFailed = true
-            if (frameRequests.getStore()?.cookieProgress?.attemptedWrites) frameRequests.getStore()!.cookieReviewFinalizationFailed = true
             settlement?.reviewFinalizationFailed?.()
             finishActivity(undefined, true, error)
             throw error
@@ -1623,31 +1525,15 @@ function createBrowserMcpServer(
             request.fileEvaluationFinishActivity = settled => { request.fileEvaluationFinishing = true; finishActivity(settled, false) }
             return
           }
-          if (request.storageComparison && !request.storageComparison.finishing) {
-            request.storageComparison.finishActivity = settled => { request.storageComparison!.finishing = true; finishActivity(settled, false) }
-            return
-          }
-          if (request.storageInspection && !request.storageInspection.finishing) {
-            request.storageInspection.finishActivity = settled => { request.storageInspection!.finishing = true; finishActivity(settled, false) }
-            return
-          }
-          if (request.webStorageProgress && !request.webStorageFinishing) {
-            request.webStorageFinishActivity = settled => { request.webStorageFinishing = true; finishActivity(settled, false) }
-            return
-          }
-          if (request.cookieProgress && !request.cookieFinishing) {
-            request.cookieFinishActivity = settled => { request.cookieFinishing = true; finishActivity(settled, false) }
-            return
-          }
           if (!activityStarted || !activityId || !activityToolName || !resolvedTabId) return
           activityStarted = false
           const structured = result?.structuredContent
           const status = structured && typeof structured === 'object' && !Array.isArray(structured)
             && typeof structured.status === 'string' ? structured.status : undefined
           const classification: ToolActivityClassification = {
-            readOnly: request.storageComparison ? !request.storageComparison.changed : readOnly || request.webStorageProgress?.mutation === false,
-            dispatched: request.fileEvaluation ? request.fileEvaluation.submitted : request.storageComparison ? request.storageComparison.started : request.storageInspection ? request.storageInspection.started : request.webStorageProgress ? request.webStorageProgress.executionSubmitted : request.cookieProgress ? request.cookieProgress.attemptedWrites > 0 : activityDispatched,
-            invalidatedOutcome: request.fileEvaluation ? (request.fileEvaluation.submitted && (threw || result?.isError) ? 'outcome-unknown' : undefined) : request.storageComparison ? (request.storageComparison.changed && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.webStorageProgress ? (request.webStorageProgress.mutation && request.webStorageProgress.executionSubmitted && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : request.cookieProgress ? (request.cookieProgress.attemptedWrites > 0 && (threw || result?.isError === true) ? 'outcome-unknown' : undefined) : invalidatedOutcome
+            readOnly,
+            dispatched: request.fileEvaluation ? request.fileEvaluation.submitted : activityDispatched,
+            invalidatedOutcome: request.fileEvaluation ? (request.fileEvaluation.submitted && (threw || result?.isError) ? 'outcome-unknown' : undefined) : invalidatedOutcome
           }
           const classified = settlement?.classifyActivity?.(classification, threw || result?.isError === true, result) ?? classification
           const activityResult = classifyMcpActivityResult({
