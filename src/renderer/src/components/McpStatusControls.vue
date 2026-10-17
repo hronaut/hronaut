@@ -52,13 +52,17 @@ async function usePort(): Promise<void> {
   await nextTick()
   if (!document.activeElement || document.activeElement === document.body) summary.value?.querySelector<HTMLElement>('.mcp-copy-endpoint')?.focus()
 }
-const statusTitle = computed(() => {
-  if (portProblem.value) return portProblem.value
-  if (state.value.status === 'error') return t('runtime.mcp.failed', { error: state.value.error ?? t('runtime.mcp.unknown') })
-  if (state.value.status === 'starting') return t('runtime.mcp.startingAt', { url: endpoint.value })
-  if (state.value.paused) return t('runtime.mcp.pauseGuidance')
-  return t('runtime.mcp.title', { url: endpoint.value })
+const statusDetail = computed(() => {
+  if (portProblem.value) return { text: portProblem.value, namesAgent: false }
+  if (state.value.status === 'error') return { text: t('runtime.mcp.failed', { error: state.value.error ?? t('runtime.mcp.unknown') }), namesAgent: false }
+  if (state.value.status === 'starting') return { text: t('runtime.mcp.startingAt', { url: endpoint.value }), namesAgent: false }
+  if (state.value.paused) return { text: t('runtime.mcp.pauseGuidance'), namesAgent: false }
+  return { text: t('runtime.mcp.title', { url: endpoint.value }), namesAgent: Boolean(agents.value.name) }
 })
+// The label cuts a long client name, so the tooltip leads with the whole status for pointer users. The button's name
+// already says it whole, so screen readers get only the detail as its description.
+const statusTitle = computed(() => statusDetail.value.namesAgent ? `${statusLabel.value}. ${statusDetail.value.text}` : statusDetail.value.text)
+const statusDescription = computed(() => statusDetail.value.namesAgent ? statusDetail.value.text : undefined)
 const pauseTitle = computed(() => {
   if (pauseBusy.value) return t('runtime.locks.waiting')
   if (!canTogglePaused.value) return t('runtime.mcp.unavailable')
@@ -87,7 +91,7 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
 
 <template>
   <div class="mcp-controls" :class="[state.status, { 'needs-you': agents.kind === 'needs-you' }]">
-    <UiPopover v-model="summaryOpen" class="mcp-summary" trigger-class="mcp-pill" :label="statusLabel" :title="statusTitle" placement="bottom-end" holds-page>
+    <UiPopover v-model="summaryOpen" class="mcp-summary" trigger-class="mcp-pill" :label="statusLabel" :title="statusTitle" :description="statusDescription" placement="bottom-end" holds-page>
       <template #trigger><span class="status-dot" /><span class="mcp-pill-label">{{ statusLabel }}</span></template>
       <section ref="summary" class="mcp-readiness-summary" :aria-label="t('home.readiness.heading')">
         <strong>{{ t('home.readiness.heading') }}</strong>
