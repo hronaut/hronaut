@@ -1,7 +1,27 @@
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { TAB_DISCOVERY_LIMITS, type TabDiscoverySearch, compactTabDiscovery } from '../../tab-discovery.js'
 import { mcpWorkspaceTab, textResult, toolDescription } from '../../tool-results.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, ToolCallSettlement } from '../tool-context.js'
+
+// A search result is published only if the workspace, control and capability still hold when the call settles.
+function tabDiscoverySettlement() {
+  let publication: (() => void) | undefined
+  return {
+    prepare: call => {
+      publication = () => {
+        if (call.signal?.aborted) throw new Error('Tab discovery cancelled')
+        call.requireCurrentTarget()
+      }
+    },
+    publish: (result: CallToolResult): CallToolResult | undefined => {
+      if (result.isError) return undefined
+      if (!publication) throw new Error('Tab discovery publication guard is unavailable')
+      publication()
+      return result // No await after final workspace/control/capability checks.
+    }
+  } satisfies ToolCallSettlement
+}
 
 export function registerBrowserTabs(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tool } = context
@@ -17,6 +37,7 @@ export function registerBrowserTabs(context: McpToolContext): void {
       return textResult(search === undefined
         ? manager.getMcpGroupState(workspaceId!).tabs.map(mcpWorkspaceTab)
         : compactTabDiscovery(manager.getMcpDiscoveryTabs(workspaceId!), search))
-    })
+    }),
+    { settlement: input => input.search !== undefined ? tabDiscoverySettlement() : undefined }
   )
 }
