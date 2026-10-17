@@ -12,6 +12,7 @@ import type { LanguagePreference, SupportedLocale } from './locale.js'
 import type { TabPosition } from './tab-position.js'
 import type { DesktopWindowPlatform, WindowChromeMode } from './title-bar.js'
 import type { WindowMaterial } from './window-material.js'
+import type { AgentStatusAgent } from './agent-status.js'
 import type {
   WalletCreateInput,
   WalletDescriptor,
@@ -603,6 +604,8 @@ export interface McpControlState {
   paused: boolean
   /** Actual tool callbacks still settling, independent of HTTP connections. */
   activeCommands?: number
+  /** Each connected agent once: an opaque key (never its session id), its display name and its strongest state. */
+  agents?: AgentStatusAgent[]
   error?: string
 }
 

@@ -627,6 +627,10 @@
   @apply h-full border-0 text-accent-copy bg-transparent [font-size:var(--type-small-size)] cursor-pointer;
 }
 .mcp-pill { @apply flex items-center [gap:7px] [padding:0_9px_0_10px]; }
+/* A client names itself, so a long name or translation is cut here; the button's name and tooltip keep it whole. */
+.mcp-pill-label { @apply flex-none overflow-hidden text-ellipsis whitespace-nowrap [max-width:190px]; }
+/* The rail's row has a fixed width, so there the label takes two lines before it is cut. */
+.vertical-tabs-shell .mcp-pill-label { @apply [flex:0_1_auto] min-w-0 [max-width:none] whitespace-normal [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]; }
 .mcp-pause-button { @apply grid [min-width:30px] [padding:0_8px] place-items-center [border-left:1px_solid_var(--pill-border)]; }
 .mcp-pause-button svg { @apply [width:15px] [height:15px]; }
 .mcp-pause-button:hover { @apply bg-accent-soft; }
@@ -642,6 +646,7 @@
 .mcp-controls.error .mcp-pill, .mcp-controls.error .mcp-pause-button { @apply [color:#b41f39]; }
 :root:not([data-theme="light"]) .mcp-controls.error .mcp-pill,
 :root:not([data-theme="light"]) .mcp-controls.error .mcp-pause-button { @apply [color:#ff8797]; }
+.mcp-controls.needs-you .status-dot { @apply [background:var(--needs-you)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--needs-you)_18%,_transparent)]; }
 .mcp-controls.error .status-dot { @apply [background:#df4b5f] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#df4b5f_18%,_transparent)]; }
 .status-dot { @apply [width:7px] [height:7px] rounded-full [background:var(--success)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--success)_14%,_transparent)]; }
 @keyframes mcp-status-pulse { 50% { opacity: .45; } }

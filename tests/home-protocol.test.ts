@@ -21,6 +21,9 @@ describe('isolated Home protocol', () => {
       const handle = createHomeProtocolHandler({ rendererDirectory: directory, state: () => options })
       const document = await handle(new Request('hronaut://home/'))
       expect(document.headers.get('content-security-policy')).toContain("script-src hronaut://home;")
+      // Home's styles are a bundled file, so a packaged app allows no inline style.
+      expect(document.headers.get('content-security-policy')).toContain('style-src hronaut://home;')
+      expect(document.headers.get('content-security-policy')).not.toContain('unsafe-inline')
       expect(await document.text()).toContain('href="/assets/tokens.css"')
       expect((await handle(new Request('hronaut://home/assets/home.js'))).headers.get('content-type')).toBe('text/javascript')
       const status = await handle(new Request('hronaut://home/api/status'))

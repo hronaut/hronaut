@@ -15,7 +15,8 @@ test('separates listener, connected client, and first page probe and preserves k
   await home(`document.querySelector('#home-onboarding [data-open-view]').click(); document.querySelector('[data-guide="codex"]').click(); document.querySelector('[data-copy-target="guide-code"]').click()`)
   await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText())).toContain(`http://127.0.0.1:${mcpPort}/mcp`)
 
-  const trigger = appWindow.getByRole('button', { name: 'MCP ready', exact: true })
+  // Its name follows the agents, from Ready for agents to the client connected or working.
+  const trigger = appWindow.locator('.mcp-pill')
   await trigger.click()
   const summary = appWindow.locator('.mcp-readiness-summary')
     await expect(summary).toBeVisible()

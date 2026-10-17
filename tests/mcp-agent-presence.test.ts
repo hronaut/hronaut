@@ -516,7 +516,7 @@ describe('agent presence over MCP', () => {
       expect(resumed.isError, text(resumed)).not.toBe(true)
       return { client, transport }
     }
-    return { server: started, state, requestUserAttention: request, onAgentPresenceChanged, connect }
+    return { server: started, state, requestUserAttention: request, onAgentPresenceChanged, connect, endpoint }
   }
 
   const ask = async (client: Client, reason: string) => client.callTool({ name: 'browser_request_user_attention', arguments: { workspaceId, tabId, reason } }) as Promise<CallToolResult>
@@ -559,6 +559,40 @@ describe('agent presence over MCP', () => {
     await server.stop()
     expect(onAgentPresenceChanged).toHaveBeenCalled()
     expect(server.getAgentPresence()).toEqual({})
+  })
+
+  it('lists each connected agent once, by display name and opaque key, with its strongest state', async () => {
+    const { server, onAgentPresenceChanged, connect, endpoint } = await startServer()
+    // Connecting alone, before any tool call, changes what the status says.
+    const quiet = new Client({ name: 'codex-mcp-client', version: '1.0.0' })
+    const quietTransport = new StreamableHTTPClientTransport(endpoint)
+    onAgentPresenceChanged.mockClear()
+    await quiet.connect(quietTransport)
+    clients.push(quiet)
+    expect(onAgentPresenceChanged).toHaveBeenCalled()
+    expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Codex', 'idle']])
+    await quietTransport.terminateSession()
+    await vi.waitFor(() => expect(server.getConnectedAgents()).toEqual([]))
+
+    const claudeClient = await connect('claude-code')
+    const cursorClient = await connect('Cursor')
+    expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Claude Code', 'idle'], ['Cursor', 'idle']])
+
+    const asked = await ask(claudeClient.client, 'Approve the order.')
+    expect(asked.isError, text(asked)).not.toBe(true)
+    const agents = server.getConnectedAgents()
+    expect(agents.map((agent) => [agent.name, agent.state])).toEqual([['Claude Code', 'needs-you'], ['Cursor', 'idle']])
+    expect(agents[0]?.key).toBe(server.getAgentPresence()[workspaceId]?.[0]?.clientKey)
+    for (const sessionId of [claudeClient.transport.sessionId, cursorClient.transport.sessionId]) expect(JSON.stringify(agents)).not.toContain(sessionId!)
+
+    // A client that quits without closing its session still counts within the presence window after its last request,
+    // then leaves, as its avatar does; a client holding its event stream open stays.
+    await cursorClient.client.close()
+    await vi.waitFor(() => expect(server.getConnectedAgents({}, Date.now() + AGENT_PRESENCE_WINDOW_MS + 1).map((agent) => agent.name)).toEqual(['Claude Code']))
+    expect(server.getConnectedAgents().map((agent) => agent.name)).toEqual(['Claude Code', 'Cursor'])
+    // An agent that asked for you stays until you answer, even after its session closes.
+    await claudeClient.transport.terminateSession()
+    await vi.waitFor(() => expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Cursor', 'idle'], ['Claude Code', 'needs-you']]))
   })
 
   it('shows a client for any call in a workspace it may use, and for none it may not', async () => {

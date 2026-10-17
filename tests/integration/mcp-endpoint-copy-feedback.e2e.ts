@@ -19,7 +19,7 @@ for (const succeeded of [true, false]) {
       }
     })
     try {
-      await appWindow.getByRole('button', { name: 'MCP ready', exact: true }).click()
+      await appWindow.getByRole('button', { name: 'Ready for agents', exact: true }).click()
       const summary = appWindow.locator('.mcp-readiness-summary')
       await summary.getByRole('button', { name: 'Copy URL', exact: true }).click()
       await expect(summary.getByRole('button', { name: 'MCP URL copied', exact: true })).toBeVisible()

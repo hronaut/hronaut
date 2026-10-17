@@ -22,6 +22,7 @@ import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../share
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
+import type { AgentStatusAgent } from '../shared/agent-status.js'
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
 import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
@@ -625,6 +626,7 @@ function sendToMainWindow(channel: string, ...args: unknown[]): void {
 let agentPresenceRevision = 0
 let agentPresenceSerialized = '{}'
 let agentPresenceSentRevision = 0
+let connectedAgentsSent = '[]'
 let agentPresencePublishScheduled = false
 /** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
 let followAgentActivityIntent = 0
@@ -667,6 +669,12 @@ function scheduleAgentPresencePublish(): void {
     agentPresencePublishScheduled = false
     const snapshot = agentPresenceSnapshot()
     tabsManager?.retainAgentFollow(new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
+    // The toolbar status names connected agents from the MCP state, so it follows them too.
+    const agents = JSON.stringify(connectedAgents(snapshot.workspaces))
+    if (agents !== connectedAgentsSent) {
+      connectedAgentsSent = agents
+      publishMcpControlState({ refreshHome: false })
+    }
     // A seen request whose avatar went away, such as when the MCP server stopped or agent access was
     // turned off, has no card left to answer it, so it ends.
     if (attentionQuiet && !userAttentionShown(snapshot.workspaces)) endUserAttention({ keepPending: true })
@@ -710,6 +718,16 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
   return entries
 }
 
+/** Each connected agent once, with its strongest state; nothing when the server is not running. */
+function connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): AgentStatusAgent[] {
+  try {
+    return mcpServer?.getConnectedAgents(presence) ?? []
+  } catch (error) {
+    console.error('[mcp] Failed to read connected agents:', error)
+    return []
+  }
+}
+
 function currentMcpControlState(): McpControlState {
   const paused = mcpPauseState.paused
   const dashboard = mcpServer?.getDashboardState()
@@ -720,6 +738,7 @@ function currentMcpControlState(): McpControlState {
     status: mcpRuntimeStatus === 'ready' && paused ? 'paused' : mcpRuntimeStatus,
     paused,
     activeCommands: mcpActionTracker.activeCount,
+    agents: connectedAgents(),
     readiness: {
       initializedClientCount: initialized.length,
       probe: probe ? (probe.outcome === 'verified' ? 'probe_verified' : 'probe_failed')
@@ -1353,7 +1372,7 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   refreshHomeAfterCommittedChange('settings')
 }
 
-function homeDashboardState(): McpDashboardState & { presentationRevision: number; theme: ResolvedThemeName } {
+function homeDashboardState(): McpDashboardState & { presentationRevision: number; theme: ResolvedThemeName; agents: AgentStatusAgent[] } {
   const serverState = mcpServer?.getDashboardState()
   const tools = mcpToolCatalogForSet(settings.mcpToolSet)
   const status = currentMcpControlState().status
@@ -1387,6 +1406,7 @@ function homeDashboardState(): McpDashboardState & { presentationRevision: numbe
     presentationRevision: homePresentationRevision,
     theme: resolvedTheme(settings.theme),
     status,
+    agents: connectedAgents(),
     ...(mcpStartupError ? { error: mcpStartupError } : {})
   }
   return {

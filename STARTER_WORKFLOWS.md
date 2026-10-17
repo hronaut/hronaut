@@ -31,7 +31,7 @@ Use a dedicated test profile for this check, keeping your everyday browser profi
 Using Hronaut, create a new isolated workspace named “Workspace first run” with scratch storage. Open https://example.com in that workspace, take a semantic snapshot, report the heading, and wait. Do not use or copy any existing workspace.
 ```
 
-1. Confirm the named workspace and Example Domain page are visible. Use **Pause agents** beside **MCP ready** before taking over. Pause blocks new commands; it does not undo dispatched actions or stop later page events. Inspect the current page before continuing.
+1. Confirm the named workspace and Example Domain page are visible. Use **Pause agents** beside the agent status (such as **Ready for agents**) before taking over. Pause blocks new commands; it does not undo dispatched actions or stop later page events. Inspect the current page before continuing.
 2. Manually follow the page's link to IANA in Hronaut. Resume agent access, then ask the agent to take a fresh snapshot in the same workspace and report the current page. Expect it to observe your navigation.
 3. End the agent conversation while leaving Hronaut open. The workspace remains available in the desktop browser. A different MCP session needs the workspace's private resume capability; its name alone does not grant access. Keep that capability private, and use the [workspace reference](REFERENCE.md#mcp-tools) for resumption and archive behavior.
 

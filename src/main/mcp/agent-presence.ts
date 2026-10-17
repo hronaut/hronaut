@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from 'node:crypto'
+import { agentDisplayName } from '../../shared/agent-status.js'
 import {
   AGENT_AVATAR_COLORS,
   AGENT_AVATAR_INK,
@@ -55,7 +56,8 @@ function visibleText(value: string): string {
 
 /** A client-supplied name, safe to show as text: no control, format, private,
  * unassigned or line separator characters and no blank fillers, collapsed
- * spaces, at most 64 graphemes. A name with nothing visible left is empty. */
+ * spaces, at most 64 graphemes. A name with nothing visible left is empty.
+ * Known MCP client ids read as the product, so `claude-code` is "Claude Code". */
 export function sanitizeAgentName(value: string): string {
   let result = ''
   let count = 0
@@ -64,7 +66,7 @@ export function sanitizeAgentName(value: string): string {
     result += segment
     count += 1
   }
-  return result.trimEnd()
+  return agentDisplayName(result.trimEnd())
 }
 
 /** A step's target cleaned the same way, at most 60 graphemes and 120 UTF-16 units, cut with an
