@@ -1,17 +1,38 @@
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import {
   COMMAND_PALETTE_COMMANDS,
-  filterCommandPaletteCommands,
+  COMMAND_PALETTE_RECENT_LIMIT,
+  commandPaletteSections,
   type CommandPaletteCommand,
   type CommandPaletteCommandId
 } from '../../../shared/command-palette.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { readLocalPreference, writeLocalPreference, type LocalPreferenceStorageProvider } from '../local-preferences.js'
+
+/** Where the palette remembers the commands run lately, for this window's profile only. */
+export const RECENT_COMMANDS_KEY = 'hronaut:command-palette-recent'
+const COMMAND_IDS = new Set<string>(COMMAND_PALETTE_COMMANDS.map((command) => command.id))
+
+function readRecentCommands(storage?: LocalPreferenceStorageProvider): CommandPaletteCommandId[] {
+  try {
+    const parsed = JSON.parse(readLocalPreference(RECENT_COMMANDS_KEY, storage) ?? '[]') as unknown
+    if (!Array.isArray(parsed)) return []
+    return [...new Set(parsed.filter((id): id is CommandPaletteCommandId => typeof id === 'string' && COMMAND_IDS.has(id)))].slice(0, COMMAND_PALETTE_RECENT_LIMIT)
+  } catch {
+    return []
+  }
+}
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
 
 export interface CommandPaletteControllerOptions {
   open: Ref<boolean>
   websiteAvailable: Readonly<Ref<boolean>>
+  /** An agent works in the workspace in view. */
+  agentActive?: Readonly<Ref<boolean>>
+  /** An agent is working on the tab in view, and the person can take it over. */
+  takeOverAvailable?: Readonly<Ref<boolean>>
+  storage?: LocalPreferenceStorageProvider
   translate: Translate
   runCommand: (commandId: CommandPaletteCommandId) => unknown
   onRunError: (error: unknown, commandId: CommandPaletteCommandId) => void
@@ -27,11 +48,15 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     description: options.translate(`commandCatalog.commands.${command.id}.description`),
     category: options.translate(`commandCatalog.categories.${command.category}`) as CommandPaletteCommand['category']
   })))
-  const commands = computed(() => filterCommandPaletteCommands(
-    query.value,
-    options.websiteAvailable.value,
-    localizedCommands.value
-  ))
+  // Read when the palette opens, so the list does not change under the selection while it is open.
+  const recentIds = ref<CommandPaletteCommandId[]>(readRecentCommands(options.storage))
+  const sections = computed(() => commandPaletteSections(query.value, {
+    websiteAvailable: options.websiteAvailable.value,
+    agentActive: options.agentActive?.value ?? false,
+    takeOverAvailable: options.takeOverAvailable?.value ?? false,
+    recentIds: recentIds.value
+  }, localizedCommands.value))
+  const commands = computed(() => sections.value.flatMap((section) => section.commands))
   const commandIds = computed(() => commands.value.map((command) => command.id))
   const selectedCommand = computed(() => commands.value[selection.value])
   let presentationGeneration = 0
@@ -61,6 +86,7 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
 
   async function openPanel(): Promise<void> {
     presentationGeneration += 1
+    recentIds.value = readRecentCommands(options.storage)
     query.value = ''
     selection.value = 0
     options.open.value = true
@@ -72,8 +98,14 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     options.open.value = false
   }
 
+  function rememberCommand(commandId: CommandPaletteCommandId): void {
+    const next = [commandId, ...readRecentCommands(options.storage).filter((id) => id !== commandId)].slice(0, COMMAND_PALETTE_RECENT_LIMIT)
+    writeLocalPreference(RECENT_COMMANDS_KEY, JSON.stringify(next), options.storage)
+  }
+
   async function run(commandId: CommandPaletteCommandId): Promise<void> {
     close()
+    rememberCommand(commandId)
     try {
       await options.runCommand(commandId)
     } catch (error) {
@@ -140,6 +172,7 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     input,
     query,
     selection,
+    sections,
     commands,
     selectedCommand,
     commandElementId,

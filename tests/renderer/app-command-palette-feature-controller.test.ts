@@ -153,7 +153,9 @@ describe('useAppCommandPaletteFeatureController', () => {
       ['switch-workspace'],
       ['reload'],
       ['reload-ignoring-cache'],
-      ['toggle-full-page']
+      ['toggle-full-page'],
+      ['agent-card'],
+      ['take-over']
     ])
     expect(methods.toggleElementPicker.mock.calls).toEqual([['screenshot'], ['context']])
     expect(methods.capturePageScreenshot.mock.calls).toEqual([['viewport'], ['full-page']])

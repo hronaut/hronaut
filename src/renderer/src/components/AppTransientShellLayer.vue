@@ -292,6 +292,8 @@ defineExpose({
     ref="commandPalette"
     v-model:open="commandsOpen"
     :website-available="websiteAvailable"
+    :active-tab="activeTab"
+    :agent-control-locked="state.agentControlLocked === true"
     :format-number="formatNumber"
     :run-command="runCommand"
     :report-command-error="reportCommandError"

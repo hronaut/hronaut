@@ -628,6 +628,7 @@ export const esES = {
   "workspaceSwitcher": { "kicker": "Espacios de trabajo", "heading": "Cambiar de espacio", "close": "Cerrar el selector de espacios", "search": "Buscar espacios de trabajo", "placeholder": "Buscar por nombre, agente o sitio", "results": "Espacios de trabajo", "openGroup": "Espacios abiertos", "archived": "Archivados", "current": "Actual", "pinned": "Fijado", "needsYou": "Te necesita", "working": "{names} trabajando", "tabs": "{count} pestaña | {count} pestañas", "matches": "{count} espacio coincidente. | {count} espacios coincidentes.", "selected": "{name} seleccionado.", "empty": "Ningún espacio coincide", "emptyDescription": "Prueba con un nombre, un agente como «Claude Code» o un sitio.", "none": "Aún no hay espacios de trabajo", "noneDescription": "Crea un espacio de trabajo para mantener juntas las pestañas y sesiones de un proyecto.", "navigate": "Navegar", "choose": "Cambiar", "searchTabs": "Buscar pestañas", "newWorkspace": "Nuevo espacio", "switchFailed": "No se pudo cambiar de espacio", "switchDescription": "No se pudo abrir {name}." },
   "agentSteps": { "kicker": "Todos los pasos", "heading": "Pasos de {name}", "close": "Cerrar todos los pasos", "summary": "Hasta {count} de sus últimos pasos en {workspace}, del más reciente al más antiguo.", "summaryNoWorkspace": "Hasta {count} de sus últimos pasos, del más reciente al más antiguo.", "ended": "{name} ya no trabaja en este espacio. Estos fueron sus últimos pasos.", "loadFailed": "No se pudieron cargar estos pasos.", "retry": "Reintentar", "closedTab": "Una pestaña que ya no está en este espacio", "noTab": "Fuera de una pestaña", "untitledTab": "Pestaña sin título", "showTab": "Mostrar pestaña", "showTabNamed": "Mostrar pestaña: {title}", "showTabFailed": "No se pudo mostrar la pestaña", "showTabFailedDescription": "Es posible que la pestaña se haya cerrado.", "empty": "Aún no hay pasos terminados", "emptyDescription": "Los pasos aparecen aquí mientras {name} trabaja.", "privacy": "Las imágenes solo se toman de una página en pantalla y se guardan solo en memoria: nunca en disco ni se envían a los agentes." },
   "commandPalette": {
+    "recent": "Recientes",
     "kicker": "Acciones rápidas",
     "heading": "Comandos",
     "close": "Cerrar la paleta de comandos",
@@ -643,6 +644,7 @@ export const esES = {
   },
   "commandCatalog": {
     "categories": {
+      "Agents": "Agentes",
       "Navigation": "Navegación",
       "Current website": "Sitio actual",
       "Application": "Aplicación"
@@ -828,6 +830,14 @@ export const esES = {
       "toggle-mcp-pause": {
         "label": "Pausar o reanudar agentes",
         "description": "Controlar si Hronaut acepta comandos MCP nuevos"
+      },
+      "agent-card": {
+        "label": "Mostrar detalles del agente",
+        "description": "Abrir la tarjeta del agente que trabaja en este espacio"
+      },
+      "take-over": {
+        "label": "Tomar el control del agente",
+        "description": "Pausar al agente en esta pestaña y seguir tú"
       }
     }
   },
