@@ -401,7 +401,17 @@ describe('formatNetworkRequestCopy', () => {
       body: { text: body, originalChars: body.length, truncated: false, redacted: false }
     } }), 'powershell')
     expect(result).toContain("    'X-Label' = 'owner''s'")
-    expect(result).toContain("-Body ([System.Text.Encoding]::UTF8.GetBytes(('it''s ‘‘quoted’’ ‚‚low‛‛ $(Get-Date) `tick`' + [char]0x00 + 'end' + [char]0x0D + '\nnext\tline' + [char]0x1B + '[0m')))")
+    expect(result).toContain("-Body ([System.Text.Encoding]::UTF8.GetBytes(('it''s ‘‘quoted’’ ‚‚low‛‛ $(Get-Date) `tick`' + [char]0x00 + 'end' + [char]0x0D + '\nnext' + [char]0x09 + 'line' + [char]0x1B + '[0m')))")
+  })
+
+  it('starts a PowerShell value that opens with control characters with text, so + joins instead of adding codes', () => {
+    const body = '\r\n{}'
+    const result = formatNetworkRequestCopy(requestDetails({ request: {
+      headers: { 'Content-Type': '\u0001' },
+      body: { text: body, originalChars: body.length, truncated: false, redacted: false }
+    } }), 'powershell')
+    expect(result).toContain("  -ContentType ('' + [char]0x01) `")
+    expect(result).toContain("-Body ([System.Text.Encoding]::UTF8.GetBytes(('' + [char]0x0D + '\n{}')))")
   })
 
   it.each([
@@ -426,13 +436,13 @@ describe('formatNetworkRequestCopy', () => {
         const directory = await mkdtemp(join(tmpdir(), 'hronaut-powershell-copy-'))
         try {
           await withFixtureServer(async (origin, received) => {
-            const body = "literal ' ‘quoted’ $(Write-Output injected) `text` ; % [x] café 😀\r\nline two\n'; $sentinel = 'changed'; '"
+            const body = "\r\n\tliteral ' ‘quoted’ $(Write-Output injected) `text` ; % [x] café 😀\r\nline two\n'; $sentinel = 'changed'; '"
             const command = formatNetworkRequestCopy(requestDetails({
               url: `${origin}/items/[draft]/100%25?q=%24x&name=it%27s`, method: 'POST',
               request: {
                 headers: {
                   Accept: 'application/json', 'Content-Type': 'text/plain; charset=utf-8', 'User-Agent': 'Fixture/1.0 (it\'s)',
-                  'X-Punctuation': "'; $($sentinel = 'changed') `n ; %", 'X-Empty': '', Authorization: 'private-canary', Cookie: 'private-cookie'
+                  'X-Punctuation': "'; $($sentinel = 'changed') `n ; %", 'X-Tab': 'a\tb', 'X-Empty': '', Authorization: 'private-canary', Cookie: 'private-cookie'
                 },
                 body: { text: body, originalChars: body.length, truncated: false, redacted: false }
               }
@@ -453,6 +463,7 @@ describe('formatNetworkRequestCopy', () => {
             expect(headerValues(request, 'content-type')).toEqual(['text/plain; charset=utf-8'])
             expect(headerValues(request, 'user-agent')).toEqual(["Fixture/1.0 (it's)"])
             expect(headerValues(request, 'x-punctuation')).toEqual(["'; $($sentinel = 'changed') `n ; %"])
+            expect(headerValues(request, 'x-tab')).toEqual(['a\tb'])
             expect(headerValues(request, 'x-empty')).toEqual([''])
             expect(headerValues(request, 'authorization')).toEqual([])
             expect(headerValues(request, 'cookie')).toEqual([])

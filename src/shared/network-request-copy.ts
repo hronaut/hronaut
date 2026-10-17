@@ -152,16 +152,16 @@ function powerShellLiteral(value: string): string {
 }
 
 /**
- * A PowerShell string expression for the exact text. Control characters other than tab and line feed, which a
- * pasted literal could lose or a terminal could act on, are written as `[char]` codes that Windows PowerShell 5.1
- * and PowerShell 7 both read.
+ * A PowerShell string expression for the exact text. Control characters other than line feed, which a pasted
+ * literal could lose or a console could act on (a pasted tab can start completion), are written as `[char]` codes
+ * that Windows PowerShell 5.1 and PowerShell 7 both read.
  */
 function powerShellText(value: string): string {
   const parts: string[] = []
   let literal = ''
   for (const character of value) {
     const code = character.codePointAt(0)!
-    if ((code < 0x20 && character !== '\t' && character !== '\n') || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029) {
+    if ((code < 0x20 && character !== '\n') || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029) {
       if (literal) parts.push(powerShellLiteral(literal))
       literal = ''
       parts.push(`[char]0x${code.toString(16).toUpperCase().padStart(2, '0')}`)
@@ -170,7 +170,10 @@ function powerShellText(value: string): string {
     }
   }
   if (literal || !parts.length) parts.push(powerShellLiteral(literal))
-  return parts.length === 1 ? parts[0]! : `(${parts.join(' + ')})`
+  if (parts.length === 1 && !parts[0]!.startsWith('[char]')) return parts[0]!
+  // Parentheses make a lone [char] an expression, not argument text; a text first operand keeps every + joining text.
+  if (parts[0]!.startsWith('[char]')) parts.unshift("''")
+  return `(${parts.join(' + ')})`
 }
 
 function formatPowerShell(payload: CopyPayload): string {
