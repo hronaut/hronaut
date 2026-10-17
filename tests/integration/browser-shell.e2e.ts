@@ -28,7 +28,7 @@ test('launches a visible browser shell with a loopback MCP endpoint', async ({
 }) => {
   await expect(appWindow).toHaveTitle('Hronaut')
   await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeVisible()
-  await expect(appWindow.getByRole('button', { name: /MCP ready/ })).toBeVisible()
+  await expect(appWindow.getByRole('button', { name: 'Ready for agents' })).toBeVisible()
   await expect.poll(() => appWindow.evaluate('window.hronautMcp.getState()')).toMatchObject({ status: 'ready', paused: false })
   const pauseAgents = appWindow.getByRole('button', { name: 'Pause agents' })
   await pauseAgents.click()
@@ -1033,7 +1033,7 @@ test('shows an error status when the MCP port is already in use', async ({
   let conflictingApp: Awaited<ReturnType<typeof launchHronaut>> | undefined
   try {
     conflictingApp = await launchHronaut(profileDirectory, mcpPort)
-    const statusPill = conflictingApp.window.getByRole('button', { name: 'MCP error' })
+    const statusPill = conflictingApp.window.getByRole('button', { name: 'Agents can’t connect' })
     await expect(statusPill).toBeVisible()
     await expect(statusPill).toHaveAttribute('data-tooltip', /EADDRINUSE/)
     await expect(conflictingApp.window.locator('.mcp-controls')).toHaveClass(/error/)

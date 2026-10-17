@@ -9,6 +9,7 @@ import IconPlay from '~icons/material-symbols/play-arrow-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import type { McpStatusController } from '../composables/useMcpStatusController'
 import { vTooltip } from '../ui/tooltip.js'
+import { agentStatus } from '../../../shared/agent-status.js'
 
 const props = defineProps<{
   controller: McpStatusController
@@ -25,13 +26,11 @@ const {
   togglePaused
 } = props.controller
 
+// The same words as Home: whether agents can connect, and whether one needs you, is working or is connected.
+const agents = computed(() => agentStatus(state.value.status, state.value.agents ?? []))
 const statusLabel = computed(() => {
-  if (state.value.status === 'starting') return t('runtime.mcp.starting')
-  if (state.value.status === 'paused') return (state.value.activeCommands ?? 0) > 0
-    ? t('runtime.mcp.settling', { count: state.value.activeCommands! })
-    : t('runtime.mcp.paused')
-  if (state.value.status === 'error') return t('runtime.mcp.error')
-  return t('runtime.mcp.ready')
+  if (state.value.status === 'paused' && (state.value.activeCommands ?? 0) > 0) return t('runtime.mcp.settling', { count: state.value.activeCommands! })
+  return t(`agentStatus.${agents.value.message}`, { name: agents.value.name ?? '', count: agents.value.count }, agents.value.count)
 })
 const statusTitle = computed(() => {
   if (state.value.status === 'error') return t('runtime.mcp.failed', { error: state.value.error ?? t('runtime.mcp.unknown') })
@@ -66,7 +65,7 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
 </script>
 
 <template>
-  <div class="mcp-controls" :class="state.status">
+  <div class="mcp-controls" :class="[state.status, { 'needs-you': agents.kind === 'needs-you' }]">
     <UiPopover v-model="summaryOpen" class="mcp-summary" trigger-class="mcp-pill" :label="statusLabel" :title="statusTitle" placement="bottom-end" holds-page>
       <template #trigger><span class="status-dot" />{{ statusLabel }}</template>
       <section class="mcp-readiness-summary" :aria-label="t('home.readiness.heading')">

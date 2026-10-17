@@ -561,6 +561,25 @@ describe('agent presence over MCP', () => {
     expect(server.getAgentPresence()).toEqual({})
   })
 
+  it('lists each connected agent once, by display name and opaque key, with its strongest state', async () => {
+    const { server, onAgentPresenceChanged, connect } = await startServer()
+    const claudeClient = await connect('claude-code')
+    // Connecting alone changes what the status says.
+    expect(onAgentPresenceChanged).toHaveBeenCalled()
+    const cursorClient = await connect('Cursor')
+    expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Claude Code', 'idle'], ['Cursor', 'idle']])
+
+    const asked = await ask(claudeClient.client, 'Approve the order.')
+    expect(asked.isError, text(asked)).not.toBe(true)
+    const agents = server.getConnectedAgents()
+    expect(agents.map((agent) => [agent.name, agent.state])).toEqual([['Claude Code', 'needs-you'], ['Cursor', 'idle']])
+    expect(agents[0]?.key).toBe(server.getAgentPresence()[workspaceId]?.[0]?.clientKey)
+    for (const sessionId of [claudeClient.transport.sessionId, cursorClient.transport.sessionId]) expect(JSON.stringify(agents)).not.toContain(sessionId!)
+
+    await cursorClient.transport.terminateSession()
+    await vi.waitFor(() => expect(server.getConnectedAgents().map((agent) => agent.name)).toEqual(['Claude Code']))
+  })
+
   it('shows a client for any call in a workspace it may use, and for none it may not', async () => {
     const { server, connect } = await startServer()
     const cursorClient = await connect('Cursor')

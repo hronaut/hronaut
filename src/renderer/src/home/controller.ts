@@ -1,3 +1,4 @@
+import { agentStatus, agentStatusText, agentStatusTone } from '../../../shared/agent-status.js'
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
 import { element, escapeText as h, interpolate, remember, renderStatus } from './dom.js'
 import { mountWorkspaces } from './workspaces.js'
@@ -197,8 +198,10 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     document.documentElement.dataset.theme = dashboard.theme ?? 'light'
     const status = dashboard.status
     const statusLabels = { starting: messages.status.starting, ready: messages.status.online, paused: messages.status.paused, error: messages.status.error }
-    renderStatus(element('server-state'), status, statusLabels[status])
-    element('server-state').title = status === 'error' ? dashboard.error ?? messages.status.unknownError : ''
+    // One wording with the toolbar; the server's own state and any error stay under Details.
+    const agents = agentStatus(status, dashboard.agents ?? [])
+    renderStatus(element('server-state'), agentStatusTone(agents.kind), agentStatusText(agents, data.messages.agentStatus, locale))
+    text('server-detail', status === 'error' ? `${statusLabels.error}: ${dashboard.error ?? messages.status.unknownError}` : statusLabels[status])
     text('active-count', status === 'paused' ? messages.status.pausedValue : status === 'error' ? messages.status.unavailable : status === 'starting' ? messages.status.startingValue : count(messages.status.activeOne, messages.status.activeOther, dashboard.activeRequests))
     text('request-count', dashboard.totalRequests ? count(messages.counts.requestsOne, messages.counts.requestsOther, dashboard.totalRequests) : messages.status.waiting)
     text('client-count', count(messages.counts.clientsOne, messages.counts.clientsOther, dashboard.clients.length))
@@ -301,7 +304,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     } catch {
       if (signal.aborted || sequence !== requestSequence) return
       renderStatus(element('server-state'), 'error', messages.status.unavailable)
-      element('server-state').title = ''; text('active-count', messages.status.unavailable); text('request-count', messages.status.reconnecting); text('connection-note', messages.journey.unavailable)
+      text('server-detail', messages.status.reconnecting); text('active-count', messages.status.unavailable); text('request-count', messages.status.reconnecting); text('connection-note', messages.journey.unavailable)
       text('connection-probe', messages.journey.unavailable)
     }
   }

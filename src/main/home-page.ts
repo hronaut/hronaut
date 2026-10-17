@@ -1,8 +1,6 @@
 import { clientConfigurations } from '../shared/client-configuration.js'
 import { localeMessages } from '../shared/i18n.js'
 import type { HomeBootstrap, HomePageOptions } from '../shared/home.js'
-import { HOME_PAGE_STYLES } from './home-page-styles.js'
-import { HOME_WORKSPACES_STYLES } from './home-workspaces-ui.js'
 
 export function homeBootstrap(options: HomePageOptions): HomeBootstrap {
   return { locale: options.locale, guides: clientConfigurations({ ...options, platform: options.platform ?? process.platform }),
@@ -22,10 +20,10 @@ export function renderHomePage(options: HomePageOptions, assets = { script: '/ho
   return `<!doctype html>
 <html lang="${options.locale}">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${h(home.title)}</title><style>${HOME_PAGE_STYLES}${HOME_WORKSPACES_STYLES}</style>${assets.styles.map(path => `<link rel="stylesheet" href="${h(path)}">`).join('')}</head>
+<title>${h(home.title)}</title>${assets.styles.map(path => `<link rel="stylesheet" href="${h(path)}">`).join('')}</head>
 <body><main class="page">
 <header class="hero"><div class="hero-copy"><div class="brand"><span class="mark">H</span> ${h(home.brand)}</div><h1 id="home-view-title">${h(library.heading)}</h1><p id="home-view-description" class="hero-description">${h(library.description)}</p></div>
-<div class="hero-status" aria-live="polite"><span id="server-state" class="status-label"></span><strong id="active-count" class="status-value"></strong><span id="request-count" class="status-detail"></span></div></header>
+<div class="hero-status" aria-live="polite"><span id="server-state" class="status-label"></span><details class="status-details"><summary>${h(data.messages.agentStatus.details)}</summary><div class="status-facts"><span id="server-detail" class="status-detail"></span><strong id="active-count" class="status-value"></strong><span id="request-count" class="status-detail"></span></div></details></div></header>
 <section id="home-onboarding" class="panel onboarding" hidden aria-labelledby="onboarding-title">
 <h2 id="onboarding-title">${h(home.connect.heading)}</h2><p>${h(home.connect.description)}</p>
 <ol><li id="onboarding-client">${h(home.journey.setup)}</li><li id="onboarding-connection">${h(home.connect.verify)}</li><li id="onboarding-probe">${h(home.firstRun.heading)}</li><li>${h(data.messages.workspaceEditor.create)}</li></ol>

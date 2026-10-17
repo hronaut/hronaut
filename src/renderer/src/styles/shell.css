@@ -642,6 +642,7 @@
 .mcp-controls.error .mcp-pill, .mcp-controls.error .mcp-pause-button { @apply [color:#b41f39]; }
 :root:not([data-theme="light"]) .mcp-controls.error .mcp-pill,
 :root:not([data-theme="light"]) .mcp-controls.error .mcp-pause-button { @apply [color:#ff8797]; }
+.mcp-controls.needs-you .status-dot { @apply [background:var(--needs-you)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--needs-you)_18%,_transparent)]; }
 .mcp-controls.error .status-dot { @apply [background:#df4b5f] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#df4b5f_18%,_transparent)]; }
 .status-dot { @apply [width:7px] [height:7px] rounded-full [background:var(--success)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--success)_14%,_transparent)]; }
 @keyframes mcp-status-pulse { 50% { opacity: .45; } }

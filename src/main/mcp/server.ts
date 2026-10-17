@@ -107,6 +107,7 @@ import { AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type Age
 import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
 import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
+import { agentDisplayName, strongerAgentState, type AgentStatusAgent } from '../../shared/agent-status.js'
 import { webAddress } from '../browser/url.js'
 export {
   WorkspaceWriteLeaseError,
@@ -5999,6 +6000,8 @@ export class McpHttpServer {
                 if (oldestSessionId) await this.closeTransportSession(oldestSessionId)
                 else break
               }
+              // A newly connected agent changes what the status says, before it does anything.
+              this.agentPresenceChanged()
             },
             onsessionclosed: async (sessionId) => {
               const closedSession = this.transportSessions.get(sessionId)
@@ -6103,6 +6106,22 @@ export class McpHttpServer {
       currentAttentionId: this.options.getOpenUserAttentionId ? this.options.getOpenUserAttentionId() : this.options.getUserAttention()?.id ?? null,
       tabInWorkspace: (workspaceId, tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
     })
+  }
+
+  /**
+   * Each connected agent once, by its opaque presence key (never the session id) and display name, with its strongest
+   * state in any open workspace. Home and the toolbar status say the same thing from this.
+   */
+  getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence()): AgentStatusAgent[] {
+    const states = new Map<string, AgentStatusAgent['state']>()
+    for (const agent of Object.values(presence).flat()) states.set(agent.clientKey, strongerAgentState(states.get(agent.clientKey), agent.state))
+    const agents: AgentStatusAgent[] = []
+    for (const [sessionId, session] of this.transportSessions) {
+      if (!session.client.initializedAt) continue
+      const key = this.agentPresence.clientKey(sessionId)
+      agents.push({ key, name: agentDisplayName(sanitizeAgentName(session.client.name)), state: states.get(key) ?? 'idle' })
+    }
+    return agents
   }
 
   /** Increases whenever an agent's step history changes, including a step getting its picture. */

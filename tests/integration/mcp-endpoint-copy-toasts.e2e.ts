@@ -6,7 +6,7 @@ type EndpointToastProbe = typeof globalThis & {
 
 for (const newerSuccess of [true, false]) {
   test(`suppresses an obsolete MCP endpoint clipboard error after a newer copy (success: ${newerSuccess})`, async ({ appWindow, electronApp, mcpPort }) => {
-    await appWindow.getByRole('button', { name: 'MCP ready', exact: true }).click()
+    await appWindow.getByRole('button', { name: 'Ready for agents', exact: true }).click()
     const summary = appWindow.locator('.mcp-readiness-summary')
     await electronApp.evaluate(({ ipcMain }) => {
       type Handler = (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown

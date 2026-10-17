@@ -39,7 +39,8 @@ export function createHomeProtocolHandler(ports: HomeProtocolPorts): (request: R
     if (url.pathname === '/' || url.pathname === '') {
       return new Response(renderHomePage(ports.state(), await loadAssets()), { headers: {
         'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
-        'content-security-policy': "default-src 'none'; style-src hronaut://home 'unsafe-inline'; script-src hronaut://home; connect-src hronaut://home; img-src hronaut://home data:; font-src hronaut://home"
+        // Built Home loads only bundled stylesheets; Vite's development server injects styles inline.
+        'content-security-policy': `default-src 'none'; style-src hronaut://home${ports.developmentOrigin ? " 'unsafe-inline'" : ''}; script-src hronaut://home; connect-src hronaut://home; img-src hronaut://home data:; font-src hronaut://home`
       } })
     }
     if (ports.developmentOrigin && /^\/(?:src\/|@|node_modules\/)/.test(url.pathname)) {

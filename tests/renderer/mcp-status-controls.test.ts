@@ -56,12 +56,23 @@ describe('McpStatusControls', () => {
     const { controller, setPaused } = renderControls()
     const user = userEvent.setup()
 
-    expect(screen.getByRole('button', { name: /MCP ready/ })).toHaveAttribute('data-tooltip', 'MCP: http://127.0.0.1:47812/mcp')
+    expect(screen.getByRole('button', { name: /Ready for agents/ })).toHaveAttribute('data-tooltip', 'MCP: http://127.0.0.1:47812/mcp')
     const pause = screen.getByRole('button', { name: 'Pause agents' })
     await user.click(pause)
 
     expect(setPaused).toHaveBeenCalledWith(true)
     expect(screen.getByRole('button', { name: 'Resume agents' })).toHaveAttribute('aria-pressed', 'true')
+    controller.dispose()
+  })
+
+  it('names a connected agent, then says when it is working or needs you, in the same words as Home', async () => {
+    const { controller } = renderControls(control({ agents: [{ key: 'a', name: 'Claude Code', state: 'idle' }] }))
+    expect(screen.getByRole('button', { name: 'Claude Code connected' })).toBeVisible()
+    controller.accept(control({ agents: [{ key: 'a', name: 'Claude Code', state: 'working' }, { key: 'b', name: 'Codex', state: 'working' }] }))
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: '2 agents working' })).toBeVisible())
+    controller.accept(control({ agents: [{ key: 'a', name: 'Claude Code', state: 'needs-you' }] }))
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Needs you' })).toBeVisible())
+    expect(screen.getByRole('button', { name: 'Needs you' }).closest('.mcp-controls')).toHaveClass('needs-you')
     controller.dispose()
   })
 
@@ -86,7 +97,7 @@ describe('McpStatusControls', () => {
   it('shows the error reason and keeps pause unavailable when the listener failed', () => {
     const { controller } = renderControls(control({ status: 'error', error: 'port in use' }))
 
-    expect(screen.getByRole('button', { name: 'MCP error' })).toHaveAttribute('data-tooltip', 'MCP failed: port in use')
+    expect(screen.getByRole('button', { name: 'Agents can’t connect' })).toHaveAttribute('data-tooltip', 'MCP failed: port in use')
     expect(screen.getByRole('button', { name: 'Pause agents' })).toBeDisabled()
     controller.dispose()
   })
@@ -94,7 +105,7 @@ describe('McpStatusControls', () => {
   it('opens readiness without copying and exposes Copy URL as an explicit secondary action', async () => {
     const { controller, copyText } = renderControls()
 
-    await userEvent.setup().click(screen.getByRole('button', { name: /MCP ready/ }))
+    await userEvent.setup().click(screen.getByRole('button', { name: /Ready for agents/ }))
     expect(copyText).not.toHaveBeenCalled()
     expect(screen.getByText('Client initialization')).toBeVisible()
     expect(screen.getByText('Read-only probe')).toBeVisible()
@@ -102,7 +113,7 @@ describe('McpStatusControls', () => {
     expect(copyText).toHaveBeenCalledWith('http://127.0.0.1:47812/mcp', expect.any(Function))
     expect(screen.getAllByRole('button', { name: /MCP URL copied/ })).toHaveLength(1)
     await userEvent.setup().keyboard('{Escape}')
-    expect(screen.getByRole('button', { name: /MCP ready/ })).toHaveFocus()
+    expect(screen.getByRole('button', { name: /Ready for agents/ })).toHaveFocus()
     controller.dispose()
   })
 })

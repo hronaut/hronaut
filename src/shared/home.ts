@@ -2,6 +2,7 @@ import type { AgentGuide, ClientConfigurationOptions } from './client-configurat
 import type { HomeWorkspaceAction, HomeWorkspaceState } from './home-workspaces.js'
 import type { McpActivityOutcome, McpActivityResult, McpServerStatus } from './types.js'
 import type { ResolvedThemeName } from './theme.js'
+import type { AgentStatusAgent } from './agent-status.js'
 import type { MessageSchema } from './locales/en-US.js'
 
 export interface HomeReadinessCheck {
@@ -22,6 +23,8 @@ export interface HomeDashboard {
   status: McpServerStatus
   error?: string
   completedToolCalls: number
+  /** Each connected agent once, as the toolbar status counts them. */
+  agents?: AgentStatusAgent[]
   clients: { id: string; name: string; version?: string; lastSeenAt: string; requestCount: number; activeRequests: number; initializedAt?: string; readinessProbe?: { outcome: 'verified' | 'failed' } }[]
   recentActivity: { activityId: string; tabId: string; toolName: string; startedAt: string; completedAt: string; durationMs: number; outcome: 'finished' | 'failed'; result?: McpActivityResult }[]
   toolMetrics: { toolName: string; failures: number }[]

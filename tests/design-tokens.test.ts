@@ -109,10 +109,10 @@ describe('design tokens v2', () => {
     }
     expect(themeTokens('light').get('--font-ui')).toMatch(/^"Geist", /u)
     expect(themeTokens('light').get('--font-code')).toMatch(/^"Geist Mono", /u)
-    for (const path of ['src/renderer/src/styles.css', 'src/renderer/src/address-overlay.css', 'src/renderer/src/styles/tokens.css', 'src/main/home-page-styles.ts']) {
+    for (const path of ['src/renderer/src/styles.css', 'src/renderer/src/address-overlay.css', 'src/renderer/src/styles/tokens.css', 'src/renderer/src/home/home.css']) {
       expect(readFileSync(join(repository, path), 'utf8'), path).not.toMatch(/(?:font-family|--font-sans):\s*Inter,/u)
     }
-    expect(readFileSync(join(repository, 'src/main/home-page-styles.ts'), 'utf8')).toContain('font-family: "Geist", ')
+    expect(readFileSync(join(repository, 'src/renderer/src/home/home.css'), 'utf8')).toContain('font-family: var(--font-ui);')
     // The overlay's own CSP must let it load the bundled font; Home's protocol already serves woff2 under font-src.
     expect(readFileSync(join(repository, 'src/renderer/address-overlay.html'), 'utf8')).toContain("font-src 'self'")
     const notices = readFileSync(join(repository, 'THIRD_PARTY_NOTICES.md'), 'utf8')
