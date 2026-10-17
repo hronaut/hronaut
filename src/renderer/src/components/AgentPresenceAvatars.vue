@@ -13,7 +13,7 @@ import {
   type AgentPresence,
   type HronautAgentPresenceApi
 } from '../../../shared/agent-presence.js'
-import { agentStepText } from '../composables/agent-step-text.js'
+import { agentStepText } from '../../../shared/agent-step-text.js'
 import { agentCardModel, useAgentCard } from '../composables/useAgentCard.js'
 import { useAgentDecisionAnswers, type AgentDecisionBrowser } from '../composables/useAgentDecisionAnswers.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'

@@ -3250,6 +3250,7 @@ export const deDE = {
   "home": {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Startbereiche", "overview": "Übersicht", "connect": "Agent verbinden", "tools": "Werkzeugbibliothek"},
+    "mission": {"greeting": {"morning": "Guten Morgen", "afternoon": "Guten Tag", "evening": "Guten Abend"}, "agentsConnected": "{count} Agent verbunden. | {count} Agenten verbunden.", "workspacesNeedYou": "{count} Arbeitsbereich wartet auf Sie. | {count} Arbeitsbereiche warten auf Sie.", "agents": "Verbundene Agenten", "needsYou": "{name} wartet auf Sie", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Zuletzt verwendet {time}", "open": "{name} öffnen", "moreActions": "Weitere Aktionen für {name}", "newWorkspaceHelp": "Eigene Tabs und Anmeldungen"},
     journey: {
       heading: 'Mit deinem Coding-Agent starten',
       connect: 'Verbinden',

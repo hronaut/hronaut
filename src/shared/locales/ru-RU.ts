@@ -3250,6 +3250,7 @@ export const ruRU = {
   "home": {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Разделы главной", "overview": "Обзор", "connect": "Подключить агента", "tools": "Библиотека инструментов"},
+    "mission": {"greeting": {"morning": "Доброе утро", "afternoon": "Добрый день", "evening": "Добрый вечер"}, "agentsConnected": "{count} агент подключён. | {count} агента подключены. | {count} агентов подключено.", "workspacesNeedYou": "{count} пространство ждёт вас. | {count} пространства ждут вас. | {count} пространств ждут вас.", "agents": "Подключённые агенты", "needsYou": "{name} ждёт вас", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Последний раз: {time}", "open": "Открыть {name}", "moreActions": "Другие действия: {name}", "newWorkspaceHelp": "Свои вкладки и входы"},
     journey: {
       heading: 'Начните со своего агента',
       connect: 'Подключение',

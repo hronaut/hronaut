@@ -3250,6 +3250,7 @@ export const frFR = {
   "home": {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Rubriques de l’accueil", "overview": "Vue d’ensemble", "connect": "Connecter un agent", "tools": "Bibliothèque d’outils"},
+    "mission": {"greeting": {"morning": "Bonjour", "afternoon": "Bonjour", "evening": "Bonsoir"}, "agentsConnected": "{count} agent connecté. | {count} agents connectés.", "workspacesNeedYou": "{count} espace vous attend. | {count} espaces vous attendent.", "agents": "Agents connectés", "needsYou": "{name} vous attend", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Dernière utilisation {time}", "open": "Ouvrir {name}", "moreActions": "Plus d’actions pour {name}", "newWorkspaceHelp": "Ses propres onglets et connexions"},
     journey: {
       heading: 'Commencez avec votre agent de code',
       connect: 'Connecter',

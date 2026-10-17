@@ -1,12 +1,14 @@
+import { agentAvatarColorHex } from '../../../shared/agent-presence.js'
 import { agentStatus, agentStatusText, agentStatusTone } from '../../../shared/agent-status.js'
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
-import { element, escapeText as h, interpolate, remember, renderStatus } from './dom.js'
+import { element, escapeText as h, interpolate, pluralText, remember, renderStatus } from './dom.js'
 import { mountWorkspaces } from './workspaces.js'
 
 export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof fetch = fetch) {
   const { guides, locale } = data
   const messages = data.messages.home
   const library = data.messages.workspaceLibrary
+  const mission = messages.mission
   let hasWorkspaces = data.workspaces.mcpTabGroups.length > 0 || data.workspaces.savedTabGroups.length > 0
   let dashboard = data.dashboard
   const revision = dashboard.presentationRevision
@@ -192,6 +194,50 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (elapsed < 3600000) return interpolate(messages.relativeTime[elapsed < 60000 ? 'seconds' : 'minutes'], { count: new Intl.NumberFormat(locale).format(Math.floor(elapsed / (elapsed < 60000 ? 1000 : 60000))) })
     return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(new Date(value))
   }
+  /** Agents Home can name: none while the MCP server is not ready. */
+  const connectedAgents = () => dashboard.status === 'ready' ? dashboard.agents ?? [] : []
+  const greeting = (): string => {
+    const hour = new Date().getHours()
+    return mission.greeting[hour >= 5 && hour < 12 ? 'morning' : hour >= 12 && hour < 18 ? 'afternoon' : 'evening']
+  }
+  /** "2 agents connected. 1 workspace needs you.", or what workspaces are for while no agent is connected. */
+  const summary = (): string => {
+    const agents = connectedAgents().length
+    const needing = Object.values(dashboard.workspaceActivity ?? {}).filter(activity => activity.state === 'needs-you').length
+    const parts = [...(agents ? [pluralText(locale, mission.agentsConnected, agents)] : []), ...(needing ? [pluralText(locale, mission.workspacesNeedYou, needing)] : [])]
+    return parts.length ? parts.join(' ') : library.description
+  }
+  function renderHeading(): void {
+    text('home-view-title', selectedView === 'workspaces' ? greeting() : selectedView === 'connect' ? messages.connect.heading : selectedView === 'overview' ? messages.activity.heading : messages.navigation.tools)
+    text('home-view-description', selectedView === 'workspaces' ? summary() : selectedView === 'connect' ? messages.connect.description : selectedView === 'overview' ? messages.activity.description : messages.tools.description)
+  }
+  /** One chip per connected agent: its avatar, its name and what it is doing. */
+  let renderedChips = ''
+  function renderChips(): void {
+    const agents = connectedAgents()
+    const list = element('agent-chips')
+    list.hidden = !agents.length
+    const signature = JSON.stringify(agents.map(agent => [agent.key, agent.name, agent.state, agent.initial, agent.colorIndex]))
+    if (signature === renderedChips) return
+    renderedChips = signature
+    const states = data.messages.shell.agents.states
+    list.replaceChildren(...agents.map(agent => {
+      const chip = document.createElement('li')
+      chip.className = `agent-chip ${agent.state}`
+      const avatar = document.createElement('span')
+      avatar.className = 'agent-chip-avatar'
+      avatar.textContent = agent.initial
+      avatar.style.setProperty('--agent-color', agentAvatarColorHex(agent.colorIndex))
+      avatar.setAttribute('aria-hidden', 'true')
+      const name = document.createElement('strong')
+      name.textContent = agent.name || data.messages.shell.agents.unnamed
+      const state = document.createElement('span')
+      state.className = 'agent-chip-state'
+      state.textContent = states[agent.state === 'needs-you' ? 'needsYou' : agent.state]
+      chip.append(avatar, name, state)
+      return chip
+    }))
+  }
   function update(next: HomeDashboard): void {
     if (signal.aborted) return
     dashboard = next
@@ -201,6 +247,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     // One wording with the toolbar; the server's own state and any error stay under Details.
     const agents = agentStatus(status, dashboard.agents ?? [])
     renderStatus(element('server-state'), agentStatusTone(agents.kind), agentStatusText(agents, data.messages.agentStatus, locale))
+    renderChips(); renderHeading()
+    workspaces.setLive(dashboard)
     text('server-detail', status === 'error' ? `${statusLabels.error}: ${dashboard.error ?? messages.status.unknownError}` : statusLabels[status])
     text('active-count', status === 'paused' ? messages.status.pausedValue : status === 'error' ? messages.status.unavailable : status === 'starting' ? messages.status.startingValue : count(messages.status.activeOne, messages.status.activeOther, dashboard.activeRequests))
     text('request-count', dashboard.totalRequests ? count(messages.counts.requestsOne, messages.counts.requestsOther, dashboard.totalRequests) : messages.status.waiting)
@@ -257,8 +305,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       button.setAttribute('aria-selected', String(id === view)); button.tabIndex = id === view ? 0 : -1
       element(`home-${id}`).hidden = id !== view
     })
-    text('home-view-title', view === 'workspaces' ? library.heading : view === 'connect' ? messages.connect.heading : view === 'overview' ? messages.activity.heading : messages.navigation.tools)
-    text('home-view-description', view === 'workspaces' ? library.description : view === 'connect' ? messages.connect.description : view === 'overview' ? messages.activity.description : messages.tools.description)
+    renderHeading()
     if (focus) element(`home-tab-${view}`).focus()
     remember('hronaut.home.view.v2', view)
     if (view === 'connect') {

@@ -649,6 +649,7 @@ export const ukUA = {
   home: {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Розділи головної", "overview": "Огляд", "connect": "Підключити агента", "tools": "Бібліотека інструментів"},
+    "mission": {"greeting": {"morning": "Доброго ранку", "afternoon": "Добрий день", "evening": "Добрий вечір"}, "agentsConnected": "{count} агент підключений. | {count} агенти підключені. | {count} агентів підключено.", "workspacesNeedYou": "{count} простір чекає на вас. | {count} простори чекають на вас. | {count} просторів чекають на вас.", "agents": "Підключені агенти", "needsYou": "{name} чекає на вас", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Востаннє: {time}", "open": "Відкрити {name}", "moreActions": "Інші дії: {name}", "newWorkspaceHelp": "Власні вкладки та входи"},
     journey: {
       heading: 'Почніть зі свого агента',
       connect: 'Підключення',

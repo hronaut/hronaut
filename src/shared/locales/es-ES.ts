@@ -3250,6 +3250,7 @@ export const esES = {
   "home": {
     readiness: enUS.home.readiness,
     "navigation": {"label": "Secciones de inicio", "overview": "Resumen", "connect": "Conectar un agente", "tools": "Biblioteca de herramientas"},
+    "mission": {"greeting": {"morning": "Buenos días", "afternoon": "Buenas tardes", "evening": "Buenas noches"}, "agentsConnected": "{count} agente conectado. | {count} agentes conectados.", "workspacesNeedYou": "{count} espacio te necesita. | {count} espacios te necesitan.", "agents": "Agentes conectados", "needsYou": "{name} te necesita", "step": "{name} · {step}", "lastStep": "{name} · {step} · {time}", "lastUsed": "Usado por última vez {time}", "open": "Abrir {name}", "moreActions": "Más acciones para {name}", "newWorkspaceHelp": "Con sus propias pestañas y sesiones"},
     journey: {
       heading: 'Empieza con tu agente de código',
       connect: 'Conectar',
