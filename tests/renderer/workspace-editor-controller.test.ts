@@ -81,7 +81,7 @@ function createController(initialState = browserState()) {
       localStorageItemCount: 3,
       origins: options.origins ?? []
     })),
-    closeWorkspace: vi.fn(async (_id: string) => state.value)
+    closeWorkspace: vi.fn(async (_id: string, _options?: { undoable?: boolean }) => state.value)
   }
   const syncState = vi.fn(async (next: Promise<BrowserState> | BrowserState) => {
     state.value = await Promise.resolve(next)
@@ -256,7 +256,7 @@ describe('workspace editor controller', () => {
     expect(browser.updateTabGroup).toHaveBeenCalledWith('default', expect.objectContaining({ name: 'Personal browsing' }))
     await controller.openExisting('default')
     await controller.closeWorkspace()
-    expect(browser.closeWorkspace).toHaveBeenCalledWith('default')
+    expect(browser.closeWorkspace).toHaveBeenCalledWith('default', { undoable: true })
   })
 
   it('uses the latest source inventory when an earlier source load finishes late', async () => {
@@ -624,14 +624,14 @@ describe('workspace editor controller', () => {
     controller.dispose()
   })
 
-  it('closes permanently after confirmation while global human interaction is locked', async () => {
+  it('closes with Undo instead of a confirmation while global human interaction is locked', async () => {
     const { confirm, browser, controller } = createController(browserState(true))
     await controller.openExisting('agent')
     await controller.closeWorkspace()
 
     // Home's Clear never required unlocking; the editor now matches it.
-    expect(confirm).toHaveBeenCalledOnce()
-    expect(browser.closeWorkspace).toHaveBeenCalledWith('agent')
+    expect(confirm).not.toHaveBeenCalled()
+    expect(browser.closeWorkspace).toHaveBeenCalledWith('agent', { undoable: true })
     expect(controller.error.value).toBe('')
     controller.dispose()
   })

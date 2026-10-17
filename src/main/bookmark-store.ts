@@ -83,6 +83,12 @@ function normalizeCollections(value: unknown, bookmarkIds: ReadonlySet<string>):
   return collections
 }
 
+/** A removed bookmark and where it was in each collection. */
+export interface RemovedBookmark {
+  bookmark: BrowserBookmark
+  collections: { id: string; index: number }[]
+}
+
 export class BookmarkStore {
   private readonly entries = new Map<string, BrowserBookmark>()
   private collections: BrowserBookmarkCollection[] = []
@@ -224,11 +230,46 @@ export class BookmarkStore {
   }
 
   async remove(id: string): Promise<boolean> {
+    return (await this.removeRestorably(id)) !== undefined
+  }
+
+  /** Removes a bookmark and returns it with its place in each collection, so `restore` can put it back as it was. */
+  async removeRestorably(id: string): Promise<RemovedBookmark | undefined> {
     return this.queueMutation(async () => {
-      if (!this.entries.has(id)) return false
+      const bookmark = this.entries.get(id)
+      if (!bookmark) return undefined
+      const collections = this.collections.flatMap((collection) => {
+        const index = collection.bookmarkIds.indexOf(id)
+        return index < 0 ? [] : [{ id: collection.id, index }]
+      })
       const nextEntries = new Map(this.entries)
       nextEntries.delete(id)
       await this.persist(nextEntries.values())
+      this.replaceEntries(nextEntries)
+      return { bookmark: { ...bookmark }, collections }
+    })
+  }
+
+  /**
+   * Puts a removed bookmark back with its id, times and places in the collections that still exist. False when its
+   * address was bookmarked again meanwhile.
+   */
+  async restore(removed: RemovedBookmark): Promise<boolean> {
+    return this.queueMutation(async () => {
+      const { bookmark } = removed
+      if (this.entries.has(bookmark.id) || [...this.entries.values()].some((entry) => entry.url === bookmark.url)) return false
+      if (this.entries.size >= MAX_BOOKMARKS) throw new Error(`Bookmark limit reached (${MAX_BOOKMARKS})`)
+      const nextEntries = new Map(this.entries)
+      nextEntries.set(bookmark.id, { ...bookmark })
+      const nextCollections = this.collections.map((collection) => {
+        const place = removed.collections.find((candidate) => candidate.id === collection.id)
+        if (!place || collection.bookmarkIds.includes(bookmark.id)) return collection
+        const bookmarkIds = [...collection.bookmarkIds]
+        bookmarkIds.splice(Math.min(place.index, bookmarkIds.length), 0, bookmark.id)
+        return { ...collection, bookmarkIds }
+      })
+      await this.persist(nextEntries.values(), nextCollections)
+      this.collections = nextCollections
       this.replaceEntries(nextEntries)
       return true
     })

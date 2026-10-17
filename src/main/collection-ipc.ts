@@ -1,5 +1,5 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import type { BookmarkStore } from './bookmark-store.js'
+import type { BookmarkStore, RemovedBookmark } from './bookmark-store.js'
 import type { HistoryStore } from './history-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
@@ -7,7 +7,9 @@ import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 interface CollectionIpcHost {
   runRead<T>(event: IpcMainInvokeEvent, read: () => T): Promise<T>
   assertTrustedSender(event: IpcMainInvokeEvent): void
-  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'remove' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection'>
+  bookmarks(): Pick<BookmarkStore, 'list' | 'add' | 'addIfMissing' | 'rename' | 'updateDestination' | 'removeRestorably' | 'collectionSnapshot' | 'createCollection' | 'renameCollection' | 'removeCollection' | 'assignCollection'>
+  /** The person removed a bookmark from Hronaut's own controls; Undo can put it back. */
+  bookmarkRemoved?(removed: RemovedBookmark): void
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
   downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
   publishBookmarks(): BrowserBookmark[]
@@ -66,8 +68,10 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
   ipcMain.handle('bookmarks:remove', async (event, id: unknown) => {
     host.assertTrustedSender(event)
     if (typeof id !== 'string') throw new TypeError('Invalid bookmark ID')
-    await host.bookmarks().remove(id)
-    return host.publishBookmarks()
+    const removed = await host.bookmarks().removeRestorably(id)
+    const bookmarks = host.publishBookmarks()
+    if (removed) host.bookmarkRemoved?.(removed)
+    return bookmarks
   })
   ipcMain.handle('bookmark-collections:list', (event) => host.runRead(event, () => host.bookmarks().collectionSnapshot()))
   for (const action of ['create', 'rename', 'remove', 'assign'] as const) {

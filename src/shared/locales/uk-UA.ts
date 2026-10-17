@@ -764,6 +764,7 @@ export const ukUA = {
       actionsOne: '{count} дія', actionsOther: 'Дій: {count}', requests: 'Запитів: {count}'
     }
   },
+  undo: { action: "Скасувати", actionAria: "Скасувати: {title}", tabsClosed: "Закрито {count} вкладку | Закрито {count} вкладки | Закрито {count} вкладок", workspaceArchived: "Робочий простір в архіві", workspaceClosed: "Робочий простір закрито", bookmarkRemoved: "Закладку видалено", expiredTitle: "Нічого скасовувати", expired: "Це вже не можна скасувати.", failed: "Не вдалося скасувати", failedDescription: "Не вдалося повернути." },
   panels: {
     siteControls: 'Керування сайтом',
     siteStorage: 'Сховище сайту',

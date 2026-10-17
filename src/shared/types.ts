@@ -2746,6 +2746,16 @@ export interface HronautApi {
   /** Answers the open plain request from its agent's card. False when that request is no longer open. */
   answerUserAttention(id: string, answer: 'resolved' | 'dismissed'): Promise<boolean>
   onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void
+  /** Main offers to undo the person's latest reversible action, such as closing a tab. */
+  onUndoOffered(listener: (offer: import('./undo.js').UndoOffer) => void): () => void
+  /** Main ended an offer: Undo was used, the toast closed, a newer action replaced it or its time ran out. */
+  onUndoEnded(listener: (token: string) => void): () => void
+  /** Undoes the offered action. False when it is no longer offered or nothing came back. */
+  undo(token: string): Promise<boolean>
+  /** The person is on the Undo toast, so the offer stays while the toast does, up to a minute. */
+  holdUndo(token: string): Promise<void>
+  /** The Undo toast closed without Undo. */
+  finishUndo(token: string): Promise<void>
   getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
   getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview>
   copyText(text: string): Promise<void>
@@ -2785,7 +2795,8 @@ export interface HronautApi {
   listWorkspaceNavigationAudit(groupId: string): Promise<BrowserWorkspaceNavigationAuditEntry[]>
   listWorkspaceStorageOrigins(workspaceId: string): Promise<string[]>
   transferWorkspaceStorage(options: BrowserWorkspaceStorageTransferOptions): Promise<BrowserWorkspaceStorageTransferResult>
-  closeWorkspace(workspaceId: string): Promise<BrowserState>
+  /** Closes a workspace and deletes its data. Undoable, it is archived until Undo is no longer offered. */
+  closeWorkspace(workspaceId: string, options?: { undoable?: boolean }): Promise<BrowserState>
   saveAndCloseTabGroup(groupId: string): Promise<BrowserState>
   restoreSavedTabGroup(savedGroupId: string): Promise<BrowserState>
   deleteSavedTabGroup(savedGroupId: string): Promise<BrowserState>

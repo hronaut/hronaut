@@ -404,6 +404,8 @@ import {
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { handBackNote, pageShortcut, type TakeOverMark } from './take-over.js'
+import type { UndoableAction } from '../undo-offers.js'
+import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 type BrowserClickTarget = {
@@ -417,7 +419,9 @@ type BrowserClickTarget = {
   button?: 'left' | 'right'
 } & BrowserDialogHandlingOptions
 const MAX_TABS = MAX_BROWSER_TABS
-const MAX_SAVED_TAB_GROUPS = 50
+const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
+/** How long deleting a closed workspace waits for an operation on its archive before leaving it archived. */
+const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SNAPSHOT_BASELINES = 64
@@ -776,6 +780,8 @@ interface BrowserWorkspaceOperation {
   action: string
   blocksNewTabs: boolean
   token: symbol
+  /** Settles when an archived workspace's operation ends. */
+  settled?: Promise<void>
 }
 
 function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string | undefined {
@@ -944,6 +950,10 @@ export interface TabsManagerOptions {
   copyImageAt: (webContents: WebContents, x: number, y: number) => Promise<void>
   onClipboardCopyFailed?: (error: unknown) => void
   onActionFailed?: (action: string, error: unknown) => void
+  /** The person did something Undo can put back. */
+  offerUndo?: (action: UndoableAction) => void
+  /** Ends the Undo on offer, completing what its action held back. */
+  endUndo?: () => Promise<void>
   onPageVisited?: (visit: { url: string; title: string }) => void
   onPageTitleUpdated?: (page: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
@@ -1254,6 +1264,8 @@ export class BrowserTabsManager {
   private readonly savedTabGroups = this.workspaceRegistry.archived
   private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   private readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
+  /** A workspace the person closed with Undo on offer: archived, and deleted when Undo is gone unless kept meanwhile. */
+  private closingWorkspace: { id: string; kept: boolean } | undefined
   private readonly pendingWorkspaceOperationPromises = new Set<Promise<unknown>>()
   private workspaceStorageOperation: BrowserWorkspaceOperation | null = null
   private readonly store: TabStateStore
@@ -1920,7 +1932,8 @@ export class BrowserTabsManager {
   listWorkspaceForkSources(): Array<{ id: string; name: string; description: string; color: BrowserTabGroupColor; archived: boolean; agentAccess: boolean }> {
     return [
       ...[...this.mcpTabGroups.values()].map((group) => ({ group, archived: false })),
-      ...[...this.savedTabGroups.values()].map((group) => ({ group, archived: true }))
+      // A workspace the person just closed is not copied while it waits to be deleted.
+      ...[...this.savedTabGroups.values()].filter((group) => !this.isClosingWorkspace(group.id)).map((group) => ({ group, archived: true }))
     ].map(({ group, archived }) => ({
       id: group.id, name: group.name, description: group.description, color: group.color, archived,
       agentAccess: group.agentAccess !== false
@@ -1935,7 +1948,8 @@ export class BrowserTabsManager {
 
   isWorkspaceAgentAccessible(workspaceId: string): boolean {
     const group = this.mcpTabGroups.get(workspaceId) ?? this.savedTabGroups.get(workspaceId)
-    return !!group && group.agentAccess !== false
+    // Agents cannot bring back a workspace the person just closed while it waits to be deleted.
+    return !!group && group.agentAccess !== false && !this.isClosingWorkspace(workspaceId)
   }
 
   captureWorkspaceObservationGuard(workspaceId: string): () => void {
@@ -1989,6 +2003,7 @@ export class BrowserTabsManager {
       const sourceId = sourceWorkspaceId
       const source = sourceId ? this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId) : undefined
       if (!source) throw new Error('Source workspace is unavailable.')
+      if (this.isClosingWorkspace(sourceId!)) throw new Error(`"${source.name}" was just closed. Undo the close to copy it.`)
       group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
       const fork = async () => {
         this.mcpTabGroups.set(group.id, group)
@@ -2373,6 +2388,8 @@ export class BrowserTabsManager {
     const source = this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId)
     const target = this.mcpTabGroups.get(targetId) ?? this.savedTabGroups.get(targetId)
     if (!source || !target) throw new Error('Source or destination workspace is unavailable.')
+    const closing = [source, target].find((workspace) => this.isClosingWorkspace(workspace.id))
+    if (closing) throw new Error(`"${closing.name}" was just closed. Undo the close to move or copy its data.`)
     const mode = options.mode
     if (mode === 'move' && (!this.savedTabGroups.has(sourceId) || !this.savedTabGroups.has(targetId))) throw new Error('Archive both workspaces before moving data, or choose Copy to keep their pages open.')
     const action = mode === 'move' ? 'moving workspace data' : 'copying workspace data'
@@ -2616,7 +2633,83 @@ export class BrowserTabsManager {
     return this.withTabLabelLifecycle(() => this.workspaceRegistry.archive(groupId))
   }
 
+  /** Archives a workspace for the person, with Undo to bring it back. */
+  async archiveWorkspaceForPerson(groupId: string): Promise<BrowserSavedTabGroupState> {
+    const archived = await this.saveAndCloseTabGroup(groupId)
+    this.options.offerUndo?.({
+      kind: 'workspace-archived',
+      name: archived.name,
+      undo: () => this.restoreArchiveForUndo(archived.id)
+    })
+    return archived
+  }
+
+  /** Restores an archive for Undo; false when it was already restored or deleted. */
+  private async restoreArchiveForUndo(savedGroupId: string): Promise<boolean> {
+    if (!this.savedTabGroups.has(savedGroupId)) {
+      if (this.closingWorkspace?.id === savedGroupId) this.closingWorkspace = undefined
+      return false
+    }
+    await this.restoreSavedTabGroup(savedGroupId)
+    return true
+  }
+
+  /** Whether the person just closed this workspace and it waits to be deleted. */
+  isClosingWorkspace(workspaceId: string): boolean {
+    return this.closingWorkspace?.id === workspaceId
+  }
+
+  /**
+   * Closes a workspace for the person with Undo: it is archived first, and its tabs, sign-ins and site data are deleted
+   * only once Undo is no longer offered or Hronaut quits. Restored meanwhile, from Undo or elsewhere, it is kept.
+   */
+  async closeWorkspaceForPerson(groupId: string): Promise<BrowserState> {
+    const group = this.mcpTabGroups.get(groupId)
+    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+    if (group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
+    // A workspace closed just before is deleted first, so it does not take the archive place this one needs.
+    await this.options.endUndo?.()
+    // Undo needs an archive place; the editor asks first and closes without Undo when the archive is full.
+    if (this.savedTabGroups.size >= MAX_SAVED_TAB_GROUPS) {
+      throw new Error(`Hronaut keeps at most ${MAX_SAVED_TAB_GROUPS} archived workspaces, so "${group.name}" cannot be closed with Undo. Delete an archived workspace in Home, then try again.`)
+    }
+    const archived = await this.saveAndCloseTabGroup(groupId)
+    // Only this archive is deleted: not one made after the workspace was restored and archived again.
+    const saved = this.savedTabGroups.get(archived.id)
+    const closing = { id: archived.id, kept: false }
+    this.closingWorkspace = closing
+    this.options.offerUndo?.({
+      kind: 'workspace-closed',
+      name: archived.name,
+      undo: () => this.restoreArchiveForUndo(archived.id),
+      finalize: async () => {
+        // It stays marked as closing until deleted, so a restore tried meanwhile still keeps it.
+        try {
+          if (closing.kept || !saved || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
+          // An operation already running on the archive finishes first; one that runs on keeps it archived.
+          const deadline = Date.now() + CLOSING_WORKSPACE_BUSY_WAIT_MS
+          for (let operation = this.savedWorkspaceOperations.get(archived.id); operation; operation = this.savedWorkspaceOperations.get(archived.id)) {
+            const remaining = deadline - Date.now()
+            if (!operation.settled || remaining <= 0) return
+            await Promise.race([operation.settled, new Promise<void>((resolve) => setTimeout(resolve, remaining).unref())])
+            await new Promise<void>((resolve) => setImmediate(resolve))
+          }
+          if (closing.kept || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
+          await this.deleteSavedTabGroup(archived.id)
+        } finally {
+          if (this.closingWorkspace === closing) this.closingWorkspace = undefined
+        }
+      }
+    })
+    return this.getState()
+  }
+
   async restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
+    // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
+    if (this.closingWorkspace?.id === savedGroupId) {
+      this.closingWorkspace.kept = true
+      this.closingWorkspace = undefined
+    }
     return this.withTabLabelLifecycle(() => this.workspaceRegistry.restore(savedGroupId))
   }
 
@@ -3616,20 +3709,24 @@ export class BrowserTabsManager {
   }
 
   private async reopenClosedTabAfterLabelSave(closedTabId?: string): Promise<BrowserState> {
+    await this.reopenClosedTabEntry(closedTabId, true)
+    return this.getState()
+  }
+
+  private async reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<BrowserTab | undefined> {
     const index = closedTabId === undefined
       ? this.closedTabs.length - 1
       : this.closedTabs.findIndex((tab) => tab.id === closedTabId)
-    if (index < 0) return this.getState()
+    if (index < 0) return undefined
     if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
     const [closed] = this.closedTabs.splice(index, 1)
-    if (!closed) return this.getState()
+    if (!closed) return undefined
     try {
-      await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active: true, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize })
+      return await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize })
     } catch (error) {
       this.closedTabs.splice(index, 0, closed)
       throw error
     }
-    return this.getState()
   }
 
   duplicateTab(tabId: string): Promise<BrowserState> {
@@ -4190,7 +4287,7 @@ export class BrowserTabsManager {
         id: 'archive-workspace',
         label: this.text('native.context.archiveWorkspace'),
         enabled: !this.allHumanInteractionLocked || ![...this.tabs.values()].some(tab => tab.mcpGroupId === group.id),
-        click: () => runAction('archive the workspace', () => this.saveAndCloseTabGroup(group.id))
+        click: () => runAction('archive the workspace', () => this.archiveWorkspaceForPerson(group.id))
       }
     ]
   }
@@ -4393,25 +4490,25 @@ export class BrowserTabsManager {
       {
         id: 'close-tab',
         label: this.text('native.context.closeTab'),
-        click: () => runAction('close the tab', () => this.closeTab(tab.id, true))
+        click: () => runAction('close the tab', () => this.closeTabsForPerson([tab.id]))
       },
       {
         id: 'close-other-tabs',
         label: this.text('native.context.closeOthers'),
         enabled: otherTabs.length > 0,
-        click: () => runAction('close other tabs', () => this.closeTabs(otherTabs.map((candidate) => candidate.id), true, true))
+        click: () => runAction('close other tabs', () => this.closeTabsForPerson(otherTabs.map((candidate) => candidate.id)))
       },
       {
         id: 'close-tabs-to-right',
         label: this.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
         enabled: tabsToRight.length > 0,
-        click: () => runAction('close tabs to the right', () => this.closeTabs(tabsToRight.map((candidate) => candidate.id), true, true))
+        click: () => runAction('close tabs to the right', () => this.closeTabsForPerson(tabsToRight.map((candidate) => candidate.id)))
       },
       {
         id: 'close-duplicate-tabs',
         label: this.text('native.context.closeDuplicates'),
         enabled: duplicateTabs.length > 0,
-        click: () => runAction('close duplicate tabs', () => this.closeTabs(duplicateTabs.map((candidate) => candidate.id), true, true))
+        click: () => runAction('close duplicate tabs', () => this.closeTabsForPerson(duplicateTabs.map((candidate) => candidate.id)))
       },
       { type: 'separator' },
       {
@@ -4683,6 +4780,60 @@ export class BrowserTabsManager {
 
   async closeTab(tabId: string, respectBeforeUnload = false): Promise<BrowserState> {
     return this.closeTabInternal(tabId, true, respectBeforeUnload)
+  }
+
+  /**
+   * Closes tabs for the person, in order, stopping at one whose page asks to stay. Undo reopens those that closed, each
+   * in its place among its workspace's tabs.
+   */
+  async closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
+    const closed: { closedTabId: string; index: number; title: string }[] = []
+    try {
+      for (const tabId of tabIds) {
+        const tab = tabIds.length === 1 ? this.getTab(tabId) : this.tabs.get(tabId)
+        if (!tab) continue
+        const index = this.tabPeers(tab).indexOf(tab)
+        const remembered = new Set(this.closedTabs.map((entry) => entry.id))
+        await this.closeTabInternal(tabId, true, true)
+        if (this.tabs.get(tabId) === tab) break
+        const entry = this.closedTabs.findLast((candidate) => !remembered.has(candidate.id) && candidate.url === tab.url && candidate.mcpGroupId === tab.mcpGroupId)
+        if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || entry.title })
+      }
+    } finally {
+      if (closed.length) {
+        this.options.offerUndo?.({
+          kind: 'tabs-closed',
+          name: closed.at(-1)!.title,
+          count: closed.length,
+          undo: () => this.reopenClosedTabsInPlace(closed)
+        })
+      }
+    }
+    return this.getState()
+  }
+
+  /** The website tabs a tab moves among: its workspace's, pinned or not as it is. */
+  private tabPeers(tab: BrowserTab): BrowserTab[] {
+    return this.orderedTabs().filter((candidate) => (
+      candidate.mcpGroupId === tab.mcpGroupId && candidate.pinned === tab.pinned && !isHronautHomeUrl(candidate.url)
+    ))
+  }
+
+  /** Reopens tabs closed together, the last closed first, so each goes back where it was; one tab is shown again. */
+  /** False when none of them could be reopened, such as after Reopen closed tab took them. */
+  private reopenClosedTabsInPlace(closed: readonly { closedTabId: string; index: number }[]): Promise<boolean> {
+    return this.withTabLabelLifecycle(async () => {
+      let reopened = 0
+      for (const { closedTabId, index } of [...closed].reverse()) {
+        const tab = await this.reopenClosedTabEntry(closedTabId, closed.length === 1)
+        if (!tab) continue
+        reopened += 1
+        const peers = this.tabPeers(tab).filter((candidate) => candidate !== tab)
+        const target = peers[Math.min(index, peers.length - 1)]
+        if (target) this.reorderTab(tab.id, target.id, index < peers.length ? 'before' : 'after')
+      }
+      return reopened > 0
+    })
   }
 
   private stageBeforeUnloadClose(tab: BrowserTab): {
@@ -9812,7 +9963,9 @@ export class BrowserTabsManager {
     const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
     this.savedWorkspaceOperations.set(savedWorkspaceId, current)
     try {
-      return await this.trackWorkspaceOperation(operation)
+      const running = this.trackWorkspaceOperation(operation)
+      current.settled = running.then(() => undefined, () => undefined)
+      return await running
     } finally {
       if (this.savedWorkspaceOperations.get(savedWorkspaceId)?.token === current.token) {
         this.savedWorkspaceOperations.delete(savedWorkspaceId)

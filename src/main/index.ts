@@ -77,6 +77,8 @@ import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
 import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
 import { BookmarkStore } from './bookmark-store.js'
+import { UndoOffers } from './undo-offers.js'
+import { isUndoToken } from '../shared/undo.js'
 import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
@@ -355,6 +357,15 @@ let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
 const commercialLicenseOperations = new CommercialLicenseOperationCoordinator()
 let bookmarkStore: BookmarkStore | null = null
 let historyStore: HistoryStore | null = null
+// The person's latest reversible action, until its Undo toast closes.
+const undoOffers = new UndoOffers((offer) => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('undo:offered', offer)
+}, (token) => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('undo:ended', token)
+}, (action, error) => {
+  console.error(`[undo] Could not ${action}:`, error)
+  reportBrowserActionFailure(action, error)
+})
 let credentialStorageStatus: CredentialStorageStatus = { available: false, reason: 'Secure storage is initializing.' }
 let persistedSettings: AppSettings = { ...DEFAULT_SETTINGS }
 let settings: AppSettings = { ...DEFAULT_SETTINGS }
@@ -2622,6 +2633,21 @@ function registerIpc(): void {
     if (answer === 'resolved') takeOvers.resolvedOn(tabId)
     return true
   })
+  ipcMain.handle('undo:run', (event, token: unknown) => {
+    assertMainShellSender(event)
+    if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
+    return undoOffers.undo(token)
+  })
+  ipcMain.handle('undo:hold', (event, token: unknown) => {
+    assertMainShellSender(event)
+    if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
+    undoOffers.hold(token)
+  })
+  ipcMain.handle('undo:finish', (event, token: unknown) => {
+    assertMainShellSender(event)
+    if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
+    undoOffers.finish(token)
+  })
   ipcMain.handle('agent-presence:get', (event): AgentPresenceSnapshot => {
     assertMainShellSender(event)
     return agentPresenceSnapshot()
@@ -2694,9 +2720,10 @@ function registerIpc(): void {
     return tabsManager!.reopenClosedTab(closedTabId)
   })
   handleBrowserIpc('browser:select-tab', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.selectTabAndWait(tabId) })
-  handleBrowserIpc('browser:close-tab', (event, tabId) => {
+  handleBrowserIpc('browser:close-tab', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
-    return tabsManager!.closeTab(tabId, true)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    return tabsManager!.closeTabsForPerson([tabId])
   })
   handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
@@ -3013,10 +3040,12 @@ function registerIpc(): void {
       ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
     } satisfies BrowserWorkspaceStorageTransferOptions)
   })
-  handleBrowserIpc('browser:close-workspace', async (event, workspaceId: unknown) => {
+  handleBrowserIpc('browser:close-workspace', async (event, workspaceId: unknown, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
-    return tabsManager!.closeWorkspace(workspaceId)
+    if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) throw new TypeError('Invalid workspace close options')
+    const undoable = (options as { undoable?: unknown } | undefined)?.undoable === true
+    return undoable ? tabsManager!.closeWorkspaceForPerson(workspaceId) : tabsManager!.closeWorkspace(workspaceId)
   })
   handleBrowserIpc('browser:save-and-close-tab-group', async (event, groupId: unknown) => {
     assertTrustedShellSender(event)
@@ -3266,7 +3295,18 @@ function registerIpc(): void {
     history: () => historyStore!,
     downloads: () => tabsManager!,
     publishBookmarks,
-    publishVisitHistory
+    publishVisitHistory,
+    bookmarkRemoved: (removed) => undoOffers.offer({
+      kind: 'bookmark-removed',
+      name: removed.bookmark.title,
+      undo: async () => {
+        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
+        // A bookmark saved again meanwhile stays as it is.
+        if (!await bookmarkStore.restore(removed)) return false
+        publishBookmarks()
+        return true
+      }
+    })
   })
   handleBrowserIpc('browsing-data:summary', (event) => {
     assertTrustedShellSender(event)
@@ -4196,6 +4236,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     copyImageAt: copyPageImageToClipboard,
     onClipboardCopyFailed: reportClipboardFailure,
     onActionFailed: reportBrowserActionFailure,
+    offerUndo: (action) => undoOffers.offer(action),
+    endUndo: () => undoOffers.end(),
     onStateChanged: (state) => {
       reconcileUserAttention(state)
       sendToPanelWindow('browser:state-changed', state)
@@ -4247,13 +4289,16 @@ async function createWindow(startMinimized = false): Promise<void> {
     clearWindowControlsScrim()
     shellTooltips.hide()
     agentCards.shellReset()
+    // Its Undo toast is gone with the shell.
+    void undoOffers.end()
   })
-  // A new shell document has no dialog open, whatever the previous one reported.
+  // A new shell document has no dialog or toast open, whatever the previous one reported.
   mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) {
       clearWindowControlsScrim()
       shellTooltips.hide()
       agentCards.shellReset()
+      void undoOffers.end()
     }
   })
   // A tooltip belongs beside a control that just moved, or in a window that is no longer in front.
@@ -4503,6 +4548,8 @@ async function releaseRuntimeResources(): Promise<void> {
     const results = [
       ...await Promise.allSettled([server?.stop()]),
       ...await Promise.allSettled([auditReceipts?.stopAll()]),
+      // A workspace closed with Undo still on offer is deleted now, and so is one closed while quitting.
+      ...await Promise.allSettled([undoOffers.close()]),
       ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
       ...await Promise.allSettled([broker?.shutdown()]),
       ...await Promise.allSettled([

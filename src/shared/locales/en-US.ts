@@ -1000,6 +1000,7 @@ export const enUS = {
       actionsOne: '{count} action', actionsOther: '{count} actions', requests: '{count} requests'
     }
   },
+  undo: { action: "Undo", actionAria: "Undo: {title}", tabsClosed: "Tab closed | {count} tabs closed", workspaceArchived: "Workspace archived", workspaceClosed: "Workspace closed", bookmarkRemoved: "Bookmark removed", expiredTitle: "Nothing to undo", expired: "That can no longer be undone.", failed: "Could not undo", failedDescription: "It could not be put back." },
   panels: {
     siteControls: 'Site controls',
     siteStorage: 'Site storage',

@@ -6289,7 +6289,7 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     ;(menu?.getMenuItemById('edit-workspace')?.click as unknown as (() => void) | undefined)?.()
   })
-  appWindow.once('dialog', (dialog) => dialog.accept())
+  // Closing asks nothing now: the workspace waits in the archive while Undo is offered.
   await appWindow.getByRole('dialog', { name: 'Edit workspace' }).getByRole('button', { name: 'Close workspace', exact: true }).click()
   await expect(appWindow.locator('.tab-group-label', { hasText: 'Renamed debugging' })).toBeHidden()
   await expect(appWindow.getByRole('tab', { name: /^Human default tab/ })).toBeVisible()
