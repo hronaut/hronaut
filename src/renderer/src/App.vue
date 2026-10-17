@@ -195,7 +195,8 @@ const {
 const browserChromeLayer = ref<InstanceType<typeof AppBrowserChromeLayer> | null>(null)
 const helpDialogController = useHelpDialogController({
   beforeOpen: closeTransientPanels,
-  translate: (key) => t(key)
+  translate: (key) => t(key),
+  platform: window.hronautShell?.windowChrome.platform
 })
 const {
   open: helpDialogOpen,

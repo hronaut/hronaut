@@ -868,7 +868,9 @@ export const esES = {
       "resetZoom": "Restablecer el zoom de la página",
       "fullPage": "Alternar vista de página completa",
       "takeOver": "Tomar el control del agente que trabaja en la página",
-      "switchWorkspace": "Cambiar de espacio de trabajo"
+      "switchWorkspace": "Cambiar de espacio de trabajo",
+      "pinnedWorkspace": "Ir a un espacio de trabajo fijado (1–9 desde arriba)",
+      "previousWorkspace": "Ir al espacio de trabajo anterior (pulsa otra vez para ir más atrás)"
     },
     "responsive": {
       "preview": "Probar teléfonos, tabletas y ordenadores",
@@ -1309,6 +1311,7 @@ export const esES = {
       "needsYou": "Te necesita",
       "followingAgent": "Siguiendo a {name}",
       "pinnedWorkspace": "Fijado arriba",
+      "pinnedWorkspaceKey": "Fijado arriba · {key}",
       "groupAgents": "Agentes aquí: {agents}",
       "groupAgent": "{name} ({state})",
       "stayHere": "Quedarse aquí",

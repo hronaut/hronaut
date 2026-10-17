@@ -44,11 +44,11 @@ describe('help dialog controller', () => {
     })
     expect(controller.shortcuts.value).toContainEqual({
       label: 'translated:runtime.shortcuts.directTab',
-      keys: ['Ctrl/Cmd', '1–8']
+      keys: ['Ctrl', '1–8']
     })
     expect(controller.shortcuts.value).toContainEqual({
       label: 'translated:runtime.shortcuts.lastTab',
-      keys: ['Ctrl/Cmd', '9']
+      keys: ['Ctrl', '9']
     })
     expect(controller.shortcuts.value).toContainEqual({
       label: 'translated:runtime.shortcuts.fullPage',
@@ -62,7 +62,11 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.switchWorkspace',
       keys: ['Ctrl/Cmd', 'K']
     })
-    expect(controller.shortcuts.value).toHaveLength(22)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.pinnedWorkspace',
+      keys: ['Alt', '1–9']
+    })
+    expect(controller.shortcuts.value).toHaveLength(24)
     controller.dispose()
   })
 })

@@ -1,6 +1,7 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
-import type { Ref } from 'vue'
+import { watch, type Ref } from 'vue'
 import type { BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
+import { pinnedWorkspaceAt, recentWorkspaces, WORKSPACE_CYCLE_MS } from '../../../shared/workspace-shortcuts.js'
 import type {
   HronautApi,
   BrowserState,
@@ -9,7 +10,7 @@ import type {
 
 type ShortcutBrowserApi = Pick<
   HronautApi,
-  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache'
+  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache' | 'newTab'
 >
 
 type ShortcutCallback = () => void | Promise<void>
@@ -46,6 +47,18 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
   let generation = 0
   let disposed = false
   let tabSelectionQueue: Promise<void> = Promise.resolve()
+  // The workspaces the previous-workspace key steps through while it is pressed again and again, the workspace shown
+  // when it was last pressed and the one it went to.
+  let workspaceCycle: { order: string[]; next: number; at: number; from?: string; target?: string } | undefined
+  // The workspaces the person has viewed here, the latest first.
+  const viewedWorkspaces: string[] = []
+  const stopViewedWatch = watch(() => options.activeTab.value?.mcpGroupId, (groupId) => {
+    if (!groupId) return
+    const index = viewedWorkspaces.indexOf(groupId)
+    if (index >= 0) viewedWorkspaces.splice(index, 1)
+    viewedWorkspaces.unshift(groupId)
+    viewedWorkspaces.splice(50)
+  }, { immediate: true })
 
   function websiteTabs(): BrowserTabState[] {
     return options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url))
@@ -96,10 +109,73 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     return selection
   }
 
+  /** Shows a workspace: its last active tab, or a new tab when it has none. */
+  async function performWorkspaceSelection(groupId: string): Promise<void> {
+    if (disposed) return
+    const state = options.state.value
+    const group = state.mcpTabGroups.find((candidate) => candidate.id === groupId)
+    if (!group) return
+    options.settingsOpen.value = false
+    const tabId = group.activeTabId ?? state.tabs.find((tab) => tab.mcpGroupId === group.id)?.id
+    if (!tabId) await options.syncState(options.browser.newTab({ mcpGroupId: group.id, active: true }))
+    else if (tabId !== state.activeTabId) await options.syncState(options.browser.selectTab(tabId))
+  }
+
+  function selectWorkspace(groupId: string): Promise<void> {
+    const selection = tabSelectionQueue.then(() => performWorkspaceSelection(groupId))
+    tabSelectionQueue = selection.catch(() => undefined)
+    return selection
+  }
+
+  /**
+   * The workspace used before this one. Pressed again soon after, the next one further back, in the order of recent use
+   * when the first press came, and then back to where it started; after a pause it goes back and forth.
+   */
+  function previousWorkspace(): string | undefined {
+    const now = performance.now()
+    const groups = options.state.value.mcpTabGroups
+    const current = options.activeTab.value?.mcpGroupId
+    // Another way of moving, such as a pinned-workspace key, starts over; the last press may still be on its way.
+    if (!workspaceCycle || now - workspaceCycle.at > WORKSPACE_CYCLE_MS
+      || (current !== workspaceCycle.target && current !== workspaceCycle.from)) {
+      const order = recentWorkspaces(groups, current, viewedWorkspaces).map((group) => group.id)
+      workspaceCycle = { order: current && order.length ? [...order, current] : order, next: 0, at: now }
+    }
+    const cycle = workspaceCycle
+    cycle.at = now
+    cycle.from = current
+    // A workspace closed since the first press is passed over.
+    for (let tried = 0; tried < cycle.order.length; tried += 1) {
+      const id = cycle.order[cycle.next % cycle.order.length]
+      cycle.next += 1
+      if (id && id !== current && groups.some((group) => group.id === id)) {
+        cycle.target = id
+        return id
+      }
+    }
+    return undefined
+  }
+
+  function pinnedWorkspacePosition(action: BrowserShortcutAction): number | null {
+    const match = /^select-workspace-([1-9])$/.exec(action)
+    return match ? Number(match[1]) : null
+  }
+
   async function execute(action: BrowserShortcutAction): Promise<void> {
     const index = directTabIndex(action)
     if (index !== null) {
       await selectDirectTab(index)
+      return
+    }
+    const position = pinnedWorkspacePosition(action)
+    if (position !== null) {
+      const target = pinnedWorkspaceAt(options.state.value.mcpTabGroups, position)
+      if (target) await selectWorkspace(target.id)
+      return
+    }
+    if (action === 'previous-workspace') {
+      const target = previousWorkspace()
+      if (target) await selectWorkspace(target)
       return
     }
     switch (action) {
@@ -203,6 +279,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (disposed) return
     disposed = true
     generation += 1
+    stopViewedWatch()
   }
 
   return {

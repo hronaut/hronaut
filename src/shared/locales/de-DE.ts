@@ -868,7 +868,9 @@ export const deDE = {
       "resetZoom": "Seitenzoom zurücksetzen",
       "fullPage": "Ganzseitenansicht umschalten",
       "takeOver": "Vom Agenten auf der Seite übernehmen",
-      "switchWorkspace": "Arbeitsbereich wechseln"
+      "switchWorkspace": "Arbeitsbereich wechseln",
+      "pinnedWorkspace": "Zu einem angehefteten Arbeitsbereich wechseln (1–9 von oben)",
+      "previousWorkspace": "Zum vorherigen Arbeitsbereich wechseln (erneut drücken, um weiter zurückzugehen)"
     },
     "responsive": {
       "preview": "Telefone, Tablets und Desktops testen",
@@ -1309,6 +1311,7 @@ export const deDE = {
       "needsYou": "Wartet auf Sie",
       "followingAgent": "Folgt {name}",
       "pinnedWorkspace": "Oben angeheftet",
+      "pinnedWorkspaceKey": "Oben angeheftet · {key}",
       "groupAgents": "Agenten hier: {agents}",
       "groupAgent": "{name} ({state})",
       "stayHere": "Hier bleiben",

@@ -868,7 +868,9 @@ export const frFR = {
       "resetZoom": "Réinitialiser le zoom de la page",
       "fullPage": "Activer ou désactiver la vue pleine page",
       "takeOver": "Prendre la main sur l’agent qui travaille sur la page",
-      "switchWorkspace": "Changer d’espace de travail"
+      "switchWorkspace": "Changer d’espace de travail",
+      "pinnedWorkspace": "Aller à un espace de travail épinglé (1–9 depuis le haut)",
+      "previousWorkspace": "Aller à l’espace de travail précédent (appuyez encore pour remonter plus loin)"
     },
     "responsive": {
       "preview": "Tester les téléphones, tablettes et ordinateurs",
@@ -1309,6 +1311,7 @@ export const frFR = {
       "needsYou": "Vous attend",
       "followingAgent": "Suivi de {name}",
       "pinnedWorkspace": "Épinglé en haut",
+      "pinnedWorkspaceKey": "Épinglé en haut · {key}",
       "groupAgents": "Agents ici : {agents}",
       "groupAgent": "{name} ({state})",
       "stayHere": "Rester ici",

@@ -868,7 +868,9 @@ export const ruRU = {
       "resetZoom": "Сбросить масштаб страницы",
       "fullPage": "Переключить полностраничный режим",
       "takeOver": "Взять управление у агента на странице",
-      "switchWorkspace": "Сменить рабочее пространство"
+      "switchWorkspace": "Сменить рабочее пространство",
+      "pinnedWorkspace": "Перейти к закреплённому рабочему пространству (1–9 сверху)",
+      "previousWorkspace": "Перейти к предыдущему рабочему пространству (нажмите ещё раз, чтобы перейти ещё дальше назад)"
     },
     "responsive": {
       "preview": "Проверяйте телефоны, планшеты и компьютеры",
@@ -1309,6 +1311,7 @@ export const ruRU = {
       "needsYou": "Ждёт вас",
       "followingAgent": "Отслеживание: {name}",
       "pinnedWorkspace": "Закреплена вверху",
+      "pinnedWorkspaceKey": "Закреплена вверху · {key}",
       "groupAgents": "Агенты здесь: {agents}",
       "groupAgent": "{name} ({state})",
       "stayHere": "Остаться здесь",

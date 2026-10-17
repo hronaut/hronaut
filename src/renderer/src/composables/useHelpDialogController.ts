@@ -10,11 +10,17 @@ export interface KeyboardShortcut {
 export interface HelpDialogControllerOptions {
   beforeOpen: () => void
   translate: (key: string) => string
+  /** The operating system, for keys that differ on macOS. */
+  platform?: string
 }
 
 export function useHelpDialogController(options: HelpDialogControllerOptions) {
   const dialog = ref<HelpDialogName | null>(null)
   const open = computed(() => dialog.value !== null)
+  // Control with a digit goes to workspaces on macOS, where Option with a digit types a character.
+  const mac = options.platform === 'darwin'
+  const workspaceKey = mac ? 'Control' : 'Alt'
+  const tabKey = mac ? 'Cmd' : 'Ctrl'
   const shortcuts = computed<KeyboardShortcut[]>(() => [
     { label: options.translate('runtime.shortcuts.address'), keys: ['Ctrl/Cmd', 'L'] },
     { label: options.translate('runtime.shortcuts.reload'), keys: ['Ctrl/Cmd', 'R'] },
@@ -24,6 +30,8 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.reopenTab'), keys: ['Ctrl/Cmd', 'Shift', 'T'] },
     { label: options.translate('runtime.shortcuts.searchTabs'), keys: ['Ctrl/Cmd', 'Shift', 'A'] },
     { label: options.translate('runtime.shortcuts.switchWorkspace'), keys: ['Ctrl/Cmd', 'K'] },
+    { label: options.translate('runtime.shortcuts.pinnedWorkspace'), keys: [workspaceKey, '1–9'] },
+    { label: options.translate('runtime.shortcuts.previousWorkspace'), keys: [workspaceKey, '0'] },
     { label: options.translate('runtime.shortcuts.commands'), keys: ['Ctrl/Cmd', 'Shift', 'P'] },
     { label: options.translate('runtime.shortcuts.pick'), keys: ['Ctrl+Shift+C', 'Cmd+Option+C'] },
     { label: options.translate('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },
@@ -35,9 +43,9 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.devtools'), keys: ['F12', 'Ctrl+Shift+I', 'Cmd+Option+I'] },
     { label: options.translate('runtime.shortcuts.nextTab'), keys: ['Ctrl', 'Tab'] },
     { label: options.translate('runtime.shortcuts.previousTab'), keys: ['Ctrl', 'Shift', 'Tab'] },
-    { label: options.translate('runtime.shortcuts.directTab'), keys: ['Ctrl/Cmd', '1–8'] },
-    { label: options.translate('runtime.shortcuts.lastTab'), keys: ['Ctrl/Cmd', '9'] },
-    { label: options.translate('runtime.shortcuts.resetZoom'), keys: ['Ctrl/Cmd', '0'] }
+    { label: options.translate('runtime.shortcuts.directTab'), keys: [tabKey, '1–8'] },
+    { label: options.translate('runtime.shortcuts.lastTab'), keys: [tabKey, '9'] },
+    { label: options.translate('runtime.shortcuts.resetZoom'), keys: [tabKey, '0'] }
   ])
 
   function openDialog(next: HelpDialogName): void {

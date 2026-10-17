@@ -868,7 +868,9 @@ export const plPL = {
       "resetZoom": "Zresetuj powiększenie strony",
       "fullPage": "Przełącz widok pełnej strony",
       "takeOver": "Przejmij kontrolę od agenta pracującego na stronie",
-      "switchWorkspace": "Przełącz obszar roboczy"
+      "switchWorkspace": "Przełącz obszar roboczy",
+      "pinnedWorkspace": "Przejdź do przypiętego obszaru roboczego (1–9 od góry)",
+      "previousWorkspace": "Przejdź do poprzedniego obszaru roboczego (naciśnij ponownie, by cofnąć się dalej)"
     },
     "responsive": {
       "preview": "Testuj telefony, tablety i komputery",
@@ -1309,6 +1311,7 @@ export const plPL = {
       "needsYou": "Czeka na Ciebie",
       "followingAgent": "Śledzenie: {name}",
       "pinnedWorkspace": "Przypięty u góry",
+      "pinnedWorkspaceKey": "Przypięty u góry · {key}",
       "groupAgents": "Agenci tutaj: {agents}",
       "groupAgent": "{name} ({state})",
       "stayHere": "Zostań tutaj",

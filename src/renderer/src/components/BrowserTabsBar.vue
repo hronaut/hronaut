@@ -35,6 +35,7 @@ import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserT
 import { AGENT_AVATAR_VISIBLE_LIMIT, agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { foldRailWorkspaces, pinnedWorkspacesFirst } from '../../../shared/workspace-rail.js'
+import { keyedPinnedWorkspaces } from '../../../shared/workspace-shortcuts.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
 import { useWorkspaceGroupAgents } from '../composables/useWorkspaceGroupAgents.js'
 import { vTooltip } from '../ui/tooltip.js'
@@ -313,9 +314,16 @@ function tabGroupAgentsDescription(workspaceId: string): string {
   return t('shell.tabs.groupAgents', { agents: names.join(', ') })
 }
 
+// The first nine pinned workspaces in the rail have a key each: Alt with their number, Control on macOS.
+const pinnedWorkspaceKeys = computed(() => {
+  const modifier = window.hronautShell?.windowChrome.platform === 'darwin' ? 'Control' : 'Alt'
+  return new Map(keyedPinnedWorkspaces(props.state.mcpTabGroups).map((group, index) => [group.id, `${modifier}+${index + 1}`]))
+})
+
 function tabGroupLabelDescription(workspace: BrowserTabGroupState): string | undefined {
   const reason = workspaceNeedsYou(workspace.id) && props.userAttention ? `${t('shell.tabs.agentAttention')}: ${props.userAttention.reason}` : ''
-  const pinned = workspace.pinnedAt ? t('shell.tabs.pinnedWorkspace') : ''
+  const key = pinnedWorkspaceKeys.value.get(workspace.id)
+  const pinned = workspace.pinnedAt ? (key ? t('shell.tabs.pinnedWorkspaceKey', { key }) : t('shell.tabs.pinnedWorkspace')) : ''
   return [reason, pinned, tabGroupAgentsDescription(workspace.id), workspace.description].filter(Boolean).join('\n\n') || undefined
 }
 
