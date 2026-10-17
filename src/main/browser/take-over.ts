@@ -2,7 +2,10 @@ import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
 
 /** Keys that ask something of an agent's person; when an agent sends one itself, the page keeps it. */
-const PERSON_ONLY_SHORTCUTS: ReadonlySet<BrowserShortcutAction> = new Set(['agent-card', 'take-over'])
+const PERSON_ONLY_SHORTCUTS: ReadonlySet<BrowserShortcutAction> = new Set([
+  'agent-card', 'take-over', 'previous-workspace',
+  ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((position) => `select-workspace-${position}` as const)
+])
 
 /**
  * The browser shortcut a key pressed in a page runs, or null when the page keeps the key: the shortcut is not

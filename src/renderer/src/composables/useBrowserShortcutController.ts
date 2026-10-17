@@ -1,5 +1,5 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
-import type { Ref } from 'vue'
+import { watch, type Ref } from 'vue'
 import type { BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import { pinnedWorkspaceAt, recentWorkspaces, WORKSPACE_CYCLE_MS } from '../../../shared/workspace-shortcuts.js'
 import type {
@@ -47,8 +47,18 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
   let generation = 0
   let disposed = false
   let tabSelectionQueue: Promise<void> = Promise.resolve()
-  // The workspaces the previous-workspace key steps through while it is pressed again and again.
-  let workspaceCycle: { order: string[]; next: number; at: number } | undefined
+  // The workspaces the previous-workspace key steps through while it is pressed again and again, the workspace shown
+  // when it was last pressed and the one it went to.
+  let workspaceCycle: { order: string[]; next: number; at: number; from?: string; target?: string } | undefined
+  // The workspaces the person has viewed here, the latest first.
+  const viewedWorkspaces: string[] = []
+  const stopViewedWatch = watch(() => options.activeTab.value?.mcpGroupId, (groupId) => {
+    if (!groupId) return
+    const index = viewedWorkspaces.indexOf(groupId)
+    if (index >= 0) viewedWorkspaces.splice(index, 1)
+    viewedWorkspaces.unshift(groupId)
+    viewedWorkspaces.splice(50)
+  }, { immediate: true })
 
   function websiteTabs(): BrowserTabState[] {
     return options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url))
@@ -122,20 +132,26 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
    * when the first press came, and then back to where it started; after a pause it goes back and forth.
    */
   function previousWorkspace(): string | undefined {
-    const now = Date.now()
+    const now = performance.now()
     const groups = options.state.value.mcpTabGroups
-    if (!workspaceCycle || now - workspaceCycle.at > WORKSPACE_CYCLE_MS) {
-      const current = options.activeTab.value?.mcpGroupId
-      const order = recentWorkspaces(groups, current).map((group) => group.id)
+    const current = options.activeTab.value?.mcpGroupId
+    // Another way of moving, such as a pinned-workspace key, starts over; the last press may still be on its way.
+    if (!workspaceCycle || now - workspaceCycle.at > WORKSPACE_CYCLE_MS
+      || (current !== workspaceCycle.target && current !== workspaceCycle.from)) {
+      const order = recentWorkspaces(groups, current, viewedWorkspaces).map((group) => group.id)
       workspaceCycle = { order: current && order.length ? [...order, current] : order, next: 0, at: now }
     }
     const cycle = workspaceCycle
     cycle.at = now
+    cycle.from = current
     // A workspace closed since the first press is passed over.
     for (let tried = 0; tried < cycle.order.length; tried += 1) {
       const id = cycle.order[cycle.next % cycle.order.length]
       cycle.next += 1
-      if (groups.some((group) => group.id === id)) return id
+      if (id && id !== current && groups.some((group) => group.id === id)) {
+        cycle.target = id
+        return id
+      }
     }
     return undefined
   }
@@ -263,6 +279,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (disposed) return
     disposed = true
     generation += 1
+    stopViewedWatch()
   }
 
   return {

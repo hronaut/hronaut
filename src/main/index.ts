@@ -194,7 +194,7 @@ import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import { isSearchEngineName } from '../shared/search-engine.js'
 import {
   dimTitleBarOverlay,
-  isAutoHideMenuToggleInput,
+  createAutoHideMenuGesture,
   mainWindowChromeOptions,
   parseScrimColor,
   titleBarOverlayStyle,
@@ -4299,10 +4299,12 @@ async function createWindow(startMinimized = false): Promise<void> {
     windowControlsScrim = null
     mainWindow = null
   })
+  const autoHideMenuGesture = createAutoHideMenuGesture(desktopWindowPlatform())
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' || input.type === 'rawKeyDown') acknowledgeUserAttention()
-    if (mainWindow && isAutoHideMenuToggleInput(desktopWindowPlatform(), input)) {
-      event.preventDefault()
+    const menuGesture = autoHideMenuGesture(input)
+    if (menuGesture) event.preventDefault()
+    if (mainWindow && menuGesture === 'toggle') {
       if (mainWindowChromeMode === 'overlay') {
         Menu.getApplicationMenu()?.popup({
           window: mainWindow,

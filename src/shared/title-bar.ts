@@ -28,6 +28,29 @@ export function isAutoHideMenuToggleInput(
     && !input.shift
 }
 
+/**
+ * Alt alone shows the auto-hidden menu when it is released, as native auto-hide menus do, so Alt held with another key
+ * stays a shortcut. The Alt press is held back from the window either way.
+ */
+export function createAutoHideMenuGesture(platform: DesktopWindowPlatform): (input: MenuToggleInput & { isAutoRepeat?: boolean }) => 'suppress' | 'toggle' | undefined {
+  let armed = false
+  return (input) => {
+    if (platform === 'darwin') return undefined
+    if (input.type === 'keyDown' || input.type === 'rawKeyDown') {
+      if (isAutoHideMenuToggleInput(platform, input)) {
+        if (!input.isAutoRepeat) armed = true
+        return 'suppress'
+      }
+      armed = false
+      return undefined
+    }
+    if (input.type !== 'keyUp' || !(input.key === 'Alt' || input.code === 'AltLeft' || input.code === 'AltRight')) return undefined
+    const toggle = armed
+    armed = false
+    return toggle ? 'toggle' : undefined
+  }
+}
+
 export interface TitleBarOverlayStyle {
   color: string
   symbolColor: string
