@@ -6,7 +6,6 @@ import type { FileEvaluationProgress } from '../../../shared/file-evaluation.js'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
 import type { CookieWriteProgress } from '../../browser/cookie-write-operation.js'
 import { EMULATION_INPUT_ERRORS } from '../../browser/emulation-state.js'
-import type { PendingFrameObservation } from '../../browser/frame-observation.js'
 import type { NativeClickProgress } from '../../browser/native-click-admission.js'
 import type { NativeKeyHoldProgress } from '../../browser/native-key-hold.js'
 import { STORAGE_COMPARISON_INPUT_ERRORS } from '../../browser/storage-comparison-operation.js'
@@ -69,6 +68,10 @@ export interface WorkspaceToolCall<S = undefined> {
 export interface ToolCallSettlement {
   /** When set, every target check fails with this message once the call is cancelled. */
   cancelledMessage?: string
+  /** When true, the capability re-check in every target check names the call's workspace and resolved tab. */
+  authorizesResolvedTab?: boolean
+  /** Runs first in the settled call: throws to reject the input, or returns a result to settle without dispatch. */
+  admit?(): CallToolResult | undefined
   /** Sets up the call's guards once it is admitted to its workspace target. */
   prepare?(call: WorkspaceToolCall<unknown>): void
   /** Checks the tool's own conditions after dispatch, with the shared post-dispatch checks. */
@@ -78,6 +81,13 @@ export interface ToolCallSettlement {
    * with the settled result later, or false to let the activity finish now.
    */
   deferActivity?(finish: (result: CallToolResult) => void): boolean
+  /** The input that the capability re-check after the handler authorizes, when it differs from the call's. */
+  capabilityInput?(input: Record<string, unknown>): Record<string, unknown>
+  /**
+   * Settles a result whose capability or lease re-check after the handler failed, before the shared denial
+   * handling, or returns undefined.
+   */
+  publicationRevoked?(error: unknown, result: CallToolResult): CallToolResult | undefined
   /** Settles a result whose capability was withdrawn after dispatch, or returns undefined. */
   settleDenied?(denied: CallToolResult, outcome: Record<string, unknown>): CallToolResult | undefined
   /**
@@ -98,6 +108,13 @@ export interface WorkspaceToolOptions<S extends ToolCallSettlement | undefined> 
   settlement?: (input: Record<string, unknown>) => S
   /** Whether a call with this input only reads, for a tool not annotated read-only. */
   readOnly?: (input: Record<string, unknown>) => boolean
+  /** Whether this call's outcome becomes the client's latest readiness probe. */
+  recordsReadiness?: (input: Record<string, unknown>) => boolean
+  /**
+   * Whether this call must leave the page as the person sees it: it does not select or wake its tab, and its
+   * activity does not make the window follow it.
+   */
+  preservesPresentation?: (input: Record<string, unknown>) => boolean
 }
 
 export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: WorkspaceToolCall<S>) => Promise<CallToolResult>) & {
@@ -106,7 +123,7 @@ export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: Workspace
 }
 
 /** What one MCP call carries through its handler, for the publication and settlement checks in server.ts. */
-export type McpFrameRequest = { labeledCreation?: { attempted: boolean; policy?: Record<string, unknown>; certificate?: () => void; refreshCertificate?: () => Promise<void>; reviewFinalizationFailed?: boolean; cancelled?: () => boolean; publication?: () => void; finish?: (result: CallToolResult) => void; knownNotSaved?: boolean }; fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; pending?: PendingFrameObservation; pageObservationPublication?: () => void; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; assertCurrent?: () => void; tabId?: string; settlement?: ToolCallSettlement }
+export type McpFrameRequest = { labeledCreation?: { attempted: boolean; policy?: Record<string, unknown>; certificate?: () => void; refreshCertificate?: () => Promise<void>; reviewFinalizationFailed?: boolean; cancelled?: () => boolean; publication?: () => void; finish?: (result: CallToolResult) => void; knownNotSaved?: boolean }; fileEvaluation?: FileEvaluationProgress; fileEvaluationCertificate?: () => void; fileEvaluationRefreshCertificate?: () => Promise<void>; fileEvaluationPublication?: { validate(): void; dispose(): void }; fileEvaluationCompletion?: Promise<void>; fileEvaluationFinishActivity?: (result: CallToolResult) => void; fileEvaluationFinishing?: boolean; storageComparison?: { started: boolean; changed: boolean; inputError?: keyof typeof STORAGE_COMPARISON_INPUT_ERRORS; publication?: { validate(): void; dispose(): void }; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; clickAuthority?: { validate(): void; dispose(): void }; clickProgress?: NativeClickProgress; clickPolicy?: Record<string, unknown>; clickPublication?: () => void; clickFinishActivity?: (result: CallToolResult) => void; clickFinishing?: boolean; clickReviewFinalizationFailed?: boolean; storageInspection?: { started: boolean; publication?: () => void; policy?: Record<string, unknown>; finishActivity?: (result: CallToolResult) => void; finishing?: boolean; reviewFinalizationFailed?: boolean }; webStorageProgress?: WebStorageProgress; webStorageInputError?: keyof typeof WEB_STORAGE_INPUT_ERRORS; webStoragePolicy?: Record<string, unknown>; webStoragePublication?: () => void; webStorageFinishActivity?: (result: CallToolResult) => void; webStorageFinishing?: boolean; webStorageReviewFinalizationFailed?: boolean; cookieProgress?: CookieWriteProgress; cookiePolicy?: Record<string, unknown>; cookiePublication?: () => void; cookieFinishActivity?: (result: CallToolResult) => void; cookieFinishing?: boolean; cookieReviewFinalizationFailed?: boolean; emulationInputError?: keyof typeof EMULATION_INPUT_ERRORS; conditionPolicy?: Record<string, unknown>; conditionReviewFinalizationFailed?: boolean; conditionFinishActivity?: (result: CallToolResult) => void; conditionFinishing?: boolean; conditionPublication?: () => void; conditionAttempted?: boolean; selectionFinishActivity?: (result: CallToolResult) => void; selectionFinishing?: boolean; selectionSubmitted?: boolean; selectionPolicy?: Record<string, unknown>; selectionReviewFinalizationFailed?: boolean; selectionAuthority?: { validate: () => void; dispose: () => void }; selectionPublication?: () => void; wheelAttempted?: boolean; wheelReviewFinalizationFailed?: boolean; wheelPublication?: () => void; keyHoldProgress?: NativeKeyHoldProgress; keyHoldPolicy?: Record<string, unknown>; keyHoldReviewFinalizationFailed?: boolean; keyHoldPublication?: () => void; settlement?: ToolCallSettlement }
 
 /**
  * What a tool's registration may use from the MCP server it is registered on: the browser, the calling client,

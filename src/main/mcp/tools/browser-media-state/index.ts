@@ -18,6 +18,6 @@ export function registerBrowserMediaState(context: McpToolContext): void {
     },
     tabTool('browser_media_state', async (options: { tabId?: string; ref?: never; selector: string }, call: WorkspaceToolCall<ElementInspectionSettlement>) =>
       textResult(await manager.mediaState(options, call.requireCurrentTarget, pending => { call.settlement.retain(pending) }))),
-    { settlement: () => elementInspectionSettlement(false) }
+    { settlement: () => elementInspectionSettlement(false), preservesPresentation: () => true }
   )
 }

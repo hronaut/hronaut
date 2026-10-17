@@ -30,6 +30,7 @@ export function registerBrowserWheel(context: McpToolContext): void {
       }
       const markWheelAttempted = (): void => { frameRequests.getStore()!.wheelAttempted = true }
       return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, markWheelAttempted))
-    }, 'never')
+    }, 'never'),
+    { preservesPresentation: () => true }
   )
 }

@@ -16,6 +16,7 @@ export function registerBrowserStatus(context: McpToolContext): void {
           && manager.tabBelongsToMcpGroup(workspaceId!, attention.tabId))
       ) ? attention : null
       return textResult({ ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), userAttention: visibleAttention })
-    })
+    }),
+    { recordsReadiness: () => true }
   )
 }

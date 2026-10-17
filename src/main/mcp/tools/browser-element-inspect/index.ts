@@ -43,7 +43,12 @@ export function registerBrowserElementInspect(context: McpToolContext): void {
       const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
       return textResult(cssStatePreview ? { ...inspection, cssStatePreview } : inspection)
     }),
-    // Sizing inputs describe images, so that report waits for the settled result like browser_image_state.
-    { settlement: input => elementInspectionSettlement(input.includeSizingInputs === true) }
+    {
+      // Sizing inputs describe images, so that report waits for the settled result like browser_image_state.
+      settlement: input => elementInspectionSettlement(input.includeSizingInputs === true),
+      // A guarded inspection reads page-side state without moving the person's view of the page.
+      preservesPresentation: input => input.includePasswordOccupancy === true || input.includeValidity === true
+        || input.includeSizingInputs === true || input.expectedValue !== undefined
+    }
   )
 }

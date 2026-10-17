@@ -82,6 +82,7 @@ export function registerBrowserClick(context: McpToolContext): void {
       const retainClickAuthority = (authority: { validate(): void; dispose(): void }): void => { frameRequests.getStore()!.clickAuthority = authority }
       const recordClickProgress = (progress: NativeClickProgress): void => { frameRequests.getStore()!.clickProgress = { ...progress } }
       return textResult(await manager.click(browserClickPageInput(input), validateNativeInput, recordClickProgress, retainClickAuthority, agentCursorIdentity(client.name)))
-    })
+    }),
+    { preservesPresentation: input => input.button === 'right' }
   )
 }

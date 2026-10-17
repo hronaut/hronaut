@@ -27,6 +27,7 @@ export function registerBrowserHoldKey(context: McpToolContext): void {
       }
       const recordHoldProgress = (progress: NativeKeyHoldProgress): void => { frameRequests.getStore()!.keyHoldProgress = { ...progress } }
       return textResult(await manager.holdKey({ tabId, key, durationMs }, validateNativeInput, recordHoldProgress, call.signal))
-    }, 'never')
+    }, 'never'),
+    { preservesPresentation: () => true }
   )
 }

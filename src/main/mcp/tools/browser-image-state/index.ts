@@ -18,6 +18,6 @@ export function registerBrowserImageState(context: McpToolContext): void {
     },
     tabTool('browser_image_state', async (options: { tabId?: string; ref?: never; selector: string }, call: WorkspaceToolCall<ElementInspectionSettlement>) =>
       textResult(await manager.imageState(options, call.requireCurrentTarget, pending => { call.settlement.retain(pending) }))),
-    { settlement: () => elementInspectionSettlement(true) }
+    { settlement: () => elementInspectionSettlement(true), preservesPresentation: () => true }
   )
 }
