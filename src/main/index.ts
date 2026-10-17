@@ -628,6 +628,8 @@ let agentPresenceSerialized = '{}'
 let agentPresenceSentRevision = 0
 let connectedAgentsSent = '[]'
 let agentPresencePublishScheduled = false
+/** The Home feed revision Home was last told about. */
+let homeFeedSentRevision = 0
 /** Counts Follow agent activity requests, so a failed save restores the setting only for the newest. */
 let followAgentActivityIntent = 0
 
@@ -671,13 +673,16 @@ function scheduleAgentPresencePublish(): void {
     tabsManager?.retainAgentFollow(new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
     // The toolbar status names connected agents from the MCP state, so it follows them too.
     const agents = JSON.stringify(connectedAgents(snapshot.workspaces))
+    const feedRevision = mcpServer?.homeFeedRevision ?? 0
     if (agents !== connectedAgentsSent) {
       connectedAgentsSent = agents
       publishMcpControlState({ refreshHome: false })
-    } else if (snapshot.revision !== agentPresenceSentRevision) {
-      // Home shows presence and the steps agents finish, so it reads them again too.
+    } else if (snapshot.revision !== agentPresenceSentRevision || feedRevision !== homeFeedSentRevision) {
+      // Home shows presence and the steps agents finish, so it reads them again too, including when only its feed
+      // changed, such as when history was cleared.
       tabsManager?.notifyHomeChanged()
     }
+    homeFeedSentRevision = feedRevision
     // A seen request whose avatar went away, such as when the MCP server stopped or agent access was
     // turned off, has no card left to answer it, so it ends.
     if (attentionQuiet && !userAttentionShown(snapshot.workspaces)) endUserAttention({ keepPending: true })
@@ -3343,6 +3348,7 @@ function registerIpc(): void {
     downloads: () => tabsManager!,
     publishBookmarks,
     publishVisitHistory,
+    historyCleared: () => mcpServer?.forgetHomeFeed(),
     bookmarkRemoved: (removed) => undoOffers.offer({
       kind: 'bookmark-removed',
       name: removed.bookmark.title,
@@ -4735,6 +4741,8 @@ function createRuntimeMcpServer(
       clear: async () => {
         if (!historyStore) throw new Error('Visit history is unavailable')
         await historyStore.clear()
+        // Home's feed names pages agents acted on, so it goes with the history.
+        mcpServer?.forgetHomeFeed()
         return publishVisitHistory()
       }
     },

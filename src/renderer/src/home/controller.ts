@@ -290,7 +290,25 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     input.value = ''; input.dispatchEvent(new Event('input'))
   }, { signal })
   let requestSequence = 0
-  async function refresh(): Promise<void> {
+  // A refresh always reads, and the newest read wins. Main's change notices wait for a read in flight and then read
+  // once more, so under a busy agent a slow read is never dropped for a newer one that is dropped in turn.
+  let reading: Promise<void> | null = null
+  let readAgain = false
+  function refresh(): Promise<void> {
+    const current = read()
+    reading = current
+    void current.finally(() => {
+      if (reading !== current) return
+      reading = null
+      if (readAgain && !signal.aborted) { readAgain = false; void refresh() }
+    })
+    return current
+  }
+  function refreshSoon(): void {
+    if (reading) readAgain = true
+    else void refresh()
+  }
+  async function read(): Promise<void> {
     void workspaces.refresh()
     const sequence = ++requestSequence
     try {
@@ -310,13 +328,20 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   }
   async function poll(): Promise<void> { await refresh(); if (!signal.aborted) later(() => void poll(), 2000) }
   // Main says when agents change; reading at most every 250 ms keeps a busy agent from flooding Home. Polling stays as
-  // the fallback.
+  // the fallback. A hidden Home reads once it is shown again.
   let changeQueued = false
+  let changedWhileHidden = false
   const unsubscribeChanges = api?.onChanged?.(() => {
     if (changeQueued || signal.aborted) return
+    if (document.hidden) { changedWhileHidden = true; return }
     changeQueued = true
-    later(() => { changeQueued = false; void refresh() }, 250)
+    later(() => { changeQueued = false; refreshSoon() }, 250)
   })
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !changedWhileHidden) return
+    changedWhileHidden = false
+    refreshSoon()
+  }, { signal })
   function dispose(): void { lifetime.abort(); requestSequence++; timers.forEach(clearTimeout); timers.clear(); unsubscribe?.(); unsubscribeChanges?.() }
   window.addEventListener('pagehide', dispose, { once: true, signal })
   renderGuide(); selectView(selectedView); update(dashboard); void poll()

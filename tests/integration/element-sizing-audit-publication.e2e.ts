@@ -39,11 +39,12 @@ for (const change of ['navigation', 'close', 'replacement', 'selector id ABA', '
       }
       await client.connect(transport)
       if (credential) {
-        await expect.poll(() => electronApp.evaluate(async ({ webContents }, profile) => {
+        // Home never sees capability profile ids, so this waits for the profile's session to be initialized.
+        await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
           const home = webContents.getAllWebContents().find(page => page.getURL().startsWith('hronaut://home'))!
-          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ capabilityProfileId?: string; capabilityProfileRevision?: number }> }
-          return state.clients.some(client => client.capabilityProfileId === profile.id && client.capabilityProfileRevision === profile.revision)
-        }, { id: credential.profile.id, revision: credential.profile.revision })).toBe(true)
+          const state = await (await home.session.fetch('hronaut://home/api/status')).json() as { clients: Array<{ name: string; initializedAt?: string }> }
+          return state.clients.some(client => client.name === 'inspection-lifecycle' && Boolean(client.initializedAt))
+        })).toBe(true)
       }
       const onmessage = transport.onmessage!
       transport.onmessage = message => { received.push(JSON.stringify(message)); onmessage(message) }

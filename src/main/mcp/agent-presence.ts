@@ -164,7 +164,7 @@ export interface AgentCall {
   occurredAt: number
   /** 'call' for the tool call itself, which alone adds a finished step; 'tab' for the tab activity it caused. */
   source?: 'call' | 'tab'
-  /** What the call acts on, for the shell only: a control's name or a host and path. */
+  /** What the call acts on, for the shell and Home's feed only: a control's name or a host and path. */
   target?: string
 }
 

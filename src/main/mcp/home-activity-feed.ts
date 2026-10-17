@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { HOME_ACTIVITY_FEED_LIMIT, type HomeFeedEntry } from '../../shared/home.js'
 
 /**
@@ -9,11 +10,13 @@ export class HomeActivityFeed {
   private entries: HomeFeedEntry[] = []
   private count = 0
   private changes = 0
+  /** Each feed's own, so an entry from before an MCP restart never shares an id with a new one. */
+  private readonly prefix = `f${randomBytes(4).toString('hex')}`
 
   add(entry: Omit<HomeFeedEntry, 'id'>): void {
     this.count += 1
     this.changes += 1
-    this.entries.push({ ...entry, id: `f${this.count.toString(36)}` })
+    this.entries.push({ ...entry, id: `${this.prefix}-${this.count.toString(36)}` })
     if (this.entries.length > HOME_ACTIVITY_FEED_LIMIT) this.entries.splice(0, this.entries.length - HOME_ACTIVITY_FEED_LIMIT)
   }
 
@@ -27,7 +30,7 @@ export class HomeActivityFeed {
     return this.changes
   }
 
-  /** Drops a workspace's entries, such as when it is deleted or its data cleared. */
+  /** Drops a workspace's entries, such as when it is closed, archived or deleted. */
   forgetWorkspace(workspaceId: string): void {
     const kept = this.entries.filter((entry) => entry.workspaceId !== workspaceId)
     if (kept.length === this.entries.length) return

@@ -6172,9 +6172,14 @@ export class McpHttpServer {
     return activity
   }
 
-  /** Agents' finished steps for Home, newest first. */
+  /** Agents' finished steps for Home, newest first, in workspaces agents can still use. */
   getHomeFeed(): HomeFeedEntry[] {
-    return this.homeFeed.list()
+    return this.homeFeed.list().filter((entry) => this.manager.isOpenAgentWorkspace(entry.workspaceId))
+  }
+
+  /** Increases whenever Home's feed changes, so Home can be told to read it again. */
+  get homeFeedRevision(): number {
+    return this.homeFeed.revision
   }
 
   /** Forgets Home's feed, or one workspace's entries in it. */
@@ -6341,12 +6346,14 @@ export class McpHttpServer {
         call,
         (tabId) => this.manager.tabBelongsToMcpGroup(workspaceId, tabId)
       )
+      // Inside the try: a step that failed to record is not repeated, and the feed never fails the call. A call that
+      // finished after its workspace closed or lost agent access adds nothing.
+      if (call.source === 'call' && call.phase !== 'started' && this.manager.isOpenAgentWorkspace(workspaceId)) {
+        const step = this.agentPresence.latestFeedStep(client.id, workspaceId)
+        if (step) this.homeFeed.add({ ...step, workspaceId })
+      }
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
-    }
-    if (call.source === 'call' && call.phase !== 'started') {
-      const step = this.agentPresence.latestFeedStep(client.id, workspaceId)
-      if (step) this.homeFeed.add({ ...step, workspaceId })
     }
     // Only a step that went through gets a picture: a refused one may name a tab the agent cannot use, or a page
     // the person has taken over.

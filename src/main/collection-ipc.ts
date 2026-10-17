@@ -11,6 +11,8 @@ interface CollectionIpcHost {
   /** The person removed a bookmark from Hronaut's own controls; Undo can put it back. */
   bookmarkRemoved?(removed: RemovedBookmark): void
   history(): Pick<HistoryStore, 'list' | 'remove' | 'clear'>
+  /** The person cleared their history, so anything else that names visited pages goes too. */
+  historyCleared?(): void
   downloads(): Pick<BrowserTabsManager, 'listDownloads' | 'removeFinishedDownload' | 'manageDownloads' | 'showDownloadInFolder'>
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
@@ -101,6 +103,7 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
   ipcMain.handle('visit-history:clear', async (event) => {
     host.assertTrustedSender(event)
     await host.history().clear()
+    host.historyCleared?.()
     return host.publishVisitHistory()
   })
 }
