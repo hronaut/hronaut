@@ -1027,5 +1027,5 @@ useAppLifecycleController({
       @reset="resetPanelDockSize"
     />
   </header>
-  <AppToastRegion :toasts="appToasts" :home="activeIsHome" @dismiss="dismissAppToast" @retain="retainAppToast" @release="releaseAppToast" @act="actAppToast" />
+  <AppToastRegion :toasts="appToasts" :home="activeIsHome" :rail-width="pageRailWidth" @dismiss="dismissAppToast" @retain="retainAppToast" @release="releaseAppToast" @act="actAppToast" />
 </template>

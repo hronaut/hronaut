@@ -11,6 +11,8 @@ import { vTooltip } from '../ui/tooltip.js'
 defineProps<{
   toasts: readonly AppToast[]
   home: boolean
+  /** How far the page column starts from the left, past the tab rail; toasts center over the page column. */
+  railWidth?: number
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +36,7 @@ const { t } = useI18n({ useScope: 'global' })
     tag="aside"
     class="app-toast-region"
     :class="{ home }"
+    :style="{ '--toast-rail-width': `${railWidth ?? 0}px` }"
     :aria-label="t('panels.notifications')"
   >
     <article
@@ -70,12 +73,15 @@ const { t } = useI18n({ useScope: 'global' })
 
 <style scoped>
 .app-toast-region {
+  /* Over the page column's top bar, never over tabs in the rail, which stay clickable while a toast is up. */
+  --toast-column: calc(100vw - var(--toast-rail-width, 0px));
+
   position: fixed;
   z-index: 500;
   top: 4px;
-  left: 50%;
+  left: calc(var(--toast-rail-width, 0px) + var(--toast-column) / 2);
   display: grid;
-  width: min(620px, calc(100vw - 280px));
+  width: min(620px, calc(var(--toast-column) - 16px), max(320px, calc(var(--toast-column) - 280px)));
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -151,6 +157,6 @@ const { t } = useI18n({ useScope: 'global' })
 .app-toast-leave-to { opacity: 0; transform: translateY(var(--motion-enter-y)) scale(var(--motion-enter-scale)); }
 
 @media (max-width: 760px) {
-  .app-toast-region { width: calc(100vw - 16px); }
+  .app-toast-region { width: calc(var(--toast-column) - 16px); }
 }
 </style>

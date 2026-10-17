@@ -39,6 +39,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- With the tab rail, notifications such as **Tab closed** with its **Undo** button now appear over the page's toolbar instead of across the top of the rail, so they no longer cover tabs you want to click while they are showing.
 - In Polish, Russian and Ukrainian, counts in Hronaut's window now use the right word form, such as "1 вкладка", "2 вкладки", "5 вкладок" and "21 вкладка", instead of "1 вкладки" and "2 вкладок". Panels, Settings, the workspace switcher, Commands and other dialogs were affected; Home already counted correctly.
 
 ## [2.50.0] - 2026-10-16
