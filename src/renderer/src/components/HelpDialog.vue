@@ -22,11 +22,10 @@ const props = defineProps<{
 const { t } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
 const { dialog, open, shortcuts, close } = props.controller
-const mac = window.hronautShell?.windowChrome.platform === 'darwin'
 
-/** A key as this platform writes it, as in the command palette: ⌘ and ⇧ on macOS, Ctrl and Shift elsewhere. */
+/** A key as this platform writes it, as in the command palette: ⌘, ⌥, ⌃ and ⇧ on macOS, Ctrl, Alt and Shift elsewhere. */
 function keycap(key: string): string {
-  return commandShortcutKeys(key, mac)[0] ?? key
+  return commandShortcutKeys(key, props.controller.mac)[0] ?? key
 }
 
 useModalDialogFocus({

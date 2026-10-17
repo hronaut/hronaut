@@ -80,6 +80,10 @@
   font: inherit;
 }
 .ui-control:focus-visible, .ui-field :is(input, select, textarea):focus-visible { @apply border-accent shadow-[0_0_0_2px_var(--accent-soft)]; }
+/* Forced colors drop the shadow ring, so focus keeps a system-colored outline. */
+@media (forced-colors: active) {
+  .ui-control:focus-visible, .ui-field :is(input, select, textarea):focus-visible { outline: 2px solid Highlight; outline-offset: 1px; }
+}
 .ui-control:disabled, .ui-field :is(input, select, textarea):disabled { @apply cursor-default opacity-48; }
 .ui-control[aria-invalid="true"] { @apply border-danger; }
 .ui-textarea { @apply min-h-[84px] resize-y; }

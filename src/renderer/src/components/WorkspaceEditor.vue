@@ -302,7 +302,7 @@ onBeforeUnmount(dispose)
             </div>
           </section>
           <section class="workspace-options">
-            <label class="workspace-storage-choice workspace-direct-access">
+            <label class="workspace-storage-choice">
               <input v-model="agentAccess" type="checkbox" :disabled="dismissBlocked" />
               <span><strong>{{ t('workspaceEditor.agentAccess') }}</strong><small>{{ t('workspaceEditor.agentAccessDescription') }}</small><small>{{ t('workspaceEditor.agentForkAllowed') }}</small></span>
             </label>

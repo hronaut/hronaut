@@ -559,8 +559,7 @@
 .workspace-storage-choice > span { @apply grid [gap:2px]; }
 .workspace-navigation-rules { @apply grid [gap:6px]; }
 .workspace-navigation-rules > label { @apply [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)]; }
-.workspace-navigation-rules > textarea { @apply [min-height:102px] resize-y [padding:10px_11px] [border:1px_solid_var(--border)] [border-radius:var(--corner-2)] [outline:0] text-copy bg-surface-raised [font:var(--type-small-size)/1.55_var(--font-code)]; }
-.workspace-navigation-rules > textarea:focus { @apply border-accent [box-shadow:0_0_0_3px_var(--accent-soft)]; }
+.workspace-navigation-rules > textarea.ui-control { @apply [min-height:102px] [font:var(--type-small-size)/1.55_var(--font-code)]; }
 .workspace-navigation-rules > small { @apply text-muted [font-size:var(--type-micro-size)] [line-height:1.45]; }
 .workspace-navigation-audit { @apply [padding-top:4px] [border-top:1px_solid_var(--border-soft)] text-muted [font-size:var(--type-micro-size)]; }
 .workspace-navigation-audit > summary { @apply [padding:6px_0_2px] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer; }
@@ -594,7 +593,6 @@
 .tab-group-editor > footer button { @apply [min-width:86px]; }
 
 .workspace-transfer-fields { @apply grid [gap:8px]; }
-.workspace-transfer-fields select { @apply w-full min-w-0 [padding:9px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface text-copy; }
 .workspace-transfer-fields small, .workspace-transfer-help { @apply [margin:0] text-muted [font-size:var(--type-small-size)] [line-height:1.5]; }
 
 .workspace-storage-section > output.warning { @apply [color:var(--warning)]; }
