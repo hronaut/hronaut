@@ -4,6 +4,7 @@ import { agentStatus, agentStatusText, agentStatusTone } from '../../../shared/a
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
 import { element, escapeText as h, interpolate, messageAt, pluralText, remember, renderStatus } from './dom.js'
 import { mountWorkspaces } from './workspaces.js'
+import { mountClaudeSetup } from './claude-setup.js'
 
 export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof fetch = fetch) {
   const { guides, locale } = data
@@ -27,6 +28,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   }
   const count = (one: string, other: string, value: number): string => interpolate(value === 1 ? one : other, { count: new Intl.NumberFormat(locale).format(value) })
   let selectedGuide = guides.find(guide => guide.id === remember('hronaut.home.guide'))?.id ?? guides[0]!.id
+  // An agent found on this computer becomes the first guide until the person picks one.
+  let guideChosen = guides.some(guide => guide.id === remember('hronaut.home.guide'))
   let guideSequence = 0
   let vscodeSequence = 0
   const guideButton = document.querySelector<HTMLButtonElement>('[data-agent-guide]')!
@@ -44,8 +47,10 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     })
     text('copy-status', '')
   }
+  const claudeSetup = mountClaudeSetup(data, api, signal)
   function renderGuide(): void {
     const guide = guides.find(guide => guide.id === selectedGuide)!
+    claudeSetup.show(guide.id === 'claude-code')
     document.querySelectorAll<HTMLButtonElement>('[data-guide]').forEach(button => {
       const active = button.dataset.guide === selectedGuide
       button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active))
@@ -65,7 +70,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   for (const guide of guides) {
     const button = document.createElement('button')
     button.type = 'button'; button.className = 'agent-button'; button.dataset.guide = guide.id; button.textContent = guide.name
-    button.addEventListener('click', () => { selectedGuide = guide.id; remember('hronaut.home.guide', guide.id); renderGuide() }, { signal })
+    button.addEventListener('click', () => { selectedGuide = guide.id; guideChosen = true; remember('hronaut.home.guide', guide.id); renderGuide() }, { signal })
     agentList.append(button)
   }
   guideButton.addEventListener('click', async () => {
@@ -270,6 +275,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     renderStatus(element('server-state'), agentStatusTone(agents.kind), agentStatusText(agents, data.messages.agentStatus, locale))
     renderChips(); renderHeading()
     workspaces.setLive(dashboard)
+    claudeSetup.update(dashboard)
+    renderSetupOffer()
     text('server-detail', status === 'error' ? `${statusLabels.error}: ${dashboard.error ?? messages.status.unknownError}` : statusLabels[status])
     text('active-count', status === 'paused' ? messages.status.pausedValue : status === 'error' ? messages.status.unavailable : status === 'starting' ? messages.status.startingValue : count(messages.status.activeOne, messages.status.activeOther, dashboard.activeRequests))
     text('request-count', dashboard.totalRequests ? count(messages.counts.requestsOne, messages.counts.requestsOther, dashboard.totalRequests) : messages.status.waiting)
@@ -309,6 +316,33 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     element('connections').innerHTML = dashboard.clients.length ? dashboard.clients.map(client => `<div class="connection"><span class="client-icon">${h(client.name.trim().charAt(0))}</span><div><div class="client-name">${h(client.name)}</div><div class="client-meta">${h(client.version ?? messages.connections.versionUnknown)} · ${h(relativeTime(client.lastSeenAt))} · ${h(interpolate(messages.counts.requests, { count: client.requestCount }))}</div></div><span class="connection-state ${client.activeRequests ? 'active' : ''}">${h(client.activeRequests ? messages.connections.active : messages.connections.recent)}</span></div>`).join('') : `<div class="empty"><div><strong>${h(messages.connections.emptyHeading)}</strong><span>${h(messages.connections.emptyDescription)}</span></div></div>`
     renderTools()
   }
+  /** First run: offer to add Hronaut to Claude Code when it is installed and not set up for this address. */
+  function renderSetupOffer(): void {
+    const offer = document.getElementById('onboarding-claude')
+    if (offer) offer.hidden = !claudeSetup.offered()
+  }
+  document.getElementById('onboarding-claude-setup')?.addEventListener('click', () => {
+    selectedGuide = 'claude-code'; guideChosen = true; remember('hronaut.home.guide', selectedGuide)
+    selectView('connect'); renderGuide(); claudeSetup.start()
+  }, { signal })
+  void claudeSetup.refresh().then(state => {
+    if (!state || signal.aborted) return
+    const found = guides.filter(guide => state.detected.includes(guide.id))
+    // Found agents lead the list, each marked, in the guides' own order.
+    for (const guide of [...found].reverse()) {
+      const button = agentList.querySelector<HTMLButtonElement>(`[data-guide="${guide.id}"]`)
+      if (!button) continue
+      if (!button.querySelector('.agent-found')) {
+        const mark = document.createElement('span')
+        mark.className = 'agent-found'
+        mark.textContent = messages.connect.claudeSetup.found
+        button.append(mark)
+      }
+      agentList.prepend(button)
+    }
+    if (!guideChosen && found[0] && found[0].id !== selectedGuide) { selectedGuide = found[0].id; renderGuide() }
+    renderSetupOffer()
+  })
   function renderOnboarding(): void {
     element('home-onboarding').hidden = dashboard.readiness.checks.probe.state === 'probe_verified' || remember('hronaut.home.onboarded') === 'true' || hasWorkspaces
   }
@@ -357,7 +391,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   element<HTMLInputElement>('agent-search').addEventListener('input', event => {
     const query = (event.target as HTMLInputElement).value.trim().toLocaleLowerCase(locale)
     let visible = 0
-    document.querySelectorAll<HTMLButtonElement>('[data-guide]').forEach(button => { button.hidden = !button.textContent!.toLocaleLowerCase(locale).includes(query); if (!button.hidden) visible++ })
+    document.querySelectorAll<HTMLButtonElement>('[data-guide]').forEach(button => { button.hidden = !guides.find(guide => guide.id === button.dataset.guide)!.name.toLocaleLowerCase(locale).includes(query); if (!button.hidden) visible++ })
     element('agent-empty').hidden = visible > 0
   }, { signal })
   element('tool-search').addEventListener('input', renderTools, { signal })

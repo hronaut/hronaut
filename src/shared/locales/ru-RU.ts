@@ -3304,6 +3304,7 @@ export const ruRU = {
       "vscodeOpened": "VS Code открыт. Подтвердите там сервер MCP Hronaut.",
       "vscodeFailed": "Не удалось открыть VS Code. Используйте ручную настройку ниже.",
       "vscodeUnavailable": "Мост настройки VS Code недоступен.",
+      "claudeSetup": {"action": "Настроить Claude Code", "update": "Обновить Claude Code", "found": "На этом компьютере", "preparing": "Читаем настройки Claude Code…", "previewIntro": "Hronaut добавит этот сервер в {path}:", "previewReplace": "Он заменит эту запись:", "previewBackup": "Сначала копия файла сохранится как {name}.", "apply": "Применить изменение…", "cancel": "Отмена", "applying": "Подтвердите изменение в окне…", "applied": "Добавлено. Перезапустите Claude Code, и он подключится здесь. Копия: {name}.", "cancelled": "Ничего не изменено.", "connected": "Claude Code подключён.", "configured": "Claude Code уже настроен на этот адрес.", "otherAddress": "Claude Code указывает на Hronaut по другому адресу.", "notFound": "Настройки Claude Code не найдены в {path}. Используйте команду выше.", "unreadable": "Hronaut не может безопасно изменить {path}. Используйте команду выше.", "expired": "Это изменение устарело. Просмотрите его снова.", "changed": "Настройки Claude Code изменились после просмотра. Просмотрите изменение снова.", "busy": "Закройте Claude Code и попробуйте снова.", "failed": "Не удалось изменить настройки Claude Code. Используйте команду выше.", "firstRun": "Claude Code есть на этом компьютере. Hronaut может сам добавить себя в Claude Code."},
       "guides": {
         "codex": "Добавляет Hronaut в пользовательскую конфигурацию Codex.",
         "claudeCode": "Использует рекомендуемый потоковый транспорт HTTP для каждого проекта.",
@@ -3638,7 +3639,7 @@ export const ruRU = {
       "workspaceRecoveryMessage": "Запуск остановлен, чтобы не заменить сохранённые пространства.",
       "workspaceRecoveryDetail": "Закройте Hronaut. Используйте совместимую с профилем версию или восстановите исправную копию tabs.json в профиле Hronaut при закрытом приложении. Сохраните существующие файлы; не сбрасывайте профиль.",
       "mcpFailedTitle": "Не удалось запустить сервер MCP",
-      "mcpFailedMessage": "Не удалось прослушивать {host}:{port}",
+      "mcpFailedMessage": "Не удалось прослушивать {host}:{port}", "claudeSetupTitle": "Настроить Claude Code", "claudeSetupMessage": "Добавить Hronaut в Claude Code?", "claudeSetupDetail": "Файл: {path}\n\nНовая запись в \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Сначала копия файла сохранится как {backup}.", "claudeSetupReplaces": "Она заменит:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Добавить в Claude Code",
       "savePasswordTitle": "Сохранить пароль?",
       "updatePasswordTitle": "Обновить сохранённый пароль?",
       "savePasswordMessage": "Сохранить пароль для {account}?",

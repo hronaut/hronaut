@@ -3304,6 +3304,7 @@ export const esES = {
       "vscodeOpened": "VS Code está abierto. Confirma allí el servidor MCP de Hronaut.",
       "vscodeFailed": "No se pudo abrir VS Code. Usa la configuración manual de abajo.",
       "vscodeUnavailable": "El puente de configuración de VS Code no está disponible.",
+      "claudeSetup": {"action": "Configurar Claude Code", "update": "Actualizar Claude Code", "found": "En este equipo", "preparing": "Leyendo la configuración de Claude Code…", "previewIntro": "Hronaut añadirá este servidor a {path}:", "previewReplace": "Sustituye esta entrada:", "previewBackup": "Antes se guarda una copia del archivo como {name}.", "apply": "Aplicar cambio…", "cancel": "Cancelar", "applying": "Confirma el cambio en el cuadro de diálogo…", "applied": "Añadido. Reinicia Claude Code y se conectará aquí. Copia: {name}.", "cancelled": "No se ha cambiado nada.", "connected": "Claude Code está conectado.", "configured": "Claude Code ya está configurado para esta dirección.", "otherAddress": "Claude Code apunta a Hronaut en otra dirección.", "notFound": "No se encontró la configuración de Claude Code en {path}. Usa el comando de arriba.", "unreadable": "Hronaut no puede cambiar {path} de forma segura. Usa el comando de arriba.", "expired": "Ese cambio ha caducado. Revísalo de nuevo.", "changed": "La configuración de Claude Code cambió después de revisarla. Revisa el cambio de nuevo.", "busy": "Cierra Claude Code y vuelve a intentarlo.", "failed": "No se pudo cambiar la configuración de Claude Code. Usa el comando de arriba.", "firstRun": "Claude Code está en este equipo. Hronaut puede añadirse a Claude Code por ti."},
       "guides": {
         "codex": "Añade Hronaut a tu configuración de Codex a nivel de usuario.",
         "claudeCode": "Usa el transporte HTTP transmitible recomendado para todos los proyectos.",
@@ -3638,7 +3639,7 @@ export const esES = {
       "workspaceRecoveryMessage": "Se detuvo el inicio para evitar reemplazar los espacios guardados.",
       "workspaceRecoveryDetail": "Cierra Hronaut. Usa una versión compatible con el perfil o restaura una copia válida de tabs.json en el perfil de Hronaut con la aplicación cerrada. Conserva los archivos existentes; no restablezcas el perfil.",
       "mcpFailedTitle": "No se pudo iniciar el servidor MCP",
-      "mcpFailedMessage": "No se pudo escuchar en {host}:{port}",
+      "mcpFailedMessage": "No se pudo escuchar en {host}:{port}", "claudeSetupTitle": "Configurar Claude Code", "claudeSetupMessage": "¿Añadir Hronaut a Claude Code?", "claudeSetupDetail": "Archivo: {path}\n\nNueva entrada en \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Antes se guarda una copia del archivo como {backup}.", "claudeSetupReplaces": "Sustituye:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Añadir a Claude Code",
       "savePasswordTitle": "¿Guardar contraseña?",
       "updatePasswordTitle": "¿Actualizar contraseña guardada?",
       "savePasswordMessage": "¿Guardar la contraseña de {account}?",

@@ -6,6 +6,7 @@ import type { ConnectedAgent } from './agent-status.js'
 import type { AgentPresenceState, AgentRecentStep } from './agent-presence.js'
 import type { AgentStepKind } from './agent-steps.js'
 import type { MessageSchema } from './locales/en-US.js'
+import type { ClaudeCodeSetupPreview, ClaudeCodeSetupResult, HomeSetupState } from './claude-code-setup.js'
 
 export interface HomeReadinessCheck {
   state: string
@@ -84,4 +85,10 @@ export interface HronautHomeApi {
   openVsCodeInstall(): Promise<void>
   openSetupHelp(): Promise<void>
   openSetupFeedback(): Promise<void>
+  /** Agents found on this computer, and whether Hronaut can add itself to Claude Code. */
+  getSetupState?(): Promise<HomeSetupState>
+  /** The exact change to Claude Code's settings, as a single-use plan. */
+  prepareClaudeCodeSetup?(): Promise<ClaudeCodeSetupPreview>
+  /** Main asks the person natively, then makes the planned change. */
+  applyClaudeCodeSetup?(planId: string): Promise<ClaudeCodeSetupResult>
 }

@@ -97,6 +97,9 @@ import { ReleaseHistoryService } from './release-history.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
+import { ClaudeCodeSetup, claudeCodeConfigPath } from './claude-code-setup.js'
+import { detectAgentClients } from './agent-client-detection.js'
+import type { HomeSetupState } from '../shared/claude-code-setup.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import {
   shouldStartMinimized,
@@ -2259,6 +2262,45 @@ function assertHomePageSender(event: Electron.IpcMainInvokeEvent): void {
   throw new Error('Rejected IPC from a non-Home page')
 }
 
+/** Home's own document, not a frame inside it: for actions that change files outside Hronaut. */
+function assertHomeMainFrame(event: Electron.IpcMainInvokeEvent): void {
+  assertHomePageSender(event)
+  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) throw new Error('Rejected IPC from a Home subframe')
+}
+
+let claudeCodeSetup: ClaudeCodeSetup | null = null
+/** Adds Hronaut to Claude Code's settings after the person confirms the exact change in a native dialog. */
+function claudeCodeSetupService(): ClaudeCodeSetup {
+  claudeCodeSetup ??= new ClaudeCodeSetup({
+    path: claudeCodeConfigPath(),
+    endpoint: () => mcpUrl,
+    confirm: async (preview) => {
+      const { response } = await showMessageBox({
+        type: 'question',
+        title: text('native.dialog.claudeSetupTitle'),
+        message: text('native.dialog.claudeSetupMessage'),
+        detail: text('native.dialog.claudeSetupDetail', {
+          path: preview.path,
+          after: preview.after,
+          replaces: preview.before === null ? '' : text('native.dialog.claudeSetupReplaces', { before: preview.before }),
+          backup: preview.backupName
+        }),
+        buttons: [text('native.dialog.cancel'), text('native.dialog.claudeSetupConfirm')],
+        defaultId: 1,
+        cancelId: 0,
+        noLink: true
+      })
+      return response === 1
+    }
+  })
+  return claudeCodeSetup
+}
+
+function assertClaudeCodeSetupAllowed(): void {
+  // Hronaut never writes a token into another app's settings; with authentication on, the copied command is the way.
+  if (settings.mcpAuthentication) throw new Error('Claude Code setup is unavailable while MCP authentication is enabled. Use the command instead.')
+}
+
 function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
   if (workspaceStartupFailure) throw workspaceStartupFailure
   if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
@@ -2764,6 +2806,25 @@ function registerIpc(): void {
     'hronaut-home:open-agent-guide',
     agentGuideHandler(assertHomePageSender, (url) => shell.openExternal(url))
   )
+  handleBrowserIpc('hronaut-home:setup-state', async (event): Promise<HomeSetupState> => {
+    assertHomeMainFrame(event)
+    const setup = claudeCodeSetupService()
+    const [detected, claudeCode] = await Promise.all([
+      detectAgentClients(undefined, { 'claude-code': [setup.path] }),
+      settings.mcpAuthentication ? undefined : setup.status()
+    ])
+    return { detected, ...(claudeCode ? { claudeCode } : {}) }
+  })
+  handleBrowserIpc('hronaut-home:claude-code-prepare', (event) => {
+    assertHomeMainFrame(event)
+    assertClaudeCodeSetupAllowed()
+    return claudeCodeSetupService().prepare(event.sender.id)
+  })
+  handleBrowserIpc('hronaut-home:claude-code-apply', async (event, planId: unknown) => {
+    assertHomeMainFrame(event)
+    assertClaudeCodeSetupAllowed()
+    return claudeCodeSetupService().apply(planId, event.sender.id)
+  })
   handleBrowserIpc('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
   handleBrowserIpc('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })
   handleBrowserIpc('browser:reopen-closed-tab', (event, closedTabId: unknown) => {

@@ -60,7 +60,10 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
     openAgentGuide: (clientId: AgentGuideId) => ipcRenderer.invoke('hronaut-home:open-agent-guide', clientId),
     openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install'),
     openSetupHelp: () => ipcRenderer.invoke('hronaut-home:open-setup-help'),
-    openSetupFeedback: () => ipcRenderer.invoke('hronaut-home:open-setup-feedback')
+    openSetupFeedback: () => ipcRenderer.invoke('hronaut-home:open-setup-feedback'),
+    getSetupState: () => ipcRenderer.invoke('hronaut-home:setup-state'),
+    prepareClaudeCodeSetup: () => ipcRenderer.invoke('hronaut-home:claude-code-prepare'),
+    applyClaudeCodeSetup: (planId: string) => ipcRenderer.invoke('hronaut-home:claude-code-apply', planId)
   } satisfies HronautHomeApi)
 } else if (pageLocation?.protocol === 'http:' || pageLocation?.protocol === 'https:') {
   const walletListeners = new Set<(event: WalletProviderEvent) => void>()
