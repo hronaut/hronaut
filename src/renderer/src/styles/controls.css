@@ -1,11 +1,12 @@
 /*
  * Native checkboxes, radio buttons and selects keep their semantics, labels
  * and keyboard behavior, but draw with the theme instead of the operating
- * system's blue controls. This layer follows the application layer, so a
+ * system's blue controls. A checkbox for a setting that applies at once can
+ * draw as a switch (UiCheckbox appearance="switch") and stays a checkbox. This layer follows the application layer, so a
  * panel's generic input padding or border never stretches a checkbox, and
  * every select keeps room for its chevron.
  */
-input:is([type="checkbox"], [type="radio"]):not([role="switch"]) {
+input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch) {
   appearance: none;
   display: inline-grid;
   flex: none;
@@ -25,7 +26,7 @@ input:is([type="checkbox"], [type="radio"]):not([role="switch"]) {
     border-color var(--motion-fast) var(--motion-ease-out);
 }
 
-input[type="checkbox"]:not([role="switch"]) {
+input[type="checkbox"]:not([role="switch"], .ui-checkbox--switch) {
   border-radius: 4px;
 }
 
@@ -33,7 +34,7 @@ input[type="radio"] {
   border-radius: 50%;
 }
 
-input:is([type="checkbox"], [type="radio"]):not([role="switch"])::before {
+input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch)::before {
   content: "";
   width: 10px;
   height: 10px;
@@ -42,11 +43,11 @@ input:is([type="checkbox"], [type="radio"]):not([role="switch"])::before {
   transition: transform var(--motion-fast) var(--motion-ease-spring);
 }
 
-input[type="checkbox"]:not([role="switch"])::before {
+input[type="checkbox"]:not([role="switch"], .ui-checkbox--switch)::before {
   clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0, 43% 62%);
 }
 
-input[type="checkbox"]:not([role="switch"]):indeterminate::before {
+input[type="checkbox"]:not([role="switch"], .ui-checkbox--switch):indeterminate::before {
   width: 8px;
   height: 2px;
   clip-path: none;
@@ -59,25 +60,83 @@ input[type="radio"]::before {
   border-radius: 50%;
 }
 
-input:is([type="checkbox"], [type="radio"]):not([role="switch"]):is(:checked, :indeterminate) {
+input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch):is(:checked, :indeterminate) {
   border-color: var(--accent);
   background-color: var(--accent);
 }
 
-input:is([type="checkbox"], [type="radio"]):not([role="switch"]):is(:checked, :indeterminate)::before {
+input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch):is(:checked, :indeterminate)::before {
   transform: scale(1);
 }
 
-input:is([type="checkbox"], [type="radio"]):not([role="switch"]):hover:not(:disabled, :checked, :indeterminate) {
+input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch):hover:not(:disabled, :checked, :indeterminate) {
   border-color: var(--accent);
 }
 
-input:is([type="checkbox"], [type="radio"]):not([role="switch"]):focus-visible {
+input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-input:is([type="checkbox"], [type="radio"]):not([role="switch"]):disabled {
+input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch):disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+input[type="checkbox"].ui-checkbox--switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: 38px;
+  min-width: 38px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background-color: var(--surface-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease-out),
+    border-color var(--motion-fast) var(--motion-ease-out);
+}
+
+input[type="checkbox"].ui-checkbox--switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--muted);
+  box-shadow: var(--elevation-1);
+  transition:
+    translate var(--motion-fast) var(--motion-ease-spring),
+    background-color var(--motion-fast) var(--motion-ease-out);
+}
+
+input[type="checkbox"].ui-checkbox--switch:checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+}
+
+input[type="checkbox"].ui-checkbox--switch:checked::before {
+  translate: 16px 0;
+  background-color: var(--button-text);
+}
+
+input[type="checkbox"].ui-checkbox--switch:hover:not(:disabled, :checked) {
+  border-color: var(--accent);
+}
+
+input[type="checkbox"].ui-checkbox--switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"].ui-checkbox--switch:disabled {
   cursor: default;
   opacity: 0.48;
 }
@@ -97,18 +156,31 @@ select:not([multiple], [size]) {
 
 /* High-contrast modes draw the system's own controls, which follow the user's colors. */
 @media (forced-colors: active) {
-  input:is([type="checkbox"], [type="radio"]):not([role="switch"]),
+  input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch),
   select:not([multiple], [size]) {
     appearance: auto;
   }
 
-  input:is([type="checkbox"], [type="radio"]):not([role="switch"])::before {
+  input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch)::before {
+    content: none;
+  }
+
+  input[type="checkbox"].ui-checkbox--switch {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    appearance: auto;
+  }
+
+  input[type="checkbox"].ui-checkbox--switch::before {
     content: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  input:is([type="checkbox"], [type="radio"]):not([role="switch"])::before {
+  input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch)::before,
+  input[type="checkbox"].ui-checkbox--switch,
+  input[type="checkbox"].ui-checkbox--switch::before {
     transition: none;
   }
 }

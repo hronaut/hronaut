@@ -143,7 +143,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <strong>{{ t('settings.mcp.remote.label') }}</strong>
           <small>{{ t('settings.mcp.remote.description') }}</small>
         </span>
-        <UiCheckbox bare id="setting-mcp-remote-access" :checked="settings.mcpRemoteAccess"
+        <UiCheckbox bare appearance="switch" id="setting-mcp-remote-access" :checked="settings.mcpRemoteAccess"
           :disabled="busy" @change="changeRemoteAccess" />
       </label>
       <p class="settings-info">{{ t('settings.mcp.remote.restart') }}</p>
@@ -157,6 +157,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
         </span>
         <UiCheckbox
           bare
+          appearance="switch"
           id="setting-mcp-authentication"
           :checked="settings.mcpAuthentication"
           :disabled="busy"
@@ -168,7 +169,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <strong>{{ t('settings.mcp.challengeDetection') }}</strong>
           <small>{{ t('settings.mcp.challengeDetectionDescription') }}</small>
         </span>
-        <UiCheckbox bare id="setting-challenge-detection" :checked="settings.challengeDetectionEnabled"
+        <UiCheckbox bare appearance="switch" id="setting-challenge-detection" :checked="settings.challengeDetectionEnabled"
           :disabled="busy" @change="changeChallengeDetection" />
       </label>
       <label class="settings-row" for="setting-mcp-tool-set">

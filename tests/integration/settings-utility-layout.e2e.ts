@@ -47,7 +47,7 @@ test('toggles Settings with the gear and keeps search, reset and close in the he
   await expect(settings).toBeVisible()
   await settings.getByRole('button', { name: /Appearance/ }).click()
   await appWindow.setViewportSize({ width: 1900, height: 1040 })
-  await expect.poll(() => settings.locator('.settings-content').evaluate(element => element.clientWidth)).toBeLessThanOrEqual(1164)
+  await expect.poll(() => settings.locator('.settings-content').evaluate(element => element.clientWidth)).toBeLessThanOrEqual(960)
   await appWindow.screenshot({ path: testInfo.outputPath('settings-utility-layout.png') })
   await settings.getByRole('button', { name: 'Close settings', exact: true }).click()
   await expect(settings).toBeHidden()
