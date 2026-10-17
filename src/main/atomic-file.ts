@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, open, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
-async function flushDirectory(path: string): Promise<void> {
+export async function flushDirectory(path: string): Promise<void> {
   // Windows does not support opening directories through Node's file API.
   if (process.platform === 'win32') return
   const handle = await open(path, 'r').catch((error: NodeJS.ErrnoException) => {

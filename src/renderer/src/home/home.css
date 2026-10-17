@@ -332,3 +332,21 @@ button[data-open-view=workspaces] { background: var(--panel); color: var(--text)
 .onboarding [data-complete=true] { color: var(--success); }
 .onboarding button { border: 0; border-radius: var(--corner-2); padding: 12px 18px; }
 #copy-status { min-height: 1.5em; color: var(--danger); }
+/* "Set up Claude Code": the exact change, then a native confirmation from Hronaut itself. */
+.claude-setup { margin-top: 16px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--corner-2); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.claude-setup-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.claude-setup button { min-height: 32px; padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--corner-2); background: var(--panel); font-size: var(--type-small-size); font-weight: 600; }
+.claude-setup .claude-setup-start, .claude-setup .claude-setup-apply { border-color: transparent; color: var(--button-text); background: var(--accent); }
+.claude-setup-status { color: var(--muted); font-size: var(--type-small-size); line-height: 1.5; overflow-wrap: anywhere; }
+/* Collapsed, not removed, so the next message is still announced. */
+.claude-setup-status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.claude-setup-preview p { margin-top: 10px; color: var(--muted); font-size: var(--type-small-size); line-height: 1.5; overflow-wrap: anywhere; }
+.claude-setup-preview p:first-child { margin-top: 0; }
+.claude-setup-preview pre { min-height: 0; margin-top: 6px; padding: 10px 12px; font-size: var(--type-micro-size); }
+.claude-setup-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.agent-button:has(.agent-found) { flex-wrap: wrap; }
+.agent-found { flex-basis: 100%; color: var(--muted); font-size: var(--type-micro-size); font-weight: 500; }
+.onboarding-claude { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; color: var(--text); }
+.onboarding-claude[hidden] { display: none; }
+/* One filled action per panel: the offer is outlined beside "Connect your coding agent". */
+.onboarding-claude button { padding: 8px 14px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent); background: var(--panel); font-weight: 600; }

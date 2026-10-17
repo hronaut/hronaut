@@ -3304,6 +3304,7 @@ export const plPL = {
       "vscodeOpened": "VS Code został otwarty. Potwierdź tam serwer MCP Hronaut.",
       "vscodeFailed": "Nie udało się otworzyć VS Code. Użyj ręcznej konfiguracji poniżej.",
       "vscodeUnavailable": "Most konfiguracji VS Code jest niedostępny.",
+      "claudeSetup": {"action": "Skonfiguruj Claude Code", "update": "Zaktualizuj Claude Code", "found": "Na tym komputerze", "preparing": "Odczytywanie ustawień Claude Code…", "previewIntro": "Hronaut doda ten serwer do {path}:", "previewReplace": "Zastąpi ten wpis:", "previewBackup": "Najpierw kopia pliku zostanie zapisana jako {name}.", "previewQuit": "Jeśli Claude Code działa, najpierw go zamknij, żeby nie nadpisał tej zmiany.", "apply": "Zastosuj zmianę…", "cancel": "Anuluj", "applying": "Potwierdź zmianę w oknie dialogowym…", "applied": "Dodano. Uruchom ponownie Claude Code, a połączy się tutaj. Kopia: {name}.", "overwritten": "Hronaut wprowadził zmianę, ale plik zmienił się zaraz potem, prawdopodobnie przez Claude Code. Zamknij Claude Code i skonfiguruj go ponownie. Kopia: {name}.", "cancelled": "Nic nie zmieniono.", "connected": "Claude Code jest połączony.", "configured": "Claude Code jest już skonfigurowany dla tego adresu.", "otherAddress": "Claude Code wskazuje Hronaut pod innym adresem.", "notFound": "Nie znaleziono ustawień Claude Code w {path}. Użyj polecenia powyżej.", "unreadable": "Hronaut nie może bezpiecznie zmienić {path}. Użyj polecenia powyżej.", "expired": "Ta zmiana wygasła. Przejrzyj ją ponownie.", "changed": "Ustawienia Claude Code zmieniły się po Twoim przeglądzie. Przejrzyj zmianę ponownie.", "busy": "Zamknij Claude Code i spróbuj ponownie.", "failed": "Nie udało się zmienić ustawień Claude Code. Użyj polecenia powyżej.", "firstRun": "Claude Code jest na tym komputerze. Hronaut może dodać się do Claude Code za Ciebie."},
       "guides": {
         "codex": "Dodaje Hronaut do konfiguracji Codex na poziomie użytkownika.",
         "claudeCode": "Używa zalecanego transportu strumieniowego HTTP dla każdego projektu.",
@@ -3638,7 +3639,7 @@ export const plPL = {
       "workspaceRecoveryMessage": "Uruchamianie zatrzymano, aby nie zastąpić zapisanych przestrzeni.",
       "workspaceRecoveryDetail": "Zamknij Hronaut. Użyj wersji zgodnej z profilem lub przy zamkniętej aplikacji przywróć poprawną kopię tabs.json w profilu Hronaut. Zachowaj istniejące pliki; nie resetuj profilu.",
       "mcpFailedTitle": "Nie udało się uruchomić serwera MCP",
-      "mcpFailedMessage": "Nie udało się nasłuchiwać na {host}:{port}",
+      "mcpFailedMessage": "Nie udało się nasłuchiwać na {host}:{port}", "claudeSetupTitle": "Skonfiguruj Claude Code", "claudeSetupMessage": "Dodać Hronaut do Claude Code?", "claudeSetupDetail": "Plik: {path}\n\nNowy wpis w \"mcpServers\":\n\"hronaut\": {after}\n\n{replaces}Najpierw kopia pliku zostanie zapisana jako {backup}.", "claudeSetupReplaces": "Zastąpi:\n\"hronaut\": {before}\n\n", "claudeSetupConfirm": "Dodaj do Claude Code",
       "savePasswordTitle": "Zapisać hasło?",
       "updatePasswordTitle": "Zaktualizować zapisane hasło?",
       "savePasswordMessage": "Zapisać hasło dla {account}?",
