@@ -44,7 +44,7 @@ export function pageObservationSettlement(manager: BrowserTabsManager) {
       } catch (error) {
         return pageObservationPublicationFailure(error)
       }
-      return undefined // Published as is by the shared settlement, with no await after this check.
+      return result // No await after the final publication check.
     }
   }
 }
