@@ -8,6 +8,7 @@ import IconDashboard from '~icons/material-symbols/space-dashboard-rounded'
 import type { HelpDialogController } from '../composables/useHelpDialogController.js'
 import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
+import { commandShortcutKeys } from '../../../shared/command-palette.js'
 
 const props = defineProps<{
   controller: HelpDialogController
@@ -21,6 +22,11 @@ const props = defineProps<{
 const { t } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
 const { dialog, open, shortcuts, close } = props.controller
+
+/** A key as this platform writes it, as in the command palette: ⌘, ⌥, ⌃ and ⇧ on macOS, Ctrl, Alt and Shift elsewhere. */
+function keycap(key: string): string {
+  return commandShortcutKeys(key, props.controller.mac)[0] ?? key
+}
 
 useModalDialogFocus({
   open,
@@ -54,7 +60,7 @@ useModalDialogFocus({
             <div v-for="shortcut in shortcuts" :key="shortcut.label" class="shortcut-row">
               <dt>{{ shortcut.label }}</dt>
               <dd>
-                <kbd v-for="key in shortcut.keys" :key="key">{{ key }}</kbd>
+                <kbd v-for="key in shortcut.keys" :key="key">{{ keycap(key) }}</kbd>
               </dd>
             </div>
           </dl>

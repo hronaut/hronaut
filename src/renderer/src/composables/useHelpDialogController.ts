@@ -33,14 +33,15 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.pinnedWorkspace'), keys: [workspaceKey, '1–9'] },
     { label: options.translate('runtime.shortcuts.previousWorkspace'), keys: [workspaceKey, '0'] },
     { label: options.translate('runtime.shortcuts.commands'), keys: ['Ctrl/Cmd', 'Shift', 'P'] },
-    { label: options.translate('runtime.shortcuts.pick'), keys: ['Ctrl+Shift+C', 'Cmd+Option+C'] },
+    { label: options.translate('runtime.shortcuts.pick'), keys: mac ? ['Cmd', 'Option', 'C'] : ['Ctrl', 'Shift', 'C'] },
     { label: options.translate('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },
     { label: options.translate('runtime.shortcuts.fullPage'), keys: ['Ctrl/Cmd', 'Shift', 'F'] },
     { label: options.translate('runtime.shortcuts.takeOver'), keys: ['Ctrl/Cmd', 'Shift', 'O'] },
     { label: options.translate('runtime.shortcuts.bookmark'), keys: ['Ctrl/Cmd', 'D'] },
-    { label: options.translate('runtime.shortcuts.history'), keys: ['Ctrl+H', 'Cmd+Y'] },
+    { label: options.translate('runtime.shortcuts.history'), keys: mac ? ['Cmd', 'Y'] : ['Ctrl', 'H'] },
     { label: options.translate('runtime.shortcuts.clearData'), keys: ['Ctrl/Cmd', 'Shift', 'Delete'] },
-    { label: options.translate('runtime.shortcuts.devtools'), keys: ['F12', 'Ctrl+Shift+I', 'Cmd+Option+I'] },
+    // F12 needs the Fn key on most Mac keyboards.
+    { label: options.translate('runtime.shortcuts.devtools'), keys: mac ? ['Cmd', 'Option', 'I'] : ['F12'] },
     { label: options.translate('runtime.shortcuts.nextTab'), keys: ['Ctrl', 'Tab'] },
     { label: options.translate('runtime.shortcuts.previousTab'), keys: ['Ctrl', 'Shift', 'Tab'] },
     { label: options.translate('runtime.shortcuts.directTab'), keys: [tabKey, '1–8'] },
@@ -64,6 +65,8 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
   return {
     dialog,
     open,
+    /** Keys are written as macOS writes them. */
+    mac,
     shortcuts,
     openDialog,
     close,
