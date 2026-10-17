@@ -1307,7 +1307,7 @@ export const frFR = {
       "pageAttention": "La page requiert votre attention",
       "agentAttention": "L’agent a besoin de votre attention",
       "needsYou": "Vous attend",
-      "followingAgent": "Suivi de {name}",
+      "followingAgent": "Suivi de {name}", "groupAgents": "Agents ici : {agents}", "groupAgent": "{name} ({state})",
       "stayHere": "Rester ici",
       "stayHereDescription": "Ne plus suivre les agents et rester sur cet onglet",
       "sleeping": "En veille pour économiser les ressources",

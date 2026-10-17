@@ -289,7 +289,7 @@
   content: "";
 }
 .tab-group-label > .tab-group-default-badge { @apply [width:13px] [height:13px] [opacity:.84]; }
-.tab-group-label > span:not(.tab-group-count, .tab-group-needs-you) {
+.tab-group-label > span:not(.tab-group-count, .tab-group-needs-you, .tab-group-agents) {
   @apply overflow-hidden text-ellipsis;
 }
 .tab-group-label:hover,
@@ -304,6 +304,23 @@
 }
 .tab-group-count {
   @apply [min-width:14px] [padding:0_2px] text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-medium)] text-center;
+}
+/* The agents in a workspace, as small overlapping avatars in its rail header after the name, like the toolbar's: a ring
+   while working (still, since the rail lists many), amber when it needs you, dimmed when idle. */
+.tab-group-agents { @apply hidden; }
+.browser-tabs-bar.vertical .tab-group-agents { @apply flex flex-none items-center [padding:0_2px]; }
+.tab-group-agent {
+  @apply grid [width:18px] [height:18px] flex-none place-items-center rounded-full [border:1.5px_solid_var(--group-surface,_var(--shell-bottom))] text-copy [background:color-mix(in_srgb,_var(--agent-color)_30%,_var(--surface))] [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [line-height:1];
+}
+.tab-group-agent::before { content: attr(data-initial); }
+.tab-group-agent + .tab-group-agent { @apply [margin-left:-5px]; }
+.tab-group-agent[data-state="idle"] { @apply text-muted [background:color-mix(in_srgb,_var(--agent-color)_10%,_var(--surface))]; }
+.tab-group-agent[data-state="working"] { @apply [box-shadow:0_0_0_1.5px_var(--accent)]; }
+.tab-group-agent[data-state="needs-you"] { @apply [box-shadow:0_0_0_1.5px_var(--needs-you)]; }
+.tab-group-agent.more { @apply [width:auto] [min-width:18px] [padding:0_3px] text-muted [background:var(--surface)]; }
+@media (forced-colors: active) {
+  .tab-group-agent { @apply [border-color:Canvas] [background:Canvas] [color:CanvasText] [forced-color-adjust:none] [box-shadow:0_0_0_1px_CanvasText]; }
+  .tab-group-agent[data-state="working"], .tab-group-agent[data-state="needs-you"] { @apply [box-shadow:0_0_0_2px_Highlight]; }
 }
 /* A workspace an agent is waiting in stays amber while it is folded or the person works elsewhere. */
 .workspace-tab-section {

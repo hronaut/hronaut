@@ -1307,7 +1307,7 @@ export const deDE = {
       "pageAttention": "Seite erfordert Aufmerksamkeit",
       "agentAttention": "Agent benötigt Ihre Aufmerksamkeit",
       "needsYou": "Wartet auf Sie",
-      "followingAgent": "Folgt {name}",
+      "followingAgent": "Folgt {name}", "groupAgents": "Agenten hier: {agents}", "groupAgent": "{name} ({state})",
       "stayHere": "Hier bleiben",
       "stayHereDescription": "Agenten nicht mehr folgen und auf diesem Tab bleiben",
       "sleeping": "Ruhezustand zum Sparen von Ressourcen",

@@ -32,9 +32,11 @@ import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabGroupState, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
+import { agentAvatarColorHex, type AgentPresence, type HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { foldRailWorkspaces } from '../../../shared/workspace-rail.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
+import { useWorkspaceGroupAgents } from '../composables/useWorkspaceGroupAgents.js'
 import { vTooltip } from '../ui/tooltip.js'
 
 const props = defineProps<{
@@ -49,6 +51,8 @@ const props = defineProps<{
   railRevealed?: boolean
   forceRailCollapsed?: boolean
   mcpActivityByTab: Record<string, McpTabActivity>
+  /** The agents in each workspace; the shell's own presence channel when left out. */
+  presenceApi?: HronautAgentPresenceApi
   formatNumber: (value: number) => string
   tabTooltip: (tab: BrowserTabState) => string
   describeEmulation: (tab: BrowserTabState) => string
@@ -295,9 +299,21 @@ function tabGroupLabelName(workspace: BrowserTabGroupState): string {
   return workspaceNeedsYou(workspace.id) ? `${name}, ${t('shell.tabs.needsYou')}` : name
 }
 
+const AGENT_STATE_KEYS: Record<AgentPresence['state'], string> = { idle: 'idle', working: 'working', 'needs-you': 'needsYou' }
+
+function tabGroupAgentsDescription(workspaceId: string): string {
+  const agents = groupAgents.agents(workspaceId)
+  if (!agents.length) return ''
+  const names = agents.map((agent) => t('shell.tabs.groupAgent', {
+    name: agent.name || t('shell.agents.unnamed'),
+    state: t(`shell.agentCard.states.${AGENT_STATE_KEYS[agent.state]}`)
+  }))
+  return t('shell.tabs.groupAgents', { agents: names.join(', ') })
+}
+
 function tabGroupLabelDescription(workspace: BrowserTabGroupState): string | undefined {
   const reason = workspaceNeedsYou(workspace.id) && props.userAttention ? `${t('shell.tabs.agentAttention')}: ${props.userAttention.reason}` : ''
-  return [reason, workspace.description].filter(Boolean).join('\n\n') || undefined
+  return [reason, tabGroupAgentsDescription(workspace.id), workspace.description].filter(Boolean).join('\n\n') || undefined
 }
 
 function isTabGroupCollapsed(groupId: string): boolean {
@@ -428,6 +444,14 @@ function expandTabGroup(groupId: string): void {
   persistCollapsedTabGroups()
 }
 
+// A group opens by itself when an agent there starts working or waits for you, and shows those agents in its header.
+const groupAgents = useWorkspaceGroupAgents({
+  api: props.presenceApi ?? window.hronautAgentPresence,
+  workspaceIds: () => props.state.mcpTabGroups.map((group) => group.id),
+  needsYou: workspaceNeedsYou,
+  open: expandTabGroup
+})
+
 function expandTabGroupForTab(tab: BrowserTabState): void {
   if (tab.mcpGroupId) expandTabGroup(tab.mcpGroupId)
 }
@@ -553,6 +577,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  groupAgents.dispose()
   tabsStripResizeObserver?.disconnect()
 })
 
@@ -683,7 +708,19 @@ async function stopWorkerCapture(tabId: string): Promise<void> {
         <IconKeyboardArrowRight v-if="isTabGroupCollapsed(workspace.id)" aria-hidden="true" />
         <IconKeyboardArrowDown v-else aria-hidden="true" />
         <!-- The space keeps the visible name and count apart for label-in-name checks; inline-flex does not render it. -->
-        <span>{{ workspace.name }}</span> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
+        <span>{{ workspace.name }}</span> <span v-if="workspaceNeedsYou(workspace.id)" class="tab-group-needs-you">{{ t('shell.tabs.needsYou') }}</span>
+        <!-- The agents' names are in the header's description; the initials are drawn, not text, so the name matches the label. -->
+        <span v-if="groupAgents.agents(workspace.id).length" class="tab-group-agents" aria-hidden="true" data-testid="workspace-agents">
+          <span
+            v-for="agent in groupAgents.agents(workspace.id).slice(0, 3)"
+            :key="agent.clientKey"
+            class="tab-group-agent"
+            :data-state="agent.state"
+            :data-initial="agent.initial || '•'"
+            :style="{ '--agent-color': agentAvatarColorHex(agent.colorIndex) }"
+          />
+          <span v-if="groupAgents.agents(workspace.id).length > 3" class="tab-group-agent more" :data-initial="`+${formatNumber(groupAgents.agents(workspace.id).length - 3)}`" />
+        </span> <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
       <!-- Beside the header, not in it: the header is a button. -->
       <div v-if="followedWorkspaceId === workspace.id && state.agentFollow" class="tab-group-following" data-testid="workspace-following">
