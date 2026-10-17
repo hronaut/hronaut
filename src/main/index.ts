@@ -4526,6 +4526,10 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindow = null
   })
   const autoHideMenuGesture = createAutoHideMenuGesture(desktopWindowPlatform())
+  // Alt with a click, an Alt-drag of the window or a switch away from it is not Alt alone.
+  mainWindow.on('blur', autoHideMenuGesture.reset)
+  mainWindow.on('move', autoHideMenuGesture.reset)
+  mainWindow.webContents.on('blur', autoHideMenuGesture.reset)
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' || input.type === 'rawKeyDown') acknowledgeUserAttention()
     const menuGesture = autoHideMenuGesture(input)
@@ -4547,7 +4551,10 @@ async function createWindow(startMinimized = false): Promise<void> {
     }
   })
   mainWindow.webContents.on('before-mouse-event', (_event, mouse) => {
-    if (mouse.type === 'mouseDown' || mouse.type === 'contextMenu') acknowledgeUserAttention()
+    if (mouse.type === 'mouseDown' || mouse.type === 'contextMenu') {
+      acknowledgeUserAttention()
+      autoHideMenuGesture.reset()
+    }
   })
   mainWindow.webContents.on('did-finish-load', () => {
     applyInterfaceScale(settings.interfaceScale)

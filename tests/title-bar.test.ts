@@ -92,6 +92,25 @@ describe('hybrid title bar configuration', () => {
     expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('suppress')
   })
 
+  it.each(['linux', 'win32'] as const)('forgets an Alt press on %s after a click, an Alt-drag or a switch away', (platform) => {
+    const gesture = createAutoHideMenuGesture(platform)
+    expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
+    gesture.reset()
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('suppress')
+    expect(gesture({ type: 'keyDown', key: 'Alt' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt' })).toBe('toggle')
+  })
+
+  it.each(['linux', 'win32'] as const)('leaves AltGr to typing on %s: it shows no menu and its release goes through', (platform) => {
+    expect(isAutoHideMenuToggleInput(platform, { type: 'keyDown', key: 'AltGraph', code: 'AltRight' })).toBe(false)
+    const gesture = createAutoHideMenuGesture(platform)
+    expect(gesture({ type: 'keyDown', key: 'AltGraph', code: 'AltRight' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'AltGraph', code: 'AltRight' })).toBeUndefined()
+    // Right Alt on a layout without AltGr is still Alt.
+    expect(gesture({ type: 'keyDown', key: 'Alt', code: 'AltRight' })).toBeUndefined()
+    expect(gesture({ type: 'keyUp', key: 'Alt', code: 'AltRight' })).toBe('toggle')
+  })
+
   it('retains macOS traffic lights and enables the overlay safe-area APIs', () => {
     expect(mainWindowChromeOptions({
       platform: 'darwin',

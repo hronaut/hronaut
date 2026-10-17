@@ -136,15 +136,48 @@ describe('title bar presentation controller', () => {
     runFrames()
     expect(rightInset()).toBe('113px')
 
-    // Controls that really change, without a resize, apply on the next frame.
-    overlay.rect = new DOMRect(0, 0, 1_776, 44)
+    // Even a frame later the viewport can still have the old width. Narrowing, the area for the new width read against
+    // 1920 px would make the controls 593 px wide; that reading only counts if the next frame reads it again, and by
+    // then the viewport has caught up.
+    overlay.rect = new DOMRect(0, 0, 1_327, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(frames.size).toBe(1)
+    viewportWidth = 1_440
+    resizeTarget.dispatchEvent(new Event('resize'))
+    expect(rightInset()).toBe('113px')
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-width-runtime')).toBe('1327px')
+    expect(frames.size).toBe(0)
+
+    // A hidden overlay, as in full screen, reports an empty area; the controls keep their room.
+    overlay.visible = false
+    overlay.rect = new DOMRect(0, 0, 0, 0)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-width-runtime')).toBe('1327px')
+    overlay.visible = true
+    overlay.rect = new DOMRect(0, 0, 1_327, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    runFrames()
+    expect(rightInset()).toBe('113px')
+    expect(frames.size).toBe(0)
+
+    // Controls that really change, without a resize, apply once the next frame reads the same.
+    overlay.rect = new DOMRect(0, 0, 1_296, 44)
     overlay.dispatchEvent(new Event('geometrychange'))
     expect(rightInset()).toBe('113px')
     runFrames()
+    expect(rightInset()).toBe('113px')
+    runFrames()
     expect(rightInset()).toBe('144px')
+    expect(frames.size).toBe(0)
 
     // A frame still pending when presentation stops changes nothing.
-    overlay.rect = new DOMRect(0, 0, 1_200, 44)
+    overlay.rect = new DOMRect(0, 0, 1_000, 44)
     overlay.dispatchEvent(new Event('geometrychange'))
     controller.stop()
     expect(frames.size).toBe(0)

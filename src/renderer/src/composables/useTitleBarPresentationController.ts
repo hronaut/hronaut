@@ -55,6 +55,7 @@ export function createTitleBarPresentationController(
   let started = false
   let lastControlInsets: { left: number, right: number } | undefined
   let listenerDisposers: (() => void)[] = []
+  let candidateInsets: { left: number, right: number } | undefined
   let pendingFrame: number | undefined
 
   function clearRuntimeGeometry(): void {
@@ -63,6 +64,7 @@ export function createTitleBarPresentationController(
 
   function resetPresentation(): void {
     lastControlInsets = undefined
+    candidateInsets = undefined
     clearRuntimeGeometry()
   }
 
@@ -91,7 +93,9 @@ export function createTitleBarPresentationController(
    * the area for the new width comes before the viewport has it; widening, the viewport grows before the area. Read
    * together, either pair would make the controls seem to cover the whole difference and wrap the toolbar for a few
    * frames. So only the overlay's own report measures the controls, a frame later, once the resize that goes with it
-   * has landed (`fromOverlay`); a resize keeps the room they had.
+   * has landed (`fromOverlay`); a resize keeps the room they had. Even a frame later the two can still disagree, so a
+   * new size for the controls counts only once the next frame reads it again; until then they keep their room. While
+   * the overlay is hidden its area says nothing about the controls, so they keep the room they had then too.
    */
   function applyGeometry(fromOverlay: boolean): void {
     const overlay = environment.windowControlsOverlay
@@ -101,11 +105,22 @@ export function createTitleBarPresentationController(
     }
     const viewportWidth = environment.viewportWidth()
     let area = normalizeTitleBarArea(overlay.getTitlebarAreaRect(), viewportWidth)
-    if (
-      lastControlInsets
-      && (!fromOverlay || (area.leftInset === 0 && area.rightInset === 0))
-      && lastControlInsets.left + lastControlInsets.right < viewportWidth
-    ) {
+    const measured = { left: area.leftInset, right: area.rightInset }
+    if (fromOverlay && overlay.visible && (measured.left > 0 || measured.right > 0)) {
+      if (
+        !lastControlInsets
+        || !environment.requestFrame
+        || sameInsets(measured, lastControlInsets)
+        || (candidateInsets && sameInsets(measured, candidateInsets))
+      ) {
+        lastControlInsets = measured
+        candidateInsets = undefined
+      } else {
+        candidateInsets = measured
+        requestOverlayRead()
+      }
+    }
+    if (lastControlInsets && lastControlInsets.left + lastControlInsets.right < viewportWidth) {
       area = {
         ...area,
         x: lastControlInsets.left,
@@ -113,8 +128,6 @@ export function createTitleBarPresentationController(
         leftInset: lastControlInsets.left,
         rightInset: lastControlInsets.right
       }
-    } else if (fromOverlay && (area.leftInset > 0 || area.rightInset > 0)) {
-      lastControlInsets = { left: area.leftInset, right: area.rightInset }
     }
     environment.documentElement.style.setProperty('--titlebar-area-x-runtime', `${area.x}px`)
     environment.documentElement.style.setProperty('--titlebar-area-width-runtime', `${area.width}px`)
@@ -138,7 +151,11 @@ export function createTitleBarPresentationController(
       applyGeometry(true)
       return
     }
-    if (pendingFrame !== undefined) return
+    requestOverlayRead()
+  }
+
+  function requestOverlayRead(): void {
+    if (pendingFrame !== undefined || !environment.requestFrame) return
     pendingFrame = environment.requestFrame(() => {
       pendingFrame = undefined
       if (started) applyGeometry(true)
@@ -195,6 +212,10 @@ export function createTitleBarPresentationController(
   }
 
   return { overlayEnabled, syncGeometry, start, stop }
+}
+
+function sameInsets(a: { left: number, right: number }, b: { left: number, right: number }): boolean {
+  return a.left === b.left && a.right === b.right
 }
 
 export function useTitleBarPresentationController(windowChrome: WindowChromeState) {

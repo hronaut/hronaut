@@ -380,27 +380,37 @@ test('persists the system-title-bar fallback across restart on every platform', 
     await expect(restarted.window.locator('[data-titlebar-drag-surface]')).toHaveCount(0)
     await expect.poll(() => restarted.window.locator('.topbar').evaluate((element) => element.getBoundingClientRect().y)).toBe(0)
 
-    // The system title bar's auto-hidden menu bar appears when Alt alone is released and hides on the next, once each:
-    // Alt with a digit, a workspace key, shows nothing, and the native menu bar does not toggle a second time.
-    const menuBar = () => restarted.app.evaluate(({ BrowserWindow }) => (
-      BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')?.isMenuBarVisible()
-    ))
-    const press = (events: Array<{ type: 'keyDown' | 'keyUp'; keyCode: string; modifiers?: Array<'alt'> }>) => restarted.app.evaluate(({ BrowserWindow }, events) => {
-      const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
-      for (const event of events) main?.webContents.sendInputEvent(event)
-    }, events)
-    await expect.poll(menuBar).toBe(false)
-    await press([
-      { type: 'keyDown', keyCode: 'Alt' },
-      { type: 'keyDown', keyCode: '1', modifiers: ['alt'] },
-      { type: 'keyUp', keyCode: 'Alt' },
-      { type: 'keyUp', keyCode: '1' },
-      { type: 'keyDown', keyCode: 'Alt' },
-      { type: 'keyUp', keyCode: 'Alt' }
-    ])
-    await expect.poll(menuBar).toBe(true)
-    await press([{ type: 'keyDown', keyCode: 'Alt' }, { type: 'keyUp', keyCode: 'Alt' }])
-    await expect.poll(menuBar).toBe(false)
+    // Windows and Linux: the system title bar's auto-hidden menu bar appears when Alt alone is released and hides on
+    // the next, once each: Alt with a digit, a workspace key, or with a click shows nothing, and the native menu bar
+    // does not toggle a second time. macOS keeps its own menu bar.
+    if (process.platform !== 'darwin') {
+      const menuBar = () => restarted.app.evaluate(({ BrowserWindow }) => (
+        BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')?.isMenuBarVisible()
+      ))
+      type PressEvent =
+        | { type: 'keyDown' | 'keyUp'; keyCode: string; modifiers?: Array<'alt'> }
+        | { type: 'mouseDown' | 'mouseUp'; x: number; y: number; button: 'left'; clickCount: number; modifiers?: Array<'alt'> }
+      const press = (events: PressEvent[]) => restarted.app.evaluate(({ BrowserWindow }, events) => {
+        const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
+        for (const event of events) main?.webContents.sendInputEvent(event)
+      }, events)
+      await expect.poll(menuBar).toBe(false)
+      await press([
+        { type: 'keyDown', keyCode: 'Alt' },
+        { type: 'mouseDown', x: 4, y: 4, button: 'left', clickCount: 1, modifiers: ['alt'] },
+        { type: 'mouseUp', x: 4, y: 4, button: 'left', clickCount: 1, modifiers: ['alt'] },
+        { type: 'keyUp', keyCode: 'Alt' },
+        { type: 'keyDown', keyCode: 'Alt' },
+        { type: 'keyDown', keyCode: '1', modifiers: ['alt'] },
+        { type: 'keyUp', keyCode: 'Alt' },
+        { type: 'keyUp', keyCode: '1' },
+        { type: 'keyDown', keyCode: 'Alt' },
+        { type: 'keyUp', keyCode: 'Alt' }
+      ])
+      await expect.poll(menuBar).toBe(true)
+      await press([{ type: 'keyDown', keyCode: 'Alt' }, { type: 'keyUp', keyCode: 'Alt' }])
+      await expect.poll(menuBar).toBe(false)
+    }
 
     await restarted.window.getByRole('button', { name: 'Settings' }).click()
     await expect(restarted.window.getByRole('checkbox', { name: 'Use system title bar' })).toBeChecked()

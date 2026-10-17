@@ -16,27 +16,38 @@ interface MenuToggleInput {
   shift?: boolean
 }
 
+/** AltGr shares the right Alt key on many layouts, where it types characters; it never counts as Alt here. */
+function isAltKey(input: MenuToggleInput): boolean {
+  return input.key !== 'AltGraph' && (input.key === 'Alt' || input.code === 'AltLeft' || input.code === 'AltRight')
+}
+
 export function isAutoHideMenuToggleInput(
   platform: DesktopWindowPlatform,
   input: MenuToggleInput
 ): boolean {
   return platform !== 'darwin'
     && (input.type === 'keyDown' || input.type === 'rawKeyDown')
-    && (input.key === 'Alt' || input.code === 'AltLeft' || input.code === 'AltRight')
+    && isAltKey(input)
     && !input.control
     && !input.meta
     && !input.shift
+}
+
+export type AutoHideMenuGesture = ((input: MenuToggleInput & { isAutoRepeat?: boolean }) => 'suppress' | 'toggle' | undefined) & {
+  /** Forgets a pending Alt press, for a click or a window that lost focus or moved while Alt was down. */
+  reset: () => void
 }
 
 /**
  * Alt alone shows the auto-hidden menu when it is released, as native auto-hide menus do, so Alt held with another key
  * stays a shortcut. The press goes on to the window: Chromium drops the release of a key press held back in
  * `before-input-event`, so holding it back would leave nothing to show the menu on. Every Alt release is held back
- * instead, so the native auto-hide menu and the system menu never act on it as well.
+ * instead, so the native auto-hide menu and the system menu never act on it as well. Anything else done with Alt
+ * down, such as a click, an Alt-drag of the window or switching away from it, should call `reset`.
  */
-export function createAutoHideMenuGesture(platform: DesktopWindowPlatform): (input: MenuToggleInput & { isAutoRepeat?: boolean }) => 'suppress' | 'toggle' | undefined {
+export function createAutoHideMenuGesture(platform: DesktopWindowPlatform): AutoHideMenuGesture {
   let armed = false
-  return (input) => {
+  const gesture = (input: MenuToggleInput & { isAutoRepeat?: boolean }): 'suppress' | 'toggle' | undefined => {
     if (platform === 'darwin') return undefined
     if (input.type === 'keyDown' || input.type === 'rawKeyDown') {
       if (isAutoHideMenuToggleInput(platform, input)) {
@@ -46,11 +57,12 @@ export function createAutoHideMenuGesture(platform: DesktopWindowPlatform): (inp
       }
       return undefined
     }
-    if (input.type !== 'keyUp' || !(input.key === 'Alt' || input.code === 'AltLeft' || input.code === 'AltRight')) return undefined
+    if (input.type !== 'keyUp' || !isAltKey(input)) return undefined
     const toggle = armed
     armed = false
     return toggle ? 'toggle' : 'suppress'
   }
+  return Object.assign(gesture, { reset: () => { armed = false } })
 }
 
 export interface TitleBarOverlayStyle {
