@@ -52,6 +52,7 @@ All notable changes to Hronaut are documented in this file.
 - Notifications such as **Tab closed** with its **Undo** button now appear at the bottom of the page, centered over it, instead of across the top of the window, so they no longer cover tabs, toolbar buttons or the address field while they are showing. The same goes for Home, Settings and full-page view. While one is up you can keep typing in the address field, and after you click the notification, keyboard focus goes back to the page or field you were using.
 - Resizing Hronaut's window no longer makes the tab strip or the toolbar jump for a moment. The room kept for the window's own buttons, such as minimize, maximize and close, now stays the same while the window gets wider or narrower. Before, it briefly grew by the change in width, which could push the toolbar's commands onto a second row for a few frames.
 - In Polish, Russian and Ukrainian, counts in Hronaut's window now use the right word form, such as "1 вкладка", "2 вкладки", "5 вкладок" and "21 вкладка", instead of "1 вкладки" and "2 вкладок". Panels, Settings, the workspace switcher, Commands and other dialogs were affected; Home already counted correctly.
+- When an agent removed a page's viewport with `browser_resize` and `reset: true` right after setting a smaller one, it could get the old emulated size back, such as 600 × 360, on a busy computer. It now gets the size the page takes in its view, waiting up to a second for the page to catch up.
 
 ## [2.50.0] - 2026-10-16
 
