@@ -55,6 +55,8 @@ const panel = () => ({
   status: words(byId('claude-setup-status')),
   preview: !byId('claude-setup-preview').hidden
 })
+// The guides and the setup panel are on the Connect view; only the view on screen can take focus.
+const openConnect = () => byId<HTMLButtonElement>('home-tab-connect').click()
 const startButton = () => byId<HTMLButtonElement>('claude-setup-start')
 const applyButton = () => byId<HTMLButtonElement>('claude-setup-apply')
 const command = () => byId('guide-code').closest('pre')!
@@ -110,6 +112,7 @@ describe('Agents found on this computer (#874)', () => {
     const bridge = setupBridge(setupState('not-configured', ['opencode']))
     bridge.hold()
     await mountSetup(bridge)
+    openConnect()
     guideButton('opencode').focus()
     bridge.held[0]!.resolve(setupState('not-configured', ['opencode']))
     await flush()
@@ -207,6 +210,7 @@ describe('The Set up Claude Code panel (#874)', () => {
     const bridge = setupBridge(setupState('other-address'))
     bridge.prepareClaudeCodeSetup.mockResolvedValue(plan('plan-1', '{ "type": "http", "url": "http://127.0.0.1:9000/mcp" }'))
     await mountSetup(bridge)
+    openConnect()
     startButton().click()
     await flush()
     expect(words(byId('claude-setup-intro'))).toBe(`Hronaut will add this server to ${SETTINGS}:`)
@@ -278,6 +282,7 @@ describe('The panel\'s sequence guard (#874)', () => {
     const applied = deferred<ClaudeCodeSetupResult>()
     bridge.applyClaudeCodeSetup.mockReturnValueOnce(applied.promise)
     await mountSetup(bridge)
+    openConnect()
     startButton().click()
     await flush()
     applyButton().click()
@@ -317,6 +322,7 @@ describe('The panel\'s sequence guard (#874)', () => {
 describe('Focus after Apply (#874)', () => {
   async function previewed(bridge: ReturnType<typeof setupBridge>) {
     await mountSetup(bridge)
+    openConnect()
     startButton().click()
     await flush()
     expect(document.activeElement).toBe(applyButton())
