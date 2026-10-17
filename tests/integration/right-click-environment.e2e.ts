@@ -1,33 +1,14 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { HronautApi } from '../../src/shared/types.js'
 import { test, expect, text } from './capability-fixtures.js'
-
-type RightGate = { held: boolean; commands: string[]; release: () => void; restore: () => void }
-type RightScope = typeof globalThis & { rightClickGate?: RightGate }
+import { installRightClickGate, rightClickSettlement, type RightClickScope as RightScope } from './right-click-diagnostics.js'
 
 for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'pause-aba', 'global-pause-aba', 'access-aba', 'route', 'close', 'cancel', 'frame', 'global-lock-requests', 'cleanup-zoom-aba'] as const) {
   test(`right-click revalidates after viewport await: ${change}`, async ({ capabilities, electronApp, appWindow }, testInfo) => {
     const { client, tabId, fixtureUrl } = capabilities
     await appWindow.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabHumanInteractionLocked(id, true), tabId)
     await electronApp.evaluate(async ({ webContents }, url) => { await webContents.getAllWebContents().find(page => page.getURL() === url)!.executeJavaScript("document.body.innerHTML='<button id=target>Menu</button>';document.querySelector('button').oncontextmenu=e=>e.preventDefault();void 0") }, fixtureUrl)
-    await electronApp.evaluate(({ webContents }, { url, change }) => {
-      const page = webContents.getAllWebContents().find(p => p.getURL() === url)!
-      const original = page.debugger.sendCommand
-      let release!: () => void
-      const hold = new Promise<void>(resolve => { release = resolve })
-      const gate: RightGate = { held: false, commands: [], release, restore: () => { release(); if (!page.isDestroyed()) page.debugger.sendCommand = original } }
-      ;(globalThis as RightScope).rightClickGate = gate
-      page.debugger.sendCommand = async (method, ...args) => {
-        if (method === 'Input.dispatchMouseEvent') gate.commands.push(String((args[0] as Record<string, unknown>)?.type))
-        if (method === (change === 'cleanup-zoom-aba' ? 'Runtime.releaseObjectGroup' : 'Page.getLayoutMetrics') && !gate.held) {
-          const result = await original.call(page.debugger, method, ...args)
-          gate.held = true
-          await hold
-          return result
-        }
-        return original.call(page.debugger, method, ...args)
-      }
-    }, { url: fixtureUrl, change })
+    await electronApp.evaluate(installRightClickGate, { url: fixtureUrl, cleanup: change === 'cleanup-zoom-aba' })
     const transport = client.transport!
     const send = transport.send.bind(transport)
     let requestId: string | number | undefined
@@ -37,8 +18,14 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
     }
     const abort = new AbortController()
     let pending: Promise<CallToolResult> | undefined
+    let requestStartedAt: number | undefined
+    let settlement: Record<string, unknown> = { state: 'not-started' }
     try {
+      requestStartedAt = Date.now()
+      settlement = { at: requestStartedAt, state: 'pending' }
       pending = client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#target', native: true, button: 'right' } }, undefined, { signal: abort.signal }) as Promise<CallToolResult>
+      // Observe the original promise, including cancellation, without replacing it.
+      void pending.then(result => { settlement = rightClickSettlement(result) }, () => { settlement = { at: Date.now(), state: 'rejected' } })
       if (change === 'cancel') pending = pending.catch(() => ({ isError: true, content: [{ type: 'text', text: 'Client cancelled' }] }))
       await expect.poll(() => electronApp.evaluate(() => (globalThis as RightScope).rightClickGate!.held)).toBe(true)
       if (change === 'zoom-aba' || change === 'cleanup-zoom-aba') await appWindow.evaluate(async id => {
@@ -109,9 +96,21 @@ for (const change of ['unchanged', 'zoom-aba', 'selection-aba', 'bounds-aba', 'p
       expect(result.isError === true, text(result)).toBe(change !== 'unchanged')
       expect(commands).toEqual(change === 'unchanged' || change === 'cleanup-zoom-aba' ? ['mouseMoved', 'mousePressed', 'mouseReleased'] : ['mouseMoved'])
     } finally {
-      transport.send = send
-      await electronApp.evaluate(() => { (globalThis as RightScope).rightClickGate?.restore(); delete (globalThis as RightScope).rightClickGate }).catch(() => undefined)
-      await Promise.allSettled([pending].filter((p): p is Promise<CallToolResult> => p !== undefined))
+      try {
+        // Capture before releasing held work: cleanup must not turn a pending
+        // preparation into a misleading successful diagnostic outcome.
+        const gate = await electronApp.evaluate(() => {
+          const gate = (globalThis as RightScope).rightClickGate!
+          return { held: gate.held, events: gate.events, dropped: gate.dropped }
+        })
+        await testInfo.attach('right-click-pre-cleanup', {
+          body: JSON.stringify({ change, requestStartedAt, capturedAt: Date.now(), requestObserved: requestId !== undefined, settlement, gate }), contentType: 'application/json'
+        })
+      } finally {
+        transport.send = send
+        await electronApp.evaluate(() => { (globalThis as RightScope).rightClickGate?.restore(); delete (globalThis as RightScope).rightClickGate }).catch(() => undefined)
+        await Promise.allSettled([pending].filter((p): p is Promise<CallToolResult> => p !== undefined))
+      }
     }
   })
 }
