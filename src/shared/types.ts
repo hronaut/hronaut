@@ -2372,6 +2372,8 @@ export interface BrowserPdfOptions {
   filename?: string
   landscape?: boolean
   pageSize?: BrowserPdfPageSize
+  /** Adds Chromium's heading bookmarks, which need a tagged PDF. */
+  outline?: boolean
 }
 
 export interface BrowserPdfExport {

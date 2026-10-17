@@ -4828,7 +4828,9 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional(),
         filename: z.string().min(1).max(180).optional(),
         landscape: z.boolean().optional(),
-        pageSize: z.enum(['A4', 'Letter', 'Legal']).optional()
+        pageSize: z.enum(['A4', 'Letter', 'Legal']).optional(),
+        outline: z.boolean().optional()
+          .describe('Experimental: add bookmarks from the page headings. Makes a tagged PDF; off by default.')
       }
     },
     tabTool('browser_pdf_save', async ({ validateExport, ...options }: {
@@ -4836,6 +4838,7 @@ function createBrowserMcpServer(
       filename?: string
       landscape?: boolean
       pageSize?: 'A4' | 'Letter' | 'Legal'
+      outline?: boolean
       validateExport?: () => void
     }) => {
       if (!validateExport) throw new Error('PDF export authority is unavailable')
