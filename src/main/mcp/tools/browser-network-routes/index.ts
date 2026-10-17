@@ -4,10 +4,11 @@ import type { BrowserNetworkAbortReason } from '../../../../shared/types.js'
 import { networkRouteInputSchema } from '../../../browser/network-route-input.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import { type RequestConditionsSettlement, requestConditionsSettlement } from '../request-conditions-settlement.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 
 export function registerBrowserNetworkRoutes(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_network_routes',
     {
@@ -52,7 +53,7 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
       response?: { status?: number; headers?: Record<string, string>; body?: string }
       abort?: BrowserNetworkAbortReason
       throttle?: 'fast-4g' | 'slow-4g' | 'slow-3g'
-    }, call) => {
+    }, call: WorkspaceToolCall<RequestConditionsSettlement>) => {
       // Checks the call before each configuration step, and keeps the check for publication.
       const validateConditions = (): void => {
         const assert = (): void => {
@@ -62,13 +63,13 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
           if (call.authorityRejection()) throw new Error('Request-condition authority changed')
         }
         assert()
-        frameRequests.getStore()!.conditionPublication = assert
+        call.settlement.retainPublication(assert)
       }
-      const markConditionsSubmitted = (): void => { frameRequests.getStore()!.conditionAttempted = true }
+      const markConditionsSubmitted = call.settlement.markSubmitted
       validateConditions()
       const publish = (routes: import('../../../../shared/types.js').BrowserNetworkRouteSummary[]): CallToolResult => {
         const assert = manager.networkConditionPublication(tabId, routes)
-        frameRequests.getStore()!.conditionPublication = () => { validateConditions(); assert() }
+        call.settlement.retainPublication(() => { validateConditions(); assert() })
         return textResult(routes)
       }
       try {
@@ -96,6 +97,7 @@ export function registerBrowserNetworkRoutes(context: McpToolContext): void {
           nextAction: 'Explicitly clear conditions to recover. Future matching requests may reach their normal destination. Already-dispatched effects cannot be undone.' }
         return { ...textResult(outcome), structuredContent: outcome, isError: true }
       }
-    })
+    }),
+    { settlement: input => requestConditionsSettlement(false, input) }
   )
 }
