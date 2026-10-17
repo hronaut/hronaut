@@ -598,7 +598,7 @@
 .browser-lock-button.locked {
   @apply [color:#9a5b00] [border-color:color-mix(in_srgb,_#e49a32_55%,_var(--border-soft))] [background:color-mix(in_srgb,_#e49a32_18%,_var(--surface-muted))];
 }
-:root:not([data-theme="light"]) .browser-lock-button.locked { @apply [color:#ffc56e]; }
+:root:not([data-theme="light"], [data-theme="sepia"]) .browser-lock-button.locked { @apply [color:#ffc56e]; }
 .browser-lock-button.follow-agent-button.active {
   @apply text-accent-copy [border-color:color-mix(in_srgb,_var(--accent)_60%,_var(--border-soft))] [background:color-mix(in_srgb,_var(--accent)_22%,_var(--surface-muted))];
 }
@@ -632,13 +632,13 @@
 .mcp-controls.starting .status-dot { @apply [background:#4f8cff] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#4f8cff_16%,_transparent)] [animation:mcp-status-pulse_1.2s_ease-in-out_infinite]; }
 .mcp-controls.paused { @apply [border-color:color-mix(in_srgb,_#e49a32_55%,_var(--border-soft))] [background:color-mix(in_srgb,_#e49a32_14%,_var(--surface-muted))]; }
 .mcp-controls.paused .mcp-pill, .mcp-controls.paused .mcp-pause-button { @apply [color:#9a5b00]; }
-:root:not([data-theme="light"]) .mcp-controls.paused .mcp-pill,
-:root:not([data-theme="light"]) .mcp-controls.paused .mcp-pause-button { @apply [color:#ffc56e]; }
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.paused .mcp-pill,
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.paused .mcp-pause-button { @apply [color:#ffc56e]; }
 .mcp-controls.paused .status-dot { @apply [background:#e49a32] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#e49a32_16%,_transparent)]; }
 .mcp-controls.error { @apply [border-color:color-mix(in_srgb,_#df4b5f_62%,_var(--border-soft))] [background:color-mix(in_srgb,_#df4b5f_12%,_var(--surface-muted))]; }
 .mcp-controls.error .mcp-pill, .mcp-controls.error .mcp-pause-button { @apply [color:#b41f39]; }
-:root:not([data-theme="light"]) .mcp-controls.error .mcp-pill,
-:root:not([data-theme="light"]) .mcp-controls.error .mcp-pause-button { @apply [color:#ff8797]; }
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.error .mcp-pill,
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.error .mcp-pause-button { @apply [color:#ff8797]; }
 .mcp-controls.needs-you .status-dot { @apply [background:var(--needs-you)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--needs-you)_18%,_transparent)]; }
 .mcp-controls.error .status-dot { @apply [background:#df4b5f] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#df4b5f_18%,_transparent)]; }
 .status-dot { @apply [width:7px] [height:7px] rounded-full [background:var(--success)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--success)_14%,_transparent)]; }

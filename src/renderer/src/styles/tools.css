@@ -73,7 +73,7 @@
 .site-data-summary strong { @apply [font-size:var(--type-title-size)] [line-height:1] [font-variant-numeric:tabular-nums]; }
 .site-data-summary small { @apply overflow-hidden text-muted [font-size:var(--type-small-size)] [line-height:1.3] text-ellipsis whitespace-nowrap; }
 .site-data-summary[aria-busy="true"] { @apply [opacity:.62]; }
-.site-controls-error { @apply block [padding:9px_14px_0] [color:#d9534f] [font-size:var(--type-small-size)]; }
+.site-controls-error { @apply block [padding:9px_14px_0] [color:var(--danger)] [font-size:var(--type-small-size)]; }
 .site-permission-controls { @apply [padding:13px_14px_14px]; }
 .site-controls-section-heading { @apply flex items-center justify-between [gap:12px]; }
 .site-controls-section-heading strong { @apply [font-size:var(--type-body-size)]; }
@@ -100,7 +100,7 @@
 }
 .interaction-lock-button:hover:not(:disabled, [aria-pressed="true"]) { @apply text-copy bg-hover; }
 .interaction-lock-button.locked { @apply [color:#9a5b00] [background:color-mix(in_srgb,_#e49a32_18%,_var(--surface-muted))]; }
-:root:not([data-theme="light"]) .interaction-lock-button.locked { @apply [color:#ffc56e]; }
+:root:not([data-theme="light"], [data-theme="sepia"]) .interaction-lock-button.locked { @apply [color:#ffc56e]; }
 .interaction-lock-button:disabled { @apply [opacity:0.52] cursor-default; }
 .shell.all-human-interaction-locked .all-lock-button {
   @apply [box-shadow:0_0_0_3px_color-mix(in_srgb,_#e49a32_14%,_transparent)];
@@ -115,7 +115,7 @@
 .page-problem-mark {
   @apply grid [width:34px] [height:34px] place-items-center [border-radius:var(--corner-2)] [color:#c83f4d] [background:color-mix(in_srgb,_#d9534f_13%,_var(--surface))];
 }
-:root:not([data-theme="light"]) .page-problem-mark { @apply [color:#ff8797]; }
+:root:not([data-theme="light"], [data-theme="sepia"]) .page-problem-mark { @apply [color:#ff8797]; }
 .page-problem-mark svg { @apply [width:20px] [height:20px]; }
 .page-problem-copy { @apply flex min-w-0 [align-items:baseline] [gap:8px]; }
 .page-problem-copy strong { @apply flex-none [font-size:var(--type-body-size)]; }

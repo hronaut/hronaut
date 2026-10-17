@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { PAGE_CARD_RADIUS } from '../src/shared/page-card.js'
 import { RESOLVED_THEME_NAMES } from '../src/shared/theme.js'
 
 const rendererRoot = fileURLToPath(new URL('../src/renderer/src/', import.meta.url))
@@ -29,10 +30,34 @@ function themeTokens(theme: string): Map<string, string> {
   return values
 }
 
+/** The CSS of a stylesheet, or of a component's `<style>` blocks, without comments. */
+function styleSource(path: string): string {
+  const source = readFileSync(path, 'utf8')
+  const css = path.endsWith('.vue') ? [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gu)].map(([, block]) => block).join('\n') : source
+  return css.replace(/\/\*[\s\S]*?\*\//gu, '')
+}
+
 /** Rules in renderer styles whose selector names a theme, as `path: selector { body }`. */
 function themeScopedRules(): string[] {
-  return stylesheets().flatMap((path) => [...readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//gu, '').matchAll(/([^{}]*data-theme="[^"]+"[^{}]*)\{([^{}]*)\}/gu)]
+  return stylesheets().flatMap((path) => [...styleSource(path).matchAll(/([^{};]*data-theme=["']?[\w-]+["']?[^{};]*)\{([^{}]*)\}/gu)]
     .map(([, selector, body]) => `${path.slice(rendererRoot.length)}: ${selector!.trim()} {${body}}`))
+}
+
+/** CIE76 distance between two colors: under about 20, two status colors read as one. */
+function distance(first: string, second: string): number {
+  const lab = (hex: string) => {
+    const [red, green, blue] = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+    const f = (value: number) => value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116
+    const [x, y, z] = [
+      f((red! * 0.4124 + green! * 0.3576 + blue! * 0.1805) / 0.95047),
+      f(red! * 0.2126 + green! * 0.7152 + blue! * 0.0722),
+      f((red! * 0.0193 + green! * 0.1192 + blue! * 0.9505) / 1.08883)
+    ]
+    return [116 * y - 16, 500 * (x - y), 200 * (y - z)]
+  }
+  const [a, b] = [lab(first), lab(second)]
+  return Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!)
 }
 
 const surfaces = ['--surface', '--surface-raised', '--surface-muted', '--toolbar', '--shell-top', '--hover'] as const
@@ -115,23 +140,37 @@ describe('design tokens v2', () => {
         check('--accent', surface, 3)
       }
       check('--button-text', '--accent', 4.5)
+      // Amber belongs to states that need the person; a warning must not pass for one.
+      const apart = distance(values.get('--warning')!, values.get('--needs-you')!)
+      if (apart < 20) failures.push(`${theme}: --warning is ${apart.toFixed(1)} from --needs-you, under 20`)
     }
     expect(failures).toEqual([])
+  })
+
+  it('keeps colors meant for the dark themes off Sepia, which is a light theme', () => {
+    const offenders = stylesheets().flatMap((path) => [...styleSource(path).matchAll(/:root:not\(([^)]*)\)/gu)]
+      .filter(([, excluded]) => excluded!.includes('data-theme="light"') && !excluded!.includes('data-theme="sepia"'))
+      .map(([match]) => `${path.slice(rendererRoot.length)}: ${match}`))
+    expect(offenders).toEqual([])
+  })
+
+  it('rounds the page card exactly as main rounds the live page, in every theme', () => {
+    for (const theme of RESOLVED_THEME_NAMES) expect(themeTokens(theme).get('--page-card-radius'), theme).toBe(`${PAGE_CARD_RADIUS}px`)
   })
 
   it('lets a theme change its corners only through the corner tokens', () => {
     const scale = (theme: string) => [1, 2, 3, 4].map((step) => themeTokens(theme).get(`--corner-${step}`))
     for (const theme of RESOLVED_THEME_NAMES) {
       // Cyberpunk Turbo's hard edges; every other theme keeps the shared scale.
-      expect(scale(theme), theme).toEqual(theme === 'cyberpunk-turbo' ? ['3px', '4px', '4px', '4px'] : ['6px', '9px', '12px', '16px'])
+      expect(scale(theme), theme).toEqual(theme === 'cyberpunk-turbo' ? ['4px', '4px', '4px', '4px'] : ['6px', '9px', '12px', '16px'])
       expect(themeTokens(theme).get('--corner-pill'), theme).toBe('999px')
     }
     // A per-component radius list misses every surface added later, such as Home and the page card.
-    expect(themeScopedRules().filter((rule) => /radius/u.test(rule))).toEqual([])
+    expect(themeScopedRules().filter((rule) => /radius|(?<![\w-])rounded(?:-|\b)/u.test(rule))).toEqual([])
   })
 
   it('keeps theme decorations still while nothing happens', () => {
-    expect(themeScopedRules().filter((rule) => /animation|transition/u.test(rule))).toEqual([])
+    expect(themeScopedRules().filter((rule) => /animation|(?<![\w-])animate-|transition/u.test(rule))).toEqual([])
     expect(stylesheets().filter((path) => /@keyframes matrix-scan/u.test(readFileSync(path, 'utf8')))).toEqual([])
   })
 
@@ -148,7 +187,7 @@ describe('design tokens v2', () => {
       .map((line) => `${path.slice(rendererRoot.length)}: ${line.trim().slice(0, 80)}`))
     expect(bare).toEqual([])
     // Theme flourishes on single dialogs miss the dialogs added since; overlays take them from the tokens.
-    expect(themeScopedRules().filter((rule) => /box-shadow|border-color/u.test(rule))).toEqual([])
+    expect(themeScopedRules().filter((rule) => /shadow|(?<![\w-])ring(?:-|\b)|border(?:-color)?[:[]|(?<![\w-])border-(?!radius)[a-z]/u.test(rule))).toEqual([])
   })
 
   it('keeps elevation shadows neutral in every theme', () => {
