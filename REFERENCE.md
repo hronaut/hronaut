@@ -60,7 +60,7 @@ Open **Settings** from the gear button in the top strip. Hronaut includes ten ap
 - **Machine** for an industrial red and graphite browser shell.
 - **Galactic** for a space-inspired violet and blue browser shell.
 
-The selected theme is applied immediately and survives application restarts. System mode keeps Hronaut's renderer, native menus, and window background aligned with Electron's current operating-system theme. A fixed theme changes Hronaut's controls and native color preference without injecting styles into websites.
+Each theme is one set of design tokens (colors, plus Cyberpunk Turbo's hard corners and the glowing overlay edges of Cyberpunk and Turbo) on the same layout, so Home, dialogs, panels and menus all follow it; theme backgrounds stay still while nothing happens, and text, status colors and the accent keep WCAG contrast (4.5:1 for text, 3:1 for the accent) on every surface. The selected theme is applied immediately and survives application restarts. System mode keeps Hronaut's renderer, native menus, and window background aligned with Electron's current operating-system theme. A fixed theme changes Hronaut's controls and native color preference without injecting styles into websites.
 
 ### The page in the window
 

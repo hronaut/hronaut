@@ -2,7 +2,7 @@
   @apply items-start justify-center [padding:16px];
 }
 .tab-search-panel {
-  @apply flex [width:calc(100vw_-_32px)] [height:calc(100vh_-_32px)] [max-height:none] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] [outline:0] bg-surface-raised [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply flex [width:calc(100vw_-_32px)] [height:calc(100vh_-_32px)] [max-height:none] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] [outline:0] bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
 .tab-search-panel.tab-search-sparse { max-width: 1120px; }
 .tab-search-panel.tab-search-single { max-width: 960px; }
@@ -175,7 +175,7 @@
 }
 
 .downloads-panel {
-  @apply absolute [z-index:30] [top:calc(100%_+_8px)] [right:12px] flex [width:min(410px,_calc(100vw_-_24px))] [max-height:min(470px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply absolute [z-index:30] [top:calc(100%_+_8px)] [right:12px] flex [width:min(410px,_calc(100vw_-_24px))] [max-height:min(470px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
 .downloads-panel > header {
   @apply flex [min-height:68px] items-center justify-between [gap:16px] [padding:13px_14px_12px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface;
@@ -236,7 +236,7 @@
 .bookmarks-button.bookmarked { @apply [color:#b97900] [background:color-mix(in_srgb,_#f5b82e_15%,_transparent)]; }
 :root:not([data-theme="light"]) .bookmarks-button.bookmarked { @apply [color:#ffd66c]; }
 .bookmarks-panel {
-  @apply absolute [z-index:30] [top:calc(100%_+_8px)] [right:12px] flex [width:min(440px,_calc(100vw_-_24px))] [max-height:min(520px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply absolute [z-index:30] [top:calc(100%_+_8px)] [right:12px] flex [width:min(440px,_calc(100vw_-_24px))] [max-height:min(520px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
 .bookmarks-panel > header {
   @apply flex [min-height:68px] flex-none items-center justify-between [gap:16px] [padding:13px_14px_12px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface;
@@ -287,7 +287,7 @@
 .bookmarks-error { @apply m-0 [padding:9px_14px] [border-top:1px_solid_rgba(217,_83,_79,_.28)] [color:#b62828] [background:rgba(217,_83,_79,_.08)] [font-size:var(--type-small-size)] [line-height:1.4]; }
 
 .history-panel {
-  @apply absolute [z-index:30] [top:calc(100%_+_8px)] [right:12px] flex [width:min(500px,_calc(100vw_-_24px))] [max-height:min(560px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply absolute [z-index:30] [top:calc(100%_+_8px)] [right:12px] flex [width:min(500px,_calc(100vw_-_24px))] [max-height:min(560px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
 .history-panel > header {
   @apply flex [min-height:68px] flex-none items-center justify-between [gap:16px] [padding:13px_14px_12px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface;
@@ -339,7 +339,7 @@
 .history-error { @apply m-0 [padding:9px_14px] [border-top:1px_solid_rgba(217,_83,_79,_.28)] [color:#b62828] [background:rgba(217,_83,_79,_.08)] [font-size:var(--type-small-size)] [line-height:1.4]; }
 
 .site-storage-panel {
-  @apply absolute [z-index:32] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(650px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply absolute [z-index:32] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(650px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
 .site-storage-panel > header { @apply flex [min-height:68px] flex-none items-center justify-between [gap:16px] [padding:13px_14px_12px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface; }
 .site-storage-panel h2 { @apply [margin:3px_0_0] overflow-hidden [font-size:var(--type-heading-size)] [line-height:1.15] text-ellipsis whitespace-nowrap; }
@@ -533,7 +533,7 @@
 .pwa-caveats { @apply [max-height:110px] overflow-y-auto; }
 
 .tab-group-editor-overlay { @apply fixed [z-index:110] inset-0 grid place-items-center [padding:24px] [background:rgba(7,_7,_12,_.62)] [backdrop-filter:blur(6px)]; }
-.tab-group-editor { @apply flex [width:min(620px,_calc(100vw_-_48px))] [max-height:min(760px,_calc(100vh_-_48px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--elevation-3)]; }
+.tab-group-editor { @apply flex [width:min(620px,_calc(100vw_-_48px))] [max-height:min(760px,_calc(100vh_-_48px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)]; }
 .tab-group-editor > header { @apply flex items-center justify-between [gap:12px] [padding:14px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface; }
 .tab-group-editor h2 { @apply [margin:3px_0_0] [font-size:var(--type-heading-size)]; }
 .workspace-editor-header-actions { @apply flex min-w-0 items-center [gap:10px]; }

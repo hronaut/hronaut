@@ -42,11 +42,11 @@ button { @apply [font:inherit]; }
   @apply overflow-x-hidden;
   @apply overflow-y-auto;
   @apply flex-col;
-  @apply [border:1px_solid_var(--border)];
+  @apply [border:1px_solid_var(--overlay-border)];
   @apply [border-radius:var(--corner-3)];
   @apply text-copy;
   @apply bg-surface-raised;
-  @apply [box-shadow:var(--elevation-3)];
+  @apply [box-shadow:var(--overlay-ring),_var(--elevation-3)];
   @apply [user-select:text];
 }
 

@@ -57,7 +57,7 @@
   --radius-4: var(--corner-4);
   --shadow-e1: var(--elevation-1);
   --shadow-e2: var(--elevation-2);
-  --shadow-e3: var(--elevation-3);
+  --shadow-e3: var(--overlay-ring), var(--elevation-3);
   --ease-glide: var(--motion-ease-out);
   --ease-spring: var(--motion-ease-spring);
 }

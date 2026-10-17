@@ -15,18 +15,27 @@ function stylesheets(directory = rendererRoot): string[] {
   })
 }
 
-/** Declarations that apply to one theme's root, in cascade order. */
+/** Declarations that apply to one theme's root, in cascade order: `:root` rules first, then the theme's more specific ones. */
 function themeTokens(theme: string): Map<string, string> {
   const values = new Map<string, string>()
   // Media-query overrides, such as reduced motion, are not the theme's own values.
   const unconditional = tokens.replace(/@media[^{]+\{[\s\S]*?\n\}/gu, '')
-  for (const [, selector, body] of unconditional.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
-    const selectors = selector!.split(',').map((entry) => entry.trim())
-    if (!selectors.includes(':root') && !selectors.includes(`:root[data-theme="${theme}"]`)) continue
-    for (const [, name, value] of body!.matchAll(/(--[\w-]+):\s*([^;]+);/gu)) values.set(name!, value!.trim())
+  for (const target of [':root', `:root[data-theme="${theme}"]`]) {
+    for (const [, selector, body] of unconditional.matchAll(/([^{}]+)\{([^{}]*)\}/gu)) {
+      if (!selector!.split(',').map((entry) => entry.trim()).includes(target)) continue
+      for (const [, name, value] of body!.matchAll(/(--[\w-]+):\s*([^;]+);/gu)) values.set(name!, value!.trim())
+    }
   }
   return values
 }
+
+/** Rules in renderer styles whose selector names a theme, as `path: selector { body }`. */
+function themeScopedRules(): string[] {
+  return stylesheets().flatMap((path) => [...readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//gu, '').matchAll(/([^{}]*data-theme="[^"]+"[^{}]*)\{([^{}]*)\}/gu)]
+    .map(([, selector, body]) => `${path.slice(rendererRoot.length)}: ${selector!.trim()} {${body}}`))
+}
+
+const surfaces = ['--surface', '--surface-raised', '--surface-muted', '--toolbar', '--shell-top', '--hover'] as const
 
 function luminance(hex: string): number {
   const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255)
@@ -78,7 +87,7 @@ describe('design tokens v2', () => {
       const values = themeTokens(theme)
       const amber = values.get('--needs-you')
       expect(amber, theme).toMatch(/^#[0-9a-f]{6}$/u)
-      for (const surface of ['--surface', '--surface-raised', '--surface-muted', '--toolbar', '--shell-top', '--hover']) {
+      for (const surface of surfaces) {
         const background = values.get(surface)
         expect(background, `${theme} ${surface}`).toMatch(/^#[0-9a-f]{6}$/u)
         expect(contrast(amber!, background!), `${theme} ${surface}`).toBeGreaterThanOrEqual(4.5)
@@ -86,6 +95,60 @@ describe('design tokens v2', () => {
       }
       expect(values.get('--connected')).toBe('var(--success)')
     }
+  })
+
+  it('keeps text, status and accent colors readable on every surface of every theme', () => {
+    const failures: string[] = []
+    for (const theme of RESOLVED_THEME_NAMES) {
+      const values = themeTokens(theme)
+      const check = (foreground: string, background: string, minimum: number) => {
+        const [front, back] = [values.get(foreground), values.get(background)]
+        expect(front, `${theme} ${foreground}`).toMatch(/^#[0-9a-f]{6}$/u)
+        expect(back, `${theme} ${background}`).toMatch(/^#[0-9a-f]{6}$/u)
+        const ratio = contrast(front!, back!)
+        if (ratio < minimum) failures.push(`${theme}: ${foreground} on ${background} is ${ratio.toFixed(2)}:1, under ${minimum}:1`)
+      }
+      for (const surface of surfaces) {
+        // Body, secondary and status text, including success and warning messages.
+        for (const text of ['--text', '--muted', '--accent-text', '--danger', '--success', '--warning']) check(text, surface, 4.5)
+        // The accent marks selection and focus rather than carrying text.
+        check('--accent', surface, 3)
+      }
+      check('--button-text', '--accent', 4.5)
+    }
+    expect(failures).toEqual([])
+  })
+
+  it('lets a theme change its corners only through the corner tokens', () => {
+    const scale = (theme: string) => [1, 2, 3, 4].map((step) => themeTokens(theme).get(`--corner-${step}`))
+    for (const theme of RESOLVED_THEME_NAMES) {
+      // Cyberpunk Turbo's hard edges; every other theme keeps the shared scale.
+      expect(scale(theme), theme).toEqual(theme === 'cyberpunk-turbo' ? ['3px', '4px', '4px', '4px'] : ['6px', '9px', '12px', '16px'])
+      expect(themeTokens(theme).get('--corner-pill'), theme).toBe('999px')
+    }
+    // A per-component radius list misses every surface added later, such as Home and the page card.
+    expect(themeScopedRules().filter((rule) => /radius/u.test(rule))).toEqual([])
+  })
+
+  it('keeps theme decorations still while nothing happens', () => {
+    expect(themeScopedRules().filter((rule) => /animation|transition/u.test(rule))).toEqual([])
+    expect(stylesheets().filter((path) => /@keyframes matrix-scan/u.test(readFileSync(path, 'utf8')))).toEqual([])
+  })
+
+  it('draws every top-level overlay with the theme\'s overlay edge', () => {
+    const light = themeTokens('light')
+    expect(light.get('--overlay-border')).toBe('var(--border)')
+    expect(light.get('--overlay-ring')).toBe('0 0 0 0 transparent')
+    expect(themeTokens('cyberpunk').get('--overlay-border')).toBe('#78309b')
+    expect(themeTokens('cyberpunk').get('--overlay-ring')).toBe('0 0 0 1px rgba(0, 245, 255, 0.16)')
+    expect(themeTokens('cyberpunk-turbo').get('--overlay-ring')).toBe('0 0 16px rgba(255, 77, 227, 0.1)')
+    const bare = stylesheets().flatMap((path) => [...readFileSync(path, 'utf8').matchAll(/[^\n]*var\(--elevation-3\)[^\n]*/gu)]
+      .map(([line]) => line!)
+      .filter((line) => !/var\(--overlay-ring\),_?\s?var\(--elevation-3\)/u.test(line))
+      .map((line) => `${path.slice(rendererRoot.length)}: ${line.trim().slice(0, 80)}`))
+    expect(bare).toEqual([])
+    // Theme flourishes on single dialogs miss the dialogs added since; overlays take them from the tokens.
+    expect(themeScopedRules().filter((rule) => /box-shadow|border-color/u.test(rule))).toEqual([])
   })
 
   it('keeps elevation shadows neutral in every theme', () => {

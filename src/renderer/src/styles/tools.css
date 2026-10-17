@@ -1,6 +1,6 @@
 .page-tools-panel {
   container: page-tools / inline-size;
-  @apply absolute [z-index:49] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(680px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply absolute [z-index:49] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(680px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
 .page-tools-panel > header {
   @apply flex [min-height:68px] flex-none items-center justify-between [gap:16px] [padding:14px_18px] bg-surface;
@@ -57,7 +57,7 @@
 }
 
 .site-controls-panel {
-  @apply absolute [z-index:46] [top:calc(100%_+_7px)] [left:-1px] [width:min(420px,_calc(100vw_-_24px))] [max-height:min(590px,_calc(100vh_-_130px))] overflow-x-hidden overflow-y-auto [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--elevation-3)] text-left [user-select:text];
+  @apply absolute [z-index:46] [top:calc(100%_+_7px)] [left:-1px] [width:min(420px,_calc(100vw_-_24px))] [max-height:min(590px,_calc(100vh_-_130px))] overflow-x-hidden overflow-y-auto [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] text-left [user-select:text];
 }
 .site-controls-panel > header { @apply grid [min-height:70px] items-center [gap:11px] [padding:12px_12px_12px_14px] [border-bottom:1px_solid_var(--border-soft)] [grid-template-columns:36px_minmax(0,_1fr)_auto]; }
 .site-controls-mark { @apply grid [width:36px] [height:36px] place-items-center [border-radius:var(--corner-2)] text-accent-copy bg-accent-soft; }
@@ -167,7 +167,7 @@
 .zoom-bar .zoom-reset { @apply [min-width:54px] text-accent-copy [font-weight:var(--weight-strong)]; }
 
 .accessibility-panel {
-  @apply absolute [z-index:48] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(680px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--elevation-3)] [user-select:text];
+  @apply absolute [z-index:48] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(680px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
 }
 .accessibility-panel > header {
   @apply flex [min-height:68px] flex-none items-center justify-between [gap:16px] [padding:13px_14px_12px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface;
