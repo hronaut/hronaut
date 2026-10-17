@@ -16,6 +16,19 @@ files:
 asar: true
 npmRebuild: false
 
+# Electron Fuses, flipped in the packaged binary before signing (https://www.electronjs.org/docs/latest/tutorial/fuses).
+# Hronaut never runs its executable as Node, never needs NODE_OPTIONS or the Node inspector in a packaged build, and loads
+# its code only from app.asar, which macOS and Windows now check against the hash electron-builder records. Builds are
+# not code-signed yet, so the Apple Silicon binary gets a fresh ad-hoc signature after the flip. The manual native
+# preflights turn the inspector back on for their own candidate, because Playwright drives the packaged app through it.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  resetAdHocDarwinSignature: true
+
 win:
   executableName: Hronaut
   icon: build/icon.png
