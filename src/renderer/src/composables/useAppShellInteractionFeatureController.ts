@@ -156,6 +156,8 @@ export interface AppShellInteractionFeatureControllerOptions {
     help: HelpSurface
     releaseHistory: ToggleSurface
     walletApproval: Readonly<Ref<boolean>>
+    /** An agent's "All steps". */
+    agentSteps: ToggleSurface
     siteStorage: Ref<boolean>
     siteControls: Ref<boolean>
     addressSuggestions: Ref<boolean>
@@ -346,6 +348,7 @@ export function useAppShellInteractionFeatureController(
     commandPalette: transient.commandPaletteOpen,
     modals: {
       walletApproval: { open: surfaces.walletApproval, close: () => undefined },
+      agentSteps: surfaces.agentSteps,
       workspaceEditor: { open: transient.workspaceEditorOpen, close: transient.closeWorkspace },
       credentialPicker: transient.credentialPickerOpen,
       releaseHistory: surfaces.releaseHistory,

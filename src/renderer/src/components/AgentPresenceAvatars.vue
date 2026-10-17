@@ -41,6 +41,8 @@ const props = withDefaults(defineProps<{
   showCursor?: boolean
   /** The live status strip is pinned below the toolbar. */
   pinLiveStatus?: boolean
+  /** The shell can show all of an agent's steps; the card then offers "All steps". */
+  allSteps?: boolean
   agentControlLocked?: boolean
   /** The agent you can take over from, or whose tab you have, when the toolbar has no room to say so. */
   takeOverBadge?: { clientKey: string; kind: 'offer' | 'control' }
@@ -63,6 +65,8 @@ const emit = defineEmits<{
   answerAttention: [id: string, answer: 'resolved' | 'dismissed']
   /** Open the workspace where its waiting decisions are reviewed. */
   reviewDecision: [workspaceId: string]
+  /** Show all of this agent's steps in this workspace. */
+  showSteps: [clientKey: string, workspaceId: string]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -193,6 +197,7 @@ const card = useAgentCard({
       follow: props.follow === true,
       showCursor: props.showCursor,
       pinLiveStatus: props.pinLiveStatus === true,
+      allSteps: props.allSteps === true,
       ...(tab ? { tab } : {}),
       tabInView: tab?.id === props.activeTabId,
       agentControlLocked: props.agentControlLocked === true,
@@ -257,6 +262,12 @@ function run(clientKey: string, action: AgentCardAction, key?: string, note?: st
   }
   if (action === 'pin-on' || action === 'pin-off') {
     emit('setPinLiveStatus', action === 'pin-on')
+    return
+  }
+  if (action === 'all-steps') {
+    // The steps open over the page, so the card makes way.
+    card.close()
+    if (agent && !gone(agent) && props.allSteps && props.workspaceId) emit('showSteps', clientKey, props.workspaceId)
     return
   }
   if (action === 'hand-back' || action === 'dismiss' || action === 'review-decision') {

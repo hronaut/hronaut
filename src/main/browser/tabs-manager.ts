@@ -74,6 +74,7 @@ import {
 } from '../../shared/browser-reconciliation.js'
 import { readBrowserPostcondition, type PostconditionReadResult } from '../mcp/post-write-browser-read.js'
 import { compareWorkspaceContinuity } from '../mcp/workspace-continuity.js'
+import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
 import { suggestWorkspaceName } from '../../shared/workspace-names.js'
@@ -485,6 +486,9 @@ const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
 const MAX_TAB_OVERVIEW_PAGE_BYTES = 4 * 1024 * 1024
 const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
 const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
+const MAX_AGENT_STEP_THUMBNAIL_WIDTH = 320
+const MAX_AGENT_STEP_THUMBNAIL_HEIGHT = 200
+const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
 const MAX_STORAGE_KEY_CHARS = 512
 const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
 const MIN_SHELL_HEIGHT = 44
@@ -1720,6 +1724,49 @@ export class BrowserTabsManager {
       previews.push({ ...preview })
     }
     return previews
+  }
+
+  /**
+   * A small picture of a tab after an agent's step, for the shell's "All steps". Only a tab already on screen in a
+   * visible window is pictured, from the frame it shows, so this never shows, wakes or moves a page; 'later' while the
+   * page loads or another capture of it runs. Memory only: never sent to agents, saved or reported.
+   */
+  async captureAgentStepThumbnail(tabId: string, workspaceId: string): Promise<AgentStepThumbnailImage | 'later' | undefined> {
+    const tab = this.tabs.get(tabId)
+    // Only a tab of the step's own workspace, before and after the capture: another workspace's page never shows in it.
+    const eligible = (): boolean => Boolean(tab)
+      && this.tabBelongsToMcpGroup(workspaceId, tabId)
+      && !this.destroyed
+      && !this.window.isDestroyed()
+      && this.window.isVisible()
+      && !this.window.isMinimized()
+      && this.tabs.get(tabId) === tab
+      && !tab!.webContents.isDestroyed()
+      && !tab!.sleeping
+      && !this.browserContentOccluded
+      && tab!.view.getVisible()
+      && (tabId === this.activeTabId || this.splitViewContains(tabId))
+    if (!tab || !eligible()) return undefined
+    if (tab.loading || this.nativePreviewCapture.isPending(tab.webContents)) return 'later'
+    const navigationGeneration = tab.navigationGeneration
+    let captured: Electron.NativeImage | undefined
+    try {
+      captured = await this.nativePreviewCapture.run(tab.webContents, () => tab.webContents.capturePage(), () => undefined, () => undefined)
+    } catch {
+      return undefined
+    }
+    if (!captured || captured.isEmpty() || !eligible() || tab.navigationGeneration !== navigationGeneration) return undefined
+    const original = captured.getSize()
+    const bounded = boundedScreenshotSize(original.width, original.height, MAX_AGENT_STEP_THUMBNAIL_WIDTH, MAX_AGENT_STEP_THUMBNAIL_HEIGHT)
+    const image = bounded.width === original.width && bounded.height === original.height
+      ? captured
+      : captured.resize({ width: bounded.width, height: bounded.height, quality: 'good' })
+    // A busy page compresses poorly; a lower quality keeps it within the cap, or it goes without.
+    let jpeg = image.toJPEG(60)
+    if (jpeg.length > MAX_AGENT_STEP_THUMBNAIL_BYTES) jpeg = image.toJPEG(40)
+    if (jpeg.length > MAX_AGENT_STEP_THUMBNAIL_BYTES) return undefined
+    const size = image.getSize()
+    return { jpeg, width: size.width, height: size.height }
   }
 
   private screenshotPixelRatio(tab: BrowserTab): number {

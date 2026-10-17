@@ -6,6 +6,7 @@ function createHarness() {
   const surfaces = {
     commandPalette: ref(false),
     walletApproval: ref(false),
+    agentSteps: ref(false),
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     helpDialog: ref(false),
@@ -48,6 +49,7 @@ function createHarness() {
     closeWorkspaceEditor: vi.fn(() => { surfaces.workspaceEditor.value = false }),
     closeHelpDialog: vi.fn(() => { surfaces.helpDialog.value = false }),
     closeReleaseHistory: vi.fn(() => { surfaces.releaseHistory.value = false }),
+    closeAgentSteps: vi.fn(() => { surfaces.agentSteps.value = false }),
     closeSettings: vi.fn(() => { surfaces.settings.value = false }),
     closeFind: vi.fn(() => { surfaces.find.value = false }),
     closeBookmarks: vi.fn(() => { surfaces.bookmarks.value = false }),
@@ -61,6 +63,7 @@ function createHarness() {
     commandPalette: surfaces.commandPalette,
     modals: {
       walletApproval: { open: surfaces.walletApproval, close: () => undefined },
+      agentSteps: { open: surfaces.agentSteps, close: actions.closeAgentSteps },
       workspaceEditor: { open: surfaces.workspaceEditor, close: actions.closeWorkspaceEditor },
       credentialPicker: surfaces.credentialPicker,
       helpDialog: { open: surfaces.helpDialog, close: actions.closeHelpDialog },
@@ -198,6 +201,21 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(escape.defaultPrevented).toBe(true)
     expect(actions.closeReleaseHistory).toHaveBeenCalledOnce()
     expect(surfaces.releaseHistory.value).toBe(false)
+  })
+
+  it('keeps browser shortcuts behind an agent\'s All steps and closes it with Escape', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.agentSteps.value = true
+    const shortcut = new KeyboardEvent('keydown', { key: 'l', ctrlKey: true, cancelable: true })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(escape)
+
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(escape.defaultPrevented).toBe(true)
+    expect(actions.closeAgentSteps).toHaveBeenCalledOnce()
+    expect(surfaces.agentSteps.value).toBe(false)
   })
 
   it('keeps browser shortcuts behind the modal tab overview and closes it with Escape', () => {

@@ -640,7 +640,8 @@ const agentPresenceApi: HronautAgentPresenceApi = {
     const handler = (_event: Electron.IpcRendererEvent, offer: AgentTakeOverOffer): void => listener(offer)
     ipcRenderer.on('agent-presence:take-over-offer', handler)
     return () => ipcRenderer.removeListener('agent-presence:take-over-offer', handler)
-  }
+  },
+  steps: (request) => ipcRenderer.invoke('agent-presence:steps', request)
 }
 contextBridge.exposeInMainWorld('hronautAgentPresence', agentPresenceApi)
 

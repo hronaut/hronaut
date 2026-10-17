@@ -33,7 +33,7 @@ function createHarness() {
     switcher: { openPanel: vi.fn(async () => undefined), close: vi.fn() }
   }
   const state = {
-    tabs: [],
+    tabs: [{ id: 'tab-9', mcpGroupId: 'workspace-1', title: 'Checkout', url: 'https://shop.example/checkout' }],
     closedTabs: [],
     savedTabGroups: [],
     mcpTabGroups: []
@@ -119,6 +119,12 @@ function createHarness() {
             expose(handles.switcher)
             return () => h('div', { 'data-testid': 'WorkspaceSwitcher' })
           }
+        }),
+        AgentStepsDialog: defineComponent({
+          name: 'AgentStepsDialog',
+          props: ['open', 'target', 'state', 'selectTab', 'formatTime', 'formatNumber', 'formatError', 'showError'],
+          emits: ['update:open'],
+          setup: () => () => h('div', { 'data-testid': 'AgentStepsDialog' })
         })
       }
     }
@@ -150,6 +156,24 @@ function createHarness() {
 }
 
 describe('AppTransientShellLayer', () => {
+  it('shows an agent\'s All steps on its own open state, opening a step\'s workspace before its tab', async () => {
+    const { wrapper, forwarded } = createHarness()
+    const dialog = () => wrapper.findComponent({ name: 'AgentStepsDialog' })
+    expect(dialog().props()).toMatchObject({ open: false, target: null, state: forwarded.state, formatTime: forwarded.formatTime, showError: forwarded.showError })
+    const target = { clientKey: 'AbCdEfGhIjKlMnOpQrSt-_', workspaceId: 'workspace-1' }
+    await wrapper.setProps({ agentStepsOpen: true, agentStepsTarget: target })
+    expect(dialog().props()).toMatchObject({ open: true, target })
+    // The palette keeps its own state.
+    expect(wrapper.findComponent({ name: 'CommandPalette' }).props('open')).toBe(true)
+
+    await (dialog().props('selectTab') as (tabId: string) => Promise<unknown>)('tab-9')
+    expect(forwarded.expandTabGroup).toHaveBeenCalledWith(forwarded.state.tabs[0])
+    expect(forwarded.expandTabGroup.mock.invocationCallOrder[0]).toBeLessThan(forwarded.selectTab.mock.invocationCallOrder[0])
+    expect(forwarded.selectTab).toHaveBeenCalledWith('tab-9')
+    ;(dialog() as unknown as { vm: { $emit: (event: string, ...args: unknown[]) => void } }).vm.$emit('update:open', false)
+    expect(wrapper.emitted('update:agentStepsOpen')?.at(-1)).toEqual([false])
+  })
+
   it('owns every transient shell surface and preserves its wiring', async () => {
     const harness = createHarness()
     const { wrapper, forwarded } = harness

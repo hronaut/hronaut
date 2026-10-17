@@ -626,6 +626,7 @@ export const deDE = {
     "fill": "Ausfüllen"
   },
   "workspaceSwitcher": { "kicker": "Arbeitsbereiche", "heading": "Arbeitsbereich wechseln", "close": "Arbeitsbereichswechsel schließen", "search": "Arbeitsbereiche suchen", "placeholder": "Nach Name, Agent oder Website suchen", "results": "Arbeitsbereiche", "openGroup": "Geöffnete Arbeitsbereiche", "archived": "Archiviert", "current": "Aktuell", "needsYou": "Wartet auf Sie", "working": "{names} bei der Arbeit", "tabs": "{count} Tab | {count} Tabs", "matches": "{count} passender Arbeitsbereich. | {count} passende Arbeitsbereiche.", "selected": "{name} ausgewählt.", "empty": "Keine passenden Arbeitsbereiche", "emptyDescription": "Versuchen Sie einen Namen, einen Agenten wie „Claude Code“ oder eine Website.", "none": "Noch keine Arbeitsbereiche", "noneDescription": "Erstellen Sie einen Arbeitsbereich, um die Tabs und Anmeldungen eines Projekts zusammenzuhalten.", "navigate": "Navigieren", "choose": "Wechseln", "searchTabs": "Tabs suchen", "newWorkspace": "Neuer Arbeitsbereich", "switchFailed": "Arbeitsbereich konnte nicht gewechselt werden", "switchDescription": "{name} konnte nicht geöffnet werden." },
+  "agentSteps": { "kicker": "Alle Schritte", "heading": "Schritte von {name}", "close": "Alle Schritte schließen", "summary": "Bis zu {count} der letzten Schritte in {workspace}, neueste zuerst.", "summaryNoWorkspace": "Bis zu {count} der letzten Schritte, neueste zuerst.", "ended": "{name} arbeitet nicht mehr in diesem Arbeitsbereich. Das waren die letzten Schritte.", "loadFailed": "Diese Schritte konnten nicht geladen werden.", "retry": "Erneut versuchen", "closedTab": "Ein Tab, der nicht mehr in diesem Arbeitsbereich ist", "noTab": "Nicht in einem Tab", "untitledTab": "Tab ohne Titel", "showTab": "Tab anzeigen", "showTabNamed": "Tab anzeigen: {title}", "showTabFailed": "Tab konnte nicht angezeigt werden", "showTabFailedDescription": "Der Tab wurde möglicherweise geschlossen.", "empty": "Noch keine abgeschlossenen Schritte", "emptyDescription": "Schritte erscheinen hier, während {name} arbeitet.", "privacy": "Bilder entstehen nur von einer Seite auf dem Bildschirm und bleiben nur im Arbeitsspeicher, nie gespeichert oder an Agenten gesendet." },
   "commandPalette": {
     "kicker": "Schnellaktionen",
     "heading": "Befehle",
@@ -1420,6 +1421,7 @@ export const deDE = {
       "gone": "Nicht mehr mit diesem Arbeitsbereich verbunden",
       "recent": "Letzte Schritte",
       "noSteps": "Noch keine abgeschlossenen Schritte",
+      "allSteps": "Alle Schritte",
       "stepFailed": "{step}, fehlgeschlagen",
       "follow": "Agenten in allen Arbeitsbereichen folgen",
       "cursor": "Agenten-Cursor auf der Seite zeigen",

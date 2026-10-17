@@ -43,6 +43,8 @@ export interface AppBrowserChromeLayerActions {
   openNewWorkspaceEditor: () => unknown
   /** Opens a workspace's settings, where its waiting decisions are reviewed. */
   reviewDecisions: (groupId: string) => unknown
+  /** Opens an agent's "All steps" in a workspace. */
+  showAgentSteps?: (clientKey: string, workspaceId: string) => unknown
   toggleCommandPalette: () => unknown
   toggleWorkspaceSwitcher: () => unknown
   toggleTabSearch: () => unknown
@@ -490,6 +492,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
           :follow="settings.followAgentActivity"
           :show-cursor="settings.showAgentCursor"
           :pin-live-status="settings.pinAgentLiveStatus"
+          :all-steps="actions.showAgentSteps !== undefined"
           :agent-control-locked="state.agentControlLocked === true"
           :take-over-badge="agentTakeOver?.badge"
           @select="selectTab"
@@ -500,6 +503,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab, openAgentCard, takeOverFrom
           @set-pin-live-status="setPinAgentLiveStatus"
           @answer-attention="answerAttention"
           @review-decision="actions.reviewDecisions"
+          @show-steps="(clientKey, workspaceId) => actions.showAgentSteps?.(clientKey, workspaceId)"
         />
         <template #leading>
           <AgentTakeOverPrompt

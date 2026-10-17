@@ -30,6 +30,7 @@ export interface AppShellLayoutFeatureControllerOptions {
     workspaceEditor: BooleanState
     credentialPicker: BooleanState
     walletApproval: BooleanState
+    agentSteps: BooleanState
   }
   overlays: {
     mcpReadiness?: Ref<boolean>
@@ -79,6 +80,7 @@ export function useAppShellLayoutFeatureController(
     modals.workspaceEditor,
     modals.credentialPicker,
     modals.walletApproval,
+    modals.agentSteps,
     overlays.tabSearch,
     ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : [])
   ]
@@ -107,7 +109,8 @@ export function useAppShellLayoutFeatureController(
       overlays.splitMenu,
       modals.workspaceEditor,
       modals.credentialPicker,
-      modals.walletApproval
+      modals.walletApproval,
+      modals.agentSteps
     ],
     competingOverlayStates: [
       ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : []),
@@ -117,6 +120,7 @@ export function useAppShellLayoutFeatureController(
       modals.releaseHistory,
       modals.workspaceEditor,
       modals.credentialPicker,
+      modals.agentSteps,
       overlays.siteControls,
       overlays.siteStorage,
       overlays.addressSuggestions,

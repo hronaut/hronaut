@@ -322,6 +322,38 @@ describe('agent avatars in the toolbar', () => {
     expect(view.emitted('takeOver')).toHaveLength(1)
   })
 
+  it('opens All steps for the agent in this workspace from its card, which makes way', async () => {
+    const card = fakeCardApi()
+    const steps = [{ step: 'click' as const, outcome: 'done' as const, at: 3 }]
+    const { view, change } = renderAvatars([agent('Claude Code', { recentSteps: steps })], { cardApi: card.api, allSteps: true })
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Claude Code, working' }))
+    await nextTick()
+    const { cardId, model } = card.last()
+    expect(model.recent.all).toEqual({ action: 'all-steps', label: 'All steps' })
+    card.emit({ cardId, kind: 'action', action: 'all-steps' })
+    expect(view.emitted('showSteps')).toEqual([['key-Claude Code', 'workspace-a']])
+    expect(card.api.hide).toHaveBeenCalledWith(cardId)
+
+    // A shell that cannot show steps offers none, and ignores the action.
+    await view.rerender({ allSteps: false })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Claude Code, working' }))
+    await nextTick()
+    const plain = card.last()
+    expect(plain.model.recent).not.toHaveProperty('all')
+    card.emit({ cardId: plain.cardId, kind: 'action', action: 'all-steps' })
+    expect(view.emitted('showSteps')).toHaveLength(1)
+
+    // An agent that left while its card was open has no steps to open here.
+    await view.rerender({ allSteps: true })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Claude Code, working' }))
+    await nextTick()
+    const leaving = card.last()
+    change({ revision: 2, workspaces: { 'workspace-a': [] } })
+    await nextTick()
+    card.emit({ cardId: leaving.cardId, kind: 'action', action: 'all-steps' })
+    expect(view.emitted('showSteps')).toHaveLength(1)
+  })
+
   it('keeps the tab a needs-you avatar showed when pressed, even if pressing answered the request first', async () => {
     const card = fakeCardApi()
     const asking = agent('Windsurf', { state: 'needs-you', attentionTabId: 'tab-3', lastTabId: 'tab-2' })

@@ -147,6 +147,10 @@ const {
   tabSearchOpen,
   commandPaletteOpen,
   commandPaletteView,
+  agentStepsOpen,
+  agentStepsTarget,
+  showAgentSteps,
+  closeAgentSteps,
   tabSearchPanel,
   zoomBar,
   commandPalettePanel,
@@ -537,6 +541,7 @@ const {
     help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
     releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
     walletApproval: walletApprovalOpen,
+    agentSteps: { open: agentStepsOpen, close: closeAgentSteps },
     siteStorage: siteStorageOpen,
     siteControls: siteControlsOpen,
     addressSuggestions: addressSuggestionsOpen,
@@ -645,7 +650,8 @@ const {
     releaseHistory: releaseHistoryOpen,
     workspaceEditor: workspaceEditorOpen,
     credentialPicker: credentialPickerOpen,
-    walletApproval: walletApprovalOpen
+    walletApproval: walletApprovalOpen,
+    agentSteps: agentStepsOpen
   },
   overlays: {
     mcpReadiness: mcpStatusController.summaryOpen,
@@ -751,6 +757,7 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     newTabInWorkspace,
     openNewWorkspaceEditor,
     reviewDecisions: openWorkspaceDecisions,
+    showAgentSteps,
     toggleCommandPalette,
     toggleWorkspaceSwitcher,
     toggleTabSearch,
@@ -934,6 +941,8 @@ useAppLifecycleController({
       v-model:credential-picker-open="credentialPickerOpen"
       v-model:command-palette-open="commandPaletteOpen"
       v-model:command-palette-view="commandPaletteView"
+      v-model:agent-steps-open="agentStepsOpen"
+      :agent-steps-target="agentStepsTarget"
       :state="state"
       :active-tab="activeTab"
       :user-attention="userAttention"

@@ -6,6 +6,8 @@ import {
   AGENT_NAME_MAX_GRAPHEMES,
   AGENT_PRESENCE_CLOSED_SESSIONS_LIMIT,
   AGENT_PRESENCE_WINDOW_MS,
+  AGENT_STEP_HISTORY_LIMIT,
+  AGENT_STEP_THUMBNAIL_LIMIT,
   AGENT_WORKING_GRACE_MS,
   AgentPresenceRegistry,
   agentColorIndex,
@@ -176,6 +178,98 @@ describe('agent presence registry', () => {
     call('c', 'browser_click', 'started', 1_600, 'call', 'Pay now')
     registry.recordAttention(claude, workspace, 'attention-1', undefined, 1_700)
     expect(registry.derive(1_800, context({ currentAttentionId: 'attention-1' }))[workspace]?.[0]).not.toHaveProperty('target')
+  })
+
+  it('keeps the last 20 steps per agent and workspace for All steps, with ids and the tab each acted on', () => {
+    const registry = new AgentPresenceRegistry()
+    const step = (session: typeof claude, workspaceId: string, activityId: string, toolName: string, at: number, tabId?: string) => {
+      registry.track(session, workspaceId, { activityId, toolName, phase: 'started', occurredAt: at, source: 'call', ...(tabId ? { tabId } : {}) })
+      registry.track(session, workspaceId, { activityId, toolName, phase: 'finished', occurredAt: at + 10, source: 'call', ...(tabId ? { tabId } : {}) })
+    }
+    for (let index = 0; index < AGENT_STEP_HISTORY_LIMIT + 2; index += 1) step(claude, workspace, `call-${index}`, 'browser_click', 1_000 + index * 100, `tab-${index % 2}`)
+    // A call that names no tab acts on the tab its own tab activity used.
+    registry.track(claude, workspace, { activityId: 'snap', toolName: 'browser_snapshot', phase: 'started', occurredAt: 4_000, source: 'call' })
+    registry.track(claude, workspace, { activityId: 'snap-tab', toolName: 'browser_snapshot', phase: 'started', occurredAt: 4_000, source: 'tab', tabId: 'tab-7' })
+    registry.track(claude, workspace, { activityId: 'snap-tab', toolName: 'browser_snapshot', phase: 'finished', occurredAt: 4_050, source: 'tab', tabId: 'tab-7' })
+    registry.track(claude, workspace, { activityId: 'snap', toolName: 'browser_snapshot', phase: 'finished', occurredAt: 4_100, source: 'call' })
+    // A step on no tab at all keeps none.
+    step(claude, workspace, 'list', 'browser_tabs', 4_200)
+    const key = registry.clientKey(claude.id)
+    const history = registry.history(key, workspace, { tabInWorkspace: (_workspace, tabId) => tabId !== 'tab-1' }, new Set())!
+    expect(history).toHaveLength(AGENT_STEP_HISTORY_LIMIT)
+    expect(new Set(history.map((entry) => entry.id)).size).toBe(AGENT_STEP_HISTORY_LIMIT)
+    expect(history.slice(0, 4)).toEqual([
+      { id: expect.stringMatching(/^s[0-9a-z]+$/u), step: 'working', outcome: 'done', at: 4_210 },
+      { id: expect.any(String), step: 'read', outcome: 'done', at: 4_100, tabId: 'tab-7' },
+      // A tab that left the workspace is named only as gone.
+      { id: expect.any(String), step: 'click', outcome: 'done', at: 3_110, tabClosed: true },
+      { id: expect.any(String), step: 'click', outcome: 'done', at: 3_010, tabId: 'tab-0' }
+    ])
+    // The oldest steps gave way: the last one kept is the fourth call.
+    expect(history.at(-1)?.at).toBe(1_410)
+    expect(registry.latestStep(claude.id, workspace)).toEqual({ id: history[0]!.id })
+    expect(registry.latestStep(claude.id, otherWorkspace)).toBeUndefined()
+    // The toolbar's three steps stay as they were: no ids, no tabs.
+    expect(registry.derive(4_300, context())[workspace]?.[0]?.recentSteps).toEqual([
+      { step: 'working', outcome: 'done', at: 4_210 },
+      { step: 'read', outcome: 'done', at: 4_100 },
+      { step: 'click', outcome: 'done', at: 3_110 }
+    ])
+    // Steps belong to their workspace and their agent; an unknown key or a closed session has none.
+    step(cursor, workspace, 'cursor-1', 'browser_click', 5_000, 'tab-0')
+    expect(registry.history(key, otherWorkspace, context(), new Set())).toEqual([])
+    expect(registry.history(registry.clientKey(cursor.id), workspace, context(), new Set())?.map((entry) => entry.at)).toEqual([5_010])
+    expect(registry.history('unknown-client-key-000', workspace, context(), new Set())).toBeNull()
+    registry.removeClient(claude.id)
+    expect(registry.history(key, workspace, context(), new Set())).toBeNull()
+  })
+
+  it('gives a step its picture once, leaves it out when the shell has it, and keeps at most 60 in all', () => {
+    const registry = new AgentPresenceRegistry()
+    const picture = (byte: number) => ({ jpeg: Buffer.from([0xff, 0xd8, byte]), width: 320, height: 200 })
+    const finish = (session: typeof claude, workspaceId: string, activityId: string, at: number) => {
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_click', phase: 'started', occurredAt: at, source: 'call', tabId: 'tab-1' })
+      registry.track(session, workspaceId, { activityId, toolName: 'browser_click', phase: 'finished', occurredAt: at + 1, source: 'call', tabId: 'tab-1' })
+      return { sessionId: session.id, workspaceId, stepId: registry.latestStep(session.id, workspaceId)!.id }
+    }
+    const first = finish(claude, workspace, 'a', 1_000)
+    const revision = registry.historyRevision
+    expect(registry.attachThumbnail(first, picture(1))).toBe(true)
+    expect(registry.historyRevision).toBe(revision + 1)
+    // A step keeps its first picture.
+    expect(registry.attachThumbnail(first, picture(2))).toBe(false)
+    const key = registry.clientKey(claude.id)
+    expect(registry.history(key, workspace, context(), new Set())?.[0]?.thumbnail).toEqual({ width: 320, height: 200, dataUrl: `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 1]).toString('base64')}` })
+    expect(registry.history(key, workspace, context(), new Set([first.stepId]))?.[0]?.thumbnail).toEqual({ width: 320, height: 200 })
+    // Pictures never reach the toolbar's presence.
+    expect(JSON.stringify(registry.derive(1_100, context()))).not.toContain('data:image')
+    // A step that left the history, or a session that closed, takes no picture.
+    for (let index = 0; index < AGENT_STEP_HISTORY_LIMIT; index += 1) finish(claude, workspace, `b-${index}`, 2_000 + index * 10)
+    expect(registry.attachThumbnail(first, picture(3))).toBe(false)
+    // Past 60 pictures in all, the oldest steps lose theirs, across agents and workspaces.
+    const pictured = [] as ReturnType<typeof finish>[]
+    for (let index = 0; index < AGENT_STEP_THUMBNAIL_LIMIT + 1; index += 1) {
+      const session = index % 2 ? cursor : claude
+      const step = finish(session, `workspace-${index % 5}`, `c-${index}`, 10_000 + index * 10)
+      expect(registry.attachThumbnail(step, picture(index))).toBe(true)
+      pictured.push(step)
+    }
+    const thumbnails = (session: typeof claude) => [0, 1, 2, 3, 4].flatMap((index) => registry.history(registry.clientKey(session.id), `workspace-${index}`, context(), new Set())!
+      .filter((entry) => entry.thumbnail).map((entry) => entry.at))
+    const kept = [...thumbnails(claude), ...thumbnails(cursor)].sort((left, right) => left - right)
+    expect(kept).toHaveLength(AGENT_STEP_THUMBNAIL_LIMIT)
+    expect(kept[0]).toBe(10_011)
+    // A workspace that closes takes its steps and pictures along, for every agent, and only its own.
+    const before = registry.historyRevision
+    registry.forgetWorkspaceSteps('workspace-0')
+    expect(registry.historyRevision).toBe(before + 1)
+    expect(registry.history(registry.clientKey(claude.id), 'workspace-0', context(), new Set())).toEqual([])
+    expect(registry.history(registry.clientKey(cursor.id), 'workspace-0', context(), new Set())).toEqual([])
+    expect(registry.history(registry.clientKey(cursor.id), 'workspace-1', context(), new Set())?.length).toBeGreaterThan(0)
+    registry.forgetWorkspaceSteps('workspace-0')
+    expect(registry.historyRevision).toBe(before + 1)
+    registry.removeClient(cursor.id)
+    expect(registry.attachThumbnail(pictured.at(-2)!, picture(9))).toBe(false)
   })
 
   it('keeps the last tab when a call names none', () => {
@@ -511,6 +605,65 @@ describe('agent presence over MCP', () => {
     expect(text(clicked)).not.toContain('lookup failed')
     expect(latest()).toEqual(expect.objectContaining({ step: 'click' }))
     expect(latest()).not.toHaveProperty('target')
+  })
+
+  it('pictures the tab once an agent\'s step on it settles, for the shell\'s All steps only', async () => {
+    const jpeg = Buffer.from('thumbnail-canary')
+    const captureAgentStepThumbnail = vi.fn(async () => ({ jpeg, width: 320, height: 200 }))
+    const click = vi.fn(async () => ({ ok: true }))
+    const { server, onAgentPresenceChanged, connect } = await startServer(undefined, { captureAgentStepThumbnail }, { click })
+    const claudeClient = await connect('Claude Code')
+    const clicked = await claudeClient.client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId, ref: 'e5' } }) as CallToolResult
+    expect(clicked.isError, text(clicked)).not.toBe(true)
+    // A step on no tab, such as listing tabs, takes no picture.
+    expect((await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult).isError).not.toBe(true)
+    const clientKey = server.getAgentPresence()[workspaceId]![0]!.clientKey
+    const revision = server.agentStepHistoryRevision
+    onAgentPresenceChanged.mockClear()
+    await vi.waitFor(() => expect(captureAgentStepThumbnail).toHaveBeenCalledTimes(1), { timeout: 3_000 })
+    expect(captureAgentStepThumbnail).toHaveBeenCalledWith(tabId, workspaceId)
+    await vi.waitFor(() => expect(server.agentStepHistoryRevision).toBe(revision + 1))
+    expect(onAgentPresenceChanged).toHaveBeenCalled()
+    const history = server.getAgentStepHistory(clientKey, workspaceId, [])!
+    expect(history.map((entry) => [entry.step, entry.tabId, entry.thumbnail?.dataUrl])).toEqual([
+      ['working', undefined, undefined],
+      ['click', tabId, `data:image/jpeg;base64,${jpeg.toString('base64')}`]
+    ])
+    expect(server.getAgentStepHistory(clientKey, workspaceId, [history[1]!.id])?.[1]?.thumbnail).toEqual({ width: 320, height: 200 })
+    // The picture stays in the shell's history: never in presence, and a workspace that is not open has none.
+    expect(JSON.stringify(server.getAgentPresence())).not.toContain(jpeg.toString('base64'))
+    expect(server.getAgentStepHistory(clientKey, '01912345-6789-7abc-8def-0123456789ac', [])).toBeNull()
+    await server.stop()
+    expect(server.getAgentStepHistory(clientKey, workspaceId, [])).toBeNull()
+  })
+
+  it('pictures no refused step, and no tab outside the step\'s workspace', async () => {
+    const captureAgentStepThumbnail = vi.fn(async () => ({ jpeg: Buffer.from('thumbnail'), width: 320, height: 200 }))
+    const click = vi.fn(async () => { throw new Error('The person has taken this page over') })
+    const foreignTab = 'tab-in-another-workspace'
+    const { server, connect } = await startServer(undefined, { captureAgentStepThumbnail }, {
+      click,
+      tabBelongsToMcpGroup: vi.fn((_workspace: string, candidate: string) => candidate !== foreignTab),
+      requireTabInMcpGroup: vi.fn((_workspace: string, candidate?: string) => {
+        if (candidate === foreignTab) throw new Error('That tab is not in this workspace')
+        return tabId
+      })
+    })
+    const claudeClient = await connect('Claude Code')
+    expect((await claudeClient.client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId, ref: 'e5' } }) as CallToolResult).isError).toBe(true)
+    expect((await claudeClient.client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId: foreignTab, ref: 'e5' } }) as CallToolResult).isError).toBe(true)
+    // Well past the settle time, neither refused step asked for a picture.
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(captureAgentStepThumbnail).not.toHaveBeenCalled()
+    const clientKey = server.getAgentPresence()[workspaceId]![0]!.clientKey
+    const history = server.getAgentStepHistory(clientKey, workspaceId, [])!
+    expect(history.length).toBeGreaterThan(0)
+    // The other workspace's tab is never named on a step, not even as one that left.
+    expect(JSON.stringify(history)).not.toContain(foreignTab)
+    expect(history.every((entry) => entry.outcome === 'failed' && entry.tabClosed === undefined)).toBe(true)
+    click.mockResolvedValue({ ok: true } as never)
+    expect((await claudeClient.client.callTool({ name: 'browser_click', arguments: { workspaceId, tabId, ref: 'e5' } }) as CallToolResult).isError).not.toBe(true)
+    await vi.waitFor(() => expect(captureAgentStepThumbnail).toHaveBeenCalledExactlyOnceWith(tabId, workspaceId), { timeout: 3_000 })
   })
 
   it('draws the calling agent\'s named cursor for its clicks, hovers and drags', async () => {
