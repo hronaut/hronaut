@@ -35,7 +35,7 @@ import type { ConnectedAgent } from '../shared/agent-status.js'
 import type { HomeDashboard } from '../shared/home.js'
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
 import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
-import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
+import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
 import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
@@ -105,17 +105,13 @@ import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './co
 import { ReleaseHistoryService } from './release-history.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
-import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
-import { ClaudeCodeSetup, claudeCodeConfigPath } from './claude-code-setup.js'
-import { detectAgentClients } from './agent-client-detection.js'
-import type { HomeSetupState } from '../shared/claude-code-setup.js'
+import { registerHomeIpc } from './home-ipc.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { McpPortRecovery } from './mcp-port-suggestion.js'
 import {
   shouldStartMinimized,
   StartupLaunchManager
 } from './startup-launch.js'
-import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import {
   McpHttpServer,
   mcpToolCatalogForSet,
@@ -184,7 +180,6 @@ import {
   type LanguagePreference,
   type McpControlState,
   type McpPortMoveResponse,
-  type McpPortMoveResult,
   type McpServerStatus,
   type PanelDock,
   type RendererSettingsState,
@@ -2383,58 +2378,6 @@ function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.Ip
   }
 }
 
-function assertHomePageSender(event: Electron.IpcMainInvokeEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  try {
-    const url = new URL(actual ?? '')
-    if (url.protocol === 'hronaut:' && url.hostname === 'home' && (url.pathname === '/' || url.pathname === '')) return
-  } catch {
-    // Fall through to the trusted-origin error below.
-  }
-  throw new Error('Rejected IPC from a non-Home page')
-}
-
-/** Home's own document, not a frame inside it: for actions that change files outside Hronaut. */
-function assertHomeMainFrame(event: Electron.IpcMainInvokeEvent): void {
-  assertHomePageSender(event)
-  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) throw new Error('Rejected IPC from a Home subframe')
-}
-
-let claudeCodeSetup: ClaudeCodeSetup | null = null
-/** Adds Hronaut to Claude Code's settings after the person confirms the exact change in a native dialog. */
-function claudeCodeSetupService(): ClaudeCodeSetup {
-  claudeCodeSetup ??= new ClaudeCodeSetup({
-    path: claudeCodeConfigPath(),
-    endpoint: () => mcpUrl,
-    allowed: () => !settings.mcpAuthentication,
-    confirm: async (preview) => {
-      const { response } = await showMessageBox({
-        type: 'question',
-        title: text('native.dialog.claudeSetupTitle'),
-        message: text('native.dialog.claudeSetupMessage'),
-        detail: text('native.dialog.claudeSetupDetail', {
-          path: preview.path,
-          after: preview.after,
-          replaces: preview.before === null ? '' : text('native.dialog.claudeSetupReplaces', { before: preview.before }),
-          backup: preview.backupName
-        }),
-        buttons: [text('native.dialog.cancel'), text('native.dialog.claudeSetupConfirm')],
-        defaultId: 1,
-        cancelId: 0,
-        noLink: true
-      })
-      return response === 1
-    }
-  })
-  return claudeCodeSetup
-}
-
-function assertClaudeCodeSetupAllowed(): void {
-  // Hronaut never writes a token into another app's settings; with authentication on, the copied command is the way.
-  if (settings.mcpAuthentication) throw new Error('Claude Code setup is unavailable while MCP authentication is enabled. Use the command instead.')
-}
-
 function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
   if (workspaceStartupFailure) throw workspaceStartupFailure
   if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
@@ -2936,68 +2879,19 @@ function registerIpc(): void {
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     await copyTextToClipboard(value)
   })
-  handleBrowserIpc('hronaut-home:workspaces', (event) => {
-    assertHomePageSender(event)
-    return homeWorkspaceState(tabsManager!)
-  })
-  handleBrowserIpc('hronaut-home:workspace-action', async (event, input: unknown) => {
-    assertHomePageSender(event)
-    return runHomeWorkspaceAction(tabsManager!, input, (request) => {
-      mainWindow?.webContents.send('browser:home-workspace-editor', request)
-    })
-  })
-  handleBrowserIpc('hronaut-home:copy-text', async (event, value: unknown) => {
-    assertHomePageSender(event)
-    if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
-    try {
-      await copyTextToClipboard(value)
-    } catch (error) {
-      reportClipboardFailure(error)
-      throw error
-    }
-  })
-  handleBrowserIpc('hronaut-home:open-vscode-install', async (event) => {
-    assertHomePageSender(event)
-    await openVsCodeMcpInstall({
-      endpoint: mcpUrl,
-      authenticationEnabled: settings.mcpAuthentication,
-      openExternal: (url) => shell.openExternal(url)
-    })
-  })
-  handleBrowserIpc(
-    'hronaut-home:open-setup-help',
-    setupHelpHandler(assertHomePageSender, (url) => shell.openExternal(url))
-  )
-  handleBrowserIpc(
-    'hronaut-home:open-setup-feedback',
-    setupFeedbackHandler(assertHomePageSender, (url) => shell.openExternal(url))
-  )
-  handleBrowserIpc(
-    'hronaut-home:open-agent-guide',
-    agentGuideHandler(assertHomePageSender, (url) => shell.openExternal(url))
-  )
-  handleBrowserIpc('hronaut-home:use-mcp-port', async (event, port: unknown): Promise<McpPortMoveResult> => {
-    assertHomeMainFrame(event)
-    return mcpPortRecovery.move(port)
-  })
-  handleBrowserIpc('hronaut-home:setup-state', async (event): Promise<HomeSetupState> => {
-    assertHomeMainFrame(event)
-    const setup = claudeCodeSetupService()
-    const [detected, claudeCode] = await Promise.all([
-      detectAgentClients(undefined, { 'claude-code': [setup.path] }),
-      settings.mcpAuthentication ? undefined : setup.status()
-    ])
-    return { detected, ...(claudeCode ? { claudeCode } : {}) }
-  })
-  handleBrowserIpc('hronaut-home:claude-code-prepare', (event) => {
-    assertHomeMainFrame(event)
-    assertClaudeCodeSetupAllowed()
-    return claudeCodeSetupService().prepare(event.sender.id)
-  })
-  handleBrowserIpc('hronaut-home:claude-code-apply', async (event, planId: unknown) => {
-    assertHomeMainFrame(event)
-    assertClaudeCodeSetupAllowed()
-    return claudeCodeSetupService().apply(planId, event.sender.id)
+  registerHomeIpc({
+    handleBrowserIpc,
+    workspaceStartupFailure: () => workspaceStartupFailure,
+    tabs: () => tabsManager,
+    mainWindow: () => mainWindow,
+    copyTextToClipboard,
+    reportClipboardFailure,
+    mcpUrl: () => mcpUrl,
+    settings: () => settings,
+    openExternal: (url) => shell.openExternal(url),
+    mcpPortRecovery: () => mcpPortRecovery,
+    showMessageBox,
+    text
   })
   handleBrowserIpc('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
   handleBrowserIpc('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })
