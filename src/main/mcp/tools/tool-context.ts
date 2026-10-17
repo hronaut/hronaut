@@ -13,7 +13,9 @@ import type { HumanWaitingService } from '../human-waiting-service.js'
 import type { TaskRunService } from '../task-run-service.js'
 import type { PostWriteRequest, PreWriteReconciliationRequest } from '../tool-schemas.js'
 import { WorkspaceWriteLeaseRegistry } from '../workspace-write-leases.js'
-import type { BookmarkOperations, HistoryOperations, McpClientActivity, SiteDataOperations, WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from '../server.js'
+import type { BookmarkOperations, HistoryOperations, SiteDataOperations } from '../browser-data-operations.js'
+import type { McpClientActivity } from '../http-server.js'
+import type { WalletAgentOperations, WalletAgentSessionRegistry, WalletAgentToolTarget } from '../wallet-agent-sessions.js'
 
 export type ResolvedTargetWakePolicy = 'before-handler' | 'handler-owned' | 'never'
 
