@@ -201,6 +201,8 @@ describe('Home action recovery', () => {
 describe('Home setup journey', () => {
   it('updates Cyberpunk Turbo from local status without losing the current setup focus', () => {
     const page = mount()
+    // Only the view on screen can take focus.
+    button('[data-home-view="connect"]').click()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
     const themedState = { ...state, theme: 'cyberpunk-turbo' as const }
@@ -238,6 +240,8 @@ describe('Home setup journey', () => {
 
   it('filters guides without losing focus or replacing the selected guide and recovers from no results', () => {
     const home = mount()
+    // Only the view on screen can take focus.
+    button('[data-home-view="connect"]').click()
     const search = document.querySelector<HTMLInputElement>('#agent-search')!
     search.focus()
     search.value = 'qwen'
@@ -324,6 +328,8 @@ describe('Home setup journey', () => {
 
   it('restores catalog order after clearing search without replacing retained cards', () => {
     const home = mount()
+    // Only the view on screen can take focus.
+    button('[data-home-view="tools"]').click()
     const tools: McpDashboardState['tools'] = [
       { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
       { name: 'browser_click', category: 'Interaction', description: 'Click an element' }
@@ -343,6 +349,8 @@ describe('Home setup journey', () => {
 
   it('reorders refreshed tools and updates labels while retaining expanded focus and literal text', () => {
     const home = mount()
+    // Only the view on screen can take focus.
+    button('[data-home-view="tools"]').click()
     const tools: McpDashboardState['tools'] = [
       { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
       { name: 'browser_click<img src=x>', category: 'Interaction', description: '<b>Literal description</b>' }
@@ -364,6 +372,8 @@ describe('Home setup journey', () => {
 
   it('preserves an expanded tool and keyboard focus while activity updates', () => {
     const home = mount()
+    // Only the view on screen can take focus.
+    button('[data-home-view="tools"]').click()
     const next: McpDashboardState = { ...state, tools: [{ name: 'browser_navigate', category: 'Navigation', description: 'Open a page' }] }
     home.update(next)
     const entry = document.querySelector<HTMLDetailsElement>('#tool-grid details')!
@@ -715,6 +725,8 @@ describe('Home tool-reference search terms', () => {
 
   it('retains matching expanded cards, focus and query through dashboard updates and restores catalog order on clear', () => {
     const home = mount()
+    // Only the view on screen can take focus.
+    button('[data-home-view="tools"]').click()
     home.update({ ...state, tools })
     const retained = document.querySelector<HTMLDetailsElement>('[data-tool="browser_network_request"]')!
     retained.open = true
