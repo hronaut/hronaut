@@ -502,6 +502,8 @@ export interface BrowserTabOverviewPreview {
   dataUrl: string
   width: number
   height: number
+  /** The page as it was before the tab went to sleep. */
+  sleeping?: true
 }
 
 export function validateTabOverviewPreviewIds(value: unknown): string[] {

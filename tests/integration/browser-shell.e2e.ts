@@ -4242,6 +4242,9 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(researchTabId)}, url: ${JSON.stringify(researchUrl)} })`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(researchTabId)})?.title)`))
       .toBe('Overview sleeping research')
+    // Pictured while in view, so the thumbnail it keeps through sleep is known.
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(researchTabId)}]).then((previews) => previews.length)`))
+      .toBe(1)
 
     const qa = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Overview QA', storage: 'scratch' })`) as BrowserState
     const qaWorkspaceId = qa.mcpTabGroups.find((group) => group.name === 'Overview QA')!.id
@@ -4317,7 +4320,7 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     await expect(researchGroup).toContainText('Overview sleeping research')
     await expect(qaGroup).toContainText('Overview active QA')
     await expect(defaultGroup).toContainText('Overview default target')
-    await expect(overview.locator('.tab-search-live')).toHaveAttribute('data-preview-count', '2')
+    await expect(overview.locator('.tab-search-live')).toHaveAttribute('data-preview-count', '3')
     await expect.poll(() => appWindow.evaluate(`Promise.all([
       window.hronaut.getState(),
       window.hronaut.getTabOverviewPreviews([${JSON.stringify(qaTabId)}])
@@ -4383,12 +4386,14 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(qaTabId)})?.title)`))
       .toBe('Overview navigated QA')
     await expect.poll(() => activePreview.getAttribute('src'), { timeout: 6_000 }).not.toBe(liveActivePreview)
+    // A sleeping tab keeps the picture it had, dimmed under a badge, and is not woken to take a new one.
     await expect(sleepingCard.locator('.tab-overview-preview')).toHaveCount(1)
-    await expect(sleepingCard.locator('.tab-overview-preview')).toContainText(/Sleeping|Preview unavailable/)
+    await expect(sleepingCard.locator('.tab-overview-preview > img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/)
+    await expect(sleepingCard.locator('.tab-overview-sleeping')).toHaveText('Sleeping')
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(researchTabId)})?.sleeping)`))
       .toBe(true)
-    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(researchTabId)}]).then((previews) => previews.length)`))
-      .toBe(0)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(researchTabId)}]).then((previews) => previews.map((preview) => preview.sleeping === true))`))
+      .toEqual([true])
     await appWindow.screenshot({ path: testInfo.outputPath('tab-overview-desktop.png') })
 
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 520))
@@ -4605,10 +4610,12 @@ test('pins tabs from the native menu and tab search while preserving closed-tab 
 
   await appWindow.getByRole('button', { name: 'Search tabs' }).click()
   const panel = appWindow.getByRole('dialog', { name: 'Tabs' })
-  await panel.getByRole('button', { name: 'Unpin Pin beta' }).click()
+  await panel.getByRole('button', { name: 'More actions for Pin beta' }).click()
+  await panel.getByRole('menuitem', { name: 'Unpin tab' }).click()
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Pin beta')?.pinned)`)).toBe(false)
-  await panel.getByRole('button', { name: 'Pin Pin beta' }).click()
-  await expect(panel.getByRole('button', { name: 'Unpin Pin beta' })).toHaveAttribute('aria-pressed', 'true')
+  await panel.getByRole('button', { name: 'More actions for Pin beta' }).click()
+  await panel.getByRole('menuitem', { name: 'Pin tab' }).click()
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Pin beta')?.pinned)`)).toBe(true)
   await appWindow.keyboard.press('Escape')
 
   const betaId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Pin beta')?.id)`) as string
@@ -4655,11 +4662,12 @@ test('contains rejected tab-search mutations and keeps the panel usable', async 
 
   await appWindow.getByRole('button', { name: 'Search tabs' }).click()
   const panel = appWindow.getByRole('dialog', { name: 'Tabs' })
-  await panel.getByRole('button', { name: `Pin ${title}` }).click()
+  await panel.getByRole('button', { name: `More actions for ${title}` }).click()
+  await panel.getByRole('menuitem', { name: 'Pin tab' }).click()
 
   await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toContainText('simulated rejected tab-search pin')
   await expect(panel).toBeVisible()
-  await expect(panel.getByRole('button', { name: `Pin ${title}` })).toBeEnabled()
+  await expect(panel.getByRole('button', { name: `More actions for ${title}` })).toBeEnabled()
   expect(await appWindow.evaluate(() => {
     type RejectionEvent = { reason: unknown }
     const shellWindow = globalThis as typeof globalThis & {

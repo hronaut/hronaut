@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { beginSurfaceLeave } from '../composables/overlay-motion.js'
 import UiButton from './UiButton.vue'
+import { vTooltip } from './tooltip.js'
 
 export interface UiMenuItem {
   id: string
@@ -14,8 +15,16 @@ const props = withDefaults(defineProps<{
   items: UiMenuItem[]
   label: string
   open?: boolean
+  /** The panel's edge lined up with the trigger's; end keeps a menu at a right edge inside its container. */
+  align?: 'start' | 'end'
+  triggerId?: string
+  /** A themed tooltip for an icon-only trigger. */
+  tooltip?: string
 }>(), {
-  open: false
+  open: false,
+  align: 'start',
+  triggerId: undefined,
+  tooltip: undefined
 })
 const emit = defineEmits<{
   'update:open': [open: boolean]
@@ -54,14 +63,30 @@ function onDocumentPointerDown(event: PointerEvent): void {
   if (props.open && !root.value?.contains(event.target as Node)) setOpen(false)
 }
 
+/** Esc closes an open menu, from the trigger as well as its items, and goes no further. */
+function onEscape(event: KeyboardEvent): void {
+  if (!props.open) return
+  event.preventDefault()
+  setOpen(false)
+  trigger.value?.focus()
+}
+
+/** Tabbing away closes the menu; a click elsewhere is left to the pointer handler. */
+function onFocusOut(event: FocusEvent): void {
+  const next = event.relatedTarget
+  if (props.open && next instanceof Node && !root.value?.contains(next)) setOpen(false)
+}
+
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPointerDown))
 </script>
 
 <template>
-  <span ref="root" class="ui-menu">
+  <span ref="root" :class="['ui-menu', `ui-menu--${align}`]" @focusout="onFocusOut" @keydown.esc="onEscape">
     <UiButton
+      :id="triggerId"
       ref="trigger"
+      v-tooltip="open ? undefined : tooltip"
       variant="ghost"
       :aria-label="label"
       aria-haspopup="menu"
@@ -80,7 +105,6 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
         @keydown.up="move($event, -1)"
         @keydown.home.prevent="focusAt(0)"
         @keydown.end.prevent="focusAt(-1)"
-        @keydown.esc.prevent="setOpen(false); trigger?.focus()"
       >
         <UiButton
           v-for="item in items"
