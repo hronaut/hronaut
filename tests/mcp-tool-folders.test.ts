@@ -4,6 +4,8 @@ import { BROWSER_TOOL_CATALOG } from '../src/main/mcp/server.js'
 
 const toolsDirectory = 'src/main/mcp/tools'
 const folderFor = (toolName: string): string => `${toolsDirectory}/${toolName.replaceAll('_', '-')}`
+// The session's MCP server with its call wrapper, and the workspace wrapper it builds.
+const wrapperSources = (): [string, string] => [readFileSync('src/main/mcp/browser-mcp-server.ts', 'utf8'), readFileSync('src/main/mcp/workspace-tool-call.ts', 'utf8')]
 
 describe('MCP tool folders', () => {
   it('keeps every advertised tool in its own folder, registering only that tool', () => {
@@ -28,7 +30,7 @@ describe('MCP tool folders', () => {
   })
 
   it('lets each tool build its own call hooks instead of the shared wrappers adding them by tool name', () => {
-    const server = readFileSync('src/main/mcp/browser-mcp-server.ts', 'utf8')
+    const server = wrapperSources().join('\n')
     const hooks = ['validateInspection', 'validateNativeInput', 'storageComparisonHooks', 'storageInspectionHooks', 'webStorageHooks',
       'cookieWriteHooks', 'validateConditions', 'markConditionsSubmitted', 'markWheelAttempted', 'retainClickAuthority', 'recordClickProgress',
       'holdSignal', 'recordHoldProgress', 'retainSelection', 'markSelectionSubmitted', 'validateSelect', 'fileEvaluationSignal',
@@ -38,8 +40,8 @@ describe('MCP tool folders', () => {
   })
 
   it('keeps tool names out of the shared call wrappers, which read each tool\'s options and settlement instead', () => {
-    const server = readFileSync('src/main/mcp/browser-mcp-server.ts', 'utf8')
-    const wrappers = server.slice(server.indexOf('function createBrowserMcpServer('))
+    const [server, workspaceWrapper] = wrapperSources()
+    const wrappers = `${server.slice(server.indexOf('function createBrowserMcpServer('))}\n${workspaceWrapper}`
     expect([...wrappers.matchAll(/'(?:browser|wallet)_[a-z_]+'/gu)].map(match => match[0])).toEqual([])
   })
 })
