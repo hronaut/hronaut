@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeSelectValues } from '../../../browser/semantic-multi-select.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
@@ -36,6 +37,12 @@ export function registerBrowserSelect(context: McpToolContext): void {
       const outcome = result as Record<string, unknown>
       return { ...textResult(outcome), structuredContent: outcome, ...(outcome.ok === false ? { isError: true } : {}) }
     }),
-    { settlement: input => input.values !== undefined ? selectionSettlement() : undefined }
+    {
+      settlement: input => input.values !== undefined ? selectionSettlement() : undefined,
+      normalizeArguments: args => {
+        if ((args.value !== undefined) === (args.values !== undefined)) throw new Error('Provide exactly one of value or values')
+        return args.values === undefined ? args : { ...args, values: normalizeSelectValues(args.values) }
+      }
+    }
   )
 }

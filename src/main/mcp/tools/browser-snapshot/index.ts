@@ -85,7 +85,8 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
     {
       settlement: input => typeof input.frameSelector === 'string' ? frameObservationSettlement(input) : pageObservationSettlement(manager),
       recordsReadiness: input => typeof input.frameSelector !== 'string',
-      preservesPresentation: input => typeof input.frameSelector === 'string'
+      preservesPresentation: input => typeof input.frameSelector === 'string',
+      continuityInspection: () => true
     }
   )
 }

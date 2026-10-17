@@ -26,6 +26,7 @@ export function registerBrowserFind(context: McpToolContext): void {
       caseSensitive?: boolean
       maxMatches?: number
       contextChars?: number
-    }) => textResult(await manager.findSnapshot(options)))
+    }) => textResult(await manager.findSnapshot(options))),
+    { continuityInspection: () => true }
   )
 }

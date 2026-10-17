@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { type NativeWheelInput, nativeWheelFields } from '../../../browser/native-wheel.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
@@ -31,6 +32,10 @@ export function registerBrowserWheel(context: McpToolContext): void {
       }
       return textResult(await manager.wheel({ tabId, x, y, deltaX, deltaY }, validateNativeInput, call.settlement.markAttempted))
     }, 'never'),
-    { settlement: () => wheelSettlement(), preservesPresentation: () => true }
+    {
+      settlement: () => wheelSettlement(),
+      preservesPresentation: () => true,
+      inputSchema: shape => z.object(shape).strict().refine(value => value.deltaX !== 0 || value.deltaY !== 0, 'At least one wheel delta must be nonzero')
+    }
   )
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { agentCursorIdentity } from '../../agent-presence.js'
+import { browserClickSchema } from '../../browser-click-input.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { type PostWriteRequest, type PreWriteReconciliationRequest, reconciliationRequestSchema, tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
@@ -81,7 +82,8 @@ export function registerBrowserClick(context: McpToolContext): void {
       settlement: input => clickSettlement(manager, input.button === 'right'),
       preservesPresentation: input => input.button === 'right',
       postcondition: input => input.postcondition ? input.postcondition as PostWriteRequest : undefined,
-      reconciliation: input => input.reconciliation ? input.reconciliation as PreWriteReconciliationRequest : undefined
+      reconciliation: input => input.reconciliation ? input.reconciliation as PreWriteReconciliationRequest : undefined,
+      inputSchema: browserClickSchema
     }
   )
 }

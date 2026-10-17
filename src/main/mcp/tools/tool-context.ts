@@ -142,6 +142,26 @@ export interface WorkspaceToolOptions<S extends ToolCallSettlement | undefined> 
   postcondition?: (input: Record<string, unknown>) => PostWriteRequest | undefined
   /** The lookup this call asks to repeat immediately before its write, for a tool that offers it. */
   reconciliation?: (input: Record<string, unknown>) => PreWriteReconciliationRequest | undefined
+  /**
+   * Which tab the call acts on. 'none': the workspace itself, never a tab. 'optional': a tab only when the call
+   * names one. 'if-any': the named or selected tab, or none when the call names no tab and the workspace has none.
+   * Omitted: the named or selected tab, which must exist.
+   */
+  tabTarget?: 'none' | 'optional' | 'if-any'
+  /**
+   * Whether this call only inspects, so it stays available while the workspace waits on a human decision or a
+   * continuity reconciliation. Only explicit inspection operations declare it; client-supplied annotations and
+   * arbitrary evaluation never count as inspection.
+   */
+  continuityInspection?: (input: Record<string, unknown>) => boolean
+  /** The tool closes its target tab, so the checks after dispatch no longer require that tab, its human input or agent control of it. */
+  closesTargetTab?: boolean
+  /** The call waits on its tab, so a tab closed while it waits settles as a closed-tab wait result. */
+  waitsOnTab?: boolean
+  /** The tool's full input schema, built from its fields, when a plain object of them is not strict enough. */
+  inputSchema?: (shape: Record<string, z.ZodType>) => z.ZodObject<Record<string, z.ZodType>>
+  /** Normalizes the call's arguments before its review binding and dispatch, or throws to reject them. */
+  normalizeArguments?: (args: Record<string, unknown>) => Record<string, unknown>
 }
 
 export type WorkspaceToolHandler<T, S = undefined> = ((input: T, call: WorkspaceToolCall<S>) => Promise<CallToolResult>) & {

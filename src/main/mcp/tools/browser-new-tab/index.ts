@@ -53,6 +53,6 @@ export function registerBrowserNewTab(context: McpToolContext): void {
       }
       return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)))
     }),
-    { settlement: input => input.label !== undefined ? labeledCreationSettlement(manager, input) : undefined }
+    { settlement: input => input.label !== undefined ? labeledCreationSettlement(manager, input) : undefined, tabTarget: 'none' }
   )
 }

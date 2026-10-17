@@ -59,6 +59,7 @@ export function registerBrowserVisitHistory(context: McpToolContext): void {
       const profile = requireActiveCapabilityDispatch('browser_visit_history', { ...input, url: entry.url })
       if (action === 'remove') return textResult(visibleHistory(profile, await history.remove(id)))
       return textResult(await manager.newAgentTab({ url: entry.url, active, mcpGroupId: workspaceId! }))
-    })
+    }),
+    { tabTarget: 'none' }
   )
 }

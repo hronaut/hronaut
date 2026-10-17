@@ -81,6 +81,7 @@ export function registerBrowserWait(context: McpToolContext): void {
         if (closedTabResult) return closedTabResult
         throw error
       }
-    })
+    }),
+    { waitsOnTab: true }
   )
 }

@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { type NativeKeyHoldInput, nativeKeyHoldFields } from '../../../browser/native-key-hold.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
@@ -28,6 +29,6 @@ export function registerBrowserHoldKey(context: McpToolContext): void {
       }
       return textResult(await manager.holdKey({ tabId, key, durationMs }, validateNativeInput, call.settlement.recordProgress, call.signal))
     }, 'never'),
-    { settlement: () => keyHoldSettlement(), preservesPresentation: () => true }
+    { settlement: () => keyHoldSettlement(), preservesPresentation: () => true, inputSchema: shape => z.object(shape).strict() }
   )
 }

@@ -28,6 +28,7 @@ export function registerBrowserNetworkWait(context: McpToolContext): void {
       }
     },
     tabTool('browser_network_wait', async (options: BrowserNetworkWaitOptions) =>
-      textResult(await manager.waitForNetworkRequest(options)))
+      textResult(await manager.waitForNetworkRequest(options))),
+    { waitsOnTab: true }
   )
 }

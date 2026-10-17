@@ -1,9 +1,7 @@
-import { browserClickSchema } from './browser-click-input.js'
 import { EmulationInputError } from '../browser/emulation-state.js'
 import { StorageComparisonInputError } from '../browser/storage-comparison-operation.js'
 import { NativeClickAdmissionError } from '../browser/native-click-admission.js'
 import { WebStorageInputError } from '../browser/web-storage-operation.js'
-import { normalizeSelectValues } from '../browser/semantic-multi-select.js'
 import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
 import { NativeKeyHoldOutcomeUnknownError } from '../browser/native-key-hold.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
@@ -994,37 +992,17 @@ function createBrowserMcpServer(
     if (!savedWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
   }
 
-  const toolsWithoutWorkspaceTabTarget = new Set([
-    'browser_status',
-    'browser_tabs',
-    'browser_new_tab',
-    'browser_bookmarks',
-    'browser_visit_history',
-    'browser_site_data',
-    'browser_downloads'
-  ])
-  const toolsWithOptionalWorkspaceTabTarget = new Set([
-    'browser_request_user_attention'
-  ])
-  const toolsThatPermitAnEmptyWorkspace = new Set([
-    'browser_show'
-  ])
-  // Explicit inspection operations remain available for reconciliation. Do not
-  // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
-  const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_public_outcome', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention', 'browser_reconciliation'])
   const workspaceToolInputSchemas = new Map<string, z.ZodObject<Record<string, z.ZodType>>>()
   const humanReviewSessionBinding = createHash('sha256')
     .update('hronaut-human-review-session-v1\0')
     .update(randomUUID())
     .digest('hex')
   const publicOutcomeFingerprintKey = randomBytes(32)
+  const argumentNormalizers = new Map<string, (args: Record<string, unknown>) => Record<string, unknown>>()
   const reviewedActionArguments = (input: Record<string, unknown>, toolName?: string): Record<string, unknown> => {
     const { reviewId: _reviewId, reviewRevision: _reviewRevision, ...arguments_ } = input
-    if (toolName === 'browser_select') {
-      if ((arguments_.value !== undefined) === (arguments_.values !== undefined)) throw new Error('Provide exactly one of value or values')
-      if (arguments_.values !== undefined) arguments_.values = normalizeSelectValues(arguments_.values)
-    }
-    return arguments_
+    const normalize = toolName === undefined ? undefined : argumentNormalizers.get(toolName)
+    return normalize ? normalize(arguments_) : arguments_
   }
   const reviewBinding = (name: string, input: Record<string, unknown>): HumanWaitingReviewBinding | undefined => {
     if (typeof input.reviewId !== 'string' || typeof input.reviewRevision !== 'string') return undefined
@@ -1065,17 +1043,15 @@ function createBrowserMcpServer(
       reviewRevision: z.uuid().optional().describe('Current approved consequential-review revision. The pair is single-use and bound to this exact normalized call.'),
       ...(config.inputSchema ?? {})
     }
-    if (!toolsWithoutWorkspaceTabTarget.has(name)) singleTabControlTools.add(name)
-    const schema = name === 'browser_wheel'
-      ? z.object(inputSchema).strict().refine(value => value.deltaX !== 0 || value.deltaY !== 0, 'At least one wheel delta must be nonzero')
-      : name === 'browser_hold_key' ? z.object(inputSchema).strict()
-        : name === 'browser_click' ? browserClickSchema(inputSchema) : z.object(inputSchema)
+    if (options.tabTarget !== 'none') singleTabControlTools.add(name)
+    const schema = options.inputSchema?.(inputSchema) ?? z.object(inputSchema)
     workspaceToolInputSchemas.set(name, schema)
+    if (options.normalizeArguments) argumentNormalizers.set(name, options.normalizeArguments)
     registerToolWithSettlement(
       name,
       {
         ...config,
-        inputSchema: ['browser_wheel', 'browser_hold_key', 'browser_click'].includes(name) ? schema : inputSchema
+        inputSchema: options.inputSchema ? schema : inputSchema
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const preservePresentation = options.preservesPresentation?.(input) === true
@@ -1085,7 +1061,7 @@ function createBrowserMcpServer(
           if (actionTracker.controlRevision !== controlRevision) {
             throw new Error('MCP control changed before tool dispatch. Inspect the page and obtain fresh state before continuing; earlier page wake or navigation is not rolled back.')
           }
-          if (!settled || name !== 'browser_close_tab') requireAgentControl(name, input, resolvedTabId)
+          if (!settled || !options.closesTargetTab) requireAgentControl(name, input, resolvedTabId)
         }
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
@@ -1096,8 +1072,7 @@ function createBrowserMcpServer(
         if (hasReviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
         const actionInput = reviewedActionArguments(input, name)
         const readOnly = toolDefinition(name).annotations.readOnlyHint || options.readOnly?.(actionInput) === true
-        const continuityInspection = continuityInspectionTools.has(name)
-          || (name === 'browser_webmcp' && actionInput.action !== 'call')
+        const continuityInspection = options.continuityInspection?.(actionInput) === true
         requireActiveCapabilityDispatch(name, actionInput)
         const workspace = requireAgentWorkspace(workspaceId)
         const writeLease = requiresWorkspaceWriteLease(name, actionInput)
@@ -1129,9 +1104,9 @@ function createBrowserMcpServer(
         // Target resolution can change the group's selected tab. Check first.
         requireContinuity()
         const requestedTabId = typeof input.tabId === 'string' ? input.tabId : undefined
-        const skipsTabTarget = toolsWithoutWorkspaceTabTarget.has(name)
-          || (toolsWithOptionalWorkspaceTabTarget.has(name) && requestedTabId === undefined)
-          || (toolsThatPermitAnEmptyWorkspace.has(name)
+        const skipsTabTarget = options.tabTarget === 'none'
+          || (options.tabTarget === 'optional' && requestedTabId === undefined)
+          || (options.tabTarget === 'if-any'
             && requestedTabId === undefined
             && manager.getMcpGroupState(workspaceId).tabs.length === 0)
         const resolvedTabId = skipsTabTarget
@@ -1369,7 +1344,7 @@ function createBrowserMcpServer(
             ) : undefined)
             settlement?.beforeDispatch?.()
             activityDispatched = true
-            const result = toolsWithoutWorkspaceTabTarget.has(name)
+            const result = options.tabTarget === 'none'
               ? await handler(actionInput as unknown as T, call)
               : await handler({ ...actionInput, tabId: resolvedTabId } as unknown as T, call)
             settlement?.afterDispatch?.(result)
@@ -1381,10 +1356,10 @@ function createBrowserMcpServer(
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl(true)
               requireAgentWorkspace(workspaceId)
-              if (name !== 'browser_close_tab') requireCurrentHumanInput()
+              if (!options.closesTargetTab) requireCurrentHumanInput()
               // Closing a tab intentionally retires its target. Other tools
               // must still belong to the authorized workspace when they settle.
-              if (resolvedTabId && name !== 'browser_close_tab'
+              if (resolvedTabId && !options.closesTargetTab
                 && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
             } catch (error) {
               rememberInputPolicy(error)
@@ -1455,7 +1430,7 @@ function createBrowserMcpServer(
           }, workspaceId)
         }
         const invalidatedWaitResult = (error: unknown): CallToolResult | undefined => {
-          if (!activityStarted || !resolvedTabId || (name !== 'browser_wait' && name !== 'browser_network_wait')) {
+          if (!activityStarted || !resolvedTabId || !options.waitsOnTab) {
             return undefined
           }
           return closedTabWaitResult(error, !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId))

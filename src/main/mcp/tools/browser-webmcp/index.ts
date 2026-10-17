@@ -59,6 +59,7 @@ export function registerBrowserWebmcp(context: McpToolContext): void {
       }
       const failed = result.status !== 'TOOL_RETURNED'
       return { ...textResult(result), structuredContent: result, ...(failed ? { isError: true } : {}) }
-    })
+    }),
+    { continuityInspection: input => input.action !== 'call' }
   )
 }

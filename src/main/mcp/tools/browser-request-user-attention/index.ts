@@ -21,6 +21,7 @@ export function registerBrowserRequestUserAttention(context: McpToolContext): vo
         throw new Error(`Unknown tab: ${tabId}`)
       }
       return textResult(await requestUserAttention({ reason, notificationMessage, workspaceId, tabId }))
-    })
+    }),
+    { tabTarget: 'optional', continuityInspection: () => true }
   )
 }

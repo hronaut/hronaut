@@ -27,6 +27,7 @@ export function registerBrowserReconciliation(context: McpToolContext): void {
         () => { requireAgentWorkspace(input.workspaceId) }
       )
       return textResult(publicBrowserReconciliation(input, evidence))
-    })
+    }),
+    { continuityInspection: () => true }
   )
 }
