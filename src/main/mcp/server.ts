@@ -4830,7 +4830,9 @@ function createBrowserMcpServer(
         landscape: z.boolean().optional(),
         pageSize: z.enum(['A4', 'Letter', 'Legal']).optional(),
         outline: z.boolean().optional()
-          .describe('Experimental: add bookmarks from the page headings. Makes a tagged PDF; off by default.')
+          .describe('Experimental: add bookmarks from the page headings. Makes a tagged PDF; off by default.'),
+        preferCSSPageSize: z.boolean().optional()
+          .describe('Use the paper size from the page\'s CSS @page rule where it sets one, over pageSize and landscape. Off by default; refused above 1,000 pages.')
       }
     },
     tabTool('browser_pdf_save', async ({ validateExport, ...options }: {
@@ -4839,6 +4841,7 @@ function createBrowserMcpServer(
       landscape?: boolean
       pageSize?: 'A4' | 'Letter' | 'Legal'
       outline?: boolean
+      preferCSSPageSize?: boolean
       validateExport?: () => void
     }) => {
       if (!validateExport) throw new Error('PDF export authority is unavailable')

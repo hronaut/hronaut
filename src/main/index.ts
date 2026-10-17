@@ -3577,15 +3577,16 @@ function registerIpc(): void {
   handleBrowserIpc('browser:save-pdf', (event, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid PDF options')
-    const { tabId, filename, landscape, pageSize, outline } = options as Record<string, unknown>
+    const { tabId, filename, landscape, pageSize, outline, preferCSSPageSize } = options as Record<string, unknown>
     if (
       (tabId !== undefined && typeof tabId !== 'string')
       || (filename !== undefined && typeof filename !== 'string')
       || (landscape !== undefined && typeof landscape !== 'boolean')
       || (pageSize !== undefined && pageSize !== 'A4' && pageSize !== 'Letter' && pageSize !== 'Legal')
       || (outline !== undefined && typeof outline !== 'boolean')
+      || (preferCSSPageSize !== undefined && typeof preferCSSPageSize !== 'boolean')
     ) throw new TypeError('Invalid PDF options')
-    return tabsManager!.savePdf({ tabId, filename, landscape, pageSize, outline })
+    return tabsManager!.savePdf({ tabId, filename, landscape, pageSize, outline, preferCSSPageSize })
   })
   registerCollectionIpc(ipcMain, {
     runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),

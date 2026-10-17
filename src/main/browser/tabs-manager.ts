@@ -22,6 +22,7 @@ import { valueComparisonSettlementScript } from './value-comparison.js'
 import { MAX_COMPARED_TEXT_VALUE_LENGTH } from '../../shared/value-comparison.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
+import { CSS_PAGE_SIZE_PAGE_LIMIT, pdfPageCount } from './pdf-pages.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -8948,12 +8949,21 @@ export class BrowserTabsManager {
           landscape: options.landscape ?? false,
           pageSize: options.pageSize ?? 'Letter',
           printBackground: true,
-          preferCSSPageSize: false,
+          preferCSSPageSize: options.preferCSSPageSize ?? false,
+          // Chromium renders only the pages in range, so a tiny authored page size cannot run on for thousands of pages.
+          ...(options.preferCSSPageSize ? { pageRanges: `1-${CSS_PAGE_SIZE_PAGE_LIMIT + 1}` } : {}),
           // Chromium 152 writes no outline into an untagged PDF.
           ...(options.outline ? { generateDocumentOutline: true, generateTaggedPDF: true } : {})
         })
       }, 'print')
       assertCurrent()
+      if (options.preferCSSPageSize) {
+        const pages = pdfPageCount(data)
+        if (pages === undefined) throw new Error('Hronaut could not count the pages of this PDF, so it was not saved. Export again without preferCSSPageSize.')
+        if (pages > CSS_PAGE_SIZE_PAGE_LIMIT) {
+          throw new Error(`This PDF has more than ${CSS_PAGE_SIZE_PAGE_LIMIT.toLocaleString('en-US')} pages with preferCSSPageSize, so it was not saved. Check the page's CSS @page size, or export without preferCSSPageSize to use pageSize instead.`)
+        }
+      }
       const path = await this.writeUniqueDownload(filename, data, assertCurrent)
       if (deferExport) {
         deferExport({ assertCurrent, discard })
