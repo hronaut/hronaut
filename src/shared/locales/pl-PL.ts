@@ -1308,6 +1308,8 @@ export const plPL = {
       "agentAttention": "Agent wymaga Twojej uwagi",
       "needsYou": "Czeka na Ciebie",
       "followingAgent": "Śledzenie: {name}",
+      "groupAgents": "Agenci tutaj: {agents}",
+      "groupAgent": "{name} ({state})",
       "stayHere": "Zostań tutaj",
       "stayHereDescription": "Przestań śledzić agentów i zostań na tej karcie",
       "sleeping": "Uśpiona, aby oszczędzać zasoby",

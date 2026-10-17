@@ -1308,6 +1308,8 @@ export const esES = {
       "agentAttention": "El agente necesita tu atención",
       "needsYou": "Te necesita",
       "followingAgent": "Siguiendo a {name}",
+      "groupAgents": "Agentes aquí: {agents}",
+      "groupAgent": "{name} ({state})",
       "stayHere": "Quedarse aquí",
       "stayHereDescription": "Dejar de seguir a los agentes y quedarse en esta pestaña",
       "sleeping": "Suspendida para ahorrar recursos",

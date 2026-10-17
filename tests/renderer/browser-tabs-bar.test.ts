@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import BrowserTabsBar from '../../src/renderer/src/components/BrowserTabsBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { AgentPresence, AgentPresenceSnapshot, HronautAgentPresenceApi } from '../../src/shared/agent-presence.js'
 import type { BrowserState, BrowserTabGroupState, BrowserTabState } from '../../src/shared/types.js'
 
 const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
@@ -346,6 +348,97 @@ describe('BrowserTabsBar', () => {
     expect(screen.getByTestId('workspace-following')).toHaveTextContent('Following Agent')
     await view.rerender({ state: followed, orientation: 'horizontal' })
     expect(screen.queryByTestId('workspace-following')).toBeNull()
+  })
+
+  it('shows a workspace\'s agents in its header and opens it when one starts working or needs you', async () => {
+    const presenceAgent = (name: string, state: AgentPresence['state'], colorIndex = 1): AgentPresence => (
+      { clientKey: `key-${name}`, name, initial: name.slice(0, 1), colorIndex, state, step: 'click', recentSteps: [] }
+    )
+    let listener!: (snapshot: AgentPresenceSnapshot) => void
+    let revision = 1
+    const presenceApi: HronautAgentPresenceApi = {
+      get: () => Promise.resolve({ revision: 1, workspaces: { 'workspace-1': [presenceAgent('Claude Code', 'idle')] } }),
+      onChanged: (next) => { listener = next; return () => undefined }
+    }
+    const publish = async (agents: AgentPresence[]) => { listener({ revision: ++revision, workspaces: { 'workspace-1': agents } }); await nextTick() }
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
+    render(BrowserTabsBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        state: browserState(),
+        hydrated: true,
+        orientation: 'vertical',
+        railPinned: true,
+        presenceApi,
+        mcpActivityByTab: {},
+        formatNumber: (value: number) => String(value),
+        tabTooltip: (value: BrowserTabState) => value.title,
+        describeEmulation: () => ''
+      }
+    })
+    await flushPromises()
+    // A folded group stays folded on reload, even with an agent in it.
+    const header = screen.getByRole('button', { name: 'Expand workspace Research, 1 tab' })
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(header).toHaveAccessibleDescription('Agents here: Claude Code (Idle)')
+    const avatars = () => [...within(header).getByTestId('workspace-agents').children].map((avatar) => [avatar.getAttribute('data-initial'), avatar.getAttribute('data-state')])
+    expect(avatars()).toEqual([['C', 'idle']])
+
+    // The agent already there resuming after a pause opens nothing.
+    await publish([presenceAgent('Claude Code', 'working')])
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    // Another agent starting to work there does.
+    await publish([presenceAgent('Claude Code', 'working'), presenceAgent('Cursor', 'working', 2)])
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    expect(header).toHaveAccessibleName('Collapse workspace Research, 1 tab')
+    expect(header).toHaveAccessibleDescription('Agents here: Claude Code (Working), Cursor (Working)')
+    expect(avatars()).toEqual([['C', 'working'], ['C', 'working']])
+    // Folding it again holds while the same agents work.
+    await fireEvent.click(header)
+    await publish([presenceAgent('Claude Code', 'idle'), presenceAgent('Cursor', 'working', 2)])
+    await publish([presenceAgent('Claude Code', 'working'), presenceAgent('Cursor', 'working', 2)])
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    await publish([presenceAgent('Claude Code', 'needs-you'), presenceAgent('Cursor', 'working', 2)])
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual([])
+
+    // Past three agents the rest are counted, in the avatars and the description, and the header's name never
+    // includes the drawn initials.
+    await publish(['Claude Code', 'Cursor', 'Windsurf', 'Codex', 'Zed'].map((name) => presenceAgent(name, 'idle')))
+    expect(avatars().at(-1)).toEqual(['+2', null])
+    expect(within(header).getByTestId('workspace-agents').children).toHaveLength(4)
+    expect(header).toHaveAccessibleName('Collapse workspace Research, 1 tab')
+    expect(header).toHaveAccessibleDescription('Agents here: Claude Code (Idle), Cursor (Idle), Windsurf (Idle), +2')
+    await publish([])
+    expect(within(header).queryByTestId('workspace-agents')).toBeNull()
+    expect(header.getAttribute('aria-description')).not.toContain('Agents here')
+  })
+
+  it('opens no folded workspace by itself in the top tab strip', async () => {
+    let listener!: (snapshot: AgentPresenceSnapshot) => void
+    const presenceApi: HronautAgentPresenceApi = {
+      get: () => Promise.resolve({ revision: 1, workspaces: {} }),
+      onChanged: (next) => { listener = next; return () => undefined }
+    }
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
+    render(BrowserTabsBar, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: {
+        state: browserState(),
+        hydrated: true,
+        orientation: 'horizontal',
+        railPinned: true,
+        presenceApi,
+        mcpActivityByTab: {},
+        formatNumber: (value: number) => String(value),
+        tabTooltip: (value: BrowserTabState) => value.title,
+        describeEmulation: () => ''
+      }
+    })
+    await flushPromises()
+    listener({ revision: 2, workspaces: { 'workspace-1': [{ clientKey: 'key-claude', name: 'Claude Code', initial: 'C', colorIndex: 1, state: 'needs-you', step: 'askYou', recentSteps: [] }] } })
+    await nextTick()
+    expect(screen.getByRole('button', { name: /^Expand workspace Research, 1 tab/u })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('describes agent activity without replacing the tab name or its navigation controls', async () => {

@@ -289,7 +289,7 @@
   content: "";
 }
 .tab-group-label > .tab-group-default-badge { @apply [width:13px] [height:13px] [opacity:.84]; }
-.tab-group-label > span:not(.tab-group-count, .tab-group-needs-you) {
+.tab-group-label > span:not(.tab-group-count, .tab-group-needs-you, .tab-group-agents) {
   @apply overflow-hidden text-ellipsis;
 }
 .tab-group-label:hover,
@@ -304,6 +304,34 @@
 }
 .tab-group-count {
   @apply [min-width:14px] [padding:0_2px] text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-medium)] text-center;
+}
+/* The agents in a workspace, as small overlapping avatars in its rail header after the name, like the toolbar's: a ring
+   while working (still, since the rail lists many), amber when it needs you, dimmed when idle. */
+.tab-group-agents { @apply hidden; }
+/* In a narrow header the avatars give way before the name: those that no longer fit wrap onto a hidden second line, so
+   none is cut in half, and the first stays. In a rail narrower than the default, a group that needs you shows its Needs
+   you label without them: its agents are on the toolbar and in the header's tooltip. The padding keeps the avatars'
+   rings in view. */
+.browser-tabs-bar.vertical .tab-group-agents {
+  @apply flex [flex:0_100_auto] [min-width:20px] [height:22px] flex-wrap content-start items-center overflow-hidden [padding:2px_1px];
+}
+@container workspace-rail (max-width: 279px) {
+  .browser-tabs-bar.vertical .tab-group-needs-you ~ .tab-group-agents { @apply hidden; }
+}
+.tab-group-agent {
+  @apply grid [width:18px] [height:18px] flex-none place-items-center rounded-full [border:1.5px_solid_var(--group-surface,_var(--shell-bottom))] text-copy [background:color-mix(in_srgb,_var(--agent-color)_30%,_var(--surface))] [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [line-height:1];
+}
+.tab-group-agent::before { content: attr(data-initial); }
+.tab-group-agent + .tab-group-agent { @apply [margin-left:-5px]; }
+.tab-group-agent[data-state="idle"] { @apply text-muted [background:color-mix(in_srgb,_var(--agent-color)_10%,_var(--surface))]; }
+.tab-group-agent[data-state="working"] { @apply [box-shadow:0_0_0_1.5px_var(--accent)]; }
+.tab-group-agent[data-state="needs-you"] { @apply [box-shadow:0_0_0_1.5px_var(--needs-you)]; }
+.tab-group-agent.more { @apply [width:auto] [min-width:18px] [padding:0_3px] text-muted [background:var(--surface)]; }
+@media (forced-colors: active) {
+  .tab-group-agent:is([data-state], .more) { @apply [border-color:Canvas] [background:Canvas] [color:CanvasText] [forced-color-adjust:none] [box-shadow:0_0_0_1px_CanvasText]; }
+  /* Shape, not color, tells working (dashed) from needs you (thick and solid), as on the toolbar's avatars. */
+  .tab-group-agent[data-state="working"] { @apply [box-shadow:none] [outline:2px_dashed_Highlight] [outline-offset:0]; }
+  .tab-group-agent[data-state="needs-you"] { @apply [box-shadow:none] [outline:3px_solid_Highlight] [outline-offset:-1px]; }
 }
 /* A workspace an agent is waiting in stays amber while it is folded or the person works elsewhere. */
 .workspace-tab-section {

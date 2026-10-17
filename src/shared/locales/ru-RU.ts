@@ -1308,6 +1308,8 @@ export const ruRU = {
       "agentAttention": "Агенту нужно ваше внимание",
       "needsYou": "Ждёт вас",
       "followingAgent": "Отслеживание: {name}",
+      "groupAgents": "Агенты здесь: {agents}",
+      "groupAgent": "{name} ({state})",
       "stayHere": "Остаться здесь",
       "stayHereDescription": "Перестать следить за агентами и остаться на этой вкладке",
       "sleeping": "Приостановлена для экономии ресурсов",
