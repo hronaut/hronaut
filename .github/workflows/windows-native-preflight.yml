@@ -37,7 +37,8 @@ jobs:
           npm run build:app
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # Playwright drives the packaged app through the Node inspector, which release builds turn off with a fuse.
-          npx --no-install electron-builder --win dir --x64 --publish never -c.electronFuses.enableNodeCliInspectArguments=true
+          # Quoted: PowerShell splits an unquoted "-c.name=value" at the dot before electron-builder sees it.
+          npx --no-install electron-builder --win dir --x64 --publish never "-c.electronFuses.enableNodeCliInspectArguments=true"
       - name: Exercise packaged clipboard and native notification area
         run: node scripts/windows-native-preflight.ts dist/win-unpacked/Hronaut.exe
       - name: Upload native evidence

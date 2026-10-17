@@ -35,11 +35,12 @@ describe('Electron Fuses in packaged builds', () => {
   })
 
   it.each([
-    ['.github/workflows/macos-native-preflight.yml', 'electron-builder --mac dir "--$PACKAGE_ARCH" --publish never'],
-    ['.github/workflows/windows-native-preflight.yml', 'electron-builder --win dir --x64 --publish never']
+    ['.github/workflows/macos-native-preflight.yml', 'electron-builder --mac dir "--$PACKAGE_ARCH" --publish never -c.electronFuses.enableNodeCliInspectArguments=true'],
+    // PowerShell splits an unquoted "-c.name=value" at the dot, so electron-builder read ".electronFuses..." as a config file.
+    ['.github/workflows/windows-native-preflight.yml', 'electron-builder --win dir --x64 --publish never "-c.electronFuses.enableNodeCliInspectArguments=true"']
   ])('turns the inspector back on only for the Playwright-driven candidate in %s', async (workflow, build) => {
     const source = await readFile(workflow, 'utf8')
-    expect(source).toContain(`${build} -c.electronFuses.enableNodeCliInspectArguments=true`)
+    expect(source).toContain(build)
   })
 
   it('leaves release packaging on the hardened fuses', async () => {
