@@ -59,6 +59,11 @@ function resultKey(result: TabSearchResult): string {
   return `${result.kind}:${result.tab.id}`
 }
 
+/** A preview still shows the tab: its page has not changed, and it is a kept frame exactly when the tab sleeps. */
+function previewMatchesTab(preview: BrowserTabOverviewPreview, tab: BrowserTabState): boolean {
+  return preview.navigationGeneration === tab.navigationGeneration && Boolean(tab.sleeping) === (preview.sleeping === true)
+}
+
 export function useTabSearchController(options: TabSearchControllerOptions) {
   const input = ref<HTMLInputElement | null>(null)
   const query = ref('')
@@ -152,10 +157,10 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     return results.value.findIndex((result) => result.kind === kind && result.tab.id === id)
   }
 
+  /** The tab's thumbnail; a sleeping tab shows the frame main kept from before it slept. */
   function previewForTab(tab: BrowserTabState): BrowserTabOverviewPreview | undefined {
     const preview = previewsByTab.value[tab.id]
-    if (!preview || tab.sleeping) return undefined
-    if (preview.navigationGeneration !== tab.navigationGeneration) return undefined
+    if (!preview || !previewMatchesTab(preview, tab)) return undefined
     return preview
   }
 
@@ -192,6 +197,11 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
       return
     }
     const tabs = regularTabs.value.filter((tab) => !tab.sleeping)
+    // A sleeping tab's frame never changes, so it is asked for until it is here instead of on every refresh.
+    const sleepingTabs = regularTabs.value.filter((tab) => {
+      const preview = tab.sleeping ? previewsByTab.value[tab.id] : undefined
+      return tab.sleeping && (!preview || !previewMatchesTab(preview, tab))
+    })
     let requestedTabs = tabs
     if (previewInitialHydrationComplete && tabs.length > TAB_OVERVIEW_LIVE_REFRESH_BATCH) {
       const visibleTabIds = new Set([
@@ -212,9 +222,13 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
       previewRefreshCursor = (previewRefreshCursor + Math.max(1, scanned)) % tabs.length
       requestedTabs = [...selected.values()]
     }
+    requestedTabs = [...requestedTabs, ...sleepingTabs]
     const request = ++previewRequestGeneration
-    if (!tabs.length) {
-      previewsByTab.value = {}
+    if (!requestedTabs.length) {
+      previewsByTab.value = Object.fromEntries(Object.entries(previewsByTab.value).filter(([tabId, preview]) => {
+        const tab = regularTabs.value.find((candidate) => candidate.id === tabId)
+        return tab ? previewMatchesTab(preview, tab) : false
+      }))
       previewLoading.value = false
       return
     }
@@ -231,12 +245,11 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
       const current: Record<string, BrowserTabOverviewPreview> = {}
       for (const [tabId, preview] of Object.entries(previewsByTab.value)) {
         const tab = currentTabs.get(tabId)
-        if (tab && !tab.sleeping) current[tabId] = preview
+        if (tab && Boolean(tab.sleeping) === (preview.sleeping === true)) current[tabId] = preview
       }
       for (const preview of previews) {
         const tab = currentTabs.get(preview.tabId)
-        if (!tab || tab.sleeping) continue
-        if (preview.navigationGeneration !== tab.navigationGeneration) continue
+        if (!tab || !previewMatchesTab(preview, tab)) continue
         if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(preview.dataUrl)) continue
         if (!Number.isInteger(preview.width) || preview.width < 1 || !Number.isInteger(preview.height) || preview.height < 1) continue
         current[preview.tabId] = preview
@@ -428,8 +441,8 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     }
   }
 
-  async function togglePinnedTab(event: MouseEvent, tab: BrowserTabState): Promise<void> {
-    event.stopPropagation()
+  async function togglePinnedTab(event: Event | undefined, tab: BrowserTabState): Promise<void> {
+    event?.stopPropagation()
     const action = beginAction()
     if (!action) return
     try {

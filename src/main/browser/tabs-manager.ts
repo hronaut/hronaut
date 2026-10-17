@@ -483,6 +483,8 @@ const MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_HEIGHT = 600
 const MAX_TAB_OVERVIEW_PREVIEW_BYTES = 256 * 1024
 const TAB_OVERVIEW_PREVIEW_JPEG_QUALITY = 65
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
+/** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
+const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 const TAB_OVERVIEW_LIVE_CAPTURE_BATCH = 4
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 const MAX_TAB_OVERVIEW_PAGE_WIDTH = 1_440
@@ -1450,6 +1452,8 @@ export class BrowserTabsManager {
   private readonly offscreenCaptureTabIds = new Set<string>()
   private workspaceTemplateImporter?: WorkspaceTemplateImporter
   private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
+  /** A sleeping tab's last frame from before it slept, shown in the overview until it wakes. */
+  private readonly tabOverviewSleepPreviews = new Map<string, BrowserTabOverviewPreview>()
   private readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
   private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
   private readonly tabOverviewPreviewCaptures = new PreviewCaptureQueue<TabOverviewPreviewCaptureRequest>(
@@ -1729,6 +1733,12 @@ export class BrowserTabsManager {
     const previews: BrowserTabOverviewPreview[] = []
     for (const tabId of tabIds) {
       const tab = this.tabs.get(tabId)
+      const lastFrame = this.tabOverviewSleepPreviews.get(tabId)
+      if (lastFrame && tab?.sleeping) {
+        previews.push({ ...lastFrame, navigationGeneration: tab.navigationGeneration, sleeping: true })
+        continue
+      }
+      if (lastFrame) this.tabOverviewSleepPreviews.delete(tabId)
       const preview = this.tabOverviewPreviews.get(tabId)
       if (!tab || tab.sleeping || !preview || preview.navigationGeneration !== tab.navigationGeneration) {
         if (preview) this.tabOverviewPreviews.delete(tabId)
@@ -5202,6 +5212,7 @@ export class BrowserTabsManager {
     const browserSession = tab.browserSession
     this.cssStatePreview.forget(tab)
     this.invalidateTabOverviewPreview(tab)
+    this.tabOverviewSleepPreviews.delete(tab.id)
     this.tabOverviewPreviewCaptures.cancelPending(tab.id)
     this.tabOverviewPreviewableTabs.delete(tab.id)
     this.runWalletLifecycleAction('cancel wallet requests after closing a tab', () => (
@@ -8807,7 +8818,12 @@ export class BrowserTabsManager {
         })
         return { data: Buffer.from(data, 'base64'), mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png' }
       }
+      const navigationGeneration = tab.navigationGeneration
       const captured = await webContents.capturePage()
+      // An agent's view of a tab in the background is also the overview's picture of it.
+      if (tab.id !== this.activeTabId && !this.splitViewContains(tab.id)) {
+        this.storeTabOverviewPreview(tab, captured, navigationGeneration, false)
+      }
       const original = captured.getSize()
       const bounded = boundedScreenshotSize(original.width, original.height, options.maxWidth, options.maxHeight)
       const image = bounded.width === original.width && bounded.height === original.height
@@ -10210,6 +10226,8 @@ export class BrowserTabsManager {
         return
       }
       this.reproRecorder.observeReproKeyboard(tab, input)
+      // The overview shows the page as it was last seen, after the latest typing settles.
+      if (input.type === 'keyUp') this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
       if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
         tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
@@ -10223,6 +10241,7 @@ export class BrowserTabsManager {
     const webContentsId = webContents.id
     webContents.on('input-event', (_event, input) => {
       if (input.type !== 'mouseWheel' && input.type !== 'touchStart') return
+      this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
       if (this.agentInputWebContents.has(webContentsId) || this.agentWheelUnderWay(webContentsId)) return
       this.mcpActivityFollower.noteHumanInput()
     })
@@ -10262,6 +10281,7 @@ export class BrowserTabsManager {
         return
       }
       this.reproRecorder.observeReproMouse(tab, mouse)
+      if (mouse.type === 'mouseUp') this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
       if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !this.agentInputWebContents.has(webContents.id)) {
         tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
@@ -11067,6 +11087,9 @@ export class BrowserTabsManager {
       return false
     }
     tab.sleepNavigationHistory = this.navigationHistorySnapshot(tab)
+    // The overview keeps showing the page as it was; the frame is dropped when the tab wakes or closes.
+    const lastFrame = this.tabOverviewPreviews.get(tab.id)
+    if (lastFrame?.navigationGeneration === tab.navigationGeneration) this.tabOverviewSleepPreviews.set(tab.id, lastFrame)
     tab.sleeping = true
     tab.walletPageUnloading = true
     tab.loading = false
@@ -12928,7 +12951,7 @@ export class BrowserTabsManager {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
   }
 
-  private scheduleTabOverviewPreview(tab: BrowserTab): void {
+  private scheduleTabOverviewPreview(tab: BrowserTab, settleMs = TAB_OVERVIEW_PREVIEW_SETTLE_MS): void {
     if (
       this.destroyed
       || this.tabs.get(tab.id) !== tab
@@ -12948,7 +12971,7 @@ export class BrowserTabsManager {
           console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
         }
       })
-    }, TAB_OVERVIEW_PREVIEW_SETTLE_MS)
+    }, settleMs)
     timer.unref()
     this.tabOverviewPreviewTimers.set(tab.id, timer)
   }
@@ -12994,12 +13017,27 @@ export class BrowserTabsManager {
       () => this.resumeTabOverviewPreviewAfterLateCapture(tab)
     )
     if (!captured || !isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
-    const original = captured.getSize()
     // Only the single website card is enlarged. Keep normal cached captures
     // compact and promote the active frame during its existing overview refresh.
     const enlarged = mode === 'overview'
       && !isHronautHomeUrl(tab.url)
       && [...this.tabs.values()].filter(candidate => !isHronautHomeUrl(candidate.url)).length === 1
+    if (this.storeTabOverviewPreview(tab, captured, navigationGeneration, enlarged, isEligible)) this.tabOverviewPreviewableTabs.add(tab.id)
+  }
+
+  /**
+   * Keeps a captured frame as the tab's overview preview, compact unless enlarged; false when it no longer applies
+   * or exceeds the size limit. Memory only: never saved, sent to agents or reported.
+   */
+  private storeTabOverviewPreview(
+    tab: BrowserTab,
+    captured: Electron.NativeImage,
+    navigationGeneration: number,
+    enlarged: boolean,
+    stillCurrent: () => boolean = () => true
+  ): boolean {
+    if (captured.isEmpty()) return false
+    const original = captured.getSize()
     const encodePreview = (maxWidth: number, maxHeight: number, quality: number) => {
       const bounded = boundedScreenshotSize(original.width, original.height, maxWidth, maxHeight)
       const image = bounded.width === original.width && bounded.height === original.height
@@ -13016,7 +13054,14 @@ export class BrowserTabsManager {
     }
     const { image, jpeg } = preview
     const size = image.getSize()
-    if (!isEligible() || tab.navigationGeneration !== navigationGeneration || jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES) return
+    if (
+      !stillCurrent()
+      || this.destroyed
+      || this.tabs.get(tab.id) !== tab
+      || tab.sleeping
+      || tab.navigationGeneration !== navigationGeneration
+      || jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES
+    ) return false
     this.tabOverviewPreviews.set(tab.id, {
       tabId: tab.id,
       navigationGeneration,
@@ -13024,7 +13069,7 @@ export class BrowserTabsManager {
       width: size.width,
       height: size.height
     })
-    this.tabOverviewPreviewableTabs.add(tab.id)
+    return true
   }
 
   private resumeTabOverviewPreviewAfterLateCapture(tab: BrowserTab): void {

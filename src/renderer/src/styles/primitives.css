@@ -145,6 +145,7 @@
 .ui-popover--top-start .ui-popover__panel { @apply bottom-[calc(100%+7px)] left-0; }
 .ui-popover--top-end .ui-popover__panel { @apply right-0 bottom-[calc(100%+7px)]; }
 .ui-menu__panel { @apply grid gap-0.5; }
+.ui-menu--end .ui-menu__panel { @apply right-0 left-auto; }
 .ui-menu__panel .ui-button { @apply w-full justify-start; }
 .ui-menu__item--danger { @apply text-danger-copy; }
 

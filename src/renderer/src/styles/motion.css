@@ -27,6 +27,7 @@
 .ui-popover--top-end .ui-popover__panel { transform-origin: bottom center; }
 .ui-popover__panel,
 .ui-menu__panel { transform-origin: top center; }
+.ui-menu--end .ui-menu__panel { transform-origin: top right; }
 
 /* The page stays above the shell until its snapshot is painted; start the entrance once it is visible. */
 :root[data-overlay-entrance-held] :is(

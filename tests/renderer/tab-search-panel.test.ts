@@ -89,8 +89,9 @@ describe('TabSearchPanel', () => {
       expect(document.querySelector('.tab-overview-current')).toHaveTextContent('Current tab')
       await vi.waitFor(() => expect(document.querySelector('.tab-overview-preview > img')).toHaveAttribute('src', 'data:image/jpeg;base64,cHJldmlldw=='))
       expect(browser.getTabOverviewPagePreview).not.toHaveBeenCalled()
-      const previewAction = screen.getByRole('button', { name: 'Preview Tab beta' })
-      await userEvent.setup().click(previewAction)
+      // Full-page preview is in the card's ⋯ menu.
+      await userEvent.setup().click(screen.getByRole('button', { name: 'More actions for Tab beta' }))
+      await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Full-page preview' }))
       expect(selectTab).not.toHaveBeenCalled()
       await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Back to tabs' })).toHaveFocus())
       expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
@@ -99,7 +100,7 @@ describe('TabSearchPanel', () => {
       await userEvent.setup().click(screen.getByRole('radio', { name: 'Fit width' }))
       expect(document.querySelector('.tab-page-preview-canvas')).toHaveClass('fit-width')
       await userEvent.setup().keyboard('{Escape}')
-      await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Preview Tab beta' })).toHaveFocus())
+      await vi.waitFor(() => expect(screen.getByRole('button', { name: 'More actions for Tab beta' })).toHaveFocus())
       expect(view.emitted()['update:open']).toBeUndefined()
       const restoredSearch = screen.getByRole('searchbox', { name: 'Search tabs' })
       await userEvent.setup().click(restoredSearch)
@@ -158,12 +159,13 @@ describe('TabSearchPanel', () => {
 
     try {
       const close = screen.getByRole('button', { name: 'Close Tab beta' })
-      const pin = screen.getByRole('button', { name: 'Pin Tab beta' })
+      const more = screen.getByRole('button', { name: 'More actions for Tab beta' })
       expect(close).toBeEnabled()
-      expect(pin).toBeEnabled()
+      expect(more).toBeEnabled()
       await userEvent.setup().click(close)
       expect(browser.closeTab).toHaveBeenCalledWith('beta')
-      await userEvent.setup().click(pin)
+      await userEvent.setup().click(more)
+      await userEvent.setup().click(screen.getByRole('menuitem', { name: 'Pin tab' }))
       expect(browser.setTabPinned).toHaveBeenCalledWith('beta', true)
       const alphaTab = document.getElementById('tab-search-open-alpha')
       expect(alphaTab).toBeInstanceOf(HTMLButtonElement)
@@ -196,7 +198,8 @@ describe('TabSearchPanel', () => {
     })
     try {
       const user = userEvent.setup()
-      await user.click(screen.getByRole('button', { name: 'Preview Tab beta' }))
+      await user.click(screen.getByRole('button', { name: 'More actions for Tab beta' }))
+      await user.click(screen.getByRole('menuitem', { name: 'Full-page preview' }))
       const canvas = document.querySelector<HTMLElement>('.tab-page-preview-canvas')!
       canvas.focus()
       expect(canvas).toHaveFocus()

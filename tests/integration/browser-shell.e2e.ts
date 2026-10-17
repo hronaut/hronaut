@@ -4655,11 +4655,12 @@ test('contains rejected tab-search mutations and keeps the panel usable', async 
 
   await appWindow.getByRole('button', { name: 'Search tabs' }).click()
   const panel = appWindow.getByRole('dialog', { name: 'Tabs' })
-  await panel.getByRole('button', { name: `Pin ${title}` }).click()
+  await panel.getByRole('button', { name: `More actions for ${title}` }).click()
+  await panel.getByRole('menuitem', { name: 'Pin tab' }).click()
 
   await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toContainText('simulated rejected tab-search pin')
   await expect(panel).toBeVisible()
-  await expect(panel.getByRole('button', { name: `Pin ${title}` })).toBeEnabled()
+  await expect(panel.getByRole('button', { name: `More actions for ${title}` })).toBeEnabled()
   expect(await appWindow.evaluate(() => {
     type RejectionEvent = { reason: unknown }
     const shellWindow = globalThis as typeof globalThis & {

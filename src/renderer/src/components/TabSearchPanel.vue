@@ -4,6 +4,7 @@ import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import UiSegmentedControl from '../ui/UiSegmentedControl.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
+import UiMenu, { type UiMenuItem } from '../ui/UiMenu.vue'
 import { useTabPagePreview } from '../composables/useTabPagePreview.js'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -11,8 +12,8 @@ import IconBedtime from '~icons/material-symbols/bedtime-outline-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
-import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
+import IconMore from '~icons/material-symbols/more-horiz-rounded'
 import IconRestore from '~icons/material-symbols/restore-page-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconTabSearch from '~icons/material-symbols/tab-search-rounded'
@@ -101,6 +102,31 @@ const pagePreview = useTabPagePreview({
 })
 const { tabId: previewTabId, tab: previewTab, preview: fullPreview, status: pagePreviewStatus, error: pagePreviewError, fit: previewFit } = pagePreview
 const previewBack = ref<{ focus: () => void } | null>(null)
+/** The card whose ⋯ menu is open; one at a time. */
+const cardMenuTabId = ref<string | null>(null)
+
+/** The card's rarer actions, kept out of sight until its ⋯ menu opens. */
+function cardMenuItems(tab: BrowserTabState): UiMenuItem[] {
+  return [
+    { id: 'pin', label: tab.pinned ? t('tabSearch.unpin') : t('tabSearch.pin'), disabled: actionPending.value },
+    { id: 'preview', label: t('tabSearch.fullPagePreview'), disabled: actionPending.value || tab.sleeping || tab.loading }
+  ]
+}
+
+function runCardMenuItem(tab: BrowserTabState, id: string): void {
+  if (id === 'pin') void togglePinnedTab(undefined, tab)
+  else if (id === 'preview') void showPagePreview(tab)
+}
+
+function tabHost(tab: BrowserTabState): string {
+  try {
+    const url = new URL(tab.url)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.host : ''
+  } catch {
+    return ''
+  }
+}
+
 const sparseCount = computed(() => regularTabs.value.length + props.state.closedTabs.length + props.state.savedTabGroups.length)
 const fitOptions = computed(() => [
   { value: 'page', label: t('tabSearch.fitPage') },
@@ -110,7 +136,7 @@ let previewReturnId: string | null = null
 
 async function showPagePreview(tab: BrowserTabState): Promise<void> {
   if (actionPending.value || tab.sleeping || tab.loading) return
-  previewReturnId = `tab-page-preview-${tab.id}`
+  previewReturnId = `tab-card-menu-${tab.id}`
   void pagePreview.show(tab)
   await nextTick()
   if (previewTabId.value === tab.id) previewBack.value?.focus()
@@ -309,15 +335,19 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                     :disabled="actionPending"
                     @click="selectOpenTab(tab)"
                   >
-                    <span class="tab-overview-preview">
+                    <span class="tab-overview-preview" :class="{ sleeping: tab.sleeping }">
                       <img v-if="previewForTab(tab)" :src="previewForTab(tab)?.dataUrl" alt="" draggable="false" />
                       <span v-else class="tab-overview-placeholder">
-                        <IconBedtime v-if="tab.sleeping" aria-hidden="true" />
-                        <span v-else-if="previewLoading" class="spinner" aria-hidden="true" />
-                        <img v-else-if="tab.faviconDataUrl" :src="tab.faviconDataUrl" alt="" draggable="false" />
-                        <IconLanguage v-else aria-hidden="true" />
-                        <small>{{ tab.sleeping ? t('tabSearch.previewSleeping') : t('tabSearch.previewUnavailable') }}</small>
+                        <span class="tab-overview-placeholder-site" aria-hidden="true">
+                          <IconBedtime v-if="tab.sleeping" />
+                          <span v-else-if="previewLoading" class="spinner" />
+                          <img v-else-if="tab.faviconDataUrl" :src="tab.faviconDataUrl" alt="" draggable="false" />
+                          <IconLanguage v-else />
+                        </span>
+                        <strong v-if="tabHost(tab)">{{ tabHost(tab) }}</strong>
+                        <small>{{ tab.sleeping ? t('tabSearch.previewSleeping') : t('tabSearch.previewNotYet') }}</small>
                       </span>
+                      <span v-if="tab.sleeping && previewForTab(tab)" class="tab-overview-sleeping"><IconBedtime aria-hidden="true" />{{ t('tabSearch.sleeping') }}</span>
                       <span v-if="tab.active" class="tab-overview-current">{{ t('tabSearch.meta.current') }}</span>
                     </span>
                     <span class="tab-overview-copy">
@@ -335,20 +365,18 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                       <small v-if="tabMeta(tab)">{{ tabMeta(tab) }}</small>
                     </span>
                   </UiButton>
-                  <div class="tab-overview-preview-action">
-                    <UiButton :id="`tab-page-preview-${tab.id}`" :aria-label="t('tabSearch.previewAria', { title: tab.title || t('tabSearch.newTabTitle') })" :disabled="actionPending || tab.sleeping || tab.loading" v-tooltip="tab.sleeping ? t('tabSearch.previewSleeping') : undefined" @click="showPagePreview(tab)">{{ t('tabSearch.fullPagePreview') }}</UiButton>
-                  </div>
                   <span class="tab-overview-card-actions">
-                    <UiButton appearance="application"
-                      class="tab-search-pin"
-                      :class="{ active: tab.pinned }"
-                      type="button"
-                      :aria-label="tab.pinned ? t('tabSearch.unpinAria', { title: tab.title || t('tabSearch.newTabTitle') }) : t('tabSearch.pinAria', { title: tab.title || t('tabSearch.newTabTitle') })"
-                      v-tooltip="tab.pinned ? t('tabSearch.unpin') : t('tabSearch.pin')"
-                      :aria-pressed="tab.pinned"
-                      :disabled="actionPending"
-                      @click="togglePinnedTab($event, tab)"
-                    ><IconKeep aria-hidden="true" /></UiButton>
+                    <UiMenu
+                      class="tab-overview-more"
+                      align="end"
+                      :trigger-id="`tab-card-menu-${tab.id}`"
+                      :label="t('tabSearch.moreActionsAria', { title: tab.title || t('tabSearch.newTabTitle') })"
+                      :tooltip="t('tabSearch.moreActions')"
+                      :items="cardMenuItems(tab)"
+                      :open="cardMenuTabId === tab.id"
+                      @update:open="cardMenuTabId = $event ? tab.id : (cardMenuTabId === tab.id ? null : cardMenuTabId)"
+                      @select="runCardMenuItem(tab, $event)"
+                    ><template #trigger><IconMore aria-hidden="true" /></template></UiMenu>
                     <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" v-tooltip="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
                   </span>
                   <TabLabelEditor :tab="tab" />

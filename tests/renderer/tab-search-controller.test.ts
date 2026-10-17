@@ -432,7 +432,7 @@ describe('tab search controller', () => {
     controller.dispose()
   })
 
-  it('loads only awake tab previews and rejects a response from an older navigation', async () => {
+  it('shows a sleeping tab only as its kept frame and rejects a response from an older navigation', async () => {
     const awake = { ...tab('awake', true), navigationGeneration: 3 }
     const sleeping = { ...tab('sleeping'), sleeping: true, navigationGeneration: 2 }
     const { state, browser, controller } = createController(browserState([awake, sleeping]))
@@ -442,11 +442,12 @@ describe('tab search controller', () => {
       dataUrl: string
       width: number
       height: number
+      sleeping?: true
     }>>()
     browser.getTabOverviewPreviews.mockReturnValueOnce(pending.promise)
 
     await controller.openPanel()
-    expect(browser.getTabOverviewPreviews).toHaveBeenCalledWith(['awake'])
+    expect(browser.getTabOverviewPreviews).toHaveBeenCalledWith(['awake', 'sleeping'])
     state.value = {
       ...state.value,
       tabs: [{ ...awake, navigationGeneration: 4 }, sleeping]
@@ -457,11 +458,31 @@ describe('tab search controller', () => {
       dataUrl: 'data:image/jpeg;base64,b2xk',
       width: 360,
       height: 225
+    }, {
+      // A live frame is not a sleeping tab's picture: only the frame kept from before it slept is.
+      tabId: 'sleeping',
+      navigationGeneration: 2,
+      dataUrl: 'data:image/jpeg;base64,bGl2ZQ==',
+      width: 360,
+      height: 225
     }])
     await vi.waitFor(() => expect(controller.previewLoading.value).toBe(false))
 
     expect(controller.previewForTab(state.value.tabs[0])).toBeUndefined()
     expect(controller.previewForTab(sleeping)).toBeUndefined()
+
+    browser.getTabOverviewPreviews.mockResolvedValueOnce([{
+      tabId: 'sleeping',
+      navigationGeneration: 2,
+      dataUrl: 'data:image/jpeg;base64,a2VwdA==',
+      width: 360,
+      height: 225,
+      sleeping: true
+    }])
+    state.value = { ...state.value, tabs: [{ ...awake, navigationGeneration: 5 }, sleeping] }
+    await vi.waitFor(() => expect(controller.previewForTab(sleeping)?.dataUrl).toBe('data:image/jpeg;base64,a2VwdA=='))
+    // Once it wakes, the kept frame no longer stands for the page.
+    expect(controller.previewForTab({ ...sleeping, sleeping: false, navigationGeneration: 3 })).toBeUndefined()
     controller.dispose()
   })
 
