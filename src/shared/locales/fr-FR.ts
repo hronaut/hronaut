@@ -1426,6 +1426,17 @@ export const frFR = {
       "noSteps": "Aucune étape terminée pour l’instant",
       "allSteps": "Toutes les étapes",
       "stepFailed": "{step}, échec",
+      "answeredAt": "{answer} · {time}",
+      "answers": {
+        "handedBack": "Vous avez rendu la main",
+        "sentBack": "Vous avez renvoyé pour correction",
+        "dismissed": "Vous avez ignoré la demande",
+        "approved": "Vous avez approuvé l’action",
+        "rejected": "Vous avez refusé",
+        "answered": "Vous avez répondu",
+        "resolved": "Vous avez réglé la question",
+        "cancelled": "Vous avez annulé la décision"
+      },
       "follow": "Suivre les agents dans tous les espaces",
       "cursor": "Afficher les curseurs des agents sur la page",
       "pin": "Épingler l’état en direct sous la barre d’outils",

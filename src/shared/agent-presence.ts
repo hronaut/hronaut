@@ -18,11 +18,21 @@ export type AgentPresenceState = 'idle' | 'working' | 'needs-you'
 /** Each agent publishes at most this many finished steps, newest first. */
 export const AGENT_RECENT_STEPS_LIMIT = 3
 
-/** A finished call: its general kind, what it acted on when known, whether it worked, and when it ended. */
+/** How the person answered an agent's request for them. */
+export const AGENT_ANSWER_KINDS = ['handedBack', 'sentBack', 'dismissed', 'approved', 'rejected', 'answered', 'resolved', 'cancelled'] as const
+
+export type AgentAnswerKind = (typeof AGENT_ANSWER_KINDS)[number]
+
+/**
+ * A finished call: its general kind, what it acted on when known, whether it worked, and when it ended. Or the person's
+ * answer to the agent's request for them, when they answered: then `step` is 'askYou' and `answer` says how.
+ */
 export interface AgentRecentStep {
   step: AgentStepKind
   /** A control's name from Hronaut's own snapshot of the page, or a host and path; sanitized and bounded in main. Render as text only. */
   target?: string
+  /** You answered the agent's request for you, this way; the entry is yours, not the agent's. */
+  answer?: AgentAnswerKind
   outcome: 'done' | 'failed'
   /** Epoch milliseconds. */
   at: number

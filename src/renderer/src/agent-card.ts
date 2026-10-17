@@ -28,6 +28,7 @@ const SVG = 'http://www.w3.org/2000/svg'
 const ROBOT = 'M10 3h4v2h3a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3h3V3Zm-1 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM8 20h8v1H8v-1Z'
 const DONE = 'M5 12.5l4.5 4.5L19 7.5'
 const FAILED = 'M7 7l10 10M17 7L7 17'
+const PERSON = 'M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM5.5 19.5a6.5 6.5 0 0 1 13 0'
 const CLOSE = 'M6 6l12 12M18 6L6 18'
 const TOGGLED: Record<string, string> = {
   pause: 'resume', resume: 'pause', 'follow-on': 'follow-off', 'follow-off': 'follow-on', 'cursor-on': 'cursor-off', 'cursor-off': 'cursor-on',
@@ -314,7 +315,8 @@ function build(cardId: number, model: AgentCardModel, measureAgain: () => void):
     for (const step of model.recent.steps) {
       const item = element('li', 'agent-card-step')
       item.dataset.failed = String(step.failed === true)
-      item.append(icon(step.failed ? FAILED : DONE), element('span', '', step.text))
+      if (step.you) item.dataset.you = 'true'
+      item.append(icon(step.you ? PERSON : step.failed ? FAILED : DONE), element('span', '', step.text))
       list.append(item)
     }
     card.append(model.recent.all

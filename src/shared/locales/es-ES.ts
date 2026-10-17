@@ -1426,6 +1426,17 @@ export const esES = {
       "noSteps": "Aún no hay pasos terminados",
       "allSteps": "Todos los pasos",
       "stepFailed": "{step}, falló",
+      "answeredAt": "{answer} · {time}",
+      "answers": {
+        "handedBack": "Lo devolviste al agente",
+        "sentBack": "Lo devolviste para corregir",
+        "dismissed": "Descartaste el aviso",
+        "approved": "Aprobaste la acción",
+        "rejected": "Lo rechazaste",
+        "answered": "Respondiste",
+        "resolved": "Lo resolviste",
+        "cancelled": "Cancelaste la decisión"
+      },
       "follow": "Seguir a los agentes en todos los espacios",
       "cursor": "Mostrar los cursores de los agentes en la página",
       "pin": "Fijar el estado en vivo bajo la barra de herramientas",

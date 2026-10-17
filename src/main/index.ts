@@ -110,6 +110,7 @@ import {
   type UserAttentionRequest
 } from './mcp/server.js'
 import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
+import { agentAnswerForDecision } from './mcp/agent-presence.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { AuditReceiptService } from './mcp/audit-receipt-service.js'
@@ -1510,7 +1511,13 @@ function setTrayContextMenu(): void {
               quietUserAttention()
             }
           },
-          { label: text('native.tray.dismissAttention'), click: () => endUserAttention({ disposition: 'dismissed' }) },
+          {
+            label: text('native.tray.dismissAttention'),
+            click: () => {
+              if (userAttention) mcpServer?.recordAgentAnswer(userAttention.id, 'dismissed')
+              endUserAttention({ disposition: 'dismissed' })
+            }
+          },
           { type: 'separator' as const }
         ]
       : []),
@@ -2607,6 +2614,7 @@ function registerIpc(): void {
     if (userAttention?.id !== id || attentionDecisionId) return false
     const tabId = userAttention.tabId
     userAttentionLifecycle.answer(id, answer)
+    mcpServer?.recordAgentAnswer(id, answer === 'dismissed' ? 'dismissed' : 'handedBack')
     endUserAttention({ disposition: answer === 'dismissed' ? 'dismissed' : 'acknowledged', keepPending: true })
     // Done, hand back on a tab the person took over also hands the tab back to its agents.
     if (answer === 'resolved') takeOvers.resolvedOn(tabId)
@@ -2859,6 +2867,10 @@ function registerIpc(): void {
     }
     const attentionId = userAttention?.workspaceId === workspaceId && attentionDecisionId === id ? userAttention.id : undefined
     const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh, trustedConfirmation, { note: answerNote })
+    // The agent that asked sees how you answered in its steps; the request may already have ended with the decision.
+    if (attentionId && action !== 'acknowledge' && !humanWaitingDecisionOpen(record.state)) {
+      mcpServer?.recordAgentAnswer(attentionId, agentAnswerForDecision(record.decision, action))
+    }
     if (attentionId && userAttention?.id === attentionId) {
       if (humanWaitingDecisionOpen(record.state)) quietUserAttention()
       else endUserAttention()
@@ -4140,6 +4152,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
+      mcpServer?.recordAgentAnswer(id, 'handedBack')
       if (userAttention?.id === id) endUserAttention({ keepPending: true })
       takeOvers.resolvedOn(tabId)
     },

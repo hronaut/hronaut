@@ -1426,6 +1426,17 @@ export const deDE = {
       "noSteps": "Noch keine abgeschlossenen Schritte",
       "allSteps": "Alle Schritte",
       "stepFailed": "{step}, fehlgeschlagen",
+      "answeredAt": "{answer} · {time}",
+      "answers": {
+        "handedBack": "Sie haben zurückgegeben",
+        "sentBack": "Sie haben es zur Korrektur zurückgeschickt",
+        "dismissed": "Sie haben den Hinweis geschlossen",
+        "approved": "Sie haben die Aktion genehmigt",
+        "rejected": "Sie haben abgelehnt",
+        "answered": "Sie haben geantwortet",
+        "resolved": "Sie haben es geklärt",
+        "cancelled": "Sie haben die Entscheidung abgebrochen"
+      },
       "follow": "Agenten in allen Arbeitsbereichen folgen",
       "cursor": "Agenten-Cursor auf der Seite zeigen",
       "pin": "Live-Status unter der Symbolleiste anheften",

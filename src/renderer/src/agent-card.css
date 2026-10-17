@@ -71,6 +71,7 @@
   .agent-card-step { display: flex; align-items: center; gap: 6px; color: var(--muted); }
   .agent-card-step svg { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .agent-card-step[data-failed="true"] { color: var(--danger-text); }
+  .agent-card-step[data-you="true"] { color: var(--text); }
   /* "All steps" reads as a link under the list, with a full-height target. */
   .agent-card-all-steps { display: flex; }
   .agent-card-all-steps .agent-card-button { margin: 0 -8px; padding: 0 8px; border-color: transparent; color: var(--accent-text); background: transparent; }

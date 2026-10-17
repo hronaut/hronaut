@@ -5,6 +5,8 @@ import IconBackHand from '~icons/material-symbols/back-hand-rounded'
 import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconSmartToy from '~icons/material-symbols/smart-toy-outline-rounded'
 import type { AgentCardAction, HronautAgentCardApi } from '../../../shared/agent-card.js'
+import { formatTime } from '../../../shared/format.js'
+import { isSupportedLocale } from '../../../shared/locale.js'
 import {
   AGENT_AVATAR_VISIBLE_LIMIT,
   agentAvatarColorHex,
@@ -69,7 +71,7 @@ const emit = defineEmits<{
   showSteps: [clientKey: string, workspaceId: string]
 }>()
 
-const { t } = useI18n({ useScope: 'global' })
+const { t, locale } = useI18n({ useScope: 'global' })
 const presence = useAgentPresence(props.api)
 onBeforeUnmount(presence.dispose)
 
@@ -203,7 +205,8 @@ const card = useAgentCard({
       agentControlLocked: props.agentControlLocked === true,
       color: color(agent),
       name: displayName(agent),
-      ...(gone(agent) ? { gone: true } : {})
+      ...(gone(agent) ? { gone: true } : {}),
+      formatTime: (at) => formatTime(isSupportedLocale(locale.value) ? locale.value : 'en-US', at)
     }, t)
   },
   anchor: avatarElement,

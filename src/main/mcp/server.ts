@@ -105,7 +105,7 @@ export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
 import { AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type AgentCall } from './agent-presence.js'
 import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
-import type { AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
+import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
 import { webAddress } from '../browser/url.js'
 export {
@@ -6108,6 +6108,17 @@ export class McpHttpServer {
   /** Increases whenever an agent's step history changes, including a step getting its picture. */
   get agentStepHistoryRevision(): number {
     return this.agentPresence.historyRevision
+  }
+
+  /** You answered an agent's request for you: its steps in that workspace say how and when. */
+  recordAgentAnswer(attentionId: string, answer: AgentAnswerKind): void {
+    let recorded = false
+    try {
+      recorded = this.agentPresence.recordAnswer(attentionId, answer, Date.now())
+    } catch (error) {
+      console.error('[mcp] Failed to record an answer to an agent:', error)
+    }
+    if (recorded) this.agentPresenceChanged()
   }
 
   /** A workspace closed: the steps agents took there, and their pictures, are not kept. */
