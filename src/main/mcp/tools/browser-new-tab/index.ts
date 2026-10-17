@@ -3,10 +3,11 @@ import { z } from 'zod'
 import { DEFAULT_FONT_SIZE_LIMITS } from '../../../../shared/default-font-size.js'
 import { MAX_TAB_LABEL_INPUT_LENGTH, normalizeTabLabel } from '../../../../shared/tab-label.js'
 import { classifyMcpActivityResult, mcpWorkspaceState, textResult, toolDescription } from '../../tool-results.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { type LabeledCreationSettlement, labeledCreationSettlement } from './labeled-creation-settlement.js'
 
 export function registerBrowserNewTab(context: McpToolContext): void {
-  const { frameRequests, manager, onTabActivity, registerWorkspaceTool, tool, workspaceAuthorizationError } = context
+  const { manager, onTabActivity, registerWorkspaceTool, tool, workspaceAuthorizationError } = context
   registerWorkspaceTool(
     'browser_new_tab',
     {
@@ -20,26 +21,27 @@ export function registerBrowserNewTab(context: McpToolContext): void {
           .describe(`Browser default (standard) font size in CSS px for this tab, ${DEFAULT_FONT_SIZE_LIMITS.min}–${DEFAULT_FONT_SIZE_LIMITS.max}; the browser default is ${DEFAULT_FONT_SIZE_LIMITS.browserDefault}. Changes text sized by the browser default and em/rem media queries, unlike page zoom or OS text scale. Set only at creation; open another tab for another size.`)
       }
     },
-    tool(async ({ workspaceId, url, active, label, zoomIsolated, defaultFontSize }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean; defaultFontSize?: number }) => {
+    tool(async ({ workspaceId, url, active, label, zoomIsolated, defaultFontSize }: { workspaceId?: string; url?: string; active?: boolean; label?: string; zoomIsolated?: boolean; defaultFontSize?: number }, call: WorkspaceToolCall<LabeledCreationSettlement | undefined>) => {
       const construction = { ...(zoomIsolated ? { zoomIsolated: true } : {}), ...(defaultFontSize === undefined ? {} : { defaultFontSize }) }
       if (label !== undefined) {
-        const creation = frameRequests.getStore()!.labeledCreation!
-        const validate = creation.publication!
+        const creation = call.settlement!
+        const validate = creation.publication()!
         validate()
-        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, label, () => creation.publication!(), tabId => {
+        const saved = await manager.newLabeledAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction }, label, () => creation.publication()!(), tabId => {
           const activityId = randomUUID()
           onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: 'started', occurredAt: Date.now() }, workspaceId!)
-          creation.publication = () => {
+          creation.retainPublication(() => {
             validate()
             if (!manager.tabBelongsToMcpGroup(workspaceId!, tabId)) throw workspaceAuthorizationError()
-          }
-          creation.finish = result => onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: result.isError ? 'failed' : 'finished', occurredAt: Date.now(), result: classifyMcpActivityResult({ readOnly: false, dispatched: true, cancelled: creation.cancelled?.() === true, timedOut: false, threw: false, isError: result.isError === true, invalidatedOutcome: result.structuredContent?.status === 'OUTCOME_UNKNOWN' ? 'outcome-unknown' : undefined }) }, workspaceId!)
-        }, () => { creation.attempted = true })
-        creation.knownNotSaved = saved.labelPersistence === 'not-saved'
+          })
+          creation.retainFinish(result => onTabActivity?.({ activityId, tabId, toolName: 'browser_new_tab', phase: result.isError ? 'failed' : 'finished', occurredAt: Date.now(), result: classifyMcpActivityResult({ readOnly: false, dispatched: true, cancelled: creation.cancelled(), timedOut: false, threw: false, isError: result.isError === true, invalidatedOutcome: result.structuredContent?.status === 'OUTCOME_UNKNOWN' ? 'outcome-unknown' : undefined }) }, workspaceId!))
+        }, creation.markAttempted)
+        const knownNotSaved = saved.labelPersistence === 'not-saved'
+        creation.recordLabelNotSaved(knownNotSaved)
         const outcome = { ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), ...saved,
-          status: creation.knownNotSaved ? 'LABEL_NOT_SAVED' : 'CREATED', retrySafe: false,
-          ...(creation.knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
-        return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(creation.knownNotSaved ? { isError: true } : {}) }
+          status: knownNotSaved ? 'LABEL_NOT_SAVED' : 'CREATED', retrySafe: false,
+          ...(knownNotSaved ? { nextAction: 'The tab was created but its label was not saved. Inspect current state; do not repeat creation to retry the label.' } : {}) }
+        return { ...textResult(outcome), structuredContent: { status: outcome.status }, ...(knownNotSaved ? { isError: true } : {}) }
       }
       const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
       const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false, ...construction })
@@ -50,6 +52,7 @@ export function registerBrowserNewTab(context: McpToolContext): void {
         onTabActivity?.({ activityId, tabId: createdTab.id, toolName: 'browser_new_tab', phase: 'finished', occurredAt: Date.now() }, workspaceId!)
       }
       return textResult(mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)))
-    })
+    }),
+    { settlement: input => input.label !== undefined ? labeledCreationSettlement(manager, input) : undefined }
   )
 }

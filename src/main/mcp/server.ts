@@ -181,7 +181,7 @@ import { registerWalletRequest } from './tools/wallet-request/index.js'
 import { registerWalletRequestStatus } from './tools/wallet-request-status/index.js'
 import { registerWalletPageRequests } from './tools/wallet-page-requests/index.js'
 import { registerWalletCancelRequest } from './tools/wallet-cancel-request/index.js'
-import type { McpFrameRequest, McpToolContext, ResolvedTargetWakePolicy, ToolActivityClassification, ToolCallSettlement, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
+import type { McpToolContext, ResolvedTargetWakePolicy, ToolActivityClassification, ToolCallSettlement, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 export { assertMcpCapabilityClassificationContract, mcpCapabilityAction, mcpCapabilityOperationClass, READ_ONLY_MULTI_ACTIONS } from './capability-classification.js'
 export { classifyMcpActivityResult, closedTabWaitResult } from './tool-results.js'
 export { auditEvidenceExpiredReason } from './tools/browser-audit-receipts/index.js'
@@ -767,13 +767,10 @@ function createBrowserMcpServer(
       return false
     }
   }
-  const frameRequests = new AsyncLocalStorage<McpFrameRequest>()
+  // The settlement of the call in progress, for checks that run outside its wrapper.
+  const frameRequests = new AsyncLocalStorage<{ settlement?: ToolCallSettlement }>()
   const rememberInputPolicy = (error: unknown): void => {
-    const request = frameRequests.getStore()
-    if (request?.labeledCreation && error instanceof McpCapabilityAuthorizationError) {
-      request.labeledCreation.policy = { ...request.labeledCreation.policy, permission: 'denied', ...(error.decision ? { policyDecision: error.decision } : {}) }
-    }
-    request?.settlement?.rememberInputPolicy?.(error)
+    frameRequests.getStore()?.settlement?.rememberInputPolicy?.(error)
   }
   // What a call acts on, for the shell's plain-words steps only: the name Hronaut's own snapshot of the page
   // showed for the control it names by ref, or the host and path of a page it opens. Never a selector,
@@ -836,38 +833,6 @@ function createBrowserMcpServer(
       const frameRequest = frameRequests.getStore()!
       const settlement = options.settlement?.(input)
       frameRequest.settlement = settlement
-      if (name === 'browser_new_tab' && input.label !== undefined) frameRequest.labeledCreation = { attempted: false }
-      const settleLabeledCreation = (result: CallToolResult): CallToolResult => {
-        const creation = frameRequest.labeledCreation
-        if (!creation || (!creation.attempted && result.isError)) return result
-        let settled: CallToolResult
-        try {
-          if (!creation.publication) throw new Error('Creation publication guard unavailable')
-          creation.publication()
-          if (creation.reviewFinalizationFailed) throw new Error('Review finalization failed')
-          if (result.isError && !(creation.knownNotSaved && result.structuredContent?.status === 'LABEL_NOT_SAVED')) throw new Error('Creation settlement failed')
-          const state = mcpWorkspaceState(manager.getMcpGroupState(String(input.workspaceId)))
-          settled = { ...result, content: result.content.map(item => item.type === 'text' ? { ...item, text: JSON.stringify({ ...JSON.parse(item.text), ...state }, null, 2) } : item) }
-        } catch (error) {
-          rememberInputPolicy(error)
-          const policyDecision = (error instanceof McpCapabilityAuthorizationError ? error.decision : undefined)
-            ?? creation.policy?.policyDecision ?? result.structuredContent?.policyDecision
-          const outcome = {
-            status: creation.attempted ? 'OUTCOME_UNKNOWN' : 'NOT_DISPATCHED',
-            effects: creation.attempted ? 'possible' : 'none', retrySafe: false,
-            ...creation.policy,
-            ...(result.structuredContent?.permission === 'denied' ? { permission: 'denied' } : {}),
-            ...(policyDecision ? { permission: 'denied', policyDecision } : {}),
-            ...(creation.reviewFinalizationFailed ? { reviewFinalization: 'failed' } : {}),
-            nextAction: 'Obtain current authorized workspace state before continuing. Tab creation, navigation or label persistence may already have occurred; do not automatically repeat this request.'
-          }
-          settled = { ...textResult(outcome), structuredContent: outcome, isError: true }
-        }
-        const finish = creation.finish
-        creation.finish = undefined
-        finish?.(settled)
-        return settled
-      }
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
         if (!options.recordsReadiness?.(input)) return
         // Only browser_status and browser_snapshot declare recordsReadiness.
@@ -933,7 +898,6 @@ function createBrowserMcpServer(
           }
           const settledDenial = settlement?.settleDenied?.({ ...textResult(outcome), structuredContent: outcome, isError: true }, outcome)
           if (settledDenial) return settledDenial
-          if (frameRequest.labeledCreation) return settleLabeledCreation({ ...textResult(outcome), structuredContent: outcome, isError: true })
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         const published = settlement?.publish?.(result)
@@ -942,10 +906,8 @@ function createBrowserMcpServer(
           recordReadinessProbe(publication.isError ? 'failed' : 'verified')
           return publication // No await after the tool's final publication check.
         }
-        if (frameRequest.labeledCreation?.refreshCertificate) await frameRequest.labeledCreation.refreshCertificate()
-        // No await after the final publication guard.
         recordReadinessProbe(result.isError ? 'failed' : 'verified')
-        return settleLabeledCreation(result)
+        return result
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
           && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
@@ -957,7 +919,6 @@ function createBrowserMcpServer(
         recordReadinessProbe('failed')
         const settledError = settlement?.settleError?.(error)
         if (settledError) return settledError
-        if (frameRequest.labeledCreation) { rememberInputPolicy(error); return settleLabeledCreation(errorResult(error)) }
         return errorResult(error)
       } finally {
         settlement?.dispose?.()
@@ -1240,18 +1201,6 @@ function createBrowserMcpServer(
             throw workspaceAuthorizationError()
           }
         }
-        if (frameRequests.getStore()!.labeledCreation) {
-          const requireCreationWorkspace = manager.captureWorkspaceObservationGuard(workspaceId)
-          frameRequests.getStore()!.labeledCreation!.cancelled = () => extra?.signal?.aborted === true
-          frameRequests.getStore()!.labeledCreation!.publication = () => {
-            if (extra?.signal?.aborted) throw new Error('Labeled creation cancelled')
-            requireCurrentTarget()
-            requireCreationWorkspace()
-            const certificate = frameRequests.getStore()!.labeledCreation!.certificate
-            if (!certificate) throw new Error('Labeled creation certificate unavailable')
-            certificate()
-          }
-        }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
         let activityStarted = false
@@ -1300,7 +1249,6 @@ function createBrowserMcpServer(
               requireAgentWorkspace(workspaceId)
             })
           } catch (error) {
-            if (frameRequests.getStore()?.labeledCreation) frameRequests.getStore()!.labeledCreation!.reviewFinalizationFailed = true
             settlement?.reviewFinalizationFailed?.()
             finishActivity(undefined, true, error)
             throw error
@@ -1415,15 +1363,6 @@ function createBrowserMcpServer(
                 () => { requireCurrentTarget(); requirePostWriteContext() }
               )
               reviewAttempt = { id: attempted.id, revision: attempted.revision }
-            }
-            if (frameRequests.getStore()!.labeledCreation) {
-              const creation = frameRequests.getStore()!.labeledCreation!
-              creation.refreshCertificate = async () => {
-                creation.certificate = humanWaiting ? await humanWaiting.certifyDispatch(
-                  workspaceId, () => { requireAgentWorkspace(workspaceId) }, undefined, humanReviewSessionBinding, reviewAttempt?.id
-                ) : () => undefined
-              }
-              await creation.refreshCertificate()
             }
             if (settlement?.certify) await settlement.certify(humanWaiting ? () => humanWaiting.certifyDispatch(
               workspaceId, () => { requireAgentWorkspace(workspaceId) }, undefined, humanReviewSessionBinding, reviewAttempt?.id
@@ -1707,7 +1646,6 @@ function createBrowserMcpServer(
     capabilityProfile,
     client,
     forkOnlySource,
-    frameRequests,
     getPaused,
     getUserAttention,
     history,
