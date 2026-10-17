@@ -7,6 +7,7 @@ import BrowserImportPanel from './BrowserImportPanel.vue'
 import UiButton from "../ui/UiButton.vue"
 import UiField from '../ui/UiField.vue'
 import UiInput from '../ui/UiInput.vue'
+import UiSelect from '../ui/UiSelect.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
 import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
@@ -287,9 +288,9 @@ onBeforeUnmount(dispose)
             </label>
             <div v-if="storageMode !== 'scratch'" class="workspace-transfer-fields">
               <label for="workspace-fork-source">{{ t('workspaceEditor.sourceWorkspace') }}</label>
-              <select id="workspace-fork-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
+              <UiSelect id="workspace-fork-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
                 <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
-              </select>
+              </UiSelect>
               <small>{{ t('workspaceEditor.forkBlankTab') }}</small>
             </div>
             <div v-if="storageMode !== 'scratch'" class="workspace-origin-picker">
@@ -300,13 +301,11 @@ onBeforeUnmount(dispose)
               <label v-for="origin in originOptions" :key="origin"><input v-model="selectedOrigins" type="checkbox" :value="origin" :disabled="dismissBlocked" /><span>{{ origin }}</span></label>
             </div>
           </section>
-          <section class="workspace-site-access-section workspace-direct-access">
-            <label class="workspace-storage-choice">
+          <section class="workspace-options">
+            <label class="workspace-storage-choice workspace-direct-access">
               <input v-model="agentAccess" type="checkbox" :disabled="dismissBlocked" />
               <span><strong>{{ t('workspaceEditor.agentAccess') }}</strong><small>{{ t('workspaceEditor.agentAccessDescription') }}</small><small>{{ t('workspaceEditor.agentForkAllowed') }}</small></span>
             </label>
-          </section>
-          <section class="workspace-preferences">
             <label class="workspace-storage-choice"><input v-model="hiddenFromSidebar" type="checkbox" :disabled="dismissBlocked" /><span><strong>{{ t('workspaceLibrary.hideFromSidebar') }}</strong><small>{{ t('workspaceLibrary.hideDescription') }}</small></span></label>
             <label class="workspace-storage-choice"><input v-model="deletionProtected" type="checkbox" :disabled="dismissBlocked" /><span><strong>{{ t('workspaceLibrary.protectDeletion') }}</strong><small>{{ t('workspaceLibrary.protectionDescription') }}</small></span></label>
           </section>
@@ -324,7 +323,7 @@ onBeforeUnmount(dispose)
             </label>
             <div v-if="navigationMode === 'restricted'" class="workspace-navigation-rules">
               <label for="workspace-navigation-rules">{{ t('workspaceEditor.allowedSites') }}</label>
-              <textarea id="workspace-navigation-rules" v-model="navigationRulesText" rows="5" spellcheck="false" autocomplete="off" :placeholder="t('workspaceEditor.allowedSitesPlaceholder')" :disabled="dismissBlocked" />
+              <UiTextarea id="workspace-navigation-rules" v-model="navigationRulesText" rows="5" spellcheck="false" autocomplete="off" :placeholder="t('workspaceEditor.allowedSitesPlaceholder')" :disabled="dismissBlocked" />
               <small>{{ t('workspaceEditor.allowedSitesHelp') }}</small>
             </div>
             <details v-if="mode === 'edit'" class="workspace-navigation-audit">
@@ -349,23 +348,23 @@ onBeforeUnmount(dispose)
           <section class="workspace-storage-section">
             <div class="workspace-transfer-fields">
               <label for="browser-import-destination">{{ t('browserImport.destination') }}</label>
-              <select id="browser-import-destination" v-model="importDestination" :disabled="dismissBlocked">
+              <UiSelect id="browser-import-destination" v-model="importDestination" :disabled="dismissBlocked">
                 <option value="" disabled>{{ t('workspaceEditor.chooseWorkspace') }}</option>
                 <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}</option>
-              </select>
+              </UiSelect>
               <UiButton :disabled="dismissBlocked || !importDestination" @click="openImport(importDestination)">{{ t('browserImport.action') }}</UiButton>
             </div>
             <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.browserData') }}</strong><span>{{ t('workspaceEditor.browserDataDescription') }}</span></div></div>
             <div class="workspace-transfer-fields">
               <label for="workspace-transfer-source">{{ t('workspaceEditor.sourceWorkspace') }}</label>
-              <select id="workspace-transfer-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
+              <UiSelect id="workspace-transfer-source" v-model="sourceWorkspaceId" :disabled="dismissBlocked">
                 <option value="" disabled>{{ t('workspaceEditor.chooseWorkspace') }}</option>
                 <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
-              </select>
+              </UiSelect>
               <label for="workspace-transfer-target">{{ t('workspaceEditor.targetWorkspace') }}</label>
-              <select id="workspace-transfer-target" v-model="targetWorkspaceId" :disabled="dismissBlocked">
+              <UiSelect id="workspace-transfer-target" v-model="targetWorkspaceId" :disabled="dismissBlocked">
                 <option v-for="group in targetWorkspaces" :key="group.id" :value="group.id" :disabled="group.id === sourceWorkspaceId">{{ group.name }}{{ group.archived ? ` · ${t('workspaceEditor.archived')}` : '' }}</option>
-              </select>
+              </UiSelect>
             </div>
             <div class="workspace-transfer-direction" role="radiogroup" :aria-label="t('workspaceEditor.transferMode')">
               <label><input v-model="transferMode" type="radio" name="workspace-transfer-mode" value="copy" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.copy') }}</span></label>
