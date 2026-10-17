@@ -29,7 +29,6 @@ import { humanWaitingDecisionOpen, normalizeHumanWaitingNote } from '../shared/h
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
-import { registerSettingsIpc } from './settings-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
 import type { ConnectedAgent } from '../shared/agent-status.js'
@@ -140,6 +139,7 @@ import {
 import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
+import { registerSettingsIpc } from './settings-ipc.js'
 import {
   isSitePermissionDecision,
   normalizeSitePermissionOrigin,
