@@ -633,14 +633,23 @@ export const esES = {
     "heading": "Comandos",
     "close": "Cerrar la paleta de comandos",
     "search": "Buscar comandos",
-    "placeholder": "Escribe un comando o función",
-    "matches": "{count} comando coincidente. | {count} comandos coincidentes.",
+    "placeholder": "Escribe un comando o busca una pestaña, espacio de trabajo, página o ajuste",
+    "matches": "{count} resultado. | {count} resultados.",
     "selected": "{label} seleccionado.",
     "available": "Comandos disponibles",
-    "empty": "No hay comandos coincidentes",
-    "emptyDescription": "Prueba con una función, acción o sinónimo como «captura de pantalla» o «cookies».",
+    "empty": "Sin resultados",
+    "emptyDescription": "Prueba con un comando como «captura de pantalla» o parte del nombre de una pestaña, espacio de trabajo, página o ajuste.",
     "navigate": "Navegar",
-    "run": "Ejecutar"
+    "run": "Ejecutar",
+    "sections": {
+      "tabs": "Pestañas abiertas",
+      "workspaces": "Espacios de trabajo",
+      "settings": "Configuración",
+      "history": "Historial"
+    },
+    "untitledTab": "Pestaña sin título",
+    "openFailed": "No se pudo abrir {name}",
+    "openFailedDescription": "Puede que se cerrara después de mostrarse la lista."
   },
   "commandCatalog": {
     "categories": {

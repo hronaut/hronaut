@@ -20,6 +20,7 @@ import {
 import { useAgentPresence } from '../composables/useAgentPresence.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { goToWorkspace } from '../workspace-navigation.js'
 import UiButton from '../ui/UiButton.vue'
 import UiOverlayTransition from '../ui/UiOverlayTransition.vue'
 
@@ -176,24 +177,9 @@ async function choose(entry: WorkspaceSwitcherEntry): Promise<void> {
   close()
   const current = ++choice
   try {
-    if (entry.kind === 'archived') {
-      await props.syncState(props.browser.restoreSavedTabGroup(entry.id))
-      return
-    }
-    const group = props.state.mcpTabGroups.find((candidate) => candidate.id === entry.id)
-    if (!group) {
-      // Closed after the list was drawn, such as by an agent.
-      props.showError(t('workspaceSwitcher.switchFailed'), t('workspaceSwitcher.switchDescription', { name: entry.name }))
-      return
-    }
-    const tabId = group.activeTabId ?? props.state.tabs.find((tab) => tab.mcpGroupId === group.id)?.id
-    const tab = tabId ? props.state.tabs.find((candidate) => candidate.id === tabId) : undefined
-    if (tab) {
-      props.expandTabGroup(tab)
-      await props.selectTab(tab.id)
-    } else {
-      await props.syncState(props.browser.newTab({ mcpGroupId: group.id, active: true }))
-    }
+    const found = await goToWorkspace(entry, props)
+    // Closed after the list was drawn, such as by an agent.
+    if (!found) props.showError(t('workspaceSwitcher.switchFailed'), t('workspaceSwitcher.switchDescription', { name: entry.name }))
   } catch (cause) {
     // Reopening the switcher, or choosing again, is newer; a late failure does not cover it.
     if (current !== choice) return

@@ -633,14 +633,23 @@ export const frFR = {
     "heading": "Commandes",
     "close": "Fermer la palette de commandes",
     "search": "Rechercher des commandes",
-    "placeholder": "Saisir une commande ou une fonctionnalité",
-    "matches": "{count} commande correspondante. | {count} commandes correspondantes.",
+    "placeholder": "Saisir une commande, ou trouver un onglet, un espace de travail, une page ou un paramètre",
+    "matches": "{count} résultat. | {count} résultats.",
     "selected": "{label} sélectionné.",
     "available": "Commandes disponibles",
-    "empty": "Aucune commande correspondante",
-    "emptyDescription": "Essayez une fonctionnalité, une action ou un synonyme comme « capture d’écran » ou « cookies ».",
+    "empty": "Aucun résultat",
+    "emptyDescription": "Essayez une commande comme « capture d’écran », ou une partie du nom d’un onglet, d’un espace de travail, d’une page ou d’un paramètre.",
     "navigate": "Naviguer",
-    "run": "Exécuter"
+    "run": "Exécuter",
+    "sections": {
+      "tabs": "Onglets ouverts",
+      "workspaces": "Espaces de travail",
+      "settings": "Paramètres",
+      "history": "Historique"
+    },
+    "untitledTab": "Onglet sans titre",
+    "openFailed": "Impossible d’ouvrir {name}",
+    "openFailedDescription": "Il a peut-être été fermé après l’affichage de la liste."
   },
   "commandCatalog": {
     "categories": {

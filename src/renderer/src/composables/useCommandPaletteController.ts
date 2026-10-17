@@ -3,9 +3,17 @@ import {
   COMMAND_PALETTE_COMMANDS,
   COMMAND_PALETTE_RECENT_LIMIT,
   commandPaletteSections,
+  labelMatchScore,
   type CommandPaletteCommand,
-  type CommandPaletteCommandId
+  type CommandPaletteCommandId,
+  type CommandPaletteSectionId
 } from '../../../shared/command-palette.js'
+import {
+  DETAIL_MATCH_SCORE,
+  type CommandPaletteResult,
+  type CommandPaletteResultKind,
+  type CommandPaletteResultSection
+} from '../../../shared/command-palette-search.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { readLocalPreference, writeLocalPreference, type LocalPreferenceStorageProvider } from '../local-preferences.js'
 
@@ -25,6 +33,22 @@ function readRecentCommands(storage?: LocalPreferenceStorageProvider): CommandPa
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
 
+/** One row of the palette: a command, or a tab, workspace, settings section or visited page it found. */
+export type CommandPaletteEntry =
+  | { kind: 'command'; key: string; command: CommandPaletteCommand }
+  | { kind: 'result'; key: string; result: CommandPaletteResult }
+
+export interface CommandPaletteGroup {
+  id: CommandPaletteSectionId | CommandPaletteResultKind
+  entries: CommandPaletteEntry[]
+}
+
+/**
+ * Commands outrank what the search finds by this much, so a command keeps first place unless a tab, workspace,
+ * setting or page matches by name clearly better, such as its whole name against a word inside a command's.
+ */
+const COMMAND_RANK_BONUS = 10
+
 export interface CommandPaletteControllerOptions {
   open: Ref<boolean>
   websiteAvailable: Readonly<Ref<boolean>>
@@ -36,6 +60,10 @@ export interface CommandPaletteControllerOptions {
   translate: Translate
   runCommand: (commandId: CommandPaletteCommandId) => unknown
   onRunError: (error: unknown, commandId: CommandPaletteCommandId) => void
+  /** Tabs, workspaces, settings and visited pages matching a search; nothing is searched until something is typed. */
+  search?: (query: string) => readonly CommandPaletteResultSection[]
+  /** Goes to a search result; it reports its own failures. */
+  openResult?: (result: CommandPaletteResult) => unknown
 }
 
 export function useCommandPaletteController(options: CommandPaletteControllerOptions) {
@@ -57,18 +85,48 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     recentIds: recentIds.value
   }, localizedCommands.value))
   const commands = computed(() => sections.value.flatMap((section) => section.commands))
-  const commandIds = computed(() => commands.value.map((command) => command.id))
-  const selectedCommand = computed(() => commands.value[selection.value])
+  const resultSections = computed(() => query.value.trim() && options.search ? options.search(query.value) : [])
+  // One list: the best match first, commands ahead of results that match as well.
+  const groups = computed<CommandPaletteGroup[]>(() => {
+    const searching = Boolean(query.value.trim())
+    const ranked = [
+      ...sections.value.map((section) => ({
+        id: section.id,
+        rank: searching
+          ? COMMAND_RANK_BONUS + Math.max(DETAIL_MATCH_SCORE, ...section.commands.map((command) => labelMatchScore(command.label, query.value)))
+          : 0,
+        entries: section.commands.map((command): CommandPaletteEntry => ({ kind: 'command', key: `command:${command.id}`, command }))
+      })),
+      ...resultSections.value.filter((section) => section.results.length).map((section) => ({
+        id: section.id,
+        rank: Math.max(...section.results.map((result) => result.score)),
+        entries: section.results.map((result): CommandPaletteEntry => ({ kind: 'result', key: `${result.kind}:${result.id}`, result }))
+      }))
+    ]
+    return ranked
+      .map((group, index) => ({ group, index }))
+      .sort((left, right) => right.group.rank - left.group.rank || left.index - right.index)
+      .map(({ group }) => ({ id: group.id, entries: group.entries }))
+  })
+  const entries = computed(() => groups.value.flatMap((group) => group.entries))
+  const entryKeys = computed(() => entries.value.map((entry) => entry.key))
+  const selectedEntry = computed<CommandPaletteEntry | undefined>(() => entries.value[selection.value])
+  const selectedCommand = computed(() => selectedEntry.value?.kind === 'command' ? selectedEntry.value.command : undefined)
   let presentationGeneration = 0
 
   function commandElementId(command: CommandPaletteCommand): string {
     return `command-palette-${command.id}`
   }
 
+  function entryElementId(entry: CommandPaletteEntry): string {
+    if (entry.kind === 'command') return commandElementId(entry.command)
+    return `command-palette-${entry.result.kind}-${entry.result.id.replace(/[^\w-]/gu, '-')}`
+  }
+
   function revealSelectedCommand(): void {
-    const command = selectedCommand.value
-    if (!command) return
-    document.getElementById(commandElementId(command))?.scrollIntoView?.({ block: 'nearest' })
+    const entry = selectedEntry.value
+    if (!entry) return
+    document.getElementById(entryElementId(entry))?.scrollIntoView?.({ block: 'nearest' })
   }
 
   function restoreFocusAndReveal(): void {
@@ -113,13 +171,22 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     }
   }
 
-  async function runSelectedCommand(): Promise<void> {
-    if (selectedCommand.value) await run(selectedCommand.value.id)
+  async function runEntry(entry: CommandPaletteEntry): Promise<void> {
+    if (entry.kind === 'command') {
+      await run(entry.command.id)
+      return
+    }
+    close()
+    await options.openResult?.(entry.result)
+  }
+
+  async function runSelectedEntry(): Promise<void> {
+    if (selectedEntry.value) await runEntry(selectedEntry.value)
   }
 
   async function moveSelection(offset: -1 | 1): Promise<void> {
-    if (!commands.value.length) return
-    selection.value = (selection.value + offset + commands.value.length) % commands.value.length
+    if (!entries.value.length) return
+    selection.value = (selection.value + offset + entries.value.length) % entries.value.length
     await nextTick()
     revealSelectedCommand()
   }
@@ -136,14 +203,14 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
       void moveSelection(-1)
       return
     }
-    if (event.key === 'Enter' && selectedCommand.value) {
+    if (event.key === 'Enter' && selectedEntry.value) {
       event.preventDefault()
-      void runSelectedCommand()
+      void runSelectedEntry()
     }
   }
 
   const stopCommandTracking = watch(
-    [query, commandIds],
+    [query, entryKeys],
     ([nextQuery, nextIds], [previousQuery, previousIds]) => {
       if (nextQuery !== previousQuery) {
         selection.value = 0
@@ -174,11 +241,16 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     selection,
     sections,
     commands,
+    groups,
+    entries,
+    selectedEntry,
     selectedCommand,
     commandElementId,
+    entryElementId,
     openPanel,
     close,
     run,
+    runEntry,
     moveSelection,
     handleKeydown,
     dispose

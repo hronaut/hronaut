@@ -44,7 +44,7 @@ test('finds global and website commands from the accessible command palette', as
   const commandSearch = palette.getByRole('combobox', { name: 'Search commands' })
   await expect(commandSearch).toBeFocused()
   await commandSearch.fill('screenshot')
-  await expect(palette.getByText('No matching commands')).toBeVisible()
+  await expect(palette.getByText('No matches')).toBeVisible()
   await commandSearch.fill('settings')
   await expect(palette.getByRole('option', { name: /Open Settings/ })).toBeVisible()
   await commandSearch.press('Enter')

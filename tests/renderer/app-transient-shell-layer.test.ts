@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import AppTransientShellLayer from '../../src/renderer/src/components/AppTransientShellLayer.vue'
+import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 function exposedStub(name: string, props: string[], exposed: Record<string, unknown>) {
   return defineComponent({
@@ -91,12 +92,14 @@ function createHarness() {
       fillCredential,
       runCommand,
       reportCommandError,
+      openSettingsSection: vi.fn(),
       reportZoomError,
       onNewTab: newTab,
       onSearchTabs: searchTabs,
       onCreateWorkspace: createWorkspace
     },
     global: {
+      plugins: [createHronautI18n('en-US')],
       stubs: {
         TabSearchPanel: exposedStub('TabSearchPanel', [
           'open', 'state', 'mcpActivityByTab', 'syncState', 'selectTab', 'expandTabGroup',

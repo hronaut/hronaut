@@ -633,14 +633,23 @@ export const deDE = {
     "heading": "Befehle",
     "close": "Befehlspalette schließen",
     "search": "Befehle durchsuchen",
-    "placeholder": "Befehl oder Funktion eingeben",
-    "matches": "{count} passender Befehl. | {count} passende Befehle.",
+    "placeholder": "Befehl eingeben oder Tab, Arbeitsbereich, Seite oder Einstellung finden",
+    "matches": "{count} Ergebnis. | {count} Ergebnisse.",
     "selected": "{label} ausgewählt.",
     "available": "Verfügbare Befehle",
-    "empty": "Keine passenden Befehle",
-    "emptyDescription": "Versuchen Sie eine Funktion, Aktion oder ein Synonym wie „Bildschirmfoto“ oder „Cookies“.",
+    "empty": "Keine Treffer",
+    "emptyDescription": "Versuchen Sie einen Befehl wie „Bildschirmfoto“ oder einen Teil des Namens eines Tabs, Arbeitsbereichs, einer Seite oder Einstellung.",
     "navigate": "Navigieren",
-    "run": "Ausführen"
+    "run": "Ausführen",
+    "sections": {
+      "tabs": "Offene Tabs",
+      "workspaces": "Arbeitsbereiche",
+      "settings": "Einstellungen",
+      "history": "Verlauf"
+    },
+    "untitledTab": "Unbenannter Tab",
+    "openFailed": "{name} konnte nicht geöffnet werden",
+    "openFailedDescription": "Möglicherweise wurde es geschlossen, nachdem die Liste angezeigt wurde."
   },
   "commandCatalog": {
     "categories": {

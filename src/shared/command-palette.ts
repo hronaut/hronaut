@@ -162,15 +162,20 @@ function commandSearchText(command: CommandPaletteCommand): string {
     .toLocaleLowerCase()
 }
 
-function commandScore(command: CommandPaletteCommand, query: string): number {
+/** How well a name matches a search: 40 for the whole name, 30 for its start, 20 for a word's start, 10 inside it. */
+export function labelMatchScore(name: string, query: string): number {
   const normalizedQuery = query.trim().toLocaleLowerCase()
   if (!normalizedQuery) return 0
-  const label = command.label.toLocaleLowerCase()
+  const label = name.toLocaleLowerCase()
   if (label === normalizedQuery) return 40
   if (label.startsWith(normalizedQuery)) return 30
   if (label.split(/\s+/).some((word) => word.startsWith(normalizedQuery))) return 20
   if (label.includes(normalizedQuery)) return 10
   return 0
+}
+
+function commandScore(command: CommandPaletteCommand, query: string): number {
+  return labelMatchScore(command.label, query)
 }
 
 /**

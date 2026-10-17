@@ -984,6 +984,7 @@ useAppLifecycleController({
       :fill-credential="fillSelectedCredential"
       :run-command="runCommandPaletteCommand"
       :report-command-error="reportShellActionError"
+      :open-settings-section="openSettingsSection"
       :report-zoom-error="reportShellActionError"
       @new-tab="runBrowserShortcut('new-tab')"
       @search-tabs="runBrowserShortcut('search-tabs')"
