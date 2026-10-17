@@ -3,10 +3,14 @@ import { FRAME_OBSERVATION_LIMITS } from '../../../../shared/frame-observation.j
 import { frameObservationResult } from '../../frame-observation-result.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import { pageObservationSettlement, type PageObservationSettlement } from '../page-observation-settlement.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { frameObservationSettlement, type FrameObservationSettlement } from './frame-observation-settlement.js'
+
+type SnapshotSettlement = FrameObservationSettlement | PageObservationSettlement
 
 export function registerBrowserSnapshot(context: McpToolContext): void {
-  const { frameRequests, manager, registerWorkspaceTool, tabTool } = context
+  const { manager, registerWorkspaceTool, tabTool } = context
   registerWorkspaceTool(
     'browser_snapshot',
     {
@@ -45,12 +49,13 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
       expectedOrigin?: string
       expectedText?: string
       expectedSelector?: string
-    }) => {
+    }, call: WorkspaceToolCall<SnapshotSettlement>) => {
       if (frameSelector !== undefined) {
-        const request = frameRequests.getStore()!
-        if (!tabId || !request.assertCurrent) throw new Error('Frame observation authority unavailable')
-        request.pending = await manager.captureFrameObservation(tabId, frameSelector, maxChars ?? FRAME_OBSERVATION_LIMITS.defaultChars, request.assertCurrent)
-        return frameObservationResult(request.pending.snapshot)
+        const settlement = call.settlement
+        if (!tabId || !('retain' in settlement)) throw new Error('Frame observation authority unavailable')
+        const pending = await manager.captureFrameObservation(tabId, frameSelector, maxChars ?? FRAME_OBSERVATION_LIMITS.defaultChars, call.requireCurrentTarget)
+        settlement.retain(pending)
+        return frameObservationResult(pending.snapshot)
       }
       if (rootSelector !== undefined && action !== 'capture' && action !== 'set-baseline' && action !== 'delta') {
         throw new TypeError('rootSelector is supported only for capture, set-baseline and delta')
@@ -76,6 +81,11 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
         ? await manager.snapshotDetails(tabId, maxChars)
         : await manager.snapshotDetails(tabId, maxChars, rootSelector)
       return { ...textResult(snapshot.text), structuredContent: { ...snapshot } }
-    })
+    }),
+    {
+      settlement: input => typeof input.frameSelector === 'string' ? frameObservationSettlement(input) : pageObservationSettlement(manager),
+      recordsReadiness: input => typeof input.frameSelector !== 'string',
+      preservesPresentation: input => typeof input.frameSelector === 'string'
+    }
   )
 }

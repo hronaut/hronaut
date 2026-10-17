@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import { pageObservationSettlement, type PageObservationSettlement } from '../page-observation-settlement.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 
 export function registerBrowserScreenshot(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -38,7 +39,7 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
       quality?: number
       maxWidth?: number
       maxHeight?: number
-    }) => {
+    }, _call: WorkspaceToolCall<PageObservationSettlement>) => {
       const previewBefore = manager.cssStatePreviewMarker(options.tabId)
       const image = await manager.screenshot(options)
       const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(options.tabId)
@@ -47,6 +48,7 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         ...(cssStatePreview ? [{ type: 'text' as const, text: JSON.stringify({ cssStatePreview, note: 'Captured while a forced CSS state was applied; this is not natural page state.' }) }] : []),
         { type: 'image' as const, data: image.data.toString('base64'), mimeType: image.mimeType }
       ] }
-    })
+    }),
+    { settlement: () => pageObservationSettlement(manager) }
   )
 }

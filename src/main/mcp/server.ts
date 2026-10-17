@@ -12,8 +12,6 @@ import { NativeWheelOutcomeUnknownError } from '../browser/native-wheel.js'
 import { NativeKeyHoldOutcomeUnknownError } from '../browser/native-key-hold.js'
 import { NativeInputCleanupError } from '../browser/native-input-cleanup.js'
 import type { UserAttentionLifecycle } from '../user-attention-lifecycle.js'
-import { FRAME_OBSERVATION_LIMITS } from '../../shared/frame-observation.js'
-import { frameObservationResult } from './frame-observation-result.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { requireTabAgentControl } from './tab-agent-control.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
@@ -536,18 +534,6 @@ export function mcpCapabilityProfileInputFromPreset(
   }
 }
 
-function pageObservationPublicationFailure(error: unknown): CallToolResult {
-  const outcome = {
-    status: 'OUTCOME_UNKNOWN',
-    reason: error instanceof WorkspaceWriteLeaseError ? error.code : 'OBSERVATION_NOT_PUBLISHED',
-    dispatch: 'dispatched', effects: 'possible', retrySafe: false,
-    observation: 'discarded', postcondition: 'unknown', reconciliationRequired: true,
-    ...(error instanceof McpCapabilityAuthorizationError ? { permission: 'denied', policyDecision: error.decision } : {}),
-    nextAction: 'The observation completed but publication authority changed. Its content was discarded. Capturing may have woken, selected or scrolled the page; those effects are not rolled back. Inspect current state and authorization before continuing; do not automatically replay the request.'
-  }
-  return { ...textResult(outcome), structuredContent: outcome, isError: true }
-}
-
 function scopeBrowserStateResult(result: CallToolResult, state: BrowserState): CallToolResult {
   if (result.isError) return result
   return {
@@ -872,7 +858,7 @@ function createBrowserMcpServer(
     name: string,
     config: unknown,
     handler: unknown,
-    settlementFor?: (input: Record<string, unknown>) => ToolCallSettlement | undefined
+    options: WorkspaceToolOptions<ToolCallSettlement | undefined> = {}
   ): ReturnType<typeof baseRegisterTool> => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -883,10 +869,8 @@ function createBrowserMcpServer(
     } as never, (async (...args: unknown[]) => trackAgentCall(name, args[0], () => frameRequests.run({}, async () => {
       const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
         ? args[0] as Record<string, unknown> : {}
-      const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
-      const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
       const frameRequest = frameRequests.getStore()!
-      const settlement = settlementFor?.(input)
+      const settlement = options.settlement?.(input)
       frameRequest.settlement = settlement
       if (name === 'browser_new_tab' && input.label !== undefined) frameRequest.labeledCreation = { attempted: false }
       if (name === 'browser_evaluate_file') frameRequest.fileEvaluation = { submitted: false, acknowledged: false }
@@ -1044,16 +1028,14 @@ function createBrowserMcpServer(
         return settled
       }
       const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
-        if (isFrameObservation || (name !== 'browser_status' && name !== 'browser_snapshot')) return
-        client.readinessProbe = { toolName: name, outcome, completedAt: new Date().toISOString() }
+        if (!options.recordsReadiness?.(input)) return
+        // Only browser_status and browser_snapshot declare recordsReadiness.
+        client.readinessProbe = { toolName: name as NonNullable<McpClientActivity['readinessProbe']>['toolName'], outcome, completedAt: new Date().toISOString() }
       }
       let finishWorkspaceMutation: (() => void) | undefined
       try {
-        if (isFrameObservation && ((input.action !== undefined && input.action !== 'capture')
-          || ['rootSelector','baselineId','maxOutputChars','advanceBaseline','expectedOrigin','expectedText','expectedSelector'].some(key => input[key] !== undefined)
-          || (typeof input.maxChars === 'number' && input.maxChars > FRAME_OBSERVATION_LIMITS.maxChars))) {
-          throw new Error('frameSelector supports capture only, with maxChars at most 16000 and no root, baseline, delta or quality options')
-        }
+        const admission = settlement?.admit?.()
+        if (admission) return admission
         if (name === 'browser_evaluate_file' && !capability) {
           const outcome = fileEvaluationFailure({ submitted: false, acknowledged: false }, 'SEPARATE_GRANT_REQUIRED')
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
@@ -1096,12 +1078,13 @@ function createBrowserMcpServer(
           () => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args)
         ))
         try {
-          await authorizeCapability(name, isFrameObservation && frameRequest.tabId ? { ...input, tabId: frameRequest.tabId } : input, 'active-dispatch')
+          await authorizeCapability(name, settlement?.capabilityInput?.(input) ?? input, 'active-dispatch')
         } catch (error) {
           rememberInputPolicy(error)
-          if (isPageObservation && !result.isError) {
+          const revoked = settlement?.publicationRevoked?.(error, result)
+          if (revoked) {
             recordReadinessProbe('failed')
-            return pageObservationPublicationFailure(error)
+            return revoked
           }
           if (!(error instanceof McpCapabilityAuthorizationError)) throw error
           const readOnly = mcpCapabilityOperationClass(name, input) === 'read'
@@ -1130,14 +1113,10 @@ function createBrowserMcpServer(
           return settleStorageComparison(settleStorageInspection(settleWebStorage(settleCookies(settleConditions({ ...textResult(outcome), structuredContent: outcome, isError: true })))))
         }
         const published = settlement?.publish?.(result)
-        if (published instanceof Promise) return await published
-        if (published) return published // No await after the tool's final publication check.
-        if (isFrameObservation && frameRequest.pending && !result.isError) {
-          await frameRequest.pending.finish()
-          const settled = frameObservationResult(frameRequest.pending.snapshot)
-          frameRequest.assertCurrent?.()
-          frameRequest.pending.assertCurrent()
-          return settled
+        const publication = published instanceof Promise ? await published : published
+        if (publication) {
+          recordReadinessProbe(publication.isError ? 'failed' : 'verified')
+          return publication // No await after the tool's final publication check.
         }
         if (name === 'browser_emulate') {
           if (!result.isError) {
@@ -1176,15 +1155,6 @@ function createBrowserMcpServer(
           if (!frameRequest.wheelPublication) throw new Error('Wheel publication guard is unavailable')
           frameRequest.wheelPublication()
           return result // No await after final wheel authority/cancellation check.
-        }
-        if (isPageObservation && !result.isError) {
-          try {
-            if (!frameRequest.pageObservationPublication) throw new Error('Page observation publication guard is unavailable')
-            frameRequest.pageObservationPublication()
-          } catch (error) {
-            recordReadinessProbe('failed')
-            return pageObservationPublicationFailure(error)
-          }
         }
         if (frameRequest.cookieProgress && !result.isError) {
           if (!frameRequest.cookiePublication) throw new Error('Cookie publication guard is unavailable')
@@ -1236,7 +1206,6 @@ function createBrowserMcpServer(
         frameRequest.storageComparison?.publication?.dispose()
         frameRequest.clickAuthority?.dispose()
         frameRequest.selectionAuthority?.dispose()
-        frameRequest.pending?.discard()
         settlement?.dispose?.()
         if (frameRequest.fileEvaluationCompletion && finishWorkspaceMutation) {
           // Cancellation returns a bounded response but cannot release the writer
@@ -1393,12 +1362,7 @@ function createBrowserMcpServer(
         inputSchema: ['browser_wheel', 'browser_hold_key', 'browser_click'].includes(name) ? schema : inputSchema
       },
       tool(async (input: Record<string, unknown>, extra) => {
-        const isFrameObservation = name === 'browser_snapshot' && typeof input.frameSelector === 'string'
-        const isPageObservation = name === 'browser_screenshot' || (name === 'browser_snapshot' && !isFrameObservation)
-        const isGuardedElementInspection = name === 'browser_element_inspect' && (input.includePasswordOccupancy === true || input.includeValidity === true || input.includeSizingInputs === true || input.expectedValue !== undefined)
-        const passiveObservation = isFrameObservation || isGuardedElementInspection || name === 'browser_media_state' || name === 'browser_image_state'
-        const preservePresentation = passiveObservation || name === 'browser_wheel' || name === 'browser_hold_key'
-          || (name === 'browser_click' && input.button === 'right')
+        const preservePresentation = options.preservesPresentation?.(input) === true
         const settlement = frameRequests.getStore()!.settlement as S
         const controlRevision = actionTracker.controlRevision
         const requireCurrentControl = (settled = false): void => {
@@ -1517,8 +1481,7 @@ function createBrowserMcpServer(
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
           if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-          requireActiveCapabilityDispatch(name, actionInput, isFrameObservation || isPageObservation ? {workspaceId, tabId: resolvedTabId} : undefined)
-          if (isFrameObservation && extra?.signal?.aborted) throw new Error('Frame observation cancelled')
+          requireActiveCapabilityDispatch(name, actionInput, settlement?.authorizesResolvedTab ? {workspaceId, tabId: resolvedTabId} : undefined)
           if (settlement?.cancelledMessage && extra?.signal?.aborted) throw new Error(settlement.cancelledMessage)
           requireContinuity()
           requireCurrentControl()
@@ -1538,15 +1501,6 @@ function createBrowserMcpServer(
             const certificate = frameRequests.getStore()!.labeledCreation!.certificate
             if (!certificate) throw new Error('Labeled creation certificate unavailable')
             certificate()
-          }
-        }
-        if (isFrameObservation) { const request = frameRequests.getStore()!; request.assertCurrent = requireCurrentTarget; request.tabId = resolvedTabId }
-        if (isPageObservation) {
-          const requireObservationWorkspace = manager.captureWorkspaceObservationGuard(workspaceId)
-          frameRequests.getStore()!.pageObservationPublication = () => {
-            if (extra?.signal?.aborted) throw new Error('Page observation cancelled')
-            requireCurrentTarget()
-            requireObservationWorkspace()
           }
         }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
@@ -1720,7 +1674,7 @@ function createBrowserMcpServer(
           }
           const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, readOnly)
           try {
-            if (!passiveObservation && !(name === 'browser_click' && input.button === 'right') && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
+            if (!preservePresentation && resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
             }
             // Audit admission and tab wake can outlive pause, access revocation,
@@ -2044,7 +1998,7 @@ function createBrowserMcpServer(
         finishActivity(finalResult, false)
         return finalResult
       }),
-      options.settlement
+      options
     )
   }
 
