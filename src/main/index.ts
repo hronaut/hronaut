@@ -101,7 +101,7 @@ import {
 } from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
-import { ReleaseHistoryService } from './release-history.js'
+import { registerUpdatesIpc } from './updates-ipc.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { registerHomeIpc } from './home-ipc.js'
@@ -426,7 +426,6 @@ let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
 let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
-const releaseHistoryService = new ReleaseHistoryService()
 let updaterConfigured = false
 let updateInstallationInProgress = false
 let updateOperation: UpdateOperation | null = null
@@ -3745,17 +3744,13 @@ function registerIpc(): void {
     'license:open-purchase',
     commercialLicensePurchaseHandler(assertTrustedShellSender, (url) => shell.openExternal(url))
   )
-  ipcMain.handle('updates:get-state', (event) => { assertTrustedShellSender(event); return { ...updateState } })
-  ipcMain.handle('updates:get-release-history', (event, page: unknown, bypassCache: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof page !== 'number' || typeof bypassCache !== 'boolean') {
-      throw new TypeError('Invalid release history request.')
-    }
-    return releaseHistoryService.getPage(page, bypassCache)
+  registerUpdatesIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    updateState: () => updateState,
+    checkForUpdates,
+    downloadUpdate,
+    installDownloadedUpdate
   })
-  ipcMain.handle('updates:check', (event) => { assertTrustedShellSender(event); return checkForUpdates() })
-  ipcMain.handle('updates:download', (event) => { assertTrustedShellSender(event); return downloadUpdate() })
-  ipcMain.handle('updates:install', (event) => { assertTrustedShellSender(event); return installDownloadedUpdate() })
   ipcMain.handle('shell:is-window-focused', (event) => {
     assertTrustedShellSender(event)
     return BrowserWindow.fromWebContents(event.sender)?.isFocused() ?? false
