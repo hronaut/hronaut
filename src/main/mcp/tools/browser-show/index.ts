@@ -10,6 +10,7 @@ export function registerBrowserShow(context: McpToolContext): void {
       if (tabId) await manager.selectTabAndWait(tabId, { focus: false })
       showWindowInactive()
       return textResult('Browser window is visible without taking keyboard or mouse focus.')
-    })
+    }),
+    { tabTarget: 'if-any', continuityInspection: () => true }
   )
 }

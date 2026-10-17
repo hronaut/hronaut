@@ -19,6 +19,7 @@ export function registerBrowserDownloads(context: McpToolContext): void {
       downloadId?: string
     }) =>
       textResult(manager.manageWorkspaceDownloads(workspaceId!, action ?? 'list', downloadId))
-    )
+    ),
+    { tabTarget: 'none' }
   )
 }

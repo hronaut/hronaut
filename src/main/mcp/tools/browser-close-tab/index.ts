@@ -10,6 +10,7 @@ export function registerBrowserCloseTab(context: McpToolContext): void {
     withResolvedTargetWakePolicy(
       tool(async ({ tabId }: { tabId: string }) => textResult(await manager.closeTab(tabId))),
       'never'
-    )
+    ),
+    { closesTargetTab: true }
   )
 }

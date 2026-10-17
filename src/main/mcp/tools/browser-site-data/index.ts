@@ -25,6 +25,7 @@ export function registerBrowserSiteData(context: McpToolContext): void {
       if (action === 'inspect') return textResult(await siteData.inspect(workspaceId!, origin))
       if (!dataTypes?.length) throw new TypeError('dataTypes must select at least one category to clear')
       return textResult(await siteData.clear(workspaceId!, origin, [...new Set(dataTypes)]))
-    })
+    }),
+    { tabTarget: 'none' }
   )
 }

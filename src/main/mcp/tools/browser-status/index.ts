@@ -17,6 +17,6 @@ export function registerBrowserStatus(context: McpToolContext): void {
       ) ? attention : null
       return textResult({ ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), userAttention: visibleAttention })
     }),
-    { recordsReadiness: () => true }
+    { recordsReadiness: () => true, tabTarget: 'none', continuityInspection: () => true }
   )
 }

@@ -206,6 +206,7 @@ export function registerBrowserPublicOutcome(context: McpToolContext): void {
         sameContext(beforeObserver, afterObserver)
       )
       return { ...textResult(result), structuredContent: result }
-    })
+    }),
+    { continuityInspection: () => true }
   )
 }
