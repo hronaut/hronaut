@@ -234,6 +234,15 @@ describe('WorkspaceSwitcher', () => {
     expect(screen.getByRole('option', { name: /^Shop, Current, 2 tabs/ })).not.toHaveTextContent('Pinned')
   })
 
+  it('keeps Enter on the workspace used most recently when pinned ones are listed above it', async () => {
+    const state = browserState()
+    state.mcpTabGroups = state.mcpTabGroups.map((entry) => entry.id === 'ops' ? { ...entry, pinnedAt: '2026-10-16T12:00:00.000Z' } : entry)
+    const { openPanel } = await setup({ state })
+    await openPanel()
+    expect(options()).toEqual(['Ops', 'Shop', 'Docs', 'Empty', 'Old client'])
+    expect(screen.getByRole('option', { name: /^Docs/ })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('moves the selection in the order on screen when a workspace appears while it is open', async () => {
     const { wrapper, openPanel } = await setup()
     await openPanel()

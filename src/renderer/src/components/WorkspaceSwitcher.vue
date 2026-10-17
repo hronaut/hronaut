@@ -120,11 +120,18 @@ function reveal(): void {
   if (entry) document.getElementById(optionId(entry))?.scrollIntoView?.({ block: 'nearest' })
 }
 
-// With nothing typed, Enter goes to the top workspace other than the one in view: where an agent needs you or
-// works, or else the one used most recently.
+// With nothing typed, Enter goes to a workspace other than the one in view: where an agent needs you or works, or else
+// the one used most recently. Pinned workspaces are listed above the rest but do not take that place from it.
 function firstChoice(): number {
   if (query.value.trim()) return 0
-  return Math.max(0, results.value.findIndex((entry) => !entry.current))
+  const entries = results.value
+  const busy = entries.findIndex((entry) => !entry.current && entry.status !== 'idle')
+  if (busy >= 0) return busy
+  let recent = -1
+  entries.forEach((entry, index) => {
+    if (!entry.current && entry.kind === 'open' && (recent < 0 || entry.usedAt > entries[recent].usedAt)) recent = index
+  })
+  return recent >= 0 ? recent : Math.max(0, entries.findIndex((entry) => !entry.current))
 }
 
 // A new query starts from its best match; otherwise the selected workspace keeps its selection as the list changes.

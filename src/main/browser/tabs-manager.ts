@@ -79,6 +79,7 @@ import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
 import { suggestWorkspaceName } from '../../shared/workspace-names.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
+import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import { decodeWebsiteFavicon } from './favicon.js'
@@ -2090,8 +2091,13 @@ export class BrowserTabsManager {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}`)
     if (pinned === (group.pinnedAt !== undefined)) return this.getState()
-    if (pinned) group.pinnedAt = new Date().toISOString()
-    else delete group.pinnedAt
+    if (pinned) {
+      // After every earlier pin even if the clock went back since, so a new pin always goes last.
+      const latest = Math.max(0, ...[...this.mcpTabGroups.values()].map((candidate) => candidate.pinnedAt ? Date.parse(candidate.pinnedAt) || 0 : 0))
+      group.pinnedAt = new Date(Math.max(Date.now(), latest + 1)).toISOString()
+    } else {
+      delete group.pinnedAt
+    }
     this.changed()
     return this.getState()
   }
@@ -4141,6 +4147,8 @@ export class BrowserTabsManager {
         reportError(action)(error)
       }
     }
+    // The menu does what its label said when it opened.
+    const pin = group.pinnedAt === undefined
     return [
       {
         id: 'new-tab-in-workspace',
@@ -4164,8 +4172,8 @@ export class BrowserTabsManager {
       },
       {
         id: 'pin-workspace',
-        label: this.text(group.pinnedAt ? 'native.context.unpinWorkspace' : 'native.context.pinWorkspace'),
-        click: () => runAction('pin the workspace', () => this.setWorkspacePinned(group.id, group.pinnedAt === undefined))
+        label: this.text(pin ? 'native.context.pinWorkspace' : 'native.context.unpinWorkspace'),
+        click: () => runAction('pin the workspace', () => this.setWorkspacePinned(group.id, pin))
       },
       { type: 'separator' },
       {
@@ -12742,7 +12750,9 @@ export class BrowserTabsManager {
   }
 
   private orderedTabs(): BrowserTab[] {
-    const groupOrder = new Map([...this.mcpTabGroups.keys()].map((groupId, index) => [groupId, index + 1]))
+    // Workspaces in the order the rail and strip show them, pinned ones first, so tab shortcuts and the tab that
+    // follows a closed one go by what is on screen.
+    const groupOrder = new Map(pinnedWorkspacesFirst([...this.mcpTabGroups.values()]).map((group, index) => [group.id, index + 1]))
     return [...this.tabs.values()].sort((first, second) => {
       const firstIsHome = isHronautHomeUrl(first.url)
       const secondIsHome = isHronautHomeUrl(second.url)
