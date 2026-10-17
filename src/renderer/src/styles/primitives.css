@@ -93,10 +93,10 @@
 .ui-switch__copy { @apply grid gap-[3px]; }
 .ui-switch__copy small { @apply [font-size:var(--type-small-size)] font-normal text-muted; }
 .ui-switch__input { @apply pointer-events-none absolute opacity-0; }
-.ui-switch__track { @apply flex h-[22px] w-[38px] items-center rounded-full border border-border-soft bg-surface-muted p-0.5 transition-[background,border-color] duration-[140ms]; }
+.ui-switch__track { @apply flex h-[22px] w-[38px] items-center rounded-full border border-muted bg-surface-muted p-0.5 transition-[background,border-color] duration-[140ms]; }
 .ui-switch__track > span { @apply size-4 rounded-full bg-muted transition-[transform,background] duration-[140ms]; }
-.ui-switch__input:checked + .ui-switch__track { @apply border-accent bg-accent-soft; }
-.ui-switch__input:checked + .ui-switch__track > span { @apply translate-x-4 bg-accent; }
+.ui-switch__input:checked + .ui-switch__track { @apply border-accent bg-accent; }
+.ui-switch__input:checked + .ui-switch__track > span { @apply translate-x-4 bg-button-copy; }
 .ui-switch__input:focus-visible + .ui-switch__track { @apply outline-2 outline-offset-2 outline-accent; }
 .ui-switch--disabled { @apply cursor-default opacity-54; }
 

@@ -51,6 +51,7 @@ async function changeStartupCheck(event: Event): Promise<void> {
         </span>
         <UiCheckbox
           bare
+          appearance="switch"
           id="setting-startup-update"
           :checked="settings.checkForUpdatesOnStartup"
           :disabled="busy"

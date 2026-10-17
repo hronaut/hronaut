@@ -10,10 +10,13 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   indeterminate?: boolean
   bare?: boolean
+  /** A switch for a setting that applies at once; still a checkbox to assistive technology. */
+  appearance?: 'checkbox' | 'switch'
 }>(), {
   disabled: false,
   indeterminate: false,
-  bare: false
+  bare: false,
+  appearance: 'checkbox'
 })
 const emit = defineEmits<{ 'update:modelValue': [checked: boolean] }>()
 const instance = getCurrentInstance()
@@ -33,9 +36,9 @@ function onChange(event: Event): void {
 </script>
 
 <template>
-  <input v-if="bare" v-bind="$attrs" ref="input" class="ui-checkbox" type="checkbox" :checked="isChecked" :disabled="disabled" @change="onChange" />
+  <input v-if="bare" v-bind="$attrs" ref="input" :class="['ui-checkbox', { 'ui-checkbox--switch': appearance === 'switch' }]" type="checkbox" :checked="isChecked" :disabled="disabled" @change="onChange" />
   <label v-else class="ui-check" :class="{ 'ui-check--disabled': disabled }">
-    <input v-bind="$attrs" ref="input" type="checkbox" :checked="isChecked" :disabled="disabled" @change="onChange" />
+    <input v-bind="$attrs" ref="input" :class="{ 'ui-checkbox--switch': appearance === 'switch' }" type="checkbox" :checked="isChecked" :disabled="disabled" @change="onChange" />
     <span v-if="label || $slots.default"><slot>{{ label }}</slot></span>
   </label>
 </template>

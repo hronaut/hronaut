@@ -64,6 +64,7 @@ async function changeTimeout(event: Event): Promise<void> {
         </span>
         <UiCheckbox
           bare
+          appearance="switch"
           id="setting-memory-saver"
           :checked="settings.memorySaverEnabled"
           :disabled="busy"

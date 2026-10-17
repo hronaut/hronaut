@@ -58,7 +58,7 @@
 :root[data-theme="cyberpunk-turbo"] .tab.active .tab-active-indicator {
   @apply [background:var(--turbo-highlight)];
 }
-:root[data-theme="cyberpunk-turbo"] :is(.tab-group, .tab, .address-form, .tab-controls, .ui-button, .ui-input, .ui-select, .settings-dialog, .theme-option, .global-lock-controls) {
+:root[data-theme="cyberpunk-turbo"] :is(.tab-group, .tab, .address-form, .tab-controls, .ui-button, .ui-input, .ui-select, .settings-dialog, .theme-option, .settings-rows, .global-lock-controls) {
   @apply [border-radius:4px];
 }
 :root[data-theme="cyberpunk-turbo"] .settings-dialog {

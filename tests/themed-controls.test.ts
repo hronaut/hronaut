@@ -30,7 +30,10 @@ describe('themed native controls', () => {
     expect(styles.indexOf("controls.css")).toBeGreaterThan(styles.lastIndexOf("layer(application)"))
 
     const controls = readFileSync(join(rendererRoot, 'styles/controls.css'), 'utf8')
-    expect(controls).toContain('input:is([type="checkbox"], [type="radio"]):not([role="switch"]) {')
+    expect(controls).toContain('input:is([type="checkbox"], [type="radio"]):not([role="switch"], .ui-checkbox--switch) {')
+    // Settings that apply at once draw the same checkbox as a switch, outside the generic checkbox rules.
+    expect(controls).toMatch(/input\[type="checkbox"\]\.ui-checkbox--switch \{[^}]*appearance: none;[^}]*border: 1px solid var\(--muted\);/u)
+    expect(controls).toMatch(/input\[type="checkbox"\]\.ui-checkbox--switch:checked::before \{[^}]*translate: 16px 0;/u)
     expect(controls).toContain('select:not([multiple], [size]) {')
     // High-contrast modes keep the system's own controls.
     expect(controls).toMatch(/@media \(forced-colors: active\) \{[\s\S]*appearance: auto;/u)

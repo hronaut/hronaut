@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import UiCheckbox from "../ui/UiCheckbox.vue"
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -277,9 +278,10 @@ async function setLanguagePreference(event: Event): Promise<void> {
             {{ t('appearance.systemTitleBar.restartRequired') }}
           </small>
         </span>
-        <input
+        <UiCheckbox
+          bare
+          appearance="switch"
           id="setting-system-title-bar"
-          type="checkbox"
           :checked="settings.useSystemTitleBar"
           @change="setUseSystemTitleBar"
         />
@@ -289,23 +291,24 @@ async function setLanguagePreference(event: Event): Promise<void> {
           <strong>{{ t('appearance.hideInTray.label') }}</strong>
           <small>{{ t('appearance.hideInTray.description') }}</small>
         </span>
-        <input id="setting-hide-in-tray" type="checkbox" :checked="settings.hideInTray" @change="setHideInTray" />
+        <UiCheckbox bare appearance="switch" id="setting-hide-in-tray" :checked="settings.hideInTray" @change="setHideInTray" />
       </label>
       <label class="settings-row" for="setting-launch-at-startup">
         <span>
           <strong>{{ t('appearance.launchAtStartup.label') }}</strong>
           <small>{{ t('appearance.launchAtStartup.description') }}</small>
         </span>
-        <input id="setting-launch-at-startup" type="checkbox" :checked="settings.launchAtStartup" @change="setLaunchAtStartup" />
+        <UiCheckbox bare appearance="switch" id="setting-launch-at-startup" :checked="settings.launchAtStartup" @change="setLaunchAtStartup" />
       </label>
       <label class="settings-row" for="setting-launch-minimized">
         <span>
           <strong>{{ t('appearance.launchMinimized.label') }}</strong>
           <small>{{ t('appearance.launchMinimized.description') }}</small>
         </span>
-        <input
+        <UiCheckbox
+          bare
+          appearance="switch"
           id="setting-launch-minimized"
-          type="checkbox"
           :checked="settings.launchMinimized"
           :disabled="!settings.launchAtStartup"
           @change="setLaunchMinimized"
@@ -316,7 +319,7 @@ async function setLanguagePreference(event: Event): Promise<void> {
           <strong>{{ t('appearance.playAttentionSound.label') }}</strong>
           <small>{{ t('appearance.playAttentionSound.description') }}</small>
         </span>
-        <input id="setting-attention-sound" type="checkbox" :checked="settings.attentionSound" @change="setAttentionSound" />
+        <UiCheckbox bare appearance="switch" id="setting-attention-sound" :checked="settings.attentionSound" @change="setAttentionSound" />
       </label>
       <div class="settings-row">
         <span>
@@ -342,14 +345,14 @@ async function setLanguagePreference(event: Event): Promise<void> {
           <strong>{{ t('appearance.agentCursor.label') }}</strong>
           <small>{{ t('appearance.agentCursor.description') }}</small>
         </span>
-        <input id="setting-agent-cursor" type="checkbox" :checked="settings.showAgentCursor" @change="setShowAgentCursor" />
+        <UiCheckbox bare appearance="switch" id="setting-agent-cursor" :checked="settings.showAgentCursor" @change="setShowAgentCursor" />
       </label>
       <label class="settings-row" for="setting-agent-strip">
         <span>
           <strong>{{ t('appearance.agentStrip.label') }}</strong>
           <small>{{ t('appearance.agentStrip.description') }}</small>
         </span>
-        <input id="setting-agent-strip" type="checkbox" :checked="settings.pinAgentLiveStatus" @change="setPinAgentLiveStatus" />
+        <UiCheckbox bare appearance="switch" id="setting-agent-strip" :checked="settings.pinAgentLiveStatus" @change="setPinAgentLiveStatus" />
       </label>
     </div>
   </div>

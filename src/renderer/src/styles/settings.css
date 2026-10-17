@@ -30,7 +30,7 @@
 .settings-nav-icon { @apply grid [width:22px] [height:22px] [flex:0_0_22px] place-items-center text-muted; }
 .settings-nav-icon svg { @apply [width:15px] [height:15px]; }
 
-.settings-content { width: 100%; max-width: 1164px; justify-self: center; container: settings-content / inline-size; @apply min-w-0 [padding:28px_32px] overflow-y-auto bg-surface-raised; }
+.settings-content { width: 100%; max-width: 960px; justify-self: center; container: settings-content / inline-size; @apply min-w-0 [padding:28px_32px] overflow-y-auto bg-surface-raised; }
 .setting-copy h3 { @apply m-0 [font-size:var(--type-heading-size)] [font-weight:var(--weight-strong)] [letter-spacing:-.025em]; }
 .setting-copy p { @apply [max-width:620px] [margin:7px_0_0] text-muted [font-size:var(--type-body-size)] [line-height:1.6]; }
 .theme-groups { @apply grid [gap:20px] [margin-top:20px]; }
@@ -290,17 +290,18 @@
 .commercial-license-actions .danger { @apply [color:var(--danger-text,_#c24848)]; }
 .commercial-license-error { color: var(--danger-text, #c24848) !important; }
 
-.settings-rows { @apply [margin-top:24px] [border-top:1px_solid_var(--border-soft)] [border-bottom:1px_solid_var(--border-soft)]; }
-.settings-row { @apply flex [min-height:72px] items-center justify-between [gap:24px] [padding:18px_0]; }
-.settings-row + .settings-row { @apply [border-top:1px_solid_var(--border-soft)]; }
+.settings-rows { @apply [margin-top:20px] [padding:0_18px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-3)] bg-surface [box-shadow:var(--elevation-1)]; }
+.settings-row { @apply flex [min-height:64px] items-center justify-between [gap:24px] [padding:14px_0]; }
+.settings-rows > .settings-row:not(:first-child) { @apply [border-top:1px_solid_var(--border-soft)]; }
+/* A note under a row belongs to it: no rule between them. */
+.settings-rows > :is(.settings-info, .download-settings-status) { @apply [margin:-4px_0_0] [padding:0_0_14px]; }
 .settings-row > span:first-child, .settings-row > label { @apply min-w-0; }
 .settings-row strong, .settings-row small { @apply block; }
 .settings-row strong { @apply [font-size:var(--type-body-size)]; }
 .settings-row small { @apply [margin-top:5px] text-muted [font-size:var(--type-small-size)] [line-height:1.5]; }
 .settings-row small.setting-restart-required { @apply text-accent-copy [font-weight:var(--weight-strong)]; }
-.settings-row input[type="checkbox"] { @apply [width:17px] [height:17px] flex-none [accent-color:var(--accent)]; }
-.settings-row input:disabled { @apply [opacity:0.42]; }
-.settings-row select { @apply [min-width:126px] [padding:8px_10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] outline-none text-copy bg-surface-raised [font:inherit] [font-size:var(--type-body-size)]; }
+.settings-row input:disabled:not(.ui-checkbox--switch) { @apply [opacity:0.42]; }
+.settings-row select { @apply [min-width:126px] [min-height:36px] [padding:7px_10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-1)] outline-none text-copy bg-surface-raised [font:inherit] [font-size:var(--type-body-size)]; }
 .settings-row select:focus { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
 .settings-row select:disabled { @apply cursor-default [opacity:0.45]; }
 .setting-select-control { @apply flex [width:236px] [flex:0_0_236px] flex-col items-stretch [gap:5px]; }
@@ -492,6 +493,15 @@
   .workspace-data-actions { @apply w-full justify-start; }
   .workspace-data-card { @apply [grid-template-columns:36px_minmax(0,_1fr)]; }
   .workspace-data-card > button { @apply [grid-column:1_/_-1] w-full; }
+  .mcp-capability-form { @apply [grid-template-columns:1fr]; }
+  .mcp-capability-form label:has(textarea) { @apply [grid-column:auto]; }
+  .mcp-capability-card { @apply [grid-template-columns:1fr]; }
+  .mcp-capability-actions, .mcp-capability-card details { @apply [grid-column:auto]; }
+  .theme-options { @apply [grid-template-columns:1fr]; }
+}
+
+/* Rows sit inside a card whose padding and border take 38px, so they stack at the same row width as before. */
+@container settings-content (max-width: 518px) {
   .settings-row:has(select), .settings-row.mcp-port-row, .settings-row.download-location-row,
   .settings-row:has(.attention-sound-actions) { @apply items-stretch flex-col [gap:12px]; }
   .setting-select-control, .mcp-port-control { @apply w-full [flex-basis:auto]; }
@@ -499,9 +509,4 @@
   .mcp-port-control > div { @apply justify-start; }
   .mcp-port-status { @apply text-left; }
   .download-location-actions, .attention-sound-actions { @apply flex-wrap; }
-  .mcp-capability-form { @apply [grid-template-columns:1fr]; }
-  .mcp-capability-form label:has(textarea) { @apply [grid-column:auto]; }
-  .mcp-capability-card { @apply [grid-template-columns:1fr]; }
-  .mcp-capability-actions, .mcp-capability-card details { @apply [grid-column:auto]; }
-  .theme-options { @apply [grid-template-columns:1fr]; }
 }

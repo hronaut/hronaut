@@ -59,6 +59,7 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
         </span>
         <UiCheckbox
           bare
+          appearance="switch"
           id="setting-ask-download-location"
           :checked="settings.askWhereToSaveDownloads"
           :disabled="busy"
