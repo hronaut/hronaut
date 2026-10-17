@@ -35,6 +35,7 @@ afterEach(() => {
   else Reflect.deleteProperty(window, 'localStorage')
   document.documentElement.removeAttribute('data-theme')
   document.documentElement.removeAttribute('data-theme-preference')
+  document.documentElement.removeAttribute('data-window-material')
   document.documentElement.style.colorScheme = ''
 })
 
@@ -53,6 +54,27 @@ describe('useAppearancePresentationController', () => {
     expect(detached.tabRailWidth.value).toBe(0)
     mainScope.stop()
     detachedScope.stop()
+  })
+
+  it('lets the window\'s material through behind the rail only in the main window, while main shows one', async () => {
+    const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, tabPosition: 'left' as const })
+    const systemTheme = ref<'light' | 'dark'>('light')
+    const windowMaterial = ref<'vibrancy' | 'mica' | null>('vibrancy')
+    const detachedScope = effectScope()
+    detachedScope.run(() => useAppearancePresentationController({ settings, systemTheme, windowMaterial, detachedWindow: true }))
+    expect(document.documentElement.dataset.windowMaterial).toBeUndefined()
+    detachedScope.stop()
+
+    const scope = effectScope()
+    scope.run(() => useAppearancePresentationController({ settings, systemTheme, windowMaterial, detachedWindow: false }))
+    expect(document.documentElement.dataset.windowMaterial).toBe('vibrancy')
+    windowMaterial.value = 'mica'
+    await nextTick()
+    expect(document.documentElement.dataset.windowMaterial).toBe('mica')
+    windowMaterial.value = null
+    await nextTick()
+    expect(document.documentElement.dataset.windowMaterial).toBeUndefined()
+    scope.stop()
   })
 
   it('collapses a pinned vertical rail at narrow widths so the complete toolbar still fits', () => {

@@ -72,6 +72,18 @@ print("\\(image.pixelsWide)x\\(image.pixelsHigh):\\(data.count)")
   assert.match(image, /^\d+x\d+:\d+$/)
   await writeFile(join(proof, 'native-png.txt'), image)
   checks.push('independent AppKit PNG clipboard reader'); await save()
+  // What shows behind the tab rail, as main reports it to the shell; the screenshot shows how it looks.
+  // With the system settings that decide it, since a runner may ask for reduced transparency.
+  await writeFile(join(proof, 'window-material.json'), JSON.stringify({
+    windowMaterial: await window.evaluate('window.hronautSettings.getRendererState().then((state) => state.windowMaterial ?? null)'),
+    system: await app.evaluate(({ nativeTheme }) => ({
+      dark: nativeTheme.shouldUseDarkColors,
+      reducedTransparency: nativeTheme.prefersReducedTransparency,
+      forcedColors: nativeTheme.inForcedColorsMode,
+      highContrast: nativeTheme.shouldUseHighContrastColors,
+      osRelease: process.getSystemVersion()
+    }))
+  }))
   screenshot('normal')
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.hide())
   await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isVisible())).toBe(false)

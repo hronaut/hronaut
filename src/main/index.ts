@@ -22,6 +22,7 @@ import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../share
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
+import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
 import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
@@ -29,6 +30,7 @@ import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspa
 import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
 import { bindTrayActivation } from './tray-activation.js'
 import { mkdir, readFile } from 'node:fs/promises'
+import { release as osRelease } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
@@ -131,6 +133,7 @@ import {
   SitePermissionStore
 } from './site-permission-store.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
+import { applyWindowMaterial } from './window-material.js'
 import {
   linuxUpdateExecutable,
   scheduleLinuxUpdateRelaunch,
@@ -538,7 +541,8 @@ function currentRendererSettingsState(): RendererSettingsState {
     settings: { ...settings },
     systemTheme: nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
     systemLocale,
-    resolvedLocale
+    resolvedLocale,
+    windowMaterial: mainWindowMaterial
   }
 }
 
@@ -1263,6 +1267,8 @@ function desktopWindowPlatform(): DesktopWindowPlatform {
 
 /** The backdrop of the dialog open in the main window, laid over the native window controls. */
 let windowControlsScrim: ScrimColor | null = null
+/** The material showing behind the main window's tab rail, or null for the theme's solid surface. */
+let mainWindowMaterial: WindowMaterial | null = null
 
 function clearWindowControlsScrim(): void {
   if (!windowControlsScrim) return
@@ -1284,9 +1290,27 @@ function applyMainWindowTitleBarOverlay(): void {
   ), windowControlsScrim))
 }
 
+/** The material behind the main window's tab rail for the current settings and system, if any. */
+function currentWindowMaterial(): WindowMaterial | null {
+  return windowMaterialFor({
+    platform: desktopWindowPlatform(),
+    osRelease: osRelease(),
+    theme: resolvedTheme(settings.theme),
+    tabPosition: settings.tabPosition,
+    chrome: mainWindowChromeMode,
+    reducedTransparency: nativeTheme.prefersReducedTransparency,
+    forcedColors: nativeTheme.inForcedColorsMode || nativeTheme.shouldUseHighContrastColors
+  })
+}
+
+/** Shows or removes the material behind the main window's rail; the shell learns the result from its renderer state. */
+function applyMainWindowBackground(): void {
+  mainWindowMaterial = applyWindowMaterial(mainWindow, process.platform, mainWindowMaterial, currentWindowMaterial(), THEME_BACKGROUND[resolvedTheme(settings.theme)])
+}
+
 function applyTheme(theme: ThemeName): void {
   nativeTheme.themeSource = theme === 'system' ? 'system' : themeColorScheme(theme)
-  mainWindow?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
+  applyMainWindowBackground()
   panelWindow?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
   applyMainWindowTitleBarOverlay()
 }
@@ -3518,6 +3542,7 @@ function registerIpc(): void {
     if (!isTabPosition(position)) throw new TypeError('Invalid tab position')
     await updateSettings({ tabPosition: position })
     applyMainWindowTitleBarOverlay()
+    applyMainWindowBackground()
     publishSettings()
     return { ...settings }
   })
@@ -4043,6 +4068,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     tabPosition: settings.tabPosition,
     interfaceScale: settings.interfaceScale
   })
+  mainWindowMaterial = currentWindowMaterial()
   mainWindow = new BrowserWindow({
     ...bounds,
     ...windowChromeOptions,
@@ -4051,6 +4077,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     show: false,
     title: 'Hronaut',
     backgroundColor: THEME_BACKGROUND[resolvedTheme(settings.theme)],
+    ...windowMaterialOptions(mainWindowMaterial),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       additionalArguments: [
@@ -4776,10 +4803,11 @@ app.whenReady().then(async () => {
   nativeTheme.on('updated', () => {
     const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
     if (settings.theme === 'system') {
-      mainWindow?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
       panelWindow?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
       applyMainWindowTitleBarOverlay()
     }
+    // The system theme, reduced transparency or a high-contrast mode can each bring the material or take it away.
+    applyMainWindowBackground()
     sendToShellWindows('settings:system-theme-changed', systemTheme)
     sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
   })
