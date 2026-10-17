@@ -92,7 +92,7 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
     expect(await appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.agentPaused)`)).toBe(false)
 
     // Clicking the page the agent is working on offers a take over in the toolbar's free room: the toolbar keeps
-    // its height and the address field its width.
+    // its height, and the address field, which fills the toolbar, gives up width only down to 520 px.
     await inPage(electronApp, url, { type: 'click' })
     await expect(appWindow.getByRole('group', { name: 'Take over from Claude Code?', exact: true })).toBeVisible()
     await expect(prompt).toHaveAttribute('data-fit', 'full')
@@ -100,7 +100,9 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
     const takeOver = prompt.getByRole('button', { name: 'Take over', exact: true })
     expect((await takeOver.boundingBox())!.height).toBeGreaterThanOrEqual(32)
     expect((await toolbar.boundingBox())!.height).toBe(toolbarHeight)
-    expect((await address.boundingBox())!.width).toBe(addressWidth)
+    const offeredWidth = (await address.boundingBox())!.width
+    expect(offeredWidth).toBeLessThan(addressWidth)
+    expect(offeredWidth).toBeGreaterThanOrEqual(520)
 
     // Ctrl+Shift+O pressed in the page now takes it over, and the page does not get it.
     await inPage(electronApp, url, { type: 'key', keyCode: 'O', modifiers: ['control', 'shift'] })
@@ -127,7 +129,8 @@ test('the person takes a page over from its agent in the toolbar and hands it ba
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.url)`)).toBe(next)
     await expect(control).toBeVisible()
     expect((await toolbar.boundingBox())!.height).toBe(toolbarHeight)
-    expect((await address.boundingBox())!.width).toBe(addressWidth)
+    expect((await address.boundingBox())!.width).toBeLessThan(addressWidth)
+    expect((await address.boundingBox())!.width).toBeGreaterThanOrEqual(520)
 
     // Hand back resumes the agent, which reads what changed.
     await control.getByRole('button', { name: 'Hand back to Claude Code', exact: true }).click()

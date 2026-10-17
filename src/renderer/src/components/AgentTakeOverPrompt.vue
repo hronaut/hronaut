@@ -20,6 +20,7 @@ import {
   type HronautAgentPresenceApi
 } from '../../../shared/agent-presence.js'
 import { useAgentPresence } from '../composables/useAgentPresence.js'
+import { ADDRESS_FIELD_COMFORT_WIDTH } from '../composables/useAddressBarController.js'
 import UiButton from '../ui/UiButton.vue'
 import { vTooltip } from '../ui/tooltip.js'
 
@@ -106,9 +107,10 @@ const agent = computed(() => offeredBy.value ?? handBackTo.value)
 const agentColor = computed(() => agent.value ? { '--agent-color': agentAvatarColorHex(agent.value.colorIndex) } : undefined)
 const handBackLabel = computed(() => handBackTo.value ? t('shell.takeOver.handBackTo', { name: name(handBackTo.value) }) : t('shell.takeOver.handBack'))
 
-// The prompt takes only room the toolbar leaves free: beside the commands when they share the address's row,
-// before them when they have a row of their own. Without room for its words it keeps only its buttons, and
-// without room for those the agent's avatar carries a badge instead, so the address field never narrows.
+// The prompt takes only room the toolbar can spare: beside the commands when they share the address's row, where
+// the address field gives up width only above its comfortable width, and before them when they have a row of their
+// own. Without room for its words it keeps only its buttons, and without room for those the agent's avatar carries a
+// badge instead, so the address field never narrows below its comfortable width.
 type Fit = 'full' | 'compact' | 'none'
 const fit = ref<Fit>('none')
 const root = ref<HTMLElement>()
@@ -134,10 +136,9 @@ function freeRoom(toolbar: HTMLElement, commands: HTMLElement, gap: number): num
     const row = toolbar.clientWidth - px(style.paddingLeft) - px(style.paddingRight) - px(getComputedStyle(commands).marginLeft)
     return row - (commandsBox.width - own)
   }
-  // On the address's row only the space around a field at its widest is free.
+  // On the address's row the field fills the free space; the prompt may take what keeps it at its comfortable width.
   const style = getComputedStyle(address)
-  const widest = style.maxWidth === 'none' ? Number.POSITIVE_INFINITY : px(style.maxWidth)
-  return Math.max(0, address.getBoundingClientRect().width + px(style.marginLeft) + px(style.marginRight) + own - widest)
+  return Math.max(0, address.getBoundingClientRect().width + px(style.marginLeft) + px(style.marginRight) + own - ADDRESS_FIELD_COMFORT_WIDTH)
 }
 
 function measure(): void {

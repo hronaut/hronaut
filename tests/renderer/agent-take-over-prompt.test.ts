@@ -21,7 +21,7 @@ const Toolbar = defineComponent({
   setup(_props, { attrs }) {
     return () => h('div', { class: 'toolbar' }, [
       h('button', { class: 'reload-button' }),
-      h('form', { class: 'address-form', style: 'max-width: 520px' }),
+      h('form', { class: 'address-form' }),
       h('div', { class: 'toolbar-commands', style: 'column-gap: 5px' }, [h(AgentTakeOverPrompt, attrs)])
     ])
   }
@@ -218,6 +218,23 @@ describe('room for the take-over prompt', () => {
     expect(view.vm.badge).toBeUndefined()
   })
 
+  it('takes room from an address field that fills a wide toolbar, down to its comfortable 520 px', async () => {
+    // The field has no CSS width cap: on a wide window it fills the row, 1,000 px here beside 6 px margins.
+    const { offer, view } = await renderPrompt([agent('Claude Code')])
+    layout({ address: 1000, margins: 12, commands: 430, full: 300, compact: 120 })
+    await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
+    expect(prompt()?.dataset.fit).toBe('full')
+    expect(view.vm.badge).toBeUndefined()
+  })
+
+  it('keeps only its buttons when an address field that fills the row is barely wider than 520 px', async () => {
+    const { offer, view } = await renderPrompt([agent('Claude Code')])
+    layout({ address: 650, margins: 12, commands: 430, full: 300, compact: 120 })
+    await offer({ tabId: 'tab-1', clientKey: 'key-Claude Code' })
+    expect(prompt()?.dataset.fit).toBe('compact')
+    expect(view.vm.badge).toBeUndefined()
+  })
+
   it('keeps only its buttons in less room, and in none leaves a badge on the avatar', async () => {
     const { offer, view } = await renderPrompt([agent('Claude Code'), agent('Cursor')])
     layout({ margins: 150, commands: 430, full: 300, compact: 120 })
@@ -229,7 +246,7 @@ describe('room for the take-over prompt', () => {
     expect(screen.getByRole('button', { name: 'Take over' }).getAttribute('aria-keyshortcuts')).toBe('Control+Shift+O Meta+Shift+O')
     expect(view.vm.badge).toBeUndefined()
 
-    // A field already narrower than its widest leaves no room: nothing may narrow it further.
+    // A field already narrower than its comfortable 520 px leaves no room: nothing may narrow it further.
     layout({ address: 400, margins: 0, commands: 430, full: 300, compact: 120 })
     await offer({ tabId: 'tab-1', clientKey: 'key-Cursor' })
     expect(prompt()).toBeNull()

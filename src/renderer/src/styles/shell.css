@@ -647,15 +647,11 @@
 .toolbar {
   @apply relative [z-index:1] flex flex-wrap items-center justify-end [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--shell-bar)];
 }
-/* The address field sits centered between the navigation buttons and the
-   commands, up to 520 px wide (ADDRESS_FIELD_MAX_WIDTH). The commands wrap as
-   one group, so a toolbar too narrow for both gives the address its own row
-   and puts every command in a second band. The address field then fills its
-   row, so both rows end at the same edge. Status pills inside the field lift
-   the cap too, so they never squeeze out the address. */
-.toolbar .address-form { @apply [max-width:520px] [margin-inline:auto]; }
-.toolbar:has(> .toolbar-commands.wrapped) .address-form,
-.toolbar .address-form:has(.emulation-pill, .network-routes-pill) { @apply [max-width:none]; }
+/* The address field fills the space between the navigation buttons and the
+   commands. The commands wrap as one group, so a toolbar too narrow for both
+   gives the address its own row and puts every command in a second band; the
+   address then fills its row, so both rows end at the same edge. */
+.toolbar .address-form { @apply [margin-inline:0]; }
 .toolbar .reload-button { @apply [margin-right:6px]; }
 .toolbar-commands { @apply flex [flex:0_1_auto] min-w-0 flex-wrap items-center justify-end [gap:inherit] [margin-left:6px]; }
 @media (max-width: 720px) {
