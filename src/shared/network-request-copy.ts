@@ -1,7 +1,7 @@
 import type { BrowserNetworkRequestDetails } from './types.js'
 import { redactNetworkUrl } from './network-details.js'
 
-export type BrowserNetworkRequestCopyFormat = 'curl' | 'fetch'
+export type BrowserNetworkRequestCopyFormat = 'curl' | 'fetch' | 'powershell'
 
 const REDACTED_VALUE = '[REDACTED]'
 const MAX_COPY_HEADERS = 64
@@ -20,6 +20,8 @@ const OMITTED_REPLAY_HEADERS = new Set([
 ])
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
 const HTTP_METHOD = /^[A-Z][A-Z0-9!#$%&'*+.^_`|~-]{0,31}$/
+/** Methods Windows PowerShell 5.1's `Invoke-WebRequest -Method` accepts; PowerShell 7 accepts them too. */
+const POWERSHELL_METHODS = new Set(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'TRACE', 'MERGE'])
 
 interface CopyHeader {
   name: string
@@ -41,10 +43,10 @@ function normalizedRequestUrl(input: string): string {
   try {
     url = new URL(sanitized)
   } catch {
-    throw new Error('Sanitized cURL and fetch copies require a valid HTTP(S) request URL.')
+    throw new Error('Sanitized cURL, PowerShell and fetch copies require a valid HTTP(S) request URL.')
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Sanitized cURL and fetch copies are available only for HTTP(S) requests.')
+    throw new Error('Sanitized cURL, PowerShell and fetch copies are available only for HTTP(S) requests.')
   }
   if (sanitized.length > MAX_COPY_URL_CHARS) {
     throw new Error(`The request URL is too long to copy safely (maximum ${MAX_COPY_URL_CHARS} characters).`)
@@ -144,6 +146,77 @@ function formatCurl(payload: CopyPayload): string {
   return lines.join('\n')
 }
 
+// PowerShell also reads the typographic single quotes as quote characters, so each is doubled like the ASCII one.
+function powerShellLiteral(value: string): string {
+  return `'${value.replace(/['\u2018\u2019\u201A\u201B]/g, quote => quote + quote)}'`
+}
+
+/**
+ * A PowerShell string expression for the exact text. Control characters other than tab and line feed, which a
+ * pasted literal could lose or a terminal could act on, are written as `[char]` codes that Windows PowerShell 5.1
+ * and PowerShell 7 both read.
+ */
+function powerShellText(value: string): string {
+  const parts: string[] = []
+  let literal = ''
+  for (const character of value) {
+    const code = character.codePointAt(0)!
+    if ((code < 0x20 && character !== '\t' && character !== '\n') || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029) {
+      if (literal) parts.push(powerShellLiteral(literal))
+      literal = ''
+      parts.push(`[char]0x${code.toString(16).toUpperCase().padStart(2, '0')}`)
+    } else {
+      literal += character
+    }
+  }
+  if (literal || !parts.length) parts.push(powerShellLiteral(literal))
+  return parts.length === 1 ? parts[0]! : `(${parts.join(' + ')})`
+}
+
+function formatPowerShell(payload: CopyPayload): string {
+  if (!POWERSHELL_METHODS.has(payload.method)) {
+    throw new Error('Copy PowerShell supports GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE and MERGE requests. Use Copy cURL or Copy fetch instead.')
+  }
+  const body = payload.body === '' && (payload.method === 'GET' || payload.method === 'HEAD') ? undefined : payload.body
+  if (body !== undefined && (payload.method === 'GET' || payload.method === 'HEAD')) {
+    throw new Error('Copy PowerShell cannot send a request body with GET or HEAD. Use Copy cURL or Copy fetch instead.')
+  }
+  const seen = new Set<string>()
+  const headers: CopyHeader[] = []
+  let contentType: string | undefined
+  let userAgent: string | undefined
+  for (const header of payload.headers) {
+    const name = header.name.toLowerCase()
+    if (seen.has(name)) throw new Error('Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.')
+    seen.add(name)
+    if (header.value.includes('\u0000')) throw new Error('Copy PowerShell cannot send literal NUL characters in a header. Use Copy fetch instead.')
+    // Windows PowerShell 5.1 takes these two through their own parameters.
+    if (name === 'content-type') contentType = header.value
+    else if (name === 'user-agent') userAgent = header.value
+    else headers.push(header)
+  }
+  const lines = [
+    `# ${safetySummary(payload)}`,
+    '# For Windows PowerShell 5.1 or PowerShell 7 and later. Invoke-WebRequest follows redirects and stops with an error on an HTTP error status.',
+    `Invoke-WebRequest -UseBasicParsing -Uri ${powerShellLiteral(payload.url)} \``,
+    `  -Method ${powerShellLiteral(payload.method)}`
+  ]
+  const option = (text: string): void => {
+    lines[lines.length - 1] += ' `'
+    lines.push(text)
+  }
+  if (headers.length) {
+    option('  -Headers @{')
+    for (const header of headers) lines.push(`    ${powerShellLiteral(header.name)} = ${powerShellText(header.value)}`)
+    lines.push('  }')
+  }
+  if (contentType !== undefined) option(`  -ContentType ${powerShellText(contentType)}`)
+  if (userAgent !== undefined) option(`  -UserAgent ${powerShellText(userAgent)}`)
+  // Bytes keep the text's UTF-8 encoding; Windows PowerShell 5.1 would send a string body as ISO-8859-1.
+  if (body !== undefined) option(`  -Body ([System.Text.Encoding]::UTF8.GetBytes(${powerShellText(body)}))`)
+  return lines.join('\n')
+}
+
 function formatFetch(payload: CopyPayload): string {
   const options: string[] = [`method: ${JSON.stringify(payload.method)}`]
   if (payload.headers.length) {
@@ -164,7 +237,7 @@ export function formatNetworkRequestCopy(
   format: BrowserNetworkRequestCopyFormat
 ): string {
   const payload = copyPayload(details)
-  return format === 'curl' ? formatCurl(payload) : formatFetch(payload)
+  return format === 'curl' ? formatCurl(payload) : format === 'powershell' ? formatPowerShell(payload) : formatFetch(payload)
 }
 
 export function canFormatNetworkRequestCopy(details: BrowserNetworkRequestDetails): boolean {

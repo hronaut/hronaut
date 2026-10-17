@@ -2526,6 +2526,8 @@ export const ruRU = {
       "copyJson": "Копировать JSON",
       "copiedCurl": "cURL скопирован (оболочка POSIX)",
       "copyCurl": "Копировать очищенный cURL (оболочка POSIX)",
+      "copiedPowerShell": "PowerShell скопирован",
+      "copyPowerShell": "Копировать очищенный PowerShell",
       "copiedFetch": "fetch скопирован",
       "copyFetch": "Копировать очищенный fetch",
       "initiator": "Инициатор",

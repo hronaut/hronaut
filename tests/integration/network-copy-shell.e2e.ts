@@ -6,7 +6,7 @@ import { expect, test, text } from './capability-fixtures.js'
 
 type ClipboardScope = typeof globalThis & { restoreShellCopyClipboard?: () => void }
 
-test('Network cURL shell labels remain accessible in every locale and only confirm verified copies', async ({ capabilities, appWindow, electronApp }, info) => {
+test('Network cURL and PowerShell copy labels remain accessible in every locale and only confirm verified copies', async ({ capabilities, appWindow, electronApp }, info) => {
   const { client, tabId, openPageTool } = capabilities
   const call = async (name: string, args: Record<string, unknown> = {}) => {
     const result = await client.callTool({ name, arguments: { tabId, ...args } }) as CallToolResult
@@ -22,6 +22,8 @@ test('Network cURL shell labels remain accessible in every locale and only confi
     return requestId
   }).toBeTruthy()
   const expected = await call('browser_network_request', { requestId, copyAs: 'curl' })
+  const expectedPowerShell = await call('browser_network_request', { requestId, copyAs: 'powershell' })
+  expect(expectedPowerShell).toContain('Invoke-WebRequest -UseBasicParsing')
   await openPageTool('Open network monitor')
   const panel = appWindow.locator('.network-monitor-panel')
   await panel.getByRole('searchbox', { name: 'Filter network requests', exact: true }).fill('fixture=copy-shell')
@@ -60,6 +62,16 @@ test('Network cURL shell labels remain accessible in every locale and only confi
     expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(expected)
     await expect(panel.locator('.network-detail-url')).toHaveText(selectedUrl)
     await expect(panel).toContainText(translate(locale, 'network.details.reviewCommands'))
+    const copyPowerShell = panel.getByRole('button', { name: translate(locale, 'network.details.copyPowerShell'), exact: true })
+    await copyPowerShell.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }))
+    await expect(copyPowerShell).toBeInViewport({ ratio: 1 })
+    const powerShellButton = (await copyPowerShell.boundingBox())!
+    expect(powerShellButton.x + powerShellButton.width).toBeLessThanOrEqual(bounds.x + bounds.width)
+    expect(await copyPowerShell.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await copyPowerShell.click()
+    await expect(panel.getByRole('button', { name: translate(locale, 'network.details.copiedPowerShell'), exact: true })).toBeVisible()
+    await expect(panel.getByRole('button', { name: translate(locale, 'network.details.copiedCurl'), exact: true })).toHaveCount(0)
+    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(expectedPowerShell)
   }
   await appWindow.evaluate("window.hronautSettings.setLanguagePreference('en-US')")
   await electronApp.evaluate(({ clipboard }) => {

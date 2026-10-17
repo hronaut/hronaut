@@ -2526,6 +2526,8 @@ export const plPL = {
       "copyJson": "Kopiuj JSON",
       "copiedCurl": "Skopiowano cURL (powłoka POSIX)",
       "copyCurl": "Kopiuj oczyszczony cURL (powłoka POSIX)",
+      "copiedPowerShell": "Skopiowano PowerShell",
+      "copyPowerShell": "Kopiuj oczyszczony PowerShell",
       "copiedFetch": "Skopiowano fetch",
       "copyFetch": "Kopiuj oczyszczony fetch",
       "initiator": "Inicjator",

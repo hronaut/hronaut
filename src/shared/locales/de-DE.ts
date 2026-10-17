@@ -2526,6 +2526,8 @@ export const deDE = {
       "copyJson": "JSON kopieren",
       "copiedCurl": "cURL kopiert (POSIX-Shell)",
       "copyCurl": "Bereinigtes cURL kopieren (POSIX-Shell)",
+      "copiedPowerShell": "PowerShell kopiert",
+      "copyPowerShell": "Bereinigtes PowerShell kopieren",
       "copiedFetch": "fetch kopiert",
       "copyFetch": "Bereinigtes fetch kopieren",
       "initiator": "Initiator",

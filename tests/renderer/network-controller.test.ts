@@ -267,7 +267,7 @@ afterEach(() => {
 })
 
 describe('Network detail copy failure ownership', () => {
-  it.each((['json', 'curl', 'fetch', 'response', 'url'] as const).flatMap(format =>
+  it.each((['json', 'curl', 'powershell', 'fetch', 'response', 'url'] as const).flatMap(format =>
     (['selection', 'refresh', 'newer', 'reset', 'dispose', 'tab', 'url'] as const).map(action => ({ format, action }))
   ))('suppresses obsolete $format detail-copy failure toasts after $action changes', async ({ format, action }) => {
     const pending = deferred<void>()
@@ -294,7 +294,7 @@ describe('Network detail copy failure ownership', () => {
     } finally { controller.dispose() }
   })
 
-  it.each(['json', 'curl', 'fetch', 'response', 'url'] as const)('keeps current %s detail-copy failures visible', async format => {
+  it.each(['json', 'curl', 'powershell', 'fetch', 'response', 'url'] as const)('keeps current %s detail-copy failures visible', async format => {
     const showToast = vi.fn()
     const shell = useShellFeedbackController({
       browser: { copyText: vi.fn().mockRejectedValue(new Error('Current detail clipboard refusal')) },
@@ -309,7 +309,7 @@ describe('Network detail copy failure ownership', () => {
     } finally { controller.dispose() }
   })
 
-  it.each(['json', 'curl', 'fetch', 'response', 'url'] as const)('keeps %s detail-copy failures relevant when only list filters change', async format => {
+  it.each(['json', 'curl', 'powershell', 'fetch', 'response', 'url'] as const)('keeps %s detail-copy failures relevant when only list filters change', async format => {
     const pending = deferred<void>()
     const showToast = vi.fn()
     const shell = useShellFeedbackController({

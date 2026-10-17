@@ -2526,6 +2526,8 @@ export const frFR = {
       "copyJson": "Copier le JSON",
       "copiedCurl": "cURL copié (shell POSIX)",
       "copyCurl": "Copier le cURL nettoyé (shell POSIX)",
+      "copiedPowerShell": "PowerShell copié",
+      "copyPowerShell": "Copier le PowerShell nettoyé",
       "copiedFetch": "fetch copié",
       "copyFetch": "Copier le fetch nettoyé",
       "initiator": "Initiateur",

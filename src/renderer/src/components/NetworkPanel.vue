@@ -443,6 +443,15 @@ onBeforeUnmount(dispose)
                   <UiButton appearance="application"
                     v-if="canFormatNetworkRequestCopy(networkRequestDetails)"
                     type="button"
+                    @click="copySanitizedNetworkDetails('powershell')"
+                  >
+                    <IconCheck v-if="networkDetailsCopied === 'powershell'" aria-hidden="true" />
+                    <IconTerminal v-else aria-hidden="true" />
+                    {{ networkDetailsCopied === 'powershell' ? t('network.details.copiedPowerShell') : t('network.details.copyPowerShell') }}
+                  </UiButton>
+                  <UiButton appearance="application"
+                    v-if="canFormatNetworkRequestCopy(networkRequestDetails)"
+                    type="button"
                     @click="copySanitizedNetworkDetails('fetch')"
                   >
                     <IconCheck v-if="networkDetailsCopied === 'fetch'" aria-hidden="true" />

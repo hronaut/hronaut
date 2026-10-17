@@ -1,5 +1,8 @@
-import { execFile } from 'node:child_process'
+import { execFile, spawnSync } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
@@ -38,6 +41,43 @@ function requestDetails(overrides: Partial<BrowserNetworkRequestDetails> = {}): 
     },
     ...overrides
   }
+}
+
+// Windows PowerShell 5.1 is `powershell`; PowerShell 7 is `pwsh` on every platform, including GitHub's Linux runners.
+const powerShells = ['powershell', 'pwsh'].filter(command => (
+  spawnSync(command, ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'], { timeout: 30_000 }).status === 0
+))
+
+interface ReceivedRequest {
+  method?: string
+  url?: string
+  headers: string[]
+  body: Buffer
+}
+
+async function withFixtureServer(run: (origin: string, received: ReceivedRequest[]) => Promise<void>): Promise<void> {
+  const received: ReceivedRequest[] = []
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = []
+    request.on('data', chunk => chunks.push(Buffer.from(chunk)))
+    request.on('end', () => {
+      received.push({ method: request.method, url: request.url, headers: request.rawHeaders, body: Buffer.concat(chunks) })
+      response.end('ok')
+    })
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing fixture server address')
+    await run(`http://127.0.0.1:${address.port}`, received)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()))
+  }
+}
+
+function headerValues(request: ReceivedRequest, name: string): string[] {
+  return request.headers.flatMap((header, index, headers) => index % 2 === 0 && header.toLowerCase() === name ? [headers[index + 1]!] : [])
 }
 
 describe('formatNetworkRequestCopy', () => {
@@ -332,5 +372,115 @@ describe('formatNetworkRequestCopy', () => {
 
     expect(canFormatNetworkRequestCopy(details)).toBe(false)
     expect(() => formatNetworkRequestCopy(details, 'curl')).toThrow(/URL is too long/)
+  })
+  it('creates a sanitized PowerShell command with headers, content type and a UTF-8 body', () => {
+    const result = formatNetworkRequestCopy(requestDetails({ request: {
+      headers: { Accept: 'application/json', Authorization: '[REDACTED]', 'Content-Type': 'application/json', 'User-Agent': 'Fixture/1.0', 'X-Debug': 'first\r\nsecond' },
+      body: { text: '{"name":"kept"}', originalChars: 15, truncated: false, redacted: false }
+    } }), 'powershell')
+    expect(result.split('\n')).toEqual([
+      expect.stringMatching(/^# Sanitized by Hronaut: .*Review before sharing or running\.$/),
+      '# For Windows PowerShell 5.1 or PowerShell 7 and later. Invoke-WebRequest follows redirects and stops with an error on an HTTP error status.',
+      "Invoke-WebRequest -UseBasicParsing -Uri 'https://%5BREDACTED%5D:%5BREDACTED%5D@example.com/api/items?view=full&token=%5BREDACTED%5D' `",
+      "  -Method 'POST' `",
+      '  -Headers @{',
+      "    'Accept' = 'application/json'",
+      "    'X-Debug' = 'first second'",
+      '  } `',
+      "  -ContentType 'application/json' `",
+      "  -UserAgent 'Fixture/1.0' `",
+      `  -Body ([System.Text.Encoding]::UTF8.GetBytes('{"name":"kept"}'))`
+    ])
+    expect(result).not.toContain('Authorization')
+  })
+
+  it('doubles every PowerShell single quote and writes control characters as codes', () => {
+    const body = "it's ‘quoted’ ‚low‛ $(Get-Date) `tick`\u0000end\r\nnext\tline\u001b[0m"
+    const result = formatNetworkRequestCopy(requestDetails({ method: 'PUT', request: {
+      headers: { 'X-Label': "owner's" },
+      body: { text: body, originalChars: body.length, truncated: false, redacted: false }
+    } }), 'powershell')
+    expect(result).toContain("    'X-Label' = 'owner''s'")
+    expect(result).toContain("-Body ([System.Text.Encoding]::UTF8.GetBytes(('it''s ‘‘quoted’’ ‚‚low‛‛ $(Get-Date) `tick`' + [char]0x00 + 'end' + [char]0x0D + '\nnext\tline' + [char]0x1B + '[0m')))")
+  })
+
+  it.each([
+    [{ method: 'PROPFIND' }, 'Copy PowerShell supports GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE and MERGE requests. Use Copy cURL or Copy fetch instead.'],
+    [{ method: 'GET', request: { headers: {}, body: { text: 'q=1', originalChars: 3, truncated: false, redacted: false } } }, 'Copy PowerShell cannot send a request body with GET or HEAD. Use Copy cURL or Copy fetch instead.'],
+    [{ request: { headers: { Accept: ['application/json', 'text/plain'] } } }, 'Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.'],
+    [{ request: { headers: { 'X-Trace': 'a', 'x-trace': 'b' } } }, 'Copy PowerShell cannot send the same header more than once. Use Copy cURL or Copy fetch instead.'],
+    [{ request: { headers: { 'X-Allowed': 'private-before\u0000private-after' } } }, 'Copy PowerShell cannot send literal NUL characters in a header. Use Copy fetch instead.']
+  ] satisfies Array<[Partial<BrowserNetworkRequestDetails>, string]>)('refuses a PowerShell copy it cannot send faithfully (%#)', (overrides, message) => {
+    expect(() => formatNetworkRequestCopy(requestDetails(overrides), 'powershell')).toThrow(new Error(message))
+  })
+
+  it('leaves out an empty GET body and keeps the request copyable as PowerShell', () => {
+    const result = formatNetworkRequestCopy(requestDetails({ method: 'GET', request: { headers: {}, body: { text: '', originalChars: 0, truncated: false, redacted: false } } }), 'powershell')
+    expect(result).toContain("-Method 'GET'")
+    expect(result).not.toContain('-Body')
+  })
+
+  describe.runIf(powerShells.length > 0)('PowerShell replay', () => {
+    for (const shell of powerShells) {
+      it(`sends exactly the copied request in ${shell}, with shell syntax kept literal`, { timeout: 60_000 }, async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'hronaut-powershell-copy-'))
+        try {
+          await withFixtureServer(async (origin, received) => {
+            const body = "literal ' ‘quoted’ $(Write-Output injected) `text` ; % [x] café 😀\r\nline two\n'; $sentinel = 'changed'; '"
+            const command = formatNetworkRequestCopy(requestDetails({
+              url: `${origin}/items/[draft]/100%25?q=%24x&name=it%27s`, method: 'POST',
+              request: {
+                headers: {
+                  Accept: 'application/json', 'Content-Type': 'text/plain; charset=utf-8', 'User-Agent': 'Fixture/1.0 (it\'s)',
+                  'X-Punctuation': "'; $($sentinel = 'changed') `n ; %", 'X-Empty': '', Authorization: 'private-canary', Cookie: 'private-cookie'
+                },
+                body: { text: body, originalChars: body.length, truncated: false, redacted: false }
+              }
+            }), 'powershell')
+            expect(command).not.toContain('private-canary')
+            expect(command).not.toContain('private-cookie')
+            const script = join(directory, 'copy.ps1')
+            // A byte-order mark makes Windows PowerShell 5.1 read the file as UTF-8, as a pasted command is.
+            await writeFile(script, `\uFEFF$sentinel = 'unchanged'\n${command} | Out-Null\nWrite-Output $sentinel\n`, 'utf8')
+            const { stdout } = await promisify(execFile)(shell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], { timeout: 45_000 })
+            expect(stdout.trim()).toBe('unchanged')
+            expect(received).toHaveLength(1)
+            const request = received[0]!
+            expect(request.method).toBe('POST')
+            expect(request.url).toBe('/items/[draft]/100%25?q=%24x&name=it%27s')
+            expect(request.body.toString('utf8')).toBe(body)
+            expect(headerValues(request, 'accept')).toEqual(['application/json'])
+            expect(headerValues(request, 'content-type')).toEqual(['text/plain; charset=utf-8'])
+            expect(headerValues(request, 'user-agent')).toEqual(["Fixture/1.0 (it's)"])
+            expect(headerValues(request, 'x-punctuation')).toEqual(["'; $($sentinel = 'changed') `n ; %"])
+            expect(headerValues(request, 'x-empty')).toEqual([''])
+            expect(headerValues(request, 'authorization')).toEqual([])
+            expect(headerValues(request, 'cookie')).toEqual([])
+          })
+        } finally {
+          await rm(directory, { recursive: true, force: true })
+        }
+      })
+
+      it(`sends one GET and one HEAD in ${shell}`, { timeout: 60_000 }, async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'hronaut-powershell-copy-'))
+        try {
+          await withFixtureServer(async (origin, received) => {
+            const commands = ['GET', 'HEAD'].map(method => formatNetworkRequestCopy(requestDetails({
+              url: `${origin}/${method.toLowerCase()}`, method, request: { headers: { 'X-Control': 'kept' } }
+            }), 'powershell'))
+            const script = join(directory, 'copy.ps1')
+            await writeFile(script, `\uFEFF${commands.map(command => `${command} | Out-Null`).join('\n')}\n`, 'utf8')
+            await promisify(execFile)(shell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], { timeout: 45_000 })
+            expect(received.map(request => [request.method, request.url, headerValues(request, 'x-control'), request.body.length])).toEqual([
+              ['GET', '/get', ['kept'], 0],
+              ['HEAD', '/head', ['kept'], 0]
+            ])
+          })
+        } finally {
+          await rm(directory, { recursive: true, force: true })
+        }
+      })
+    }
   })
 })
