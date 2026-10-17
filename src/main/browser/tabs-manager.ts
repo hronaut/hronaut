@@ -5,10 +5,14 @@ import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-cl
 import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
 import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
 import { normalizeTabLabel } from '../../shared/tab-label.js'
-import { StorageComparisonInputError, type StorageComparisonHooks } from './storage-comparison-operation.js'
+import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
-import { storageInspectionGuard, type StorageInspectionHooks } from './storage-inspection-operation.js'
-import { executeWebStorage, WebStorageInputError, type WebStorageHooks } from './web-storage-operation.js'
+import type { StorageInspectionHooks } from './storage-inspection-operation.js'
+import type { WebStorageHooks } from './web-storage-operation.js'
+import type { SiteStorageAccess } from './site-storage/site-storage-access.js'
+import { manageStorage } from './site-storage/manage-storage.js'
+import { inspectIndexedDb, inspectStorageUsage } from './site-storage/storage-inspection.js'
+import { storageChanges } from './site-storage/storage-changes.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -30,9 +34,7 @@ import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
 import type { PwaLifecycleOptions } from '../../shared/pwa-lifecycle.js'
 import { PageFindController } from './page-find-controller.js'
-import { utf8Prefix } from '../../shared/utf8.js'
-import { boundStorageItems } from './storage-items.js'
-import { createCookieWriteOperation, type CookieWriteHooks } from './cookie-write-operation.js'
+import type { CookieWriteHooks } from './cookie-write-operation.js'
 import type { BrowserVideoInspectionOptions } from '../../shared/video-inspection.js'
 import { inspectVideoFrames } from './video-inspection.js'
 import { BrowserVideoRecorder, type PendingVideoInspection, type VideoSourceBinding } from './video-recorder.js'
@@ -167,7 +169,6 @@ import {
 import { designOverviewPageScript } from '../../shared/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { buildBrowserQualityAudit } from '../../shared/quality-audit.js'
-import { indexedDbPageScript, normalizeBrowserIndexedDbOptions } from '../../shared/indexeddb.js'
 import {
   WEBMCP_LIMITS,
   webMcpCallScript,
@@ -214,18 +215,7 @@ import {
 } from '../../shared/network-wait.js'
 import { networkReplayRequiresConfirmation, networkReplayUrlPattern } from '../../shared/network-replay.js'
 import { sanitizeCacheStorageCacheName } from '../../shared/network-response-source.js'
-import {
-  MAX_STORAGE_CHANGE_VALUE_BYTES,
-  MAX_STORAGE_CHANGE_VALUES_TOTAL_BYTES,
-  MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND,
-  compareBrowserStorageSnapshots,
-  type BrowserStorageSnapshot,
-  type BrowserStorageSnapshotEntry
-} from '../../shared/storage-changes.js'
-import {
-  buildBrowserStorageUsageReport,
-  storageManagerUsageBreakdown
-} from '../../shared/storage-usage.js'
+import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
@@ -290,7 +280,6 @@ import type {
   BrowserVisualSnapshot,
   BrowserVisualCompareContext,
   BrowserVisualCompareScope,
-  BrowserStorageItem,
   BrowserStorageOptions,
   BrowserStorageResult,
   BrowserStorageUsageReport,
@@ -498,8 +487,6 @@ const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
 const MAX_AGENT_STEP_THUMBNAIL_WIDTH = 320
 const MAX_AGENT_STEP_THUMBNAIL_HEIGHT = 200
 const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
-const MAX_STORAGE_KEY_CHARS = 512
-const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
 const MIN_SHELL_HEIGHT = 44
 const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
 const ABORTED_LOAD_ERROR = -3
@@ -507,9 +494,7 @@ const ACCESSIBILITY_AUDIT_WORLD_ID = ISOLATED_WORLDS.accessibilityAudit
 const PERFORMANCE_AUDIT_WORLD_ID = ISOLATED_WORLDS.performanceAudit
 const DESIGN_OVERVIEW_WORLD_ID = ISOLATED_WORLDS.designOverview
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
-const INDEXED_DB_WORLD_ID = ISOLATED_WORLDS.indexedDb
 const PWA_INSPECTOR_WORLD_ID = ISOLATED_WORLDS.pwaInspector
-const STORAGE_USAGE_WORLD_ID = ISOLATED_WORLDS.storageUsage
 const CONTINUITY_MARKER_WORLD_ID = ISOLATED_WORLDS.continuityMarker
 const POSTCONDITION_WORLD_ID = ISOLATED_WORLDS.postcondition
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
@@ -2809,106 +2794,27 @@ export class BrowserTabsManager {
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
-  async manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
-    const tab = this.getTab(options.tabId)
-    const action = options.action ?? 'list'
-    const pageUrl = new URL(tab.url)
-    if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
-      if (options.kind !== 'cookies') throw new WebStorageInputError('UNSUPPORTED_SCHEME')
-      throw new Error('Site storage is available only for HTTP and HTTPS tabs.')
-    }
-    const key = options.key
-    if ((action === 'get' || action === 'set' || action === 'delete')
-      && (key === undefined || (options.kind === 'cookies' && !key.trim()))) {
-      if (options.kind !== 'cookies') throw new WebStorageInputError('KEY_REQUIRED')
-      throw new TypeError(`key is required to ${action} ${options.kind}`)
-    }
-    if (key && key.length > MAX_STORAGE_KEY_CHARS) {
-      if (options.kind !== 'cookies') throw new WebStorageInputError('KEY_TOO_LARGE')
-      throw new TypeError(`Storage keys are limited to ${MAX_STORAGE_KEY_CHARS} characters.`)
-    }
-    if (action === 'set' && options.value === undefined) {
-      if (options.kind !== 'cookies') throw new WebStorageInputError('VALUE_REQUIRED')
-      throw new TypeError(`value is required to set ${options.kind}`)
-    }
-    if (options.value !== undefined && Buffer.byteLength(options.value, 'utf8') > MAX_STORAGE_INPUT_VALUE_BYTES) {
-      if (options.kind !== 'cookies') throw new WebStorageInputError('VALUE_TOO_LARGE')
-      throw new TypeError('Storage values are limited to 256 KiB.')
-    }
-
-    const exactCookie = options.cookieDomain !== undefined || options.cookiePath !== undefined
-    if (exactCookie) {
-      if (options.kind !== 'cookies' || action !== 'delete') {
-        if (options.kind !== 'cookies') throw new WebStorageInputError('COOKIE_SELECTOR_UNSUPPORTED')
-        throw new TypeError('cookieDomain and cookiePath are supported only when deleting one cookie')
-      }
-      if (!options.cookieDomain || !options.cookiePath?.startsWith('/')) {
-        throw new TypeError('Exact cookie deletion requires both cookieDomain and a cookiePath starting with /')
-      }
-    }
-
-    if (options.kind === 'cookies') {
-      return this.manageCookies(tab, pageUrl, action, key, options.value, options.includeValues === true, cookieWriteHooks,
-        exactCookie ? { domain: options.cookieDomain!, path: options.cookiePath! } : undefined)
-    }
-
-    const contents = tab.webContents
-    const context = this.snapshotDeltaContext(tab)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    const assertCurrent = (): void => {
-      webStorageHooks?.validate()
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
-        || currentWorkspace !== workspace
-        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
-        throw new Error('Storage context changed. Earlier changes are not rolled back; inspect fresh state before continuing.')
-      }
-    }
-    webStorageHooks?.retainPublication(assertCurrent)
-    const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
-    const raw = await executeWebStorage(['set', 'delete', 'clear'].includes(action), assertCurrent, () => contents.executeJavaScript(`(() => {
-      if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
-        return { pageChanged: true };
-      }
-      const storage = window[${JSON.stringify(storageName)}];
-      const action = ${JSON.stringify(action)};
-      const key = ${JSON.stringify(key)};
-      const value = ${JSON.stringify(options.value)};
-      let changed = false;
-      if (action === 'set') { storage.setItem(key, value); changed = true; }
-      else if (action === 'delete') { changed = storage.getItem(key) !== null; storage.removeItem(key); }
-      else if (action === 'clear') { changed = storage.length > 0; storage.clear(); }
-      const items = [];
-      if (action === 'get') {
-        const itemValue = storage.getItem(key);
-        if (itemValue !== null) items.push([key, itemValue]);
-      } else {
-        for (let index = 0; index < storage.length; index += 1) {
-          const itemKey = storage.key(index);
-          if (itemKey !== null) items.push([itemKey, storage.getItem(itemKey) ?? '']);
-        }
-        items.sort((left, right) => left[0].localeCompare(right[0]));
-      }
-      return { changed, itemCount: storage.length, items };
-    })()`, true), webStorageHooks?.progress) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
-    if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
-    const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
+  /**
+   * The narrow view site storage gets of this manager's private tabs,
+   * workspaces and debugger lease. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so no extra ticks separate its final checks from the caller.
+   */
+  private siteStorageAccess(): SiteStorageAccess<BrowserTab> {
     return {
-      tabId: tab.id,
-      url: redactNetworkUrl(pageUrl.href),
-      origin: pageUrl.origin,
-      kind: options.kind,
-      action,
-      itemCount: raw.itemCount,
-      items: bounded.items,
-      changed: ['set', 'delete', 'clear'].includes(action) ? raw.changed : undefined,
-      truncated: bounded.truncated || undefined,
-      note: options.kind === 'session-storage'
-        ? 'Session storage belongs to this tab. Local storage and cookies are shared by origin only inside this workspace.'
-        : 'This storage belongs to the current workspace, so changes are visible to its tabs on this origin but isolated from other workspaces.'
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      isDestroyed: () => this.destroyed,
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
+      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission)
     }
+  }
+
+  manageStorage(options: BrowserStorageOptions, cookieWriteHooks?: CookieWriteHooks, webStorageHooks?: WebStorageHooks): Promise<BrowserStorageResult> {
+    return manageStorage(this.siteStorageAccess(), options, cookieWriteHooks, webStorageHooks)
   }
 
   private inspectionPageGuard(tab: BrowserTab, inspection: string): () => void {
@@ -2924,115 +2830,12 @@ export class BrowserTabsManager {
     }
   }
 
-  private storageInspectionGuard(tab: BrowserTab, hooks?: StorageInspectionHooks): () => void {
-    const contents = tab.webContents
-    const context = this.snapshotDeltaContext(tab)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    const assertCurrent = storageInspectionGuard(() => {
-      hooks?.validate()
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
-        || currentWorkspace !== workspace
-        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
-        throw new Error('Storage inspection context changed')
-      }
-    })
-    hooks?.retainPublication(assertCurrent)
-    return assertCurrent
+  inspectIndexedDb(options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
+    return inspectIndexedDb(this.siteStorageAccess(), options, hooks)
   }
 
-  async inspectIndexedDb(options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
-    const tab = this.getTab(options.tabId)
-    const pageUrl = new URL(tab.url)
-    if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
-      throw new Error('IndexedDB inspection is available only for HTTP and HTTPS tabs.')
-    }
-    const normalized = normalizeBrowserIndexedDbOptions(options)
-    const requireCurrentPage = this.storageInspectionGuard(tab, hooks)
-    requireCurrentPage()
-    hooks?.readStarted()
-    const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      INDEXED_DB_WORLD_ID,
-      [{ code: indexedDbPageScript(normalized) }],
-      false
-    ) as Omit<BrowserIndexedDbReport, 'tabId' | 'url' | 'origin' | 'caveats'>
-    requireCurrentPage()
-    return {
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      origin: pageUrl.origin,
-      ...result,
-      caveats: [
-        'The report covers this top-level origin only; third-party frame databases are not included.',
-        'Database and record lists are point-in-time snapshots. Refresh after the website changes IndexedDB.',
-        'Database, object-store, index, and key names are website-authored and can themselves contain private data.',
-        'Database or object-store names longer than 512 characters are omitted from this bounded inspector.',
-        normalized.includeValues
-          ? 'Bounded record previews are included and may contain private application data.'
-          : 'Record values are omitted. Request includeValues only when their bounded previews are necessary and safe to return.',
-        'The inspector is read-only. Use browser_site_data only when the task explicitly requires clearing origin storage.'
-      ]
-    }
-  }
-
-  async inspectStorageUsage(tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
-    const tab = this.getTab(tabId)
-    const pageUrl = new URL(tab.url)
-    if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
-      throw new Error('Storage usage inspection is available only for HTTP and HTTPS tabs.')
-    }
-
-    const requireCurrentPage = this.storageInspectionGuard(tab, hooks)
-    requireCurrentPage()
-    try {
-      const raw = await this.withDebugger(tab.webContents, () => {
-        requireCurrentPage()
-        hooks?.readStarted()
-        return tab.webContents.debugger.sendCommand('Storage.getUsageAndQuota', { origin: pageUrl.origin }) as Promise<{
-          usage?: number
-          quota?: number
-          overrideActive?: boolean
-          usageBreakdown?: Array<{ storageType?: string; usage?: number }>
-        }>
-      }, requireCurrentPage)
-      requireCurrentPage()
-      return buildBrowserStorageUsageReport({
-        tabId: tab.id,
-        url: redactNetworkUrl(tab.url),
-        origin: pageUrl.origin,
-        source: 'chromium-quota',
-        raw
-      })
-    } catch (error) {
-      requireCurrentPage()
-      hooks?.readStarted()
-      const estimate = await tab.webContents.executeJavaScriptInIsolatedWorld(
-        STORAGE_USAGE_WORLD_ID,
-        [{ code: `(() => navigator.storage?.estimate?.().then((value) => ({
-          usage: value.usage,
-          quota: value.quota,
-          usageDetails: value.usageDetails
-        })).catch(() => null) ?? Promise.resolve(null))()` }],
-        false
-      ).catch(() => null) as { usage?: number; quota?: number; usageDetails?: Record<string, number> } | null
-      requireCurrentPage()
-      if (!estimate) throw error
-      const reason = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)
-      return buildBrowserStorageUsageReport({
-        tabId: tab.id,
-        url: redactNetworkUrl(tab.url),
-        origin: pageUrl.origin,
-        source: 'storage-manager',
-        raw: {
-          usage: estimate.usage,
-          quota: estimate.quota,
-          usageBreakdown: storageManagerUsageBreakdown(estimate.usageDetails)
-        },
-        fallbackReason: reason
-      })
-    }
+  inspectStorageUsage(tabId?: string, hooks?: StorageInspectionHooks): Promise<BrowserStorageUsageReport> {
+    return inspectStorageUsage(this.siteStorageAccess(), tabId, hooks)
   }
 
   async pwaLifecycle(options: PwaLifecycleOptions, validate: (origin: string) => void = () => undefined) {
@@ -3211,422 +3014,13 @@ export class BrowserTabsManager {
     return report
   }
 
-  async storageChanges(
+  storageChanges(
     action: BrowserStorageChangesAction = 'get',
     tabId?: string,
     includeValues = false,
     hooks?: StorageComparisonHooks
   ): Promise<BrowserStorageChangesReport> {
-    const tab = this.getTab(tabId)
-    const pageUrl = new URL(tab.url)
-    const origin = pageUrl.origin
-    const contents = tab.webContents
-    const storageSession = contents.session
-    const url = tab.url
-    const context = this.snapshotDeltaContext(tab)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    let comparison = tab.storageComparison
-    let operationGeneration = tab.storageComparisonGeneration
-    let documentCommitted = false
-    let rejected = false
-    let retained = false
-    const onDocumentCommit = (): void => { documentCommitted = true }
-    const dispose = (): void => { contents.removeListener('did-navigate', onDocumentCommit) }
-    const requireCurrentOperation = (): void => {
-      if (!rejected) {
-        try {
-          hooks?.validate()
-          const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-          if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents
-            || contents.isDestroyed() || contents.session !== storageSession || tab.url !== url
-            || currentWorkspace !== workspace
-            || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-            || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))
-            || documentCommitted || tab.storageComparisonGeneration !== operationGeneration
-            || tab.storageComparison !== comparison) throw new Error('Storage comparison context changed')
-          return
-        } catch { rejected = true }
-      }
-      throw new Error('Storage comparison changed while the page snapshot was pending. Run the requested action again.')
-    }
-    const recordChange = (): void => {
-      comparison = tab.storageComparison
-      operationGeneration = tab.storageComparisonGeneration
-      hooks?.comparisonChanged()
-    }
-
-    // Retain the commit listener through MCP audit settlement and publication.
-    // Trusted UI callers dispose it after their own synchronous report creation.
-    contents.on('did-navigate', onDocumentCommit)
-    try {
-      hooks?.retainPublication({ validate: requireCurrentOperation, dispose })
-      retained = hooks !== undefined
-      requireCurrentOperation()
-      hooks?.started()
-      if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') throw new StorageComparisonInputError('UNSUPPORTED_SCHEME')
-      if (comparison && comparison.baseline.origin !== origin) {
-        tab.storageComparisonGeneration += 1
-        tab.storageComparison = undefined
-        recordChange()
-      }
-      if (action === 'clear') {
-        tab.storageComparisonGeneration += 1
-        const changed = tab.storageComparison !== undefined
-        tab.storageComparison = undefined
-        operationGeneration = tab.storageComparisonGeneration
-        if (changed) recordChange()
-      } else if (action !== 'get') {
-        if (action === 'compare' && !comparison) throw new StorageComparisonInputError('BASELINE_REQUIRED')
-        operationGeneration = ++tab.storageComparisonGeneration
-        const snapshot = await this.captureStorageSnapshot(contents, storageSession, url, origin, requireCurrentOperation)
-        requireCurrentOperation()
-        if (action === 'baseline') tab.storageComparison = { baseline: snapshot }
-        else if (comparison) comparison.current = snapshot
-        recordChange()
-      }
-      requireCurrentOperation()
-      return this.storageChangesReport(tab, origin, action, includeValues)
-    } finally {
-      if (!retained) dispose()
-    }
-  }
-
-  private storageChangesReport(
-    tab: BrowserTab,
-    origin: string,
-    action: BrowserStorageChangesAction,
-    includeValues: boolean
-  ): BrowserStorageChangesReport {
-    const comparison = tab.storageComparison
-    const caveats = [
-      'The baseline stays only in memory and is discarded when cleared, when the tab changes origin or closes, or when Hronaut exits.',
-      'Local storage and cookies are shared by origin inside this workspace and isolated from other workspaces; session storage belongs only to this tab.',
-      includeValues
-        ? 'Bounded non-HttpOnly values are included. HttpOnly cookie values always remain protected.'
-        : 'Values are omitted. Request includeValues only when the changed values are necessary and safe to return.',
-      'The snapshot covers the first 200 sorted entries per storage kind. Storage may also change in the background between the baseline and comparison.'
-    ]
-    if (!comparison) {
-      return {
-        tabId: tab.id,
-        url: redactNetworkUrl(tab.url),
-        origin,
-        action,
-        status: 'empty',
-        changeCount: 0,
-        counts: { added: 0, updated: 0, removed: 0 },
-        changes: [],
-        valuesIncluded: includeValues,
-        caveats
-      }
-    }
-    if (!comparison.current) {
-      return {
-        tabId: tab.id,
-        url: redactNetworkUrl(tab.url),
-        origin,
-        action,
-        status: 'baseline',
-        baselineAt: comparison.baseline.capturedAt,
-        baselineItemCounts: comparison.baseline.itemCounts,
-        changeCount: 0,
-        counts: { added: 0, updated: 0, removed: 0 },
-        changes: [],
-        valuesIncluded: includeValues,
-        ...(comparison.baseline.truncated ? { truncated: true } : {}),
-        caveats
-      }
-    }
-    const result = compareBrowserStorageSnapshots(comparison.baseline, comparison.current, includeValues)
-    return {
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      origin,
-      action,
-      status: 'compared',
-      baselineAt: comparison.baseline.capturedAt,
-      comparedAt: comparison.current.capturedAt,
-      baselineItemCounts: comparison.baseline.itemCounts,
-      currentItemCounts: comparison.current.itemCounts,
-      changeCount: result.changeCount,
-      counts: result.counts,
-      changes: result.changes,
-      valuesIncluded: includeValues,
-      ...(result.truncated ? { truncated: true } : {}),
-      caveats
-    }
-  }
-
-  private async captureStorageSnapshot(
-    contents: WebContents,
-    storageSession: Session,
-    url: string,
-    origin: string,
-    requireCurrentOperation: () => void
-  ): Promise<BrowserStorageSnapshot> {
-    requireCurrentOperation()
-    const domStorage = await contents.executeJavaScript(`(() => {
-      const limit = ${MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND};
-      const previewLimit = ${MAX_STORAGE_CHANGE_VALUE_BYTES};
-      const fingerprint = (value) => {
-        let first = 2166136261;
-        let second = 2246822519;
-        for (let index = 0; index < value.length; index += 1) {
-          const code = value.charCodeAt(index);
-          first = Math.imul(first ^ code, 16777619);
-          second = Math.imul(second ^ code, 3266489917);
-        }
-        return [first >>> 0, second >>> 0, value.length].join(':');
-      };
-      const read = (storage) => {
-        const values = [];
-        for (let index = 0; index < storage.length; index += 1) {
-          const key = storage.key(index);
-          if (key !== null) values.push([key, storage.getItem(key) ?? '']);
-        }
-        values.sort((left, right) => left[0].localeCompare(right[0]));
-        return {
-          itemCount: values.length,
-          entries: values.slice(0, limit).map(([key, value]) => ({
-            key,
-            fingerprint: fingerprint(value),
-            valueBytes: new TextEncoder().encode(value).byteLength,
-            valuePreview: value.slice(0, previewLimit)
-          }))
-        };
-      };
-      return { local: read(localStorage), session: read(sessionStorage) };
-    })()`, true) as {
-      local: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
-      session: { itemCount: number; entries: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }> }
-    }
-    requireCurrentOperation()
-    const cookies = await storageSession.cookies.get({ url })
-    requireCurrentOperation()
-    const cookieEntries = cookies.map((cookie) => {
-      const partitionKey = 'partitionKey' in cookie && cookie.partitionKey
-        ? JSON.stringify(cookie.partitionKey)
-        : undefined
-      return {
-        key: cookie.name,
-        value: cookie.value,
-        domain: cookie.domain,
-        path: cookie.path,
-        expires: cookie.expirationDate,
-        secure: cookie.secure,
-        sameSite: cookie.sameSite,
-        protected: cookie.httpOnly || undefined,
-        partitionKey
-      }
-    }).sort((left, right) => left.key.localeCompare(right.key)
-      || (left.domain ?? '').localeCompare(right.domain ?? '')
-      || (left.path ?? '').localeCompare(right.path ?? '')
-      || (left.partitionKey ?? '').localeCompare(right.partitionKey ?? ''))
-
-    let remainingPreviewBytes = MAX_STORAGE_CHANGE_VALUES_TOTAL_BYTES
-    const boundedPreview = (value: string): { valuePreview?: string; valuePreviewTruncated?: boolean } => {
-      if (remainingPreviewBytes <= 0) return value ? { valuePreviewTruncated: true } : { valuePreview: '' }
-      const buffer = Buffer.from(value, 'utf8')
-      const allowed = Math.min(MAX_STORAGE_CHANGE_VALUE_BYTES, remainingPreviewBytes)
-      const preview = utf8Prefix(buffer, allowed)
-      const bytes = Buffer.byteLength(preview, 'utf8')
-      remainingPreviewBytes -= bytes
-      return {
-        valuePreview: preview,
-        ...(bytes < buffer.length ? { valuePreviewTruncated: true } : {})
-      }
-    }
-    const domEntries = (
-      kind: 'local-storage' | 'session-storage',
-      values: Array<{ key: string; fingerprint: string; valueBytes: number; valuePreview: string }>
-    ): BrowserStorageSnapshotEntry[] => values.map((entry) => {
-      const preview = boundedPreview(entry.valuePreview)
-      return {
-        kind,
-        key: entry.key,
-        fingerprint: `dom:${entry.fingerprint}`,
-        valueBytes: entry.valueBytes,
-        ...preview,
-        ...(entry.valueBytes > Buffer.byteLength(preview.valuePreview ?? '', 'utf8') ? { valuePreviewTruncated: true } : {})
-      }
-    })
-    const entries: BrowserStorageSnapshotEntry[] = [
-      ...domEntries('local-storage', domStorage.local.entries),
-      ...domEntries('session-storage', domStorage.session.entries),
-      ...cookieEntries.slice(0, MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND).map((cookie): BrowserStorageSnapshotEntry => ({
-        kind: 'cookies',
-        key: cookie.key,
-        fingerprint: `cookie:${createHash('sha256').update(cookie.value).digest('hex')}`,
-        valueBytes: Buffer.byteLength(cookie.value, 'utf8'),
-        ...(cookie.protected ? {} : boundedPreview(cookie.value)),
-        domain: cookie.domain,
-        path: cookie.path,
-        expires: cookie.expires,
-        secure: cookie.secure,
-        sameSite: cookie.sameSite,
-        protected: cookie.protected,
-        partitionKey: cookie.partitionKey
-      }))
-    ]
-    return {
-      origin,
-      capturedAt: new Date().toISOString(),
-      entries,
-      itemCounts: {
-        'local-storage': domStorage.local.itemCount,
-        'session-storage': domStorage.session.itemCount,
-        cookies: cookies.length
-      },
-      truncated: domStorage.local.itemCount > MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND
-        || domStorage.session.itemCount > MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND
-        || cookies.length > MAX_STORAGE_SNAPSHOT_ITEMS_PER_KIND
-    }
-  }
-
-  private async manageCookies(
-    tab: BrowserTab,
-    pageUrl: URL,
-    action: BrowserStorageResult['action'],
-    key: string | undefined,
-    value: string | undefined,
-    includeValues: boolean,
-    hooks?: CookieWriteHooks,
-    exact?: { domain: string; path: string }
-  ): Promise<BrowserStorageResult> {
-    const contents = tab.webContents
-    const session = contents.session
-    const cookieStore = session.cookies
-    // This guard covers document/workspace/control changes, not cookie-session
-    // changes after MCP admission. Electron cookie events do not identify their
-    // originating operation, so no own-write event exemption is inferred here.
-    const context = this.snapshotDeltaContext(tab)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    const assertCurrent = (): void => {
-      if (action === 'list' || action === 'get') return
-      hooks?.validate()
-      const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || contents.isDestroyed()
-        || contents.session !== session || currentWorkspace !== workspace
-        || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration
-        || snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(tab))) {
-        throw new Error('Cookie storage context changed. Earlier writes are not rolled back; inspect fresh state before continuing.')
-      }
-    }
-    const operation = createCookieWriteOperation(assertCurrent, hooks?.progress)
-    hooks?.retainPublication(assertCurrent)
-    assertCurrent()
-    const url = pageUrl.href
-    const cookies = await cookieStore.get({ url })
-    assertCurrent()
-    let changed: boolean | undefined
-    if (action === 'set') {
-      const protectedMatch = cookies.some((cookie) => cookie.name === key && cookie.httpOnly)
-      if (protectedMatch) throw new Error('HttpOnly cookies are protected and cannot be replaced by the storage manager.')
-      await operation.write(() => cookieStore.set({
-        url: pageUrl.origin,
-        name: key!,
-        value: value!,
-        path: '/',
-        secure: pageUrl.protocol === 'https:',
-        sameSite: 'lax'
-      }))
-      changed = true
-    } else if (action === 'delete' && exact) {
-      await this.deleteExactCookie(contents, cookies, { name: key!, ...exact }, operation, assertCurrent)
-      const remaining = await cookieStore.get({ url })
-      assertCurrent()
-      if (remaining.some((cookie) => cookie.name === key && cookie.domain === exact.domain && cookie.path === exact.path)) {
-        throw new Error('The selected cookie is still present. Inspect current storage before deciding what to do next; do not automatically repeat the operation.')
-      }
-      changed = true
-    } else if (action === 'delete') {
-      const matches = cookies.filter((cookie) => cookie.name === key)
-      const editable = matches.filter((cookie) => !cookie.httpOnly)
-      if (matches.length && !editable.length) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-      for (const cookie of editable) {
-        const removalUrl = this.cookieRemovalUrl(cookie)
-        await operation.write(() => cookieStore.remove(removalUrl, cookie.name))
-      }
-      changed = editable.length > 0
-    } else if (action === 'clear') {
-      const editable = cookies.filter((cookie) => !cookie.httpOnly)
-      for (const cookie of editable) {
-        const removalUrl = this.cookieRemovalUrl(cookie)
-        await operation.write(() => cookieStore.remove(removalUrl, cookie.name))
-      }
-      changed = editable.length > 0
-    }
-    const next = await cookieStore.get({ url })
-    assertCurrent()
-    const selected = action === 'get' ? next.filter((cookie) => cookie.name === key) : next
-    const rawItems: Array<[string, string, Omit<BrowserStorageItem, 'key' | 'value' | 'valueBytes'>]> = selected.map((cookie) => [
-      cookie.name,
-      cookie.value,
-      {
-        protected: cookie.httpOnly || undefined,
-        domain: cookie.domain,
-        path: cookie.path,
-        expires: cookie.expirationDate,
-        secure: cookie.secure,
-        sameSite: cookie.sameSite
-      }
-    ])
-    const bounded = boundStorageItems(rawItems, includeValues || action === 'get', true)
-    return {
-      tabId: tab.id,
-      url: redactNetworkUrl(url),
-      origin: pageUrl.origin,
-      kind: 'cookies',
-      action,
-      itemCount: next.length,
-      items: bounded.items,
-      changed,
-      truncated: bounded.truncated || undefined,
-      note: 'HttpOnly cookie values are protected. Non-HttpOnly cookies and local storage are shared by origin only inside this workspace.'
-    }
-  }
-
-  // Electron's cookies.remove(url, name) deletes every same-name cookie sent to
-  // that URL, including parent-path variants. CDP Network.deleteCookies matches
-  // name, domain and path exactly and, without a partition key, only
-  // unpartitioned cookies. Electron listings omit partition keys, so the
-  // complete store is checked for one unpartitioned identity before dispatch.
-  private async deleteExactCookie(
-    contents: BrowserTab['view']['webContents'],
-    applicable: Electron.Cookie[],
-    target: { name: string; domain: string; path: string },
-    operation: { write(write: () => Promise<void>): Promise<void> },
-    assertCurrent: () => void
-  ): Promise<void> {
-    const sameIdentity = (cookie: { name: string; domain?: string; path?: string }): boolean =>
-      cookie.name === target.name && cookie.domain === target.domain && cookie.path === target.path
-    const listed = applicable.filter(sameIdentity)
-    if (!listed.length) throw new Error('No cookie for this page matches that exact name, domain and path. List cookies again and use the reported domain and path.')
-    if (listed.some((cookie) => cookie.httpOnly)) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-    if (listed.length > 1) throw new Error('More than one cookie has that name, domain and path, for example in another partition. It was not deleted.')
-    await this.withDebugger(contents, async () => {
-      assertCurrent()
-      const store = await contents.debugger.sendCommand('Network.getAllCookies') as {
-        cookies?: Array<{ name: string; domain: string; path: string; httpOnly?: boolean; partitionKey?: unknown }>
-      }
-      assertCurrent()
-      const stored = (store.cookies ?? []).filter(sameIdentity)
-      const [only] = stored
-      if (stored.length !== 1 || !only) throw new Error('The selected cookie identity is ambiguous or no longer present. It was not deleted.')
-      if (only.partitionKey !== undefined) throw new Error('Partitioned cookies are not supported by exact deletion. It was not deleted.')
-      if (only.httpOnly) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-      await operation.write(async () => {
-        await contents.debugger.sendCommand('Network.deleteCookies', { name: target.name, domain: target.domain, path: target.path })
-      })
-    }, assertCurrent)
-  }
-
-  private cookieRemovalUrl(cookie: { domain?: string; path?: string; secure?: boolean }): string {
-    const domain = cookie.domain?.replace(/^\./, '')
-    if (!domain) throw new Error('Cookie domain is unavailable.')
-    return `${cookie.secure ? 'https' : 'http'}://${domain}${cookie.path || '/'}`
+    return storageChanges(this.siteStorageAccess(), action, tabId, includeValues, hooks)
   }
 
   credentialContext(tabId?: string): CredentialFillContext | null {
