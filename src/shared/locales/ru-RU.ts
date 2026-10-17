@@ -1428,9 +1428,9 @@ export const ruRU = {
       "stepFailed": "{step}, не удалось",
       "answeredAt": "{answer} · {time}",
       "answers": {
-        "handedBack": "Вы передали агенту",
+        "handedBack": "Вы вернули агенту",
         "sentBack": "Вы вернули на доработку",
-        "dismissed": "Вы отклонили запрос",
+        "dismissed": "Вы закрыли запрос",
         "approved": "Вы одобрили действие",
         "rejected": "Вы отклонили",
         "answered": "Вы ответили",

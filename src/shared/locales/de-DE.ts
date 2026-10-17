@@ -1428,11 +1428,11 @@ export const deDE = {
       "stepFailed": "{step}, fehlgeschlagen",
       "answeredAt": "{answer} · {time}",
       "answers": {
-        "handedBack": "Sie haben zurückgegeben",
+        "handedBack": "Sie haben es zurückgegeben",
         "sentBack": "Sie haben es zur Korrektur zurückgeschickt",
         "dismissed": "Sie haben den Hinweis geschlossen",
         "approved": "Sie haben die Aktion genehmigt",
-        "rejected": "Sie haben abgelehnt",
+        "rejected": "Sie haben es abgelehnt",
         "answered": "Sie haben geantwortet",
         "resolved": "Sie haben es geklärt",
         "cancelled": "Sie haben die Entscheidung abgebrochen"

@@ -6114,11 +6114,18 @@ export class McpHttpServer {
   recordAgentAnswer(attentionId: string, answer: AgentAnswerKind): void {
     let recorded = false
     try {
-      recorded = this.agentPresence.recordAnswer(attentionId, answer, Date.now())
+      recorded = this.agentPresence.recordAnswer(attentionId, answer, Date.now(), (workspaceId) => this.manager.isOpenAgentWorkspace(workspaceId))
     } catch (error) {
       console.error('[mcp] Failed to record an answer to an agent:', error)
     }
     if (recorded) this.agentPresenceChanged()
+  }
+
+  /** You answered a human-waiting decision: the agent whose request asked for it sees how, even when that request is
+   * no longer the current one. */
+  recordAgentDecisionAnswer(workspaceId: string, decisionId: string, answer: AgentAnswerKind): void {
+    const attentionId = this.agentPresence.decisionRequest(workspaceId, decisionId)
+    if (attentionId) this.recordAgentAnswer(attentionId, answer)
   }
 
   /** A workspace closed: the steps agents took there, and their pictures, are not kept. */
@@ -6259,7 +6266,7 @@ export class McpHttpServer {
     const workspaceId = input.workspaceId ?? attention.workspaceId
     if (!workspaceId) return
     try {
-      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now(), input.humanWaitingDecisionId !== undefined)
+      this.agentPresence.recordAttention({ id: client.id, name: client.name }, workspaceId, attention.id, attention.tabId ?? input.tabId, Date.now(), input.humanWaitingDecisionId)
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
     }

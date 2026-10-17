@@ -1430,7 +1430,7 @@ export const plPL = {
       "answers": {
         "handedBack": "Oddane agentowi przez Ciebie",
         "sentBack": "Odesłane do poprawy przez Ciebie",
-        "dismissed": "Prośba odrzucona przez Ciebie",
+        "dismissed": "Prośba zamknięta przez Ciebie",
         "approved": "Działanie zatwierdzone przez Ciebie",
         "rejected": "Odrzucone przez Ciebie",
         "answered": "Odpowiedź wysłana przez Ciebie",

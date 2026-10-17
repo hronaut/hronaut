@@ -1429,10 +1429,10 @@ export const frFR = {
       "answeredAt": "{answer} · {time}",
       "answers": {
         "handedBack": "Vous avez rendu la main",
-        "sentBack": "Vous avez renvoyé pour correction",
+        "sentBack": "Vous l’avez renvoyé pour correction",
         "dismissed": "Vous avez ignoré la demande",
         "approved": "Vous avez approuvé l’action",
-        "rejected": "Vous avez refusé",
+        "rejected": "Vous l’avez refusé",
         "answered": "Vous avez répondu",
         "resolved": "Vous avez réglé la question",
         "cancelled": "Vous avez annulé la décision"

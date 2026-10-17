@@ -19,9 +19,7 @@ export type AgentPresenceState = 'idle' | 'working' | 'needs-you'
 export const AGENT_RECENT_STEPS_LIMIT = 3
 
 /** How the person answered an agent's request for them. */
-export const AGENT_ANSWER_KINDS = ['handedBack', 'sentBack', 'dismissed', 'approved', 'rejected', 'answered', 'resolved', 'cancelled'] as const
-
-export type AgentAnswerKind = (typeof AGENT_ANSWER_KINDS)[number]
+export type AgentAnswerKind = 'handedBack' | 'sentBack' | 'dismissed' | 'approved' | 'rejected' | 'answered' | 'resolved' | 'cancelled'
 
 /**
  * A finished call: its general kind, what it acted on when known, whether it worked, and when it ended. Or the person's

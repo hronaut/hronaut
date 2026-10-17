@@ -1514,7 +1514,8 @@ function setTrayContextMenu(): void {
           {
             label: text('native.tray.dismissAttention'),
             click: () => {
-              if (userAttention) mcpServer?.recordAgentAnswer(userAttention.id, 'dismissed')
+              // Dismissing leaves a decision open, so it is not an answer to one.
+              if (userAttention && !attentionDecisionId) mcpServer?.recordAgentAnswer(userAttention.id, 'dismissed')
               endUserAttention({ disposition: 'dismissed' })
             }
           },
@@ -2867,9 +2868,9 @@ function registerIpc(): void {
     }
     const attentionId = userAttention?.workspaceId === workspaceId && attentionDecisionId === id ? userAttention.id : undefined
     const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh, trustedConfirmation, { note: answerNote })
-    // The agent that asked sees how you answered in its steps; the request may already have ended with the decision.
-    if (attentionId && action !== 'acknowledge' && !humanWaitingDecisionOpen(record.state)) {
-      mcpServer?.recordAgentAnswer(attentionId, agentAnswerForDecision(record.decision, action))
+    // The agent that asked sees how you answered in its steps, even when its request ended or another one replaced it.
+    if (action !== 'acknowledge' && !humanWaitingDecisionOpen(record.state)) {
+      mcpServer?.recordAgentDecisionAnswer(workspaceId, id, agentAnswerForDecision(record.decision, action))
     }
     if (attentionId && userAttention?.id === attentionId) {
       if (humanWaitingDecisionOpen(record.state)) quietUserAttention()

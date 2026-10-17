@@ -191,6 +191,10 @@ interface AskedRecord {
   sessionId: string
   workspaceId: string
   tabId?: string
+  /** The human-waiting decision the request is for. */
+  decisionId?: string
+  /** You dismissed it; the request stays open until you answer it another way. */
+  dismissed?: true
 }
 
 interface ClientRecord {
@@ -305,7 +309,8 @@ export class AgentPresenceRegistry {
 
   /** Records a request for you. One that arrives after its session closed still
    * shows until it is answered, but brings back none of the session's activity. */
-  recordAttention(client: AgentPresenceClient, workspaceId: string, attentionId: string, tabId: string | undefined, now: number, decision = false): void {
+  recordAttention(client: AgentPresenceClient, workspaceId: string, attentionId: string, tabId: string | undefined, now: number, decisionId?: string): void {
+    const decision = decisionId !== undefined
     const closed = this.closedSessions.has(client.id)
     const record = this.client(client, now)
     if (closed) {
@@ -318,22 +323,24 @@ export class AgentPresenceRegistry {
     }
     record.attention = { attentionId, workspaceId, ...(tabId ? { tabId } : {}), requestedAt: now, decision }
     this.asked.delete(attentionId)
-    this.asked.set(attentionId, { sessionId: client.id, workspaceId, ...(tabId ? { tabId } : {}) })
+    this.asked.set(attentionId, { sessionId: client.id, workspaceId, ...(tabId ? { tabId } : {}), ...(decisionId !== undefined ? { decisionId } : {}) })
     while (this.asked.size > AGENT_ANSWERABLE_REQUESTS_LIMIT) this.asked.delete(this.asked.keys().next().value!)
     this.trim()
   }
 
   /**
    * You answered a request for you: the agent that made it gets an entry in its steps in that workspace saying how and
-   * when, for the first answer only. Your answer counts as activity there, so its avatar stays in view, idle, for the
-   * presence window and its card shows the answer. False when no open session made the request.
+   * when. Dismissing leaves the request open, so one later answer of another kind gets its own entry; a repeated
+   * dismissal does not. Your answer counts as activity there, so its avatar stays in view, idle, for the presence window
+   * and its card shows the answer. False when no open session made the request or its workspace is no longer open.
    */
-  recordAnswer(attentionId: string, answer: AgentAnswerKind, now: number): boolean {
+  recordAnswer(attentionId: string, answer: AgentAnswerKind, now: number, workspaceOpen: (workspaceId: string) => boolean = () => true): boolean {
     const asked = this.asked.get(attentionId)
-    if (!asked) return false
-    this.asked.delete(attentionId)
+    if (!asked || (answer === 'dismissed' && asked.dismissed)) return false
+    if (answer === 'dismissed') asked.dismissed = true
+    else this.asked.delete(attentionId)
     const record = this.clients.get(asked.sessionId)
-    if (!record || record.closed || this.closedSessions.has(asked.sessionId)) return false
+    if (!record || record.closed || this.closedSessions.has(asked.sessionId) || !workspaceOpen(asked.workspaceId)) return false
     let workspace = record.workspaces.get(asked.workspaceId)
     if (!workspace) {
       workspace = { firstSeenAt: now, lastActivityAt: now, step: 'askYou', inFlight: new Map(), steps: [] }
@@ -353,6 +360,15 @@ export class AgentPresenceRegistry {
     if (workspace.steps.length > AGENT_STEP_HISTORY_LIMIT) workspace.steps.splice(0, workspace.steps.length - AGENT_STEP_HISTORY_LIMIT)
     this.trim()
     return true
+  }
+
+  /** The request an agent made for a human-waiting decision, newest first, while it is remembered. */
+  decisionRequest(workspaceId: string, decisionId: string): string | undefined {
+    let found: string | undefined
+    for (const [attentionId, asked] of this.asked) {
+      if (asked.workspaceId === workspaceId && asked.decisionId === decisionId) found = attentionId
+    }
+    return found
   }
 
   /** The session closed: its activity ends, but a request for you stays until it is answered. */

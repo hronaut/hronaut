@@ -305,7 +305,7 @@ describe('agent presence registry', () => {
     expect(call(claude, 'browser_click', 'finished')).toBe('attention-1')
     expect(call(claude, 'browser_navigate', 'finished', { tabId: 'tab-1' })).toBe('attention-1')
     // A human-waiting decision ends only with the decision.
-    registry.recordAttention(claude, workspace, 'attention-2', undefined, 2_000, true)
+    registry.recordAttention(claude, workspace, 'attention-2', undefined, 2_000, 'decision-1')
     expect(call(claude, 'browser_click', 'finished', { startedAt: 2_100 })).toBeUndefined()
   })
 
