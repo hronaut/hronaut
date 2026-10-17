@@ -63,8 +63,8 @@ also matches buttons inside unrelated open shadow roots.
   diagnostic IPC, preload, and renderer store. A canceled result is distinct from
   success or failure. Main-process recording identity remains authoritative.
 - `useDiagnosticsController` tracks selection as a mutation, so automatic refresh
-  cannot replace its busy or error state. `DiagnosticsPanels.vue` exposes the
-  action and cancellation state; `ReproTimeline.vue` presents the selected
+  cannot replace its busy or error state. `ReproRecordingPanel.vue` exposes
+  the action and cancellation state; `ReproTimeline.vue` presents the selected
   expectation. Add translations in all supported locales and keyboard coverage.
 - `repro-export.ts` imports `expect` when needed and emits assertions using the
   existing JavaScript literal escaping. Remove the final assertion TODO only
