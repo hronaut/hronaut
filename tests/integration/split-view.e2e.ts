@@ -121,9 +121,10 @@ test('keeps the active pane attached when the inactive split pane closes', async
     activeTabId,
     splitView: undefined
   })
+  // Page views only: Hronaut's own overlays, such as the toast a failed split shows, are views of the window too.
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => (
     (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
-      .filter((view) => view instanceof WebContentsView)
+      .filter((view) => view instanceof WebContentsView && !/\/(toast-overlay|agent-card|tooltip-overlay|address-overlay)\.html$/.test(view.webContents.getURL()))
       .map((view) => view.webContents.getTitle())
   ))).toEqual(['Split active survivor'])
   await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
@@ -191,7 +192,7 @@ test('keeps the current pane when a sleeping split target cannot wake and permit
     }))`)).toEqual({ activeTabId: firstTabId, splitView: null, sleeping: true })
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => (
       (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
-        .filter((view) => view instanceof WebContentsView)
+        .filter((view) => view instanceof WebContentsView && !/\/(toast-overlay|agent-card|tooltip-overlay|address-overlay)\.html$/.test(view.webContents.getURL()))
         .map((view) => view.webContents.getTitle())
     ))).toEqual(['Split wake survivor'])
 
@@ -293,7 +294,7 @@ test('does not open a delayed sleeping split target after a newer tab selection'
     }))`)).toEqual({ activeTabId: firstTabId, splitView: null, sleeping: false, loading: false })
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => (
       (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
-        .filter((view) => view instanceof WebContentsView)
+        .filter((view) => view instanceof WebContentsView && !/\/(toast-overlay|agent-card|tooltip-overlay|address-overlay)\.html$/.test(view.webContents.getURL()))
         .map((view) => view.webContents.getTitle())
     ))).toEqual(['Delayed split survivor'])
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
@@ -419,7 +420,7 @@ test('collapses an open split when Electron destroys either native pane', async 
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(firstTabId)
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => (
     (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
-      .filter((view) => view instanceof WebContentsView)
+      .filter((view) => view instanceof WebContentsView && !/\/(toast-overlay|agent-card|tooltip-overlay|address-overlay)\.html$/.test(view.webContents.getURL()))
       .map((view) => view.webContents.getTitle())
   ))).toEqual(['Split survivor'])
   await appWindow.getByRole('tab', { name: /Split teardown/ }).click()
@@ -449,7 +450,7 @@ test('collapses an open split when Electron destroys either native pane', async 
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(firstTabId)
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => (
     (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
-      .filter((view) => view instanceof WebContentsView)
+      .filter((view) => view instanceof WebContentsView && !/\/(toast-overlay|agent-card|tooltip-overlay|address-overlay)\.html$/.test(view.webContents.getURL()))
       .map((view) => view.webContents.getTitle())
   ))).toEqual(['Split survivor'])
 })
