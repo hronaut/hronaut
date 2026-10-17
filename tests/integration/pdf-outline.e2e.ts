@@ -141,6 +141,8 @@ const pages: Record<string, string> = {
 }
 
 test('adds heading bookmarks to a PDF export only when asked', async ({ appWindow, electronApp, mcpPort, mcpToken, profileDirectory }) => {
+  // About a dozen exports, one with 300 tagged headings, took 31 s with startup in the pinned Docker image.
+  test.slow()
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
     response.end(pages[new URL(request.url ?? '/', 'http://fixture').pathname] ?? pages['/plain'])
