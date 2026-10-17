@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { ElectronApplication } from '@playwright/test'
+import type { ElectronApplication, Locator } from '@playwright/test'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
@@ -10,6 +10,18 @@ async function homePage(app: ElectronApplication) {
   const page = app.context().pages().find(page => page.url().startsWith('hronaut://home'))!
   await expect(page.getByRole('tab', { name: 'Workspaces', exact: true })).toHaveAttribute('aria-selected', 'true')
   return page
+}
+
+/** A card's ⋯ control, by the name screen readers announce for it. */
+function cardMenuButton(card: Locator, name: string): Locator {
+  return card.getByLabel(`More actions for ${name}`, { exact: true })
+}
+
+/** Opens a workspace card's ⋯ menu as a person does; its actions are hidden until then. */
+async function openCardMenu(card: Locator, name: string): Promise<void> {
+  await expect(card.getByRole('button', { name: 'Copy or move data', exact: true })).toBeHidden()
+  await cardMenuButton(card, name).click()
+  await expect(card.getByRole('button', { name: 'Copy or move data', exact: true })).toBeVisible()
 }
 
 test('Home manages workspaces across themes and narrow windows', async ({ appWindow, electronApp }, testInfo) => {
@@ -32,10 +44,15 @@ test('Home manages workspaces across themes and narrow windows', async ({ appWin
   await expect(library.getByRole('article')).toHaveCount(1)
   await search.press('Enter')
   expect(await appWindow.getByRole('dialog').count()).toBe(0)
-  await library.getByRole('button', { name: 'Archive', exact: true }).click()
+  // Archive lives in the card's ⋯ menu and offers Undo on Home instead of asking first.
+  const personal = library.getByRole('article', { name: 'Personal accounts', exact: true })
+  await openCardMenu(personal, 'Personal accounts')
+  await personal.getByRole('button', { name: 'Archive', exact: true }).click()
+  await expect(personal).toBeHidden()
   await expect(library.getByRole('status')).toContainText('Tabs and sign-ins are saved')
-  await library.getByRole('button', { name: 'Undo archive' }).click()
+  await library.getByRole('button', { name: 'Undo', exact: true }).click()
   await expect(library.getByRole('article')).toHaveCount(1)
+  await expect(personal).toBeVisible()
   await search.fill('')
   for (const theme of ['light', 'dark']) {
     await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
@@ -64,8 +81,12 @@ test('Home manages workspaces across themes and narrow windows', async ({ appWin
         }
       } else expect(alignment.buttons[0]!.top).toBe(alignment.buttons[1]!.top)
 
-      await library.getByRole('article').last().scrollIntoViewIfNeeded()
-      await expect(library.getByRole('article').last().getByRole('button', { name: 'Open workspace', exact: true })).toBeInViewport()
+      // The last card can be reached and opened, and its ⋯ menu stays in view, in narrow windows too.
+      const lastCard = library.getByRole('article').last()
+      await lastCard.scrollIntoViewIfNeeded()
+      const lastName = await lastCard.getAttribute('aria-label')
+      await expect(lastCard.getByRole('button', { name: `Open ${lastName}`, exact: true })).toBeInViewport()
+      await expect(cardMenuButton(lastCard, lastName!)).toBeInViewport()
       await home.screenshot({ path: testInfo.outputPath(`home-workspaces-${theme}-${width}.png`), fullPage: true })
     }
   }
@@ -74,7 +95,8 @@ test('Home manages workspaces across themes and narrow windows', async ({ appWin
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(s => s.savedTabGroups.length)')).toBe(0)
   await appWindow.evaluate('window.hronaut.openHome()')
   await library.getByRole('tab', { name: 'Open (4)', exact: true }).click()
-  await library.getByRole('article', { name: 'Personal accounts' }).getByRole('button', { name: 'Manage', exact: true }).click()
+  await openCardMenu(personal, 'Personal accounts')
+  await personal.getByRole('button', { name: 'Manage', exact: true }).click()
   const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
   await expect(editor.getByLabel('Workspace name', { exact: true })).toHaveValue('Personal accounts')
   await editor.getByLabel('Workspace name', { exact: true }).fill('Personal browsing')
@@ -105,17 +127,26 @@ test('creates a hidden protected workspace from Home at enlarged scale and keeps
   const card = home.getByRole('article', { name: 'Private research', exact: true })
   await expect(card).toBeVisible()
   await expect(card.getByText('Deletion protected', { exact: true })).toBeVisible()
+  await openCardMenu(card, 'Private research')
   await expect(card.getByRole('button', { name: 'Clear…', exact: true })).toBeDisabled()
-  await card.getByRole('button', { name: 'Open workspace', exact: true }).click()
+  // Escape closes the menu and returns focus to its button; the whole card then opens the workspace.
+  await home.keyboard.press('Escape')
+  await expect(card.getByRole('button', { name: 'Clear…', exact: true })).toBeHidden()
+  await expect(cardMenuButton(card, 'Private research')).toBeFocused()
+  await card.getByRole('button', { name: 'Open Private research', exact: true }).click()
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(s => s.tabs.find(t => t.active)?.mcpGroupId)')).toBeTruthy()
   await expect(appWindow.locator('.tab-group-label', { hasText: 'Private research' })).toHaveCount(0)
   await appWindow.evaluate('window.hronaut.openHome()')
-  await card.locator('summary').click()
+  await openCardMenu(card, 'Private research')
   await card.getByLabel('Hide from left sidebar', { exact: true }).uncheck()
   await appWindow.locator('.browser-tabs-bar').hover()
   await expect(appWindow.locator('.tab-group-label', { hasText: 'Private research' })).toBeVisible()
+  // Once saved, the menu is still open with focus on the option, so its next action is at hand.
+  await expect(card.getByLabel('Hide from left sidebar', { exact: true })).not.toBeChecked()
+  await expect(card.getByLabel('Hide from left sidebar', { exact: true })).toBeFocused()
   await card.getByRole('button', { name: 'Archive', exact: true }).click()
   await home.getByRole('tab', { name: 'Archived (1)' }).click()
+  await openCardMenu(card, 'Private research')
   await expect(card.getByRole('button', { name: 'Delete…', exact: true })).toBeDisabled()
   const id = await appWindow.evaluate('window.hronaut.getState().then(s => s.savedTabGroups[0].id)') as string
   const rejected = await appWindow.evaluate(async id => {
@@ -123,7 +154,6 @@ test('creates a hidden protected workspace from Home at enlarged scale and keeps
     catch (error) { return String(error) }
   }, id)
   expect(rejected).toContain('protected from deletion')
-  await card.locator('summary').click()
   await card.getByLabel('Protect from deletion', { exact: true }).uncheck()
   await expect(card.getByRole('button', { name: 'Delete…', exact: true })).toBeEnabled()
 })
@@ -138,15 +168,22 @@ test('clears an open workspace from Home while website input is locked', async (
   const workspaceId = state.mcpTabGroups.find(group => group.name === 'Stuck workspace')!.id
   const home = await homePage(electronApp)
   const card = home.getByRole('article', { name: 'Stuck workspace', exact: true })
+  // With room in the archive, clearing from Home offers Undo instead of asking first.
+  const dialogs: string[] = []
+  home.on('dialog', dialog => { dialogs.push(dialog.type()); void dialog.dismiss() })
 
+  await openCardMenu(card, 'Stuck workspace')
   await expect(card.getByRole('button', { name: 'Archive', exact: true })).toBeEnabled()
   await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.setAllHumanInteractionLocked(true))
+  // The card is rebuilt for the lock with its menu still open.
   await expect(card.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled()
   await expect(card.getByRole('button', { name: 'Clear…', exact: true })).toBeEnabled()
-  home.once('dialog', dialog => dialog.accept())
   await card.getByRole('button', { name: 'Clear…', exact: true }).click()
 
   await expect(card).toBeHidden()
+  await expect(home.getByRole('status').filter({ hasText: '“Stuck workspace” cleared.' })).toBeVisible()
+  await expect(home.getByRole('button', { name: 'Undo', exact: true })).toBeVisible()
+  expect(dialogs).toEqual([])
   await expect.poll(() => appWindow.evaluate(id => (
     (window as unknown as { hronaut: HronautApi }).hronaut.getState()
       .then(state => state.mcpTabGroups.some(group => group.id === id))

@@ -84,8 +84,9 @@ for (const homeState of ['closed', 'background', 'active'] as const) {
       await instance.window.evaluate('window.hronaut.openHome()')
       await expect.poll(() => instance.app.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
       const home = instance.app.context().pages().find(page => page.url().startsWith('hronaut://home'))!
-      await home.getByRole('article', { name: 'Workspace A', exact: true }).getByRole('button', { name: 'Open workspace', exact: true }).click()
-      expect((await instance.window.evaluate('window.hronaut.getState()') as BrowserState).activeTabId).toBe(a2)
+      // The whole card opens its workspace; its stretched button carries the workspace's name.
+      await home.getByRole('article', { name: 'Workspace A', exact: true }).getByRole('button', { name: 'Open Workspace A', exact: true }).click()
+      await expect.poll(async () => (await instance.window.evaluate('window.hronaut.getState()') as BrowserState).activeTabId).toBe(a2)
     } finally {
       await client?.close()
       await closeHronaut(instance.app)

@@ -1,6 +1,13 @@
 import { writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { ElectronApplication } from '@playwright/test'
-import { expect, test } from './fixtures.js'
+import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
+import type { BrowserState } from '../../src/shared/types.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 const HOME_READY_TIMEOUT_MS = 20_000
 
@@ -27,16 +34,19 @@ async function readyHome(app: ElectronApplication): Promise<void> {
  * Resizes the window and waits until Home has laid out at its new width. Home sits in the page card, inset from the
  * window's edges, so its width is the card's, not the window's.
  */
-async function resizeHome(app: ElectronApplication, width: number): Promise<void> {
-  await app.evaluate(({ BrowserWindow }, nextWidth) => BrowserWindow.getAllWindows()[0]!.setSize(nextWidth, 900), width)
+async function resizeHome(app: ElectronApplication, width: number, height = 900): Promise<void> {
+  await app.evaluate(({ BrowserWindow }, [nextWidth, nextHeight]) => BrowserWindow.getAllWindows()[0]!.setSize(nextWidth!, nextHeight!), [width, height])
   await expect.poll(async () => {
     const card = await app.evaluate(({ BrowserWindow, WebContentsView }) => {
       const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find((candidate) => (
         candidate instanceof WebContentsView && candidate.webContents.getURL().startsWith('hronaut://home')
       )) as Electron.WebContentsView | undefined
-      return view?.getBounds().width ?? 0
+      const bounds = view?.getBounds()
+      return { width: bounds?.width ?? 0, height: bounds?.height ?? 0 }
     })
-    return card > width - 60 && card <= width && await homeScript<number>(app, 'innerWidth') === card
+    const inner = await homeScript<{ width: number; height: number }>(app, '({ width: innerWidth, height: innerHeight })')
+    return card.width > width - 60 && card.width <= width && card.height > 0 && card.height < height
+      && inner.width === card.width && inner.height === card.height
   }).toBe(true)
 }
 
@@ -54,6 +64,13 @@ test('Home keeps its content width and position when switching between short and
   await expect.poll(() => homeScript(electronApp, 'Boolean(document.getElementById("home-tab-workspaces")?.offsetParent)')).toBe(true)
   // Exercise the returning-profile short view as well as long diagnostics.
   await homeScript(electronApp, `localStorage.setItem('hronaut.home.onboarded', 'true'); import(document.querySelector('script[type="module"]').src).then(module => module.homeController.refresh())`)
+  // In narrow windows the live activity moves under the workspace cards, so Workspaces scrolls there too; a tool search
+  // that matches nothing keeps one view short at every width, whatever the fonts.
+  await homeScript(electronApp, `(() => {
+    const search = document.getElementById('tool-search');
+    search.value = 'no-such-hronaut-tool';
+    search.dispatchEvent(new Event('input'));
+  })()`)
   for (const width of [1200, 760]) {
     await resizeHome(electronApp, width)
     await homeScript(electronApp, 'document.getElementById("home-tab-workspaces").click()')
@@ -73,6 +90,100 @@ test('Home keeps its content width and position when switching between short and
       expect.soft(current.x, `${width}/${tab}: content position`).toBe(initial.x)
     }
     expect(scrollStates.size, `${width}: exercised both short and scrollable Home tabs`).toBe(2)
+  }
+})
+
+test('Home scrolls live activity inside its own column in a short window and keeps the workspace cards usable', async ({ electronApp, appWindow, mcpPort, mcpToken }) => {
+  const site = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    response.end(`<!doctype html><title>Page ${request.url}</title><h1>${request.url}</h1>`)
+  })
+  await new Promise<void>(resolve => site.listen(0, '127.0.0.1', resolve))
+  const origin = `http://127.0.0.1:${(site.address() as AddressInfo).port}`
+  const client = new Client({ name: 'Codex', version: '1.0.0' })
+  const call = async (name: string, args: Record<string, unknown>): Promise<string> => {
+    const result = await client.callTool({ name, arguments: args }) as CallToolResult
+    const text = result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    expect(result.isError, text).not.toBe(true)
+    return text
+  }
+  try {
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+    }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    // An agent opens many different pages, far more steps than a short window can show at once.
+    await connectMcpWorkspace(client, 'Busy research', false)
+    const tabId = (JSON.parse(await call('browser_new_tab', { url: `${origin}/page-0`, active: true })) as BrowserState).activeTabId!
+    const pages = 24
+    for (let index = 1; index <= pages; index++) await call('browser_navigate', { tabId, url: `${origin}/page-${index}` })
+    await appWindow.evaluate('window.hronaut.openHome()')
+    await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
+    const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+    const activity = home.getByRole('complementary', { name: 'Live activity', exact: true })
+    const list = activity.getByRole('list', { name: 'Live activity', exact: true })
+    const rows = list.getByRole('listitem')
+    // Each page is its own row, newest first.
+    await expect.poll(() => rows.count()).toBeGreaterThan(pages)
+    await expect(rows.first()).toContainText(`/page-${pages}`)
+    const card = home.getByRole('article', { name: 'Busy research', exact: true })
+    const openCard = card.getByRole('button', { name: 'Open Busy research', exact: true })
+
+    for (const width of [1200, 760]) {
+      await resizeHome(electronApp, width, 640)
+      await home.evaluate(() => { scrollTo(0, 0); document.getElementById('live-activity-list')!.scrollTop = 0 })
+      const layout = await home.evaluate(() => {
+        const bounds = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON() as DOMRect
+        const list = document.getElementById('live-activity-list')!
+        return {
+          innerHeight, feed: bounds('#live-activity'), card: bounds('.home-workspace-card'),
+          listHeight: list.clientHeight, listContent: list.scrollHeight, overflow: document.documentElement.scrollWidth - innerWidth
+        }
+      })
+      expect.soft(layout.overflow, `${width}: no sideways scrolling`).toBeLessThanOrEqual(1)
+      // The column keeps to its own height and its steps scroll inside it.
+      expect(layout.feed.height, `${width}: activity column height`).toBeLessThanOrEqual(width > 860 ? layout.innerHeight - 32 + 1 : 421)
+      expect(layout.listContent, `${width}: steps overflow their list`).toBeGreaterThan(layout.listHeight + 100)
+      // Wide, the column sits beside the cards; narrow, under them. It never covers a card.
+      if (width > 860) expect(layout.card.right).toBeLessThanOrEqual(layout.feed.left)
+      else expect(layout.card.bottom).toBeLessThanOrEqual(layout.feed.top)
+
+      // The cards stay usable: in view and not covered by the column, and the last action of their ⋯ menu can be
+      // scrolled to and takes the pointer. Trial clicks check this without acting.
+      await expect(openCard).toBeInViewport()
+      await openCard.click({ trial: true })
+      await card.getByLabel('More actions for Busy research', { exact: true }).click()
+      const clear = card.getByRole('button', { name: 'Clear…', exact: true })
+      await clear.scrollIntoViewIfNeeded()
+      await expect(clear).toBeInViewport()
+      await clear.click({ trial: true })
+      await home.keyboard.press('Escape')
+      await expect(clear).toBeHidden()
+
+      // A wheel over the steps scrolls them, not the page, and the oldest step is reached inside the column.
+      await list.scrollIntoViewIfNeeded()
+      const pageScroll = await home.evaluate(() => scrollY)
+      const scrolled = list.evaluate(node => new Promise<void>(resolve => node.addEventListener('scrollend', () => resolve(), { once: true })))
+      await list.hover()
+      await home.mouse.wheel(0, 240)
+      await scrolled
+      expect(await list.evaluate(node => node.scrollTop), `${width}: steps scrolled`).toBeGreaterThan(0)
+      expect(await home.evaluate(() => scrollY), `${width}: page stayed put`).toBe(pageScroll)
+      await rows.last().scrollIntoViewIfNeeded()
+      await expect(rows.last()).toBeInViewport()
+      expect(await home.evaluate(() => scrollY), `${width}: oldest step reached inside the column`).toBe(pageScroll)
+    }
+
+    // The oldest step opens its workspace, and so does the card.
+    await rows.last().getByRole('button').click()
+    await expect.poll(async () => (await appWindow.evaluate('window.hronaut.getState()') as BrowserState).activeTabId).toBe(tabId)
+    await appWindow.evaluate('window.hronaut.openHome()')
+    await home.evaluate(() => scrollTo(0, 0))
+    await openCard.click()
+    await expect.poll(async () => (await appWindow.evaluate('window.hronaut.getState()') as BrowserState).activeTabId).toBe(tabId)
+  } finally {
+    await client.close()
+    await closeFixtureServer(site)
   }
 })
 
