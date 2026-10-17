@@ -35,6 +35,7 @@ export function friendlyUiError(error: unknown, fallback: string): string {
 export function useAppToastController() {
   const toasts = ref<AppToast[]>([])
   const timers = new Map<number, { handle: number; generation: number }>()
+  const durations = new Map<number, number>()
   const retainedIds = new Set<number>()
   const hooks = new Map<number, Pick<AppToastOptions, 'action' | 'onRetain' | 'onClose' | 'onReplaced'>>()
   let nextId = 1
@@ -45,6 +46,7 @@ export function useAppToastController() {
     const timer = timers.get(id)
     if (timer !== undefined) window.clearTimeout(timer.handle)
     timers.delete(id)
+    durations.delete(id)
     retainedIds.delete(id)
     const hook = hooks.get(id)
     hooks.delete(id)
@@ -76,6 +78,23 @@ export function useAppToastController() {
   }
 
   /** Shows a toast in the one toast slot, replacing the toast there; returns its id, or undefined once disposed. */
+  function startTimer(id: number, duration: number): void {
+    const generation = nextTimerGeneration++
+    const handle = window.setTimeout(() => {
+      if (timers.get(id)?.generation !== generation) return
+      dismiss(id)
+    }, duration)
+    timers.set(id, { handle, generation })
+  }
+
+  /** The pointer left a toast it held, without keyboard focus in it: its time starts again. */
+  function release(id: number): void {
+    const duration = durations.get(id)
+    if (!retainedIds.has(id) || duration === undefined || !toasts.value.some((toast) => toast.id === id)) return
+    retainedIds.delete(id)
+    startTimer(id, duration)
+  }
+
   function show(tone: AppToastTone, title: string, message: string, options: AppToastOptions = {}): number | undefined {
     if (disposed) return undefined
     const boundedTitle = title.trim().slice(0, 120)
@@ -92,18 +111,14 @@ export function useAppToastController() {
     if (options.action || options.onRetain || options.onClose || options.onReplaced) {
       hooks.set(id, { action: options.action, onRetain: options.onRetain, onClose: options.onClose, onReplaced: options.onReplaced })
     }
+    const duration = options.duration ?? (tone === 'error' ? 8_000 : 3_600)
+    durations.set(id, duration)
     if (retained) {
       retainedIds.add(id)
       options.onRetain?.()
       return id
     }
-    const duration = options.duration ?? (tone === 'error' ? 8_000 : 3_600)
-    const generation = nextTimerGeneration++
-    const handle = window.setTimeout(() => {
-      if (timers.get(id)?.generation !== generation) return
-      dismiss(id)
-    }, duration)
-    timers.set(id, { handle, generation })
+    startTimer(id, duration)
     return id
   }
 
@@ -112,6 +127,7 @@ export function useAppToastController() {
     disposed = true
     for (const timer of timers.values()) window.clearTimeout(timer.handle)
     timers.clear()
+    durations.clear()
     retainedIds.clear()
     const closing = [...hooks.values()]
     hooks.clear()
@@ -119,7 +135,7 @@ export function useAppToastController() {
     for (const hook of closing) hook.onClose?.()
   }
 
-  return { toasts, show, dismiss, retain, act, dispose }
+  return { toasts, show, dismiss, retain, release, act, dispose }
 }
 
 export type AppToastController = ReturnType<typeof useAppToastController>

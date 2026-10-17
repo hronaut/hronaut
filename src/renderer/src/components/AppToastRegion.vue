@@ -13,11 +13,17 @@ defineProps<{
   home: boolean
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   dismiss: [id: number]
   retain: [id: number]
+  release: [id: number]
   act: [id: number]
 }>()
+
+/** A toast held by the pointer goes on when the pointer leaves, unless keyboard focus is in it. */
+function pointerLeft(event: PointerEvent, id: number): void {
+  if (!(event.currentTarget as HTMLElement).contains(document.activeElement)) emit('release', id)
+}
 
 const { t } = useI18n({ useScope: 'global' })
 </script>
@@ -40,6 +46,7 @@ const { t } = useI18n({ useScope: 'global' })
       v-tooltip="`${toast.title}: ${toast.message}`"
       @focusin="$emit('retain', toast.id)"
       @pointerenter="toast.action && $emit('retain', toast.id)"
+      @pointerleave="toast.action && pointerLeft($event, toast.id)"
     >
       <span class="app-toast-mark" aria-hidden="true">
         <IconError v-if="toast.tone === 'error'" />

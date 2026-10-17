@@ -420,6 +420,8 @@ type BrowserClickTarget = {
 } & BrowserDialogHandlingOptions
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
+/** How long deleting a closed workspace waits for an operation on its archive before leaving it archived. */
+const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SNAPSHOT_BASELINES = 64
@@ -1930,7 +1932,8 @@ export class BrowserTabsManager {
   listWorkspaceForkSources(): Array<{ id: string; name: string; description: string; color: BrowserTabGroupColor; archived: boolean; agentAccess: boolean }> {
     return [
       ...[...this.mcpTabGroups.values()].map((group) => ({ group, archived: false })),
-      ...[...this.savedTabGroups.values()].map((group) => ({ group, archived: true }))
+      // A workspace the person just closed is not copied while it waits to be deleted.
+      ...[...this.savedTabGroups.values()].filter((group) => !this.isClosingWorkspace(group.id)).map((group) => ({ group, archived: true }))
     ].map(({ group, archived }) => ({
       id: group.id, name: group.name, description: group.description, color: group.color, archived,
       agentAccess: group.agentAccess !== false
@@ -2000,6 +2003,7 @@ export class BrowserTabsManager {
       const sourceId = sourceWorkspaceId
       const source = sourceId ? this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId) : undefined
       if (!source) throw new Error('Source workspace is unavailable.')
+      if (this.isClosingWorkspace(sourceId!)) throw new Error(`"${source.name}" was just closed. Undo the close to copy it.`)
       group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
       const fork = async () => {
         this.mcpTabGroups.set(group.id, group)
@@ -2384,6 +2388,8 @@ export class BrowserTabsManager {
     const source = this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId)
     const target = this.mcpTabGroups.get(targetId) ?? this.savedTabGroups.get(targetId)
     if (!source || !target) throw new Error('Source or destination workspace is unavailable.')
+    const closing = [source, target].find((workspace) => this.isClosingWorkspace(workspace.id))
+    if (closing) throw new Error(`"${closing.name}" was just closed. Undo the close to move or copy its data.`)
     const mode = options.mode
     if (mode === 'move' && (!this.savedTabGroups.has(sourceId) || !this.savedTabGroups.has(targetId))) throw new Error('Archive both workspaces before moving data, or choose Copy to keep their pages open.')
     const action = mode === 'move' ? 'moving workspace data' : 'copying workspace data'
@@ -2677,15 +2683,22 @@ export class BrowserTabsManager {
       name: archived.name,
       undo: () => this.restoreArchiveForUndo(archived.id),
       finalize: async () => {
-        if (this.closingWorkspace === closing) this.closingWorkspace = undefined
-        if (closing.kept || !saved || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
-        // A transfer or fork running on the archive finishes first.
-        for (let operation = this.savedWorkspaceOperations.get(archived.id); operation?.settled; operation = this.savedWorkspaceOperations.get(archived.id)) {
-          await operation.settled
-          await new Promise<void>((resolve) => setImmediate(resolve))
+        // It stays marked as closing until deleted, so a restore tried meanwhile still keeps it.
+        try {
+          if (closing.kept || !saved || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
+          // An operation already running on the archive finishes first; one that runs on keeps it archived.
+          const deadline = Date.now() + CLOSING_WORKSPACE_BUSY_WAIT_MS
+          for (let operation = this.savedWorkspaceOperations.get(archived.id); operation; operation = this.savedWorkspaceOperations.get(archived.id)) {
+            const remaining = deadline - Date.now()
+            if (!operation.settled || remaining <= 0) return
+            await Promise.race([operation.settled, new Promise<void>((resolve) => setTimeout(resolve, remaining).unref())])
+            await new Promise<void>((resolve) => setImmediate(resolve))
+          }
+          if (closing.kept || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
+          await this.deleteSavedTabGroup(archived.id)
+        } finally {
+          if (this.closingWorkspace === closing) this.closingWorkspace = undefined
         }
-        if (closing.kept || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
-        await this.deleteSavedTabGroup(archived.id)
       }
     })
     return this.getState()

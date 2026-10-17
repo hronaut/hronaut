@@ -853,7 +853,6 @@ export const frFR = {
       "newTab": "Ouvrir un nouvel onglet",
       "closeTab": "Fermer l’onglet actuel",
       "reopenTab": "Rouvrir le dernier onglet fermé",
-      "undo": "Annuler une fermeture ou une suppression tant qu'Annuler est proposé",
       "searchTabs": "Rechercher dans les onglets ouverts",
       "commands": "Ouvrir la palette de commandes",
       "pick": "Sélectionner un élément pour le contexte de l’agent",

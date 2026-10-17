@@ -853,7 +853,6 @@ export const deDE = {
       "newTab": "Neuen Tab öffnen",
       "closeTab": "Aktuellen Tab schließen",
       "reopenTab": "Zuletzt geschlossenen Tab wieder öffnen",
-      "undo": "Schließen oder Entfernen rückgängig machen, solange Rückgängig angeboten wird",
       "searchTabs": "Offene Tabs durchsuchen",
       "commands": "Befehlspalette öffnen",
       "pick": "Element für Agentenkontext auswählen",

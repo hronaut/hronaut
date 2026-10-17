@@ -18,6 +18,9 @@ export interface UndoToastsOptions {
   mac?: boolean
 }
 
+/** How long a toast whose offer ended waits for a newer offer to take its place. */
+const ENDED_TOAST_GRACE_MS = 80
+
 const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'])
 
 /** A field that keeps Ctrl/Cmd+Z for undoing its own text. */
@@ -90,12 +93,14 @@ export function useUndoToasts(options: UndoToastsOptions) {
   function ended(token: unknown): void {
     if (disposed || typeof token !== 'string') return
     if (live?.token === token) live = undefined
-    // Main ended it: its toast leaves rather than offer an Undo that would do nothing.
-    if (visible?.token === token) {
+    // Main ended it: its toast leaves rather than offer an Undo that would do nothing. A newer offer, which main
+    // sends right after ending the old one, takes the toast's place instead, so the toast does not flicker.
+    window.setTimeout(() => {
+      if (disposed || visible?.token !== token) return
       const { id } = visible
       visible = undefined
       options.toasts.dismiss(id)
-    }
+    }, ENDED_TOAST_GRACE_MS)
   }
 
   function handleKeydown(event: KeyboardEvent): void {
