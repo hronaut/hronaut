@@ -40,6 +40,11 @@ export class ShellOverlayView {
       && this.options.urlMatches(event.senderFrame?.url, this.options.url())
   }
 
+  /** True for this view's own contents. */
+  owns(contents: WebContents): boolean {
+    return this.current?.webContents === contents
+  }
+
   ensure(): Promise<LoadedShellOverlayView> {
     if (this.loading) return this.loading
     const opening = this.open()

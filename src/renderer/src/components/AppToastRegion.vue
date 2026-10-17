@@ -6,6 +6,7 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import type { AppToast } from '../composables/useAppToastController'
+import type { ToastOverlayFocus } from '../../../shared/toast-overlay'
 import { vTooltip } from '../ui/tooltip.js'
 
 defineProps<{
@@ -13,11 +14,8 @@ defineProps<{
   home: boolean
   /** How far the page column starts from the left, past the tab rail; toasts center over the page column. */
   railWidth?: number
-  /** Tabs run along the top above a toolbar, so toasts sit in the toolbar's row and leave the tabs clickable. */
-  belowTabStrip?: boolean
-  /** The person is typing in the address field, which a toast can cover; toasts other than errors step aside until it
-   * loses focus. */
-  yielding?: boolean
+  /** Main draws the toast at the bottom of the page area; this copy stays only for screen readers and the keyboard. */
+  mirrored?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -25,7 +23,14 @@ const emit = defineEmits<{
   retain: [id: number]
   release: [id: number]
   act: [id: number]
+  /** Which button of a toast has keyboard focus, for main to draw on its copy. */
+  focusPart: [part: ToastOverlayFocus | null]
 }>()
+
+function focusedPart(event: FocusEvent): ToastOverlayFocus | null {
+  const part = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-toast-part]')?.dataset.toastPart
+  return part === 'action' || part === 'dismiss' ? part : null
+}
 
 /** A toast held by the pointer goes on when the pointer leaves, unless keyboard focus is in it. */
 function pointerLeft(event: PointerEvent, id: number): void {
@@ -40,7 +45,7 @@ const { t } = useI18n({ useScope: 'global' })
     name="app-toast"
     tag="aside"
     class="app-toast-region"
-    :class="{ home, 'below-tab-strip': belowTabStrip, yielding }"
+    :class="{ home, mirrored }"
     :style="{ '--toast-rail-width': `${railWidth ?? 0}px` }"
     :aria-label="t('panels.notifications')"
   >
@@ -52,7 +57,8 @@ const { t } = useI18n({ useScope: 'global' })
       :role="toast.tone === 'error' ? 'alert' : 'status'"
       :aria-label="toast.title"
       v-tooltip="`${toast.title}: ${toast.message}`"
-      @focusin="$emit('retain', toast.id)"
+      @focusin="$emit('retain', toast.id); $emit('focusPart', focusedPart($event))"
+      @focusout="$emit('focusPart', null)"
       @pointerenter="toast.action && $emit('retain', toast.id)"
       @pointerleave="toast.action && pointerLeft($event, toast.id)"
     >
@@ -68,18 +74,19 @@ const { t } = useI18n({ useScope: 'global' })
         class="app-toast-action"
         type="button"
         data-testid="app-toast-action"
+        data-toast-part="action"
         :aria-label="toast.action.ariaLabel"
         @click="$emit('act', toast.id)"
       >{{ toast.action.label }}</UiButton>
-      <UiButton appearance="application" type="button" :aria-label="t('panels.dismiss', { title: toast.title })" @click="$emit('dismiss', toast.id)"><IconClose aria-hidden="true" /></UiButton>
+      <UiButton appearance="application" type="button" data-toast-part="dismiss" :aria-label="t('panels.dismiss', { title: toast.title })" @click="$emit('dismiss', toast.id)"><IconClose aria-hidden="true" /></UiButton>
     </article>
   </TransitionGroup>
 </template>
 
 <style scoped>
 .app-toast-region {
-  /* Over the page column's top bar, never over tabs in the rail, which stay clickable while a toast is up. The page
-     itself is a native view the shell cannot draw over, so this bar is the only room. */
+  /* Where main does not draw the toast above the page, as in the detached panel window or a page area too narrow for
+     it, the shell shows it over the page column's top bar, never over tabs in the rail. */
   --toast-column: calc(100vw - var(--toast-rail-width, 0px));
 
   position: fixed;
@@ -91,12 +98,19 @@ const { t } = useI18n({ useScope: 'global' })
   transform: translateX(-50%);
   pointer-events: none;
 }
-/* Level with the toolbar's first row, below the tab strip however many rows that strip wraps into on a narrow window
-   (44 px when it does not). */
-.app-toast-region.below-tab-strip { top: calc(anchor(--page-toolbar top, 44px) + 8px); }
-/* Hidden, a toast takes no clicks and its time keeps running; still showing when the field loses focus, it comes back.
-   Errors stay, so they are still seen and announced. */
-.app-toast-region.yielding .app-toast:not(.error) { visibility: hidden; }
+/* Main draws the toast at the bottom of the page area, clear of tabs and the toolbar. This copy keeps its place in the
+   accessibility tree and keyboard order without being seen or taking clicks. */
+.app-toast-region.mirrored {
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  transform: none;
+  white-space: nowrap;
+}
+.app-toast-region.mirrored .app-toast { pointer-events: none; }
 .app-toast {
   display: grid;
   min-height: 36px;

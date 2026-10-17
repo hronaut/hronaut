@@ -39,32 +39,34 @@ describe('AppToastRegion', () => {
     expect(view.container.querySelector<HTMLElement>('.app-toast-region')?.style.getPropertyValue('--toast-rail-width')).toBe('248px')
   })
 
-  it('sits in the toolbar row under tabs along the top, so those tabs stay clickable', () => {
-    const toasts = [{ id: 6, tone: 'success' as const, title: 'Tab closed', message: 'Example' }]
+  it('keeps a copy for screen readers and the keyboard while main draws the toast above the page', async () => {
+    const toasts = [{ id: 6, tone: 'success' as const, title: 'Tab closed', message: 'Example', action: { label: 'Undo', ariaLabel: 'Undo: Tab closed' } }]
     const view = render(AppToastRegion, {
       global: { plugins: [createHronautI18n('en-US')] },
-      props: { home: false, toasts, belowTabStrip: true }
+      props: { home: false, toasts, mirrored: true }
     })
 
-    expect(view.container.querySelector('.app-toast-region')).toHaveClass('below-tab-strip')
-    // Level with the toolbar's first row wherever the tab strip above it wraps; 44 px is the strip on one row.
-    expect(styles).toMatch(/\.app-toast-region\.below-tab-strip\s*\{\s*top:\s*calc\(anchor\(--page-toolbar top, 44px\) \+ 8px\);\s*\}/u)
-    expect(readFileSync(join(process.cwd(), 'src/renderer/src/styles/shell.css'), 'utf8')).toMatch(/\.toolbar \{[^}]*anchor-name: --page-toolbar;/u)
-  })
+    expect(view.container.querySelector('.app-toast-region')).toHaveClass('mirrored')
+    // Out of sight and out of the pointer's way, but still announced and reachable with Tab.
+    expect(styles).toMatch(/\.app-toast-region\.mirrored \{[^}]*width: 1px;[^}]*height: 1px;[^}]*overflow: hidden;[^}]*clip-path: inset\(50%\);/u)
+    expect(styles).toMatch(/\.app-toast-region\.mirrored \.app-toast \{ pointer-events: none; \}/u)
+    expect(screen.getByRole('status', { name: 'Tab closed' })).toHaveTextContent('Example')
+    const undo = screen.getByRole('button', { name: 'Undo: Tab closed' })
+    const dismiss = screen.getByRole('button', { name: 'Dismiss Tab closed' })
 
-  it('steps aside while the address field has focus, except for errors, and keeps the toast', async () => {
-    const toasts = [{ id: 7, tone: 'success' as const, title: 'Tab closed', message: 'Example', action: { label: 'Undo', ariaLabel: 'Undo closing Example' } }]
-    const view = render(AppToastRegion, {
-      global: { plugins: [createHronautI18n('en-US')] },
-      props: { home: false, toasts, yielding: true }
-    })
+    // Main draws the focus ring on its copy of whichever button has focus here.
+    await fireEvent.focusIn(undo)
+    await fireEvent.focusOut(undo)
+    await fireEvent.focusIn(dismiss)
+    await fireEvent.focusOut(dismiss)
+    expect(view.emitted().focusPart).toEqual([['action'], [null], ['dismiss'], [null]])
+    // Keyboard focus in the copy holds the toast, as it does in a visible one.
+    expect(view.emitted().retain).toEqual([[6], [6]])
 
-    expect(view.container.querySelector('.app-toast-region')).toHaveClass('yielding')
-    expect(styles).toMatch(/\.app-toast-region\.yielding \.app-toast:not\(\.error\)\s*\{\s*visibility:\s*hidden;\s*\}/u)
-    await view.rerender({ home: false, toasts, yielding: false })
-    expect(view.container.querySelector('.app-toast-region')).not.toHaveClass('yielding')
-    expect(screen.getByRole('button', { name: 'Undo closing Example' })).toBeInTheDocument()
-    expect(view.emitted().dismiss).toBeUndefined()
+    // Where main cannot draw it, the shell shows its own copy over the page column again.
+    await view.rerender({ home: false, toasts, mirrored: false })
+    expect(view.container.querySelector('.app-toast-region')).not.toHaveClass('mirrored')
+    expect(styles).not.toMatch(/below-tab-strip|yielding|anchor\(/u)
   })
 
   it('spans the window when there is no tab rail', () => {

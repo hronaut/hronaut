@@ -8,6 +8,15 @@ import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import { ShellOverlayView } from './shell-overlay-view.js'
 import { AgentCardOverlay, type AgentCardSurface } from './agent-card-overlay.js'
+import { ToastOverlay, type ToastOverlaySurface } from './toast-overlay.js'
+import {
+  parseToastOverlayMeasurement,
+  parseToastOverlayMessage,
+  parseToastOverlayRequest,
+  validToastOverlayId,
+  type ToastOverlayEvent,
+  type ToastOverlayRequest
+} from '../shared/toast-overlay.js'
 import {
   parseAgentCardMeasurement,
   parseAgentCardShowRequest,
@@ -306,6 +315,40 @@ const agentCards = new AgentCardOverlay({
     tabsManager?.setFollowAgentActivitySuspended(shellFollowAgentActivitySuspended || agentCardOpen)
   },
   focusOwner: () => allWebContents.getFocusedWebContents()?.id ?? null
+})
+const toastOverlayView = new ShellOverlayView({
+  name: 'toast',
+  preload: join(__dirname, '../preload/toastOverlay.cjs'),
+  url: () => trustedToastOverlayUrl(),
+  window: () => mainWindow,
+  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
+  onLost: () => toastOverlay.surfaceLost()
+})
+const toastOverlay = new ToastOverlay({
+  surface: () => ensureToastOverlaySurface(),
+  layout: () => {
+    if (workspaceStartupFailure || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return null
+    const area = tabsManager?.pageArea()
+    return area ? { area, zoom: mainWindow.webContents.getZoomFactor() } : null
+  },
+  emit: (event: ToastOverlayEvent) => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('toast-overlay:event', event)
+  },
+  focusOwner: () => {
+    const focused = allWebContents.getFocusedWebContents()
+    return focused && !toastOverlayView.owns(focused) ? focused : null
+  },
+  restoreFocus: (owner) => {
+    // Focus moves to the view while the click lands; moving it back in the same task does not stick.
+    setImmediate(() => {
+      const focused = allWebContents.getFocusedWebContents()
+      // Only while the view still has it: the toast's action may have moved focus on purpose meanwhile.
+      if (!focused || !toastOverlayView.owns(focused)) return
+      const previous = owner as Electron.WebContents | null
+      if (previous && !previous.isDestroyed() && !toastOverlayView.owns(previous)) previous.focus()
+      else if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.focus()
+    })
+  }
 })
 const shellTooltips = new ShellTooltipOverlay({
   surface: () => ensureTooltipSurface(),
@@ -1422,6 +1465,7 @@ function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
     addressSuggestionSurface.webContents.setZoomFactor(scale)
   }
   applyMainWindowTitleBarOverlay()
+  toastOverlay.relayout()
 }
 
 function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
@@ -2055,6 +2099,38 @@ async function ensureAgentCardSurface(): Promise<AgentCardSurface> {
   }
 }
 
+function trustedToastOverlayUrl(): string {
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
+    return new URL('toast-overlay.html', trustedShellUrl()).href
+  }
+  return pathToFileURL(join(__dirname, '../renderer/toast-overlay.html')).href
+}
+
+function assertToastOverlaySender(event: Electron.IpcMainEvent): void {
+  if (!toastOverlayView.isSender(event)) throw new Error('Rejected IPC from a non-toast renderer')
+}
+
+/** One transparent view, created on the first toast, draws it at the bottom of the page area. */
+const toastOverlayWatched = new WeakSet<Electron.WebContents>()
+
+async function ensureToastOverlaySurface(): Promise<ToastOverlaySurface> {
+  const { view, webContents } = await toastOverlayView.ensure()
+  if (!toastOverlayWatched.has(webContents)) {
+    toastOverlayWatched.add(webContents)
+    // A click in the toast leaves keyboard focus where it was, in the page or the shell.
+    webContents.on('before-mouse-event', () => toastOverlay.pointerActivity())
+    webContents.on('focus', () => toastOverlay.viewFocused())
+  }
+  return {
+    send: (state) => { if (!webContents.isDestroyed()) webContents.send('toast-overlay-view:state', state) },
+    setZoomFactor: (zoom) => { if (!webContents.isDestroyed()) webContents.setZoomFactor(zoom) },
+    setBounds: (bounds) => view.setBounds(bounds),
+    present: () => toastOverlayView.present(),
+    withdraw: () => toastOverlayView.withdraw(),
+    isDestroyed: () => webContents.isDestroyed()
+  }
+}
+
 function trustedTooltipOverlayUrl(): string {
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
     return new URL('tooltip-overlay.html', trustedShellUrl()).href
@@ -2601,6 +2677,30 @@ function registerIpc(): void {
     assertAgentCardSender(event)
     const message = parseAgentCardViewMessage(value)
     if (message) agentCards.received(message)
+  })
+  ipcMain.on('toast-overlay:show', (event, value: unknown) => {
+    assertMainShellSender(event)
+    let request: ToastOverlayRequest
+    try {
+      request = parseToastOverlayRequest(value)
+    } catch (error) {
+      // Nothing outside the contract is drawn; the shell hears the toast is not shown and shows its own copy.
+      const toast = value && typeof value === 'object' ? (value as { toast?: unknown }).toast : undefined
+      const id = toast && typeof toast === 'object' ? (toast as { id?: unknown }).id : undefined
+      if (validToastOverlayId(id)) toastOverlay.refused(id)
+      throw error
+    }
+    toastOverlay.show(request)
+  })
+  ipcMain.on('toast-overlay-view:measured', (event, value: unknown) => {
+    assertToastOverlaySender(event)
+    const measurement = parseToastOverlayMeasurement(value)
+    if (measurement) toastOverlay.measured(measurement)
+  })
+  ipcMain.on('toast-overlay-view:message', (event, value: unknown) => {
+    assertToastOverlaySender(event)
+    const message = parseToastOverlayMessage(value)
+    if (message) toastOverlay.received(message)
   })
   ipcMain.on('tooltip-overlay:measured', (event, value: unknown) => {
     assertTooltipOverlaySender(event)
@@ -4177,6 +4277,7 @@ function registerIpc(): void {
     if (workspaceStartupFailure) return
     assertMainShellSender(event)
     tabsManager?.setToolbarHeight(scaleShellMetric(height, event.sender.getZoomFactor()))
+    toastOverlay.relayout()
   })
   ipcMain.on('browser:content-insets', (event, value: unknown) => {
     if (workspaceStartupFailure) return
@@ -4192,6 +4293,7 @@ function registerIpc(): void {
       bottom: scaleShellMetric(bottom as number, event.sender.getZoomFactor()),
       left: scaleShellMetric(left as number, event.sender.getZoomFactor())
     })
+    toastOverlay.relayout()
   })
   ipcMain.on('browser:content-occluded', (event, occluded: unknown) => {
     if (workspaceStartupFailure) return
@@ -4423,7 +4525,9 @@ async function createWindow(startMinimized = false): Promise<void> {
       reconcileUserAttention(state)
       sendToPanelWindow('browser:state-changed', state)
       scheduleAgentPresencePublish()
-      // A page view attached meanwhile goes on top of the card's view; put the card back above it.
+      // A page view attached meanwhile goes on top of the toast's and the card's views; put them back above it, the
+      // card above the toast.
+      toastOverlay.restack()
       agentCards.restack()
     },
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
@@ -4470,6 +4574,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     clearWindowControlsScrim()
     shellTooltips.hide()
     agentCards.shellReset()
+    toastOverlay.shellReset()
     // Its Undo toast is gone with the shell.
     void undoOffers.end()
   })
@@ -4479,6 +4584,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       clearWindowControlsScrim()
       shellTooltips.hide()
       agentCards.shellReset()
+      toastOverlay.shellReset()
       void undoOffers.end()
     }
   })
@@ -4489,6 +4595,10 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindow.on(change as 'blur', () => agentCards.dismiss())
   }
   mainWindow.on('resize', () => tabsManager?.layout())
+  // The toast stays at the bottom of the page area, which moves with the window's size.
+  for (const change of ['resize', 'maximize', 'unmaximize', 'restore', 'show', 'enter-full-screen', 'leave-full-screen'] as const) {
+    mainWindow.on(change as 'resize', () => toastOverlay.relayout())
+  }
   mainWindow.on('resize', scheduleWindowStateSave)
   mainWindow.on('move', scheduleWindowStateSave)
   mainWindow.on('maximize', scheduleWindowStateSave)
@@ -4522,6 +4632,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     tooltipView.close()
     agentCards.hide()
     agentCardView.close()
+    toastOverlay.hide()
+    toastOverlayView.close()
     windowControlsScrim = null
     mainWindow = null
   })

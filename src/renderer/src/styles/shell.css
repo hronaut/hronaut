@@ -646,8 +646,6 @@
 
 .toolbar {
   @apply relative [z-index:1] flex flex-wrap items-center justify-end [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--shell-bar)];
-  /* Toasts below tabs along the top line up with this row wherever the strip above it wraps. */
-  anchor-name: --page-toolbar;
 }
 /* The address field sits centered between the navigation buttons and the
    commands, up to 520 px wide (ADDRESS_FIELD_MAX_WIDTH). The commands wrap as
