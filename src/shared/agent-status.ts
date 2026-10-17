@@ -34,6 +34,16 @@ export interface AgentStatusAgent {
   state: AgentPresenceState
 }
 
+/** A connected agent as Home and the toolbar know it: its status entry, avatar and the open workspaces it is in. */
+export interface ConnectedAgent extends AgentStatusAgent {
+  /** The first letter or number of its name, upper case; empty when it has none. */
+  initial: string
+  /** Index into AGENT_AVATAR_COLORS, stable for a client name. */
+  colorIndex: number
+  /** Open workspaces it was seen in recently, needs you first. */
+  workspaceIds: string[]
+}
+
 export interface AgentStatus {
   kind: AgentStatusKind
   /** The message under `agentStatus` that says it. */

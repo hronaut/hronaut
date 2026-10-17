@@ -14,6 +14,7 @@ import {
 } from '../../shared/agent-presence.js'
 import { agentStepActs, agentStepKind, type AgentStepKind } from '../../shared/agent-steps.js'
 import type { HumanWaitingDecision } from '../../shared/human-waiting.js'
+import type { HomeFeedEntry } from '../../shared/home.js'
 import type { McpTabActivity } from '../../shared/types.js'
 import type { AgentPointerIdentity } from '../browser/page-scripts.js'
 import { ACTIVITY_HISTORY_LIMIT } from './activity-history.js'
@@ -448,6 +449,22 @@ export class AgentPresenceRegistry {
   /** Increases whenever a step is added or gets its picture. */
   get historyRevision(): number {
     return this.revision
+  }
+
+  /** The newest finished step of a session in a workspace with who took it, for Home's feed; never an answer of yours. */
+  latestFeedStep(sessionId: string, workspaceId: string): Omit<HomeFeedEntry, 'id' | 'workspaceId'> | undefined {
+    const record = this.clients.get(sessionId)
+    const step = record?.workspaces.get(workspaceId)?.steps.at(-1)
+    if (!record || !step || step.answer) return undefined
+    return {
+      agentKey: record.key,
+      agentName: record.name,
+      colorIndex: record.colorIndex,
+      step: step.step,
+      ...(step.target ? { target: step.target } : {}),
+      outcome: step.outcome,
+      at: step.at
+    }
   }
 
   /** The newest finished step of a session in a workspace, and the tab it acted on. */

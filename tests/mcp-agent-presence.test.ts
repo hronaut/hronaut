@@ -595,6 +595,23 @@ describe('agent presence over MCP', () => {
     await vi.waitFor(() => expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Cursor', 'idle'], ['Claude Code', 'needs-you']]))
   })
 
+  it('gives Home each finished step, what each workspace is doing and where each agent is, never a session id', async () => {
+    const { server, connect } = await startServer()
+    const claudeClient = await connect('claude-code')
+    const listed = await claudeClient.client.callTool({ name: 'browser_tabs', arguments: { workspaceId } }) as CallToolResult
+    expect(listed.isError, text(listed)).not.toBe(true)
+    const feed = server.getHomeFeed()
+    expect(feed[0]).toEqual(expect.objectContaining({ agentName: 'Claude Code', workspaceId, step: 'working', outcome: 'done' }))
+    expect(feed[0]?.agentKey).toBe(server.getAgentPresence()[workspaceId]?.[0]?.clientKey)
+    expect(server.getWorkspaceActivity()[workspaceId]).toEqual(expect.objectContaining({ state: 'working', agentKeys: [feed[0]?.agentKey] }))
+    expect(server.getConnectedAgents()[0]).toEqual(expect.objectContaining({ name: 'Claude Code', initial: 'C', workspaceIds: [workspaceId] }))
+    expect(JSON.stringify([feed, server.getWorkspaceActivity(), server.getConnectedAgents()])).not.toContain(claudeClient.transport.sessionId!)
+
+    // Closing the workspace forgets its feed entries with its steps.
+    server.forgetAgentWorkspaceSteps(workspaceId)
+    expect(server.getHomeFeed()).toEqual([])
+  })
+
   it('shows a client for any call in a workspace it may use, and for none it may not', async () => {
     const { server, connect } = await startServer()
     const cursorClient = await connect('Cursor')

@@ -309,7 +309,15 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     }
   }
   async function poll(): Promise<void> { await refresh(); if (!signal.aborted) later(() => void poll(), 2000) }
-  function dispose(): void { lifetime.abort(); requestSequence++; timers.forEach(clearTimeout); timers.clear(); unsubscribe?.() }
+  // Main says when agents change; reading at most every 250 ms keeps a busy agent from flooding Home. Polling stays as
+  // the fallback.
+  let changeQueued = false
+  const unsubscribeChanges = api?.onChanged?.(() => {
+    if (changeQueued || signal.aborted) return
+    changeQueued = true
+    later(() => { changeQueued = false; void refresh() }, 250)
+  })
+  function dispose(): void { lifetime.abort(); requestSequence++; timers.forEach(clearTimeout); timers.clear(); unsubscribe?.(); unsubscribeChanges?.() }
   window.addEventListener('pagehide', dispose, { once: true, signal })
   renderGuide(); selectView(selectedView); update(dashboard); void poll()
   return { update, refresh, dispose }

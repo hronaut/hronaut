@@ -22,7 +22,8 @@ import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../share
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
-import type { AgentStatusAgent } from '../shared/agent-status.js'
+import type { ConnectedAgent } from '../shared/agent-status.js'
+import type { HomeDashboard } from '../shared/home.js'
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
 import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
@@ -106,7 +107,6 @@ import {
   McpHttpServer,
   mcpCapabilityProfileInputFromPreset,
   mcpToolCatalogForSet,
-  type McpDashboardState,
   type SiteDataType,
   type WalletAgentToolTarget,
   type UserAttentionInput,
@@ -674,6 +674,9 @@ function scheduleAgentPresencePublish(): void {
     if (agents !== connectedAgentsSent) {
       connectedAgentsSent = agents
       publishMcpControlState({ refreshHome: false })
+    } else if (snapshot.revision !== agentPresenceSentRevision) {
+      // Home shows presence and the steps agents finish, so it reads them again too.
+      tabsManager?.notifyHomeChanged()
     }
     // A seen request whose avatar went away, such as when the MCP server stopped or agent access was
     // turned off, has no card left to answer it, so it ends.
@@ -719,7 +722,7 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
 }
 
 /** Each connected agent once, with its strongest state; nothing when the server is not running. */
-function connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): AgentStatusAgent[] {
+function connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): ConnectedAgent[] {
   try {
     return mcpServer?.getConnectedAgents(presence) ?? []
   } catch (error) {
@@ -760,6 +763,7 @@ function publishMcpControlState({ refreshHome = true }: { refreshHome?: boolean 
   const state = currentMcpControlState()
   sendToShellWindows('mcp:changed', state)
   if (refreshHome) refreshHomeAfterCommittedChange('mcp')
+  else tabsManager?.notifyHomeChanged()
   return state
 }
 
@@ -885,6 +889,8 @@ async function clearBrowsingData(options: BrowsingDataClearOptions): Promise<Bro
   const origin = normalizeBrowsingDataOrigin(options.origin)
   if (origin) await historyStore.clearOrigin(origin)
   else await historyStore.clear()
+  // Home's feed names pages agents acted on, so it goes with any history clearing.
+  mcpServer?.forgetHomeFeed()
   publishVisitHistory()
   return currentBrowsingDataSummary()
 }
@@ -1372,7 +1378,18 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   refreshHomeAfterCommittedChange('settings')
 }
 
-function homeDashboardState(): McpDashboardState & { presentationRevision: number; theme: ResolvedThemeName; agents: AgentStatusAgent[] } {
+/** Live agent data for Home, from one presence read: who is connected, what each workspace is doing, and the feed. */
+function homeAgentData(): Required<Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>> {
+  try {
+    const presence = mcpServer?.getAgentPresence() ?? {}
+    return { agents: connectedAgents(presence), workspaceActivity: mcpServer?.getWorkspaceActivity(presence) ?? {}, feed: mcpServer?.getHomeFeed() ?? [] }
+  } catch (error) {
+    console.error('[mcp] Failed to read agent activity for Home:', error)
+    return { agents: [], workspaceActivity: {}, feed: [] }
+  }
+}
+
+function homeDashboardState(): HomeDashboard {
   const serverState = mcpServer?.getDashboardState()
   const tools = mcpToolCatalogForSet(settings.mcpToolSet)
   const status = currentMcpControlState().status
@@ -1406,11 +1423,21 @@ function homeDashboardState(): McpDashboardState & { presentationRevision: numbe
     presentationRevision: homePresentationRevision,
     theme: resolvedTheme(settings.theme),
     status,
-    agents: connectedAgents(),
+    ...homeAgentData(),
     ...(mcpStartupError ? { error: mcpStartupError } : {})
   }
   return {
     ...state,
+    // Home never sees a session id or a credential id; it knows agents by their presence key.
+    clients: state.clients.map(({ name, version, lastSeenAt, requestCount, activeRequests, initializedAt, readinessProbe }) => ({
+      name,
+      ...(version ? { version } : {}),
+      lastSeenAt,
+      requestCount,
+      activeRequests,
+      ...(initializedAt ? { initializedAt } : {}),
+      ...(readinessProbe ? { readinessProbe: { outcome: readinessProbe.outcome } } : {})
+    })),
     readiness: buildMcpReadinessDiagnostic({
       checkedAt: new Date().toISOString(),
       serverStatus: status,

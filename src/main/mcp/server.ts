@@ -103,11 +103,13 @@ import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
-import { AGENT_PRESENCE_WINDOW_MS, AgentPresenceRegistry, agentCursorIdentity, sanitizeAgentName, type AgentCall } from './agent-presence.js'
+import { AGENT_PRESENCE_WINDOW_MS, AgentPresenceRegistry, agentColorIndex, agentCursorIdentity, agentInitial, sanitizeAgentName, type AgentCall } from './agent-presence.js'
+import { HomeActivityFeed } from './home-activity-feed.js'
 import { AgentStepThumbnailScheduler, type AgentStepThumbnailCapture } from './agent-step-thumbnails.js'
 import type { AgentAnswerKind, AgentPresence, AgentStepHistoryEntry } from '../../shared/agent-presence.js'
 import { agentStepAddress } from '../../shared/agent-steps.js'
-import { strongerAgentState, type AgentStatusAgent } from '../../shared/agent-status.js'
+import { strongerAgentState, type ConnectedAgent } from '../../shared/agent-status.js'
+import type { HomeFeedEntry, HomeWorkspaceActivity } from '../../shared/home.js'
 import { webAddress } from '../browser/url.js'
 export {
   WorkspaceWriteLeaseError,
@@ -5783,6 +5785,7 @@ export class McpHttpServer {
   private readonly workspaceLeases = new WorkspaceWriteLeaseRegistry()
   private readonly actionTracker: McpActionTracker
   private readonly agentPresence = new AgentPresenceRegistry()
+  private readonly homeFeed = new HomeActivityFeed()
   private agentPresenceTimer: NodeJS.Timeout | undefined
   private readonly agentStepThumbnails: AgentStepThumbnailScheduler | undefined
 
@@ -6116,24 +6119,70 @@ export class McpHttpServer {
    * holds a request open (such as its event stream) or for the presence window after its last one, so a client that
    * quit without closing its session leaves as its avatar does; an agent still waiting for you stays until answered.
    */
-  getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence(), now = Date.now()): AgentStatusAgent[] {
-    const states = new Map<string, AgentStatusAgent['state']>()
-    const names = new Map<string, string>()
-    for (const agent of Object.values(presence).flat()) {
-      states.set(agent.clientKey, strongerAgentState(states.get(agent.clientKey), agent.state))
-      names.set(agent.clientKey, agent.name)
+  getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence(), now = Date.now()): ConnectedAgent[] {
+    const seen = new Map<string, { state: ConnectedAgent['state']; avatar: AgentPresence; workspaceIds: string[] }>()
+    for (const [workspaceId, agents] of Object.entries(presence)) {
+      for (const agent of agents) {
+        const known = seen.get(agent.clientKey)
+        if (known) {
+          known.state = strongerAgentState(known.state, agent.state)
+          known.workspaceIds[agent.state === 'needs-you' ? 'unshift' : 'push'](workspaceId)
+        } else {
+          seen.set(agent.clientKey, { state: agent.state, avatar: agent, workspaceIds: [workspaceId] })
+        }
+      }
     }
-    const agents: AgentStatusAgent[] = []
+    const agents: ConnectedAgent[] = []
     for (const [sessionId, { client }] of this.transportSessions) {
       if (!client.initializedAt || !McpHttpServer.sessionLive(client, now)) continue
       const key = this.agentPresence.clientKey(sessionId)
-      agents.push({ key, name: sanitizeAgentName(client.name), state: states.get(key) ?? 'idle' })
+      const known = seen.get(key)
+      const name = known?.avatar.name ?? sanitizeAgentName(client.name)
+      agents.push({
+        key,
+        name,
+        initial: known?.avatar.initial ?? agentInitial(name),
+        colorIndex: known?.avatar.colorIndex ?? agentColorIndex(name),
+        state: known?.state ?? 'idle',
+        workspaceIds: known?.workspaceIds ?? []
+      })
     }
     const listed = new Set(agents.map((agent) => agent.key))
-    for (const [key, state] of states) {
-      if (state === 'needs-you' && !listed.has(key)) agents.push({ key, name: names.get(key) ?? '', state })
+    for (const [key, { state, avatar, workspaceIds }] of seen) {
+      if (state === 'needs-you' && !listed.has(key)) {
+        agents.push({ key, name: avatar.name, initial: avatar.initial, colorIndex: avatar.colorIndex, state, workspaceIds })
+      }
     }
     return agents
+  }
+
+  /** What agents are doing in each open workspace they are in: the leading agent's state and step, and who is there. */
+  getWorkspaceActivity(presence: Record<string, AgentPresence[]> = this.getAgentPresence()): Record<string, HomeWorkspaceActivity> {
+    const activity: Record<string, HomeWorkspaceActivity> = {}
+    for (const [workspaceId, agents] of Object.entries(presence)) {
+      const leading = agents[0]
+      if (!leading) continue
+      activity[workspaceId] = {
+        state: leading.state,
+        agentKeys: agents.map((agent) => agent.clientKey),
+        step: leading.step,
+        ...(leading.target ? { target: leading.target } : {})
+      }
+    }
+    return activity
+  }
+
+  /** Agents' finished steps for Home, newest first. */
+  getHomeFeed(): HomeFeedEntry[] {
+    return this.homeFeed.list()
+  }
+
+  /** Forgets Home's feed, or one workspace's entries in it. */
+  forgetHomeFeed(workspaceId?: string): void {
+    const revision = this.homeFeed.revision
+    if (workspaceId) this.homeFeed.forgetWorkspace(workspaceId)
+    else this.homeFeed.clear()
+    if (this.homeFeed.revision !== revision) this.agentPresenceChanged()
   }
 
   /** Whether a session still counts as connected: a request open, or one within the presence window. */
@@ -6175,9 +6224,10 @@ export class McpHttpServer {
     if (attentionId) this.recordAgentAnswer(attentionId, answer)
   }
 
-  /** A workspace closed: the steps agents took there, and their pictures, are not kept. */
+  /** A workspace closed: the steps agents took there, their pictures and Home's feed entries for it, are not kept. */
   forgetAgentWorkspaceSteps(workspaceId: string): void {
     this.agentPresence.forgetWorkspaceSteps(workspaceId)
+    this.forgetHomeFeed(workspaceId)
   }
 
   /** One agent's last steps in an open workspace, newest first, for the shell only; null once its session closed. */
@@ -6293,6 +6343,10 @@ export class McpHttpServer {
       )
     } catch (error) {
       console.error('[mcp] Failed to record agent presence:', error)
+    }
+    if (call.source === 'call' && call.phase !== 'started') {
+      const step = this.agentPresence.latestFeedStep(client.id, workspaceId)
+      if (step) this.homeFeed.add({ ...step, workspaceId })
     }
     // Only a step that went through gets a picture: a refused one may name a tab the agent cannot use, or a page
     // the person has taken over.
