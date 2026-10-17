@@ -9,6 +9,9 @@ and connected coding agents. Read `README.md` for the product overview and
 
 - `src/main/` owns Electron, browser contents, persistence, native dialogs,
   operating-system integration, licensing, updates, and the MCP server.
+- `src/main/mcp/tools/<tool-name>/` holds each MCP tool's input schema and
+  handler. `src/main/mcp/server.ts` admits, guards and settles every call and
+  registers the tools in order; add a new tool as its own folder.
 - `src/preload/` exposes the narrow typed bridge used by trusted renderer code.
 - `src/renderer/` owns Vue UI state. Renderer stores mirror main-process state;
   they do not become the authority for browser or operating-system behavior.
