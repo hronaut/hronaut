@@ -54,6 +54,8 @@ describe('toolbar agent status label', () => {
       expect(button).toHaveClass('mcp-pill')
       // Pointer users see the whole status in the tooltip, since the label itself is cut.
       expect(button).toHaveAttribute('data-tooltip', `${name} connected. MCP: http://127.0.0.1:47812/mcp`)
+      // Its name already says the status, so a screen reader hears only the address after it.
+      expect(button).toHaveAttribute('aria-description', 'MCP: http://127.0.0.1:47812/mcp')
     } finally {
       view.unmount()
       controller.dispose()

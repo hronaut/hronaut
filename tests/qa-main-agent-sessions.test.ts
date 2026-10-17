@@ -97,6 +97,24 @@ describe('connected agents over time', () => {
     expect(published.at(-1)).toEqual([])
   })
 
+  it('still tells main about a window that just ended when another session finishes a request first', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const { server, published, initialize, listTools, names } = await startServer()
+    await initialize('Agent A')
+    await vi.advanceTimersByTimeAsync(10_000)
+    const second = await initialize('Agent B')
+    // Exactly at the end of A's window: its wake is due a moment later and has not run yet.
+    const firstSeen = Date.parse(server.getDashboardState().clients.find((client) => client.name === 'Agent A')!.lastSeenAt)
+    await vi.advanceTimersByTimeAsync(firstSeen + AGENT_PRESENCE_WINDOW_MS - Date.now())
+    published.length = 0
+
+    // B's request ending must not replace that wake with one for B's own, later window.
+    expect((await listTools(second)).ok).toBe(true)
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(names()).toEqual(['Agent B'])
+    expect(published.at(-1)).toEqual(['Agent B'])
+  })
+
   it('lists a lapsed session again as soon as it makes a request, and tells main', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     const { onAgentPresenceChanged, published, initialize, listTools, names } = await startServer()

@@ -5787,6 +5787,8 @@ export class McpHttpServer {
   private readonly agentPresence = new AgentPresenceRegistry()
   private readonly homeFeed = new HomeActivityFeed()
   private agentPresenceTimer: NodeJS.Timeout | undefined
+  /** When `agentPresenceTimer` is due. */
+  private agentPresenceWakeAt: number | undefined
   private readonly agentStepThumbnails: AgentStepThumbnailScheduler | undefined
 
   constructor(
@@ -5985,7 +5987,7 @@ export class McpHttpServer {
           // A long-held stream closing is the last sign of a session whose window already passed.
           if (!McpHttpServer.sessionLive(client, Date.now())) this.agentPresenceChanged()
           // Otherwise its window now runs out without a request, as when the client quits without closing its session.
-          else this.wakeForAgentPresence()
+          else this.wakeForAgentPresence(true)
         }
       }
       response.once('finish', completeRequest)
@@ -6103,6 +6105,7 @@ export class McpHttpServer {
     this.clients.clear()
     clearTimeout(this.agentPresenceTimer)
     this.agentPresenceTimer = undefined
+    this.agentPresenceWakeAt = undefined
     this.agentStepThumbnails?.clear()
     this.agentPresence.clear()
     this.agentPresenceChanged()
@@ -6403,15 +6406,23 @@ export class McpHttpServer {
     }
   }
 
-  /** Wakes for the next presence change no call will cause: a step settling or an idle session's window ending. */
-  private wakeForAgentPresence(): void {
-    clearTimeout(this.agentPresenceTimer)
-    this.agentPresenceTimer = undefined
+  /**
+   * Wakes for the next presence change no call will cause: a step settling or an idle session's window ending.
+   * `keepSooner` leaves a wake already set no later in place, since it may be for a change due now that `next` no
+   * longer sees; a publish has just happened when it is false.
+   */
+  private wakeForAgentPresence(keepSooner = false): void {
     const now = Date.now()
     const transition = this.agentPresence.nextTransitionAt(now)
     const expiry = this.nextSessionExpiry(now)
     const next = transition === undefined ? expiry : expiry === undefined ? transition : Math.min(transition, expiry)
+    if (keepSooner && this.agentPresenceTimer && this.agentPresenceWakeAt !== undefined
+      && (next === undefined || this.agentPresenceWakeAt <= next)) return
+    clearTimeout(this.agentPresenceTimer)
+    this.agentPresenceTimer = undefined
+    this.agentPresenceWakeAt = undefined
     if (next !== undefined && this.httpServer) {
+      this.agentPresenceWakeAt = next
       this.agentPresenceTimer = setTimeout(() => this.agentPresenceChanged(), next - now + 1)
       this.agentPresenceTimer.unref?.()
     }

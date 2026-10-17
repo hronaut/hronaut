@@ -7,6 +7,8 @@ import { vTooltip } from './tooltip.js'
 const props = withDefaults(defineProps<{
   label: string
   title?: string
+  /** The trigger's own description, for a tooltip that repeats its name before the detail. */
+  description?: string
   triggerClass?: string
   placement?: 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
   disabled?: boolean
@@ -68,6 +70,7 @@ defineExpose({ close, focus: () => trigger.value?.focus() })
       variant="ghost"
       :disabled="disabled"
       :aria-label="label"
+      :aria-description="description"
       v-tooltip="title"
       :aria-expanded="open"
       :aria-controls="panelId"
