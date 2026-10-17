@@ -152,7 +152,8 @@ function sectionOf(command: CommandPaletteCommand): Exclude<CommandPaletteSectio
   return SECTION_OF_COMMAND.get(command.id) ?? SECTION_OF_CATEGORY[command.category] ?? 'application'
 }
 
-function normalizedWords(value: string): string[] {
+/** A search's words, lowercased, as the palette matches them. */
+export function normalizedWords(value: string): string[] {
   return value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
 }
 
@@ -162,10 +163,11 @@ function commandSearchText(command: CommandPaletteCommand): string {
     .toLocaleLowerCase()
 }
 
-function commandScore(command: CommandPaletteCommand, query: string): number {
+/** How well a name matches a search: 40 for the whole name, 30 for its start, 20 for a word's start, 10 inside it. */
+export function labelMatchScore(name: string, query: string): number {
   const normalizedQuery = query.trim().toLocaleLowerCase()
   if (!normalizedQuery) return 0
-  const label = command.label.toLocaleLowerCase()
+  const label = name.toLocaleLowerCase()
   if (label === normalizedQuery) return 40
   if (label.startsWith(normalizedQuery)) return 30
   if (label.split(/\s+/).some((word) => word.startsWith(normalizedQuery))) return 20
@@ -190,7 +192,7 @@ export function filterCommandPaletteCommands<T extends CommandPaletteCommand = C
       const searchText = commandSearchText(command)
       return words.every((word) => searchText.includes(word))
     })
-    .map((command, index) => ({ command, index, score: commandScore(command, query) }))
+    .map((command, index) => ({ command, index, score: labelMatchScore(command.label, query) }))
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map(({ command }) => command)
 }

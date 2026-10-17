@@ -1,25 +1,16 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
 import UiOverlayTransition from "../ui/UiOverlayTransition.vue"
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
-import IconBedtime from '~icons/material-symbols/bedtime-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
-import IconContrast from '~icons/material-symbols/contrast-rounded'
-import IconDownload from '~icons/material-symbols/download-rounded'
-import IconFavorite from '~icons/material-symbols/favorite-rounded'
-import IconKey from '~icons/material-symbols/key-rounded'
-import IconWallet from '~icons/material-symbols/account-balance-wallet-rounded'
-import IconWorkspaces from '~icons/material-symbols/workspaces-rounded'
-import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
-import IconShieldLock from '~icons/material-symbols/shield-lock-rounded'
-import IconSystemUpdate from '~icons/material-symbols/system-update-alt-rounded'
 import type { CommercialLicenseController } from '../features/settings/support/useCommercialLicenseController.js'
 import type { CredentialsController } from '../composables/useCredentialsController.js'
 import type { DownloadSettingsController } from '../composables/useDownloadSettingsController.js'
 import type { McpSettingsController } from '../composables/useMcpSettingsController.js'
 import { applicationHasFocus } from '../composables/useModalDialogFocus.js'
+import { SETTINGS_NAVIGATION } from '../settings-navigation.js'
 import type { PerformanceSettingsController } from '../composables/usePerformanceSettingsController.js'
 import type { PrivacySettingsController } from '../composables/usePrivacySettingsController.js'
 import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
@@ -87,20 +78,13 @@ const navigation = computed<Array<{
   section: SettingsSection
   label: string
   description: string
-  icon: typeof IconContrast
-}>>(() => [
-  { section: 'appearance', label: t('settings.nav.appearance'), description: t('settings.nav.appearanceDescription'), icon: IconContrast },
-  { section: 'search', label: t('settings.nav.search'), description: t('settings.nav.searchDescription'), icon: IconSearch },
-  { section: 'downloads', label: t('settings.nav.downloads'), description: t('settings.nav.downloadsDescription'), icon: IconDownload },
-  { section: 'performance', label: t('settings.nav.performance'), description: t('settings.nav.performanceDescription'), icon: IconBedtime },
-  { section: 'mcp', label: t('settings.nav.mcp'), description: t('settings.nav.mcpDescription'), icon: IconShieldLock },
-  { section: 'privacy', label: t('settings.nav.privacy'), description: t('settings.nav.privacyDescription'), icon: IconWorkspaces },
-  { section: 'permissions', label: t('settings.nav.permissions'), description: t('settings.nav.permissionsDescription'), icon: IconPrivacy },
-  { section: 'credentials', label: t('settings.nav.passwords'), description: t('settings.nav.passwordsDescription'), icon: IconKey },
-  { section: 'wallets', label: t('settings.nav.wallets'), description: t('settings.nav.walletsDescription'), icon: IconWallet },
-  { section: 'updates', label: t('settings.nav.updates'), description: t('settings.nav.updatesDescription'), icon: IconSystemUpdate },
-  { section: 'support', label: t('settings.nav.support'), description: t('settings.nav.supportDescription'), icon: IconFavorite }
-])
+  icon: Component
+}>>(() => SETTINGS_NAVIGATION.map((item) => ({
+  section: item.section,
+  label: t(item.labelKey),
+  description: t(item.descriptionKey),
+  icon: item.icon
+})))
 
 const { query, matches, searchKeydown } = useSettingsSectionSearch(navigation, section)
 

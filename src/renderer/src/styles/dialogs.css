@@ -62,6 +62,9 @@
 .command-palette-copy small { @apply block overflow-hidden text-ellipsis whitespace-nowrap; }
 .command-palette-copy strong { @apply [font-size:var(--type-body-size)] [line-height:1.35]; }
 .command-palette-copy small { @apply [margin-top:3px] text-muted [font-size:var(--type-small-size)] [line-height:1.35]; }
+/* A workspace's color, as the dot in the tab rail: its own mark, or before a tab's workspace name. */
+.command-palette-workspace-dot { @apply inline-block flex-none [width:10px] [height:10px] [border-radius:var(--corner-pill)] [background:var(--workspace-color)] [box-shadow:0_0_0_1px_color-mix(in_srgb,_var(--text)_18%,_transparent)]; }
+.command-palette-copy small .command-palette-workspace-dot { @apply [width:8px] [height:8px] [margin-right:6px] [vertical-align:0]; }
 .command-palette-meta { @apply grid [justify-items:end] [gap:6px] [margin-left:8px]; }
 .command-palette-meta small { @apply text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [letter-spacing:.04em] uppercase whitespace-nowrap; }
 .command-palette-keys { @apply inline-flex items-center [gap:3px]; }

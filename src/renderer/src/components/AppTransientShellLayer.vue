@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, toRef } from 'vue'
+import type { HronautAgentPresenceApi } from '../../../shared/agent-presence.js'
+import { useI18n } from 'vue-i18n'
 import type { CommandPaletteCommandId } from '../../../shared/command-palette.js'
 import type {
   BrowserState,
@@ -14,6 +16,9 @@ import type {
 import type { AppBrowserCollectionsFeatureController } from '../composables/useAppBrowserCollectionsFeatureController.js'
 import type { CommandPaletteView } from '../composables/useCommandPaletteShellController.js'
 import type { AgentStepHistoryTarget } from '../composables/useAgentStepHistory.js'
+import { useAgentPresence } from '../composables/useAgentPresence.js'
+import { useCommandPaletteSearch } from '../composables/useCommandPaletteSearch.js'
+import type { SettingsSection } from '../composables/useSettingsDialogController.js'
 import AgentStepsDialog from './AgentStepsDialog.vue'
 import AppBrowserCollectionsLayer from './AppBrowserCollectionsLayer.vue'
 import CommandPalette from './CommandPalette.vue'
@@ -55,6 +60,8 @@ const props = defineProps<{
   fillCredential: (credential: CredentialSummary) => unknown
   runCommand: (commandId: CommandPaletteCommandId) => unknown
   reportCommandError: (error: unknown, commandId: CommandPaletteCommandId) => void
+  /** Opens Settings on a section, for the palette's settings results. */
+  openSettingsSection: (section: SettingsSection) => unknown
   reportZoomError: (error: unknown) => void
   /** The agent and workspace whose steps "All steps" shows. */
   agentStepsTarget?: AgentStepHistoryTarget | null
@@ -85,6 +92,25 @@ function paletteList(view: CommandPaletteView) {
   })
 }
 const commandsOpen = paletteList('commands')
+const { t } = useI18n({ useScope: 'global' })
+const presenceApi = (window as { hronautAgentPresence?: HronautAgentPresenceApi }).hronautAgentPresence
+const paletteSearchPresence = presenceApi ? useAgentPresence(presenceApi) : undefined
+const paletteSearch = useCommandPaletteSearch({
+  state: toRef(props, 'state'),
+  history: props.collectionsController.visitHistory,
+  userAttention: toRef(props, 'userAttention'),
+  ...(paletteSearchPresence ? { presence: paletteSearchPresence.snapshot } : {}),
+  browser: props.browser,
+  syncState: props.syncState,
+  selectTab: props.selectTab,
+  expandTabGroup: props.expandTabGroup,
+  translate: (key, parameters, plural) => plural === undefined ? t(key, parameters ?? {}) : t(key, parameters ?? {}, plural),
+  formatNumber: props.formatNumber,
+  formatError: props.formatError,
+  showError: props.showError,
+  openHistoryEntry: props.collectionsController.openHistoryEntry,
+  openSettingsSection: props.openSettingsSection
+})
 const workspaceSwitcherOpen = paletteList('workspaces')
 const dock = defineModel<PanelDock>('dock', { required: true })
 
@@ -140,7 +166,10 @@ onMounted(() => {
     void Promise.resolve(operation).catch(error => props.showError('Workspaces', String(error)))
   })
 })
-onBeforeUnmount(() => unsubscribeHomeEditor?.())
+onBeforeUnmount(() => {
+  unsubscribeHomeEditor?.()
+  paletteSearchPresence?.dispose()
+})
 
 // A step's tab may sit in a folded workspace; its group opens around it, as from the switcher.
 async function showStepTab(tabId: string): Promise<unknown> {
@@ -297,6 +326,9 @@ defineExpose({
     :format-number="formatNumber"
     :run-command="runCommand"
     :report-command-error="reportCommandError"
+    :search="paletteSearch.search"
+    :open-result="paletteSearch.open"
+    :forget-results="paletteSearch.invalidate"
   />
   <WorkspaceSwitcher
     ref="workspaceSwitcher"

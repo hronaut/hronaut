@@ -632,15 +632,24 @@ export const plPL = {
     "kicker": "Szybkie działania",
     "heading": "Polecenia",
     "close": "Zamknij paletę poleceń",
-    "search": "Szukaj poleceń",
-    "placeholder": "Wpisz polecenie lub funkcję",
-    "matches": "{count} pasujące polecenie. | {count} pasujące polecenia. | {count} pasujących poleceń.",
+    "search": "Szukaj poleceń, kart i stron",
+    "placeholder": "Polecenie, karta, obszar roboczy, strona lub ustawienie",
+    "matches": "{count} wynik. | {count} wyniki. | {count} wyników.",
     "selected": "Wybrano {label}.",
     "available": "Dostępne polecenia",
-    "empty": "Brak pasujących poleceń",
-    "emptyDescription": "Spróbuj funkcji, działania lub synonimu, np. „zrzut ekranu” albo „pliki cookie”.",
+    "empty": "Brak wyników",
+    "emptyDescription": "Spróbuj polecenia, np. „zrzut ekranu”, albo części nazwy karty, obszaru roboczego, strony lub ustawienia.",
     "navigate": "Przejdź",
-    "run": "Uruchom"
+    "run": "Uruchom",
+    "sections": {
+      "tabs": "Otwarte karty",
+      "workspaces": "Obszary robocze",
+      "settings": "Ustawienia",
+      "history": "Historia"
+    },
+    "untitledTab": "Karta bez tytułu",
+    "openFailed": "Nie udało się otworzyć: {name}",
+    "openFailedDescription": "Element mógł zostać zamknięty lub usunięty po wyświetleniu listy."
   },
   "commandCatalog": {
     "categories": {
