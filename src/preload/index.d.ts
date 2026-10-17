@@ -2,6 +2,7 @@ import type { HronautSplitDividerApi } from '../shared/split-view'
 import type { HronautEmulationFrameApi } from '../shared/emulation-frame'
 import type { HronautPageCardApi } from '../shared/page-card'
 import type { HronautAgentCardApi } from '../shared/agent-card'
+import type { HronautToastOverlayApi } from '../shared/toast-overlay'
 import type { HronautAgentPresenceApi } from '../shared/agent-presence'
 import type { HronautHomeApi } from '../shared/home'
 import type { HronautApi, HronautBookmarksApi, HronautBrowsingDataApi, HronautCredentialsApi, HronautDownloadsApi, HronautHistoryApi, HronautLicenseApi, HronautMcpApi, HronautPanelWindowApi, HronautPermissionsApi, HronautSettingsApi, HronautShellApi, HronautUpdatesApi, HronautWalletsApi } from '../shared/types'
@@ -16,6 +17,7 @@ declare global {
     hronautPageCard: HronautPageCardApi
     hronautAgentPresence: HronautAgentPresenceApi
     hronautAgentCard: HronautAgentCardApi
+    hronautToastOverlay: HronautToastOverlayApi
     hronautBookmarks: HronautBookmarksApi
     hronautHistory: HronautHistoryApi
     hronautBrowsingData: HronautBrowsingDataApi

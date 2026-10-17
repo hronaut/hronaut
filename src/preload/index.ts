@@ -2,6 +2,7 @@ import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/spl
 import type { EmulationFrameGeometry, HronautEmulationFrameApi } from '../shared/emulation-frame.js'
 import type { HronautPageCardApi, PageCardGeometry } from '../shared/page-card.js'
 import type { AgentCardEvent, HronautAgentCardApi } from '../shared/agent-card.js'
+import type { HronautToastOverlayApi, ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { AgentPresenceSnapshot, AgentTakeOverOffer, HronautAgentPresenceApi } from '../shared/agent-presence.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import { createPanelRequestBuffer } from './panel-requests.js'
@@ -670,3 +671,13 @@ const agentCardApi: HronautAgentCardApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautAgentCard', agentCardApi)
+
+const toastOverlayApi: HronautToastOverlayApi = {
+  show: (request) => ipcRenderer.send('toast-overlay:show', request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: ToastOverlayEvent): void => listener(event)
+    ipcRenderer.on('toast-overlay:event', handler)
+    return () => ipcRenderer.removeListener('toast-overlay:event', handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautToastOverlay', toastOverlayApi)

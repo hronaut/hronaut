@@ -9095,24 +9095,24 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     const captureToast = appWindow.getByRole('status', { name: 'Area screenshot copied' })
     await expect(captureToast).toContainText('Paste the PNG into your agent chat.')
     const captureFeedbackPlacement = await appWindow.locator('.address-form').evaluate((address) => {
-      const toast = address.ownerDocument.querySelector('.app-toast')
-      const shell = address.ownerDocument.querySelector('.shell')
       const toolbar = address.closest('.toolbar')!
-      const toastBounds = toast?.getBoundingClientRect()
-      const shellBounds = shell?.getBoundingClientRect()
-      const tabStripBottom = Math.max(...[...address.ownerDocument.querySelectorAll('.topbar [role="tab"], .topbar button')]
-        .map((control) => control.getBoundingClientRect().bottom))
       return {
-        insideAddress: Boolean(toast && address.contains(toast)),
+        insideAddress: Boolean(address.querySelector('.app-toast')),
         toolbarOverflow: toolbar.scrollWidth - toolbar.clientWidth,
-        // With tabs along the top, feedback sits in the toolbar's row over the shell, clear of the tab strip.
-        toolbarRowOverlay: Boolean(toastBounds && shellBounds
-          && toastBounds.top >= tabStripBottom
-          && toastBounds.top <= toolbar.getBoundingClientRect().top + 12
-          && toastBounds.bottom <= shellBounds.bottom)
+        toolbarBottom: toolbar.getBoundingClientRect().bottom
       }
     })
-    expect(captureFeedbackPlacement).toEqual({ insideAddress: false, toolbarOverflow: 0, toolbarRowOverlay: true })
+    expect(captureFeedbackPlacement).toMatchObject({ insideAddress: false, toolbarOverflow: 0 })
+    // Main draws the feedback above the page, at the bottom of the page area, clear of the tabs and the toolbar.
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, toolbarBottom) => {
+      const main = BrowserWindow.getAllWindows()[0]!
+      const view = main.contentView.children.find((child) => (
+        'webContents' in child && (child as Electron.WebContentsView).webContents.getURL().endsWith('toast-overlay.html')
+      )) as Electron.WebContentsView | undefined
+      if (!view?.getVisible()) return false
+      const bounds = view.getBounds()
+      return bounds.y >= toolbarBottom && bounds.y + bounds.height <= main.getContentSize()[1]!
+    }, captureFeedbackPlacement.toolbarBottom)).toBe(true)
     const clipboardImage = await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
       const items = await clipboard.read()
       const png = items.find((item) => item.types.includes('image/png'))

@@ -37,17 +37,19 @@ function fakeWindow() {
     isDestroyed() { return this.destroyed },
     contentView: {
       children,
-      addChildView: vi.fn((view: unknown) => {
+      // Like Electron: a view already there moves to the top, whatever index it is given.
+      addChildView: vi.fn((view: unknown, at?: number) => {
         const index = children.indexOf(view)
         if (index >= 0) children.splice(index, 1)
-        children.push(view)
+        if (index < 0 && at !== undefined) children.splice(at, 0, view)
+        else children.push(view)
       }),
       removeChildView: vi.fn((view: unknown) => { children.splice(children.indexOf(view), 1) })
     }
   }
 }
 
-function overlay(window = fakeWindow()) {
+function overlay(window = fakeWindow(), keepAbove?: () => readonly unknown[]) {
   const onLost = vi.fn()
   const view = new ShellOverlayView({
     name: 'card',
@@ -55,7 +57,8 @@ function overlay(window = fakeWindow()) {
     url: () => 'file:///app/renderer/card.html',
     window: () => window as never,
     urlMatches: (actual, expected) => actual === expected,
-    onLost
+    onLost,
+    ...(keepAbove ? { keepAbove } : {})
   })
   return { view, window, onLost }
 }
@@ -108,6 +111,33 @@ describe('shell overlay view', () => {
     view.withdraw()
     expect(window.contentView.children).toEqual(['page', 'another page'])
     expect((native as unknown as FakeView).visible).toBe(false)
+  })
+
+  it('stays under the overlays it keeps above it, and leaves them where they are', async () => {
+    const above: unknown[] = ['card', 'tooltip']
+    const { view, window } = overlay(fakeWindow(), () => above)
+    const { view: native } = await view.ensure()
+    const { children } = window.contentView
+    children.push('page', 'card')
+    view.present()
+    expect(children).toEqual(['page', native, 'card'])
+    // Restacked while only those overlays are above it: nothing moves, so neither loses keyboard focus.
+    children.push('tooltip')
+    window.contentView.addChildView.mockClear()
+    view.present()
+    expect(window.contentView.addChildView).not.toHaveBeenCalled()
+    expect(window.contentView.removeChildView).not.toHaveBeenCalled()
+    // A page attached on top: the view goes above it, still under the overlays.
+    children.splice(1, 0, 'other page')
+    children.push('new page')
+    view.present()
+    expect(children).toEqual(['page', 'other page', 'card', 'tooltip', 'new page', native])
+    // The card's own restack puts it back on top, and the next restack of this view leaves it there.
+    window.contentView.addChildView('card')
+    window.contentView.addChildView.mockClear()
+    view.present()
+    expect(children).toEqual(['page', 'other page', 'tooltip', 'new page', native, 'card'])
+    expect(window.contentView.addChildView).not.toHaveBeenCalled()
   })
 
   it('reports a renderer that went away and loads a new view next time', async () => {

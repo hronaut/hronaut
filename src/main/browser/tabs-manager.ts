@@ -9370,6 +9370,12 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.setOccluded(this.browserContentOccluded || suspended)
   }
 
+  /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
+  pageArea(): Rectangle | null {
+    if (this.destroyed || this.window.isDestroyed()) return null
+    return this.browserViewBounds()
+  }
+
   private browserViewBounds(): Rectangle {
     const bounds = this.window.getContentBounds()
     return {
