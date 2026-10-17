@@ -14,13 +14,14 @@ export interface ClaudeCodeSetupPreview {
   /** Single use, for this page, for two minutes. */
   planId: string
   path: string
-  /** Hronaut's current entry as JSON, when it points elsewhere. */
+  /** Hronaut's current entry as JSON, when it points elsewhere: type and address only, other values hidden. */
   before: string | null
   after: string
   backupName: string
 }
 
-export type ClaudeCodeSetupResult = { outcome: 'applied'; backupName: string } | { outcome: 'cancelled' }
+/** `overwritten`: Hronaut replaced the file, but something changed it again right after and its entry is gone. */
+export type ClaudeCodeSetupResult = { outcome: 'applied' | 'overwritten'; backupName: string } | { outcome: 'cancelled' }
 
 /** Agents found on this computer by fixed paths, and Claude Code's setup when Hronaut can offer it. */
 export interface HomeSetupState {

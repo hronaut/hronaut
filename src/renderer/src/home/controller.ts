@@ -328,7 +328,8 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   void claudeSetup.refresh().then(state => {
     if (!state || signal.aborted) return
     const found = guides.filter(guide => state.detected.includes(guide.id))
-    // Found agents lead the list, each marked, in the guides' own order.
+    // Found agents lead the list, each marked, in the guides' own order, without taking keyboard focus away.
+    const focused = document.activeElement
     for (const guide of [...found].reverse()) {
       const button = agentList.querySelector<HTMLButtonElement>(`[data-guide="${guide.id}"]`)
       if (!button) continue
@@ -340,7 +341,9 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       }
       agentList.prepend(button)
     }
-    if (!guideChosen && found[0] && found[0].id !== selectedGuide) { selectedGuide = found[0].id; renderGuide() }
+    if (focused instanceof HTMLElement && focused !== document.activeElement) focused.focus({ preventScroll: true })
+    // The first found agent's guide, unless the person picked one before or is already reading the guides.
+    if (!guideChosen && selectedView !== 'connect' && found[0] && found[0].id !== selectedGuide) { selectedGuide = found[0].id; renderGuide() }
     renderSetupOffer()
   })
   function renderOnboarding(): void {

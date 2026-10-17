@@ -2274,6 +2274,7 @@ function claudeCodeSetupService(): ClaudeCodeSetup {
   claudeCodeSetup ??= new ClaudeCodeSetup({
     path: claudeCodeConfigPath(),
     endpoint: () => mcpUrl,
+    allowed: () => !settings.mcpAuthentication,
     confirm: async (preview) => {
       const { response } = await showMessageBox({
         type: 'question',

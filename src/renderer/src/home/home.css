@@ -338,7 +338,8 @@ button[data-open-view=workspaces] { background: var(--panel); color: var(--text)
 .claude-setup button { min-height: 32px; padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--corner-2); background: var(--panel); font-size: var(--type-small-size); font-weight: 600; }
 .claude-setup .claude-setup-start, .claude-setup .claude-setup-apply { border-color: transparent; color: var(--button-text); background: var(--accent); }
 .claude-setup-status { color: var(--muted); font-size: var(--type-small-size); line-height: 1.5; overflow-wrap: anywhere; }
-.claude-setup-status:empty { display: none; }
+/* Collapsed, not removed, so the next message is still announced. */
+.claude-setup-status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .claude-setup-preview p { margin-top: 10px; color: var(--muted); font-size: var(--type-small-size); line-height: 1.5; overflow-wrap: anywhere; }
 .claude-setup-preview p:first-child { margin-top: 0; }
 .claude-setup-preview pre { min-height: 0; margin-top: 6px; padding: 10px 12px; font-size: var(--type-micro-size); }

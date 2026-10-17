@@ -54,23 +54,25 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
     if (status.textContent !== line) status.textContent = line
   }
 
+  /** Always returns what main read, for the found-agent marks; shows it only if the person took no step meanwhile. */
   async function refresh(): Promise<HomeSetupState | null> {
     const current = sequence
     const next = await readState()
     // A step the person took meanwhile has its own answer coming; a failed read keeps the command above as the way.
-    if (!next || current !== sequence || signal.aborted) return setup
-    setup = next
-    render()
-    return setup
+    if (next && current === sequence && !signal.aborted) {
+      setup = next
+      render()
+    }
+    return next
   }
 
-  function settle(message: string): void {
+  function settle(message: string): Promise<unknown> {
     sequence++
     preview = null
     notice = message
     start.disabled = false; apply.disabled = false; cancel.disabled = false
     render()
-    void refresh()
+    return refresh()
   }
 
   start.addEventListener('click', async () => {
@@ -93,7 +95,7 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
       render()
       apply.focus({ preventScroll: true })
     } catch (error) {
-      if (current === sequence && !signal.aborted) settle(failure(error))
+      if (current === sequence && !signal.aborted) void settle(failure(error))
     }
   }, { signal })
 
@@ -104,17 +106,27 @@ export function mountClaudeSetup(data: HomeBootstrap, api: HronautHomeApi, signa
     notice = messages.applying
     const planId = preview.planId
     status.textContent = notice
+    let message: string
     try {
       const result = await api.applyClaudeCodeSetup!(planId)
-      if (current !== sequence || signal.aborted) return
-      settle(result.outcome === 'applied' ? interpolate(messages.applied, { name: result.backupName }) : messages.cancelled)
+      message = result.outcome === 'cancelled' ? messages.cancelled
+        : interpolate(result.outcome === 'applied' ? messages.applied : messages.overwritten, { name: result.backupName })
     } catch (error) {
-      if (current === sequence && !signal.aborted) settle(failure(error))
+      message = failure(error)
     }
-    if (current + 1 === sequence && !signal.aborted) (start.hidden ? element('guide-code').closest('pre')! : start).focus({ preventScroll: true })
+    if (current !== sequence || signal.aborted) return
+    const settled = settle(message)
+    const after = sequence
+    // Focus goes where the person can act once the file's new state is shown: the button, or else the command.
+    await settled
+    const active = document.activeElement
+    const lost = !active || active === document.body || root!.contains(active)
+    if (after === sequence && !signal.aborted && lost) {
+      (start.hidden ? element('guide-code').closest('pre')! : start).focus({ preventScroll: true })
+    }
   }, { signal })
 
-  cancel.addEventListener('click', () => { settle(messages.cancelled); start.focus({ preventScroll: true }) }, { signal })
+  cancel.addEventListener('click', () => { void settle(messages.cancelled); start.focus({ preventScroll: true }) }, { signal })
 
   return {
     /** Shown with the Claude Code guide only; leaving it drops a change that was not applied. */

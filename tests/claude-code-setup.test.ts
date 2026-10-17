@@ -1,9 +1,10 @@
-import { mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { chmod, link, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClaudeCodeSetup, claudeCodeConfigPath, claudeCodeSetupStatus } from '../src/main/claude-code-setup.js'
 import { claudeCodeSetupErrorCode } from '../src/shared/claude-code-setup.js'
+import { detectAgentClients } from '../src/main/agent-client-detection.js'
 
 const endpoint = 'http://127.0.0.1:47812/mcp'
 let directory: string
@@ -24,6 +25,12 @@ describe('Claude Code setup', () => {
   it('finds the settings file under CLAUDE_CONFIG_DIR, or in the home folder', () => {
     expect(claudeCodeConfigPath({ CLAUDE_CONFIG_DIR: '/custom' }, '/home/me')).toBe(join('/custom', '.claude.json'))
     expect(claudeCodeConfigPath({ CLAUDE_CONFIG_DIR: '  ' }, '/home/me')).toBe(join('/home/me', '.claude.json'))
+  })
+
+  it('reads a relative CLAUDE_CONFIG_DIR as not found instead of guessing where Claude Code starts', async () => {
+    const relative = claudeCodeConfigPath({ CLAUDE_CONFIG_DIR: 'claude' }, directory)
+    expect(relative).toBe(join('claude', '.claude.json'))
+    expect((await claudeCodeSetupStatus(relative, endpoint)).state).toBe('not-found')
   })
 
   it('reports each state without changing the file', async () => {
@@ -114,5 +121,76 @@ describe('Claude Code setup', () => {
     await service.apply(preview.planId, 1)
     expect((await readFile(real, 'utf8'))).toContain('"hronaut"')
     expect(await readdir(directory)).toEqual(expect.arrayContaining(['.claude.json', 'real.json', 'real.json.hronaut-backup-20261017T073000Z']))
+  })
+
+  it('leaves alone a file that is not valid UTF-8, another account’s or linked elsewhere', async () => {
+    await writeFile(path, Buffer.concat([Buffer.from('{\n  "projects": {\n    "/home/caf'), Buffer.from([0xe9]), Buffer.from('": {}\n  }\n}')]))
+    expect((await claudeCodeSetupStatus(path, endpoint)).state).toBe('unreadable')
+    await writeFile(path, settings({}))
+    await link(path, join(directory, 'other.json'))
+    expect((await claudeCodeSetupStatus(path, endpoint)).state).toBe('unreadable')
+    await rm(join(directory, 'other.json'))
+    expect((await claudeCodeSetupStatus(path, endpoint)).state).toBe('not-configured')
+    await chmod(path, 0o444)
+    expect((await claudeCodeSetupStatus(path, endpoint, 'win32')).state).toBe('unreadable')
+  })
+
+  it('keeps the exact bytes in the backup and the exact mode whatever the umask', async () => {
+    const original = Buffer.from(`${settings({ name: 'Zoë 🚀', mcpServers: {} })}\n`, 'utf8')
+    await writeFile(path, original)
+    await chmod(path, 0o664)
+    const previous = process.umask(0o022)
+    try {
+      const { service } = setup()
+      const preview = await service.prepare(1)
+      await service.apply(preview.planId, 1)
+      expect((await readFile(join(directory, preview.backupName))).equals(original)).toBe(true)
+      expect((await stat(path)).mode & 0o777).toBe(0o664)
+    } finally { process.umask(previous) }
+  })
+
+  it('shows an old entry’s type and address only, never header, environment or query values', async () => {
+    await writeFile(path, settings({ mcpServers: { hronaut: { type: 'http', url: 'http://me:secret@127.0.0.1:1/mcp?token=abc', headers: { Authorization: 'Bearer abc' }, env: { KEY: 'abc' }, args: ['--token', 'abc'] } } }))
+    const preview = await setup().service.prepare(1)
+    expect(preview.before).not.toContain('abc')
+    expect(preview.before).not.toContain('secret')
+    expect(JSON.parse(preview.before!)).toEqual({ type: 'http', url: 'http://127.0.0.1:1/mcp?•••', headers: { Authorization: '•••' }, env: { KEY: '•••' }, args: '•••' })
+  })
+
+  it('changes nothing when the address, authentication or the file changes while the dialog is open', async () => {
+    await writeFile(path, settings({}))
+    let address = endpoint
+    let allowed = true
+    let during = async () => {}
+    const service = new ClaudeCodeSetup({ path, endpoint: () => address, allowed: () => allowed, confirm: async () => { await during(); return true }, now: () => Date.UTC(2026, 9, 17, 7, 30, 0) })
+    during = async () => { address = 'http://127.0.0.1:1/mcp' }
+    expect(await code(service.apply((await service.prepare(1)).planId, 1))).toBe('expired')
+    address = endpoint
+    during = async () => { allowed = false }
+    expect(await code(service.apply((await service.prepare(1)).planId, 1))).toBe('expired')
+    allowed = true
+    during = async () => { await writeFile(path, settings({ numStartups: 2 })) }
+    expect(await code(service.apply((await service.prepare(1)).planId, 1))).toBe('changed')
+    expect(await readFile(path, 'utf8')).toBe(settings({ numStartups: 2 }))
+    expect(await readdir(directory)).toEqual(['.claude.json'])
+  })
+
+  it('names the backup so it never collides with one from the same second', async () => {
+    await writeFile(path, settings({}))
+    await writeFile(join(directory, '.claude.json.hronaut-backup-20261017T073000Z'), 'older')
+    const { service } = setup()
+    const preview = await service.prepare(1)
+    expect(preview.backupName).toBe('.claude.json.hronaut-backup-20261017T073000Z-2')
+    expect(await service.apply(preview.planId, 1)).toEqual({ outcome: 'applied', backupName: preview.backupName })
+    expect(await readFile(join(directory, '.claude.json.hronaut-backup-20261017T073000Z'), 'utf8')).toBe('older')
+  })
+
+  it('finds agents by their usual folders and files only, in the guides’ order', async () => {
+    await mkdir(join(directory, '.qwen'))
+    await mkdir(join(directory, '.codeium', 'windsurf'), { recursive: true })
+    await writeFile(join(directory, '.claude.json'), '{}')
+    await mkdir(join(directory, '.codex'))
+    expect(await detectAgentClients(directory)).toEqual(['codex', 'claude-code', 'windsurf', 'qwen-code'])
+    expect(await detectAgentClients(join(directory, 'missing'), { 'claude-code': [path] })).toEqual(['claude-code'])
   })
 })
