@@ -20,6 +20,10 @@ export interface McpSettingsControllerOptions {
   settings: Readonly<Ref<AppSettings>>
   endpoint: Readonly<Ref<string>>
   listenerFailed: Readonly<Ref<boolean>>
+  /** A free port main found after the configured one was busy or refused; absent otherwise. */
+  suggestedPort?: Readonly<Ref<number | undefined>>
+  /** Why the listener could not use its port, in plain words; empty when it can or failed otherwise. */
+  listenerProblem?: Readonly<Ref<string>>
   setRemoteAccess: (enabled: boolean) => Promise<AppSettings>
   setAuthentication: (enabled: boolean) => Promise<AppSettings>
   setChallengeDetectionEnabled: (enabled: boolean) => Promise<AppSettings>
@@ -194,6 +198,14 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     } finally {
       if (operationGeneration === generation) operation.value = 'idle'
     }
+  }
+
+  /** Puts the suggested port in the field and moves the listener there, as Apply would. */
+  async function applySuggestedPort(): Promise<boolean> {
+    const port = options.suggestedPort?.value
+    if (busy.value || !port || !options.listenerFailed.value) return false
+    editPort(String(port))
+    return applyPort()
   }
 
   async function reset(): Promise<boolean> {
@@ -373,6 +385,9 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     setChallengeDetectionEnabled,
     setToolSet,
     applyPort,
+    applySuggestedPort,
+    suggestedPort: computed(() => options.suggestedPort?.value),
+    listenerProblem: computed(() => options.listenerProblem?.value ?? ''),
     capabilityProfiles,
     capabilityCredential,
     capabilityError,

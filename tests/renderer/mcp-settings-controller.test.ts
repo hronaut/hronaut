@@ -18,6 +18,7 @@ function createController() {
   const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
   const endpoint = ref('http://127.0.0.1:47812/mcp')
   const listenerFailed = ref(false)
+  const suggestedPort = ref<number | undefined>(undefined)
   const setAuthentication = vi.fn(async (enabled: boolean) => {
     settings.value = { ...settings.value, mcpAuthentication: enabled }
     return settings.value
@@ -57,6 +58,7 @@ function createController() {
     settings,
     endpoint,
     listenerFailed,
+    suggestedPort,
     setRemoteAccess,
     setAuthentication,
     setPort,
@@ -76,6 +78,7 @@ function createController() {
     controller,
     confirmDisableAuthentication,
     listenerFailed,
+    suggestedPort,
     onAuthenticationError,
     createCapabilityProfile,
     listCapabilityProfiles,
@@ -92,6 +95,22 @@ function createController() {
 }
 
 describe('MCP settings controller', () => {
+  it('moves to the suggested port only while the listener failed, through the normal port path', async () => {
+    const { controller, listenerFailed, suggestedPort, setPort } = createController()
+    suggestedPort.value = 47813
+    expect(await controller.applySuggestedPort()).toBe(false)
+    expect(setPort).not.toHaveBeenCalled()
+    listenerFailed.value = true
+    expect(await controller.applySuggestedPort()).toBe(true)
+    expect(setPort).toHaveBeenCalledWith(47813)
+    expect(controller.portDraft.value).toBe('47813')
+    expect(controller.portState.value).toBe('saved')
+    suggestedPort.value = undefined
+    expect(await controller.applySuggestedPort()).toBe(false)
+    expect(setPort).toHaveBeenCalledTimes(1)
+    controller.dispose()
+  })
+
   it.each(['move', 'reset'] as const)('keeps newer authoritative port events after a delayed %s response', async action => {
     const { controller, settings, setPort, resetSettings } = createController()
     const pending = deferred<AppSettings>()

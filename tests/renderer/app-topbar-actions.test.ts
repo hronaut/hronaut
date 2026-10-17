@@ -28,6 +28,7 @@ function renderActions(overrides: Record<string, unknown> = {}) {
   const api: HronautMcpApi = {
     getState: vi.fn(async (): Promise<McpControlState> => ({ status: 'ready', paused: false })),
     setPaused: vi.fn(async (paused: boolean): Promise<McpControlState> => ({ status: paused ? 'paused' : 'ready', paused })),
+    moveToSuggestedPort: vi.fn(async (): Promise<McpControlState> => ({ status: 'ready', paused: false })),
     onChanged: vi.fn(() => () => undefined)
   }
   const mcpStatusController = useMcpStatusController({

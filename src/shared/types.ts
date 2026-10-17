@@ -594,6 +594,9 @@ export interface McpActivityResult {
 
 export type McpServerStatus = 'starting' | 'ready' | 'paused' | 'error'
 
+/** Why the MCP listener could not start: another app has the port, the system refused it, or something else. */
+export type McpListenErrorCode = 'port-in-use' | 'port-denied' | 'other'
+
 export interface McpControlState {
   /** Bounded current-listener evidence; never names, credentials or page data. */
   readiness?: {
@@ -607,6 +610,10 @@ export interface McpControlState {
   /** Each connected agent once: an opaque key (never its session id), its display name and its strongest state. */
   agents?: AgentStatusAgent[]
   error?: string
+  /** With status 'error': what kind of failure, the port that failed and a free port Hronaut can move to. */
+  errorCode?: McpListenErrorCode
+  failedPort?: number
+  suggestedPort?: number
 }
 
 export type ThemeName =
@@ -3092,6 +3099,8 @@ export interface HronautShellApi {
 export interface HronautMcpApi {
   getState(): Promise<McpControlState>
   setPaused(paused: boolean): Promise<McpControlState>
+  /** Only the port in the current state's `suggestedPort` is accepted. */
+  moveToSuggestedPort(port: number): Promise<McpControlState>
   onChanged(listener: (state: McpControlState) => void): () => void
 }
 

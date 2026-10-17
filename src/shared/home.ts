@@ -1,6 +1,6 @@
 import type { AgentGuide, ClientConfigurationOptions } from './client-configuration.js'
 import type { HomeWorkspaceAction, HomeWorkspaceState } from './home-workspaces.js'
-import type { McpActivityOutcome, McpActivityResult, McpServerStatus } from './types.js'
+import type { McpActivityOutcome, McpActivityResult, McpListenErrorCode, McpServerStatus } from './types.js'
 import type { ResolvedThemeName } from './theme.js'
 import type { ConnectedAgent } from './agent-status.js'
 import type { AgentPresenceState, AgentRecentStep } from './agent-presence.js'
@@ -25,6 +25,10 @@ export interface HomeDashboard {
   paused: boolean
   status: McpServerStatus
   error?: string
+  /** With status 'error': a busy or refused port, the port that failed and a free one Hronaut can move to. */
+  errorCode?: McpListenErrorCode
+  failedPort?: number
+  suggestedPort?: number
   completedToolCalls: number
   /** Each connected agent once, as the toolbar status counts them. */
   agents?: ConnectedAgent[]
@@ -91,4 +95,6 @@ export interface HronautHomeApi {
   prepareClaudeCodeSetup?(): Promise<ClaudeCodeSetupPreview>
   /** Main asks the person natively, then makes the planned change. */
   applyClaudeCodeSetup?(planId: string): Promise<ClaudeCodeSetupResult>
+  /** Moves a listener that could not start to the free port main offered; only that port is accepted. */
+  useMcpPort?(port: number): Promise<void>
 }

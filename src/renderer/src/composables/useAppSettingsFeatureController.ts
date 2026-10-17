@@ -16,6 +16,7 @@ import type {
   SearchEngineName
 } from '../../../shared/types.js'
 import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
+import { mcpPortProblem } from '../../../shared/mcp-port.js'
 import type { AppBootstrapTask } from './useAppBootstrapController.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import { useCommercialLicenseController } from '../features/settings/support/useCommercialLicenseController.js'
@@ -213,6 +214,11 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     settings: options.settings,
     endpoint: computed(() => options.browserState.value.mcpUrl),
     listenerFailed: computed(() => mcpStatusController.state.value.status === 'error'),
+    suggestedPort: computed(() => mcpStatusController.state.value.status === 'error' ? mcpStatusController.state.value.suggestedPort : undefined),
+    listenerProblem: computed(() => {
+      const problem = mcpPortProblem(mcpStatusController.state.value)
+      return problem ? options.translate(`runtime.mcp.${problem.key}`, { port: problem.port }) : ''
+    }),
     setRemoteAccess: (enabled) => options.settingsStore.setMcpRemoteAccess(enabled),
     setAuthentication: (enabled) => options.settingsStore.setMcpAuthentication(enabled),
     setChallengeDetectionEnabled: (enabled) => options.settingsStore.setChallengeDetectionEnabled(enabled),

@@ -1035,20 +1035,31 @@ test('shows an error status when the MCP port is already in use', async ({
     conflictingApp = await launchHronaut(profileDirectory, mcpPort)
     const statusPill = conflictingApp.window.getByRole('button', { name: 'Agents can’t connect' })
     await expect(statusPill).toBeVisible()
-    await expect(statusPill).toHaveAttribute('data-tooltip', /EADDRINUSE/)
+    // Plain words and a free port to move to; the raw error stays in the state for the diagnostic.
+    await expect(statusPill).toHaveAttribute('data-tooltip', `Another app is using port ${mcpPort}, so agents can't connect.`)
     await expect(conflictingApp.window.locator('.mcp-controls')).toHaveClass(/error/)
     await expect(conflictingApp.window.getByRole('button', { name: 'Pause agents' })).toBeDisabled()
 
     await expect
       .poll(() => conflictingApp!.window.evaluate('window.hronautMcp.getState()'))
-      .toMatchObject({ status: 'error', paused: false, error: expect.stringContaining('EADDRINUSE') })
+      .toMatchObject({ status: 'error', paused: false, error: expect.stringContaining('EADDRINUSE'), errorCode: 'port-in-use', failedPort: mcpPort, suggestedPort: expect.any(Number) })
+    await statusPill.click()
+    await expect(conflictingApp.window.getByRole('alert')).toContainText(`Another app is using port ${mcpPort}`)
+    await expect(conflictingApp.window.getByRole('button', { name: /^Use port \d+$/ })).toBeVisible()
+    await conflictingApp.window.keyboard.press('Escape')
 
     await expect
       .poll(() => conflictingApp!.app.evaluate(async ({ webContents }) => {
         const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
         return home?.executeJavaScript(`fetch('/api/status').then((response) => response.json())`)
       }))
-      .toMatchObject({ status: 'error', error: expect.stringContaining('EADDRINUSE') })
+      .toMatchObject({ status: 'error', error: expect.stringContaining('EADDRINUSE'), errorCode: 'port-in-use', failedPort: mcpPort })
+    await expect
+      .poll(() => conflictingApp!.app.evaluate(async ({ webContents }) => {
+        const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+        return home?.executeJavaScript(`({ hidden: document.getElementById('mcp-port-problem').hidden, text: document.getElementById('mcp-port-problem-text').textContent, button: document.getElementById('mcp-port-use').textContent })`)
+      }))
+      .toMatchObject({ hidden: false, text: expect.stringContaining(`Another app is using port ${mcpPort}`), button: expect.stringMatching(/^Use port \d+$/) })
   } finally {
     if (conflictingApp) await closeHronaut(conflictingApp.app)
     await closeFixtureServer(portOwner)

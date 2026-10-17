@@ -29,6 +29,9 @@ const {
   setChallengeDetectionEnabled,
   setToolSet,
   applyPort,
+  applySuggestedPort,
+  suggestedPort,
+  listenerProblem,
   capabilityProfiles,
   capabilityCredential,
   capabilityError,
@@ -219,6 +222,10 @@ function handlePortKeydown(event: KeyboardEvent): void {
             >
               {{ portState === 'saving' ? t('settings.mcp.moving') : t('settings.mcp.applyPort') }}
             </UiButton>
+          </div>
+          <div v-if="listenerProblem" class="mcp-port-problem" role="alert">
+            <span>{{ listenerProblem }} {{ suggestedPort ? t('runtime.mcp.portNote') : t('runtime.mcp.portNoneFree') }}</span>
+            <UiButton v-if="suggestedPort" size="small" variant="primary" :disabled="busy" @click="applySuggestedPort">{{ t('runtime.mcp.usePort', { port: suggestedPort }) }}</UiButton>
           </div>
           <output
             class="mcp-port-status"

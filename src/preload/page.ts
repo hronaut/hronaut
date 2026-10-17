@@ -63,7 +63,8 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
     openSetupFeedback: () => ipcRenderer.invoke('hronaut-home:open-setup-feedback'),
     getSetupState: () => ipcRenderer.invoke('hronaut-home:setup-state'),
     prepareClaudeCodeSetup: () => ipcRenderer.invoke('hronaut-home:claude-code-prepare'),
-    applyClaudeCodeSetup: (planId: string) => ipcRenderer.invoke('hronaut-home:claude-code-apply', planId)
+    applyClaudeCodeSetup: (planId: string) => ipcRenderer.invoke('hronaut-home:claude-code-apply', planId),
+    useMcpPort: (port: number) => ipcRenderer.invoke('hronaut-home:use-mcp-port', port)
   } satisfies HronautHomeApi)
 } else if (pageLocation?.protocol === 'http:' || pageLocation?.protocol === 'https:') {
   const walletListeners = new Set<(event: WalletProviderEvent) => void>()

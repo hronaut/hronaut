@@ -24,3 +24,6 @@
 .vertical-tabs-shell .mcp-summary .ui-popover__panel { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; }
 .mcp-pause-label { font-size: var(--type-micro-size); }
 @media (max-width: 1200px) { .mcp-pause-label { display: none; } }
+.mcp-port-problem { display: grid; gap: 8px; justify-items: start; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); border-radius: var(--corner-2); background: color-mix(in srgb, var(--danger) 7%, var(--panel)); }
+.mcp-readiness-summary .mcp-port-problem p { color: var(--text); }
+.mcp-readiness-summary .mcp-port-problem .mcp-port-taken { color: var(--danger); }

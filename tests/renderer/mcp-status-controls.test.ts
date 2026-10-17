@@ -17,11 +17,12 @@ function control(overrides: Partial<McpControlState> = {}): McpControlState {
   return { status: 'ready', paused: false, ...overrides }
 }
 
-function renderControls(initial = control()) {
+function renderControls(initial = control(), moveToSuggestedPort: HronautMcpApi['moveToSuggestedPort'] = vi.fn(async () => control())) {
   const setPaused = vi.fn(async (paused: boolean) => control({ status: paused ? 'paused' : 'ready', paused }))
   const api: HronautMcpApi = {
     getState: vi.fn(async () => initial),
     setPaused,
+    moveToSuggestedPort,
     onChanged: vi.fn(() => () => undefined)
   }
   const copyText = vi.fn(async () => true)
@@ -36,10 +37,30 @@ function renderControls(initial = control()) {
     global: { plugins: [createHronautI18n('en-US')] },
     props: { controller }
   })
-  return { controller, copyText, setPaused }
+  return { controller, copyText, setPaused, moveToSuggestedPort }
 }
 
 describe('McpStatusControls', () => {
+  it('says another app has the port and moves to the free one it offers, or says it was taken', async () => {
+    const failed = control({ status: 'error', error: 'listen EADDRINUSE: address already in use 127.0.0.1:47812', errorCode: 'port-in-use', failedPort: 47812, suggestedPort: 47813 })
+    const move = vi.fn(async (): Promise<McpControlState> => { throw new Error('taken') })
+    const { controller } = renderControls(failed, move)
+    const user = userEvent.setup()
+    const trigger = screen.getByRole('button', { name: 'Agents can’t connect' })
+    expect(trigger).toHaveAttribute('data-tooltip', 'Another app is using port 47812, so agents can\'t connect.')
+    await user.click(trigger)
+    expect(screen.getByRole('alert')).toHaveTextContent('Another app is using port 47812')
+    await user.click(screen.getByRole('button', { name: 'Use port 47813' }))
+    expect(move).toHaveBeenCalledWith(47813)
+    await vi.waitFor(() => expect(screen.getByText('Port 47813 was taken in the meantime. Try the next free one.')).toBeVisible())
+    controller.accept({ ...failed, suggestedPort: undefined })
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: /Use port/ })).toBeNull())
+    expect(screen.getByRole('alert')).toHaveTextContent('Choose another port in Settings → MCP security.')
+    controller.accept(control({ status: 'error', error: 'boom', errorCode: 'other', failedPort: 47812 }))
+    await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    controller.dispose()
+  })
+
   it('distinguishes blocked admission from commands still settling and updates on completion', async () => {
     const { controller } = renderControls(control({ status: 'paused', paused: true, activeCommands: 2 }))
     expect(screen.getByRole('button', { name: 'Agents paused · 2 settling' })).toHaveAttribute('data-tooltip', expect.stringContaining('Pause does not undo'))

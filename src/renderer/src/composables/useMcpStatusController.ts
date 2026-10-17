@@ -15,6 +15,9 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   const copied = ref(false)
   const refreshFailed = ref(false)
   const pauseBusy = ref(false)
+  const portBusy = ref(false)
+  /** The suggested port that could not be used, so the person sees why the button changed. */
+  const portFailed = ref<number | null>(null)
   let generation = 0
   let listenerGeneration = 0
   let revision = 0
@@ -148,6 +151,27 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     }
   }
 
+  /** Moves the listener to the free port main suggested after the configured one failed. */
+  async function moveToSuggestedPort(): Promise<boolean> {
+    const port = state.value.suggestedPort
+    if (portBusy.value || state.value.status !== 'error' || !port) return false
+    const operationGeneration = generation
+    const startingRevision = revision
+    portBusy.value = true
+    portFailed.value = null
+    try {
+      const next = await options.api.moveToSuggestedPort(port)
+      if (operationGeneration !== generation) return false
+      if (revision === startingRevision) accept(next)
+      return true
+    } catch {
+      if (operationGeneration === generation) portFailed.value = port
+      return false
+    } finally {
+      if (operationGeneration === generation) portBusy.value = false
+    }
+  }
+
   const stopEndpointTracking = watch(options.endpoint, () => {
     copySequence += 1
     clearCopiedFeedback()
@@ -161,6 +185,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     copySequence += 1
     initializePromise = null
     pauseBusy.value = false
+    portBusy.value = false
     clearCopiedFeedback()
     detachListener()
   }
@@ -171,6 +196,8 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     copied,
     refreshFailed,
     pauseBusy,
+    portBusy,
+    portFailed,
     canTogglePaused,
     initialize,
     refresh,
@@ -178,6 +205,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     accept,
     copyEndpoint,
     togglePaused,
+    moveToSuggestedPort,
     dispose
   }
 }

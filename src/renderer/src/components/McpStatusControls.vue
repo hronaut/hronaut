@@ -10,6 +10,7 @@ import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import type { McpStatusController } from '../composables/useMcpStatusController'
 import { vTooltip } from '../ui/tooltip.js'
 import { agentStatus } from '../../../shared/agent-status.js'
+import { mcpPortProblem } from '../../../shared/mcp-port.js'
 
 const props = defineProps<{
   controller: McpStatusController
@@ -21,9 +22,12 @@ const {
   state,
   copied,
   pauseBusy,
+  portBusy,
+  portFailed,
   canTogglePaused,
   copyEndpoint,
-  togglePaused
+  togglePaused,
+  moveToSuggestedPort
 } = props.controller
 
 // The same words as Home: whether agents can connect, and whether one needs you, is working or is connected.
@@ -32,7 +36,13 @@ const statusLabel = computed(() => {
   if (state.value.status === 'paused' && (state.value.activeCommands ?? 0) > 0) return t('runtime.mcp.settling', { count: state.value.activeCommands! })
   return t(`agentStatus.${agents.value.message}`, { name: agents.value.name ?? '', count: agents.value.count }, agents.value.count)
 })
+// A busy or forbidden port says so in plain words and offers the free port main found.
+const portProblem = computed(() => {
+  const problem = mcpPortProblem(state.value)
+  return problem ? t(`runtime.mcp.${problem.key}`, { port: problem.port }) : ''
+})
 const statusTitle = computed(() => {
+  if (portProblem.value) return portProblem.value
   if (state.value.status === 'error') return t('runtime.mcp.failed', { error: state.value.error ?? t('runtime.mcp.unknown') })
   if (state.value.status === 'starting') return t('runtime.mcp.startingAt', { url: endpoint.value })
   if (state.value.paused) return t('runtime.mcp.pauseGuidance')
@@ -70,6 +80,11 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
       <template #trigger><span class="status-dot" /><span class="mcp-pill-label">{{ statusLabel }}</span></template>
       <section class="mcp-readiness-summary" :aria-label="t('home.readiness.heading')">
         <strong>{{ t('home.readiness.heading') }}</strong>
+        <div v-if="portProblem" class="mcp-port-problem" role="alert">
+          <p>{{ portProblem }} {{ state.suggestedPort ? t('runtime.mcp.portNote') : t('runtime.mcp.portNoneFree') }}</p>
+          <p v-if="portFailed" class="mcp-port-taken">{{ t('runtime.mcp.portTaken', { port: portFailed }) }}</p>
+          <UiButton v-if="state.suggestedPort" size="small" variant="primary" :busy="portBusy" @click="moveToSuggestedPort">{{ t('runtime.mcp.usePort', { port: state.suggestedPort }) }}</UiButton>
+        </div>
         <dl>
           <div><dt>{{ t('home.readiness.checks.endpoint') }}</dt><dd>{{ t(`runtime.mcp.${state.status === 'ready' ? 'ready' : state.status === 'paused' ? 'paused' : state.status === 'error' ? 'error' : 'starting'}`) }}</dd></div>
           <div><dt>{{ t('home.readiness.checks.initialization') }}</dt><dd>{{ state.readiness ? state.readiness.initializedClientCount : '—' }}</dd></div>
