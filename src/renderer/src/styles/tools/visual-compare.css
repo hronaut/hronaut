@@ -1,0 +1,20 @@
+/* The visual compare panel. */
+.visual-compare-panel .accessibility-audit-empty > svg { @apply text-accent-copy; }
+.visual-compare-panel .accessibility-audit-empty button.primary { @apply flex items-center [gap:6px] [margin-top:8px] [padding:8px_12px] border-0 [border-radius:var(--corner-2)] text-button-copy bg-accent [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer; }
+.visual-compare-panel .accessibility-audit-empty button.primary svg { @apply [width:16px] [height:16px]; }
+.visual-compare-content { @apply min-h-0 overflow-y-auto; }
+.visual-compare-summary { @apply flex flex-none items-center [gap:11px] [padding:13px_14px] [border-bottom:1px_solid_var(--border-soft)] bg-surface-muted; }
+.visual-compare-summary > svg { @apply [width:25px] [height:25px] flex-none text-accent-copy; }
+.visual-compare-summary.identical > svg { @apply [color:var(--success)]; }
+.visual-compare-summary.changed > svg { @apply [color:#b45f12]; }
+.visual-compare-summary > div { @apply grid min-w-0 [gap:4px]; }
+.visual-compare-summary strong { @apply text-copy [font-size:var(--type-body-size)]; }
+.visual-compare-summary span { @apply text-muted [font-size:var(--type-small-size)] [font-variant-numeric:tabular-nums]; }
+.visual-compare-image { @apply block [width:calc(100%_-_24px)] [min-height:100px] [max-height:330px] [margin:12px_12px_0] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] object-contain [background:repeating-conic-gradient(var(--surface-muted)_0_25%,_var(--surface)_0_50%)_50%_/_16px_16px]; }
+.visual-compare-metrics { @apply grid [margin:12px_12px_0] [grid-template-columns:repeat(2,_minmax(0,_1fr))] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] overflow-hidden; }
+.visual-compare-metrics > div { @apply grid [gap:4px] [padding:9px_10px] bg-surface; }
+.visual-compare-metrics > div:nth-child(even) { @apply [border-left:1px_solid_var(--border-soft)]; }
+.visual-compare-metrics > div:nth-child(n + 3) { @apply [border-top:1px_solid_var(--border-soft)]; }
+.visual-compare-metrics dt { @apply text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] uppercase; }
+.visual-compare-metrics dd { @apply m-0 [overflow-wrap:anywhere] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [font-variant-numeric:tabular-nums]; }
+.visual-compare-content > .debug-report-caveats { @apply [margin-right:12px] [margin-left:12px]; }

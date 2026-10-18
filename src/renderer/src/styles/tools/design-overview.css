@@ -1,0 +1,40 @@
+/* The design overview panel. */
+.design-overview-summary { @apply grid [grid-template-columns:repeat(4,_minmax(0,_1fr))] [gap:8px] [padding:12px] [border-bottom:1px_solid_var(--border-soft)] bg-surface-muted; }
+.design-overview-summary article { @apply grid min-w-0 [gap:5px] [padding:10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface-raised; }
+.design-overview-summary article.warning { @apply [border-color:color-mix(in_srgb,_#d9534f_55%,_var(--border-soft))]; }
+.design-overview-summary span { @apply text-muted [font-size:var(--type-micro-size)] [line-height:1.25]; }
+.design-overview-summary strong { @apply overflow-hidden text-copy [font-size:var(--type-heading-size)] [font-variant-numeric:tabular-nums] text-ellipsis whitespace-nowrap; }
+.design-overview-summary article.warning strong { @apply text-danger-copy; }
+.design-overview-details { @apply min-h-0 [flex:1_1_auto] overflow-y-auto [padding:14px]; }
+.design-overview-details > section + section { @apply [margin-top:18px]; }
+.design-overview-details h3 { @apply [margin:0_0_9px] text-copy [font-size:var(--type-body-size)]; }
+.design-overview-details h4 { @apply [margin:0_0_6px] text-muted [font-size:var(--type-micro-size)] [letter-spacing:.06em] uppercase; }
+.design-overview-details p { @apply [margin:6px_0_0] text-muted [font-size:var(--type-small-size)] [line-height:1.45]; }
+.design-color-groups { @apply grid [grid-template-columns:repeat(3,_minmax(0,_1fr))] [gap:10px]; }
+.design-color-list { @apply grid [gap:5px] m-0 p-0 list-none; }
+.design-color-list li { @apply grid [grid-template-columns:18px_minmax(0,_1fr)_auto] items-center [gap:6px] min-w-0 [padding:5px_6px] [border-radius:var(--corner-1)] bg-surface-muted; }
+.design-color-swatch { @apply [width:18px] [height:18px] [border:1px_solid_var(--border-strong)] [border-radius:5px] [box-shadow:inset_0_0_0_1px_rgba(255,_255,_255,_.08)]; }
+.design-color-list code,
+.design-media-list code,
+.design-contrast-list code { @apply min-w-0 overflow-hidden text-copy [font-family:var(--font-mono)] [font-size:var(--type-micro-size)] text-ellipsis whitespace-nowrap; }
+.design-color-list small,
+.design-media-list small { @apply text-muted [font-size:var(--type-micro-size)] [font-variant-numeric:tabular-nums]; }
+.design-font-list,
+.design-contrast-list { @apply grid [gap:7px]; }
+.design-font-list article,
+.design-contrast-list article { @apply grid min-w-0 [gap:4px] [padding:9px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface-muted; }
+.design-font-list strong { @apply overflow-hidden text-copy [font-size:var(--type-small-size)] text-ellipsis whitespace-nowrap; }
+.design-font-list span,
+.design-contrast-list span { @apply text-muted [font-size:var(--type-micro-size)] [line-height:1.4]; }
+.design-font-list small,
+.design-contrast-list small { @apply text-muted [font-size:var(--type-micro-size)]; }
+.design-contrast-list article { @apply [border-color:color-mix(in_srgb,_#d9534f_32%,_var(--border-soft))]; }
+.design-contrast-list header { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] items-center [gap:10px]; }
+.design-contrast-list header strong { @apply text-danger-copy [font-size:var(--type-small-size)] [font-variant-numeric:tabular-nums]; }
+.design-media-list { @apply grid [gap:5px] m-0 p-0 list-none; }
+.design-media-list li { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] [gap:8px] [padding:7px_9px] [border-radius:var(--corner-1)] bg-surface-muted; }
+.design-overview-details > details { @apply [margin-top:16px] text-muted [font-size:var(--type-small-size)] [line-height:1.45]; }
+.design-overview-details > details summary { @apply text-copy cursor-pointer [font-weight:var(--weight-strong)]; }
+.design-overview-details > details ul { @apply [margin:7px_0_0] [padding-left:18px]; }
+.design-overview-panel > footer button { @apply inline-flex [min-height:34px] items-center [gap:6px] [padding:7px_11px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-copy bg-surface-raised [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer; }
+.design-overview-panel > footer button svg { @apply [width:16px] [height:16px]; }

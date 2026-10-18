@@ -1,8 +1,14 @@
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 async function source(path: string): Promise<string> {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8')
+}
+
+/** The stylesheets in a folder split by feature, such as styles/shell. */
+async function stylesIn(folder: string): Promise<string[]> {
+  const names = await readdir(new URL(`../${folder}/`, import.meta.url))
+  return names.filter((name) => name.endsWith('.css')).sort().map((name) => `${folder}/${name}`)
 }
 
 describe('Tailwind styling boundary', () => {
@@ -43,9 +49,9 @@ describe('Tailwind styling boundary', () => {
       'src/renderer/src/styles/panels.css',
       'src/renderer/src/styles/primitives.css',
       'src/renderer/src/styles/settings.css',
-      'src/renderer/src/styles/shell.css',
+      ...await stylesIn('src/renderer/src/styles/shell'),
       'src/renderer/src/styles/title-bar.css',
-      'src/renderer/src/styles/tools.css'
+      ...await stylesIn('src/renderer/src/styles/tools')
     ]
     const styles = (await Promise.all(files.map(source))).join('\n')
 

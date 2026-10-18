@@ -8,8 +8,8 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 import { disposeAll, registerDisposers } from './dispose-all.js'
 
 /**
- * The toolbar's address field fills the free space (shell.css). The take-over prompt takes room from it only while it
- * stays at least this wide, and its suggestions are never narrower than this.
+ * The toolbar's address field fills the free space (styles/shell/toolbar.css). The take-over prompt takes room from it
+ * only while it stays at least this wide, and its suggestions are never narrower than this.
  */
 export const ADDRESS_FIELD_COMFORT_WIDTH = 520
 

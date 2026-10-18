@@ -1,0 +1,83 @@
+/* Home, the horizontal tab strip and its workspace group cards, narrow-window breakpoints and scroll buttons. */
+.app-home-button {
+  @apply flex [height:34px] flex-none items-center [gap:7px] [margin:0_8px_3px_0] [padding:0_11px] [border:1px_solid_transparent] [border-radius:var(--corner-2)] text-muted bg-transparent [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)] cursor-pointer;
+}
+.app-home-button > svg { @apply [width:18px] [height:18px]; }
+.app-home-button:hover { @apply text-copy bg-hover; }
+.app-home-button.active {
+  @apply text-accent-copy [border-color:transparent] bg-accent-soft;
+}
+.topbar-divider {
+  @apply [width:1px] [height:25px] [flex:0_0_1px] [margin:0_8px_7px_0] [background:var(--border-soft)];
+}
+.tabs-strip-shell {
+  @apply relative grid [grid-template-columns:minmax(0,_1fr)] min-w-0 [height:37px] [flex:1_1_auto];
+}
+.browser-tabs-bar.horizontal .tabs-strip-shell.has-tab-overflow {
+  @apply [grid-template-columns:28px_minmax(0,_1fr)_28px] [column-gap:3px];
+}
+.browser-tabs-bar.horizontal .tabs-strip-shell.has-tab-overflow .tabs-scroll-button {
+  @apply [position:static] [align-self:end] [margin-bottom:5px];
+}
+.browser-tabs-bar.horizontal .tabs-strip-shell.has-tab-overflow .tabs-scroll-button.previous { @apply [grid-column:1]; }
+.browser-tabs-bar.horizontal .tabs-strip-shell.has-tab-overflow .tabs-strip { @apply [grid-column:2] [grid-row:1]; }
+.browser-tabs-bar.horizontal .tabs-strip-shell.has-tab-overflow .tabs-scroll-button.next { @apply [grid-column:3]; }
+.tabs-strip {
+  @apply flex min-w-0 w-full [height:37px] [align-items:end] [gap:4px] overflow-x-auto overflow-y-hidden box-border [scroll-padding-inline:31px] [overscroll-behavior-inline:contain] [scrollbar-width:none];
+}
+.tabs-strip::-webkit-scrollbar { @apply hidden; }
+/* A group is a card in a soft tint of its color. The workspace in view is tinted more. Its sticky header shares the
+   card's fill, opaque, so tabs scrolling under it stay hidden. */
+.workspace-tab-section {
+  --group-surface: color-mix(in srgb, var(--tab-group-color) var(--group-tint), var(--shell-bottom));
+  @apply flex [flex:0_1_auto] [min-width:min-content] items-center [gap:4px] [height:37px] [padding:3px] [border:1px_solid_color-mix(in_srgb,_var(--tab-group-color)_var(--group-border-tint),_var(--border-soft))] [border-radius:var(--corner-2)] [background:var(--group-surface)];
+}
+.workspace-tab-section.active {
+  --group-surface: color-mix(in srgb, var(--tab-group-color) var(--group-tint-active), var(--shell-bottom));
+  @apply [border-color:color-mix(in_srgb,_var(--tab-group-color)_var(--group-border-tint-active),_var(--border-soft))];
+}
+.workspace-tab-list { @apply flex min-w-0 items-center [gap:3px]; }
+.workspace-tab-list:empty { @apply hidden; }
+.browser-tabs-bar.horizontal .tab-group-label {
+  @apply sticky [left:0] [z-index:4];
+}
+@media (max-width: 1300px) {
+  .browser-tabs-bar.horizontal .new-workspace { @apply [width:28px] p-0 justify-center; }
+  .browser-tabs-bar.horizontal .new-workspace > span { @apply hidden; }
+}
+@media (max-width: 900px) {
+  .browser-tabs-bar.horizontal .app-home-label { @apply hidden; }
+  .browser-tabs-bar.horizontal .app-home-button { @apply [width:34px] [padding:0_8px] [margin-right:4px]; }
+  .browser-tabs-bar.horizontal .tab-group-label { @apply [width:86px] [max-width:86px] [padding:0_3px]; }
+  .browser-tabs-bar.horizontal .tab-group-label::before { @apply m-0; }
+  .browser-tabs-bar.horizontal .tab-group-count,
+  .browser-tabs-bar.horizontal .tab-group-default-badge,
+  .browser-tabs-bar.horizontal .tab-group-pinned { @apply hidden; }
+  .browser-tabs-bar.horizontal .tab:not(.pinned) { @apply [width:112px] [flex-basis:112px]; }
+}
+@media (max-width: 1040px) {
+  .shell:not(.vertical-tabs-shell) .topbar,
+  .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
+    @apply flex-wrap [height:auto] [row-gap:3px];
+  }
+  .browser-tabs-bar.horizontal .tabs-strip-shell { @apply [flex-basis:0]; }
+  .shell:not(.vertical-tabs-shell) .topbar-actions {
+    @apply [flex:0_0_100%] justify-end [margin-left:0];
+  }
+  .shell:not(.vertical-tabs-shell) .update-status-pill { @apply [width:32px] [max-width:32px] [min-width:32px] justify-center p-0; }
+  .shell:not(.vertical-tabs-shell) :is(.update-status-label, .update-status-chevron) { @apply hidden; }
+}
+@media (max-width: 720px) {
+  .shell .toolbar { @apply [gap:4px_2px]; }
+  .shell:not(.vertical-tabs-shell) .toolbar { @apply [padding-inline:8px]; }
+  .shell .address-form { @apply [min-width:100px] [margin-inline:2px]; }
+}
+.tabs-scroll-button {
+  @apply absolute [z-index:3] [bottom:5px] grid [width:28px] [height:28px] p-0 place-items-center [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-copy [background:color-mix(in_srgb,_var(--toolbar)_94%,_transparent)] [box-shadow:var(--elevation-1)] cursor-pointer;
+}
+.tabs-scroll-button.previous { @apply [left:0]; }
+.tabs-scroll-button.next { @apply [right:0]; }
+.tabs-scroll-button svg { @apply [width:19px] [height:19px]; }
+.tabs-scroll-button:hover:not(:disabled) { @apply border-accent bg-hover; }
+.tabs-scroll-button:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
+.tabs-scroll-button:disabled { @apply invisible opacity-0 pointer-events-none; }

@@ -63,7 +63,10 @@ describe('toolbar agent status label', () => {
   })
 
   it('cuts the label at 190 px with an ellipsis, and to one line in the rail\'s fixed-width row', () => {
-    const shell = readFileSync(join(process.cwd(), 'src/renderer/src/styles/shell.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//gu, '')
+    const shell = ['topbar-actions.css', 'topbar-buttons.css']
+      .map((name) => readFileSync(join(process.cwd(), 'src/renderer/src/styles/shell', name), 'utf8'))
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//gu, '')
     const rule = (selector: string): string => {
       const escaped = selector.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
       const body = new RegExp(`(?:^|\\n)${escaped}\\s*\\{([^}]*)\\}`, 'u').exec(shell)?.[1]

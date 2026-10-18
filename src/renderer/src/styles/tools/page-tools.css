@@ -1,0 +1,58 @@
+/* The Page tools panel: its header, tool grid, search and narrow layout. */
+.page-tools-panel {
+  container: page-tools / inline-size;
+  @apply absolute [z-index:49] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(680px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--overlay-border)] [border-radius:var(--corner-3)] text-copy bg-surface-raised [box-shadow:var(--overlay-ring),_var(--elevation-3)] [user-select:text];
+}
+.page-tools-panel > header {
+  @apply flex [min-height:68px] flex-none items-center justify-between [gap:16px] [padding:14px_18px] bg-surface;
+}
+.page-tools-panel h2 { @apply [margin:3px_0_0] [font-size:var(--type-heading-size)] [font-weight:var(--weight-strong)] [line-height:1.2]; }
+.page-tools-panel > header .eyebrow { @apply text-muted [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] [letter-spacing:.06em]; }
+.page-tools-body { @apply min-h-0 [flex:1] overflow-y-auto; }
+.page-tools-content { @apply [padding:18px]; }
+.page-tools-content > section + section { @apply [margin-top:22px] [padding-top:18px] [border-top:1px_solid_var(--border-soft)]; }
+.page-tools-content > section:not(.ui-empty-state) > h3 { @apply flex items-center [gap:7px] [margin:0_0_10px] text-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)]; }
+.page-tools-grid { @apply grid [grid-template-columns:repeat(auto-fit,_minmax(min(100%,_240px),_1fr))] [gap:2px_16px]; }
+.page-tools-grid > button {
+  @apply grid min-w-0 [min-height:60px] [grid-template-columns:24px_minmax(0,_1fr)] items-center [gap:12px] [padding:10px_8px] [border:1px_solid_transparent] [border-radius:var(--corner-1)] text-copy bg-transparent [font:inherit] text-left cursor-pointer;
+}
+.page-tools-grid > button:hover:not(:disabled) { @apply bg-hover; }
+.page-tools-grid > button:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
+.page-tools-grid > button:disabled { @apply [opacity:.45] cursor-default; }
+.page-tools-grid > button > svg { @apply [width:19px] [height:19px] [justify-self:center] text-muted; }
+.page-tools-grid > button.complete > svg,
+.page-tools-grid > button.copied > svg,
+.page-tools-grid > button.saved > svg { @apply [color:var(--success)]; }
+.page-tools-grid > button.warning > svg { @apply [color:#b45f12]; }
+.page-tools-grid > button.error > svg { @apply text-danger-copy; }
+.page-tools-grid > button.running > svg { @apply [animation:spin_.9s_linear_infinite]; }
+.page-tools-grid > button > span { @apply grid min-w-0 [gap:4px]; }
+.page-tools-grid strong,
+.page-tools-grid small { @apply whitespace-normal [overflow-wrap:anywhere] [line-height:1.45]; }
+.page-tools-grid strong { @apply [font-size:var(--type-body-size)] [font-weight:var(--weight-strong)]; }
+.page-tools-grid small { @apply text-muted [font-size:var(--type-small-size)]; }
+.page-tools-body > footer { @apply flex [min-height:42px] flex-none items-center justify-between [gap:12px] [padding:10px_18px] [border-top:1px_solid_var(--border-soft)] text-muted bg-surface [font-size:var(--type-small-size)]; }
+.page-tools-body > footer span:first-child { @apply overflow-hidden text-ellipsis whitespace-nowrap; }
+
+.page-tools-content > .ui-empty-state { @apply [padding:14px]; }
+.page-tools-search { @apply flex-none [padding:0_18px_14px] [border-bottom:1px_solid_var(--border-soft)] bg-surface; }
+.page-tools-search-field { @apply flex items-center [gap:8px] [padding:0_10px] [border:1px_solid_var(--border)] [border-radius:var(--corner-2)] bg-surface-muted; }
+.page-tools-search-field:focus-within { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
+.page-tools-search-field > svg { @apply flex-none [width:18px] [height:18px] text-muted; }
+.page-tools-search-field input { @apply min-w-0 w-full [height:36px] border-0 [outline:0] bg-transparent text-copy [font:inherit] [font-size:var(--type-body-size)]; }
+.page-tools-search-field input::-webkit-search-cancel-button { @apply hidden; }
+.page-tools-search-field > button { @apply grid flex-none [width:26px] [height:26px] place-items-center border-0 [border-radius:5px] bg-transparent text-muted cursor-pointer; }
+.page-tools-search-field > button:hover { @apply bg-hover text-copy; }
+.page-tools-search-field > button svg { @apply [width:16px] [height:16px]; }
+.page-tools-search > span { @apply block [margin-top:7px] text-muted [font-size:var(--type-small-size)]; }
+
+@container page-tools (max-width: 420px) {
+  .page-tools-panel > header { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] [gap:10px]; }
+  .page-tools-panel > header > div:first-child { @apply min-w-0; }
+  .page-tools-panel > header h2,
+  .page-tools-panel > header .eyebrow { @apply whitespace-nowrap; }
+  .page-tools-panel .panel-header-actions { @apply contents; }
+  .page-tools-panel .panel-header-actions > .panel-close { @apply [grid-column:2] [grid-row:1]; }
+  .page-tools-panel .panel-dock-picker { @apply [grid-column:1_/_-1] [grid-row:2]; }
+  .page-tools-panel .panel-dock-picker select { @apply min-w-0 flex-1; }
+}

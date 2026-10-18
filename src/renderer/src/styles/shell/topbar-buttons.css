@@ -1,0 +1,84 @@
+/* New tab and workspace buttons, the lock buttons, the top bar's icon buttons and the MCP controls. */
+.new-tab, .new-workspace, .icon-button, .panel-close {
+  @apply border-0 bg-transparent [border-radius:var(--corner-2)] cursor-pointer;
+}
+.new-tab, .new-workspace { @apply grid [width:28px] [height:28px] [flex:0_0_28px] [margin-bottom:5px] place-items-center; }
+.new-tab svg { @apply [width:21px] [height:21px]; }
+.workspace-new-tab {
+  @apply [width:28px] [height:28px] m-0 [border:1px_solid_transparent] [border-radius:5px] text-muted bg-transparent;
+}
+.workspace-new-tab svg { @apply [width:18px] [height:18px]; }
+.workspace-new-tab:hover,
+.workspace-new-tab:focus-visible {
+  @apply [border-color:var(--tab-group-color)] [background:color-mix(in_srgb,_var(--tab-group-color)_22%,_var(--toolbar))];
+}
+.workspace-action-divider {
+  @apply [width:1px] [height:20px] [flex:0_0_1px] [margin:0_2px_9px_1px] [background:var(--border-soft)];
+}
+.new-workspace {
+  @apply flex [width:auto] [min-width:28px] flex-none [gap:5px] [padding:0_8px] items-center text-muted [border:1px_solid_transparent] [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] whitespace-nowrap;
+}
+.new-workspace svg { @apply [width:17px] [height:17px] flex-none; }
+.new-workspace:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
+.new-tab:hover, .new-workspace:hover, .icon-button:hover:not(:disabled), .panel-close:hover { @apply bg-hover; }
+.browser-lock-button {
+  @apply flex [height:29px] items-center [gap:6px] [margin:0_2px_5px_2px] [padding:0_10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-muted bg-surface-muted [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer;
+}
+.browser-lock-button:hover { @apply text-copy bg-hover; }
+.topbar-actions .browser-lock-button { @apply [width:30px] justify-center p-0; }
+.vertical-tabs-shell .topbar-actions .browser-lock-button { @apply w-full p-0; }
+.browser-lock-button > svg,
+.interaction-lock-button > svg { @apply [width:15px] [height:15px] flex-none; }
+.browser-lock-button.locked {
+  @apply [color:#9a5b00] [border-color:color-mix(in_srgb,_#e49a32_55%,_var(--border-soft))] [background:color-mix(in_srgb,_#e49a32_18%,_var(--surface-muted))];
+}
+:root:not([data-theme="light"], [data-theme="sepia"]) .browser-lock-button.locked { @apply [color:#ffc56e]; }
+.browser-lock-button.follow-agent-button.active {
+  @apply text-accent-copy [border-color:color-mix(in_srgb,_var(--accent)_60%,_var(--border-soft))] [background:color-mix(in_srgb,_var(--accent)_22%,_var(--surface-muted))];
+}
+.mcp-controls {
+  @apply flex items-center [height:29px] [margin:0_2px_5px_6px] [border:1px_solid_var(--pill-border)] [border-radius:var(--corner-pill)] overflow-hidden [background:var(--pill-bg)];
+}
+.topbar-icon-button {
+  @apply grid [width:30px] [height:29px] [margin:0_0_5px_2px] p-0 place-items-center border-0 [border-radius:var(--corner-2)] text-muted bg-transparent cursor-pointer;
+}
+.topbar-icon-button:hover,
+.topbar-icon-button[aria-expanded="true"] { @apply text-copy bg-hover; }
+.all-tabs-audio-button[aria-pressed="true"],
+.settings-button[aria-pressed="true"] { @apply text-accent-copy bg-accent-soft; }
+.topbar-icon-button svg { @apply [width:18px] [height:18px]; }
+.tab-search-button { @apply [margin-left:0]; }
+.tab-search-button svg { @apply [width:19px] [height:19px]; }
+.settings-button { @apply [margin-left:4px]; }
+.mcp-pill, .mcp-pause-button {
+  @apply h-full border-0 text-accent-copy bg-transparent [font-size:var(--type-small-size)] cursor-pointer;
+}
+.mcp-pill { @apply flex items-center [gap:7px] [padding:0_9px_0_10px]; }
+/* A client names itself, so a long name or translation is cut here; the button's name keeps it whole, and the tooltip too when it names an agent. */
+.mcp-pill-label { @apply flex-none overflow-hidden text-ellipsis whitespace-nowrap [max-width:190px]; }
+/* The rail's row has a fixed width, so there the label takes what the row leaves and stays on one line. */
+.vertical-tabs-shell .mcp-pill-label { @apply [flex:0_1_auto] min-w-0 [max-width:none]; }
+/* Below 340 px the rail's footer has no room for both labels on one line, so Pause agents keeps its icon, tooltip and
+   accessible name and the status keeps its words. */
+@container rail-footer (width < 340px) {
+  .mcp-pause-label { @apply hidden; }
+}
+.mcp-pause-button { @apply grid [min-width:30px] [padding:0_8px] place-items-center [border-left:1px_solid_var(--pill-border)]; }
+.mcp-pause-button svg { @apply [width:15px] [height:15px]; }
+.mcp-pause-button:hover { @apply bg-accent-soft; }
+.mcp-pause-button:disabled { @apply cursor-not-allowed [opacity:.5]; }
+.mcp-controls.starting { @apply [border-color:color-mix(in_srgb,_#4f8cff_45%,_var(--border-soft))]; }
+.mcp-controls.starting .status-dot { @apply [background:#4f8cff] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#4f8cff_16%,_transparent)] [animation:mcp-status-pulse_1.2s_ease-in-out_infinite]; }
+.mcp-controls.paused { @apply [border-color:color-mix(in_srgb,_#e49a32_55%,_var(--border-soft))] [background:color-mix(in_srgb,_#e49a32_14%,_var(--surface-muted))]; }
+.mcp-controls.paused .mcp-pill, .mcp-controls.paused .mcp-pause-button { @apply [color:#9a5b00]; }
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.paused .mcp-pill,
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.paused .mcp-pause-button { @apply [color:#ffc56e]; }
+.mcp-controls.paused .status-dot { @apply [background:#e49a32] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#e49a32_16%,_transparent)]; }
+.mcp-controls.error { @apply [border-color:color-mix(in_srgb,_#df4b5f_62%,_var(--border-soft))] [background:color-mix(in_srgb,_#df4b5f_12%,_var(--surface-muted))]; }
+.mcp-controls.error .mcp-pill, .mcp-controls.error .mcp-pause-button { @apply [color:#b41f39]; }
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.error .mcp-pill,
+:root:not([data-theme="light"], [data-theme="sepia"]) .mcp-controls.error .mcp-pause-button { @apply [color:#ff8797]; }
+.mcp-controls.needs-you .status-dot { @apply [background:var(--needs-you)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--needs-you)_18%,_transparent)]; }
+.mcp-controls.error .status-dot { @apply [background:#df4b5f] [box-shadow:0_0_0_3px_color-mix(in_srgb,_#df4b5f_18%,_transparent)]; }
+.status-dot { @apply [width:7px] [height:7px] rounded-full [background:var(--success)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--success)_14%,_transparent)]; }
+@keyframes mcp-status-pulse { 50% { opacity: .45; } }

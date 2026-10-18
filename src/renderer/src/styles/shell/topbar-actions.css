@@ -1,0 +1,41 @@
+/* The top bar's actions, laid out as the rail's footer grid with the rail. */
+.topbar-actions {
+  @apply flex flex-none [align-items:end] [margin-left:6px];
+}
+.vertical-tabs-shell .topbar-actions {
+  @apply grid w-full flex-none items-center [gap:4px_2px] m-0 [padding:8px] [border-top:1px_solid_var(--border-soft)] [background:color-mix(in_srgb,_var(--toolbar)_94%,_var(--shell-bottom))] [grid-template-columns:repeat(7,_minmax(0,_1fr))] [container:rail-footer_/_inline-size];
+}
+.vertical-tabs-shell .topbar-icon-button {
+  @apply w-full min-w-0 [height:32px] m-0 p-0 [grid-row:1];
+}
+.vertical-tabs-shell .command-palette-button { @apply [grid-column:1]; }
+.vertical-tabs-shell .tab-search-button { @apply [grid-column:2]; }
+.vertical-tabs-shell .downloads-button { @apply [grid-column:3]; }
+.vertical-tabs-shell .history-button { @apply [grid-column:4]; }
+.vertical-tabs-shell .all-lock-button { @apply [grid-column:5]; }
+.vertical-tabs-shell .all-tabs-audio-button { @apply [grid-column:6]; }
+.vertical-tabs-shell .follow-agent-button { @apply [grid-column:7]; }
+.vertical-tabs-shell .settings-button { @apply [grid-column:7] [grid-row:2]; }
+.vertical-tabs-shell .mcp-controls {
+  @apply w-full [height:32px] m-0 [grid-column:1_/_7] [grid-row:2];
+}
+.vertical-tabs-shell .mcp-pill { @apply min-w-0 [flex:1] justify-center [line-height:1.1]; }
+.vertical-tabs-shell .topbar-actions:has(.update-status-pill) .mcp-controls { @apply [grid-column:1_/_6]; }
+.vertical-tabs-shell .topbar-actions:has(.update-status-pill) .settings-button { @apply [grid-column:6]; }
+.vertical-tabs-shell .update-status-pill {
+  @apply w-full [max-width:none] [height:32px] justify-center m-0 p-0 [grid-column:7] [grid-row:2];
+}
+.vertical-tabs-shell .update-status-label,
+.vertical-tabs-shell .update-status-chevron { @apply hidden; }
+.vertical-tabs-shell .topbar.rail-collapsed .topbar-actions {
+  @apply [max-height:0] p-0 overflow-hidden [border-top:0] opacity-0 pointer-events-none invisible;
+}
+@media (max-height: 600px) {
+  .browser-tabs-bar.vertical { @apply [gap:4px] [padding:6px_9px]; }
+  .browser-tabs-bar.vertical .tab-rail-header { @apply [gap:2px]; }
+  .browser-tabs-bar.vertical .app-home-button { @apply [height:28px] [min-height:28px]; }
+  .browser-tabs-bar.vertical .tab-rail-pin { @apply [width:28px] [height:28px] [min-height:28px] [flex-basis:28px]; }
+  .browser-tabs-bar.vertical .workspace-rail-header { @apply [height:26px]; }
+  .browser-tabs-bar.vertical .workspace-rail-header :is(.workspace-rail-find, .new-workspace) { @apply [height:26px]; }
+  .browser-tabs-bar.vertical.rail-collapsed .tab-rail-pin { @apply [height:28px] [flex-basis:28px]; }
+}

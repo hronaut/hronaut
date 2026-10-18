@@ -1,0 +1,127 @@
+/* Agents on the toolbar: avatars, the take-over prompt and the pinned live strip. */
+/* Agents active in the workspace in view: overlapping round avatars, at most
+   three, then +N. A ring in the shell color separates the overlap; state is the
+   fill (idle is pale), a breathing accent ring (working) or an amber ring and
+   badge (needs you), never only color: the name and state are in the label. */
+.agent-presence { @apply flex flex-none items-center [margin-left:2px]; }
+.agent-avatar {
+  @apply relative grid flex-none place-items-center [width:32px] [min-width:32px] [height:32px] [padding:0] [border:0] [border-radius:var(--corner-pill)] bg-transparent cursor-pointer;
+}
+/* Overlapping, Figma style; the face's shell-colored border cuts each one out of the next, and the
+   avatar under the pointer or keyboard focus comes to the front with its whole 32 px target. */
+.agent-avatar + .agent-avatar, .agent-avatar + .agent-avatar-more { @apply [margin-left:-6px]; }
+.agent-avatar:is(:hover, :focus-visible) { @apply [z-index:2]; }
+.agent-avatar-face, .agent-avatar-more {
+  @apply grid [width:28px] [height:28px] place-items-center rounded-full [border:2px_solid_var(--shell-bar,_var(--toolbar))] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [line-height:1];
+}
+.agent-avatar-face {
+  @apply text-copy [background:color-mix(in_srgb,_var(--agent-color)_30%,_var(--surface))] [transition:background-color_160ms,_box-shadow_160ms];
+}
+.agent-avatar-face svg { @apply [width:15px] [height:15px]; }
+.agent-avatar:hover .agent-avatar-face { @apply [background:color-mix(in_srgb,_var(--agent-color)_42%,_var(--surface))]; }
+.agent-avatar:is([data-state="idle"], [data-state="gone"]) .agent-avatar-face { @apply text-muted [background:color-mix(in_srgb,_var(--agent-color)_10%,_var(--surface))]; }
+.agent-avatar:is([data-state="idle"], [data-state="gone"]):hover .agent-avatar-face { @apply text-copy [background:color-mix(in_srgb,_var(--agent-color)_22%,_var(--surface))]; }
+.agent-avatar[data-state="working"] .agent-avatar-face { @apply [box-shadow:0_0_0_2px_var(--accent)] [animation:agent-avatar-breathe_1.6s_ease-in-out_infinite]; }
+.agent-avatar[data-state="needs-you"] .agent-avatar-face { @apply [box-shadow:0_0_0_2px_var(--needs-you)]; }
+/* Disconnected while its card is open: dimmed, with a dashed ring. */
+.agent-avatar[data-state="gone"] .agent-avatar-face { @apply [outline:1px_dashed_var(--border-strong)] [outline-offset:1px]; }
+.agent-avatar[aria-expanded="true"] { @apply [z-index:3]; }
+.agent-avatar-badge {
+  @apply absolute [z-index:1] [top:-2px] [right:-2px] grid [width:15px] [height:15px] place-items-center [border:2px_solid_var(--shell-bar,_var(--toolbar))] rounded-full [background:#b65900] text-white pointer-events-none;
+}
+.agent-avatar-badge svg { @apply [width:11px] [height:11px]; }
+.agent-avatar-more { @apply flex-none text-muted bg-surface-muted [font-variant-numeric:tabular-nums]; }
+@keyframes agent-avatar-breathe { 50% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-avatar[data-state="working"] .agent-avatar-face { animation: none; }
+}
+@media (forced-colors: active) {
+  /* Shape, not color, tells working (dashed) from needs you (thick and solid). */
+  .agent-avatar[data-state="working"] .agent-avatar-face { @apply [outline:2px_dashed_Highlight] [outline-offset:1px]; }
+  .agent-avatar[data-state="needs-you"] .agent-avatar-face { @apply [outline:3px_solid_Highlight] [outline-offset:0]; }
+}
+/* After you click or type in a page an agent is working on: "Take over from <agent>?", at the start of the
+   commands and never over the page; once you have, "You have control" with Hand back. It takes only room the
+   toolbar leaves free (AgentTakeOverPrompt measures the unseen copies), keeps only its buttons when its words
+   do not fit, and otherwise leaves a hand badge on the agent's avatar. The buttons keep 32 px targets. */
+.agent-take-over-slot { display: contents; }
+.agent-take-over {
+  @apply flex flex-none min-w-0 items-center [gap:2px] [height:36px] [padding:0_2px_0_12px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-pill)] text-copy [background:var(--surface)] [font-size:var(--type-small-size)];
+}
+.agent-take-over.compact { @apply [padding-left:2px]; }
+.agent-take-over[data-state="offer"] {
+  @apply [border-color:color-mix(in_srgb,_var(--agent-color)_55%,_var(--border-soft))] [animation:agent-take-over-in_var(--motion-fast)_var(--motion-ease-out)];
+}
+@keyframes agent-take-over-in { from { opacity: 0; } }
+.agent-take-over-text { @apply min-w-0 [max-width:28ch] [margin-right:6px] overflow-hidden text-ellipsis whitespace-nowrap [font-weight:var(--weight-medium)]; }
+.agent-take-over-button {
+  @apply [min-height:32px] [padding:0_12px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-pill)] text-copy [background:transparent] [font-size:var(--type-small-size)] [font-weight:var(--weight-medium)] whitespace-nowrap;
+}
+.agent-take-over-button.primary { @apply [border-color:transparent] [background:color-mix(in_srgb,_var(--agent-color)_24%,_var(--surface))]; }
+.agent-take-over-button:hover:not(:disabled) { @apply [background:var(--hover)]; }
+.agent-take-over-button.primary:hover:not(:disabled) { @apply [background:color-mix(in_srgb,_var(--agent-color)_34%,_var(--surface))]; }
+.agent-take-over-dismiss { @apply grid flex-none [width:32px] [height:32px] place-items-center p-0 [border:1px_solid_transparent] [border-radius:var(--corner-pill)] text-muted [background:transparent]; }
+.agent-take-over-dismiss:hover { @apply text-copy [background:var(--hover)]; }
+.agent-take-over-dismiss svg { @apply [width:18px] [height:18px]; }
+.agent-take-over-measure { @apply absolute [top:0] [left:0] [width:0] [height:0] overflow-hidden invisible pointer-events-none; }
+.agent-take-over-measure > .agent-take-over { @apply absolute [top:0] [left:0] [width:max-content] [animation:none]; }
+.agent-avatar-badge.take-over { @apply [background:color-mix(in_srgb,_var(--agent-color)_78%,_#000)]; }
+@media (forced-colors: active) {
+  .agent-take-over { @apply [border:2px_solid_Highlight]; }
+  .agent-take-over-button { @apply [border-color:ButtonText]; }
+}
+/* The pinned live status: a 38 px strip in the gap below the toolbar, lined up with the page card,
+   which moves down to make room and is never covered. */
+.agent-live-strip {
+  @apply relative [z-index:1] [padding:0_10px_8px] [background:var(--shell-bar)] [container-type:inline-size];
+}
+.vertical-tabs-shell .agent-live-strip {
+  @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)] [padding-left:0];
+}
+.agent-live-strip-pill {
+  @apply flex min-w-0 items-center [gap:8px] [height:38px] [padding:0_3px_0_6px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-pill)] text-copy [background:var(--surface)] [font-size:var(--type-small-size)];
+}
+.agent-live-strip-pill[data-state="needs-you"] {
+  @apply [border-color:var(--needs-you)] [background:color-mix(in_srgb,_var(--needs-you)_12%,_var(--surface))];
+}
+.agent-live-strip-avatar {
+  @apply grid flex-none [width:26px] [height:26px] place-items-center rounded-full text-copy [background:color-mix(in_srgb,_var(--agent-color)_30%,_var(--surface))] [font-weight:var(--weight-strong)] [line-height:1];
+}
+.agent-live-strip-avatar svg { @apply [width:15px] [height:15px]; }
+.agent-live-strip-pill[data-state="working"] .agent-live-strip-avatar { @apply [box-shadow:0_0_0_2px_var(--accent)]; }
+.agent-live-strip-pill[data-state="needs-you"] .agent-live-strip-avatar { @apply [box-shadow:0_0_0_2px_var(--needs-you)]; }
+.agent-live-strip-name { @apply min-w-0 [flex:0_1_auto] [max-width:24ch] overflow-hidden text-ellipsis whitespace-nowrap [font-weight:var(--weight-strong)]; }
+.agent-live-strip-state { @apply flex-none text-muted; }
+.agent-live-strip-pill[data-state="needs-you"] .agent-live-strip-state { @apply text-copy [font-weight:var(--weight-strong)]; }
+.agent-live-strip-detail { @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap; }
+.agent-live-strip-pill[data-state="none"] .agent-live-strip-detail { @apply [padding-left:6px] text-muted; }
+/* A shimmer runs across the step while the agent's call is under way. */
+.agent-live-strip-pill[data-state="working"] .agent-live-strip-detail {
+  @apply [background-image:linear-gradient(90deg,_var(--text)_40%,_var(--text-muted)_50%,_var(--text)_60%)] [background-size:300%_100%] [background-clip:text] [color:transparent] [animation:agent-live-strip-shimmer_1.8s_linear_infinite];
+}
+@keyframes agent-live-strip-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+.agent-live-strip-more { @apply flex-none text-muted [font-variant-numeric:tabular-nums]; }
+.agent-live-strip-actions { @apply flex flex-none items-center [gap:2px]; }
+/* Quiet pills inside the pill: a hairline edge, filled under the pointer. */
+.agent-live-strip-button {
+  @apply [min-height:32px] [padding:0_12px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-pill)] text-copy [background:transparent] [font-size:var(--type-small-size)] [font-weight:var(--weight-medium)];
+}
+.agent-live-strip-button.primary { @apply [border-color:transparent] [background:color-mix(in_srgb,_var(--agent-color)_24%,_var(--surface))]; }
+.agent-live-strip-button:hover:not(:disabled) { @apply [background:var(--hover)]; }
+.agent-live-strip-button.primary:hover:not(:disabled) { @apply [background:color-mix(in_srgb,_var(--agent-color)_34%,_var(--surface))]; }
+.agent-live-strip-unpin { @apply grid flex-none [width:32px] [height:32px] place-items-center p-0 [border:1px_solid_transparent] [border-radius:var(--corner-pill)] text-muted [background:transparent]; }
+.agent-live-strip-unpin:hover { @apply text-copy [background:var(--hover)]; }
+.agent-live-strip-unpin svg { @apply [width:20px] [height:20px]; }
+/* In a narrow window the state and the count go first (the avatars still show both), so the actions and
+   the chevron always fit. */
+@container (max-width: 640px) {
+  .agent-live-strip-pill:not([data-state="needs-you"]) .agent-live-strip-state, .agent-live-strip-more { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-live-strip-pill[data-state="working"] .agent-live-strip-detail { animation: none; }
+}
+@media (forced-colors: active) {
+  .agent-live-strip-pill[data-state="working"] .agent-live-strip-detail { @apply [background-image:none] [color:CanvasText]; }
+  .agent-live-strip-pill[data-state="needs-you"] { @apply [border:2px_solid_Highlight]; }
+  .agent-live-strip-button { @apply [border-color:ButtonText]; }
+}

@@ -1,0 +1,50 @@
+/* The code coverage panel. */
+.coverage-empty,
+.coverage-recording {
+  @apply grid [min-height:260px] [align-content:center] [justify-items:center] [gap:10px] [padding:24px] text-muted text-center;
+}
+.coverage-empty > svg,
+.coverage-recording > svg { @apply [width:32px] [height:32px] text-accent-copy; }
+.coverage-recording > svg { @apply text-danger-copy; }
+.coverage-empty > strong,
+.coverage-recording > strong { @apply text-copy [font-size:var(--type-title-size)]; }
+.coverage-empty > span,
+.coverage-recording > span { @apply [max-width:480px] [font-size:var(--type-small-size)] [line-height:1.5]; }
+.coverage-recording > small { @apply [font-size:var(--type-small-size)]; }
+.coverage-empty > label { @apply grid [width:min(320px,_100%)] [gap:6px] [margin-top:6px] text-left; }
+.coverage-empty > label > span { @apply [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)]; }
+.coverage-empty select { @apply w-full [min-height:36px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-copy bg-surface-raised [padding:0_9px] [font:inherit]; }
+.coverage-empty > div,
+.coverage-recording > button { @apply [margin-top:6px]; }
+.coverage-empty > div { @apply flex flex-wrap justify-center [gap:8px]; }
+.coverage-empty button,
+.coverage-recording button,
+.coverage-panel > footer button { @apply inline-flex [min-height:34px] items-center [gap:6px] [padding:7px_11px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] text-copy bg-surface-raised [font:inherit] [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] cursor-pointer; }
+.coverage-empty button.primary,
+.coverage-recording button.primary,
+.coverage-panel > footer button.primary { @apply border-accent text-button-copy bg-accent; }
+.coverage-empty button:hover,
+.coverage-recording button:hover,
+.coverage-panel > footer button:hover { @apply [filter:brightness(1.04)]; }
+.coverage-empty button svg,
+.coverage-recording button svg,
+.coverage-panel > footer button svg { @apply [width:16px] [height:16px]; }
+.coverage-summary { @apply grid [grid-template-columns:repeat(3,_minmax(0,_1fr))] [gap:8px] [padding:12px] [border-bottom:1px_solid_var(--border-soft)] bg-surface-muted; }
+.coverage-summary article { @apply grid [min-height:82px] [align-content:center] [gap:5px] [padding:10px] [border:1px_solid_var(--border-soft)] [border-radius:var(--corner-2)] bg-surface-raised; }
+.coverage-summary span,
+.coverage-summary small { @apply text-muted [font-size:var(--type-small-size)]; }
+.coverage-summary strong { @apply text-copy [font-size:var(--type-heading-size)] [font-variant-numeric:tabular-nums]; }
+.coverage-resource-list { @apply min-h-0 [flex:1_1_auto] overflow-y-auto [padding:8px_12px]; }
+.coverage-resource-list > article { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] [gap:7px_12px] [padding:10px_2px] [border-bottom:1px_solid_var(--border-soft)]; }
+.coverage-resource-list > article > div:first-child { @apply grid min-w-0 [grid-template-columns:auto_minmax(0,_1fr)] items-center [gap:4px_7px]; }
+.coverage-resource-list strong { @apply overflow-hidden text-copy [font-size:var(--type-small-size)] text-ellipsis whitespace-nowrap; }
+.coverage-resource-list small { @apply [grid-column:2] text-muted [font-size:var(--type-micro-size)]; }
+.coverage-resource-list output { @apply [align-self:center] text-copy [font-size:var(--type-small-size)] [font-weight:var(--weight-strong)] [font-variant-numeric:tabular-nums]; }
+.coverage-type { @apply [min-width:31px] [padding:2px_5px] [border-radius:5px] text-accent-copy bg-accent-soft [font-size:var(--type-micro-size)] [font-weight:var(--weight-strong)] text-center; }
+.coverage-bar { @apply [grid-column:1_/_-1] [height:4px] overflow-hidden [border-radius:var(--corner-pill)] [background:color-mix(in_srgb,_#d9534f_44%,_var(--surface-muted))]; }
+.coverage-bar > span { @apply block h-full [border-radius:inherit] [background:var(--success)]; }
+.coverage-caveats { @apply flex-none [padding:8px_14px] [border-top:1px_solid_var(--border-soft)] text-muted [font-size:var(--type-small-size)] [line-height:1.45]; }
+.coverage-caveats summary { @apply text-copy cursor-pointer [font-weight:var(--weight-strong)]; }
+.coverage-caveats ul { @apply [margin:7px_0_0] [padding-left:18px]; }
+.coverage-panel > footer { @apply flex-wrap; }
+.coverage-panel > footer > div { @apply flex flex-wrap justify-end [gap:6px]; }

@@ -1,0 +1,22 @@
+/* The rail's resize handle, its container, folding, and the New tab label in open groups. */
+.vertical-tabs-shell .topbar > .tab-rail-resize-handle {
+  @apply absolute [z-index:50] [top:0] [right:0] [bottom:0] [left:auto] [width:8px] [cursor:col-resize];
+}
+.custom-title-bar.vertical-tabs-shell .topbar > .tab-rail-resize-handle { @apply [top:var(--vertical-titlebar-height)]; }
+.vertical-tabs-shell .topbar > .tab-rail-resize-handle::after {
+  @apply [top:0] [right:0] [bottom:0] [left:auto] [width:2px];
+}
+
+.vertical-tabs-shell .topbar { @apply [container-type:inline-size] [container-name:workspace-rail]; }
+
+.vertical-tabs-shell .topbar.rail-collapsing { @apply overflow-hidden; }
+.vertical-tabs-shell .topbar.rail-collapsing > :is(.browser-tabs-bar, .topbar-actions) {
+  @apply [width:var(--tab-rail-expanded-width)] [min-width:var(--tab-rail-expanded-width)] pointer-events-none;
+}
+
+
+.workspace-new-tab-label { @apply hidden; }
+.browser-tabs-bar.vertical:not(.rail-collapsed) .workspace-tab-section:not(.collapsed):not(.empty) .workspace-new-tab {
+  @apply flex items-center justify-start [gap:7px] [padding:0_8px] [font-size:var(--type-small-size)];
+}
+.browser-tabs-bar.vertical:not(.rail-collapsed) .workspace-tab-section:not(.collapsed):not(.empty) .workspace-new-tab-label { @apply block; }

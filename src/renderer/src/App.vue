@@ -50,8 +50,14 @@ import { useShellTooltips } from './composables/shell-tooltips'
 import { useWorkspaceShellTint } from './composables/useWorkspaceShellTint'
 import { useFullPageView } from './composables/useFullPageView'
 import { licenseExpiryNoticeShown } from './composables/license-expiry-notice'
+import { useUserAttention } from './composables/useUserAttention'
+import { useSettingsWorkspaceLists } from './composables/useSettingsWorkspaceLists'
 
 const { t } = useI18n({ useScope: 'global' })
+// The translation most features take: named values, and a count when the text has plural forms.
+const translate = (key: string, parameters?: Record<string, unknown>, plural?: number): string => plural === undefined
+  ? t(key, parameters ?? {})
+  : t(key, parameters ?? {}, plural)
 const browserStore = useBrowserStore()
 const settingsStore = useSettingsStore()
 const { state, initialized: browserStateInitialized } = storeToRefs(browserStore)
@@ -64,16 +70,7 @@ const {
   formatPercent: localPercent
 } = useLocaleFormatters(resolvedLocale)
 const browser = window.hronaut
-const userAttention = ref<Awaited<ReturnType<typeof browser.getUserAttention>>>(null)
-let attentionRevision = 0
-const disposeAttention = browser.onUserAttentionChanged((request) => {
-  attentionRevision += 1
-  userAttention.value = request
-})
-const initialAttentionRevision = attentionRevision
-void browser.getUserAttention().then((request) => {
-  if (attentionRevision === initialAttentionRevision) userAttention.value = request
-})
+const { request: userAttention, dispose: disposeAttention } = useUserAttention(browser)
 const appToastController = useAppToastController()
 const {
   toasts: appToasts,
@@ -87,7 +84,7 @@ const {
 const { dispose: disposeUndoToasts } = useUndoToasts({
   browser,
   toasts: appToastController,
-  translate: (key, values, plural) => plural === undefined ? t(key, values ?? {}) : t(key, values ?? {}, plural)
+  translate
 })
 const {
   reportActionError: reportShellActionError,
@@ -193,9 +190,7 @@ const appEmulationFeatureController = useAppEmulationFeatureController({
   responsivePanel,
   environmentPanelOpen,
   closeTransientPanels,
-  translate: (key, parameters, plural) => plural === undefined
-    ? t(key, parameters ?? {})
-    : t(key, parameters ?? {}, plural),
+  translate,
   formatNumber: localNumber,
   formatPercent: localPercent,
   showToast: showAppToast
@@ -243,9 +238,7 @@ const appSettingsFeatureController = useAppSettingsFeatureController({
   closeTransientPanels,
   applyTheme,
   copyText: copyAppText,
-  translate: (key, parameters, plural) => plural === undefined
-    ? t(key, parameters ?? {})
-    : t(key, parameters ?? {}, plural),
+  translate,
   formatNumber: localNumber,
   confirm: (message) => window.confirm(message),
   showToast: showAppToast,
@@ -296,23 +289,7 @@ const { active: fullPageActive, concealed: fullPageConcealed } = fullPageView
 // A hidden rail gives the page its room; the tabs keep their vertical layout for when it shows again.
 const pageRailWidth = computed(() => fullPageConcealed.value ? 0 : tabRailWidth.value)
 const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
-const walletWorkspaces = computed(() => state.value.mcpTabGroups.map((workspace) => ({ id: workspace.id, name: workspace.name })))
-const dataWorkspaces = computed(() => [
-  ...state.value.mcpTabGroups.map((workspace) => ({
-    id: workspace.id,
-    name: workspace.name,
-    archived: false,
-    tabCount: workspace.tabCount,
-    storageOriginCount: workspace.storageOriginCount
-  })),
-  ...state.value.savedTabGroups.map((workspace) => ({
-    id: workspace.id,
-    name: workspace.name,
-    archived: true,
-    tabCount: workspace.tabs.length,
-    storageOriginCount: workspace.storageOriginCount
-  }))
-])
+const { walletWorkspaces, dataWorkspaces } = useSettingsWorkspaceLists(state)
 
 const {
   manage: openWorkspaceFromSettings,
@@ -377,9 +354,7 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     overlay: isDetachedPanelWindow ? undefined : window.hronautAddressOverlay,
     theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
     locale: () => resolvedLocale.value,
-    translate: (key, parameters, plural) => plural === undefined
-      ? t(key, parameters ?? {})
-      : t(key, parameters ?? {}, plural),
+    translate,
     formatNumber: localNumber
   },
   privacy: {
@@ -450,9 +425,7 @@ const {
     copyText: copyAppText,
     closeTransientPanels,
     keepsSeparatePanelOpen,
-    translate: (key, parameters, plural) => plural === undefined
-      ? t(key, parameters ?? {})
-      : t(key, parameters ?? {}, plural),
+    translate,
     formatNumber: localNumber,
     formatPercent: localPercent,
     formatBytes,
@@ -706,9 +679,7 @@ const appActiveTabFeatureController = useAppActiveTabFeatureController({
     credentials,
     downloads,
     bookmarks,
-    translate: (key, parameters, plural) => plural === undefined
-      ? t(key, parameters ?? {})
-      : t(key, parameters ?? {}, plural),
+    translate,
     formatNumber: localNumber,
     describeEmulation: emulationDescription
   },
