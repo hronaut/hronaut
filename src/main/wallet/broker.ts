@@ -42,8 +42,6 @@ import type {
 import { walletJsonSafe } from './json-safe.js'
 import {
   isMainnetAgentAutomationPolicy,
-  websiteSignInPolicyApplies,
-  websiteTypedDataPolicyApplies,
   WalletPolicyEngine,
   type WalletPolicyDecision,
   type WalletWebsiteSignInEvaluation
@@ -93,6 +91,7 @@ import {
 } from './broker/agent-operations.js'
 import { clearRequestExpiry, createRequest, fail, wait, type RequestRecordsAccess } from './broker/request-records.js'
 import { execute, type RequestExecutionAccess } from './broker/request-execution.js'
+import { approveWebsiteSignIn, websiteSignInDecision, type WebsiteSignInAccess } from './broker/website-sign-in.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -973,93 +972,25 @@ export class WalletBroker {
     }
   }
 
-  /**
-   * Evaluates a website's connection or message request against the wallet's
-   * opted-in sign-in policies. Returns undefined when no attached policy allows
-   * website sign-in, so requests on other wallets keep their existing path.
-   */
-  private websiteSignInDecision(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor,
-    recordId: string,
-    message?: WalletWebsiteSignInEvaluation['message']
-  ): { decision: WalletPolicyDecision; policies: WalletPolicy[] } | undefined {
-    if (context.requester.type !== 'website') return undefined
-    const policies = this.service.policies.list(wallet.id)
-      .filter((policy) => wallet.policyIds.includes(policy.id) && policy.allowWebsiteSignIn === true)
-    if (!policies.length) return undefined
-    const now = this.now()
-    const usageByPolicy = Object.fromEntries(policies.map((policy) => [
-      policy.id,
-      { operationCount: this.service.policyUsage.snapshot(policy.id, now).operationCount }
-    ]))
-    const decision = this.policy.evaluateWebsiteSignIn({
-      request: this.service.approvals.get(recordId)!.request,
-      wallet,
-      policies,
-      now,
-      usageByPolicy,
-      ...(message ? { message } : {})
-    })
-    return { decision, policies }
+  /** The narrow view website sign-in policies get of this broker's policy engine and request path. */
+  private websiteSignInAccess(): WebsiteSignInAccess {
+    return {
+      service: this.service,
+      policy: this.policy,
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
+      execute: (record, activeAgentContext, options) => this.execute(record, activeAgentContext, options),
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      now: () => this.now()
+    }
   }
 
-  /**
-   * Reserves one operation on the matching sign-in policy, re-checks the
-   * policy and wallet inside the lifecycle queue, including the typed-data
-   * switch for typed data, then approves and executes the request as the
-   * policy. Anything that changed returns it to a person.
-   */
-  private async approveWebsiteSignIn(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor,
-    recordId: string,
-    policies: readonly WalletPolicy[],
-    policyId: string,
-    typedData = false
-  ): Promise<{ approved: false } | { approved: true; result: unknown }> {
-    this.assertRequestContextActive(context)
-    const policy = policies.find((entry) => entry.id === policyId)
-    if (!policy) throw new Error('Wallet automatic policy is unavailable')
-    const reservation = await this.service.policyUsage.reserve(policy, '0', this.now())
-    if (!reservation.reserved) {
-      await this.service.audit.append('policy-reservation-denied', {
-        requestId: recordId, walletId: wallet.id, policyId: policy.id, reason: reservation.reason
-      }, this.now().toISOString())
-      return { approved: false }
-    }
-    await this.service.audit.append('policy-reservation-created', {
-      requestId: recordId, walletId: wallet.id, policyId: policy.id,
-      operationCount: reservation.snapshot.operationCount
-    }, this.now().toISOString())
-    return this.queueLifecycle(async () => {
-      this.assertRequestContextActive(context)
-      const currentWallet = this.requireAccessibleWallet(context, wallet.id)
-      const currentPolicy = this.service.policies.list(wallet.id).find((entry) => entry.id === policy.id)
-      const current = this.service.approvals.get(recordId)!
-      const authorizationNow = this.now()
-      if (
-        !currentPolicy
-        || !currentWallet.policyIds.includes(policy.id)
-        || !isDeepStrictEqual(currentPolicy, policy)
-        || currentWallet.network.id !== current.request.networkId
-        || !websiteSignInPolicyApplies(currentWallet, currentPolicy, authorizationNow)
-        || (typedData && !websiteTypedDataPolicyApplies(currentWallet, currentPolicy, authorizationNow))
-      ) {
-        await this.service.audit.append('policy-authorization-invalidated', {
-          requestId: recordId, walletId: wallet.id, policyId: policy.id
-        }, this.now().toISOString())
-        return { approved: false }
-      }
-      await this.service.approvals.approve(recordId, current.request, authorizationNow)
-      await this.service.audit.append('request-approved-by-policy', {
-        requestId: recordId, walletId: wallet.id, policyId: policy.id,
-        operation: current.request.operation, requester: current.request.requester, origin: current.request.topLevelOrigin
-      }, this.now().toISOString())
-      this.assertRequestContextActive(context)
-      const result = await this.execute(this.service.approvals.get(recordId)!, context, { permissionNotAfter: currentPolicy.expiresAt })
-      return { approved: true, result }
-    })
+  private websiteSignInDecision(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, message?: WalletWebsiteSignInEvaluation['message']): { decision: WalletPolicyDecision; policies: WalletPolicy[] } | undefined {
+    return websiteSignInDecision(this.websiteSignInAccess(), context, wallet, recordId, message)
+  }
+
+  private approveWebsiteSignIn(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, policies: readonly WalletPolicy[], policyId: string, typedData = false): Promise<{ approved: false } | { approved: true; result: unknown }> {
+    return approveWebsiteSignIn(this.websiteSignInAccess(), context, wallet, recordId, policies, policyId, typedData)
   }
 
   private selectWallet(wallets: WalletDescriptor[]): WalletDescriptor {
