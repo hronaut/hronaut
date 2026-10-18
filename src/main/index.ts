@@ -135,10 +135,10 @@ import { scaleShellMetric } from '../shared/interface-scale.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
 import { registerSettingsIpc } from './settings-ipc.js'
 import {
-  isSitePermissionDecision,
   normalizeSitePermissionOrigin,
   SitePermissionStore
 } from './site-permission-store.js'
+import { registerPermissionsIpc } from './permissions-ipc.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
 import { applyWindowMaterial } from './window-material.js'
 import {
@@ -3619,30 +3619,10 @@ function registerIpc(): void {
     resetMcpSettings,
     mcpCapabilityProfiles: () => mcpCapabilityProfiles
   })
-  ipcMain.handle('permissions:list', (event) => { assertTrustedShellSender(event); return sitePermissionStore!.list() })
-  ipcMain.handle(
-    'permissions:set',
-    async (event, origin: unknown, permission: unknown, decision: unknown) => {
-      assertTrustedShellSender(event)
-      if (typeof origin !== 'string' || typeof permission !== 'string' || !isSitePermissionDecision(decision)) {
-        throw new TypeError('Invalid site permission')
-      }
-      const entry = await sitePermissionStore!.set(origin, permission, decision)
-      publishSitePermissions()
-      return entry
-    }
-  )
-  ipcMain.handle('permissions:remove', async (event, origin: unknown, permission: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof origin !== 'string' || typeof permission !== 'string') throw new TypeError('Invalid site permission')
-    const removed = await sitePermissionStore!.remove(origin, permission)
-    publishSitePermissions()
-    return removed
-  })
-  ipcMain.handle('permissions:clear', async (event) => {
-    assertTrustedShellSender(event)
-    await sitePermissionStore!.clear()
-    publishSitePermissions()
+  registerPermissionsIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    sitePermissionStore: () => sitePermissionStore,
+    publishSitePermissions
   })
   registerCredentialsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
