@@ -422,6 +422,10 @@ import {
   transferWorkspaceStorage,
   workspacePartition
 } from './workspace-storage.js'
+import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.js'
+import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
+import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
+import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
@@ -449,7 +453,6 @@ const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
-const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
 /** How long wheel events after an agent's wheel call still count as the agent's. */
 const AGENT_WHEEL_SETTLE_MS = 250
@@ -463,15 +466,6 @@ function occlusionSnapshotTimeoutMs(): number {
     : OCCLUSION_SNAPSHOT_TIMEOUT_MS
 }
 const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
-
-function normalizedWorkspaceName(name: string): string {
-  const normalized = name.trim().normalize('NFC')
-  if (!normalized) throw new TypeError('Workspace name cannot be empty.')
-  if (normalized.length > MAX_WORKSPACE_NAME_LENGTH) {
-    throw new TypeError(`Workspace name cannot exceed ${MAX_WORKSPACE_NAME_LENGTH} characters.`)
-  }
-  return normalized
-}
 
 function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
@@ -727,21 +721,6 @@ interface BrowserWorkspaceOperation {
   token: symbol
   /** Settles when an archived workspace's operation ends. */
   settled?: Promise<void>
-}
-
-function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string | undefined {
-  if (policy.mode !== 'restricted' || policy.rules.length !== 1) return undefined
-  try {
-    const parsed = new URL(policy.rules[0]!)
-    return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
-      && !parsed.username
-      && !parsed.password
-      && policy.rules[0] === parsed.origin
-      ? parsed.origin
-      : undefined
-  } catch {
-    return undefined
-  }
 }
 
 interface BrowserElementPickerScriptResult {
@@ -1590,27 +1569,53 @@ export class BrowserTabsManager {
     return getTabOverviewPagePreview(this.tabOverviewPreviewsAccess(), tabId)
   }
 
+  /**
+   * The narrow view workspaces get of this manager's private tabs, open and
+   * archived workspaces, recently closed tabs, options, workspace operations,
+   * tab label edits, workspace continuity, session store and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's value or promise directly, so
+   * callers see the same ticks as before.
+   */
+  private mcpTabGroupsAccess(): McpTabGroupsAccess<BrowserTab> {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      tabs: () => this.tabs,
+      orderedTabs: () => this.orderedTabs(),
+      closedTabs: () => this.closedTabs,
+      activeTabId: () => this.activeTabId,
+      options: () => this.options,
+      inspectionPermissions: () => this.inspectionPermissions,
+      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      assertWorkspaceNameAvailable: (name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName) => (
+        this.assertWorkspaceNameAvailable(name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName)
+      ),
+      assertActiveWorkspaceCapacity: () => this.assertActiveWorkspaceCapacity(),
+      assertWorkspaceIdle: (workspaceId) => this.assertWorkspaceIdle(workspaceId),
+      isClosingWorkspace: (workspaceId) => this.isClosingWorkspace(workspaceId),
+      withWorkspaceOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs),
+      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
+      withGlobalWorkspaceStorageOperation: (action, operation) => this.withGlobalWorkspaceStorageOperation(action, operation),
+      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      createTab: (options) => this.createTab(options),
+      closeTabs: (tabIds, ensureReplacement) => this.closeTabs(tabIds, ensureReplacement),
+      selectTab: (tabId) => this.selectTab(tabId),
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
+      assertStorageDeletionOwnership: (workspaceId, storageId) => this.assertStorageDeletionOwnership(workspaceId, storageId),
+      suspendWorkspaceContinuity: (workspaceId) => this.suspendWorkspaceContinuity(workspaceId),
+      retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
+      invalidateReactInspectionWorkspace: (workspaceId) => this.reactInspectionController.invalidateWorkspace(workspaceId),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
   listMcpTabGroups(): BrowserTabGroupState[] {
-    return [...this.mcpTabGroups.values()].map((group) => ({
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      color: group.color,
-      createdAt: group.createdAt,
-      lastUsedAt: group.lastUsedAt,
-      activeTabId: group.activeTabId,
-      tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
-      hiddenFromSidebar: group.hiddenFromSidebar === true,
-      deletionProtected: group.deletionProtected === true,
-      agentAccess: group.agentAccess !== false,
-      contextClass: group.contextClass,
-      storageOriginCount: group.origins.length,
-      navigationPolicy: {
-        mode: group.navigationPolicy.mode,
-        rules: [...group.navigationPolicy.rules]
-      },
-      ...(group.pinnedAt ? { pinnedAt: group.pinnedAt } : {})
-    }))
+    return listMcpTabGroups(this.mcpTabGroupsAccess())
   }
 
   listSavedTabGroups(): BrowserSavedTabGroupState[] {
@@ -1652,7 +1657,7 @@ export class BrowserTabsManager {
     }
   }
 
-  async createMcpTabGroup(
+  createMcpTabGroup(
     name: string,
     color?: BrowserTabGroupColor,
     storage: 'scratch' | 'fork-workspace' = 'scratch',
@@ -1663,91 +1668,11 @@ export class BrowserTabsManager {
     description = '',
     contextClass: BrowserWorkspaceContextClass = 'standard'
   ): Promise<BrowserTabGroupState> {
-    const normalizedPolicy = normalizeWorkspaceNavigationPolicy(navigationPolicy)
-    if (contextClass === 'public-observer' && (storage !== 'scratch' || !publicObserverOrigin(normalizedPolicy))) {
-      throw new TypeError('A public observer requires clean scratch storage and one restricted HTTP(S) origin.')
-    }
-    const normalizedName = normalizedWorkspaceName(name)
-    this.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
-    this.assertActiveWorkspaceCapacity()
-    const now = new Date().toISOString()
-    const id = uuidV7()
-    const storageId = randomUUID()
-    const group: BrowserTabGroup = {
-      id,
-      name: normalizedName,
-      description: normalizeWorkspaceDescription(description),
-      color: color ?? defaultTabGroupColor(id),
-      createdAt: now,
-      lastUsedAt: now,
-      activeTabId: null,
-      storageId,
-      origins: [],
-      navigationPolicy: normalizedPolicy,
-      navigationAudit: [],
-      contextClass
-    }
-    if (storage === 'fork-workspace') {
-      const sourceId = sourceWorkspaceId
-      const source = sourceId ? this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId) : undefined
-      if (!source) throw new Error('Source workspace is unavailable.')
-      if (this.isClosingWorkspace(sourceId!)) throw new Error(`"${source.name}" was just closed. Undo the close to copy it.`)
-      group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
-      const fork = async () => {
-        this.mcpTabGroups.set(group.id, group)
-        // Home can already read this workspace while its storage is copying.
-        // Publish it to chrome too, without persisting an unfinished fork.
-        this.changed(false)
-        let selectedOrigins: string[] = []
-        try {
-          selectedOrigins = normalizeWorkspaceStorageOrigins(origins ?? source.origins)
-          await this.withWorkspaceOperation(group.id, 'forking workspace data', () => (
-            transferWorkspaceStorage({
-              sourcePartition: workspacePartition(this.options.partition, source.storageId),
-              targetPartition: workspacePartition(this.options.partition, storageId),
-              origins: selectedOrigins,
-              copyAllCookies: origins === undefined,
-              copyLocalStorage: true,
-              configureSession: this.options.configureSession
-            })
-          ), true)
-          group.origins = selectedOrigins
-          if (storage === 'fork-workspace') await this.createTab({ url: 'about:blank', active: false, mcpGroupId: group.id })
-        } catch (error) {
-          try {
-            await destroyWorkspaceStorage(
-              workspacePartition(this.options.partition, storageId),
-              this.options.configureSession
-            )
-          } catch (cleanupError) {
-            group.origins = selectedOrigins
-            this.changed()
-            throw new RetainedBrowserWorkspaceError(
-              [error, cleanupError],
-              group.id,
-              `Workspace ${group.id} could not be created or cleaned up. It remains listed so its isolated data can be deleted safely.`
-            )
-          }
-          this.mcpTabGroups.delete(group.id)
-          this.changed()
-          throw error
-        }
-        this.changed()
-        return this.requireMcpTabGroup(group.id)
-      }
-      return this.withGlobalWorkspaceStorageOperation('forking workspace data', () => (
-        this.mcpTabGroups.has(source.id)
-          ? this.withWorkspaceOperation(source.id, 'forking workspace data', fork, false)
-          : this.withSavedWorkspaceOperation(source.id, 'forking workspace data', fork)
-      ))
-    }
-    this.mcpTabGroups.set(group.id, group)
-    this.changed()
-    return this.requireMcpTabGroup(group.id)
+    return createMcpTabGroup(this.mcpTabGroupsAccess(), name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
   }
 
   renameMcpTabGroup(groupId: string, name: string, allowDuplicateName = false): BrowserTabGroupState {
-    return this.updateMcpTabGroup(groupId, { name }, allowDuplicateName)
+    return renameMcpTabGroup(this.mcpTabGroupsAccess(), groupId, name, allowDuplicateName)
   }
 
   updateMcpTabGroup(
@@ -1755,35 +1680,7 @@ export class BrowserTabsManager {
     updates: { name?: string; description?: string; color?: BrowserTabGroupColor; agentAccess?: boolean; hiddenFromSidebar?: boolean; deletionProtected?: boolean },
     allowDuplicateName = false
   ): BrowserTabGroupState {
-    if (updates.name === undefined && updates.description === undefined && updates.color === undefined && updates.agentAccess === undefined && updates.hiddenFromSidebar === undefined && updates.deletionProtected === undefined) throw new TypeError('A workspace change is required.')
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
-    this.assertWorkspaceIdle(groupId)
-    if (updates.name !== undefined) {
-      const name = normalizedWorkspaceName(updates.name)
-      if (name !== group.name) {
-        this.assertWorkspaceNameAvailable(name, group.id, undefined, allowDuplicateName)
-      }
-      group.name = name
-    }
-    if (updates.description !== undefined) group.description = normalizeWorkspaceDescription(updates.description)
-    if (updates.color !== undefined) group.color = updates.color
-    if (updates.agentAccess !== undefined) {
-      if ((group.agentAccess !== false) !== updates.agentAccess) {
-        this.inspectionPermissions.set(group, (this.inspectionPermissions.get(group) ?? 0) + 1)
-        // A permission round-trip must not let an older image commit afterward.
-        for (const tab of this.tabs.values()) if (tab.mcpGroupId === groupId) {
-          tab.visualComparisonGeneration += 1
-          retireNetworkPriorityObservations(tab)
-        }
-      }
-      group.agentAccess = updates.agentAccess
-    }
-    if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
-    if (updates.deletionProtected !== undefined) group.deletionProtected = updates.deletionProtected
-    group.lastUsedAt = new Date().toISOString()
-    this.changed()
-    return this.listMcpTabGroups().find((candidate) => candidate.id === groupId)!
+    return updateMcpTabGroup(this.mcpTabGroupsAccess(), groupId, updates, allowDuplicateName)
   }
 
   /**
@@ -1806,28 +1703,7 @@ export class BrowserTabsManager {
   }
 
   requireMcpTabGroup(groupId: string): BrowserTabGroupState {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
-    return {
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      color: group.color,
-      createdAt: group.createdAt,
-      lastUsedAt: group.lastUsedAt,
-      activeTabId: group.activeTabId,
-      tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
-      hiddenFromSidebar: group.hiddenFromSidebar === true,
-      deletionProtected: group.deletionProtected === true,
-      agentAccess: group.agentAccess !== false,
-      contextClass: group.contextClass,
-      storageOriginCount: group.origins.length,
-      navigationPolicy: {
-        mode: group.navigationPolicy.mode,
-        rules: [...group.navigationPolicy.rules]
-      },
-      ...(group.pinnedAt ? { pinnedAt: group.pinnedAt } : {})
-    }
+    return requireMcpTabGroup(this.mcpTabGroupsAccess(), groupId)
   }
 
   /**
@@ -2152,114 +2028,12 @@ export class BrowserTabsManager {
     tab.webContents.send('wallet-provider:event', structuredClone(event))
   }
 
-  async closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return this.withWorkspaceOperation(groupId, preserveStorage ? 'archiving the workspace' : 'closing the workspace', () => (
-      this.closeMcpTabGroupInternal(groupId, preserveStorage)
-    ))
+  closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
+    return closeMcpTabGroup(this.mcpTabGroupsAccess(), groupId, preserveStorage)
   }
 
   private closeMcpTabGroupInternal(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return this.withTabLabelLifecycle(() => this.closeMcpTabGroupAfterLabelSave(groupId, preserveStorage))
-  }
-
-  private async closeMcpTabGroupAfterLabelSave(groupId: string, preserveStorage: boolean): Promise<BrowserTabGroupState[]> {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
-    this.reactInspectionController.invalidateWorkspace(groupId)
-    const previousActiveTabId = this.activeTabId
-    const previousGroupActiveTabId = group.activeTabId
-    const tabs = this.orderedTabs().filter((tab) => tab.mcpGroupId === groupId)
-    const tabSnapshots = tabs.map((tab) => ({
-      id: tab.id,
-      title: tab.title,
-      label: tab.label,
-      url: tab.url,
-      pinned: tab.pinned,
-      humanInteractionLocked: tab.humanInteractionLocked,
-      tabAgentPaused: tab.tabAgentPaused,
-      zoomIsolated: tab.zoomIsolated,
-      defaultFontSize: tab.defaultFontSize,
-      navigationGeneration: tab.navigationGeneration,
-      navigationHistory: this.navigationHistorySnapshot(tab)
-    }))
-    const removeClosedWorkspaceTabs = (): void => {
-      for (let index = this.closedTabs.length - 1; index >= 0; index -= 1) {
-        if (this.closedTabs[index]?.mcpGroupId === groupId) this.closedTabs.splice(index, 1)
-      }
-    }
-    const restoreWorkspaceTabs = async (): Promise<void> => {
-      for (const tab of tabSnapshots) {
-        if (this.tabs.has(tab.id)) continue
-        const navigationGeneration = tab.navigationGeneration + 1
-        await this.options.onWalletTabRestored?.(tab.id, navigationGeneration)
-        try {
-          await this.createTab({
-            ...tab,
-            navigationGeneration,
-            suppressInitialHistory: true,
-            active: false,
-            mcpGroupId: groupId,
-            allowBusyWorkspace: true
-          })
-        } catch (error) {
-          this.runWalletLifecycleAction('cancel wallet requests after closing a restored tab', () => (
-            this.options.onWalletTabClosed?.(tab.id)
-          ))
-          throw error
-        }
-      }
-      if (previousGroupActiveTabId && this.tabs.get(previousGroupActiveTabId)?.mcpGroupId === groupId) {
-        group.activeTabId = previousGroupActiveTabId
-      }
-      if (previousActiveTabId && this.tabs.has(previousActiveTabId)) this.selectTab(previousActiveTabId)
-      removeClosedWorkspaceTabs()
-      this.changed()
-    }
-    try {
-      await this.closeTabs(tabSnapshots.map((tab) => tab.id), false)
-      if (!preserveStorage) {
-        await this.assertStorageDeletionOwnership(groupId, group.storageId)
-        await destroyWorkspaceStorage(
-          workspacePartition(this.options.partition, group.storageId),
-          this.options.configureSession
-        )
-      }
-    } catch (error) {
-      try {
-        await restoreWorkspaceTabs()
-      } catch (restoreError) {
-        // Keep both the workspace metadata and any recoverable recently closed
-        // entries when an Electron failure prevents a complete rollback.
-        this.changed()
-        throw new AggregateError(
-          [error, restoreError],
-          `Workspace "${group.name}" could not be closed and all of its tabs could not be restored. Recoverable tabs remain in tab search.`
-        )
-      }
-      throw error
-    }
-    removeClosedWorkspaceTabs()
-    this.mcpTabGroups.delete(groupId)
-    if (!preserveStorage) this.deletedWorkspaceStorageIds.add(canonicalStorageId(group.storageId)!)
-    if (preserveStorage) this.suspendWorkspaceContinuity(groupId)
-    else this.retireWorkspaceContinuity(groupId)
-    this.options.onWorkspaceClosed?.(groupId)
-    this.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
-      this.options.onWalletWorkspaceClosed?.(groupId)
-    ))
-    if (!this.tabs.size) {
-      try {
-        await this.createTab({ url: HRONAUT_HOME_URL, active: true })
-      } catch (error) {
-        // Workspace storage/ownership has already transitioned. A failed
-        // replacement view must not prevent the caller from saving its archive.
-        this.options.onActionFailed?.('open Home after closing a workspace', error)
-      }
-    }
-    this.changed()
-    if (!preserveStorage) await this.store.save(() => this.persistedState())
-    return this.listMcpTabGroups()
+    return closeMcpTabGroupInternal(this.mcpTabGroupsAccess(), groupId, preserveStorage)
   }
 
   async saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
