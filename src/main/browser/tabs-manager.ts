@@ -241,17 +241,16 @@ import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
 import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
-import {
-  SPLIT_VIEW_GAP,
-  splitViewBounds,
-  splitViewGeometry,
-  type SplitDividerGeometry,
-  type SplitDividerSession,
-  type BrowserSplitOrientation,
-  type BrowserSplitViewState
+import type {
+  SplitDividerGeometry,
+  SplitDividerSession,
+  BrowserSplitOrientation,
+  BrowserSplitViewState
 } from '../../shared/split-view.js'
 import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
+import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
+import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
@@ -4700,24 +4699,44 @@ export class BrowserTabsManager {
     }
   }
 
+  /**
+   * The narrow view laying out the window and publishing the split divider
+   * get of this manager's private tabs, window, active tab, split view and
+   * its revision, divider drag, toolbar height, trusted chrome occlusion,
+   * global input lock, view bounds, page corners, presentation repair, tab
+   * overview previews and page geometry. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit
+   * tests do) still provide it, and the helpers they stub are reached
+   * through it.
+   */
+  private windowLayoutAccess(): WindowLayoutAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      findTab: (tabId) => this.tabs.get(tabId),
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      splitViewGeneration: () => this.splitViewGeneration,
+      splitDivider: () => this.splitDivider,
+      lastSplitDividerGeometry: () => this.lastSplitDividerGeometry,
+      writeLastSplitDividerGeometry: (serialized) => { this.lastSplitDividerGeometry = serialized },
+      toolbarHeight: () => this.toolbarHeight,
+      browserContentOccluded: () => this.browserContentOccluded,
+      occlusionSnapshot: () => this.occlusionSnapshot,
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      browserViewBounds: () => this.browserViewBounds(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      roundPageCorners: (view) => this.roundPageCorners(view),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      publishSplitDivider: () => this.publishSplitDivider(),
+      publishPageGeometry: () => this.publishPageGeometry()
+    }
+  }
+
   getSplitDivider(): SplitDividerGeometry | null {
-    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()
-      || !this.activeTabId || !this.splitView || this.allHumanInteractionLocked || this.browserContentOccluded) return null
-    const area = this.browserViewBounds()
-    const scale = this.window.webContents.getZoomFactor?.() ?? 1
-    const first = this.tabs.get(this.splitView.firstTabId)
-    const second = this.tabs.get(this.splitView.secondTabId)
-    if (!first || !second || first.sleeping || second.sleeping
-      || first.webContents.isDestroyed() || second.webContents.isDestroyed()
-      || this.toolbarHeight >= this.window.getContentBounds().height - 1) return null
-    const gap = Math.round(SPLIT_VIEW_GAP * scale)
-    const length = this.splitView.orientation === 'vertical' ? area.width : area.height
-    if (length < gap + 2 || area.width < 1 || area.height < 1) return null
-    const { divider } = splitViewGeometry(area, this.splitView.orientation, this.splitView.ratio, gap)
-    const cssBounds = (rect: Rectangle): Rectangle => ({
-      x: rect.x / scale, y: rect.y / scale, width: rect.width / scale, height: rect.height / scale
-    })
-    return { ...this.splitView, revision: this.splitViewGeneration, bounds: cssBounds(divider), area: cssBounds(area), gap: gap / scale, scale }
+    return getSplitDivider(this.windowLayoutAccess())
   }
 
   cancelSplitDivider(): void { this.splitDivider.cancel() }
@@ -4811,11 +4830,7 @@ export class BrowserTabsManager {
   }
 
   private publishSplitDivider(): void {
-    const geometry = this.getSplitDivider()
-    const serialized = JSON.stringify(geometry)
-    if (serialized === this.lastSplitDividerGeometry) return
-    this.lastSplitDividerGeometry = serialized
-    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('split-divider:changed', geometry)
+    publishSplitDivider(this.windowLayoutAccess())
   }
 
   private reconcileTabPresentation(tab: BrowserTab): void {
@@ -4827,57 +4842,7 @@ export class BrowserTabsManager {
   }
 
   layout(): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    this.occlusionSnapshot.reconcile()
-    if (!this.activeTabId) {
-      // A frame must not outlive the last tab.
-      this.publishPageGeometry()
-      return
-    }
-    this.splitDivider.reconcile()
-    const tab = this.tabs.get(this.activeTabId)
-    if (!tab) return
-    const bounds = this.window.getContentBounds()
-    // Renderer-owned trusted modals cannot be placed above a native
-    // WebContentsView. Hiding the page is more reliable than collapsing it to
-    // a one-pixel bound, which may not repaint until the BrowserWindow resizes.
-    // Preserve hidden view bounds, then restore geometry before showing them.
-    const browserContentVisible = (!this.browserContentOccluded || this.occlusionSnapshot.holdingPages) && this.toolbarHeight < bounds.height - 1
-    // Views held on screen under trusted chrome keep their place; they get new bounds before they are shown again.
-    const placeViews = browserContentVisible && !this.browserContentOccluded
-    const viewBounds = this.browserViewBounds()
-    if (this.splitView) {
-      const firstTab = this.tabs.get(this.splitView.firstTabId)
-      const secondTab = this.tabs.get(this.splitView.secondTabId)
-      if (firstTab && secondTab) {
-        const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * (this.window.webContents.getZoomFactor?.() ?? 1)))
-        if (placeViews) {
-          firstTab.view.setBounds(this.tabViewBounds(firstTab, splitBounds.first))
-          secondTab.view.setBounds(this.tabViewBounds(secondTab, splitBounds.second))
-          this.roundPageCorners(firstTab.view)
-          this.roundPageCorners(secondTab.view)
-        }
-        firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
-        secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
-        this.reconcileTabPresentation(firstTab)
-        this.reconcileTabPresentation(secondTab)
-        this.scheduleTabOverviewPreview(firstTab)
-        this.scheduleTabOverviewPreview(secondTab)
-        this.publishSplitDivider()
-        this.publishPageGeometry()
-        return
-      }
-      this.splitView = null
-    }
-    if (placeViews) {
-      tab.view.setBounds(this.tabViewBounds(tab, viewBounds))
-      this.roundPageCorners(tab.view)
-    }
-    tab.view.setVisible(browserContentVisible)
-    this.reconcileTabPresentation(tab)
-    this.scheduleTabOverviewPreview(tab)
-    this.publishSplitDivider()
-    this.publishPageGeometry()
+    layout(this.windowLayoutAccess())
   }
 
   /**
