@@ -514,6 +514,8 @@ import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import type { TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
+import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
+import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
 import { publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import type { PassiveSelectionAccess } from './agent-follow/passive-selection-access.js'
@@ -4364,51 +4366,46 @@ export class BrowserTabsManager {
     this.layout()
   }
 
+  /**
+   * The narrow view covering the pages with trusted chrome, the still image
+   * of them and suspending agent following get of this manager's private
+   * tabs, window, active tab, split view, occlusion and its suspension of
+   * following, previewable tabs, page geometry, MCP activity follower,
+   * website dialogs, occlusion snapshot, native frame capture, layout and
+   * focus. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it, and the
+   * layout they stub is reached through it.
+   */
+  private trustedChromeOcclusionAccess(): TrustedChromeOcclusionAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      tabs: () => this.tabs.values(),
+      findTab: (tabId) => this.tabs.get(tabId),
+      activeTabId: () => this.activeTabId,
+      splitView: () => this.splitView,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      browserContentOccluded: () => this.browserContentOccluded,
+      writeBrowserContentOccluded: (occluded) => { this.browserContentOccluded = occluded },
+      followAgentActivitySuspended: () => this.followAgentActivitySuspended,
+      writeFollowAgentActivitySuspended: (suspended) => { this.followAgentActivitySuspended = suspended },
+      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
+      getEmulationFrames: () => this.getEmulationFrames(),
+      getPageCards: () => this.getPageCards(),
+      writeOccludedEmulationFrames: (frames) => { this.occludedEmulationFrames = frames },
+      writeOccludedPageCards: (cards) => { this.occludedPageCards = cards },
+      mcpActivityFollower: () => this.mcpActivityFollower,
+      dismissWebsiteDialogForTrustedChrome: (tab) => this.dismissWebsiteDialogForTrustedChrome(tab),
+      occlusionSnapshot: () => this.occlusionSnapshot,
+      nativePreviewCapture: () => this.nativePreviewCapture,
+      layout: () => this.layout(),
+      cancelFocusAfterTrustedChrome: () => this.cancelFocusAfterTrustedChrome(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab)
+    }
+  }
+
   setBrowserContentOccluded(occluded: boolean): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    if (occluded !== this.browserContentOccluded) {
-      for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
-    }
-    const enteringTrustedChrome = occluded && !this.browserContentOccluded
-    const leavingTrustedChrome = !occluded && this.browserContentOccluded
-    if (enteringTrustedChrome) {
-      for (const tab of this.tabs.values()) {
-        if (
-          !tab.sleeping
-          && !tab.webContents.isDestroyed()
-          && tab.view.getVisible()
-          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-        ) {
-          // The trusted renderer must hide native page views to paint above
-          // them. Remember only views that were actually visible immediately
-          // before that transition so their first in-flight capture can be
-          // retried with stayHidden after the overview opens.
-          this.tabOverviewPreviewableTabs.add(tab.id)
-        }
-      }
-    }
-    // The frames around emulated pages, and the cards under all pages, stay where the snapshot shows those pages.
-    if (enteringTrustedChrome) {
-      this.occludedEmulationFrames = this.getEmulationFrames()
-      this.occludedPageCards = this.getPageCards()
-    }
-    this.browserContentOccluded = occluded
-    this.mcpActivityFollower.setOccluded(occluded || this.followAgentActivitySuspended)
-    if (enteringTrustedChrome) {
-      for (const tab of this.tabs.values()) {
-        if (tab.dialog) void this.dismissWebsiteDialogForTrustedChrome(tab)
-      }
-      // Keys typed into trusted chrome must not reach the page while it stays on screen for its snapshot.
-      if (this.window.isFocused()) this.window.webContents.focus()
-      this.occlusionSnapshot.begin()
-    } else if (!occluded) {
-      this.occlusionSnapshot.end()
-    }
-    this.layout()
-    if (leavingTrustedChrome) {
-      const tab = this.cancelFocusAfterTrustedChrome()
-      if (tab && this.tabs.get(tab.id) === tab && this.activeTabId === tab.id && !tab.webContents.isDestroyed()) this.focusTabOrTrustedChrome(tab)
-    }
+    setBrowserContentOccluded(this.trustedChromeOcclusionAccess(), occluded)
   }
 
   /**
@@ -4440,42 +4437,16 @@ export class BrowserTabsManager {
 
   /** Pages on screen now, at their current view bounds, that can be captured for the occlusion snapshot. */
   private occlusionSnapshotPanes(): Array<{ contents: Electron.WebContents; bounds: Rectangle; busy?: Promise<void> }> {
-    if (!this.window.isVisible() || this.window.isMinimized() || this.window.webContents.isDestroyed()) return []
-    return this.presentedTabs().flatMap((tab) => (
-      !tab.webContents.isDestroyed()
-      && tab.view.getVisible()
-      && this.window.contentView.children.includes(tab.view)
-        ? [{ contents: tab.webContents, bounds: tab.view.getBounds(), busy: this.nativePreviewCapture.settled(tab.webContents) }]
-        : []
-    ))
+    return occlusionSnapshotPanes(this.trustedChromeOcclusionAccess())
   }
 
-  /** The tabs shown in the page area. */
-  private presentedTabs(): BrowserTab[] {
-    const tab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    if (!tab) return []
-    const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
-    const second = this.splitView ? this.tabs.get(this.splitView.secondTabId) : undefined
-    return this.splitView && first && second ? [first, second] : [tab]
-  }
-
-  /**
-   * What decides where the occluded pages are. Page views keep their bounds
-   * while trusted chrome is open, so shell insets that change under a modal do
-   * not move them; the window size, zoom and the tabs shown do.
-   */
+  /** What decides where the occluded pages are. */
   private occlusionLayout(): string {
-    const { width, height } = this.window.getContentBounds()
-    const zoom = this.window.webContents.isDestroyed() ? 1 : this.window.webContents.getZoomFactor?.() ?? 1
-    return JSON.stringify([width, height, zoom, this.splitView?.orientation ?? null, this.splitView?.ratio ?? null,
-      ...this.presentedTabs().map((tab) => [tab.id, tab.emulationViewSize?.width ?? null, tab.emulationViewSize?.height ?? null])])
+    return occlusionLayout(this.trustedChromeOcclusionAccess())
   }
 
   setFollowAgentActivitySuspended(suspended: boolean): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    if (this.followAgentActivitySuspended === suspended) return
-    this.followAgentActivitySuspended = suspended
-    this.mcpActivityFollower.setOccluded(this.browserContentOccluded || suspended)
+    setFollowAgentActivitySuspended(this.trustedChromeOcclusionAccess(), suspended)
   }
 
   /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
