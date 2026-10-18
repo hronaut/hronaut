@@ -8,7 +8,7 @@ import {
   targetPointScript
 } from '../page-scripts.js'
 import type { OpenedTabObservation } from '../click-opened-tabs.js'
-import type { AgentPageActionsAccess, AgentPageActionsTab, BrowserClickTarget } from './agent-page-actions-access.js'
+import type { AgentPageActionsAccess, AgentPageActionsTab, BrowserClickModifier, BrowserClickTarget } from './agent-page-actions-access.js'
 
 /**
  * An agent's click on a control or at a point in the tab's page, reporting the
@@ -43,6 +43,7 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
     if (!target.tabId || !target.native || target.doubleClick || target.x !== undefined || target.y !== undefined
       || Boolean(target.ref) === Boolean(target.selector)) throw new Error('Right-click requires one native semantic click.')
   }
+  const modifierBits = target.modifiers === undefined ? 0 : clickModifierBits(target, process.platform)
   const coordinatePoint = access.coordinatePointOrValidateTarget(target, 'click')
   const tab = access.getTab(target.tabId)
   observeTab(tab)
@@ -119,9 +120,10 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
             await access.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
               await access.assertRightClickViewport(webContents, x, y, assertClickCurrent)
               await admission.sample(x, y)
-            } : admission.sample, observer, rightClick)
+            } : admission.sample, observer, rightClick, modifierBits)
             return { ok: true, tag: point.tag, ...(target.doubleClick ? { doubleClick: true } : {}),
-              ...(target.native ? { native: true } : {}), ...(rightClick ? { button: 'right' } : {}), admission: 'sampled', progress }
+              ...(target.native ? { native: true } : {}), ...(rightClick ? { button: 'right' } : {}),
+              ...(target.modifiers ? { modifiers: [...target.modifiers] } : {}), admission: 'sampled', progress }
           } catch (error) { failure = error; throw error }
           finally {
             if (progress.downAttempted > progress.upAcknowledged
@@ -161,4 +163,23 @@ async function dispatchClick<Tab extends AgentPageActionsTab>(access: AgentPageA
   } finally {
     if (!retained) { environment?.dispose(); authority.dispose() }
   }
+}
+
+const CLICK_MODIFIER_BITS: Readonly<Record<Exclude<BrowserClickModifier, 'ControlOrMeta'>, number>> = { Control: 2, Meta: 4, Shift: 8 }
+
+/**
+ * The CDP mouse event modifier bits for a click's held keys. Keys are held
+ * only for one native left click on a ref or selector, each named once;
+ * ControlOrMeta is Meta on macOS and Control elsewhere.
+ */
+function clickModifierBits(target: BrowserClickTarget, platform: NodeJS.Platform): number {
+  const modifiers = target.modifiers ?? []
+  if (!modifiers.length || new Set(modifiers).size !== modifiers.length
+    || modifiers.some(modifier => modifier !== 'ControlOrMeta' && !Object.hasOwn(CLICK_MODIFIER_BITS, modifier))
+    || !target.native || target.doubleClick || target.button === 'right' || target.x !== undefined || target.y !== undefined
+    || Boolean(target.ref) === Boolean(target.selector) || target.dialogAction !== undefined || target.promptText !== undefined) {
+    throw new Error('Modifier clicks require one native left click on a ref or selector, with each of Shift, Control, Meta or ControlOrMeta named once.')
+  }
+  return modifiers.reduce((bits, modifier) => bits
+    | (modifier === 'ControlOrMeta' ? CLICK_MODIFIER_BITS[platform === 'darwin' ? 'Meta' : 'Control'] : CLICK_MODIFIER_BITS[modifier]), 0)
 }

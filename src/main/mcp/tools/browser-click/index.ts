@@ -31,6 +31,8 @@ export function registerBrowserClick(context: McpToolContext): void {
           .describe('Dispatch two native pointer clicks and a dblclick event instead of one native pointer click.'),
         native: z.boolean().optional()
           .describe('For a single ref or selector click, dispatch trusted native pointer and mouse events. Use only when the control does not respond to the default exact-element click.'),
+        modifiers: z.array(z.enum(['Shift', 'Control', 'Meta', 'ControlOrMeta'])).min(1).max(3).optional()
+          .describe('Keys held for this one click, such as Shift to extend a selection or Control/Meta to add to it; ControlOrMeta is Meta on macOS and Control elsewhere. Requires native=true and one ref or selector; coordinates, doubleClick, button right and dialogs reject. The page sees them on the click\'s mouse events; no key presses are sent and nothing stays held.'),
         dialogAction: z.enum(['accept', 'dismiss']).optional(),
         promptText: z.string().max(4096).optional(),
         postcondition: z.object({
@@ -55,6 +57,7 @@ export function registerBrowserClick(context: McpToolContext): void {
       doubleClick?: boolean
       native?: boolean
       button?: 'left' | 'right'
+      modifiers?: Array<'Shift' | 'Control' | 'Meta' | 'ControlOrMeta'>
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest

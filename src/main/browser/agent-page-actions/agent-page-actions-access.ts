@@ -7,6 +7,9 @@ import type { KeyboardDebugger } from '../native-keyboard.js'
 import type { PointerDebugger } from '../native-pointer.js'
 import type { AgentPointerIdentity } from '../page-scripts.js'
 
+/** A key held for one native click; ControlOrMeta is Meta on macOS and Control elsewhere. */
+export type BrowserClickModifier = 'Shift' | 'Control' | 'Meta' | 'ControlOrMeta'
+
 /** What an agent's click names: a tab, a control by ref or selector or a point, and how to click it. */
 export type BrowserClickTarget = {
   tabId?: string
@@ -17,6 +20,7 @@ export type BrowserClickTarget = {
   doubleClick?: boolean
   native?: boolean
   button?: 'left' | 'right'
+  modifiers?: readonly BrowserClickModifier[]
 } & BrowserDialogHandlingOptions
 
 /** The tab field an agent's page action reads: its page. */
@@ -102,7 +106,7 @@ export interface AgentPageActionsAccess<Tab extends AgentPageActionsTab> {
   evaluateWithAttachedDebugger(webContents: WebContents, expression: string, contextId?: number): Promise<unknown>
   /** Runs a debugger operation on the page in its turn, checking validateAdmission at each step when given. */
   withDebugger<T>(webContents: WebContents, operation: () => Promise<T>, validateAdmission?: () => void): Promise<T>
-  /** Dispatches a native click at the point under the agent's input authorization. */
+  /** Dispatches a native click at the point under the agent's input authorization, with the CDP modifier bits when given. */
   dispatchNativeClick(
     webContents: WebContents,
     point: { x: number; y: number },
@@ -110,7 +114,8 @@ export interface AgentPageActionsAccess<Tab extends AgentPageActionsTab> {
     validateClick: () => void,
     sample?: (x: number, y: number) => Promise<void>,
     observer?: NativeInputDispatchObserver,
-    rightClick?: boolean
+    rightClick?: boolean,
+    modifiers?: number
   ): Promise<void>
   /** The page's debugger for authorized agent input, checking validateInput before each command when given. */
   agentInputDebugger(webContents: WebContents, validateInput?: () => void): PointerDebugger & KeyboardDebugger

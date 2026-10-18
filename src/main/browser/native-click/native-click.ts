@@ -8,7 +8,8 @@ import type { NativeClickAccess } from './native-click-access.js'
  * a left click, a double click, or an owned right click. The move and every
  * press are validated with validateClick, and sample runs just before each
  * raw press; releases skip validation, so a press that went out is always
- * released.
+ * released. Modifier bits, when given, ride on the left click's move, press
+ * and release; no key events are sent, so nothing stays held afterwards.
  */
 export async function dispatchNativeClick(
   access: NativeClickAccess,
@@ -18,7 +19,8 @@ export async function dispatchNativeClick(
   validateClick: () => void,
   sample?: (x: number, y: number) => Promise<void>,
   observer?: NativeInputDispatchObserver,
-  rightClick = false
+  rightClick = false,
+  modifiers = 0
 ): Promise<void> {
   const inputDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
     access.sendAuthorizedAgentInputCommand(webContents, method, params, validateClick, observer,
@@ -27,10 +29,12 @@ export async function dispatchNativeClick(
   // changes. Reject subsequent presses without leaving a held mouse button.
   const releaseDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
     access.sendAuthorizedAgentInputCommand(webContents, method, params, undefined, observer) }
+  const modifierParams = modifiers ? { modifiers } : {}
   await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: point.x,
-    y: point.y
+    y: point.y,
+    ...modifierParams
   })
   if (rightClick) {
     await ownedRightClickPress(
@@ -51,7 +55,8 @@ export async function dispatchNativeClick(
       y: point.y,
       button: 'left',
       buttons: 1,
-      clickCount
+      clickCount,
+      ...modifierParams
     })
     await releaseDebugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
@@ -59,7 +64,8 @@ export async function dispatchNativeClick(
       y: point.y,
       button: 'left',
       buttons: 0,
-      clickCount
+      clickCount,
+      ...modifierParams
     })
   }
 }
