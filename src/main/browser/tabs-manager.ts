@@ -37,6 +37,8 @@ import {
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
 import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
+import type { WorkspaceContextMenuAccess } from './context-menus/workspace-context-menu-access.js'
+import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import type { NativeWheelInput } from './native-wheel.js'
 import type { AgentWheelAccess } from './agent-wheel/agent-wheel-access.js'
@@ -2626,64 +2628,30 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  /**
+   * The narrow view the workspace context menu gets of this manager's private
+   * tabs, window, options, localized text, human interaction lock, tab
+   * creation, sleep checks and workspace sleeping. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it.
+   */
+  private workspaceContextMenuAccess(): WorkspaceContextMenuAccess<BrowserTab> {
+    return {
+      tabs: () => this.tabs.values(),
+      window: () => this.window,
+      options: () => this.options,
+      text: (key, parameters) => this.text(key, parameters),
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      sleepBlockReason: (tab) => this.sleepBlockReason(tab),
+      createTab: (options) => this.createTab(options),
+      setWorkspacePinned: (groupId, pinned) => this.setWorkspacePinned(groupId, pinned),
+      sleepWorkspaceTabs: (groupId) => this.sleepWorkspaceTabs(groupId),
+      archiveWorkspaceForPerson: (groupId) => this.archiveWorkspaceForPerson(groupId)
+    }
+  }
+
   private workspaceContextMenuItems(group: BrowserTabGroup): MenuItemConstructorOptions[] {
-    const reportError = (action: string) => (error: unknown): void => {
-      console.error(`[browser] Could not ${action} from workspace context menu:`, error)
-      this.options.onActionFailed?.(action, error)
-    }
-    const runAction = (action: string, callback: () => unknown): void => {
-      try {
-        void Promise.resolve(callback()).catch(reportError(action))
-      } catch (error) {
-        reportError(action)(error)
-      }
-    }
-    // The menu does what its label said when it opened.
-    const pin = group.pinnedAt === undefined
-    return [
-      {
-        id: 'new-tab-in-workspace',
-        label: this.text('native.context.newTabWorkspace'),
-        click: () => runAction('open a new tab in the workspace', () => (
-          this.createTab({ url: 'about:blank', active: true, mcpGroupId: group.id })
-        ))
-      },
-      { type: 'separator' },
-      {
-        id: 'import-browser-cookies',
-        label: this.text('browserImport.action'),
-        click: () => this.window.webContents.send('browser:home-workspace-editor', { view: 'import', workspaceId: group.id })
-      },
-      {
-        id: 'edit-workspace',
-        label: this.text('native.context.editWorkspace'),
-        click: () => runAction('edit the workspace', () => {
-          this.window.webContents.send('browser:edit-tab-group', group.id)
-        })
-      },
-      {
-        id: 'pin-workspace',
-        label: this.text(pin ? 'native.context.pinWorkspace' : 'native.context.unpinWorkspace'),
-        click: () => runAction('pin the workspace', () => this.setWorkspacePinned(group.id, pin))
-      },
-      { type: 'separator' },
-      {
-        id: 'sleep-workspace-tabs',
-        label: this.text('native.context.sleepWorkspaceTabs'),
-        enabled: !this.allHumanInteractionLocked && [...this.tabs.values()].some((tab) => (
-          tab.mcpGroupId === group.id
-          && !tab.sleeping
-          && this.sleepBlockReason(tab) === undefined
-        )),
-        click: () => runAction('put eligible workspace tabs to sleep', () => this.sleepWorkspaceTabs(group.id))
-      },
-      {
-        id: 'archive-workspace',
-        label: this.text('native.context.archiveWorkspace'),
-        enabled: !this.allHumanInteractionLocked || ![...this.tabs.values()].some(tab => tab.mcpGroupId === group.id),
-        click: () => runAction('archive the workspace', () => this.archiveWorkspaceForPerson(group.id))
-      }
-    ]
+    return workspaceContextMenuItems(this.workspaceContextMenuAccess(), group)
   }
 
   showWorkspaceContextMenu(groupId: string): void {
