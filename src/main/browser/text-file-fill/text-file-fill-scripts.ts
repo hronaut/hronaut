@@ -7,6 +7,8 @@
  * found and lengths, never the text or the field's value.
  */
 
+import { javascriptLiteral } from '../../../shared/javascript-literal.js'
+
 /** Why the target cannot take the file's text: each maps to one message in text-file-fill.ts. */
 export type TextFileFillTargetProblem =
   'wrong-origin' | 'invalid-selector' | 'not-found' | 'ambiguous' | 'not-fillable' | 'disabled' | 'readonly' | 'hidden' | 'single-line' | 'too-long' | 'late'
@@ -42,8 +44,8 @@ const SETTLE_MS = 250
  */
 function targetChecks(target: { ref?: string; selector?: string }, shape: { length: number; lineBreaks: boolean }, expectedOrigin: string): string {
   return `
-    const target = ${JSON.stringify(target)};
-    if (location.origin !== ${JSON.stringify(expectedOrigin)}) return { problem: 'wrong-origin' };
+    const target = ${javascriptLiteral(target)};
+    if (location.origin !== ${javascriptLiteral(expectedOrigin)}) return { problem: 'wrong-origin' };
     let matches;
     try {
       matches = document.querySelectorAll(target.ref ? '[data-hronaut-ref="' + CSS.escape(target.ref) + '"]' : target.selector);
@@ -64,8 +66,8 @@ function targetChecks(target: { ref?: string; selector?: string }, shape: { leng
       return { problem: 'hidden' };
     }
     // A text input drops line breaks, and a person could not type past maxlength: refuse rather than change the text.
-    if (${JSON.stringify(shape.lineBreaks)} && field === 'input') return { problem: 'single-line' };
-    if (element.maxLength >= 0 && ${JSON.stringify(shape.length)} > element.maxLength) return { problem: 'too-long' };`
+    if (${javascriptLiteral(shape.lineBreaks)} && field === 'input') return { problem: 'single-line' };
+    if (element.maxLength >= 0 && ${javascriptLiteral(shape.length)} > element.maxLength) return { problem: 'too-long' };`
 }
 
 /** Checks the target for text of this shape, before the text itself goes to the page. */
@@ -85,8 +87,8 @@ export function textFileFillCheckScript(target: { ref?: string; selector?: strin
  */
 export function textFileFillScript(target: { ref?: string; selector?: string }, text: string, expectedOrigin: string, deadline: number): string {
   return `(async () => {
-    if (Date.now() > ${JSON.stringify(deadline)}) return { problem: 'late' };
-    const text = ${JSON.stringify(text)};${targetChecks(target, { length: text.length, lineBreaks: text.includes('\n') }, expectedOrigin)}
+    if (Date.now() > ${javascriptLiteral(deadline)}) return { problem: 'late' };
+    const text = ${javascriptLiteral(text)};${targetChecks(target, { length: text.length, lineBreaks: text.includes('\n') }, expectedOrigin)}
     const value = Object.getOwnPropertyDescriptor(field === 'input' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value');
     value.set.call(element, text);
     element.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));

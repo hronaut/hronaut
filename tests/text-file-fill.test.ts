@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
+import { javascriptLiteral } from '../src/shared/javascript-literal.js'
 import { fillFromFile, MAX_FILL_FILE_BYTES, readFillText, type TextFileFillProgress } from '../src/main/browser/text-file-fill/text-file-fill.js'
 import type { TextFileFillAccess, TextFileFillTab } from '../src/main/browser/text-file-fill/text-file-fill-access.js'
 import type { TextFileFillCheck, TextFileFillPageResult } from '../src/main/browser/text-file-fill/text-file-fill-scripts.js'
@@ -14,7 +15,7 @@ import { fillSettlement } from '../src/main/mcp/tools/browser-fill-from-file/fil
 import { registerBrowserFillFromFile } from '../src/main/mcp/tools/browser-fill-from-file/index.js'
 
 const ORIGIN = 'http://127.0.0.1:4100'
-const TEXT = 'private-fixture-canary "quoted" `tick` 😀 мир\nsecond line\n'
+const TEXT = 'private-fixture-canary "quoted" `tick` </script> \u2028 😀 мир\nsecond line\n'
 let directory: string
 let textFile: string
 
@@ -170,7 +171,10 @@ describe('filling a field from a file', () => {
     expect(check).not.toMatch(/private-fixture-canary|second line/u)
     expect(check).toContain(String(TEXT.length))
     expect(check).toContain(JSON.stringify(ORIGIN))
-    expect(write).toContain(JSON.stringify(TEXT))
+    // The text is a script literal that cannot close a script element or a line: Function sees the same string.
+    expect(write).toContain(javascriptLiteral(TEXT))
+    expect(write).not.toMatch(/<\/script>|\u2028/u)
+    expect(new Function(`return ${javascriptLiteral(TEXT)}`)()).toBe(TEXT)
     expect(write).toContain(JSON.stringify(ORIGIN))
     const deadline = Number(/Date\.now\(\) > (\d+)/u.exec(write!)?.[1])
     expect(deadline - sent).toBeGreaterThanOrEqual(4_000)
