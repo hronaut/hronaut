@@ -69,6 +69,7 @@ import { registerBrowserFillForm } from './tools/browser-fill-form/index.js'
 import { registerBrowserHover } from './tools/browser-hover/index.js'
 import { registerBrowserDrag } from './tools/browser-drag/index.js'
 import { registerBrowserWheel } from './tools/browser-wheel/index.js'
+import { registerBrowserTouch } from './tools/browser-touch/index.js'
 import { registerBrowserScroll } from './tools/browser-scroll/index.js'
 import { registerBrowserHoldKey } from './tools/browser-hold-key/index.js'
 import { registerBrowserPress } from './tools/browser-press/index.js'
@@ -701,6 +702,7 @@ export function createBrowserMcpServer(
   registerBrowserHover(toolContext)
   registerBrowserDrag(toolContext)
   registerBrowserWheel(toolContext)
+  registerBrowserTouch(toolContext)
   registerBrowserScroll(toolContext)
   registerBrowserHoldKey(toolContext)
   registerBrowserPress(toolContext)
