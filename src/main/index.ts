@@ -17,7 +17,6 @@ import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-o
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
-import { isHronautHomeUrl } from '../shared/home-url.js'
 import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import type { ConnectedAgent } from '../shared/agent-status.js'
@@ -112,10 +111,8 @@ import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
 import { registerSettingsIpc } from './settings-ipc.js'
-import {
-  normalizeSitePermissionOrigin,
-  SitePermissionStore
-} from './site-permission-store.js'
+import { createBrowserSession } from './browser-session.js'
+import type { SitePermissionStore } from './site-permission-store.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
 import { applyWindowMaterial } from './window-material.js'
@@ -132,7 +129,6 @@ import type {
   McpControlState,
   McpServerStatus,
   RendererSettingsState,
-  SitePermissionDecision,
   ThemeName,
   SupportedLocale
 } from '../shared/types.js'
@@ -369,10 +365,20 @@ const {
   logPrefix: '[panel-window]'
 })
 let persistentSession: Session | null = null
-const configuredBrowserSessions = new WeakSet<Session>()
 let settingsStore: SettingsStore | null = null
 let startupLaunchManager: StartupLaunchManager | null = null
 let sitePermissionStore: SitePermissionStore | null = null
+const { configureBrowserSession, configurePersistentSession } = createBrowserSession({
+  text,
+  effectiveDownloadDirectory,
+  showMessageBox,
+  sitePermissionStore: () => sitePermissionStore,
+  setSitePermissionStore: (store) => { sitePermissionStore = store },
+  persistentSession: () => persistentSession,
+  setPersistentSession: (value) => { persistentSession = value },
+  publishSitePermissions,
+  partition: PARTITION
+})
 let credentialStore: CredentialStore | null = null
 let commercialLicenseStore: CommercialLicenseStore | null = null
 let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
@@ -410,7 +416,6 @@ let settings: AppSettings = { ...DEFAULT_SETTINGS }
 let systemLocale: SupportedLocale = 'en-US'
 let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
-let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -479,11 +484,6 @@ function queueClipboardOperation<T>(operation: () => Promise<T>): Promise<T> {
   const result = clipboardOperationQueue.then(operation)
   clipboardOperationQueue = result.then(() => undefined, () => undefined)
   return result
-}
-
-function queuePermissionRequest(operation: () => Promise<void>): void {
-  const pending = permissionRequestQueue.then(operation)
-  permissionRequestQueue = pending.catch(() => undefined)
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {
@@ -2536,122 +2536,6 @@ async function createWindow(startMinimized = false): Promise<void> {
   if (savedWindowState?.maximized) mainWindow.maximize()
   if (savedWindowState?.fullScreen) mainWindow.setFullScreen(true)
   if (!startMinimized) mainWindow.show()
-}
-
-function configureBrowserSession(browserSession: Session): void {
-  if (configuredBrowserSessions.has(browserSession)) return
-  configuredBrowserSessions.add(browserSession)
-  browserSession.setDownloadPath(effectiveDownloadDirectory())
-  browserSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
-    const requestingUrl = details.requestingUrl || details.securityOrigin || requestingOrigin
-    const origin =
-      normalizeSitePermissionOrigin(requestingOrigin) ??
-      normalizeSitePermissionOrigin(details.securityOrigin || '') ??
-      normalizeSitePermissionOrigin(requestingUrl)
-    if (permission === 'media' || permission === 'fileSystem') return false
-    return Boolean(origin && sitePermissionStore?.get(origin, permission) === 'allow')
-  })
-  browserSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    let responded = false
-    const respond = (allowed: boolean): void => {
-      if (responded) return
-      responded = true
-      callback(allowed)
-    }
-    const requestingUrl = details.requestingUrl || webContents.getURL()
-    if (isHronautHomeUrl(requestingUrl)) {
-      respond(false)
-      return
-    }
-    const origin = normalizeSitePermissionOrigin(requestingUrl)
-    if (!origin) {
-      respond(false)
-      return
-    }
-    const requiresFreshConsent = permission === 'media' || permission === 'fileSystem'
-    const remembered = requiresFreshConsent ? undefined : sitePermissionStore?.get(origin, permission)
-    if (remembered) {
-      respond(remembered === 'allow')
-      return
-    }
-    const requestingFrameTreeNodeId = (() => {
-      if (webContents.isDestroyed()) return null
-      if (details.isMainFrame) return webContents.mainFrame.frameTreeNodeId
-      const matchingFrames = webContents.mainFrame.framesInSubtree.filter(
-        (frame) => !frame.detached && frame.url === requestingUrl
-      )
-      return matchingFrames.length === 1 ? matchingFrames[0]?.frameTreeNodeId ?? null : null
-    })()
-    if (requestingFrameTreeNodeId === null) {
-      respond(false)
-      return
-    }
-    const currentRequestOrigin = (): string | null => webContents.isDestroyed()
-      ? null
-      : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
-        (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
-      )?.url ?? '')
-    const permissionDetail = (() => {
-      if (permission === 'media' && 'mediaTypes' in details) {
-        const types = details.mediaTypes?.map((type) => text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone')) ?? []
-        return types.length
-          ? text('native.dialog.requestedDevices', { devices: types.join(text('native.dialog.and')) })
-          : text('native.dialog.devicesUnknown')
-      }
-      if (permission === 'fileSystem' && 'filePath' in details) {
-        const access = details.fileAccessType ?? text('native.dialog.unspecifiedAccess')
-        return text('native.dialog.requestedFile', { access, path: details.filePath || text('native.dialog.unspecifiedPath') })
-      }
-      return text('native.dialog.permissionRemember')
-    })()
-    queuePermissionRequest(async () => {
-      try {
-        if (currentRequestOrigin() !== origin) {
-          respond(false)
-          return
-        }
-        const currentRemembered = requiresFreshConsent ? undefined : sitePermissionStore?.get(origin, permission)
-        if (currentRemembered) {
-          respond(currentRemembered === 'allow')
-          return
-        }
-        const { response } = await showMessageBox({
-          type: 'question',
-          title: text('native.dialog.sitePermission'),
-          message: text('native.dialog.permissionRequest', { origin, permission }),
-          detail: requiresFreshConsent
-            ? text('native.dialog.permissionAskAgain', { detail: permissionDetail })
-            : text('native.dialog.permissionSettings', { detail: permissionDetail }),
-          buttons: [text('native.dialog.deny'), text('native.dialog.allow')],
-          defaultId: 0,
-          cancelId: 0
-        })
-        if (currentRequestOrigin() !== origin) {
-          respond(false)
-          return
-        }
-        const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
-        try {
-          if (!requiresFreshConsent) {
-            await sitePermissionStore?.set(origin, permission, decision)
-            publishSitePermissions()
-          }
-        } catch (error) {
-          console.error('[permissions] Failed to persist site permission:', error)
-        }
-        respond(decision === 'allow')
-      } catch {
-        respond(false)
-      }
-    })
-  })
-}
-
-async function configurePersistentSession(): Promise<void> {
-  sitePermissionStore = new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json'))
-  await sitePermissionStore.load()
-  persistentSession = session.fromPartition(PARTITION, { cache: true })
-  configureBrowserSession(persistentSession)
 }
 
 async function releaseRuntimeResources(): Promise<void> {
