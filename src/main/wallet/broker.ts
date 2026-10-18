@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import {
   reconcileAccountProviderSessions,
@@ -10,7 +10,6 @@ import type {
   WalletChainFamily,
   WalletDescriptor,
   WalletOperation,
-  WalletOperationRequest,
   WalletPolicy,
   WalletProviderEvent,
   WalletProviderRequest,
@@ -94,6 +93,7 @@ import {
   withAgentOperation,
   type AgentOperationsAccess
 } from './broker/agent-operations.js'
+import { clearRequestExpiry, createRequest, fail, wait, type RequestRecordsAccess } from './broker/request-records.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -128,8 +128,6 @@ export interface WalletBrokerOptions {
   onPendingChanged?: (requests: WalletRequestSummary[]) => void
   onProviderEvent?: (tabId: string, event: WalletProviderEvent) => void
 }
-
-const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 /** Failed wallet calls remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
 const MAX_PAGE_CALL_FAILURES_PER_TAB = 20
 /** Tabs whose failed wallet calls are remembered at once; closing a tab forgets them sooner. */
@@ -147,13 +145,6 @@ export interface WalletPageCallFailure {
 
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 const MAX_TIMEOUT_MS = 2_147_483_647
-const EXPIRABLE_REQUEST_STATUSES = new Set([
-  'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
-])
-const TERMINAL_REQUEST_STATUSES = new Set([
-  'confirmed', 'rejected', 'expired', 'cancelled', 'failed'
-])
-
 // Size in UTF-8 JSON bytes, as a page sends it; anything unserializable is unbounded.
 function jsonBytes(value: unknown): number {
   try {
@@ -918,58 +909,33 @@ export class WalletBroker {
     return transactionHash
   }
 
-  private async createRequest(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor,
-    operation: WalletOperation,
-    capability: 'read' | 'sign' | 'send',
-    payload: Record<string, unknown>
-  ): Promise<WalletApprovalRecord> {
-    this.assertRequestContextActive(context)
-    const now = this.now()
-    const request: WalletOperationRequest = {
-      requestId: randomUUID(), walletId: wallet.id, workspaceId: context.workspaceId, tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration, topLevelOrigin: context.topLevelOrigin,
-      requester: structuredClone(context.requester), capability, chainFamily: wallet.chainFamily,
-      networkId: wallet.network.id, operation, payload,
-      expiresAt: new Date(now.getTime() + this.requestTtlMs()).toISOString()
-    }
-    const record = await this.service.approvals.create(request, `${context.requester.type}:${context.requester.id}:${request.requestId}`, now)
-    if (!this.isRequestContextActive(context)) {
-      const current = this.service.approvals.get(record.id)
-      try {
-        if (current && EXPIRABLE_REQUEST_STATUSES.has(current.status)) {
-          await this.service.approvals.cancel(record.id, this.now())
-        }
-      } finally {
-        this.rejectCancelled()
-      }
-      this.assertAgentOperationActive(context)
-      throw new Error('Wallet request page is no longer active')
-    }
-    try {
-      await this.service.audit.append('request-created', {
-        requestId: record.id, walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
-        requester: context.requester, operation
-      }, now.toISOString())
-      this.scheduleRequestExpiry(record)
-      this.publish()
-      return record
-    } catch (error) {
-      throw await this.fail(record.id, error)
+  /**
+   * The narrow view request records get of this broker's private state: the
+   * waiting page promises and the expiry timers.
+   */
+  private requestRecordsAccess(): RequestRecordsAccess {
+    return {
+      service: this.service,
+      options: this.options,
+      pending: this.pending,
+      requestExpiryCancellations: this.requestExpiryCancellations,
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      isRequestContextActive: (context) => this.isRequestContextActive(context),
+      assertAgentOperationActive: (context) => this.assertAgentOperationActive(context),
+      rejectCancelled: () => this.rejectCancelled(),
+      rejectPending: (requestId, error) => this.rejectPending(requestId, error),
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      publish: () => this.publish(),
+      now: () => this.now()
     }
   }
 
+  private createRequest(context: WalletBrokerContext, wallet: WalletDescriptor, operation: WalletOperation, capability: 'read' | 'sign' | 'send', payload: Record<string, unknown>): Promise<WalletApprovalRecord> {
+    return createRequest(this.requestRecordsAccess(), context, wallet, operation, capability, payload)
+  }
+
   private wait(requestId: string): Promise<unknown> {
-    const record = this.service.approvals.get(requestId)
-    if (!record || !EXPIRABLE_REQUEST_STATUSES.has(record.status)) {
-      this.clearRequestExpiry(requestId)
-      return Promise.reject(new Error(`Wallet request was ${record?.status ?? 'not found'}`))
-    }
-    return new Promise((resolve, reject) => {
-      this.pending.set(requestId, { resolve, reject })
-      this.publish()
-    })
+    return wait(this.requestRecordsAccess(), requestId)
   }
 
   private withAgentOperation<T>(context: WalletBrokerContext, operation: () => Promise<T>): Promise<T> {
@@ -1258,33 +1224,8 @@ export class WalletBroker {
     return bytes
   }
 
-  private async fail(requestId: string, error: unknown): Promise<Error> {
-    const record = this.service.approvals.get(requestId)
-    let failure = this.terminalRequestFailure(record) ?? sanitizedError(error)
-    try {
-      if (record && !TERMINAL_REQUEST_STATUSES.has(record.status)) {
-        try {
-          await this.service.approvals.transition(requestId, 'failed', this.now())
-          await this.service.audit.append('request-failed', { requestId, error: failure.message }, this.now().toISOString())
-        } catch (transitionError) {
-          const concurrentTerminalFailure = this.terminalRequestFailure(this.service.approvals.get(requestId))
-          if (!concurrentTerminalFailure) throw transitionError
-          failure = concurrentTerminalFailure
-        }
-      }
-    } finally {
-      failure = this.terminalRequestFailure(this.service.approvals.get(requestId)) ?? failure
-      this.rejectPending(requestId, failure)
-      this.publish()
-    }
-    return failure
-  }
-
-  private terminalRequestFailure(record: WalletApprovalRecord | undefined): Error | undefined {
-    if (record?.status === 'cancelled') return new Error('Wallet request was cancelled')
-    if (record?.status === 'expired') return new Error('Wallet request was expired')
-    if (record?.status === 'rejected') return new Error('Wallet request was rejected by the user')
-    return undefined
+  private fail(requestId: string, error: unknown): Promise<Error> {
+    return fail(this.requestRecordsAccess(), requestId, error)
   }
 
   private rejectCancelled(): void {
@@ -1335,54 +1276,8 @@ export class WalletBroker {
     }
   }
 
-  private scheduleRequestExpiry(record: WalletApprovalRecord): void {
-    this.clearRequestExpiry(record.id)
-    const delay = Math.max(0, Date.parse(record.request.expiresAt) - this.now().getTime())
-    const expire = () => {
-      this.requestExpiryCancellations.delete(record.id)
-      void this.queueLifecycle(() => this.expireRequest(record.id)).catch(() => undefined)
-    }
-    const cancel = this.options.requestExpiryScheduler?.(expire, delay) ?? (() => {
-      const timer = setTimeout(expire, delay)
-      timer.unref()
-      return () => clearTimeout(timer)
-    })()
-    this.requestExpiryCancellations.set(record.id, cancel)
-  }
-
-  private async expireRequest(requestId: string): Promise<void> {
-    const record = this.service.approvals.get(requestId)
-    if (!record || !EXPIRABLE_REQUEST_STATUSES.has(record.status)) return
-    const now = this.now()
-    if (Date.parse(record.request.expiresAt) > now.getTime()) {
-      this.scheduleRequestExpiry(record)
-      return
-    }
-    try {
-      await this.service.approvals.transition(requestId, 'expired', now)
-      await this.service.audit.append('request-expired', {
-        requestId,
-        walletId: record.request.walletId,
-        requester: record.request.requester,
-        origin: record.request.topLevelOrigin
-      }, now.toISOString())
-    } finally {
-      this.rejectPending(requestId, new Error('Wallet request expired'))
-      this.publish()
-    }
-  }
-
   private clearRequestExpiry(requestId: string): void {
-    this.requestExpiryCancellations.get(requestId)?.()
-    this.requestExpiryCancellations.delete(requestId)
-  }
-
-  private requestTtlMs(): number {
-    const value = this.options.requestTtlMs ?? DEFAULT_REQUEST_TTL_MS
-    if (!Number.isSafeInteger(value) || value < 1 || value > DEFAULT_REQUEST_TTL_MS) {
-      throw new Error('Wallet request expiry must be between 1 ms and 5 minutes')
-    }
-    return value
+    clearRequestExpiry(this.requestRecordsAccess(), requestId)
   }
 
   private confirmationPollIntervalMs(): number {
