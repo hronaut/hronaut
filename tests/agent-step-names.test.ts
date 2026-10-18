@@ -18,6 +18,8 @@ function fixture() {
   const checkout = page('tab-1', 'workspace-a')
   const admin = page('tab-2', 'workspace-b')
   const manager = Object.assign(Object.create(BrowserTabsManager.prototype), {
+    // Snapshots read the person's settings, here the defaults.
+    options: {},
     tabs: new Map([[checkout.id, checkout], [admin.id, admin]]),
     activeTabId: admin.id,
     mcpTabGroups: new Map([['workspace-a', { activeTabId: checkout.id }], ['workspace-b', { activeTabId: admin.id }]])
