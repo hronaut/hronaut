@@ -33,7 +33,16 @@ const COMPONENT_PAGE = `(() => {
     '<iframe srcdoc="<p>FRAME_TEXT</p>"></iframe>',
     '<x-closed>CLOSED_LIGHT_TEXT</x-closed>',
     '<div hidden>HIDDEN_TEXT</div>',
-    '<div style="visibility:hidden">INVISIBLE_TEXT <span style="visibility:visible">VISIBLE_AGAIN</span></div>'
+    '<div style="visibility:hidden">INVISIBLE_TEXT <span style="visibility:visible">VISIBLE_AGAIN</span></div>',
+    '<details><summary>Closed question</summary>DETAILS_TEXT<p>DETAILS_P</p></details>',
+    '<details open><summary>Open question</summary>OPEN_ANSWER</details>',
+    '<div hidden="until-found">UNTIL_FOUND_TEXT<span>UNTIL_FOUND_SPAN</span></div>',
+    '<svg width="80" height="30"><defs><text id="defined">DEFS_TEXT</text></defs><symbol id="icon"><text>SYMBOL_TEXT</text></symbol><text x="2" y="20">SVG_TEXT</text></svg>',
+    '<select aria-label="Plan"><option>OPTION_SECRET</option></select>',
+    '<label>Wrapped field <textarea>TEXTAREA_DEFAULT_SECRET</textarea></label>',
+    '<span id="mixed-label">Mixed label <span contenteditable="true">LABEL_EDITOR_SECRET</span><textarea>LABEL_TEXTAREA_SECRET</textarea><select><option>LABEL_OPTION_SECRET</option></select></span><input aria-labelledby="mixed-label">',
+    '<input type="submit" value="Send it">',
+    '<h3 role="button">Heading button</h3>'
   ].join('');
   const inner = card.querySelector('x-inner').attachShadow({ mode: 'open' });
   inner.innerHTML = '<a href="https://example.test/docs?token=abc#frag">Docs link</a> <slot>INNER_FALLBACK</slot>';
@@ -86,21 +95,29 @@ test('reads one component\'s open shadow content, slots and nested roots once, w
   expect(body).toContain('input "Full name"')
   expect(body).toContain('textarea "Notes"')
   expect(body).toContain('div ""')
+  expect(body).toContain('select "Plan"')
+  expect(body).toContain('textarea "Wrapped field"')
+  expect(body).toContain('input "Mixed label"')
+  expect(body).toContain('input "Send it"')
+  expect(body).toContain('h3: Heading button')
+  expect(body).toContain('button "Heading button"')
+  expect(body).toContain('summary "Closed question"')
   expect(body).toMatch(/a "Docs link" href="https:\/\/example\.test\/docs\?token=%5BREDACTED%5D"/)
-  for (const shown of ['SHADOW_TEXT', 'PASSED_TEXT', 'USED_FALLBACK', 'VISIBLE_AGAIN']) expect(body).toContain(shown)
+  for (const shown of ['SHADOW_TEXT', 'PASSED_TEXT', 'USED_FALLBACK', 'VISIBLE_AGAIN', 'OPEN_ANSWER', 'SVG_TEXT']) expect(body).toContain(shown)
   expect(body.match(/PASSED_TEXT/g)).toHaveLength(1)
   expect(body).toContain('Docs link PASSED_TEXT')
   expect(body.match(/SLOT_TEXT/g)).toHaveLength(2) // once as the heading, once in the text
   for (const omitted of [
     'OUTSIDE_TEXT', 'Outside button', 'SIBLING', 'UNASSIGNED_TEXT', 'FALLBACK_UNUSED', 'INNER_FALLBACK',
-    'SECRET', 'FRAME_TEXT', 'CLOSED_TEXT', 'CLOSED_LIGHT_TEXT', 'HIDDEN_TEXT', 'INVISIBLE_TEXT', 'abc', 'frag', '[e'
+    'SECRET', 'FRAME_TEXT', 'CLOSED_TEXT', 'CLOSED_LIGHT_TEXT', 'HIDDEN_TEXT', 'INVISIBLE_TEXT', 'DETAILS_TEXT', 'DETAILS_P',
+    'UNTIL_FOUND', 'DEFS_TEXT', 'SYMBOL_TEXT', 'abc', 'frag', '[e'
   ]) expect(body, omitted).not.toContain(omitted)
   expect(capture.structuredContent).toMatchObject({
     kind: 'shadow-observation',
     formatVersion: 1,
     scope: { kind: 'open-shadow-root', hostTag: 'x-card', refs: false, outsideScopeOmitted: true },
     untrusted: true,
-    completeness: { complete: true, omissions: ['frames', 'private-editors'], absenceNotEstablished: false },
+    completeness: { complete: true, omissions: ['frames', 'private-editors'], absenceNotEstablished: true },
     coverage: { shadowRoots: 2, assignedSlots: 4 }
   })
   expect((capture.structuredContent as { captureId: string }).captureId).toMatch(/^[0-9a-f-]{36}$/)
@@ -135,8 +152,10 @@ test('refuses hosts it cannot read without falling back to the page', async ({ c
     [{ shadowHostSelector: '#field' }, /no open shadow root/],
     [{ shadowHostSelector: '#gone' }, /not rendered or not visible/],
     [{ shadowHostSelector: '#editable' }, /inside editable content/],
-    [{ shadowHostSelector: '#card', action: 'set-baseline' }, /only for capture, without rootSelector or frameSelector/],
-    [{ shadowHostSelector: '#card', rootSelector: '#card' }, /only for capture, without rootSelector or frameSelector/]
+    [{ shadowHostSelector: '#card', action: 'set-baseline' }, /only for capture, without root, frame, baseline, delta or quality options/],
+    [{ shadowHostSelector: '#card', rootSelector: '#card' }, /only for capture, without root, frame, baseline, delta or quality options/],
+    [{ shadowHostSelector: '#card', expectedText: 'Total' }, /only for capture, without root, frame, baseline, delta or quality options/],
+    [{ shadowHostSelector: '#card', frameSelector: 'iframe' }, /frameSelector supports capture only, with maxChars at most 16000 and no root, shadow host, baseline/]
   ]
   for (const [args, message] of refusals) {
     const result = await snapshot(args)
@@ -154,7 +173,8 @@ test('stops deep, wide and long components at their limits and says the capture 
     let level = document.querySelector('#deep').attachShadow({ mode: 'open' });
     for (let depth = 0; depth < 150; depth += 1) { const next = document.createElement('div'); level.append(next); level = next; }
     level.append('DEEP_END');
-    document.querySelector('#wide').attachShadow({ mode: 'open' }).innerHTML = '<span>w</span>'.repeat(12000) + '<button>WIDE_END</button>';
+    // Comments are the cheapest nodes to visit, so the node limit, not the time limit, stops this walk.
+    document.querySelector('#wide').attachShadow({ mode: 'open' }).innerHTML = '<!--w-->'.repeat(12000) + '<button>WIDE_END</button>';
     document.querySelector('#long').attachShadow({ mode: 'open' }).innerHTML = '<p>' + 'long text '.repeat(400) + 'LONG_END</p>';
     return true;
   })()`)

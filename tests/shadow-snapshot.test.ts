@@ -36,7 +36,7 @@ function fakePage(answer: unknown, during?: () => void) {
 const PAGE = { hostTag: 'x-card', text: 'SCOPE: open shadow root of <x-card>\nTEXT: Hello', omissions: ['private-editors', 'frames'], shadowRoots: 2, assignedSlots: 3 }
 
 describe('shadowSnapshot', () => {
-  it('returns a fresh read-only capture in the shadow snapshot world, complete when only private content was left out', async () => {
+  it('returns a fresh read-only capture in the shadow snapshot world, complete but without proof of absence when private content was left out', async () => {
     const page = fakePage(PAGE)
     const first = await shadowSnapshot(page.access, 'tab-1', '#card', 10)
     expect(first).toMatchObject({
@@ -45,7 +45,7 @@ describe('shadowSnapshot', () => {
       scope: { kind: 'open-shadow-root', hostTag: 'x-card', refs: false, outsideScopeOmitted: true },
       text: PAGE.text,
       untrusted: true,
-      completeness: { complete: true, omissions: ['frames', 'private-editors'], absenceNotEstablished: false },
+      completeness: { complete: true, omissions: ['frames', 'private-editors'], absenceNotEstablished: true },
       coverage: { shadowRoots: 2, assignedSlots: 3 },
       limits: { nodes: 10_000, depth: 100, durationMs: 500, headings: 80, controls: 500, maxChars: 1_000 }
     })
@@ -55,6 +55,11 @@ describe('shadowSnapshot', () => {
     const second = await shadowSnapshot(page.access, 'tab-1', '#card')
     expect(second.captureId).not.toBe(first.captureId)
     expect(second.limits.maxChars).toBe(30_000)
+  })
+
+  it('establishes absence only when nothing was left out', async () => {
+    const capture = await shadowSnapshot(fakePage({ ...PAGE, omissions: [] }).access, 'tab-1', '#card')
+    expect(capture.completeness).toEqual({ complete: true, omissions: [], absenceNotEstablished: false })
   })
 
   it.each(['node-limit', 'depth-limit', 'duration-limit', 'heading-limit', 'control-limit', 'text-limit'])('marks a capture stopped by %s incomplete, so it cannot show that a control is absent', async (omission) => {

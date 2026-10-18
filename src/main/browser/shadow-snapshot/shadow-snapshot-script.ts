@@ -35,7 +35,9 @@ export type ShadowSnapshotPage =
  * controls a snapshot lists, without refs, and the rendered text. Form field
  * values and editor content are never read, and frames, closed shadow roots
  * and built-in ones such as a video's controls are not entered. Content that
- * is not rendered, such as a light child no slot takes, is left out.
+ * is not rendered is left out: a light child no slot takes, hidden elements, a
+ * closed details' content past its summary, content-visibility: hidden content
+ * and SVG definitions.
  */
 export function shadowSnapshotScript(hostSelector: string, maxChars: number): string {
   return `(() => {
@@ -53,14 +55,15 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
     const editorSelector = '[contenteditable=""],[contenteditable="true" i],[contenteditable="plaintext-only" i]';
     if (host.isContentEditable || host.closest(editorSelector)) return { problem: 'editable-host' };
     const hostStyle = getComputedStyle(host);
-    // A boxless host renders through its shadow root, so its parent shows whether it is rendered.
-    const hostRendered = hostStyle.display === 'contents'
-      ? Boolean(host.parentElement && host.parentElement.checkVisibility())
-      : host.checkVisibility();
-    if (!hostRendered || hostStyle.visibility !== 'visible') return { problem: 'hidden-host' };
+    // A boxless host renders through its shadow root, so its nearest boxed ancestor shows whether it is rendered.
+    let boxed = host;
+    for (let hops = 0; boxed && hops < 100 && getComputedStyle(boxed).display === 'contents'; hops += 1) boxed = boxed.parentElement;
+    if (!boxed || !boxed.checkVisibility() || hostStyle.visibility !== 'visible') return { problem: 'hidden-host' };
 
     const interactive = 'a,button,input,textarea,select,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="tab"],[contenteditable="true"]';
     const skipped = new Set(['script', 'style', 'template', 'noscript', 'link', 'meta']);
+    // SVG containers whose content is drawn only where something references it, or never.
+    const svgUnrendered = new Set(['defs', 'symbol', 'clipPath', 'mask', 'pattern', 'marker', 'linearGradient', 'radialGradient', 'filter', 'title', 'desc', 'metadata']);
     const frames = new Set(['iframe', 'frame', 'object', 'embed', 'fencedframe', 'portal']);
     const fields = new Set(['input', 'textarea', 'select']);
     const clean = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -98,21 +101,32 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
     let halted = false;
     let shadowRoots = 1;
     let assignedSlots = 0;
-    const pushText = (value) => {
-      for (const collector of collectors) if (collector.text.length <= 300) collector.text += value;
+    const pushText = (raw) => {
+      // Each piece is cut to what the text and the labels can still take, before whitespace is collapsed.
+      const room = MAX_CHARS + 302;
+      if (raw.length > room) omissions.add('text-limit');
+      const value = raw.slice(0, room).replace(/\\s+/g, ' ');
+      for (const collector of collectors) if (collector.text.length <= 300) collector.text += value.slice(0, 301 - collector.text.length);
       if (textLength > MAX_CHARS) return;
-      textParts.push(value);
-      textLength += value.length;
+      const part = value.slice(0, MAX_CHARS + 1 - textLength);
+      textParts.push(part);
+      textLength += part.length;
     };
-    // The text of a label element a form field names, read node by node without entering fields or editors.
+    const privateLabelContent = 'input,textarea,select,option,script,style,' + editorSelector;
+    // Label text is read node by node, at most 200 nodes per label and 5,000 per capture, each counted as a visit.
+    let labelVisits = 5000;
+    // The text of a label element a form field names, without entering fields, options or editors.
     const labelText = (element) => {
+      if (element.isContentEditable || element.closest(privateLabelContent)) return '';
       let text = '';
       let budget = 200;
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      while (text.length < 300 && --budget > 0 && walker.nextNode()) {
-        const parent = walker.currentNode.parentElement;
-        if (!parent || parent.closest('input,textarea,select,option,script,style,' + editorSelector)) continue;
-        text += walker.currentNode.data + ' ';
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => node.nodeType === Node.ELEMENT_NODE && node.matches(privateLabelContent) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+      });
+      while (text.length < 300 && walker.nextNode()) {
+        if (--budget < 0 || --labelVisits < 0) { omissions.add('control-limit'); break; }
+        visits += 1;
+        if (walker.currentNode.nodeType === Node.TEXT_NODE) text += walker.currentNode.data + ' ';
       }
       return text;
     };
@@ -129,15 +143,15 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       if (clean(labels)) return labels;
       return element.getAttribute('title') || element.getAttribute('placeholder') || '';
     };
-    const controlLine = (element, name) => {
+    // Lists a control, naming it only while the list has room; a name over 300 characters is cut and reported.
+    const addControl = (element, name) => {
+      if (controls.length >= LIMITS.controls) { omissions.add('control-limit'); return; }
+      const label = clean(name());
+      if (label.length > 300) omissions.add('control-limit');
       const role = element.getAttribute('role') || element.localName;
       const href = element instanceof HTMLAnchorElement ? ' href=' + JSON.stringify(safeUrl(element.href)) : '';
       const state = (element.matches(':disabled') ? ' disabled' : '') + (element.checked ? ' checked' : '');
-      return role + ' ' + JSON.stringify(clean(name).slice(0, 300)) + href + state;
-    };
-    const addControl = (line) => {
-      if (controls.length >= LIMITS.controls) omissions.add('control-limit');
-      else controls.push(line);
+      controls.push(role + ' ' + JSON.stringify(label.slice(0, 300)) + href + state);
     };
 
     const walk = (node, depth, textVisible) => {
@@ -159,7 +173,7 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       if (node.nodeType !== Node.ELEMENT_NODE) return;
       const element = node;
       const name = element.localName;
-      if (skipped.has(name)) return;
+      if (skipped.has(name) || (element.namespaceURI === 'http://www.w3.org/2000/svg' && svgUnrendered.has(name))) return;
       const style = getComputedStyle(element);
       if (style.display === 'none') return;
       // Without a box, an element is not rendered: unassigned to any slot, inside a closed or built-in shadow root, or hidden content.
@@ -169,41 +183,54 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       if (element.isContentEditable || element.matches(editorSelector)) {
         omissions.add('private-editors');
         if (element.matches(interactive) && shown(element, style)) {
-          addControl(controlLine(element, element.getAttribute('aria-label') || element.getAttribute('title') || ''));
+          addControl(element, () => element.getAttribute('aria-label') || element.getAttribute('title') || '');
         }
         return;
       }
       if (fields.has(name)) {
-        if (shown(element, style)) addControl(controlLine(element, fieldName(element)));
+        if (shown(element, style)) addControl(element, () => fieldName(element));
         return;
       }
       if (name === 'slot') {
         const assigned = element.assignedNodes();
         if (assigned.length) assignedSlots += 1;
-        for (const child of assigned.length ? assigned : element.childNodes) walk(child, depth + 1, ownText);
+        for (const child of assigned.length ? assigned : element.childNodes) {
+          if (halted) break;
+          walk(child, depth + 1, ownText);
+        }
         return;
       }
       const heading = /^h[1-3]$/.test(name) && shown(element, style);
-      const control = !heading && element.matches(interactive) && shown(element, style);
+      const control = element.matches(interactive) && shown(element, style);
       const collector = heading || control ? { text: '' } : undefined;
       if (collector) collectors.push(collector);
       const block = name === 'br' || /^(block|flow-root|flex|grid|list-item|table)/.test(style.display);
       if (block) pushText(' ');
       if (element.shadowRoot) shadowRoots += 1;
-      for (const child of (element.shadowRoot || element).childNodes) walk(child, depth + 1, ownText);
+      // Rendered elements can still skip their content: a closed details shows only its summary,
+      // and content-visibility: hidden, as hidden="until-found" sets, shows none of it.
+      let children = (element.shadowRoot || element).childNodes;
+      if (style.contentVisibility === 'hidden') children = [];
+      else if (name === 'details' && !element.open) children = [...element.children].filter((child) => child.localName === 'summary').slice(0, 1);
+      for (const child of children) {
+        if (halted) break;
+        walk(child, depth + 1, ownText);
+      }
       if (block) pushText(' ');
       if (!collector) return;
       collectors.splice(collectors.indexOf(collector), 1);
       if (heading) {
         const text = clean(collector.text);
-        if (!text) return;
-        if (headings.length >= LIMITS.headings) omissions.add('heading-limit');
-        else headings.push(name + ': ' + text.slice(0, 300));
-        return;
+        if (text.length > 300) omissions.add('heading-limit');
+        if (text && headings.length >= LIMITS.headings) omissions.add('heading-limit');
+        else if (text) headings.push(name + ': ' + text.slice(0, 300));
       }
-      addControl(controlLine(element, element.getAttribute('aria-label') || element.getAttribute('title') || collector.text));
+      if (control) addControl(element, () => element.getAttribute('aria-label') || element.getAttribute('title') || collector.text);
     };
-    for (const child of root.childNodes) walk(child, 1, true);
+    for (const child of root.childNodes) {
+      if (halted) break;
+      walk(child, 1, true);
+    }
 
     const hostTag = host.localName.slice(0, 100);
     const lines = [];

@@ -79,7 +79,8 @@ export async function shadowSnapshot<Tab extends ShadowSnapshotTab>(
     scope: { kind: 'open-shadow-root', hostTag: page.hostTag, refs: false, outsideScopeOmitted: true },
     text: page.text.slice(0, boundedChars),
     untrusted: true,
-    completeness: { complete, omissions, absenceNotEstablished: !complete },
+    // Frames and editors can hold headings and controls too, so absence holds only when nothing was left out.
+    completeness: { complete, omissions, absenceNotEstablished: omissions.length > 0 },
     coverage: { shadowRoots: page.shadowRoots, assignedSlots: page.assignedSlots },
     limits: { ...SHADOW_SNAPSHOT_LIMITS, maxChars: boundedChars }
   }

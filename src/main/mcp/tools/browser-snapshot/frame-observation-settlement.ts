@@ -17,9 +17,9 @@ export function frameObservationSettlement(input: Record<string, unknown>) {
     authorizesResolvedTab: true,
     admit: (): undefined => {
       if ((input.action !== undefined && input.action !== 'capture')
-        || ['rootSelector','baselineId','maxOutputChars','advanceBaseline','expectedOrigin','expectedText','expectedSelector'].some(key => input[key] !== undefined)
+        || ['rootSelector','shadowHostSelector','baselineId','maxOutputChars','advanceBaseline','expectedOrigin','expectedText','expectedSelector'].some(key => input[key] !== undefined)
         || (typeof input.maxChars === 'number' && input.maxChars > FRAME_OBSERVATION_LIMITS.maxChars)) {
-        throw new Error('frameSelector supports capture only, with maxChars at most 16000 and no root, baseline, delta or quality options')
+        throw new Error('frameSelector supports capture only, with maxChars at most 16000 and no root, shadow host, baseline, delta or quality options')
       }
       return undefined
     },

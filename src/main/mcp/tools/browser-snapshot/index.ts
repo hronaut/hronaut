@@ -24,7 +24,7 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
         rootSelector: z.string().trim().min(1).max(512).optional()
           .describe('Unique CSS component root for capture or set-baseline. Delta reuses the stored root; an explicit different selector is rejected. No whole-page fallback.'),
         shadowHostSelector: z.string().trim().min(1).max(512).optional()
-          .describe('Unique top-level element with an open shadow root, such as a web component; capture only. Read-only text of its shadow content, nested open roots and slotted content, with no refs. Not with rootSelector or frameSelector.'),
+          .describe('Unique top-level element with an open shadow root, such as a web component; capture only. Read-only text of its shadow content, nested open roots and slotted content, with no refs. Not with root, frame, baseline, delta or quality options.'),
         baselineId: z.string().uuid().optional()
           .describe('Opaque baseline handle required by delta and optional for clear-baseline.'),
         maxOutputChars: z.number().int().min(1_000).max(50_000).optional()
@@ -54,8 +54,8 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
       expectedSelector?: string
     }, call: WorkspaceToolCall<SnapshotSettlement>) => {
       if (shadowHostSelector !== undefined) {
-        if (action !== 'capture' || rootSelector !== undefined || frameSelector !== undefined) {
-          throw new TypeError('shadowHostSelector is supported only for capture, without rootSelector or frameSelector')
+        if (action !== 'capture' || [rootSelector, frameSelector, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector].some(option => option !== undefined)) {
+          throw new TypeError('shadowHostSelector is supported only for capture, without root, frame, baseline, delta or quality options')
         }
         const capture = await manager.shadowSnapshot(tabId, shadowHostSelector, maxChars)
         return { ...textResult(capture.text), structuredContent: { ...capture } }
