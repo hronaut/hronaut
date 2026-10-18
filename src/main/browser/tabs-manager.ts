@@ -224,7 +224,8 @@ import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import { annotateScreenshotBitmap, normalizeScreenshotRefs, screenshotAnnotationScript, type ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
 import { visualCompareBitmapClip } from '../../shared/visual-compare.js'
-import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
+import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
+import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import {
   SPLIT_VIEW_GAP,
   isBrowserSplitOrientation,
@@ -460,7 +461,6 @@ const MAX_FAVICON_BYTES = 512 * 1024
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
 const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
 const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
-const MAX_INSPECTOR_ISSUES = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
@@ -488,7 +488,6 @@ const SCREENSHOT_ANNOTATION_WORLD_ID = ISOLATED_WORLDS.screenshotAnnotation
 const SNAPSHOT_WORLD_ID = ISOLATED_WORLDS.snapshot
 /** Control names kept per page for the shell's plain-words agent steps. */
 const AGENT_STEP_NAMES_LIMIT = 1_000
-const MAX_AUTH_CHALLENGES = 8
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -6344,90 +6343,27 @@ export class BrowserTabsManager {
   }
 
   private recordAuthChallenge(tab: BrowserTab, details: Electron.AuthenticationResponseDetails, authInfo: Electron.AuthInfo): void {
-    if (tab.sleeping || authInfo.isProxy || authInfo.scheme.toLowerCase() !== 'basic') return
-    let origin: string
-    try {
-      const url = new URL(details.url)
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return
-      origin = url.origin
-    } catch { return }
-    // Electron reports isMainFrame at runtime without typing it. Only a main-frame
-    // navigation challenge can belong to a pending document; anything else in
-    // that window may come from the outgoing document and is not attributed.
-    const isMainFrame = (details as Electron.AuthenticationResponseDetails & { isMainFrame?: unknown }).isMainFrame
-    let request: BrowserAuthChallengeObservation['request']
-    if (details.isRequestForNavigation && isMainFrame === true) {
-      if (!tab.authNavigationPending) return
-      request = 'main-frame-navigation'
-    } else {
-      if (tab.authNavigationPending || isMainFrame !== false) return
-      request = details.isRequestForNavigation ? 'subframe-navigation' : 'subresource'
-    }
-    if (tab.authChallenges.length >= MAX_AUTH_CHALLENGES) {
-      tab.authChallengesTruncated = true
-      return
-    }
-    tab.authChallenges.push({ observedAt: new Date().toISOString(), scheme: 'basic', origin, request })
+    recordAuthChallenge(tab, details, authInfo)
   }
 
-  async inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting browser issues')
-    if (!clear && !tab.webContents.isDevToolsOpened()) {
-      await this.ensureDialogMonitoring(tab)
-      if (tab.webContents.debugger.isAttached()) {
-        try {
-          const checked = await tab.webContents.debugger.sendCommand('Audits.checkFormsIssues') as {
-            formIssues?: unknown[]
-          }
-          for (const details of checked.formIssues ?? []) {
-            this.addInspectorIssue(tab, { code: 'GenericIssue', details: { genericIssueDetails: details } }, false)
-          }
-          await new Promise<void>((resolve) => setImmediate(resolve))
-        } catch {
-          // Older Chromium builds still provide passive Audits.issueAdded events.
-        }
-      }
-    }
-
-    const clearedCount = clear ? tab.inspectorIssues.length : undefined
-    if (clear) {
-      tab.inspectorIssues = []
-      tab.inspectorIssuesTruncated = false
-      tab.authChallenges = []
-      tab.authChallengesTruncated = false
-      this.changed(false)
-    }
-    const issues = tab.inspectorIssues.map((issue) => ({
-      ...issue,
-      reasons: [...issue.reasons],
-      affectedUrls: [...issue.affectedUrls],
-      ...(issue.source ? { source: { ...issue.source } } : {})
-    }))
+  /**
+   * The narrow view inspector issues get of this manager's private tabs, the
+   * debugger that reports issues and state publication. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegates below return the
+   * feature's promise directly, so no extra ticks separate its final checks
+   * from the caller.
+   */
+  private inspectorIssuesAccess(): InspectorIssuesAccess<BrowserTab> {
     return {
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      title: tab.title,
-      capturedAt: new Date().toISOString(),
-      issueCount: issues.length,
-      errorCount: issues.filter((issue) => issue.severity === 'error').length,
-      warningCount: issues.filter((issue) => issue.severity === 'warning').length,
-      infoCount: issues.filter((issue) => issue.severity === 'info').length,
-      issues,
-      truncated: tab.inspectorIssuesTruncated,
-      authChallenges: tab.authChallenges.map((challenge) => ({ ...challenge })),
-      authChallengesTruncated: tab.authChallengesTruncated,
-      devToolsOpen: tab.webContents.isDevToolsOpened(),
-      ...(clearedCount !== undefined ? { clearedCount } : {}),
-      caveats: [
-        'Issues are browser-generated diagnostics for the current document, not a complete quality audit.',
-        'URLs are bounded and redact credentials, fragments, and security-related query values; cookie values and raw issue payloads are never returned.',
-        'authChallenges lists HTTP Basic challenges that Hronaut observed and cancelled without supplying credentials. It reports origin and request kind only, not realm, path or login success; subresource challenges are not recorded while a top-level navigation is pending.',
-        tab.webContents.isDevToolsOpened()
-          ? 'Developer Tools currently owns diagnostics for this tab; close it and reload to collect new issues in Hronaut.'
-          : 'Reload the page before reproducing a problem when you need issues emitted during startup.'
-      ]
+      getTab: (tabId) => this.getTab(tabId),
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab),
+      changed: (persist) => this.changed(persist)
     }
+  }
+
+  inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
+    return inspectorIssues(this.inspectorIssuesAccess(), tabId, clear)
   }
 
   networkRequestDetails(
@@ -10551,14 +10487,7 @@ export class BrowserTabsManager {
   }
 
   private addInspectorIssue(tab: BrowserTab, value: unknown, notify = true): void {
-    const issue = normalizeInspectorIssue(value)
-    if (!issue || tab.inspectorIssues.some((candidate) => candidate.id === issue.id)) return
-    tab.inspectorIssues.push(issue)
-    if (tab.inspectorIssues.length > MAX_INSPECTOR_ISSUES) {
-      tab.inspectorIssues.splice(0, tab.inspectorIssues.length - MAX_INSPECTOR_ISSUES)
-      tab.inspectorIssuesTruncated = true
-    }
-    if (notify) this.changed(false)
+    addInspectorIssue(this.inspectorIssuesAccess(), tab, value, notify)
   }
 
   private async handleNetworkRouteRequest(tab: BrowserTab, params: unknown, requestEpoch: number): Promise<void> {
