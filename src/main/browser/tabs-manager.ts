@@ -271,12 +271,9 @@ import {
 } from '../../shared/memory-saver.js'
 import { uuidV7 } from '../uuid-v7.js'
 import { RendererRecovery } from './renderer-recovery.js'
-import {
-  credentialFillContext,
-  isCurrentCredentialFillContext,
-  type CredentialFillContext
-} from './credential-fill-context.js'
-import { credentialFillPageScript, isCredentialFillPageResult } from './credential-fill-page.js'
+import type { CredentialFillContext } from './credential-fill-context.js'
+import type { CredentialFillAccess } from './credential-fill/credential-fill-access.js'
+import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -2034,27 +2031,36 @@ export class BrowserTabsManager {
     return storageChanges(this.siteStorageAccess(), action, tabId, includeValues, hooks)
   }
 
-  credentialContext(tabId?: string): CredentialFillContext | null {
-    const tab = this.getTab(tabId)
-    if (tab.id !== this.activeTabId) return null
-    return credentialFillContext(tab.url, tab.navigationGeneration, this.tabSelectionGeneration)
+  /**
+   * The narrow view filling a saved credential gets of this manager's private
+   * tabs, active tab and selection generation, agent input scope and options.
+   * It is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value or promise directly, so callers see the same
+   * ticks as before.
+   */
+  private credentialFillAccess(): CredentialFillAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      activeTabId: () => this.activeTabId,
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      recordTrustedCredentialFill: (outcome, tab, now, onUserInteraction) => recordTrustedCredentialFill(outcome, tab, now, onUserInteraction),
+      options: () => this.options
+    }
   }
 
-  async fillCredential(
+  credentialContext(tabId?: string): CredentialFillContext | null {
+    return credentialContext(this.credentialFillAccess(), tabId)
+  }
+
+  fillCredential(
     tabId: string,
     expectedContext: CredentialFillContext,
     username: string,
     password: string
   ): Promise<boolean> {
-    const tab = this.getTab(tabId)
-    if (!isCurrentCredentialFillContext(expectedContext, this.credentialContext(tabId))) return false
-    const script = credentialFillPageScript(expectedContext, username, password)
-    const outcome: unknown = await this.withAgentInput(
-      tab.webContents,
-      () => tab.webContents.executeJavaScript(script, true)
-    )
-    if (!isCredentialFillPageResult(outcome)) return false
-    return recordTrustedCredentialFill(outcome, tab, Date.now(), this.options.onUserInteraction)
+    return fillCredential(this.credentialFillAccess(), tabId, expectedContext, username, password)
   }
 
   async newAgentTab(options: NewTabOptions): Promise<BrowserState> {
