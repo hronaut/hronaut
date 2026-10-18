@@ -1,8 +1,4 @@
-import {
-  reconcileAccountProviderSessions,
-  type AccountProviderSession,
-  type SolanaTronProviderAccess
-} from './solana-tron-provider.js'
+import { reconcileAccountProviderSessions, type AccountProviderSession, type SolanaTronProviderAccess } from './solana-tron-provider.js'
 import type {
   WalletAgentDescriptor,
   WalletChainFamily,
@@ -24,29 +20,13 @@ import { EvmCallBundleStore } from './evm-call-bundles.js'
 import { EvmFilterRegistry } from './evm-filters.js'
 import { EvmAssetSuggestionLog } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
-import {
-  reconcileEvmProviderSessions,
-  uninstallEvmFilters,
-  type EvmProviderAccess,
-  type EvmProviderSession
-} from './evm-provider.js'
+import { reconcileEvmProviderSessions, uninstallEvmFilters, type EvmProviderAccess, type EvmProviderSession } from './evm-provider.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
-import type {
-  WalletChainAdapter,
-  WalletNormalizedTransaction
-} from './adapters/types.js'
-import {
-  WalletPolicyEngine,
-  type WalletPolicyDecision,
-  type WalletWebsiteSignInEvaluation
-} from './policy.js'
+import type { WalletChainAdapter, WalletNormalizedTransaction } from './adapters/types.js'
+import { WalletPolicyEngine, type WalletPolicyDecision, type WalletWebsiteSignInEvaluation } from './policy.js'
 import type { WalletService } from './service.js'
-import {
-  drainConfirmationTasks,
-  resumeSubmittedConfirmations,
-  type TransactionConfirmationAccess
-} from './transaction-confirmations.js'
+import { drainConfirmationTasks, resumeSubmittedConfirmations, type TransactionConfirmationAccess } from './transaction-confirmations.js'
 import {
   agentBalance,
   agentPageRequests,
@@ -61,32 +41,12 @@ import {
 import { listPending, type PendingRequestsAccess } from './broker/pending-requests.js'
 import { keepsTabAwake, providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
 import { approve, reject, type HumanApprovalsAccess } from './broker/human-approvals.js'
-import {
-  assertRecordPageActive,
-  assertRequestContextActive,
-  cancelForNavigation,
-  cancelForTab,
-  cancelForWorkspace,
-  isRequestContextActive,
-  resumeTab,
-  type PageLifecycleAccess
-} from './broker/page-lifecycle.js'
-import {
-  assertAgentOperationActive,
-  cancelForRequester,
-  isAgentOperationActive,
-  withAgentOperation,
-  type AgentOperationsAccess
-} from './broker/agent-operations.js'
+import { assertRecordPageActive, assertRequestContextActive, cancelForNavigation, cancelForTab, cancelForWorkspace, isRequestContextActive, resumeTab, type PageLifecycleAccess } from './broker/page-lifecycle.js'
+import { assertAgentOperationActive, cancelForRequester, isAgentOperationActive, withAgentOperation, type AgentOperationsAccess } from './broker/agent-operations.js'
 import { clearRequestExpiry, createRequest, fail, wait, type RequestRecordsAccess } from './broker/request-records.js'
 import { execute, type RequestExecutionAccess } from './broker/request-execution.js'
 import { approveWebsiteSignIn, websiteSignInDecision, type WebsiteSignInAccess } from './broker/website-sign-in.js'
-import {
-  connect,
-  createAddressPermissionRequest,
-  disconnectWallet,
-  type AccountConnectionsAccess
-} from './broker/account-connections.js'
+import { connect, createAddressPermissionRequest, disconnectWallet, type AccountConnectionsAccess } from './broker/account-connections.js'
 import { transactionRequest, type TransactionRequestsAccess } from './broker/transaction-requests.js'
 import { messageRequest, type MessageRequestsAccess } from './broker/message-requests.js'
 import { removePolicy, removeWallet, revokePermission, setPolicy, updateWallet, type WalletManagementAccess } from './broker/wallet-management.js'
@@ -220,18 +180,6 @@ export class WalletBroker {
     return this.shutdownPromise
   }
 
-  /** The narrow view the wallet prompt's request list gets of this broker's retained messages. */
-  private pendingRequestsAccess(): PendingRequestsAccess {
-    return {
-      service: this.service,
-      pendingMessages: this.pendingMessages
-    }
-  }
-
-  listPending(): WalletRequestSummary[] {
-    return listPending(this.pendingRequestsAccess())
-  }
-
   lock(): Promise<WalletServiceStatus> {
     this.lockGeneration += 1
     this.service.lock()
@@ -244,6 +192,49 @@ export class WalletBroker {
       }
       return this.service.status()
     })
+  }
+
+  /** The narrow view the wallet prompt's request list gets of this broker's retained messages. */
+  private pendingRequestsAccess(): PendingRequestsAccess {
+    return {
+      service: this.service,
+      pendingMessages: this.pendingMessages
+    }
+  }
+
+  listPending(): WalletRequestSummary[] {
+    return listPending(this.pendingRequestsAccess())
+  }
+
+  /** The narrow view wallet management gets of this broker's lifecycle queue and page connections. */
+  private walletManagementAccess(): WalletManagementAccess {
+    return {
+      service: this.service,
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      reconcileProviderSessions: () => this.reconcileProviderSessions(),
+      rejectCancelled: () => this.rejectCancelled(),
+      now: () => this.now()
+    }
+  }
+
+  updateWallet(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor> {
+    return updateWallet(this.walletManagementAccess(), walletId, changes)
+  }
+
+  setPolicy(input: WalletPolicy): Promise<WalletPolicy> {
+    return setPolicy(this.walletManagementAccess(), input)
+  }
+
+  removePolicy(policyId: string): Promise<boolean> {
+    return removePolicy(this.walletManagementAccess(), policyId)
+  }
+
+  removeWallet(walletId: string): Promise<boolean> {
+    return removeWallet(this.walletManagementAccess(), walletId)
+  }
+
+  revokePermission(permissionId: string): Promise<boolean> {
+    return revokePermission(this.walletManagementAccess(), permissionId)
   }
 
   /**
@@ -287,28 +278,15 @@ export class WalletBroker {
     return agentBalance(this.agentWalletAccess(), context, walletId, token, spender)
   }
 
-  prepareAgentTransaction(
-    context: WalletBrokerContext,
-    walletId: string,
-    payload: unknown
-  ): Promise<Record<string, unknown>> {
+  prepareAgentTransaction(context: WalletBrokerContext, walletId: string, payload: unknown): Promise<Record<string, unknown>> {
     return prepareAgentTransaction(this.agentWalletAccess(), context, walletId, payload)
   }
 
-  requestAgentTransaction(
-    context: WalletBrokerContext,
-    walletId: string,
-    payload: unknown,
-    broadcast: boolean
-  ): Promise<Record<string, unknown>> {
+  requestAgentTransaction(context: WalletBrokerContext, walletId: string, payload: unknown, broadcast: boolean): Promise<Record<string, unknown>> {
     return requestAgentTransaction(this.agentWalletAccess(), context, walletId, payload, broadcast)
   }
 
-  requestAgentMessage(
-    context: WalletBrokerContext,
-    walletId: string,
-    message: Uint8Array
-  ): Promise<Record<string, unknown>> {
+  requestAgentMessage(context: WalletBrokerContext, walletId: string, message: Uint8Array): Promise<Record<string, unknown>> {
     return requestAgentMessage(this.agentWalletAccess(), context, walletId, message)
   }
 
@@ -324,46 +302,7 @@ export class WalletBroker {
     return cancelAgentRequest(this.agentWalletAccess(), context, requestId)
   }
 
-  /** The narrow view wallet management gets of this broker's lifecycle queue and page connections. */
-  private walletManagementAccess(): WalletManagementAccess {
-    return {
-      service: this.service,
-      queueLifecycle: (operation) => this.queueLifecycle(operation),
-      reconcileProviderSessions: () => this.reconcileProviderSessions(),
-      rejectCancelled: () => this.rejectCancelled(),
-      now: () => this.now()
-    }
-  }
-
-  updateWallet(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor> {
-    return updateWallet(this.walletManagementAccess(), walletId, changes)
-  }
-
-  setPolicy(input: WalletPolicy): Promise<WalletPolicy> {
-    return setPolicy(this.walletManagementAccess(), input)
-  }
-
-  removePolicy(policyId: string): Promise<boolean> {
-    return removePolicy(this.walletManagementAccess(), policyId)
-  }
-
-  removeWallet(walletId: string): Promise<boolean> {
-    return removeWallet(this.walletManagementAccess(), walletId)
-  }
-
-  revokePermission(permissionId: string): Promise<boolean> {
-    return revokePermission(this.walletManagementAccess(), permissionId)
-  }
-
-  refreshProviderSessions(): void {
-    this.reconcileProviderSessions()
-  }
-
-  /**
-   * The narrow view website and agent page calls get of this broker's
-   * private state and request path. It is built on each call, so it reads
-   * whether the broker is shutting down at the moment a call arrives.
-   */
+  /** The narrow view page wallet calls get of this broker's state, built on each call so shutdown reads stay live. */
   private providerRequestsAccess(): ProviderRequestsAccess {
     return {
       service: this.service,
@@ -383,11 +322,11 @@ export class WalletBroker {
     return providerRequest(this.providerRequestsAccess(), context, input)
   }
 
-  /**
-   * The narrow view a person's approval or rejection in the wallet prompt
-   * gets of this broker's private state and request path. It is built on
-   * each call, so it reads the lock generation at the moment it is asked.
-   */
+  keepsTabAwake(tabId: string): boolean {
+    return keepsTabAwake(this.providerRequestsAccess(), tabId)
+  }
+
+  /** The narrow view prompt approvals get of this broker's state, built on each call so lock generation reads stay live. */
   private humanApprovalsAccess(): HumanApprovalsAccess {
     return {
       service: this.service,
@@ -412,11 +351,7 @@ export class WalletBroker {
     return reject(this.humanApprovalsAccess(), requestId)
   }
 
-  /**
-   * The narrow view page lifecycle handling gets of this broker's private
-   * state. It is built on each call, so it reads whether the broker is
-   * shutting down at the moment a check asks.
-   */
+  /** The narrow view page lifecycle handling gets of this broker's state, built on each call so shutdown reads stay live. */
   private pageLifecycleAccess(): PageLifecycleAccess {
     return {
       service: this.service,
@@ -441,10 +376,6 @@ export class WalletBroker {
     return cancelForNavigation(this.pageLifecycleAccess(), tabId, generation)
   }
 
-  keepsTabAwake(tabId: string): boolean {
-    return keepsTabAwake(this.providerRequestsAccess(), tabId)
-  }
-
   cancelForTab(tabId: string): Promise<void> {
     return cancelForTab(this.pageLifecycleAccess(), tabId)
   }
@@ -457,11 +388,19 @@ export class WalletBroker {
     return cancelForWorkspace(this.pageLifecycleAccess(), workspaceId)
   }
 
-  /**
-   * The narrow view agent operation tracking gets of this broker's private
-   * state. It is built on each call, so it reads whether the broker is
-   * shutting down at the moment an operation starts.
-   */
+  private isRequestContextActive(context: WalletBrokerContext): boolean {
+    return isRequestContextActive(this.pageLifecycleAccess(), context)
+  }
+
+  private assertRequestContextActive(context: WalletBrokerContext): void {
+    assertRequestContextActive(this.pageLifecycleAccess(), context)
+  }
+
+  private assertRecordPageActive(record: WalletApprovalRecord): void {
+    assertRecordPageActive(this.pageLifecycleAccess(), record)
+  }
+
+  /** The narrow view agent operation tracking gets of this broker's state, built on each call so shutdown reads stay live. */
   private agentOperationsAccess(): AgentOperationsAccess {
     return {
       service: this.service,
@@ -478,6 +417,18 @@ export class WalletBroker {
 
   cancelForRequester(requesterId: string): Promise<void> {
     return cancelForRequester(this.agentOperationsAccess(), requesterId)
+  }
+
+  private withAgentOperation<T>(context: WalletBrokerContext, operation: () => Promise<T>): Promise<T> {
+    return withAgentOperation(this.agentOperationsAccess(), context, operation)
+  }
+
+  private isAgentOperationActive(context: WalletBrokerContext): boolean {
+    return isAgentOperationActive(this.agentOperationsAccess(), context)
+  }
+
+  private assertAgentOperationActive(context: WalletBrokerContext): void {
+    assertAgentOperationActive(this.agentOperationsAccess(), context)
   }
 
   /**
@@ -541,6 +492,50 @@ export class WalletBroker {
     }
   }
 
+  refreshProviderSessions(): void {
+    this.reconcileProviderSessions()
+  }
+
+  private reconcileProviderSessions(): void {
+    reconcileEvmProviderSessions(this.evmProviderAccess())
+    reconcileAccountProviderSessions(this.solanaTronProviderAccess())
+    this.scheduleProviderPermissionExpiry()
+  }
+
+  private scheduleProviderPermissionExpiry(): void {
+    this.permissionExpiryCancellation?.()
+    this.permissionExpiryCancellation = null
+    if (this.shuttingDown || (!this.evmProviderSessions.size && !this.accountProviderSessions.size)) return
+    const now = this.now().getTime()
+    const nextExpiry = this.service.permissions.list().reduce((earliest, permission) => {
+      const expiresAt = Date.parse(permission.expiresAt)
+      return expiresAt > now && expiresAt < earliest ? expiresAt : earliest
+    }, Number.POSITIVE_INFINITY)
+    if (!Number.isFinite(nextExpiry)) return
+    const reconcile = () => {
+      this.permissionExpiryCancellation = null
+      if (!this.shuttingDown) this.reconcileProviderSessions()
+    }
+    const delay = Math.min(MAX_TIMEOUT_MS, Math.max(0, nextExpiry - now))
+    this.permissionExpiryCancellation = this.options.permissionExpiryScheduler?.(reconcile, delay) ?? (() => {
+      const timer = setTimeout(reconcile, delay)
+      timer.unref()
+      return () => clearTimeout(timer)
+    })()
+  }
+
+  private clearEvmProviderSessions(predicate: (session: EvmProviderSession) => boolean): void {
+    for (const [key, session] of this.evmProviderSessions) {
+      if (predicate(session)) this.evmProviderSessions.delete(key)
+    }
+  }
+
+  private clearAccountProviderSessions(predicate: (session: AccountProviderSession) => boolean): void {
+    for (const [key, session] of this.accountProviderSessions) {
+      if (predicate(session)) this.accountProviderSessions.delete(key)
+    }
+  }
+
   /** The narrow view account connections get of this broker's private state and request path. */
   private accountConnectionsAccess(): AccountConnectionsAccess {
     return {
@@ -565,6 +560,18 @@ export class WalletBroker {
 
   private connect(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<unknown> {
     return connect(this.accountConnectionsAccess(), context, wallet)
+  }
+
+  private createAddressPermissionRequest(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    allowWebsiteSignIn = false
+  ): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
+    return createAddressPermissionRequest(this.accountConnectionsAccess(), context, wallet, allowWebsiteSignIn)
+  }
+
+  private disconnectWallet(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<void> {
+    return disconnectWallet(this.accountConnectionsAccess(), context, wallet)
   }
 
   /** The narrow view transaction requests get of this broker's policy engine and request path. */
@@ -601,9 +608,7 @@ export class WalletBroker {
       assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
       createRequest: (context, wallet, operation, capability, payload) => this.createRequest(context, wallet, operation, capability, payload),
       websiteSignInDecision: (context, wallet, recordId, message) => this.websiteSignInDecision(context, wallet, recordId, message),
-      approveWebsiteSignIn: (context, wallet, recordId, policies, policyId, typedData) => (
-        this.approveWebsiteSignIn(context, wallet, recordId, policies, policyId, typedData)
-      ),
+      approveWebsiteSignIn: (context, wallet, recordId, policies, policyId, typedData) => this.approveWebsiteSignIn(context, wallet, recordId, policies, policyId, typedData),
       clearRequestExpiry: (requestId) => this.clearRequestExpiry(requestId),
       wait: (requestId) => this.wait(requestId),
       fail: (requestId, error) => this.fail(requestId, error),
@@ -616,10 +621,28 @@ export class WalletBroker {
     return messageRequest(this.messageRequestsAccess(), context, wallet, input, rawSigning, returnSummary)
   }
 
-  /**
-   * The narrow view request execution gets of this broker's private state:
-   * the retained messages, the page checks and the signing path.
-   */
+  /** The narrow view website sign-in policies get of this broker's policy engine and request path. */
+  private websiteSignInAccess(): WebsiteSignInAccess {
+    return {
+      service: this.service,
+      policy: this.policy,
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
+      execute: (record, activeAgentContext, options) => this.execute(record, activeAgentContext, options),
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      now: () => this.now()
+    }
+  }
+
+  private websiteSignInDecision(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, message?: WalletWebsiteSignInEvaluation['message']): { decision: WalletPolicyDecision; policies: WalletPolicy[] } | undefined {
+    return websiteSignInDecision(this.websiteSignInAccess(), context, wallet, recordId, message)
+  }
+
+  private approveWebsiteSignIn(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, policies: readonly WalletPolicy[], policyId: string, typedData = false): Promise<{ approved: false } | { approved: true; result: unknown }> {
+    return approveWebsiteSignIn(this.websiteSignInAccess(), context, wallet, recordId, policies, policyId, typedData)
+  }
+
+  /** The narrow view request execution gets of this broker's retained messages, page checks and signing path. */
   private requestExecutionAccess(): RequestExecutionAccess {
     return {
       service: this.service,
@@ -640,10 +663,7 @@ export class WalletBroker {
     return execute(this.requestExecutionAccess(), record, activeAgentContext, options)
   }
 
-  /**
-   * The narrow view request records get of this broker's private state: the
-   * waiting page promises and the expiry timers.
-   */
+  /** The narrow view request records get of this broker's waiting page promises and expiry timers. */
   private requestRecordsAccess(): RequestRecordsAccess {
     return {
       service: this.service,
@@ -669,182 +689,12 @@ export class WalletBroker {
     return wait(this.requestRecordsAccess(), requestId)
   }
 
-  private withAgentOperation<T>(context: WalletBrokerContext, operation: () => Promise<T>): Promise<T> {
-    return withAgentOperation(this.agentOperationsAccess(), context, operation)
-  }
-
-  private isAgentOperationActive(context: WalletBrokerContext): boolean {
-    return isAgentOperationActive(this.agentOperationsAccess(), context)
-  }
-
-  private assertAgentOperationActive(context: WalletBrokerContext): void {
-    assertAgentOperationActive(this.agentOperationsAccess(), context)
-  }
-
-  private isRequestContextActive(context: WalletBrokerContext): boolean {
-    return isRequestContextActive(this.pageLifecycleAccess(), context)
-  }
-
-  private assertRequestContextActive(context: WalletBrokerContext): void {
-    assertRequestContextActive(this.pageLifecycleAccess(), context)
-  }
-
-  private assertRecordPageActive(record: WalletApprovalRecord): void {
-    assertRecordPageActive(this.pageLifecycleAccess(), record)
-  }
-
-  private accessibleWallets(context: WalletBrokerContext, family: WalletChainFamily): WalletDescriptor[] {
-    return this.service.list().filter((wallet) => wallet.chainFamily === family && walletAllowsWorkspace(wallet, context.workspaceId))
-  }
-
-  private requireAccessibleWallet(context: WalletBrokerContext, walletId: string): WalletDescriptor {
-    const wallet = this.requireWallet(walletId)
-    if (!walletAllowsWorkspace(wallet, context.workspaceId)) {
-      throw new Error('Wallet is not attached to the requesting workspace')
-    }
-    return wallet
-  }
-
-  private hasAddressPermission(context: WalletBrokerContext, wallet: WalletDescriptor): boolean {
-    return this.service.permissions.allows({
-      walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
-      account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id,
-      requester: context.requester, capability: 'read'
-    }, this.now())
-  }
-
-  private disconnectWallet(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<void> {
-    return disconnectWallet(this.accountConnectionsAccess(), context, wallet)
-  }
-
-  private createAddressPermissionRequest(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor,
-    allowWebsiteSignIn = false
-  ): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
-    return createAddressPermissionRequest(this.accountConnectionsAccess(), context, wallet, allowWebsiteSignIn)
-  }
-
-  /** The narrow view website sign-in policies get of this broker's policy engine and request path. */
-  private websiteSignInAccess(): WebsiteSignInAccess {
-    return {
-      service: this.service,
-      policy: this.policy,
-      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
-      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
-      execute: (record, activeAgentContext, options) => this.execute(record, activeAgentContext, options),
-      queueLifecycle: (operation) => this.queueLifecycle(operation),
-      now: () => this.now()
-    }
-  }
-
-  private websiteSignInDecision(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, message?: WalletWebsiteSignInEvaluation['message']): { decision: WalletPolicyDecision; policies: WalletPolicy[] } | undefined {
-    return websiteSignInDecision(this.websiteSignInAccess(), context, wallet, recordId, message)
-  }
-
-  private approveWebsiteSignIn(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, policies: readonly WalletPolicy[], policyId: string, typedData = false): Promise<{ approved: false } | { approved: true; result: unknown }> {
-    return approveWebsiteSignIn(this.websiteSignInAccess(), context, wallet, recordId, policies, policyId, typedData)
-  }
-
-  private selectWallet(wallets: WalletDescriptor[]): WalletDescriptor {
-    const wallet = wallets.find((entry) => entry.kind !== 'watch-only') ?? wallets[0]
-    if (!wallet) throw new Error('No wallet is attached to this workspace for the requested chain')
-    return wallet
-  }
-
-  private clearEvmProviderSessions(predicate: (session: EvmProviderSession) => boolean): void {
-    for (const [key, session] of this.evmProviderSessions) {
-      if (predicate(session)) this.evmProviderSessions.delete(key)
-    }
-  }
-
-  private clearAccountProviderSessions(predicate: (session: AccountProviderSession) => boolean): void {
-    for (const [key, session] of this.accountProviderSessions) {
-      if (predicate(session)) this.accountProviderSessions.delete(key)
-    }
-  }
-
-  private reconcileProviderSessions(): void {
-    reconcileEvmProviderSessions(this.evmProviderAccess())
-    reconcileAccountProviderSessions(this.solanaTronProviderAccess())
-    this.scheduleProviderPermissionExpiry()
-  }
-
-  private scheduleProviderPermissionExpiry(): void {
-    this.permissionExpiryCancellation?.()
-    this.permissionExpiryCancellation = null
-    if (this.shuttingDown || (!this.evmProviderSessions.size && !this.accountProviderSessions.size)) return
-    const now = this.now().getTime()
-    const nextExpiry = this.service.permissions.list().reduce((earliest, permission) => {
-      const expiresAt = Date.parse(permission.expiresAt)
-      return expiresAt > now && expiresAt < earliest ? expiresAt : earliest
-    }, Number.POSITIVE_INFINITY)
-    if (!Number.isFinite(nextExpiry)) return
-    const reconcile = () => {
-      this.permissionExpiryCancellation = null
-      if (!this.shuttingDown) this.reconcileProviderSessions()
-    }
-    const delay = Math.min(MAX_TIMEOUT_MS, Math.max(0, nextExpiry - now))
-    this.permissionExpiryCancellation = this.options.permissionExpiryScheduler?.(reconcile, delay) ?? (() => {
-      const timer = setTimeout(reconcile, delay)
-      timer.unref()
-      return () => clearTimeout(timer)
-    })()
-  }
-
-  private assertAddressPermission(context: WalletBrokerContext, wallet: WalletDescriptor, capability: 'sign' | 'send'): void {
-    if (!this.service.permissions.allows({
-      walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
-      account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id,
-      requester: context.requester, capability: 'read'
-    }, this.now())) throw new Error(`Wallet account access must be approved before ${capability}`)
-  }
-
-  private requireWallet(walletId: string): WalletDescriptor {
-    const wallet = this.service.list().find((entry) => entry.id === walletId)
-    if (!wallet) throw new Error('Wallet not found')
-    return wallet
-  }
-
-  private messageBytes(value: unknown, encoding: 'utf8' | 'hex-or-utf8' = 'utf8'): Uint8Array {
-    if (value instanceof Uint8Array) {
-      if (!value.length || value.length > 1_048_576) throw new Error('Wallet message is invalid')
-      return Uint8Array.from(value)
-    }
-    if (typeof value !== 'string' || !value.length) throw new Error('Wallet message is invalid')
-    if (encoding === 'hex-or-utf8' && /^0x(?:[a-fA-F0-9]{2})+$/.test(value)) return Buffer.from(value.slice(2), 'hex')
-    const bytes = Buffer.from(value, 'utf8')
-    if (bytes.length > 1_048_576) throw new Error('Wallet message is invalid')
-    return bytes
-  }
-
   private fail(requestId: string, error: unknown): Promise<Error> {
     return fail(this.requestRecordsAccess(), requestId, error)
   }
 
-  private rejectCancelled(): void {
-    for (const record of this.service.approvals.list()) {
-      if (record.status !== 'cancelled' && record.status !== 'expired') continue
-      this.rejectPending(record.id, new Error(`Wallet request was ${record.status}`))
-    }
-    this.publish()
-  }
-
-  private rejectPending(requestId: string, error: Error): void {
-    this.pending.get(requestId)?.reject(error)
-    this.pending.delete(requestId)
-    this.clearPendingMessage(requestId)
-    this.clearRequestExpiry(requestId)
-  }
-
-  private publish(): void {
-    this.options.onPendingChanged?.(this.listPending())
-  }
-
-  private clearPendingMessage(requestId: string): void {
-    const input = this.pendingMessages.get(requestId)
-    if (input?.kind === 'message') input.message.fill(0)
-    this.pendingMessages.delete(requestId)
+  private clearRequestExpiry(requestId: string): void {
+    clearRequestExpiry(this.requestRecordsAccess(), requestId)
   }
 
   /**
@@ -870,13 +720,86 @@ export class WalletBroker {
     }
   }
 
-  private clearRequestExpiry(requestId: string): void {
-    clearRequestExpiry(this.requestRecordsAccess(), requestId)
-  }
-
   private confirmationPollIntervalMs(): number {
     const value = this.options.confirmationPollIntervalMs ?? DEFAULT_CONFIRMATION_POLL_INTERVAL_MS
     return Number.isSafeInteger(value) && value > 0 ? value : DEFAULT_CONFIRMATION_POLL_INTERVAL_MS
+  }
+
+  private accessibleWallets(context: WalletBrokerContext, family: WalletChainFamily): WalletDescriptor[] {
+    return this.service.list().filter((wallet) => wallet.chainFamily === family && walletAllowsWorkspace(wallet, context.workspaceId))
+  }
+
+  private requireAccessibleWallet(context: WalletBrokerContext, walletId: string): WalletDescriptor {
+    const wallet = this.requireWallet(walletId)
+    if (!walletAllowsWorkspace(wallet, context.workspaceId)) {
+      throw new Error('Wallet is not attached to the requesting workspace')
+    }
+    return wallet
+  }
+
+  private requireWallet(walletId: string): WalletDescriptor {
+    const wallet = this.service.list().find((entry) => entry.id === walletId)
+    if (!wallet) throw new Error('Wallet not found')
+    return wallet
+  }
+
+  private selectWallet(wallets: WalletDescriptor[]): WalletDescriptor {
+    const wallet = wallets.find((entry) => entry.kind !== 'watch-only') ?? wallets[0]
+    if (!wallet) throw new Error('No wallet is attached to this workspace for the requested chain')
+    return wallet
+  }
+
+  private hasAddressPermission(context: WalletBrokerContext, wallet: WalletDescriptor): boolean {
+    return this.service.permissions.allows({
+      walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
+      account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id,
+      requester: context.requester, capability: 'read'
+    }, this.now())
+  }
+
+  private assertAddressPermission(context: WalletBrokerContext, wallet: WalletDescriptor, capability: 'sign' | 'send'): void {
+    if (!this.service.permissions.allows({
+      walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
+      account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id,
+      requester: context.requester, capability: 'read'
+    }, this.now())) throw new Error(`Wallet account access must be approved before ${capability}`)
+  }
+
+  private messageBytes(value: unknown, encoding: 'utf8' | 'hex-or-utf8' = 'utf8'): Uint8Array {
+    if (value instanceof Uint8Array) {
+      if (!value.length || value.length > 1_048_576) throw new Error('Wallet message is invalid')
+      return Uint8Array.from(value)
+    }
+    if (typeof value !== 'string' || !value.length) throw new Error('Wallet message is invalid')
+    if (encoding === 'hex-or-utf8' && /^0x(?:[a-fA-F0-9]{2})+$/.test(value)) return Buffer.from(value.slice(2), 'hex')
+    const bytes = Buffer.from(value, 'utf8')
+    if (bytes.length > 1_048_576) throw new Error('Wallet message is invalid')
+    return bytes
+  }
+
+  private rejectCancelled(): void {
+    for (const record of this.service.approvals.list()) {
+      if (record.status !== 'cancelled' && record.status !== 'expired') continue
+      this.rejectPending(record.id, new Error(`Wallet request was ${record.status}`))
+    }
+    this.publish()
+  }
+
+  private rejectPending(requestId: string, error: Error): void {
+    this.pending.get(requestId)?.reject(error)
+    this.pending.delete(requestId)
+    this.clearPendingMessage(requestId)
+    this.clearRequestExpiry(requestId)
+  }
+
+  private clearPendingMessage(requestId: string): void {
+    const input = this.pendingMessages.get(requestId)
+    if (input?.kind === 'message') input.message.fill(0)
+    this.pendingMessages.delete(requestId)
+  }
+
+  private publish(): void {
+    this.options.onPendingChanged?.(this.listPending())
   }
 
   private queueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
