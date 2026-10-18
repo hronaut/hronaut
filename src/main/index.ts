@@ -111,7 +111,6 @@ import type {
   BrowserBookmark,
   BrowserHistoryEntry,
   CredentialStorageStatus,
-  DetachablePanelId,
   LanguagePreference,
   RendererSettingsState,
   ThemeName,
@@ -129,7 +128,7 @@ import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
-import { createPanelWindow } from './windows/panel-window.js'
+import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
@@ -187,7 +186,14 @@ const mainWindowRefs: MainWindowRefs = {
   stateStore: null,
   lastState: null
 }
-let panelWindow: BrowserWindow | null = null
+const panelWindowRefs: PanelWindowRefs = {
+  window: null,
+  url: null,
+  panel: null,
+  redocking: false,
+  stateStore: null,
+  lastState: null
+}
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
   trustedUrlMatches,
@@ -286,9 +292,6 @@ const shellTooltips = new ShellTooltipOverlay({
     return { width, height }
   }
 })
-let panelWindowUrl: string | null = null
-let panelWindowPanel: DetachablePanelId | null = null
-let panelWindowRedocking = false
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
 let initializedTabsManager: BrowserTabsManager | null = null
@@ -327,17 +330,15 @@ const {
   setLastState: (state) => { mainWindowRefs.lastState = state },
   logPrefix: '[window]'
 })
-let panelWindowStateStore: WindowStateStore | null = null
-let lastPanelWindowState: import('./window-state.js').SavedWindowState | null = null
 const {
   currentState: currentPanelWindowState,
   scheduleSave: schedulePanelWindowStateSave,
   flush: flushPanelWindowState
 } = createWindowStatePersistence({
-  window: () => panelWindow,
-  store: () => panelWindowStateStore,
-  lastState: () => lastPanelWindowState,
-  setLastState: (state) => { lastPanelWindowState = state },
+  window: () => panelWindowRefs.window,
+  store: () => panelWindowRefs.stateStore,
+  lastState: () => panelWindowRefs.lastState,
+  setLastState: (state) => { panelWindowRefs.lastState = state },
   logPrefix: '[panel-window]'
 })
 let persistentSession: Session | null = null
@@ -400,7 +401,7 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
   setUpdateState: (state) => { updateState = state },
   sendToShellWindows,
   mainWindow: () => mainWindowRefs.window,
-  panelWindow: () => panelWindow
+  panelWindow: () => panelWindowRefs.window
 })
 let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
@@ -563,7 +564,7 @@ function showWindow(): void {
   if (mainWindowRefs.window.isMinimized()) mainWindowRefs.window.restore()
   mainWindowRefs.window.show()
   mainWindowRefs.window.focus()
-  if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.show()
+  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.isVisible()) panelWindowRefs.window.show()
 }
 
 function showWindowInactive(): void {
@@ -571,11 +572,11 @@ function showWindowInactive(): void {
   // showInactive can raise an already visible window above another app.
   // Agent requests ensure visibility without changing the current stacking.
   if (!mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) mainWindowRefs.window.showInactive()
-  if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.showInactive()
+  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.isVisible()) panelWindowRefs.window.showInactive()
 }
 
 function sendToShellWindows(channel: string, ...args: unknown[]): void {
-  for (const window of [mainWindowRefs.window, panelWindow]) {
+  for (const window of [mainWindowRefs.window, panelWindowRefs.window]) {
     if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send(channel, ...args)
     }
@@ -656,8 +657,8 @@ function scheduleAgentPresencePublish(): void {
 }
 
 function sendToPanelWindow(channel: string, ...args: unknown[]): void {
-  if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.webContents.isDestroyed()) {
-    panelWindow.webContents.send(channel, ...args)
+  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.webContents.isDestroyed()) {
+    panelWindowRefs.window.webContents.send(channel, ...args)
   }
 }
 
@@ -765,12 +766,12 @@ const {
 function applyTheme(theme: ThemeName): void {
   nativeTheme.themeSource = theme === 'system' ? 'system' : themeColorScheme(theme)
   applyMainWindowBackground()
-  panelWindow?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
+  panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
   applyMainWindowTitleBarOverlay()
 }
 
 function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
-  for (const window of [mainWindowRefs.window, panelWindow]) {
+  for (const window of [mainWindowRefs.window, panelWindowRefs.window]) {
     if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.setZoomFactor(scale)
     }
@@ -787,8 +788,8 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   installApplicationMenu()
   setTrayContextMenu()
   mainWindowRefs.window?.setTitle('Hronaut')
-  if (panelWindow && !panelWindow.isDestroyed() && panelWindowPanel) {
-    panelWindow.setTitle(detachedPanelTitle(panelWindowPanel))
+  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && panelWindowRefs.panel) {
+    panelWindowRefs.window.setTitle(detachedPanelTitle(panelWindowRefs.panel))
   }
   refreshHomeAfterCommittedChange('settings')
 }
@@ -941,13 +942,13 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   text,
   trustedShellUrl,
   mainWindow: () => mainWindowRefs.window,
-  panelWindow: () => panelWindow,
-  setPanelWindow: (window) => { panelWindow = window },
-  setPanelWindowUrl: (url) => { panelWindowUrl = url },
-  panelWindowPanel: () => panelWindowPanel,
-  setPanelWindowPanel: (panel) => { panelWindowPanel = panel },
-  panelWindowRedocking: () => panelWindowRedocking,
-  setPanelWindowRedocking: (value) => { panelWindowRedocking = value },
+  panelWindow: () => panelWindowRefs.window,
+  setPanelWindow: (window) => { panelWindowRefs.window = window },
+  setPanelWindowUrl: (url) => { panelWindowRefs.url = url },
+  panelWindowPanel: () => panelWindowRefs.panel,
+  setPanelWindowPanel: (panel) => { panelWindowRefs.panel = panel },
+  panelWindowRedocking: () => panelWindowRefs.redocking,
+  setPanelWindowRedocking: (value) => { panelWindowRefs.redocking = value },
   sendToPanelWindow,
   settings: () => settings,
   resolvedTheme,
@@ -960,9 +961,9 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   sitePermissionStore: () => sitePermissionStore,
   bookmarkStore: () => bookmarkStore,
   historyStore: () => historyStore,
-  panelWindowStateStore: () => panelWindowStateStore,
-  lastPanelWindowState: () => lastPanelWindowState,
-  setLastPanelWindowState: (state) => { lastPanelWindowState = state },
+  panelWindowStateStore: () => panelWindowRefs.stateStore,
+  lastPanelWindowState: () => panelWindowRefs.lastState,
+  setLastPanelWindowState: (state) => { panelWindowRefs.lastState = state },
   currentPanelWindowState,
   schedulePanelWindowStateSave,
   flushPanelWindowState
@@ -976,10 +977,10 @@ function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.
   if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
   const fromMain = Boolean(mainWindowRefs.window && event.sender === mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
-  const fromPanel = Boolean(panelWindow
-    && panelWindowUrl
-    && event.sender === panelWindow.webContents
-    && trustedUrlMatches(actual, panelWindowUrl))
+  const fromPanel = Boolean(panelWindowRefs.window
+    && panelWindowRefs.url
+    && event.sender === panelWindowRefs.window.webContents
+    && trustedUrlMatches(actual, panelWindowRefs.url))
   if (!fromMain && !fromPanel) throw new Error('Rejected IPC from an untrusted renderer')
 }
 
@@ -994,7 +995,7 @@ function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.Ipc
 function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
   if (workspaceStartupFailure) throw workspaceStartupFailure
   const actual = event.senderFrame?.url
-  if (!panelWindow || !panelWindowUrl || event.sender !== panelWindow.webContents || !trustedUrlMatches(actual, panelWindowUrl)) {
+  if (!panelWindowRefs.window || !panelWindowRefs.url || event.sender !== panelWindowRefs.window.webContents || !trustedUrlMatches(actual, panelWindowRefs.url)) {
     throw new Error('Rejected IPC from a non-panel renderer')
   }
 }
@@ -1091,9 +1092,9 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     assertPanelShellSender,
     openPanelWindow,
-    panelWindow: () => panelWindow,
-    setPanelWindowPanel: (panel) => { panelWindowPanel = panel },
-    setPanelWindowRedocking: (value) => { panelWindowRedocking = value },
+    panelWindow: () => panelWindowRefs.window,
+    setPanelWindowPanel: (panel) => { panelWindowRefs.panel = panel },
+    setPanelWindowRedocking: (value) => { panelWindowRefs.redocking = value },
     detachedPanelTitle,
     mainWindow: () => mainWindowRefs.window
   })
@@ -1453,7 +1454,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   }
   applyTheme(settings.theme)
   mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
-  panelWindowStateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
+  panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
   mainWindowRefs.window = openMainWindow(savedWindowState)
   mainWindowRefs.window.webContents.setZoomFactor(settings.interfaceScale)
@@ -1640,7 +1641,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.on('close', (event) => {
     if (!quitting && settings.hideInTray) {
       event.preventDefault()
-      panelWindow?.hide()
+      panelWindowRefs.window?.hide()
       mainWindowRefs.window?.hide()
       return
     }
@@ -1651,7 +1652,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     }
   })
   mainWindowRefs.window.on('closed', () => {
-    if (panelWindow && !panelWindow.isDestroyed()) panelWindow.close()
+    if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed()) panelWindowRefs.window.close()
     addressSuggestionOverlay.mainWindowClosed()
     shellTooltips.hide()
     tooltipView.close()
@@ -1898,7 +1899,7 @@ app.on('before-quit', () => {
   clearTimeout(commercialLicenseStateTimer)
   quitting = true
   mainWindowRefs.lastState = currentWindowState() ?? mainWindowRefs.lastState
-  lastPanelWindowState = currentPanelWindowState() ?? lastPanelWindowState
+  panelWindowRefs.lastState = currentPanelWindowState() ?? panelWindowRefs.lastState
 })
 
 app.whenReady().then(async () => {
@@ -1914,7 +1915,7 @@ app.whenReady().then(async () => {
   nativeTheme.on('updated', () => {
     const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
     if (settings.theme === 'system') {
-      panelWindow?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
+      panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
       applyMainWindowTitleBarOverlay()
     }
     // The system theme, reduced transparency or a high-contrast mode can each bring the material or take it away.

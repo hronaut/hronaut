@@ -18,6 +18,25 @@ import type {
   ThemeName
 } from '../../shared/types.js'
 
+/**
+ * The detached panel window and what it shows, created once by index.ts. The window opens and closes while the app
+ * runs; every reader reads the fields when it runs, so it always sees the current window.
+ */
+export interface PanelWindowRefs {
+  /** The detached panel window while it is open. */
+  window: BrowserWindow | null
+  /** The document the panel window loaded, which its sender check admits. */
+  url: string | null
+  /** The panel the window shows; a language change retitles the window from it. */
+  panel: DetachablePanelId | null
+  /** Whether the window is closing to dock its panel again; the shell is then not told it closed. */
+  redocking: boolean
+  /** The file the panel window's bounds are saved in, once the main window opened. */
+  stateStore: WindowStateStore | null
+  /** The bounds the panel window last had, which before-quit records too. */
+  lastState: SavedWindowState | null
+}
+
 interface PanelWindowHost {
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
