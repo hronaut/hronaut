@@ -74,6 +74,7 @@ import { registerBrowserScroll } from './tools/browser-scroll/index.js'
 import { registerBrowserHoldKey } from './tools/browser-hold-key/index.js'
 import { registerBrowserPress } from './tools/browser-press/index.js'
 import { registerBrowserInsertText } from './tools/browser-insert-text/index.js'
+import { registerBrowserFillFromFile } from './tools/browser-fill-from-file/index.js'
 import { registerBrowserFileUpload } from './tools/browser-file-upload/index.js'
 import { registerBrowserFileDrop } from './tools/browser-file-drop/index.js'
 import { registerBrowserWait } from './tools/browser-wait/index.js'
@@ -709,6 +710,7 @@ export function createBrowserMcpServer(
   registerBrowserHoldKey(toolContext)
   registerBrowserPress(toolContext)
   registerBrowserInsertText(toolContext)
+  registerBrowserFillFromFile(toolContext)
   registerBrowserFileUpload(toolContext)
   registerBrowserFileDrop(toolContext)
   registerBrowserWait(toolContext)
