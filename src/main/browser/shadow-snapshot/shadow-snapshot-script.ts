@@ -58,7 +58,8 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
     // A boxless host renders through its shadow root, so its nearest boxed ancestor shows whether it is rendered.
     let boxed = host;
     for (let hops = 0; boxed && hops < 100 && getComputedStyle(boxed).display === 'contents'; hops += 1) boxed = boxed.parentElement;
-    if (!boxed || !boxed.checkVisibility() || hostStyle.visibility !== 'visible') return { problem: 'hidden-host' };
+    // content-visibility: hidden, as hidden="until-found" sets, keeps the host's box but renders none of its content.
+    if (!boxed || !boxed.checkVisibility() || hostStyle.visibility !== 'visible' || hostStyle.contentVisibility === 'hidden') return { problem: 'hidden-host' };
 
     const interactive = 'a,button,input,textarea,select,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="tab"],[contenteditable="true"]';
     const skipped = new Set(['script', 'style', 'template', 'noscript', 'link', 'meta']);
@@ -93,11 +94,13 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
     const omissions = new Set();
     const headings = [];
     const controls = [];
-    // Open label collectors: each heading or control collects the text rendered inside it, up to 301 characters.
+    // Open label collectors: each heading or control collects the text rendered inside it, up to 301 characters, and notes a cut.
     const collectors = [];
     const textParts = [];
     let textLength = 0;
     let visits = 0;
+    // The time is checked every 64 visits, label nodes included.
+    let nextTimeCheck = 64;
     let halted = false;
     let shadowRoots = 1;
     let assignedSlots = 0;
@@ -106,7 +109,10 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       const room = MAX_CHARS + 302;
       if (raw.length > room) omissions.add('text-limit');
       const value = raw.slice(0, room).replace(/\\s+/g, ' ');
-      for (const collector of collectors) if (collector.text.length <= 300) collector.text += value.slice(0, 301 - collector.text.length);
+      for (const collector of collectors) {
+        if (value.length > 301 - collector.text.length) collector.cut = true;
+        collector.text += value.slice(0, Math.max(0, 301 - collector.text.length));
+      }
       if (textLength > MAX_CHARS) return;
       const part = value.slice(0, MAX_CHARS + 1 - textLength);
       textParts.push(part);
@@ -120,13 +126,21 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       if (element.isContentEditable || element.closest(privateLabelContent)) return '';
       let text = '';
       let budget = 200;
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
-        acceptNode: (node) => node.nodeType === Node.ELEMENT_NODE && node.matches(privateLabelContent) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
-      });
-      while (text.length < 300 && walker.nextNode()) {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+      // Moves past the current node's subtree, or returns null at the end of the label.
+      const skipSubtree = () => {
+        for (;;) {
+          if (walker.nextSibling()) return walker.currentNode;
+          if (!walker.parentNode()) return null;
+        }
+      };
+      let node = walker.nextNode();
+      while (node && text.length < 300) {
         if (--budget < 0 || --labelVisits < 0) { omissions.add('control-limit'); break; }
         visits += 1;
-        if (walker.currentNode.nodeType === Node.TEXT_NODE) text += walker.currentNode.data + ' ';
+        if (node.nodeType === Node.ELEMENT_NODE && node.matches(privateLabelContent)) { node = skipSubtree(); continue; }
+        if (node.nodeType === Node.TEXT_NODE) text += node.data.slice(0, 301 - text.length) + ' ';
+        node = walker.nextNode();
       }
       return text;
     };
@@ -157,7 +171,10 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
     const walk = (node, depth, textVisible) => {
       if (halted) return;
       if (visits >= LIMITS.nodes) { omissions.add('node-limit'); halted = true; return; }
-      if (visits % 64 === 0 && performance.now() - started > LIMITS.durationMs) { omissions.add('duration-limit'); halted = true; return; }
+      if (visits >= nextTimeCheck) {
+        nextTimeCheck = visits + 64;
+        if (performance.now() - started > LIMITS.durationMs) { omissions.add('duration-limit'); halted = true; return; }
+      }
       visits += 1;
       if (depth > LIMITS.depth) { omissions.add('depth-limit'); return; }
       if (node.nodeType === Node.TEXT_NODE) {
@@ -192,6 +209,8 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
         return;
       }
       if (name === 'slot') {
+        // A slot given a box can hide its content like any element.
+        if (style.contentVisibility === 'hidden') return;
         const assigned = element.assignedNodes();
         if (assigned.length) assignedSlots += 1;
         for (const child of assigned.length ? assigned : element.childNodes) {
@@ -202,7 +221,7 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       }
       const heading = /^h[1-3]$/.test(name) && shown(element, style);
       const control = element.matches(interactive) && shown(element, style);
-      const collector = heading || control ? { text: '' } : undefined;
+      const collector = heading || control ? { text: '', cut: false } : undefined;
       if (collector) collectors.push(collector);
       const block = name === 'br' || /^(block|flow-root|flex|grid|list-item|table)/.test(style.display);
       if (block) pushText(' ');
@@ -211,7 +230,11 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       // and content-visibility: hidden, as hidden="until-found" sets, shows none of it.
       let children = (element.shadowRoot || element).childNodes;
       if (style.contentVisibility === 'hidden') children = [];
-      else if (name === 'details' && !element.open) children = [...element.children].filter((child) => child.localName === 'summary').slice(0, 1);
+      else if (name === 'details' && !element.open) {
+        let summary = element.firstElementChild;
+        while (summary && summary.localName !== 'summary') summary = summary.nextElementSibling;
+        children = summary ? [summary] : [];
+      }
       for (const child of children) {
         if (halted) break;
         walk(child, depth + 1, ownText);
@@ -221,11 +244,15 @@ export function shadowSnapshotScript(hostSelector: string, maxChars: number): st
       collectors.splice(collectors.indexOf(collector), 1);
       if (heading) {
         const text = clean(collector.text);
-        if (text.length > 300) omissions.add('heading-limit');
+        if (collector.cut || text.length > 300) omissions.add('heading-limit');
         if (text && headings.length >= LIMITS.headings) omissions.add('heading-limit');
         else if (text) headings.push(name + ': ' + text.slice(0, 300));
       }
-      if (control) addControl(element, () => element.getAttribute('aria-label') || element.getAttribute('title') || collector.text);
+      if (control) {
+        const ownName = element.getAttribute('aria-label') || element.getAttribute('title');
+        if (!ownName && collector.cut) omissions.add('control-limit');
+        addControl(element, () => ownName || collector.text);
+      }
     };
     for (const child of root.childNodes) {
       if (halted) break;

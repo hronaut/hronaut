@@ -42,6 +42,8 @@ const COMPONENT_PAGE = `(() => {
     '<label>Wrapped field <textarea>TEXTAREA_DEFAULT_SECRET</textarea></label>',
     '<span id="mixed-label">Mixed label <span contenteditable="true">LABEL_EDITOR_SECRET</span><textarea>LABEL_TEXTAREA_SECRET</textarea><select><option>LABEL_OPTION_SECRET</option></select></span><input aria-labelledby="mixed-label">',
     '<input type="submit" value="Send it">',
+    '<slot name="unused" style="display:block;content-visibility:hidden">CV_FALLBACK_TEXT</slot>',
+    '<textarea id="direct-label">DIRECT_LABEL_SECRET</textarea><input aria-labelledby="direct-label" title="Direct title">',
     '<h3 role="button">Heading button</h3>'
   ].join('');
   const inner = card.querySelector('x-inner').attachShadow({ mode: 'open' });
@@ -99,6 +101,7 @@ test('reads one component\'s open shadow content, slots and nested roots once, w
   expect(body).toContain('textarea "Wrapped field"')
   expect(body).toContain('input "Mixed label"')
   expect(body).toContain('input "Send it"')
+  expect(body).toContain('input "Direct title"')
   expect(body).toContain('h3: Heading button')
   expect(body).toContain('button "Heading button"')
   expect(body).toContain('summary "Closed question"')
@@ -110,7 +113,7 @@ test('reads one component\'s open shadow content, slots and nested roots once, w
   for (const omitted of [
     'OUTSIDE_TEXT', 'Outside button', 'SIBLING', 'UNASSIGNED_TEXT', 'FALLBACK_UNUSED', 'INNER_FALLBACK',
     'SECRET', 'FRAME_TEXT', 'CLOSED_TEXT', 'CLOSED_LIGHT_TEXT', 'HIDDEN_TEXT', 'INVISIBLE_TEXT', 'DETAILS_TEXT', 'DETAILS_P',
-    'UNTIL_FOUND', 'DEFS_TEXT', 'SYMBOL_TEXT', 'abc', 'frag', '[e'
+    'UNTIL_FOUND', 'DEFS_TEXT', 'SYMBOL_TEXT', 'CV_FALLBACK_TEXT', 'abc', 'frag', '[e'
   ]) expect(body, omitted).not.toContain(omitted)
   expect(capture.structuredContent).toMatchObject({
     kind: 'shadow-observation',
@@ -137,7 +140,8 @@ test('refuses hosts it cannot read without falling back to the page', async ({ c
   const snapshot = (args: Record<string, unknown>) => client.callTool({ name: 'browser_snapshot', arguments: { tabId, ...args } }) as Promise<CallToolResult>
   await onPage(electronApp, fixtureUrl, COMPONENT_PAGE)
   await onPage(electronApp, fixtureUrl, `(() => {
-    document.body.insertAdjacentHTML('beforeend', '<x-closed id="closed"></x-closed><input id="field"><div id="gone" style="display:none"></div><div contenteditable="true"><span id="editable"></span></div>');
+    document.body.insertAdjacentHTML('beforeend', '<x-closed id="closed"></x-closed><input id="field"><div id="gone" style="display:none"></div><div id="until" hidden="until-found"></div><div contenteditable="true"><span id="editable"></span></div>');
+    document.querySelector('#until').attachShadow({ mode: 'open' }).innerHTML = 'UNTIL_FOUND_HOST_TEXT';
     document.querySelector('#closed').attachShadow({ mode: 'closed' }).innerHTML = '<p>CLOSED_TEXT</p>';
     document.querySelector('#gone').attachShadow({ mode: 'open' }).innerHTML = '<p>GONE_TEXT</p>';
     document.querySelector('#editable').attachShadow({ mode: 'open' }).innerHTML = '<p>EDITABLE_TEXT</p>';
@@ -151,6 +155,7 @@ test('refuses hosts it cannot read without falling back to the page', async ({ c
     [{ shadowHostSelector: '#closed' }, /no open shadow root; closed shadow roots/],
     [{ shadowHostSelector: '#field' }, /no open shadow root/],
     [{ shadowHostSelector: '#gone' }, /not rendered or not visible/],
+    [{ shadowHostSelector: '#until' }, /not rendered or not visible/],
     [{ shadowHostSelector: '#editable' }, /inside editable content/],
     [{ shadowHostSelector: '#card', action: 'set-baseline' }, /only for capture, without root, frame, baseline, delta or quality options/],
     [{ shadowHostSelector: '#card', rootSelector: '#card' }, /only for capture, without root, frame, baseline, delta or quality options/],
@@ -161,7 +166,7 @@ test('refuses hosts it cannot read without falling back to the page', async ({ c
     const result = await snapshot(args)
     expect(result.isError, JSON.stringify(args)).toBe(true)
     expect(text(result), JSON.stringify(args)).toMatch(message)
-    expect(text(result)).not.toMatch(/OUTSIDE_TEXT|CLOSED_TEXT|GONE_TEXT|EDITABLE_TEXT/)
+    expect(text(result)).not.toMatch(/OUTSIDE_TEXT|CLOSED_TEXT|GONE_TEXT|UNTIL_FOUND_HOST_TEXT|EDITABLE_TEXT/)
   }
 })
 
@@ -191,5 +196,23 @@ test('stops deep, wide and long components at their limits and says the capture 
     expect(text(result), host).not.toContain(end)
     if (omission !== 'text-limit') expect(text(result), host).toContain(`INCOMPLETE: stopped at ${omission}; a heading, control or text missing here may still exist`)
     else expect(text(result).length).toBeLessThanOrEqual(1_000)
+  }
+})
+
+test('reports names cut at 300 characters and labels cut by their reading budget as list limits', async ({ capabilities, electronApp }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  await onPage(electronApp, fixtureUrl, `(() => {
+    document.body.innerHTML = '<div id="long-heading"></div><div id="long-button"></div><div id="long-label"></div>';
+    document.querySelector('#long-heading').attachShadow({ mode: 'open' }).innerHTML = '<h2>' + 'heading '.repeat(60) + '</h2>';
+    document.querySelector('#long-button').attachShadow({ mode: 'open' }).innerHTML = '<button>' + 'button '.repeat(60) + '</button>';
+    document.querySelector('#long-label').attachShadow({ mode: 'open' }).innerHTML = '<span id="many">' + '<b>x</b>'.repeat(250) + '</span><input aria-labelledby="many">';
+    return true;
+  })()`)
+  const cases: Array<[string, string]> = [['#long-heading', 'heading-limit'], ['#long-button', 'control-limit'], ['#long-label', 'control-limit']]
+  for (const [host, omission] of cases) {
+    const result = await client.callTool({ name: 'browser_snapshot', arguments: { tabId, shadowHostSelector: host } }) as CallToolResult
+    expect(result.isError, text(result)).not.toBe(true)
+    expect(result.structuredContent, host).toMatchObject({ completeness: { complete: false, omissions: [omission], absenceNotEstablished: true } })
+    expect(text(result), host).toContain(`INCOMPLETE: stopped at ${omission}`)
   }
 })
