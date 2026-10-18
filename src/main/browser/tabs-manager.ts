@@ -257,6 +257,8 @@ import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
+import type { ContentAreaAccess } from './window-layout/content-area-access.js'
+import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight } from './window-layout/content-area.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
@@ -564,7 +566,6 @@ function workspaceNameKey(name: string): string {
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-const MIN_SHELL_HEIGHT = 44
 const ABORTED_LOAD_ERROR = -3
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 const MEMORY_SAVER_SWEEP_MS = 30_000
@@ -4325,30 +4326,31 @@ export class BrowserTabsManager {
     return waitForUrlPattern(this.pageWaitsAccess(), urlPattern, tabId, timeoutMs)
   }
 
+  /**
+   * The narrow view sizing the area the pages show in gets of this manager's
+   * private window, toolbar height, content insets and layout. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it, and the layout they stub
+   * is reached through it. Each member reads the manager when called.
+   */
+  private contentAreaAccess(): ContentAreaAccess {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      toolbarHeight: () => this.toolbarHeight,
+      writeToolbarHeight: (height) => { this.toolbarHeight = height },
+      contentInsets: () => this.contentInsets,
+      writeContentInsets: (insets) => { this.contentInsets = insets },
+      layout: () => this.layout()
+    }
+  }
+
   setToolbarHeight(height: number): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    const contentHeight = this.window.getContentBounds().height
-    this.toolbarHeight = Math.min(
-      Math.max(Math.round(height), MIN_SHELL_HEIGHT),
-      Math.max(MIN_SHELL_HEIGHT, contentHeight - 1)
-    )
-    this.layout()
+    setToolbarHeight(this.contentAreaAccess(), height)
   }
 
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    const bounds = this.window.getContentBounds()
-    const finiteInset = (value: number, maximum: number): number => Math.min(
-      Math.max(Math.round(Number.isFinite(value) ? value : 0), 0),
-      Math.max(0, maximum)
-    )
-    this.contentInsets = {
-      top: finiteInset(insets.top, bounds.height - this.toolbarHeight - 1),
-      right: finiteInset(insets.right, bounds.width - 1),
-      bottom: finiteInset(insets.bottom, bounds.height - this.toolbarHeight - 1),
-      left: finiteInset(insets.left, bounds.width - 1)
-    }
-    this.layout()
+    setContentInsets(this.contentAreaAccess(), insets)
   }
 
   /**
@@ -4436,18 +4438,11 @@ export class BrowserTabsManager {
 
   /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
   pageArea(): Rectangle | null {
-    if (this.destroyed || this.window.isDestroyed()) return null
-    return this.browserViewBounds()
+    return pageArea(this.contentAreaAccess())
   }
 
   private browserViewBounds(): Rectangle {
-    const bounds = this.window.getContentBounds()
-    return {
-      x: this.contentInsets.left,
-      y: this.toolbarHeight + this.contentInsets.top,
-      width: Math.max(1, bounds.width - this.contentInsets.left - this.contentInsets.right),
-      height: Math.max(1, bounds.height - this.toolbarHeight - this.contentInsets.top - this.contentInsets.bottom)
-    }
+    return browserViewBounds(this.contentAreaAccess())
   }
 
   /**
