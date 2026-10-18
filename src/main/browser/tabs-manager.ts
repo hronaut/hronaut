@@ -44,7 +44,8 @@ import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCle
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
-import { CSS_PAGE_SIZE_PAGE_LIMIT, pdfPageCount } from './pdf-pages.js'
+import type { PdfExportAccess } from './pdf-export/pdf-export-access.js'
+import { savePdf } from './pdf-export/pdf-export.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -5826,70 +5827,30 @@ export class BrowserTabsManager {
     return screenshot(this.screenshotsAccess(), options)
   }
 
-  async savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
-    const tab = this.getTab(options.tabId)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    const filename = pdfFilename(options.filename, tab.title)
-    const webContents = tab.webContents
-    const navigationGeneration = tab.navigationGeneration
-    let documentCommitted = false
-    let publicationDeferred = false
-    const onDocumentCommitted = (): void => { documentCommitted = true }
-    const discard = (): void => { webContents.removeListener('did-navigate', onDocumentCommitted) }
-    const assertCurrent = (): void => {
-      validateExport?.()
-      if (validateExport) {
-        const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-        if (currentWorkspace !== workspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration) {
-          throw new Error('Workspace access changed while exporting its PDF. Export again with current authority.')
-        }
-      }
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
-        throw new Error('The tab closed while exporting its PDF. Open the page and export again.')
-      }
-      if (documentCommitted || tab.navigationGeneration !== navigationGeneration) {
-        throw new Error('The page changed while exporting its PDF. Export the current page again.')
-      }
+  /**
+   * The narrow view a PDF export gets of this manager's private tabs,
+   * workspaces, inspection permissions, page presentation, agent pointer,
+   * download writing and export file name. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. The delegate below returns the feature's promise
+   * directly, so no extra ticks separate its final checks from the caller.
+   */
+  private pdfExportAccess(): PdfExportAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      isDestroyed: () => this.destroyed,
+      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
+      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
+      writeUniqueDownload: (filename, data, validate) => this.writeUniqueDownload(filename, data, validate),
+      pdfFilename: (requested, title) => pdfFilename(requested, title)
     }
-    assertCurrent()
-    // A navigation may already have started when export is requested. Its
-    // later commit does not increment navigationGeneration a second time.
-    webContents.on('did-navigate', onDocumentCommitted)
-    try {
-      const data = await this.withRenderableTab(tab, async () => {
-        assertCurrent()
-        // An agent's cursor is fixed to the viewport, so it would print on every page.
-        await this.dismissAgentPointer(webContents)
-        assertCurrent()
-        return webContents.printToPDF({
-          landscape: options.landscape ?? false,
-          pageSize: options.pageSize ?? 'Letter',
-          printBackground: true,
-          preferCSSPageSize: options.preferCSSPageSize ?? false,
-          // Chromium renders only the pages in range, so a tiny authored page size cannot run on for thousands of pages.
-          ...(options.preferCSSPageSize ? { pageRanges: `1-${CSS_PAGE_SIZE_PAGE_LIMIT + 1}` } : {}),
-          // Chromium 152 writes no outline into an untagged PDF.
-          ...(options.outline ? { generateDocumentOutline: true, generateTaggedPDF: true } : {})
-        })
-      }, 'print')
-      assertCurrent()
-      if (options.preferCSSPageSize) {
-        const pages = pdfPageCount(data)
-        if (pages === undefined) throw new Error('Hronaut could not count the pages of this PDF, so it was not saved. Export again without preferCSSPageSize.')
-        if (pages > CSS_PAGE_SIZE_PAGE_LIMIT) {
-          throw new Error(`This PDF has more than ${CSS_PAGE_SIZE_PAGE_LIMIT.toLocaleString('en-US')} pages with preferCSSPageSize, so it was not saved. Check the page's CSS @page size, or export without preferCSSPageSize to use pageSize instead.`)
-        }
-      }
-      const path = await this.writeUniqueDownload(filename, data, assertCurrent)
-      if (deferExport) {
-        deferExport({ assertCurrent, discard })
-        publicationDeferred = true
-      }
-      return { filename: basename(path), path, bytes: data.length }
-    } finally {
-      if (!publicationDeferred) discard()
-    }
+  }
+
+  savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
+    return savePdf(this.pdfExportAccess(), options, validateExport, deferExport)
   }
 
   /**
