@@ -87,6 +87,13 @@ import {
   resumeTab,
   type PageLifecycleAccess
 } from './broker/page-lifecycle.js'
+import {
+  assertAgentOperationActive,
+  cancelForRequester,
+  isAgentOperationActive,
+  withAgentOperation,
+  type AgentOperationsAccess
+} from './broker/agent-operations.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -103,7 +110,7 @@ export interface PendingResult {
   reject(error: Error): void
 }
 
-interface AgentOperationLifecycle {
+export interface AgentOperationLifecycle {
   activeOperations: number
   cancelled: boolean
   drainWaiters: Array<() => void>
@@ -511,43 +518,27 @@ export class WalletBroker {
     return cancelForWorkspace(this.pageLifecycleAccess(), workspaceId)
   }
 
-  async cancelForRequester(requesterId: string): Promise<void> {
-    const lifecycle = this.agentOperations.get(requesterId) ?? {
-      activeOperations: 0,
-      cancelled: false,
-      drainWaiters: []
+  /**
+   * The narrow view agent operation tracking gets of this broker's private
+   * state. It is built on each call, so it reads whether the broker is
+   * shutting down at the moment an operation starts.
+   */
+  private agentOperationsAccess(): AgentOperationsAccess {
+    return {
+      service: this.service,
+      options: this.options,
+      agentOperations: this.agentOperations,
+      isShuttingDown: () => this.shuttingDown,
+      isRequestContextActive: (context) => this.isRequestContextActive(context),
+      clearEvmProviderSessions: (predicate) => this.clearEvmProviderSessions(predicate),
+      clearAccountProviderSessions: (predicate) => this.clearAccountProviderSessions(predicate),
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      rejectCancelled: () => this.rejectCancelled()
     }
-    this.agentOperations.set(requesterId, lifecycle)
-    lifecycle.cancelled = true
-    this.clearEvmProviderSessions((session) => (
-      session.requester.type === 'agent' && session.requester.id === requesterId
-    ))
-    this.clearAccountProviderSessions((session) => (
-      session.requester.type === 'agent' && session.requester.id === requesterId
-    ))
-    const cancel = () => this.queueLifecycle(async () => {
-      try {
-        await this.service.approvals.cancelForRequester(requesterId)
-      } finally {
-        this.rejectCancelled()
-      }
-    })
-    let cancellationError: unknown
-    try {
-      await cancel()
-    } catch (error) {
-      cancellationError = error
-    }
-    if (lifecycle.activeOperations > 0) {
-      await new Promise<void>((resolve) => lifecycle.drainWaiters.push(resolve))
-    }
-    try {
-      await cancel()
-    } catch (error) {
-      cancellationError ??= error
-    }
-    if (this.agentOperations.get(requesterId) === lifecycle) this.agentOperations.delete(requesterId)
-    if (cancellationError) throw cancellationError
+  }
+
+  cancelForRequester(requesterId: string): Promise<void> {
+    return cancelForRequester(this.agentOperationsAccess(), requesterId)
   }
 
   /**
@@ -981,49 +972,16 @@ export class WalletBroker {
     })
   }
 
-  private async withAgentOperation<T>(context: WalletBrokerContext, operation: () => Promise<T>): Promise<T> {
-    if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
-    if (context.requester.type !== 'agent') return operation()
-    const requesterId = context.requester.id
-    const lifecycle = this.agentOperations.get(requesterId) ?? {
-      activeOperations: 0,
-      cancelled: false,
-      drainWaiters: []
-    }
-    this.agentOperations.set(requesterId, lifecycle)
-    if (lifecycle.cancelled || !this.isRequestContextActive(context)) {
-      if (lifecycle.activeOperations === 0 && this.agentOperations.get(requesterId) === lifecycle) {
-        this.agentOperations.delete(requesterId)
-      }
-      throw new Error('Wallet requester session is no longer active')
-    }
-    lifecycle.activeOperations += 1
-    try {
-      try {
-        return await operation()
-      } catch (error) {
-        throw sanitizedError(error)
-      }
-    } finally {
-      lifecycle.activeOperations = Math.max(0, lifecycle.activeOperations - 1)
-      if (lifecycle.activeOperations === 0) {
-        for (const resolve of lifecycle.drainWaiters.splice(0)) resolve()
-        if (!lifecycle.cancelled && this.agentOperations.get(requesterId) === lifecycle) {
-          this.agentOperations.delete(requesterId)
-        }
-      }
-    }
+  private withAgentOperation<T>(context: WalletBrokerContext, operation: () => Promise<T>): Promise<T> {
+    return withAgentOperation(this.agentOperationsAccess(), context, operation)
   }
 
   private isAgentOperationActive(context: WalletBrokerContext): boolean {
-    if (context.requester.type !== 'agent') return true
-    return context.signal?.aborted !== true
-      && this.agentOperations.get(context.requester.id)?.cancelled !== true
+    return isAgentOperationActive(this.agentOperationsAccess(), context)
   }
 
   private assertAgentOperationActive(context: WalletBrokerContext): void {
-    if (context.requester.type === 'agent') this.options.assertAgentAccess?.()
-    if (!this.isAgentOperationActive(context)) throw new Error('Wallet requester session is no longer active')
+    assertAgentOperationActive(this.agentOperationsAccess(), context)
   }
 
   private isRequestContextActive(context: WalletBrokerContext): boolean {
