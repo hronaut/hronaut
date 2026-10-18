@@ -56,13 +56,13 @@ export interface McpTabGroupsTabCreation {
 }
 
 /**
- * What creating, listing, changing and closing workspaces needs from the tab
- * manager, which keeps the tabs, the open and archived workspaces, the
- * recently closed tabs, workspace operations, tab label edits, workspace
- * continuity, the session store and state publication private. The workspace
- * maps are the workspace registry's own, which archiving and restoring
- * change too; every other field stays a manager field because tab creation,
- * closing, restoring and persistence read and write it as well.
+ * What creating, listing, changing, pinning and closing workspaces needs from
+ * the tab manager, which keeps the tabs, the open and archived workspaces,
+ * the recently closed tabs, workspace operations, tab label edits, workspace
+ * continuity, the session store and state publication private. The
+ * workspace maps are the workspace registry's own, which archiving and
+ * restoring change too; every other field stays a manager field because tab
+ * creation, closing, restoring and persistence read and write it as well.
  */
 export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   /** The open workspaces by id. */
@@ -123,4 +123,6 @@ export interface McpTabGroupsAccess<Tab extends McpTabGroupsTab> {
   invalidateReactInspectionWorkspace(workspaceId: string): void
   /** Publishes the browser state, and saves it unless persist is false. */
   changed(persist?: boolean): void
+  /** The browser state. */
+  getState(): BrowserState
 }

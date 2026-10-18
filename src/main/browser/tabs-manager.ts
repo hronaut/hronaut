@@ -147,9 +147,7 @@ import { normalizeWorkspaceDescription } from '../../shared/workspace-descriptio
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
-import type { EmulationViewSizeAccess } from './emulation/emulation-view-size-access.js'
 import { setEmulationViewSize } from './emulation/emulation-view-size.js'
-import type { SplitDividerAccess } from './split-view/split-divider-access.js'
 import { createSplitDivider } from './split-view/split-divider.js'
 import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
@@ -257,7 +255,6 @@ import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
-import type { ContentAreaAccess } from './window-layout/content-area-access.js'
 import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight } from './window-layout/content-area.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
@@ -414,7 +411,6 @@ import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
-import type { WorkspacePinningAccess } from './mcp-tab-groups/workspace-pinning-access.js'
 import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
 import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations/workspace-operations-access.js'
 import {
@@ -495,7 +491,6 @@ import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVis
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-staging-access.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
-import type { CloseTabAccess } from './tab-close/close-tab-access.js'
 import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
@@ -957,7 +952,7 @@ export class BrowserTabsManager {
   private lastSplitDividerGeometry = ''
   private lastEmulationFrames = '[]'
   private lastPageCards = '[]'
-  private readonly splitDivider = createSplitDivider(this.splitDividerAccess())
+  private readonly splitDivider = createSplitDivider(this.splitViewAccess())
   private allTabsMuted = false
   private allHumanInteractionLocked = false
   private allAgentsPaused = false
@@ -1494,9 +1489,10 @@ export class BrowserTabsManager {
    * archived workspaces, recently closed tabs, options, workspace operations,
    * tab label edits, workspace continuity, session store and state
    * publication. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's value or promise directly, so
-   * callers see the same ticks as before.
+   * created without the constructor (as unit tests do) still provide it, and
+   * the changed and getState they stub are reached through it. The delegates
+   * below return the feature's value or promise directly, so callers see the
+   * same ticks as before.
    */
   private mcpTabGroupsAccess(): McpTabGroupsAccess<BrowserTab> {
     return {
@@ -1530,7 +1526,8 @@ export class BrowserTabsManager {
       suspendWorkspaceContinuity: (workspaceId) => this.suspendWorkspaceContinuity(workspaceId),
       retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
       invalidateReactInspectionWorkspace: (workspaceId) => this.reactInspectionController.invalidateWorkspace(workspaceId),
-      changed: (persist) => this.changed(persist)
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
   }
 
@@ -1603,23 +1600,8 @@ export class BrowserTabsManager {
     return updateMcpTabGroup(this.mcpTabGroupsAccess(), groupId, updates, allowDuplicateName)
   }
 
-  /**
-   * The narrow view pinning a workspace gets of this manager's private active
-   * workspaces and state publication. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it, and the changed and getState they stub are reached
-   * through it.
-   */
-  private workspacePinningAccess(): WorkspacePinningAccess {
-    return {
-      mcpTabGroups: () => this.mcpTabGroups,
-      changed: () => this.changed(),
-      getState: () => this.getState()
-    }
-  }
-
   setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
-    return setWorkspacePinned(this.workspacePinningAccess(), groupId, pinned)
+    return setWorkspacePinned(this.mcpTabGroupsAccess(), groupId, pinned)
   }
 
   requireMcpTabGroup(groupId: string): BrowserTabGroupState {
@@ -2545,13 +2527,14 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view a split view gets of this manager's private tabs, split
-   * view and its generation, tab selection generation, tab waking, window
-   * content view, divider drag, layout, focus and state publication. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's value or promise directly, so callers see the same
-   * ticks as before.
+   * The narrow view a split view and its divider's drag get of this manager's
+   * private tabs, split view and its generation, tab selection generation,
+   * tab waking, window content view, divider drag and geometry, layout, focus
+   * and state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it, and the field initializer that creates the divider's drag can call
+   * it. The delegates below return the feature's value or promise directly,
+   * so callers see the same ticks as before.
    */
   private splitViewAccess(): SplitViewAccess<BrowserTab> {
     return {
@@ -2568,6 +2551,7 @@ export class BrowserTabsManager {
       addChildView: (view) => this.window.contentView.addChildView(view),
       removeChildView: (view) => this.window.contentView.removeChildView(view),
       cancelSplitDivider: () => this.splitDivider.cancel(),
+      getSplitDivider: () => this.getSplitDivider(),
       layout: () => this.layout(),
       focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
       changed: (persist) => this.changed(persist),
@@ -2597,11 +2581,12 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view closing tabs for the person gets of this manager's
-   * private tabs, recently closed tabs, tab closing and reopening, tab label
-   * saves, tab order, state publication and options. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegate below returns the
-   * feature's promise directly, so callers see the same ticks as before.
+   * private tabs, recently closed tabs, tab closing and reopening, closes in
+   * flight that let pages ask to stay, tab label saves, tab order, state
+   * publication and options. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's promise directly, so callers
+   * see the same ticks as before.
    */
   private personTabCloseAccess(): PersonTabCloseAccess<BrowserTab> {
     return {
@@ -2610,6 +2595,9 @@ export class BrowserTabsManager {
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
       closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload) => this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload),
+      pendingHumanTabCloses: () => this.pendingHumanTabCloses,
+      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose) =>
+        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose),
       reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
       withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
       reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
@@ -2714,23 +2702,7 @@ export class BrowserTabsManager {
     ensureReplacement: boolean,
     respectBeforeUnload = false
   ): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.closeTabAccess(), tabId, ensureReplacement, respectBeforeUnload))
-  }
-
-  /**
-   * The narrow view closing a tab once label saves have settled gets of this
-   * manager's private tabs, closes in flight that let pages ask to stay and
-   * the close itself. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still
-   * provide it. Each member reads the manager when called.
-   */
-  private closeTabAccess(): CloseTabAccess<BrowserTab> {
-    return {
-      getTab: (tabId) => this.getTab(tabId),
-      pendingHumanTabCloses: () => this.pendingHumanTabCloses,
-      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose) =>
-        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose)
-    }
+    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload))
   }
 
   private async performCloseTab(
@@ -3572,13 +3544,15 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view emulation gets of this manager's private tabs, debugger
-   * lease, state publication, emulation result and confirmation check, network
-   * condition checks, view sizing and native network throttling. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so no extra ticks separate its
-   * final checks from the caller.
+   * The narrow view emulation and sizing a page for its emulated viewport get
+   * of this manager's private tabs, debugger lease, state publication,
+   * emulation result and confirmation check, network condition checks, view
+   * sizing, native network throttling, window, offscreen captures, active
+   * tab, split view, layout and page geometry. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it, and the layout they stub is reached
+   * through it. The delegates below return the feature's promise directly,
+   * so no extra ticks separate its final checks from the caller.
    */
   private emulationAccess(): EmulationAccess<BrowserTab> {
     return {
@@ -3593,7 +3567,15 @@ export class BrowserTabsManager {
       setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
       applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
       changed: (persist) => this.changed(persist),
-      emulate: (options) => this.emulate(options)
+      emulate: (options) => this.emulate(options),
+      window: () => this.window,
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      layout: () => this.layout(),
+      publishPageGeometry: () => this.publishPageGeometry(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      browserViewBounds: () => this.browserViewBounds()
     }
   }
 
@@ -4260,31 +4242,12 @@ export class BrowserTabsManager {
     return waitForUrlPattern(this.pageWaitsAccess(), urlPattern, tabId, timeoutMs)
   }
 
-  /**
-   * The narrow view sizing the area the pages show in gets of this manager's
-   * private window, toolbar height, content insets and layout. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it, and the layout they stub
-   * is reached through it. Each member reads the manager when called.
-   */
-  private contentAreaAccess(): ContentAreaAccess {
-    return {
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      toolbarHeight: () => this.toolbarHeight,
-      writeToolbarHeight: (height) => { this.toolbarHeight = height },
-      contentInsets: () => this.contentInsets,
-      writeContentInsets: (insets) => { this.contentInsets = insets },
-      layout: () => this.layout()
-    }
-  }
-
   setToolbarHeight(height: number): void {
-    setToolbarHeight(this.contentAreaAccess(), height)
+    setToolbarHeight(this.windowLayoutAccess(), height)
   }
 
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void {
-    setContentInsets(this.contentAreaAccess(), insets)
+    setContentInsets(this.windowLayoutAccess(), insets)
   }
 
   /**
@@ -4372,22 +4335,22 @@ export class BrowserTabsManager {
 
   /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
   pageArea(): Rectangle | null {
-    return pageArea(this.contentAreaAccess())
+    return pageArea(this.windowLayoutAccess())
   }
 
   private browserViewBounds(): Rectangle {
-    return browserViewBounds(this.contentAreaAccess())
+    return browserViewBounds(this.windowLayoutAccess())
   }
 
   /**
-   * The narrow view laying out the window and publishing the split divider
-   * get of this manager's private tabs, window, active tab, split view and
-   * its revision, divider drag, toolbar height, trusted chrome occlusion,
-   * global input lock, view bounds, page corners, presentation repair, tab
-   * overview previews and page geometry. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit
-   * tests do) still provide it, and the helpers they stub are reached
-   * through it.
+   * The narrow view laying out the window, sizing its page area and
+   * publishing the split divider get of this manager's private tabs, window,
+   * active tab, split view and its revision, divider drag, toolbar height,
+   * content insets, trusted chrome occlusion, global input lock, view
+   * bounds, page corners, presentation repair, tab overview previews, page
+   * geometry and layout. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it, and the helpers they stub are reached through it.
    */
   private windowLayoutAccess(): WindowLayoutAccess<BrowserTab> {
     return {
@@ -4402,6 +4365,9 @@ export class BrowserTabsManager {
       lastSplitDividerGeometry: () => this.lastSplitDividerGeometry,
       writeLastSplitDividerGeometry: (serialized) => { this.lastSplitDividerGeometry = serialized },
       toolbarHeight: () => this.toolbarHeight,
+      writeToolbarHeight: (height) => { this.toolbarHeight = height },
+      contentInsets: () => this.contentInsets,
+      writeContentInsets: (insets) => { this.contentInsets = insets },
       browserContentOccluded: () => this.browserContentOccluded,
       occlusionSnapshot: () => this.occlusionSnapshot,
       allHumanInteractionLocked: () => this.allHumanInteractionLocked,
@@ -4411,30 +4377,13 @@ export class BrowserTabsManager {
       reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       publishSplitDivider: () => this.publishSplitDivider(),
-      publishPageGeometry: () => this.publishPageGeometry()
+      publishPageGeometry: () => this.publishPageGeometry(),
+      layout: () => this.layout()
     }
   }
 
   getSplitDivider(): SplitDividerGeometry | null {
     return getSplitDivider(this.windowLayoutAccess())
-  }
-
-  /**
-   * The narrow view the split view divider's drag gets of this manager's
-   * private split view and its generation, divider geometry, layout and state
-   * publication. It is a prototype method rather than a field, so the field
-   * initializer that creates the drag can call it; each member reads the
-   * manager when called, so the drag sees the split view as it is then.
-   */
-  private splitDividerAccess(): SplitDividerAccess {
-    return {
-      getSplitDivider: () => this.getSplitDivider(),
-      splitView: () => this.splitView,
-      splitViewGeneration: () => this.splitViewGeneration,
-      writeSplitViewGeneration: (generation) => { this.splitViewGeneration = generation },
-      layout: () => this.layout(),
-      changed: (persist) => this.changed(persist)
-    }
   }
 
   cancelSplitDivider(): void { this.splitDivider.cancel() }
@@ -4499,30 +4448,8 @@ export class BrowserTabsManager {
     return emulatedViewBounds(space, tab.emulationViewSize, captionSpace)
   }
 
-  /**
-   * The narrow view sizing a page for its emulated viewport gets of this
-   * manager's private tabs, window, offscreen captures, active tab, split
-   * view, layout and page geometry. It is a prototype method rather than a
-   * field, so managers created without the constructor (as unit tests do)
-   * still provide it. Each member reads the manager when called.
-   */
-  private emulationViewSizeAccess(): EmulationViewSizeAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      window: () => this.window,
-      findTab: (tabId) => this.tabs.get(tabId),
-      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
-      activeTabId: () => this.activeTabId,
-      splitViewContains: (tabId) => this.splitViewContains(tabId),
-      layout: () => this.layout(),
-      publishPageGeometry: () => this.publishPageGeometry(),
-      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
-      browserViewBounds: () => this.browserViewBounds()
-    }
-  }
-
   private setEmulationViewSize(tab: BrowserTab, viewport: { width: number; height: number } | undefined): void {
-    setEmulationViewSize(this.emulationViewSizeAccess(), tab, viewport)
+    setEmulationViewSize(this.emulationAccess(), tab, viewport)
   }
 
   private publishSplitDivider(): void {

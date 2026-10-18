@@ -1,11 +1,11 @@
-import type { EmulationViewSizeAccess, EmulationViewSizeTab } from './emulation-view-size-access.js'
+import type { EmulationAccess, EmulationTab } from './emulation-access.js'
 
 /**
  * Sizes a tab's page for the emulated viewport it now has, or for its whole
  * space. A tab in the background gets the size it would have in front, so
  * its real viewport and captures follow a change made while it is hidden.
  */
-export function setEmulationViewSize<Tab extends EmulationViewSizeTab>(access: EmulationViewSizeAccess<Tab>, tab: Tab, viewport: { width: number; height: number } | undefined): void {
+export function setEmulationViewSize<Tab extends EmulationTab>(access: EmulationAccess<Tab>, tab: Tab, viewport: { width: number; height: number } | undefined): void {
   const size = viewport ? { width: viewport.width, height: viewport.height } : undefined
   const resized = size?.width !== tab.emulationViewSize?.width || size?.height !== tab.emulationViewSize?.height
   tab.emulationViewSize = size

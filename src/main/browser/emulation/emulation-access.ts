@@ -1,4 +1,4 @@
-import type { WebContents, WebContentsView } from 'electron'
+import type { BrowserWindow, Rectangle, WebContents, WebContentsView } from 'electron'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationResult,
@@ -33,12 +33,14 @@ export interface EmulationTab {
 }
 
 /**
- * What emulation needs from the tab manager, which keeps the tabs, the
- * debugger lease, state publication, the emulation result, the network
- * condition checks, the view sizing and the native network throttling
- * private. The emulation result and confirmation check stay manager methods
- * because the published state, input and captures read them; the view sizing
- * stays because renderer and navigation handling reset it; the native network
+ * What emulation and sizing a page for its emulated viewport need from the
+ * tab manager, which keeps the tabs, the debugger lease, state publication,
+ * the emulation result, the network condition checks, the view sizing, the
+ * native network throttling, the window, the tabs presented offscreen for a
+ * capture, the active tab, the split view, layout and page geometry private.
+ * The emulation result and confirmation check stay manager methods because
+ * the published state, input and captures read them; the view sizing stays
+ * because renderer and navigation handling reset it; the native network
  * throttling stays because request rules apply it too. Resizing the viewport
  * goes through the manager's emulate, as before.
  */
@@ -60,4 +62,12 @@ export interface EmulationAccess<Tab extends EmulationTab> {
   ): Promise<void>
   changed(persist?: boolean): void
   emulate(options: BrowserEmulationOptions): Promise<BrowserEmulationResult>
+  window(): BrowserWindow
+  offscreenCaptureTabIds(): Set<string>
+  activeTabId(): string | null
+  splitViewContains(tabId: string): boolean
+  layout(): void
+  publishPageGeometry(): void
+  tabViewBounds(tab: Tab, space: Rectangle): Rectangle
+  browserViewBounds(): Rectangle
 }

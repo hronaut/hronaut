@@ -9,16 +9,26 @@ export interface WindowLayoutTab {
   webContents: WebContents
 }
 
+/** How far the shell's tab rail and page frame reach into the window below the toolbar, in window pixels. */
+export interface ContentInsets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
 /**
- * What laying out the window's pages and publishing the split divider need
- * from the tab manager, which keeps the tabs, the window, the active tab,
- * the split view and its revision, the divider drag, the toolbar height,
- * trusted chrome occlusion and its page snapshot, the global input lock,
- * view bounds, page corners, presentation repair, tab overview previews,
- * page geometry and the divider geometry last sent private. The split view
- * and the divider geometry stay manager fields because selection,
- * splitting, closing and saving read or write them too; they are written
- * back through their setters and read again at every use.
+ * What laying out the window's pages, sizing the area they show in and
+ * publishing the split divider need from the tab manager, which keeps the
+ * tabs, the window, the active tab, the split view and its revision, the
+ * divider drag, the toolbar height and content insets, trusted chrome
+ * occlusion and its page snapshot, the global input lock, view bounds, page
+ * corners, presentation repair, tab overview previews, page geometry, layout
+ * and the divider geometry last sent private. The split view, the toolbar
+ * height, the content insets and the divider geometry stay manager fields
+ * because selection, splitting, closing, layout and saving read or write
+ * them too; they are written back through their setters and read again at
+ * every use.
  */
 export interface WindowLayoutAccess<Tab extends WindowLayoutTab> {
   /** Whether the browser is closing. */
@@ -43,6 +53,12 @@ export interface WindowLayoutAccess<Tab extends WindowLayoutTab> {
   writeLastSplitDividerGeometry(serialized: string): void
   /** The height of the shell's toolbar above the pages. */
   toolbarHeight(): number
+  /** Records the shell's toolbar height. */
+  writeToolbarHeight(height: number): void
+  /** How far the shell reaches into the window below the toolbar. */
+  contentInsets(): ContentInsets
+  /** Records how far the shell reaches into the window below the toolbar. */
+  writeContentInsets(insets: ContentInsets): void
   /** Whether trusted chrome covers the pages, which then stay on screen only for their snapshot. */
   browserContentOccluded(): boolean
   /** The still image of the pages under trusted chrome: whether the pages stay on screen until it shows, and withdrawing it once the window no longer lines up. */
@@ -63,4 +79,6 @@ export interface WindowLayoutAccess<Tab extends WindowLayoutTab> {
   publishSplitDivider(): void
   /** Sends the page cards and emulation frames to the shell when they changed. */
   publishPageGeometry(): void
+  /** Lays out the visible tabs through the manager, for a page area change. */
+  layout(): void
 }

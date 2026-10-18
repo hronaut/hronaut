@@ -1,5 +1,5 @@
 import { SplitDividerController } from '../split-divider-controller.js'
-import type { SplitDividerAccess } from './split-divider-access.js'
+import type { SplitViewAccess, SplitViewTab } from './split-view-access.js'
 
 /**
  * The split view divider's drag, which owns only the split it began on and
@@ -7,7 +7,7 @@ import type { SplitDividerAccess } from './split-divider-access.js'
  * also advances the split's generation and saves the state, and a cancel
  * restores the ratio and publishes it unsaved.
  */
-export function createSplitDivider(access: SplitDividerAccess): SplitDividerController {
+export function createSplitDivider<Tab extends SplitViewTab>(access: SplitViewAccess<Tab>): SplitDividerController {
   return new SplitDividerController({
     read: () => access.getSplitDivider(),
     owns: (geometry) => access.splitViewGeneration() === geometry.revision

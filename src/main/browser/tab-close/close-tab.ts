@@ -1,5 +1,5 @@
 import type { BrowserState } from '../../../shared/types.js'
-import type { CloseTabAccess } from './close-tab-access.js'
+import type { PersonTabCloseAccess, PersonTabCloseTab } from './close-tabs-for-person-access.js'
 
 /**
  * Closes the tab once tab label saves have settled. Without
@@ -7,7 +7,7 @@ import type { CloseTabAccess } from './close-tab-access.js'
  * beforeunload handlers may ask the person to stay, and a second such close
  * of the same tab joins the one in flight instead of asking again.
  */
-export function closeTabAfterLabelSave<Tab>(access: CloseTabAccess<Tab>, tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean): Promise<BrowserState> {
+export function closeTabAfterLabelSave<Tab extends PersonTabCloseTab>(access: PersonTabCloseAccess<Tab>, tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean): Promise<BrowserState> {
   if (!respectBeforeUnload) {
     return access.performCloseTab(tabId, ensureReplacement, false, true)
   }

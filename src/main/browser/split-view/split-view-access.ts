@@ -1,6 +1,6 @@
 import type { View, WebContents } from 'electron'
 import type { BrowserState } from '../../../shared/types.js'
-import type { BrowserSplitViewState } from '../../../shared/split-view.js'
+import type { BrowserSplitViewState, SplitDividerGeometry } from '../../../shared/split-view.js'
 
 /** The tab fields opening and closing a split view read and write: the page, its view and whether it sleeps. */
 export interface SplitViewTab {
@@ -13,13 +13,13 @@ export interface SplitViewTab {
 }
 
 /**
- * What opening, changing and closing a split view needs from the tab manager,
- * which keeps the tabs, the split view and its generation, the tab selection
- * generation, waking tabs, the window's content view, the divider drag, layout,
- * focus and state publication private. The split view and its generation stay
- * manager fields because layout, the divider, selection, closing and restoring
- * tabs read and write them too; they are written back through the write
- * members and read again at every use.
+ * What opening, changing and closing a split view and dragging its divider
+ * need from the tab manager, which keeps the tabs, the split view and its
+ * generation, the tab selection generation, waking tabs, the window's content
+ * view, the divider drag and geometry, layout, focus and state publication
+ * private. The split view and its generation stay manager fields because
+ * layout, selection, closing and restoring tabs read and write them too; they
+ * are written back through the write members and read again at every use.
  */
 export interface SplitViewAccess<Tab extends SplitViewTab> {
   getActiveTab(): Tab
@@ -35,6 +35,7 @@ export interface SplitViewAccess<Tab extends SplitViewTab> {
   addChildView(view: View): void
   removeChildView(view: View): void
   cancelSplitDivider(): void
+  getSplitDivider(): SplitDividerGeometry | null
   layout(): void
   focusTabOrTrustedChrome(tab: Tab): void
   changed(persist?: boolean): void
