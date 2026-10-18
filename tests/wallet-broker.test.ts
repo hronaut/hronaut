@@ -946,6 +946,38 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).not.toHaveBeenCalled()
   })
 
+  it('tells the agent which policy rule rejected a transaction instead of blaming the person', async () => {
+    const { service } = await setup()
+    const wallet = await service.addWatchOnly({
+      name: 'Observed EVM account',
+      chainFamily: 'evm',
+      publicAddress: '0x0000000000000000000000000000000000000003',
+      network: { id: '11155111', name: 'testnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8545' },
+      workspaceIds: ['workspace-1']
+    })
+    const agent = context({ requester: { type: 'agent', id: 'agent-watch-only', name: 'Watch-only agent' } })
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: agent.workspaceId,
+      origin: agent.topLevelOrigin,
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: agent.requester,
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+
+    await expect(broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)).rejects.toThrow('Wallet policy rejected the request: wallet-capability-disabled')
+    expect(broker.listPending().map((request) => request.status)).toEqual(['rejected'])
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
   it('publishes the final human-approval state for agent signing requests', async () => {
     const { service, wallet } = await setup()
     const pendingChanged = vi.fn()

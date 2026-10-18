@@ -64,6 +64,8 @@ export async function transactionRequest(
   const record = await access.createRequest(context, currentWallet, operation, broadcast ? 'send' : 'sign', {
     normalized: walletJsonSafe(normalized)
   })
+  // A policy rejection ends the request as rejected, which would otherwise read as the person's rejection.
+  let policyRejection: Error | undefined
   try {
     await access.service.approvals.transition(record.id, 'validated', access.now())
     const simulation = sanitizedSimulation(await adapter.simulate(wallet, normalized))
@@ -98,7 +100,8 @@ export async function transactionRequest(
     if (decision.outcome === 'rejected') {
       await access.service.approvals.transition(record.id, 'rejected', access.now())
       access.clearRequestExpiry(record.id)
-      throw new Error(`Wallet policy rejected the request: ${decision.reason}`)
+      policyRejection = new Error(`Wallet policy rejected the request: ${decision.reason}`)
+      throw policyRejection
     }
     if (decision.outcome === 'approved') {
       access.assertRequestContextActive(context)
@@ -164,6 +167,7 @@ export async function transactionRequest(
       ? agentSummary(access.service.approvals.get(record.id)!, wallet)
       : access.wait(record.id)
   } catch (error) {
-    throw await access.fail(record.id, error)
+    const failure = await access.fail(record.id, error)
+    throw policyRejection !== undefined && error === policyRejection ? policyRejection : failure
   }
 }

@@ -92,7 +92,7 @@ This permission authorizes observation of the public address. It does not add a 
 
 ## 5. Run negative controls below the UI
 
-After restoring account permission, select **Send 1 wei** in the fixture. Even if the trusted request is reviewed, a watch-only wallet cannot produce a signature or transaction hash. Do not retry an uncertain write; inspect **Activity** and the fixture result first. In this deterministic local case the request must finish failed without a broadcast.
+After restoring account permission, select **Send 1 wei** in the fixture. A watch-only wallet cannot produce a signature or transaction hash, so Hronaut refuses the transaction without asking anyone: the page receives `Wallet policy rejected the request: wallet-capability-disabled` and the request ends rejected. Do not retry an uncertain write; inspect **Activity** and the fixture result first. In this deterministic local case the request must end without a signature or broadcast.
 
 For source-level proof that this boundary is enforced in the main process rather than only by hiding controls, run the focused Docker regression checks:
 
@@ -106,7 +106,7 @@ npm run test:unit:docker:focused -- \
 
 The checks cover rejection of watch-only signing automation, read-only account capability advertisement, and the trusted UI's absence of signing-policy controls. The wallet descriptor schema and signer also reject signing capability or secret material for watch-only records.
 
-If your evaluation uses `wallet_request`, a `sign-message`, `sign-transaction`, or `sign-and-send` request may create a reviewable request, but approval cannot make it sign: the durable result must become failed and no transaction hash may appear. An agent still cannot approve the request itself.
+If your evaluation uses `wallet_request`, a `sign-transaction` or `sign-and-send` request is refused the same way, with the same reason. A `sign-message` request may create a reviewable request, but approval cannot make it sign: the durable result must become failed and no signature may appear. An agent still cannot approve the request itself.
 
 ## 6. Clean up and report precisely
 
