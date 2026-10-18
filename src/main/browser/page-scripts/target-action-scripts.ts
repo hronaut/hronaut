@@ -174,16 +174,66 @@ export function dialogAwareCoordinateClickScript(
   })()`
 }
 
+/**
+ * Page code that ends one evaluation's dialog handling, by its id, also for an
+ * evaluation whose call stopped waiting while its script still runs. When no
+ * evaluation still handles dialogs, the page's own alert, confirm and prompt
+ * come back.
+ */
+export function releaseEvaluationDialogsScript(id: string): string {
+  return `(() => {
+    const state = window[Symbol.for('hronaut.evaluationDialogs')];
+    if (!state) return;
+    state.active = state.active.filter((entry) => entry.id !== ${JSON.stringify(id)});
+    if (state.active.length) return;
+    for (const name of ['alert', 'confirm', 'prompt']) {
+      const descriptor = state.originals[name];
+      if (descriptor) Object.defineProperty(window, name, descriptor);
+      else delete window[name];
+    }
+    delete window[Symbol.for('hronaut.evaluationDialogs')];
+  })()`
+}
+
+/**
+ * Runs the script with the page's dialogs answered as asked until it settles.
+ * Evaluations that overlap, such as one still running after its call stopped
+ * waiting, share one set of handlers that follows the latest evaluation and
+ * keep the page's own dialogs to restore when the last one ends.
+ */
 export function dialogAwareEvaluateScript(
   script: string,
-  action: 'accept' | 'dismiss'
+  action: 'accept' | 'dismiss',
+  id: string
 ): string {
   return `(async () => {
-    ${dialogOverridesScript(action)}
+    const key = Symbol.for('hronaut.evaluationDialogs');
+    let state = window[key];
+    if (!state) {
+      state = {
+        active: [],
+        originals: Object.fromEntries(['alert', 'confirm', 'prompt'].map((name) => [name, Object.getOwnPropertyDescriptor(window, name)]))
+      };
+      Object.defineProperty(window, key, { configurable: true, value: state });
+      const accepts = () => state.active.length > 0 && state.active[state.active.length - 1].accept;
+      Object.defineProperties(window, {
+        alert: { configurable: true, writable: true, value: function () { return undefined; } },
+        confirm: { configurable: true, writable: true, value: function () { return accepts(); } },
+        prompt: {
+          configurable: true,
+          writable: true,
+          value: function (_message, defaultValue) {
+            if (!accepts()) return null;
+            return arguments.length > 1 ? String(defaultValue) : '';
+          }
+        }
+      });
+    }
+    state.active.push({ id: ${JSON.stringify(id)}, accept: ${action === 'accept'} });
     try {
       return await (0, eval)(${JSON.stringify(script)});
     } finally {
-      restoreDialogs();
+      ${releaseEvaluationDialogsScript(id)};
     }
   })()`
 }

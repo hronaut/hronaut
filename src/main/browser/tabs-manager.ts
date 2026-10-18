@@ -375,7 +375,7 @@ import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
-import { evaluate } from './page-evaluation/evaluate.js'
+import { evaluate, type EvaluationDeadline } from './page-evaluation/evaluate.js'
 import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import type { PersistedStateAccess } from './browser-state/persisted-state-access.js'
 import { persistedState } from './browser-state/persisted-state.js'
@@ -4062,8 +4062,8 @@ export class BrowserTabsManager {
     return evaluateFile(this.pageEvaluationAccess(), source, hooks)
   }
 
-  evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
-    return evaluate(this.pageEvaluationAccess(), script, tabId, dialog)
+  evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}, deadline?: EvaluationDeadline): Promise<unknown> {
+    return evaluate(this.pageEvaluationAccess(), script, tabId, dialog, deadline)
   }
 
   /**
