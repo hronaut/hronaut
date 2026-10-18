@@ -19,7 +19,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- When a wallet policy refuses a transaction by itself, for example a send from a watch-only account, the page or agent now gets the policy's reason (`Wallet policy rejected the request: wallet-capability-disabled`) instead of "Wallet request was rejected by the user", which blamed a person who never saw the request.
+- When Hronaut refuses a wallet transaction without asking anyone, for example a send from a watch-only account, the page or agent now gets the reason, such as `Wallet policy rejected the request: wallet-capability-disabled`, instead of "Wallet request was rejected by the user". No person saw those requests. Pages still get error code 4001.
 
 ## [3.0.0] - 2026-10-17
 

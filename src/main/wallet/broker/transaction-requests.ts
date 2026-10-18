@@ -168,6 +168,6 @@ export async function transactionRequest(
       : access.wait(record.id)
   } catch (error) {
     const failure = await access.fail(record.id, error)
-    throw error === policyRejection ? policyRejection : failure
+    throw policyRejection !== undefined && error === policyRejection ? policyRejection : failure
   }
 }
