@@ -4,7 +4,9 @@ The first staged extraction is complete around page metadata, Home delivery, and
 workspace archive/restore transitions. These boundaries are intentionally narrower
 than the entire browser runtime.
 
-- `main/index.ts` composes runtime services and registers trusted IPC. It supplies
+- `main/index.ts` composes runtime services and registers trusted IPC through
+  per-feature `main/*-ipc.ts` modules, which keep each handler's sender check
+  with the handler and read index state through a small host object. It supplies
   Home data through `platform/home-protocol.ts`; that protocol owns its assets,
   MIME types, CSP, and status response in Home's separate application session.
 - `browser/tabs-manager.ts` remains the **TabRuntime** host: Electron contents,

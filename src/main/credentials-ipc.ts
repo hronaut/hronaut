@@ -51,6 +51,8 @@ export function registerCredentialsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: C
     return host.text(keys[error.code])
   }
 
+  // Reads the window and store through the host at every use, including after each await, as the main entry did:
+  // either can be replaced or closed while a dialog is open, so do not capture them once.
   async function importCredentialsFromCsv(): Promise<CredentialImportResult> {
     const canceled: CredentialImportResult = { canceled: true, added: 0, updated: 0, skipped: 0 }
     if (!host.credentialStorageStatus().available || !host.credentialStore()) {
