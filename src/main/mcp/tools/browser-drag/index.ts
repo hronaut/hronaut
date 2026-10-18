@@ -1,8 +1,7 @@
-import { z } from 'zod'
 import { agentCursorIdentity } from '../../agent-presence.js'
 import { textResult, toolDescription } from '../../tool-results.js'
-import { tabIdSchema } from '../../tool-schemas.js'
 import type { McpToolContext } from '../tool-context.js'
+import { browserDragInputShape, browserDragSchema } from './input.js'
 
 export function registerBrowserDrag(context: McpToolContext): void {
   const { client, manager, registerWorkspaceTool, tabTool } = context
@@ -10,17 +9,7 @@ export function registerBrowserDrag(context: McpToolContext): void {
     'browser_drag',
     {
       description: toolDescription('browser_drag'),
-      inputSchema: {
-        tabId: tabIdSchema.optional(),
-        sourceRef: z.string().optional(),
-        sourceSelector: z.string().optional(),
-        targetRef: z.string().optional(),
-        targetSelector: z.string().optional(),
-        startX: z.number().finite().nonnegative().optional(),
-        startY: z.number().finite().nonnegative().optional(),
-        endX: z.number().finite().nonnegative().optional(),
-        endY: z.number().finite().nonnegative().optional()
-      }
+      inputSchema: browserDragInputShape
     },
     tabTool('browser_drag', async (input: {
       tabId?: string
@@ -32,6 +21,7 @@ export function registerBrowserDrag(context: McpToolContext): void {
       startY?: number
       endX?: number
       endY?: number
+      modifiers?: Array<'Shift' | 'Alt' | 'ControlOrMeta'>
     }, call) => {
       // Re-checks the call before each native input event.
       const validateNativeInput = (validateContext: () => void): void => {
@@ -51,6 +41,6 @@ export function registerBrowserDrag(context: McpToolContext): void {
       }
       return textResult(await manager.drag(input, validateNativeInput, agentCursorIdentity(client.name)))
     }),
-    { stepTarget: input => ({ ref: input.sourceRef }) }
+    { stepTarget: input => ({ ref: input.sourceRef }), inputSchema: browserDragSchema }
   )
 }
