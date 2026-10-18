@@ -7,12 +7,8 @@ import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
-import { ShellOverlayView } from './shell-overlay-view.js'
-import { AgentCardOverlay, type FollowSuspensionState } from './agent-card-overlay.js'
-import { ToastOverlay } from './toast-overlay.js'
-import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
-import type { AgentCardEvent } from '../shared/agent-card.js'
-import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
+import type { FollowSuspensionState } from './agent-card-overlay.js'
+import { createShellOverlays } from './windows/shell-overlays.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -33,9 +29,7 @@ import {
   nativeTheme,
   protocol,
   session,
-  shell,
-  WebContentsView,
-  webContents as allWebContents
+  shell
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
@@ -169,102 +163,33 @@ const addressSuggestionOverlay = createAddressSuggestionOverlay({
   settings: () => settingsState.current,
   resolvedLocale: () => settingsState.resolvedLocale
 })
-const tooltipView = new ShellOverlayView({
-  name: 'tooltip',
-  preload: join(__dirname, '../preload/tooltipOverlay.cjs'),
-  url: () => trustedTooltipOverlayUrl(),
-  window: () => mainWindowRefs.window,
-  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
-  onLost: () => shellTooltips.surfaceLost()
-})
-const agentCardView = new ShellOverlayView({
-  name: 'agent card',
-  preload: join(__dirname, '../preload/agentCard.cjs'),
-  url: () => trustedAgentCardUrl(),
-  window: () => mainWindowRefs.window,
-  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
-  onLost: () => agentCards.surfaceLost()
-})
-const followSuspension: FollowSuspensionState = { shellSuspended: false, agentCardOpen: false }
-const agentCards = new AgentCardOverlay({
-  surface: () => ensureAgentCardSurface(),
-  windowSize: () => {
-    if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || !mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) return null
-    const [width = 0, height = 0] = mainWindowRefs.window.getContentSize()
-    return { width, height }
-  },
-  emit: (event: AgentCardEvent) => {
-    if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('agent-card:event', event)
-  },
-  focusShell: () => {
-    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.focus()
-  },
-  openChanged: (open) => {
-    followSuspension.agentCardOpen = open
-    // Follow would switch tabs under the open card.
-    tabRuntime.tabs?.setFollowAgentActivitySuspended(followSuspension.shellSuspended || followSuspension.agentCardOpen)
-  },
-  focusOwner: () => allWebContents.getFocusedWebContents()?.id ?? null
-})
-const toastOverlayView = new ShellOverlayView({
-  name: 'toast',
-  preload: join(__dirname, '../preload/toastOverlay.cjs'),
-  url: () => trustedToastOverlayUrl(),
-  window: () => mainWindowRefs.window,
-  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
-  onLost: () => toastOverlay.surfaceLost(),
-  // A toast is about something the person did; the agent card, a tooltip or address suggestions they open go above it.
-  keepAbove: () => [agentCardView.currentView(), tooltipView.currentView(), addressSuggestionOverlay.currentView()].filter((view) => !!view)
-})
-const toastOverlay = new ToastOverlay({
-  surface: () => ensureToastOverlaySurface(),
-  layout: () => {
-    if (tabRuntime.startupFailure || !mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || mainWindowRefs.window.webContents.isDestroyed()) return null
-    // No page area until the saved workspaces are up, or after they failed to come up; the shell shows its own copy.
-    if (!tabRuntime.tabs || tabRuntime.initializedTabs !== tabRuntime.tabs) return null
-    const area = tabRuntime.tabs.pageArea()
-    return area ? { area, zoom: mainWindowRefs.window.webContents.getZoomFactor() } : null
-  },
-  emit: (event: ToastOverlayEvent) => {
-    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('toast-overlay:event', event)
-  },
-  focusOwner: () => {
-    const focused = allWebContents.getFocusedWebContents()
-    return focused && !toastOverlayView.owns(focused) ? focused : null
-  },
-  restoreFocus: (owner) => {
-    // Focus moves to the view while the click lands; moving it back in the same task does not stick.
-    setImmediate(() => {
-      const window = mainWindowRefs.window
-      if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
-      const focused = allWebContents.getFocusedWebContents()
-      // Only while the view still has it: the toast's action may have moved focus on purpose meanwhile.
-      if (!focused || !toastOverlayView.owns(focused)) return
-      const previous = owner as Electron.WebContents | null
-      const overlay = !!previous && (toastOverlayView.owns(previous) || agentCardView.owns(previous) || tooltipView.owns(previous)
-        || addressSuggestionOverlay.owns(previous))
-      // Back to a page only while it still shows; from an overlay that has since closed, or a page that went, the shell.
-      const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
-        child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
-      )) ? previous : null
-      ;(page ?? window.webContents).focus()
-    })
-  }
-})
-const shellTooltips = new ShellTooltipOverlay({
-  surface: () => ensureTooltipSurface(),
-  windowSize: () => {
-    if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || !mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) return null
-    const [width = 0, height = 0] = mainWindowRefs.window.getContentSize()
-    return { width, height }
-  }
-})
 const tabRuntime: TabRuntimeState = {
   tabs: null,
   initialization: null,
   initializedTabs: null,
   startupFailure: undefined
 }
+const followSuspension: FollowSuspensionState = { shellSuspended: false, agentCardOpen: false }
+const {
+  tooltipView,
+  agentCardView,
+  agentCards,
+  toastOverlayView,
+  toastOverlay,
+  shellTooltips
+} = createShellOverlays({
+  trustedUrlMatches,
+  mainWindowRefs,
+  addressSuggestionOverlay,
+  followSuspension,
+  tabRuntime,
+  trustedAgentCardUrl: () => trustedAgentCardUrl(),
+  ensureAgentCardSurface: () => ensureAgentCardSurface(),
+  trustedToastOverlayUrl: () => trustedToastOverlayUrl(),
+  ensureToastOverlaySurface: () => ensureToastOverlaySurface(),
+  trustedTooltipOverlayUrl: () => trustedTooltipOverlayUrl(),
+  ensureTooltipSurface: () => ensureTooltipSurface()
+})
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
 const { runNativeBrowserAction, showWorkspaceRecoveryNotice } = createTabRuntimeStartup({
