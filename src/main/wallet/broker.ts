@@ -28,9 +28,7 @@ import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
 import {
-  agentCallBundleId,
   callBundleError,
-  callBundleState,
   callBundleStatus,
   callReceipt,
   EVM_CALL_BUNDLE_VERSION,
@@ -43,7 +41,6 @@ import {
   EvmAssetSuggestionLog,
   parseWatchAsset,
   watchAssetRefusal,
-  withHiddenWalletAddresses,
   type EvmTokenContractDetails
 } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
@@ -54,8 +51,7 @@ import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
 import type {
   WalletChainAdapter,
-  WalletNormalizedTransaction,
-  WalletTokenBalance
+  WalletNormalizedTransaction
 } from './adapters/types.js'
 import { restoreWalletJson, walletJsonSafe } from './json-safe.js'
 import { recoverPersonalSigner } from './evm-ec-recover.js'
@@ -69,14 +65,11 @@ import {
 } from './policy.js'
 import type { WalletService } from './service.js'
 import {
-  agentSimulation,
   agentSummary,
-  HIDDEN_WALLET_ADDRESS,
   sanitizedSimulation,
   summary,
   trustedMessageDisplay,
-  trustedMessageRaw,
-  withoutWalletAddresses
+  trustedMessageRaw
 } from './request-summary.js'
 import {
   appendTransactionAudit,
@@ -85,6 +78,17 @@ import {
   scheduleConfirmation,
   type TransactionConfirmationAccess
 } from './transaction-confirmations.js'
+import {
+  agentBalance,
+  agentPageRequests,
+  agentRequestStatus,
+  cancelAgentRequest,
+  listAgentWallets,
+  prepareAgentTransaction,
+  requestAgentMessage,
+  requestAgentTransaction,
+  type AgentWalletAccess
+} from './agent-wallet-requests.js'
 
 export interface WalletBrokerContext {
   workspaceId: string
@@ -141,16 +145,13 @@ export interface WalletBrokerOptions {
 }
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
-const MAX_AGENT_PAGE_REQUESTS = 50
-/** wallet_sendCalls batches `wallet_page_requests` lists for a site, newest kept. */
-const MAX_AGENT_CALL_BATCHES = 20
 /** Failed wallet calls remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
 const MAX_PAGE_CALL_FAILURES_PER_TAB = 20
 /** Tabs whose failed wallet calls are remembered at once; closing a tab forgets them sooner. */
 const MAX_PAGE_CALL_FAILURE_TABS = 256
 
 /** A wallet call a page made that failed, as an agent testing the page sees it. */
-interface WalletPageCallFailure {
+export interface WalletPageCallFailure {
   family: WalletChainFamily
   /** The method the page called, or `invalid` when it is not a plain method name. */
   method: string
@@ -186,11 +187,6 @@ function sanitizedError(error: unknown): Error {
     ? message
     : 'Wallet request failed validation or processing'
   return new Error(safe.slice(0, 512))
-}
-
-function walletChainName(family: WalletChainFamily): string {
-  if (family === 'evm') return 'EVM'
-  return family === 'solana' ? 'Solana' : 'Tron'
 }
 
 // Size in UTF-8 JSON bytes, as a page sends it; anything unserializable is unbounded.
@@ -325,238 +321,82 @@ export class WalletBroker {
     })
   }
 
+  /**
+   * The narrow view the agent wallet tools get of this broker's private
+   * state and request path. The delegates below return the tool's result or
+   * promise directly, so no extra ticks separate its final checks from the
+   * caller.
+   */
+  private agentWalletAccess(): AgentWalletAccess {
+    return {
+      service: this.service,
+      adapters: this.adapters,
+      pendingMessages: this.pendingMessages,
+      evmAssetSuggestions: this.evmAssetSuggestions,
+      pageCallFailures: this.pageCallFailures,
+      evmCallBundles: this.evmCallBundles,
+      replacedTransactionHashes: this.replacedTransactionHashes,
+      withAgentOperation: (context, operation) => this.withAgentOperation(context, operation),
+      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
+      requireWallet: (walletId) => this.requireWallet(walletId),
+      hasAddressPermission: (context, wallet) => this.hasAddressPermission(context, wallet),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      createAddressPermissionRequest: (context, wallet) => this.createAddressPermissionRequest(context, wallet),
+      transactionRequest: (context, wallet, payload, broadcast, returnSummary) => (
+        this.transactionRequest(context, wallet, payload, broadcast, returnSummary)
+      ),
+      messageRequest: (context, wallet, input, rawSigning, returnSummary) => (
+        this.messageRequest(context, wallet, input, rawSigning, returnSummary)
+      ),
+      rejectPending: (requestId, error) => this.rejectPending(requestId, error),
+      publish: () => this.publish(),
+      now: () => this.now()
+    }
+  }
+
   listAgentWallets(context: WalletBrokerContext): WalletAgentDescriptor[] {
-    return this.service.list()
-      .filter((wallet) => walletAllowsWorkspace(wallet, context.workspaceId))
-      .map((wallet) => {
-        const addressAllowed = this.hasAddressPermission(context, wallet)
-        return {
-          id: wallet.id,
-          name: wallet.name,
-          kind: wallet.kind,
-          chainFamily: wallet.chainFamily,
-          network: {
-            id: wallet.network.id,
-            name: wallet.network.name,
-            environment: wallet.network.environment
-          },
-          capabilities: [...wallet.capabilities],
-          ...(wallet.availableInAllWorkspaces === true ? { availableInAllWorkspaces: true } : {}),
-          addressPermission: addressAllowed,
-          ...(addressAllowed ? { publicAddress: wallet.publicAddress } : {})
-        }
-      })
+    return listAgentWallets(this.agentWalletAccess(), context)
   }
 
-  async agentBalance(context: WalletBrokerContext, walletId: string, token?: string, spender?: string): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const adapter = this.adapters[wallet.chainFamily]
-      if (spender !== undefined && token === undefined) throw new Error('Wallet token spender needs a token')
-      if (token !== undefined) {
-        if (!adapter.tokenBalance) throw new Error(`${walletChainName(wallet.chainFamily)} token balances are not supported`)
-        if (!adapter.validateAddress(token)) throw new Error(`${walletChainName(wallet.chainFamily)} token address is invalid`)
-      }
-      if (spender !== undefined) {
-        if (!adapter.tokenAllowances) throw new Error(`${walletChainName(wallet.chainFamily)} token allowances are not supported`)
-        if (!adapter.validateAddress(spender)) throw new Error(`${walletChainName(wallet.chainFamily)} token spender address is invalid`)
-      }
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      let balance: string
-      let tokenBalance: WalletTokenBalance | undefined
-      try {
-        if (token !== undefined) {
-          tokenBalance = spender === undefined
-            ? await adapter.tokenBalance!(wallet, token)
-            : await adapter.tokenBalance!(wallet, token, spender)
-        }
-        else balance = await adapter.balance(wallet)
-      } catch {
-        const lookup = token === undefined ? 'balance' : spender === undefined ? 'token balance' : 'token balance or allowance'
-        throw new Error(`${walletChainName(wallet.chainFamily)} ${lookup} lookup failed`)
-      }
-      this.assertRequestContextActive(context)
-      return {
-        status: 'ready',
-        walletId: wallet.id,
-        chainFamily: wallet.chainFamily,
-        networkId: wallet.network.id,
-        publicAddress: wallet.publicAddress,
-        ...(tokenBalance ? { token: tokenBalance } : { balance: balance! })
-      }
-    })
+  agentBalance(context: WalletBrokerContext, walletId: string, token?: string, spender?: string): Promise<Record<string, unknown>> {
+    return agentBalance(this.agentWalletAccess(), context, walletId, token, spender)
   }
 
-  async prepareAgentTransaction(
+  prepareAgentTransaction(
     context: WalletBrokerContext,
     walletId: string,
     payload: unknown
   ): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      const adapter = this.adapters[wallet.chainFamily]
-      const normalized = await adapter.normalizeTransaction(wallet, payload)
-      this.assertRequestContextActive(context)
-      const simulation = sanitizedSimulation(await adapter.simulate(wallet, normalized))
-      this.assertRequestContextActive(context)
-      await this.service.audit.append('transaction-prepared', {
-        walletId: wallet.id,
-        workspaceId: context.workspaceId,
-        origin: context.topLevelOrigin,
-        requester: context.requester,
-        networkId: wallet.network.id,
-        understood: normalized.decoded.understood,
-        method: normalized.decoded.method,
-        destination: normalized.decoded.destination,
-        simulationAttempted: simulation.attempted,
-        simulationSuccess: simulation.success,
-        estimatedFee: simulation.estimatedFee
-      }, this.now().toISOString())
-      this.assertRequestContextActive(context)
-      return {
-        status: 'prepared',
-        walletId: wallet.id,
-        chainFamily: wallet.chainFamily,
-        networkId: wallet.network.id,
-        publicAddress: wallet.publicAddress,
-        decoded: structuredClone(normalized.decoded),
-        simulation: agentSimulation(simulation)
-      }
-    })
+    return prepareAgentTransaction(this.agentWalletAccess(), context, walletId, payload)
   }
 
-  async requestAgentTransaction(
+  requestAgentTransaction(
     context: WalletBrokerContext,
     walletId: string,
     payload: unknown,
     broadcast: boolean
   ): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      const request = await this.transactionRequest(context, wallet, payload, broadcast, true)
-      this.assertRequestContextActive(context)
-      return { status: 'requested', request }
-    })
+    return requestAgentTransaction(this.agentWalletAccess(), context, walletId, payload, broadcast)
   }
 
-  async requestAgentMessage(
+  requestAgentMessage(
     context: WalletBrokerContext,
     walletId: string,
     message: Uint8Array
   ): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      const request = await this.messageRequest(context, wallet, { kind: 'message', message }, false, true)
-      this.assertRequestContextActive(context)
-      return { status: 'requested', request }
-    })
+    return requestAgentMessage(this.agentWalletAccess(), context, walletId, message)
   }
 
   agentRequestStatus(context: WalletBrokerContext, requestId: string): Record<string, unknown> {
-    const record = this.requireAgentRequest(context, requestId)
-    const wallet = this.requireWallet(record.request.walletId)
-    return agentSummary(record, wallet, this.hasAddressPermission(context, wallet))
+    return agentRequestStatus(this.agentWalletAccess(), context, requestId)
   }
 
-  /**
-   * Requests the current page made itself, so an agent driving a dApp can see what
-   * it asked for. Read-only: approval still happens only in trusted Hronaut UI.
-   */
   agentPageRequests(context: WalletBrokerContext): Record<string, unknown> {
-    if (context.requester.type !== 'agent') throw new Error('Wallet page requests are available only to agents')
-    const wallets = new Map(this.service.list().map((wallet) => [wallet.id, wallet]))
-    const records = this.service.approvals.list().filter((record) => (
-      record.request.requester.type === 'website'
-      && record.request.workspaceId === context.workspaceId
-      && record.request.tabId === context.tabId
-      && record.request.navigationGeneration === context.navigationGeneration
-      && record.request.topLevelOrigin === context.topLevelOrigin
-    ))
-    const requests = records.slice(-MAX_AGENT_PAGE_REQUESTS).map((record) => {
-      const wallet = wallets.get(record.request.walletId)
-      const result = agentSummary(record, wallet, wallet ? this.hasAddressPermission(context, wallet) : false)
-      const pendingMessage = this.pendingMessages.get(record.id)
-      const details = result.details as Record<string, unknown> | undefined
-      if (details && pendingMessage) details.method = pendingMessage.kind === 'typed-data' ? 'typed-data-signing' : 'message-signing'
-      return result
-    })
-    const hiddenAddresses = [...wallets.values()]
-      .filter((wallet) => wallet.chainFamily === 'evm' && !this.hasAddressPermission(context, wallet))
-      .map((wallet) => wallet.publicAddress)
-    const suggestedAssets = this.evmAssetSuggestions.forPage(context)
-      .map((asset) => withHiddenWalletAddresses(asset, hiddenAddresses, HIDDEN_WALLET_ADDRESS))
-    const hiddenAccounts = [...wallets.values()]
-      .filter((wallet) => !this.hasAddressPermission(context, wallet))
-      .map((wallet) => wallet.publicAddress)
-    const failedCalls = this.pageCallFailures.forPage(context).map((failure) => ({
-      ...failure,
-      method: withoutWalletAddresses(failure.method, hiddenAccounts, HIDDEN_WALLET_ADDRESS),
-      error: withoutWalletAddresses(failure.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS)
-    }))
-    const callBatches = this.agentCallBatches(context, hiddenAccounts)
-    return {
-      origin: context.topLevelOrigin,
-      requests,
-      ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {}),
-      ...(suggestedAssets.length ? { suggestedAssets } : {}),
-      ...(failedCalls.length ? { failedCalls } : {}),
-      ...(callBatches.length ? { callBatches } : {})
-    }
+    return agentPageRequests(this.agentWalletAccess(), context)
   }
 
-  /**
-   * The site's wallet_sendCalls batches in this workspace, newest 20, so an
-   * agent can see that a batch stopped, at which call and, when the next
-   * call could not be sent, why. Each sent call shows its transaction hash
-   * and its request's status.
-   */
-  private agentCallBatches(context: WalletBrokerContext, hiddenAccounts: string[]): Array<Record<string, unknown>> {
-    const batches = this.evmCallBundles.forSite(context).slice(-MAX_AGENT_CALL_BATCHES)
-    if (!batches.length) return []
-    const statuses = new Map(this.service.approvals.list().flatMap((record) => (
-      record.transactionHash
-      && record.request.workspaceId === context.workspaceId
-      && record.request.topLevelOrigin === context.topLevelOrigin
-        ? [[record.transactionHash.toLowerCase(), record.status] as const]
-        : []
-    )))
-    return batches.map(({ id, bundle }) => ({
-      id: withoutWalletAddresses(agentCallBundleId(id), hiddenAccounts, HIDDEN_WALLET_ADDRESS),
-      networkId: bundle.wallet.network.id,
-      calls: bundle.calls,
-      state: callBundleState(bundle),
-      transactions: bundle.hashes.map((hash) => ({
-        transactionHash: hash,
-        status: statuses.get(hash.toLowerCase()) ?? 'unknown',
-        ...(this.replacedTransactionHashes.has(hash.toLowerCase()) ? { replaced: true } : {})
-      })),
-      ...(bundle.error ? { error: withoutWalletAddresses(bundle.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS) } : {})
-    }))
-  }
-
-  async cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
-    const record = this.requireAgentRequest(context, requestId)
-    try {
-      const cancelled = await this.service.approvals.cancel(record.id, this.now())
-      await this.service.audit.append('request-cancelled', {
-        requestId, walletId: record.request.walletId, workspaceId: context.workspaceId,
-        requester: context.requester, origin: context.topLevelOrigin
-      }, this.now().toISOString())
-      const wallet = this.requireWallet(record.request.walletId)
-      return agentSummary(cancelled, wallet, this.hasAddressPermission(context, wallet))
-    } finally {
-      if (this.service.approvals.get(requestId)?.status === 'cancelled') {
-        this.rejectPending(requestId, new Error('Wallet request was cancelled'))
-        this.publish()
-      }
-    }
+  cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
+    return cancelAgentRequest(this.agentWalletAccess(), context, requestId)
   }
 
   updateWallet(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor> {
@@ -1727,42 +1567,6 @@ export class WalletBroker {
       const result = await this.execute(this.service.approvals.get(recordId)!, context, { permissionNotAfter: currentPolicy.expiresAt })
       return { approved: true, result }
     })
-  }
-
-  private async ensureAgentAddressPermission(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor
-  ): Promise<Record<string, unknown> | null> {
-    if (this.hasAddressPermission(context, wallet)) return null
-    const existing = this.service.approvals.list().find((record) => (
-      record.request.operation === 'connect-account'
-      && record.request.walletId === wallet.id
-      && record.request.workspaceId === context.workspaceId
-      && record.request.tabId === context.tabId
-      && record.request.navigationGeneration === context.navigationGeneration
-      && record.request.topLevelOrigin === context.topLevelOrigin
-      && record.request.requester.type === 'agent'
-      && record.request.requester.id === context.requester.id
-      // An approved request is about to grant the permission; asking again would prompt the person twice.
-      && ['validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'].includes(record.status)
-    ))
-    const record = existing ?? (await this.createAddressPermissionRequest(context, wallet)).record
-    return agentSummary(record, wallet, false)
-  }
-
-  private requireAgentRequest(context: WalletBrokerContext, requestId: string): WalletApprovalRecord {
-    const record = this.service.approvals.get(requestId)
-    if (!record
-      || record.request.requester.type !== 'agent'
-      || context.requester.type !== 'agent'
-      || record.request.requester.id !== context.requester.id
-      || record.request.workspaceId !== context.workspaceId
-      || record.request.tabId !== context.tabId
-      || record.request.navigationGeneration !== context.navigationGeneration
-      || record.request.topLevelOrigin !== context.topLevelOrigin) {
-      throw new Error('Wallet request not found for this agent, workspace, tab, and navigation')
-    }
-    return record
   }
 
   private selectWallet(wallets: WalletDescriptor[]): WalletDescriptor {
