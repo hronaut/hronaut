@@ -19,6 +19,14 @@ describe('shared type modules', () => {
     expect(reexported.sort()).toEqual(moduleFiles)
   })
 
+  it('imports only types into the domain modules, so they cannot form a runtime import cycle', () => {
+    const valueImports = moduleFiles.flatMap(file => readFileSync(`${modulesDirectory}/${file}`, 'utf8')
+      .split('\n')
+      .filter(line => /^import\s/u.test(line) && !/^import type\s/u.test(line))
+      .map(line => `${file}: ${line}`))
+    expect(valueImports).toEqual([])
+  })
+
   it('keeps every domain module under 800 lines', () => {
     const oversized = moduleFiles
       .map(file => [file, lineCount(readFileSync(`${modulesDirectory}/${file}`, 'utf8'))] as const)
