@@ -149,7 +149,8 @@ import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from '
 import { resizeViewport } from './emulation/resize-viewport.js'
 import type { EmulationViewSizeAccess } from './emulation/emulation-view-size-access.js'
 import { setEmulationViewSize } from './emulation/emulation-view-size.js'
-import { SplitDividerController } from './split-divider-controller.js'
+import type { SplitDividerAccess } from './split-view/split-divider-access.js'
+import { createSplitDivider } from './split-view/split-divider.js'
 import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
 import { createHash } from 'node:crypto'
@@ -966,20 +967,7 @@ export class BrowserTabsManager {
   private lastSplitDividerGeometry = ''
   private lastEmulationFrames = '[]'
   private lastPageCards = '[]'
-  private readonly splitDivider = new SplitDividerController({
-    read: () => this.getSplitDivider(),
-    owns: (geometry) => this.splitViewGeneration === geometry.revision
-      && this.splitView?.firstTabId === geometry.firstTabId
-      && this.splitView?.secondTabId === geometry.secondTabId
-      && this.splitView?.orientation === geometry.orientation,
-    apply: (ratio, mode) => {
-      if (!this.splitView) return
-      this.splitView.ratio = ratio
-      if (mode === 'commit') this.splitViewGeneration += 1
-      this.layout()
-      if (mode !== 'preview') this.changed(mode === 'commit')
-    }
-  })
+  private readonly splitDivider = createSplitDivider(this.splitDividerAccess())
   private allTabsMuted = false
   private allHumanInteractionLocked = false
   private allAgentsPaused = false
@@ -4483,6 +4471,24 @@ export class BrowserTabsManager {
 
   getSplitDivider(): SplitDividerGeometry | null {
     return getSplitDivider(this.windowLayoutAccess())
+  }
+
+  /**
+   * The narrow view the split view divider's drag gets of this manager's
+   * private split view and its generation, divider geometry, layout and state
+   * publication. It is a prototype method rather than a field, so the field
+   * initializer that creates the drag can call it; each member reads the
+   * manager when called, so the drag sees the split view as it is then.
+   */
+  private splitDividerAccess(): SplitDividerAccess {
+    return {
+      getSplitDivider: () => this.getSplitDivider(),
+      splitView: () => this.splitView,
+      splitViewGeneration: () => this.splitViewGeneration,
+      writeSplitViewGeneration: (generation) => { this.splitViewGeneration = generation },
+      layout: () => this.layout(),
+      changed: (persist) => this.changed(persist)
+    }
   }
 
   cancelSplitDivider(): void { this.splitDivider.cancel() }
