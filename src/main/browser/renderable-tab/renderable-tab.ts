@@ -119,7 +119,6 @@ export async function withRenderableTab<Tab extends RenderableTab, T>(
       }
     } catch (error) {
       if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
-    if (webContents.isCrashed()) throw new RendererExitedError(false)
       throw error
     }
   } finally {
