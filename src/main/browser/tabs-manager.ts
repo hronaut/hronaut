@@ -83,12 +83,14 @@ import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repr
 import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
 import {
   addNetworkRoute,
+  applyNetworkRoutes,
   clearNetworkRoutes,
   markNetworkConditionsUnknown,
   moveNetworkRoute,
   networkConditionPublication,
   networkConditionState,
   networkRoutes,
+  queueNetworkRouteRequest,
   removeNetworkRoute,
   requireNetworkConditionsKnown,
   setNetworkRouteEnabled
@@ -235,7 +237,6 @@ import {
   type NormalizedBrowserNetworkWaitOptions
 } from '../../shared/network-wait.js'
 import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
-import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
@@ -422,6 +423,10 @@ import {
   transferWorkspaceStorage,
   workspacePartition
 } from './workspace-storage.js'
+import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.js'
+import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
+import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
+import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
@@ -429,6 +434,14 @@ import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
+import type { WebsiteDialogsAccess } from './website-dialogs/website-dialogs-access.js'
+import {
+  detachDialogMonitoring,
+  dismissWebsiteDialogForTrustedChrome,
+  ensureDialogMonitoring,
+  handleDialog,
+  withOptionalDialogHandling
+} from './website-dialogs/website-dialogs.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -449,7 +462,6 @@ const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
-const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
 /** How long wheel events after an agent's wheel call still count as the agent's. */
 const AGENT_WHEEL_SETTLE_MS = 250
@@ -464,22 +476,10 @@ function occlusionSnapshotTimeoutMs(): number {
 }
 const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
 
-function normalizedWorkspaceName(name: string): string {
-  const normalized = name.trim().normalize('NFC')
-  if (!normalized) throw new TypeError('Workspace name cannot be empty.')
-  if (normalized.length > MAX_WORKSPACE_NAME_LENGTH) {
-    throw new TypeError(`Workspace name cannot exceed ${MAX_WORKSPACE_NAME_LENGTH} characters.`)
-  }
-  return normalized
-}
-
 function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
-const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
-const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
@@ -727,21 +727,6 @@ interface BrowserWorkspaceOperation {
   token: symbol
   /** Settles when an archived workspace's operation ends. */
   settled?: Promise<void>
-}
-
-function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string | undefined {
-  if (policy.mode !== 'restricted' || policy.rules.length !== 1) return undefined
-  try {
-    const parsed = new URL(policy.rules[0]!)
-    return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
-      && !parsed.username
-      && !parsed.password
-      && policy.rules[0] === parsed.origin
-      ? parsed.origin
-      : undefined
-  } catch {
-    return undefined
-  }
 }
 
 interface BrowserElementPickerScriptResult {
@@ -1590,27 +1575,53 @@ export class BrowserTabsManager {
     return getTabOverviewPagePreview(this.tabOverviewPreviewsAccess(), tabId)
   }
 
+  /**
+   * The narrow view workspaces get of this manager's private tabs, open and
+   * archived workspaces, recently closed tabs, options, workspace operations,
+   * tab label edits, workspace continuity, session store and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's value or promise directly, so
+   * callers see the same ticks as before.
+   */
+  private mcpTabGroupsAccess(): McpTabGroupsAccess<BrowserTab> {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      tabs: () => this.tabs,
+      orderedTabs: () => this.orderedTabs(),
+      closedTabs: () => this.closedTabs,
+      activeTabId: () => this.activeTabId,
+      options: () => this.options,
+      inspectionPermissions: () => this.inspectionPermissions,
+      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      assertWorkspaceNameAvailable: (name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName) => (
+        this.assertWorkspaceNameAvailable(name, excludeActiveWorkspaceId, excludeSavedWorkspaceId, allowDuplicateName)
+      ),
+      assertActiveWorkspaceCapacity: () => this.assertActiveWorkspaceCapacity(),
+      assertWorkspaceIdle: (workspaceId) => this.assertWorkspaceIdle(workspaceId),
+      isClosingWorkspace: (workspaceId) => this.isClosingWorkspace(workspaceId),
+      withWorkspaceOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs),
+      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
+      withGlobalWorkspaceStorageOperation: (action, operation) => this.withGlobalWorkspaceStorageOperation(action, operation),
+      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      createTab: (options) => this.createTab(options),
+      closeTabs: (tabIds, ensureReplacement) => this.closeTabs(tabIds, ensureReplacement),
+      selectTab: (tabId) => this.selectTab(tabId),
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
+      assertStorageDeletionOwnership: (workspaceId, storageId) => this.assertStorageDeletionOwnership(workspaceId, storageId),
+      suspendWorkspaceContinuity: (workspaceId) => this.suspendWorkspaceContinuity(workspaceId),
+      retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
+      invalidateReactInspectionWorkspace: (workspaceId) => this.reactInspectionController.invalidateWorkspace(workspaceId),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
   listMcpTabGroups(): BrowserTabGroupState[] {
-    return [...this.mcpTabGroups.values()].map((group) => ({
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      color: group.color,
-      createdAt: group.createdAt,
-      lastUsedAt: group.lastUsedAt,
-      activeTabId: group.activeTabId,
-      tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
-      hiddenFromSidebar: group.hiddenFromSidebar === true,
-      deletionProtected: group.deletionProtected === true,
-      agentAccess: group.agentAccess !== false,
-      contextClass: group.contextClass,
-      storageOriginCount: group.origins.length,
-      navigationPolicy: {
-        mode: group.navigationPolicy.mode,
-        rules: [...group.navigationPolicy.rules]
-      },
-      ...(group.pinnedAt ? { pinnedAt: group.pinnedAt } : {})
-    }))
+    return listMcpTabGroups(this.mcpTabGroupsAccess())
   }
 
   listSavedTabGroups(): BrowserSavedTabGroupState[] {
@@ -1652,7 +1663,7 @@ export class BrowserTabsManager {
     }
   }
 
-  async createMcpTabGroup(
+  createMcpTabGroup(
     name: string,
     color?: BrowserTabGroupColor,
     storage: 'scratch' | 'fork-workspace' = 'scratch',
@@ -1663,91 +1674,11 @@ export class BrowserTabsManager {
     description = '',
     contextClass: BrowserWorkspaceContextClass = 'standard'
   ): Promise<BrowserTabGroupState> {
-    const normalizedPolicy = normalizeWorkspaceNavigationPolicy(navigationPolicy)
-    if (contextClass === 'public-observer' && (storage !== 'scratch' || !publicObserverOrigin(normalizedPolicy))) {
-      throw new TypeError('A public observer requires clean scratch storage and one restricted HTTP(S) origin.')
-    }
-    const normalizedName = normalizedWorkspaceName(name)
-    this.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
-    this.assertActiveWorkspaceCapacity()
-    const now = new Date().toISOString()
-    const id = uuidV7()
-    const storageId = randomUUID()
-    const group: BrowserTabGroup = {
-      id,
-      name: normalizedName,
-      description: normalizeWorkspaceDescription(description),
-      color: color ?? defaultTabGroupColor(id),
-      createdAt: now,
-      lastUsedAt: now,
-      activeTabId: null,
-      storageId,
-      origins: [],
-      navigationPolicy: normalizedPolicy,
-      navigationAudit: [],
-      contextClass
-    }
-    if (storage === 'fork-workspace') {
-      const sourceId = sourceWorkspaceId
-      const source = sourceId ? this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId) : undefined
-      if (!source) throw new Error('Source workspace is unavailable.')
-      if (this.isClosingWorkspace(sourceId!)) throw new Error(`"${source.name}" was just closed. Undo the close to copy it.`)
-      group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
-      const fork = async () => {
-        this.mcpTabGroups.set(group.id, group)
-        // Home can already read this workspace while its storage is copying.
-        // Publish it to chrome too, without persisting an unfinished fork.
-        this.changed(false)
-        let selectedOrigins: string[] = []
-        try {
-          selectedOrigins = normalizeWorkspaceStorageOrigins(origins ?? source.origins)
-          await this.withWorkspaceOperation(group.id, 'forking workspace data', () => (
-            transferWorkspaceStorage({
-              sourcePartition: workspacePartition(this.options.partition, source.storageId),
-              targetPartition: workspacePartition(this.options.partition, storageId),
-              origins: selectedOrigins,
-              copyAllCookies: origins === undefined,
-              copyLocalStorage: true,
-              configureSession: this.options.configureSession
-            })
-          ), true)
-          group.origins = selectedOrigins
-          if (storage === 'fork-workspace') await this.createTab({ url: 'about:blank', active: false, mcpGroupId: group.id })
-        } catch (error) {
-          try {
-            await destroyWorkspaceStorage(
-              workspacePartition(this.options.partition, storageId),
-              this.options.configureSession
-            )
-          } catch (cleanupError) {
-            group.origins = selectedOrigins
-            this.changed()
-            throw new RetainedBrowserWorkspaceError(
-              [error, cleanupError],
-              group.id,
-              `Workspace ${group.id} could not be created or cleaned up. It remains listed so its isolated data can be deleted safely.`
-            )
-          }
-          this.mcpTabGroups.delete(group.id)
-          this.changed()
-          throw error
-        }
-        this.changed()
-        return this.requireMcpTabGroup(group.id)
-      }
-      return this.withGlobalWorkspaceStorageOperation('forking workspace data', () => (
-        this.mcpTabGroups.has(source.id)
-          ? this.withWorkspaceOperation(source.id, 'forking workspace data', fork, false)
-          : this.withSavedWorkspaceOperation(source.id, 'forking workspace data', fork)
-      ))
-    }
-    this.mcpTabGroups.set(group.id, group)
-    this.changed()
-    return this.requireMcpTabGroup(group.id)
+    return createMcpTabGroup(this.mcpTabGroupsAccess(), name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
   }
 
   renameMcpTabGroup(groupId: string, name: string, allowDuplicateName = false): BrowserTabGroupState {
-    return this.updateMcpTabGroup(groupId, { name }, allowDuplicateName)
+    return renameMcpTabGroup(this.mcpTabGroupsAccess(), groupId, name, allowDuplicateName)
   }
 
   updateMcpTabGroup(
@@ -1755,35 +1686,7 @@ export class BrowserTabsManager {
     updates: { name?: string; description?: string; color?: BrowserTabGroupColor; agentAccess?: boolean; hiddenFromSidebar?: boolean; deletionProtected?: boolean },
     allowDuplicateName = false
   ): BrowserTabGroupState {
-    if (updates.name === undefined && updates.description === undefined && updates.color === undefined && updates.agentAccess === undefined && updates.hiddenFromSidebar === undefined && updates.deletionProtected === undefined) throw new TypeError('A workspace change is required.')
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
-    this.assertWorkspaceIdle(groupId)
-    if (updates.name !== undefined) {
-      const name = normalizedWorkspaceName(updates.name)
-      if (name !== group.name) {
-        this.assertWorkspaceNameAvailable(name, group.id, undefined, allowDuplicateName)
-      }
-      group.name = name
-    }
-    if (updates.description !== undefined) group.description = normalizeWorkspaceDescription(updates.description)
-    if (updates.color !== undefined) group.color = updates.color
-    if (updates.agentAccess !== undefined) {
-      if ((group.agentAccess !== false) !== updates.agentAccess) {
-        this.inspectionPermissions.set(group, (this.inspectionPermissions.get(group) ?? 0) + 1)
-        // A permission round-trip must not let an older image commit afterward.
-        for (const tab of this.tabs.values()) if (tab.mcpGroupId === groupId) {
-          tab.visualComparisonGeneration += 1
-          retireNetworkPriorityObservations(tab)
-        }
-      }
-      group.agentAccess = updates.agentAccess
-    }
-    if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
-    if (updates.deletionProtected !== undefined) group.deletionProtected = updates.deletionProtected
-    group.lastUsedAt = new Date().toISOString()
-    this.changed()
-    return this.listMcpTabGroups().find((candidate) => candidate.id === groupId)!
+    return updateMcpTabGroup(this.mcpTabGroupsAccess(), groupId, updates, allowDuplicateName)
   }
 
   /**
@@ -1806,28 +1709,7 @@ export class BrowserTabsManager {
   }
 
   requireMcpTabGroup(groupId: string): BrowserTabGroupState {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
-    return {
-      id: group.id,
-      name: group.name,
-      description: group.description,
-      color: group.color,
-      createdAt: group.createdAt,
-      lastUsedAt: group.lastUsedAt,
-      activeTabId: group.activeTabId,
-      tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
-      hiddenFromSidebar: group.hiddenFromSidebar === true,
-      deletionProtected: group.deletionProtected === true,
-      agentAccess: group.agentAccess !== false,
-      contextClass: group.contextClass,
-      storageOriginCount: group.origins.length,
-      navigationPolicy: {
-        mode: group.navigationPolicy.mode,
-        rules: [...group.navigationPolicy.rules]
-      },
-      ...(group.pinnedAt ? { pinnedAt: group.pinnedAt } : {})
-    }
+    return requireMcpTabGroup(this.mcpTabGroupsAccess(), groupId)
   }
 
   /**
@@ -2152,114 +2034,12 @@ export class BrowserTabsManager {
     tab.webContents.send('wallet-provider:event', structuredClone(event))
   }
 
-  async closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return this.withWorkspaceOperation(groupId, preserveStorage ? 'archiving the workspace' : 'closing the workspace', () => (
-      this.closeMcpTabGroupInternal(groupId, preserveStorage)
-    ))
+  closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
+    return closeMcpTabGroup(this.mcpTabGroupsAccess(), groupId, preserveStorage)
   }
 
   private closeMcpTabGroupInternal(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
-    return this.withTabLabelLifecycle(() => this.closeMcpTabGroupAfterLabelSave(groupId, preserveStorage))
-  }
-
-  private async closeMcpTabGroupAfterLabelSave(groupId: string, preserveStorage: boolean): Promise<BrowserTabGroupState[]> {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
-    this.reactInspectionController.invalidateWorkspace(groupId)
-    const previousActiveTabId = this.activeTabId
-    const previousGroupActiveTabId = group.activeTabId
-    const tabs = this.orderedTabs().filter((tab) => tab.mcpGroupId === groupId)
-    const tabSnapshots = tabs.map((tab) => ({
-      id: tab.id,
-      title: tab.title,
-      label: tab.label,
-      url: tab.url,
-      pinned: tab.pinned,
-      humanInteractionLocked: tab.humanInteractionLocked,
-      tabAgentPaused: tab.tabAgentPaused,
-      zoomIsolated: tab.zoomIsolated,
-      defaultFontSize: tab.defaultFontSize,
-      navigationGeneration: tab.navigationGeneration,
-      navigationHistory: this.navigationHistorySnapshot(tab)
-    }))
-    const removeClosedWorkspaceTabs = (): void => {
-      for (let index = this.closedTabs.length - 1; index >= 0; index -= 1) {
-        if (this.closedTabs[index]?.mcpGroupId === groupId) this.closedTabs.splice(index, 1)
-      }
-    }
-    const restoreWorkspaceTabs = async (): Promise<void> => {
-      for (const tab of tabSnapshots) {
-        if (this.tabs.has(tab.id)) continue
-        const navigationGeneration = tab.navigationGeneration + 1
-        await this.options.onWalletTabRestored?.(tab.id, navigationGeneration)
-        try {
-          await this.createTab({
-            ...tab,
-            navigationGeneration,
-            suppressInitialHistory: true,
-            active: false,
-            mcpGroupId: groupId,
-            allowBusyWorkspace: true
-          })
-        } catch (error) {
-          this.runWalletLifecycleAction('cancel wallet requests after closing a restored tab', () => (
-            this.options.onWalletTabClosed?.(tab.id)
-          ))
-          throw error
-        }
-      }
-      if (previousGroupActiveTabId && this.tabs.get(previousGroupActiveTabId)?.mcpGroupId === groupId) {
-        group.activeTabId = previousGroupActiveTabId
-      }
-      if (previousActiveTabId && this.tabs.has(previousActiveTabId)) this.selectTab(previousActiveTabId)
-      removeClosedWorkspaceTabs()
-      this.changed()
-    }
-    try {
-      await this.closeTabs(tabSnapshots.map((tab) => tab.id), false)
-      if (!preserveStorage) {
-        await this.assertStorageDeletionOwnership(groupId, group.storageId)
-        await destroyWorkspaceStorage(
-          workspacePartition(this.options.partition, group.storageId),
-          this.options.configureSession
-        )
-      }
-    } catch (error) {
-      try {
-        await restoreWorkspaceTabs()
-      } catch (restoreError) {
-        // Keep both the workspace metadata and any recoverable recently closed
-        // entries when an Electron failure prevents a complete rollback.
-        this.changed()
-        throw new AggregateError(
-          [error, restoreError],
-          `Workspace "${group.name}" could not be closed and all of its tabs could not be restored. Recoverable tabs remain in tab search.`
-        )
-      }
-      throw error
-    }
-    removeClosedWorkspaceTabs()
-    this.mcpTabGroups.delete(groupId)
-    if (!preserveStorage) this.deletedWorkspaceStorageIds.add(canonicalStorageId(group.storageId)!)
-    if (preserveStorage) this.suspendWorkspaceContinuity(groupId)
-    else this.retireWorkspaceContinuity(groupId)
-    this.options.onWorkspaceClosed?.(groupId)
-    this.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
-      this.options.onWalletWorkspaceClosed?.(groupId)
-    ))
-    if (!this.tabs.size) {
-      try {
-        await this.createTab({ url: HRONAUT_HOME_URL, active: true })
-      } catch (error) {
-        // Workspace storage/ownership has already transitioned. A failed
-        // replacement view must not prevent the caller from saving its archive.
-        this.options.onActionFailed?.('open Home after closing a workspace', error)
-      }
-    }
-    this.changed()
-    if (!preserveStorage) await this.store.save(() => this.persistedState())
-    return this.listMcpTabGroups()
+    return closeMcpTabGroupInternal(this.mcpTabGroupsAccess(), groupId, preserveStorage)
   }
 
   async saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
@@ -5330,18 +5110,24 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view request conditions get of this manager's private tabs and
-   * native rule application. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's value or promise directly, so
-   * no extra ticks separate its final checks from the caller.
+   * The narrow view request conditions get of this manager's private tabs,
+   * destroyed flag, debugger queue, native network emulation, paused request
+   * queues, rule refresh timers and state publication. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegates below return the
+   * feature's value or promise directly, so no extra ticks separate its final
+   * checks from the caller.
    */
   private networkConditionsAccess(): NetworkConditionsAccess<BrowserTab> {
     return {
       getTab: (tabId) => this.getTab(tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       isDestroyed: () => this.destroyed,
-      applyNetworkRoutes: (tab, validate, recovery, mutate, markSubmitted, admission) => this.applyNetworkRoutes(tab, validate, recovery, mutate, markSubmitted, admission)
+      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
+      applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
+      networkRouteQueues: () => this.networkRouteQueues,
+      networkRouteRefreshTimers: () => this.networkRouteRefreshTimers,
+      changed: (persist) => this.changed(persist)
     }
   }
 
@@ -5634,16 +5420,35 @@ export class BrowserTabsManager {
     return callWebMcpTool(this.webMcpAccess(), input)
   }
 
-  async handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
+  /**
+   * The narrow view website dialogs and dialog monitoring get of this
+   * manager's private tabs, destroyed flag, debugger queue, pending monitor
+   * attachments, execution contexts, DevTools opening, human interaction lock,
+   * agent input and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private websiteDialogsAccess(): WebsiteDialogsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      dialogMonitorAttachPromises: () => this.dialogMonitorAttachPromises,
+      defaultExecutionContexts: () => this.defaultExecutionContexts,
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      isAgentInput: (webContentsId) => this.agentInputWebContents.has(webContentsId),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
+  handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
     handled: true
     action: BrowserDialogAction
   }> {
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    await this.withDebugger(webContents, () => webContents.debugger.sendCommand('Page.handleJavaScriptDialog', {
-      accept: action === 'accept'
-    }))
-    return { handled: true, action }
+    return handleDialog(this.websiteDialogsAccess(), action, tabId)
   }
 
   private async visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
@@ -7813,60 +7618,8 @@ export class BrowserTabsManager {
     ))
   }
 
-  private async applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
-    const contents = tab.webContents
-    const scheduled = this.networkRouteRefreshTimers.get(contents.id)
-    if (scheduled) clearTimeout(scheduled)
-    this.networkRouteRefreshTimers.delete(contents.id)
-    const debuggerEpoch = tab.networkDebuggerEpoch
-    await this.withDebugger(contents, async () => {
-      validate()
-      if (!recovery) this.requireNetworkConditionsKnown(tab)
-      if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before application')
-      const previousRoutes = tab.networkRoutes
-      mutate?.()
-      let epoch = tab.networkConditionEpoch
-      const routes = tab.networkRoutes
-      // One immutable projection for Fetch and throttling, never reread between phases.
-      const projection = routes.map(route => ({ ...route }))
-      const network = tab.emulation.network
-      let submitted = false
-      const previous = tab.networkConditionApplication
-      const current = (): void => {
-        validate()
-        if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition application was superseded')
-      }
-      const send = async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
-        current()
-        if (!submitted && recovery) { tab.networkConditionEpoch++; epoch = tab.networkConditionEpoch }
-        submitted = true
-        markSubmitted()
-        return contents.debugger.sendCommand(method, params)
-      }
-      tab.networkConditionApplication = 'pending'
-      try {
-        this.changed(false)
-        const interception = projection.filter(route => route.enabled && route.behavior !== 'throttle')
-        if (interception.length) await send('Fetch.enable', { patterns: [...new Set(interception.map(route => route.urlPattern))].map(urlPattern => ({ urlPattern })) })
-        else await send('Fetch.disable')
-        await this.applyNetworkEmulation(contents, network, projection, send)
-        // Native acknowledgement is independent of subsequent UI/MCP publication.
-        if (contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Request-condition acknowledgement belongs to a retired configuration')
-        tab.networkConditionApplication = 'confirmed'
-      } catch (error) {
-        if (this.tabs.get(tab.id) === tab && tab.webContents === contents && tab.networkConditionEpoch === epoch) {
-          if (submitted || tab.networkRoutes !== routes) this.markNetworkConditionsUnknown(tab)
-          else {
-            tab.networkRoutes = previousRoutes
-            tab.networkConditionApplication = previous
-          }
-          this.changed(false)
-        }
-        throw error
-      }
-      this.changed(false)
-      validate()
-    }, admission)
+  private applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
+    return applyNetworkRoutes(this.networkConditionsAccess(), tab, validate, recovery, mutate, markSubmitted, admission)
   }
 
   private isHumanInteractionLocked(tab: BrowserTab): boolean {
@@ -8774,40 +8527,12 @@ export class BrowserTabsManager {
     })
   }
 
-  private async withOptionalDialogHandling<T>(
+  private withOptionalDialogHandling<T>(
     webContents: BrowserTab['view']['webContents'],
     options: BrowserDialogHandlingOptions,
     operation: () => Promise<T>
   ): Promise<T> {
-    if (options.promptText !== undefined && options.dialogAction === undefined) {
-      throw new Error('dialogAction is required when promptText is provided')
-    }
-    const dialogAction = options.dialogAction
-    if (dialogAction === undefined) return operation()
-
-    return this.withDebugger(webContents, async () => {
-      let handling = Promise.resolve()
-      let handlingError: unknown
-      const listener = (_event: Electron.Event, method: string): void => {
-        if (method !== 'Page.javascriptDialogOpening') return
-        handling = handling.then(async () => {
-          await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', {
-            accept: dialogAction === 'accept',
-            ...(options.promptText !== undefined ? { promptText: options.promptText } : {})
-          })
-        }).catch((error: unknown) => { handlingError = error })
-      }
-      webContents.debugger.on('message', listener)
-      try {
-        await webContents.debugger.sendCommand('Page.enable')
-        const result = await operation()
-        await handling
-        if (handlingError) throw handlingError
-        return result
-      } finally {
-        webContents.debugger.removeListener('message', listener)
-      }
-    })
+    return withOptionalDialogHandling(this.websiteDialogsAccess(), webContents, options, operation)
   }
 
   private async evaluateWithAttachedDebugger(
@@ -8867,83 +8592,15 @@ export class BrowserTabsManager {
   }
 
   private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {
-    this.dialogMonitorAttachPromises.delete(webContents.id)
-    this.defaultExecutionContexts.delete(webContents.id)
-    if (webContents.debugger.isAttached()) webContents.debugger.detach()
+    detachDialogMonitoring(this.websiteDialogsAccess(), webContents)
   }
 
-  private async dismissWebsiteDialogForTrustedChrome(tab: BrowserTab): Promise<void> {
-    const webContents = tab.webContents
-    if (tab.dialog) {
-      tab.dialog = undefined
-      this.changed(false)
-    }
-    if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
-    await this.ensureDialogMonitoring(tab)
-    if (
-      this.destroyed
-      || webContents.isDestroyed()
-      || this.tabs.get(tab.id) !== tab
-      || !webContents.debugger.isAttached()
-    ) return
-    // Website dialogs are native Chromium surfaces and can otherwise appear
-    // above renderer-owned trusted chrome. Reject them while a trusted modal
-    // owns the window; the page must never get to cover or impersonate the
-    // approval surface.
-    await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: false }).catch(() => undefined)
+  private dismissWebsiteDialogForTrustedChrome(tab: BrowserTab): Promise<void> {
+    return dismissWebsiteDialogForTrustedChrome(this.websiteDialogsAccess(), tab)
   }
 
   private ensureDialogMonitoring(tab: BrowserTab): Promise<void> {
-    const webContents = tab.webContents
-    const existing = this.dialogMonitorAttachPromises.get(webContents.id)
-    if (existing) return existing
-    const attaching = (async () => {
-      if (
-        this.destroyed
-        || webContents.isDestroyed()
-        || webContents.isDevToolsOpened()
-        || this.devToolsOpening.has(webContents.id)
-      ) return
-      try {
-        const attachedHere = !webContents.debugger.isAttached()
-        if (attachedHere) webContents.debugger.attach('1.3')
-        await webContents.debugger.sendCommand('Page.enable')
-        // Network Document responses also include iframes. Establish the native
-        // main-frame identity before recording any connection-security metadata.
-        const frameTree = await webContents.debugger.sendCommand('Page.getFrameTree') as {
-          frameTree?: { frame?: { id?: string } }
-        }
-        tab.mainFrameId = frameTree.frameTree?.frame?.id
-        await webContents.debugger.sendCommand('Runtime.enable')
-        await webContents.debugger.sendCommand('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }).catch(() => undefined)
-        await webContents.debugger.sendCommand('Log.enable').catch(() => undefined)
-        await webContents.debugger.sendCommand('Audits.enable')
-        await webContents.debugger.sendCommand('Network.enable', {
-          maxTotalBufferSize: MAX_NETWORK_TOTAL_BUFFER_BYTES,
-          maxResourceBufferSize: MAX_NETWORK_RESOURCE_BUFFER_BYTES,
-          maxPostDataSize: MAX_NETWORK_POST_DATA_BYTES
-        })
-        // Reattachment never restores request conditions. A detached epoch
-        // requires explicit recovery; dialog monitoring is independent.
-        tab.networkDebuggerEnabled = true
-        await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', {
-          ignore: this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(webContents.id)
-        })
-        // Emulation uncertainty also requires explicit recovery; never reapply it here.
-      } catch (error) {
-        tab.networkDebuggerEnabled = false
-        if (!this.destroyed && !webContents.isDestroyed()) {
-          console.error('[browser] Could not enable page diagnostics:', error)
-        }
-      }
-    })()
-    this.dialogMonitorAttachPromises.set(webContents.id, attaching)
-    void attaching.finally(() => {
-      if (this.dialogMonitorAttachPromises.get(webContents.id) === attaching) {
-        this.dialogMonitorAttachPromises.delete(webContents.id)
-      }
-    })
-    return attaching
+    return ensureDialogMonitoring(this.websiteDialogsAccess(), tab)
   }
 
   private openDevTools(tab: BrowserTab): Promise<void> {
@@ -8954,101 +8611,8 @@ export class BrowserTabsManager {
     addInspectorIssue(this.inspectorIssuesAccess(), tab, value, notify)
   }
 
-  private async handleNetworkRouteRequest(tab: BrowserTab, params: unknown, requestEpoch: number): Promise<void> {
-    if (tab.networkConditionEpoch !== requestEpoch) return
-    const details = params as {
-      requestId?: string
-      request?: { url?: string; method?: string }
-    }
-    const requestId = details.requestId
-    const url = details.request?.url
-    const method = details.request?.method?.toUpperCase()
-    if (!requestId || !url || !method || tab.webContents.isDestroyed()) return
-
-    const ownedRoutes = tab.networkRoutes
-    const route = ownedRoutes.find((candidate) => (
-      candidate.enabled && (!candidate.method || candidate.method === method)
-      && networkRoutePatternMatches(candidate.urlPattern, url)
-    ))
-
-    try {
-      if (!route) {
-        await tab.webContents.debugger.sendCommand('Fetch.continueRequest', { requestId })
-        return
-      }
-      if (route.behavior === 'throttle') {
-        await tab.webContents.debugger.sendCommand('Fetch.continueRequest', { requestId })
-        return
-      }
-      // Reserve the match once before disposition. Lost acknowledgements never
-      // restore a consumed budget or cause a second disposition for this request.
-      route.remainingMatches = (route.remainingMatches ?? 1) - 1
-      if (route.remainingMatches <= 0) {
-        tab.networkRoutes = tab.networkRoutes.filter(candidate => candidate !== route)
-        if (tab.networkConditionApplication === 'confirmed') tab.networkConditionApplication = 'pending'
-      }
-      if (route.behavior === 'abort') {
-        await tab.webContents.debugger.sendCommand('Fetch.failRequest', {
-          requestId,
-          errorReason: route.abort
-        })
-      } else {
-        const responseHeaders = Object.entries(route.responseHeaders ?? {}).map(([name, value]) => ({ name, value }))
-        await tab.webContents.debugger.sendCommand('Fetch.fulfillRequest', {
-          requestId,
-          responseCode: route.response?.status ?? 200,
-          responseHeaders,
-          body: Buffer.from(route.responseBody ?? '').toString('base64')
-        })
-      }
-      this.changed(false)
-    } catch (error) {
-      console.error('[browser] Could not apply network route:', error)
-      // A submitted disposition may already have taken effect. Never replay it
-      // as continue after losing its acknowledgement.
-      if (this.tabs.get(tab.id) === tab && tab.networkConditionEpoch === requestEpoch) {
-        this.markNetworkConditionsUnknown(tab)
-        this.changed(false)
-      }
-    }
-  }
-
   private queueNetworkRouteRequest(tab: BrowserTab, params: unknown): void {
-    const webContentsId = tab.webContents.id
-    const requestEpoch = tab.networkConditionEpoch
-    const previous = this.networkRouteQueues.get(webContentsId) ?? Promise.resolve()
-    const queued = previous
-      .catch(() => undefined)
-      .then(() => this.handleNetworkRouteRequest(tab, params, requestEpoch))
-      .catch((error: unknown) => console.error('[browser] Network route queue failed:', error))
-    this.networkRouteQueues.set(webContentsId, queued)
-    void queued.finally(() => {
-      if (this.networkRouteQueues.get(webContentsId) !== queued) return
-      this.networkRouteQueues.delete(webContentsId)
-      this.scheduleNetworkRouteRefresh(tab)
-    })
-  }
-
-  private scheduleNetworkRouteRefresh(tab: BrowserTab): void {
-    const webContentsId = tab.webContents.id
-    const previous = this.networkRouteRefreshTimers.get(webContentsId)
-    if (previous) clearTimeout(previous)
-    const timer = setTimeout(() => {
-      this.networkRouteRefreshTimers.delete(webContentsId)
-      if (this.destroyed || tab.webContents.isDestroyed() || tab.networkConditionApplication === 'unknown') return
-      if (this.networkRouteQueues.has(webContentsId)) {
-        this.scheduleNetworkRouteRefresh(tab)
-        return
-      }
-      // Let fulfilled response bodies reach the page before changing Fetch patterns.
-      void this.applyNetworkRoutes(tab).catch((error: unknown) => {
-        if (!this.destroyed && !tab.webContents.isDestroyed()) {
-          console.error('[browser] Could not refresh network route patterns:', error)
-        }
-      })
-    }, 250)
-    timer.unref()
-    this.networkRouteRefreshTimers.set(webContentsId, timer)
+    queueNetworkRouteRequest(this.networkConditionsAccess(), tab, params)
   }
 
   private prepareDiagnosticNavigation(tab: BrowserTab): void {
