@@ -7,7 +7,6 @@ import type {
   BrowserState,
   BrowserTabGroupState
 } from '../../../shared/types.js'
-import type { ConsoleCapture } from '../console-messages/console-messages-access.js'
 import type { BrowserNetworkRecordingState } from '../network-recording.js'
 import type { PersistedBrowserState, TabStateStore } from '../tab-store.js'
 
@@ -21,7 +20,8 @@ export interface WorkspaceContinuityTab extends Pick<BrowserNetworkRecordingStat
   url: string
   mcpGroupId?: string
   webContents: WebContents
-  pendingRuntimeConsoleMessages: ConsoleCapture[]
+  /** Continuity only clears this list, so it does not depend on the console message shape. */
+  pendingRuntimeConsoleMessages: unknown[]
   inspectorIssues: BrowserInspectorIssue[]
   inspectorIssuesTruncated: boolean
   authChallenges: BrowserAuthChallengeObservation[]
@@ -38,8 +38,9 @@ export interface WorkspaceContinuityActions {
  * What workspace continuity needs from the tab manager, which keeps the tabs,
  * workspaces, persisted state and every continuity field private. The
  * continuity store, evidence factory, markers, observation generations,
- * pending actions and revision stay manager fields because closing,
- * archiving, restoring and persisting workspaces also read or change them.
+ * pending actions and revision stay manager fields, like the state of every
+ * other feature moved out of the manager; restoring and persisting
+ * workspaces also read the continuity store directly.
  * Advancing a workspace's observation generation also ends the PWA lifecycle
  * recording, live region recording, CSS state preview, network waits and
  * download observations that belong to the earlier generation.
