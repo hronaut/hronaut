@@ -40,7 +40,7 @@ import { showContextMenu } from './context-menus/page-context-menu.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
-import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCleanupError } from './native-input-cleanup.js'
+import { clearRendererAgentInputFlag, NativeInputCleanupError } from './native-input-cleanup.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
@@ -442,6 +442,17 @@ import {
   handleDialog,
   withOptionalDialogHandling
 } from './website-dialogs/website-dialogs.js'
+import type {
+  AgentInputAuthorizationAccess,
+  AuthorizedAgentKeyboardInput,
+  AuthorizedAgentMouseInput
+} from './agent-input-authorization/agent-input-authorization-access.js'
+import {
+  agentInputDebugger,
+  consumeExpectedAgentKeyboardInput,
+  sendAuthorizedAgentInputCommand,
+  shouldBlockHumanMouseInput
+} from './agent-input-authorization/agent-input-authorization.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -820,24 +831,6 @@ export interface BrowserWalletPageContext {
 interface BrowserTabSelectionOptions {
   /** Keep an already-visible split pane from claiming keyboard focus. */
   focus?: boolean
-}
-
-interface AuthorizedAgentMouseInput {
-  type: Electron.MouseInputEvent['type']
-  x: number
-  y: number
-  button: Electron.MouseInputEvent['button'] | undefined
-  buttons: number
-  clickCount: number
-  modifiers: number
-}
-
-interface AuthorizedAgentKeyboardInput {
-  type: Electron.Input['type']
-  key: string
-  code: string
-  modifiers: number
-  autoRepeat: boolean
 }
 
 export interface TabsManagerOptions {
@@ -7645,9 +7638,26 @@ export class BrowserTabsManager {
     tab.webContents.focus()
   }
 
+  /**
+   * The narrow view agent input authorization gets of this manager's private
+   * tabs, page-to-tab index, human interaction lock and authorized agent input
+   * records. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The delegates
+   * below return the feature's value or promise directly, so callers see the
+   * same ticks as before.
+   */
+  private agentInputAuthorizationAccess(): AgentInputAuthorizationAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      authorizedAgentMouseInput: () => this.authorizedAgentMouseInput,
+      authorizedAgentKeyboardInput: () => this.authorizedAgentKeyboardInput
+    }
+  }
+
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
-    return this.isHumanInteractionLocked(tab)
-      && !this.isAuthorizedAgentMouseInput(tab.webContents.id, mouse)
+    return shouldBlockHumanMouseInput(this.agentInputAuthorizationAccess(), tab, mouse)
   }
 
   private nativeInputAuthority(
@@ -7680,17 +7690,10 @@ export class BrowserTabsManager {
     webContents: BrowserTab['view']['webContents'],
     validateInput?: () => void
   ): PointerDebugger & KeyboardDebugger {
-    return {
-      sendCommand: (method, commandParams) => this.sendAuthorizedAgentInputCommand(
-        webContents,
-        method,
-        commandParams,
-        validateInput
-      )
-    }
+    return agentInputDebugger(this.agentInputAuthorizationAccess(), webContents, validateInput)
   }
 
-  private async sendAuthorizedAgentInputCommand(
+  private sendAuthorizedAgentInputCommand(
     webContents: BrowserTab['view']['webContents'],
     method: string,
     commandParams: Record<string, unknown> = {},
@@ -7698,176 +7701,14 @@ export class BrowserTabsManager {
     observer?: NativeInputDispatchObserver,
     beforeRawDispatch?: () => Promise<void>
   ): Promise<unknown> {
-    validateInput?.()
-    const mouse = method === 'Input.dispatchMouseEvent'
-      ? this.authorizedMouseInputFromCommand(commandParams)
-      : null
-    const keyboard = method === 'Input.dispatchKeyEvent'
-      ? this.authorizedKeyboardInputFromCommand(commandParams)
-      : null
-    const tabId = this.webContentsToTab.get(webContents.id)
-    const tab = tabId ? this.tabs.get(tabId) : undefined
-    const temporarilyPermitNativeInput = Boolean((mouse || keyboard) && tab && this.isHumanInteractionLocked(tab))
-    if (temporarilyPermitNativeInput) {
-      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
-    }
-    let rawDispatched = false
-    try {
-      // Semantic-click sampling uses this already-acquired debugger after the
-      // barrier lift. Matching releases never receive an admission hook.
-      if (beforeRawDispatch) await beforeRawDispatch()
-      // Recheck after lifting the compositor barrier, immediately before input.
-      validateInput?.()
-      if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
-      if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
-      observer?.rawAttempted(commandParams)
-      const result = await webContents.debugger.sendCommand(method, commandParams)
-      rawDispatched = true
-      observer?.rawAcknowledged(commandParams)
-      return result
-    } finally {
-      if (mouse && this.authorizedAgentMouseInput.get(webContents.id) === mouse) {
-        this.authorizedAgentMouseInput.delete(webContents.id)
-      }
-      if (keyboard && this.authorizedAgentKeyboardInput.get(webContents.id) === keyboard) {
-        this.authorizedAgentKeyboardInput.delete(webContents.id)
-      }
-      if (temporarilyPermitNativeInput && !webContents.isDestroyed()) {
-        // Lift the compositor barrier for this single CDP event only. The
-        // before-input guards remain active and admit only the matching event;
-        // physical wheel/gesture input and mismatched event shapes stay blocked.
-        try {
-          await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
-        } catch (error) {
-          observer?.cleanupFailed?.()
-          if (!rawDispatched) throw error
-          const release = matchingNativeInputRelease(method, commandParams)
-          if (release) {
-            // The caller will see a rejection and cannot know that down succeeded.
-            // Send one matching release through the same native input guard. Up
-            // events cannot recurse into another release, even if re-lock fails.
-            observer?.emergencyReleaseStarted()
-            await this.sendAuthorizedAgentInputCommand(webContents, method, release, undefined, observer).catch(() => undefined)
-          }
-          throw new NativeInputCleanupError(error)
-        }
-      }
-    }
-  }
-
-  private authorizedMouseInputFromCommand(
-    commandParams: Record<string, unknown>
-  ): AuthorizedAgentMouseInput | null {
-    const type = {
-      mouseMoved: 'mouseMove',
-      mousePressed: 'mouseDown',
-      mouseReleased: 'mouseUp',
-      mouseWheel: 'mouseWheel'
-    }[String(commandParams.type)] as Electron.MouseInputEvent['type'] | undefined
-    const x = Number(commandParams.x)
-    const y = Number(commandParams.y)
-    if (!type || !Number.isFinite(x) || !Number.isFinite(y)) return null
-    const buttonValue = typeof commandParams.button === 'string' ? commandParams.button : undefined
-    const button = buttonValue === 'left' || buttonValue === 'middle' || buttonValue === 'right'
-      ? buttonValue
-      : undefined
-    const postEventButtons = Number(commandParams.buttons ?? 0)
-    const clickCount = Number(commandParams.clickCount ?? 0)
-    const modifiers = Number(commandParams.modifiers ?? 0)
-    if (
-      !Number.isInteger(postEventButtons)
-      || postEventButtons < 0
-      || postEventButtons > 7
-      || !Number.isInteger(clickCount)
-      || clickCount < 0
-      || !Number.isInteger(modifiers)
-    ) return null
-    const changedButton = button === 'left' ? 1 : button === 'right' ? 2 : button === 'middle' ? 4 : 0
-    // CDP reports the complete button mask. Electron reports independently
-    // held buttons in modifiers while exposing the button changed by down/up
-    // separately, so remove that changed button before comparing the masks.
-    const buttons = type === 'mouseDown' || type === 'mouseUp'
-      ? postEventButtons & ~changedButton
-      : postEventButtons
-    return {
-      type,
-      x,
-      y,
-      button,
-      buttons,
-      clickCount,
-      modifiers
-    }
-  }
-
-  private authorizedKeyboardInputFromCommand(
-    commandParams: Record<string, unknown>
-  ): AuthorizedAgentKeyboardInput | null {
-    const commandType = String(commandParams.type)
-    const type = commandType === 'keyUp'
-      ? 'keyUp'
-      : commandType === 'rawKeyDown'
-        ? 'rawKeyDown'
-        : commandType === 'keyDown'
-          ? 'keyDown'
-          : null
-    const key = typeof commandParams.key === 'string' ? commandParams.key : null
-    const code = typeof commandParams.code === 'string' ? commandParams.code : null
-    const modifiers = Number(commandParams.modifiers ?? 0)
-    if (!type || !key || !code || !Number.isInteger(modifiers)) return null
-    return { type, key, code, modifiers, autoRepeat: commandParams.autoRepeat === true }
-  }
-
-  private isAuthorizedAgentMouseInput(
-    webContentsId: number,
-    mouse: Electron.MouseInputEvent
-  ): boolean {
-    const expected = this.authorizedAgentMouseInput.get(webContentsId)
-    const modifierBits = this.electronModifierBits(mouse.modifiers)
-    const buttonBits = this.electronButtonBits(mouse.modifiers)
-    const matches = expected !== undefined
-      && mouse.type === expected.type
-      && Math.abs(mouse.x - expected.x) < 1
-      && Math.abs(mouse.y - expected.y) < 1
-      && mouse.button === expected.button
-      && buttonBits === expected.buttons
-      && (mouse.clickCount ?? 0) === expected.clickCount
-      && modifierBits === expected.modifiers
-    if (matches) this.authorizedAgentMouseInput.delete(webContentsId)
-    return matches
+    return sendAuthorizedAgentInputCommand(this.agentInputAuthorizationAccess(), webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
   }
 
   private consumeExpectedAgentKeyboardInput(
     webContentsId: number,
     input: Electron.Input
   ): boolean {
-    const expected = this.authorizedAgentKeyboardInput.get(webContentsId)
-    if (!expected) return false
-    const inputModifierBits = this.electronModifierBits(input.modifiers)
-    const compatibleType = input.type === expected.type
-      || (expected.type === 'rawKeyDown' && input.type === 'keyDown')
-    const matches = compatibleType
-      && input.key === expected.key
-      && input.code === expected.code
-      && inputModifierBits === expected.modifiers
-      && input.isAutoRepeat === expected.autoRepeat
-    if (matches) this.authorizedAgentKeyboardInput.delete(webContentsId)
-    return matches
-  }
-
-  private electronModifierBits(modifiers: readonly string[] | undefined): number {
-    const values = new Set(modifiers ?? [])
-    return (values.has('alt') ? 1 : 0)
-      | (values.has('control') || values.has('ctrl') ? 2 : 0)
-      | (values.has('meta') || values.has('command') || values.has('cmd') ? 4 : 0)
-      | (values.has('shift') ? 8 : 0)
-  }
-
-  private electronButtonBits(modifiers: readonly string[] | undefined): number {
-    const values = new Set(modifiers ?? [])
-    return (values.has('leftbuttondown') ? 1 : 0)
-      | (values.has('rightbuttondown') ? 2 : 0)
-      | (values.has('middlebuttondown') ? 4 : 0)
+    return consumeExpectedAgentKeyboardInput(this.agentInputAuthorizationAccess(), webContentsId, input)
   }
 
   private async syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
