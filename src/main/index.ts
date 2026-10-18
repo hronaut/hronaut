@@ -135,6 +135,7 @@ import { createWindowStatePersistence } from './windows/window-state-persistence
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
 import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
+import { registerAppLifecycle } from './app-lifecycle.js'
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
@@ -404,7 +405,6 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
   panelWindow: () => panelWindowRefs.window
 })
 let runtimeShutdown: Promise<void> | null = null
-let shutdownExitScheduled = false
 const userAttentionLifecycle = new UserAttentionLifecycle()
 // The request still open for the user. It shows as needs you until it is answered or ends;
 // a click or key only quiets it, which agents see as answered in status and preflight.
@@ -1883,35 +1883,11 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
   showMessageBox
 })
 
-app.on('second-instance', (_event, argv) => {
-  if (argv.includes('--quit')) {
-    quitting = true
-    app.quit()
-    return
-  }
-  if (!shouldStartMinimized(settings, { platform: process.platform, argv })) showWindow()
-})
-app.on('activate', showWindow)
-app.on('window-all-closed', () => {
-  // The app intentionally stays alive: MCP clients may reconnect later.
-})
-app.on('before-quit', () => {
-  clearTimeout(commercialLicenseStateTimer)
-  quitting = true
-  mainWindowRefs.lastState = currentWindowState() ?? mainWindowRefs.lastState
-  panelWindowRefs.lastState = currentPanelWindowState() ?? panelWindowRefs.lastState
-})
-
-app.whenReady().then(async () => {
-  if (!gotLock) return
-  // A secondary --quit invocation is delivered to the existing owner through
-  // the second-instance event above. When no owner exists, this process gets
-  // the lock itself, so honor the same command without starting the browser,
-  // tray, or MCP listener.
-  if (quitRequestedAtStartup) {
-    app.quit()
-    return
-  }
+/**
+ * Everything startup does once Electron is ready and this process owns the profile: settings, the menu, the session,
+ * the main window and saved workspaces, the tray, the MCP listener, the update check and license refreshes.
+ */
+async function startRuntime(): Promise<void> {
   nativeTheme.on('updated', () => {
     const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
     if (settings.theme === 'system') {
@@ -1987,20 +1963,21 @@ app.whenReady().then(async () => {
     setTimeout(refreshLicense, 7_500).unref()
     setInterval(refreshLicense, 60 * 60 * 1000).unref()
   }
-})
+}
 
-app.on('will-quit', (event) => {
-  if (!tabsManager && !mcpRuntime.server) return
-  event.preventDefault()
-  if (shutdownExitScheduled) return
-  shutdownExitScheduled = true
-  const forceExit = setTimeout(() => {
-    console.error('[shutdown] Runtime cleanup exceeded 10 seconds; exiting so update relaunch can continue.')
-    app.exit(0)
-  }, 10_000)
-  forceExit.unref()
-  void releaseRuntimeResources().then(() => {
-    clearTimeout(forceExit)
-    app.exit(0)
-  })
+registerAppLifecycle(app, {
+  gotLock,
+  quitRequestedAtStartup,
+  setQuitting: (value) => { quitting = value },
+  settings: () => settings,
+  showWindow,
+  commercialLicenseStateTimer: () => commercialLicenseStateTimer,
+  mainWindowRefs,
+  currentWindowState,
+  panelWindowRefs,
+  currentPanelWindowState,
+  startRuntime,
+  tabs: () => tabsManager,
+  mcpRuntime,
+  releaseRuntimeResources
 })
