@@ -27,11 +27,11 @@ import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
 import {
-  captureTabOverviewPreview,
   getTabOverviewPagePreview,
   getTabOverviewPreviews,
   invalidateTabOverviewPreview,
   performTabOverviewPreviewCapture,
+  scheduleTabOverviewPreview,
   storeTabOverviewPreview
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
@@ -558,7 +558,6 @@ function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
@@ -5870,29 +5869,8 @@ export class BrowserTabsManager {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
   }
 
-  private scheduleTabOverviewPreview(tab: BrowserTab, settleMs = TAB_OVERVIEW_PREVIEW_SETTLE_MS): void {
-    if (
-      this.destroyed
-      || this.tabs.get(tab.id) !== tab
-      || tab.webContents.isDestroyed()
-      || tab.sleeping
-      || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))
-    ) return
-    const sequence = ++tab.overviewPreviewSequence
-    const existing = this.tabOverviewPreviewTimers.get(tab.id)
-    if (existing) clearTimeout(existing)
-    const timer = setTimeout(() => {
-      if (this.tabOverviewPreviewTimers.get(tab.id) === timer) {
-        this.tabOverviewPreviewTimers.delete(tab.id)
-      }
-      void captureTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, sequence).catch((error) => {
-        if (!this.destroyed && this.tabs.get(tab.id) === tab && !tab.webContents.isDestroyed()) {
-          console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
-        }
-      })
-    }, settleMs)
-    timer.unref()
-    this.tabOverviewPreviewTimers.set(tab.id, timer)
+  private scheduleTabOverviewPreview(tab: BrowserTab, settleMs?: number): void {
+    scheduleTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, settleMs)
   }
 
   private storeTabOverviewPreview(
