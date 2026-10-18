@@ -17,6 +17,10 @@ All notable changes to Hronaut are documented in this file.
 - Packaged Hronaut can no longer be started as a plain Node process, ignores `NODE_OPTIONS` and Node inspector switches, and loads its code only from its own `app.asar`, which macOS and Windows now check against the hash recorded at build time. This closes ways another program could run code with Hronaut's identity and permissions; nothing changes for people using the app.
 - The tab rail is calmer. The agent status at its bottom stays on one line ("2 agents working" no longer wraps), with **Pause agents** as its icon when the rail is under 340 px wide. **Stay here** under a followed workspace is a quiet text action instead of a pill that filled the row. Rows no longer repeat the lock and muted speaker on every tab while the browser-wide lock or mute is on; the pressed buttons say it once, a tab that plays sound keeps its speaker, and each tab's tooltip still says it is locked or muted.
 
+### Fixed
+
+- When a wallet policy refuses a transaction by itself, for example a send from a watch-only account, the page or agent now gets the policy's reason (`Wallet policy rejected the request: wallet-capability-disabled`) instead of "Wallet request was rejected by the user", which blamed a person who never saw the request.
+
 ## [3.0.0] - 2026-10-17
 
 ### Changed
