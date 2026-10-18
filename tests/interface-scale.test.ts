@@ -31,10 +31,15 @@ describe('interface scale', () => {
     const rendererStyleSources = readdirSync(rendererDirectory, { recursive: true, withFileTypes: true })
       .filter((entry) => entry.isFile() && (entry.name.endsWith('.css') || entry.name.endsWith('.vue')))
       .map((entry) => readFileSync(`${entry.parentPath}/${entry.name}`, 'utf8'))
+    const pageScriptsDirectory = new URL('../src/main/browser/page-scripts/', import.meta.url)
+    const pageScriptSources = readdirSync(pageScriptsDirectory)
+      .filter((name) => name.endsWith('.ts'))
+      .map((name) => readFileSync(new URL(name, pageScriptsDirectory), 'utf8'))
+    expect(pageScriptSources.length).toBeGreaterThan(0)
     const sources = [
       ...rendererStyleSources,
       readFileSync(new URL('../src/main/home-page.ts', import.meta.url), 'utf8'),
-      readFileSync(new URL('../src/main/browser/page-scripts.ts', import.meta.url), 'utf8')
+      ...pageScriptSources
     ]
 
     for (const source of sources) {
