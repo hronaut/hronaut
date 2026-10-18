@@ -61,16 +61,18 @@ function visibleText(value: string): string {
 /** A client-supplied name, safe to show as text: no control, format, private,
  * unassigned or line separator characters and no blank fillers, collapsed
  * spaces, at most 64 graphemes. A name with nothing visible left is empty.
- * Known MCP client ids read as the product, so `claude-code` is "Claude Code". */
+ * Known MCP client ids read as the product, so `claude-code` is "Claude Code",
+ * also inside a bridge's "(via …)". Naming comes before the cut, so a shorter
+ * product name leaves room for more of the bridge. */
 export function sanitizeAgentName(value: string): string {
   let result = ''
   let count = 0
-  for (const { segment } of graphemes.segment(visibleText(value))) {
+  for (const { segment } of graphemes.segment(agentDisplayName(visibleText(value)))) {
     if (count === AGENT_NAME_MAX_GRAPHEMES) break
     result += segment
     count += 1
   }
-  return agentDisplayName(result.trimEnd())
+  return result.trimEnd()
 }
 
 /** A client-supplied version cleaned the same way, so it can sit beside other text on Home and in the wallet dialog:

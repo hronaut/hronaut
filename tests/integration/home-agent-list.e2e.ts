@@ -69,8 +69,8 @@ test('Home lists connected agents by client, with their sessions, and opens the 
 })
 
 test('Home keeps the agent status pill to its share of the header when a long agent name is in it', async ({ electronApp, appWindow, mcpPort, mcpToken }) => {
-  const name = 'local-agent-mode-hronaut-checkout-flow'
-  // It came through a bridge, which the one-line status leaves out.
+  // As long as a bridged name can be within the 64-character limit; the one-line status leaves the bridge out.
+  const name = 'local-agent-mode-hronaut-checkout-review'
   const client = new Client({ name: `${name} (via mcp-remote 0.1.37)`, version: '1.0.0' })
   try {
     await expect.poll(async () => {

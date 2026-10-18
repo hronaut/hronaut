@@ -33,12 +33,13 @@ export function bridgedAgentName(name: string): { client: string; via?: string }
 /**
  * An MCP client's name as people know the product: `claude-code` is "Claude Code", and a known client that came
  * through a bridge keeps it, so `claude-ai (via mcp-remote 0.1.37)` is "Claude (via mcp-remote 0.1.37)". Other names
- * stay as sent. The result is never longer than the name.
+ * stay as sent, trimmed. Only the client's part changes, so the result is never longer than the name.
  */
 export function agentDisplayName(name: string): string {
-  const { client, via } = bridgedAgentName(name)
-  const known = KNOWN_CLIENT_NAMES.get(client.toLocaleLowerCase()) ?? client
-  return via ? `${known} (via ${via})` : known
+  const trimmed = name.trim()
+  const { client } = bridgedAgentName(trimmed)
+  const known = KNOWN_CLIENT_NAMES.get(client.toLocaleLowerCase())
+  return known ? known + trimmed.slice(client.length) : trimmed
 }
 
 /** Every Hronaut surface says the same thing about agents, in this order of importance. */

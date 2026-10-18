@@ -17,7 +17,11 @@ describe('agent status', () => {
   it('names a known client that came through a bridge as the product and keeps the bridge', () => {
     // mcp-remote reports the client's own name with "(via mcp-remote <version>)" appended.
     expect(agentDisplayName('claude-ai (via mcp-remote 0.1.37)')).toBe('Claude (via mcp-remote 0.1.37)')
-    expect(agentDisplayName('codex-mcp-client(via  mcp-remote 0.1.37 )')).toBe('Codex (via mcp-remote 0.1.37)')
+    // Only the client's part changes: the bridge reads as sent, so a name never grows.
+    expect(agentDisplayName(' codex-mcp-client(via mcp-remote 0.1.37) ')).toBe('Codex(via mcp-remote 0.1.37)')
+    for (const id of ['claude-code', 'claude-ai', 'codex', 'cursor-vscode', 'gemini-cli', 'github-copilot', 'opencode', 'windsurf-client']) {
+      for (const name of [id, `${id}(via x)`, `${id} (via mcp-remote 0.1.37)`]) expect(agentDisplayName(name).length, name).toBeLessThanOrEqual(name.length)
+    }
     expect(agentDisplayName('local-agent (via mcp-remote 0.1.37)')).toBe('local-agent (via mcp-remote 0.1.37)')
     // Naming it again changes nothing, and a name that only looks bridged stays as sent.
     expect(agentDisplayName('Claude (via mcp-remote 0.1.37)')).toBe('Claude (via mcp-remote 0.1.37)')
