@@ -175,6 +175,7 @@ import {
   type SupportedLocale
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
+import { registerNavigationIpc } from './navigation-ipc.js'
 import { CYBERPUNK_TURBO_COLORS, isResolvedThemeName, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
 import {
   resolveLocalePreference,
@@ -2821,10 +2822,10 @@ function registerIpc(): void {
   })
   mainWindow?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
   mainWindow?.webContents.once('destroyed', cancelBrowserImport)
-  handleBrowserIpc('browser:toggle-devtools', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return tabsManager!.toggleDevTools(tabId)
+  registerNavigationIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabsManager
   })
   handleBrowserIpc('browser:set-tab-viewport', async (event, tabId: unknown, viewport: unknown) => {
     assertTrustedShellSender(event)
@@ -2976,55 +2977,6 @@ function registerIpc(): void {
       limit: limit as number | undefined,
       includeHeaders: includeHeaders === true
     })
-  })
-  handleBrowserIpc('browser:navigate', (event, options) => { assertTrustedShellSender(event); return tabsManager!.navigate(options.url, options.tabId) })
-  handleBrowserIpc('browser:back', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.back(tabId) })
-  handleBrowserIpc('browser:forward', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.forward(tabId) })
-  handleBrowserIpc('browser:reload', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.reload(tabId) })
-  handleBrowserIpc('browser:reload-ignoring-cache', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.reloadIgnoringCache(tabId) })
-  handleBrowserIpc('browser:stop', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.stop(tabId) })
-  handleBrowserIpc('browser:find-in-page', (event, options: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof options !== 'object' || options === null) throw new TypeError('Invalid find options')
-    const { query, tabId, forward, findNext, caseSensitive } = options as Record<string, unknown>
-    if (
-      typeof query !== 'string'
-      || (tabId !== undefined && typeof tabId !== 'string')
-      || (forward !== undefined && typeof forward !== 'boolean')
-      || (findNext !== undefined && typeof findNext !== 'boolean')
-      || (caseSensitive !== undefined && typeof caseSensitive !== 'boolean')
-    ) throw new TypeError('Invalid find options')
-    return tabsManager!.findInPage(query, { tabId, forward, findNext, caseSensitive })
-  })
-  handleBrowserIpc('browser:stop-find-in-page', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid find tab')
-    tabsManager!.stopFindInPage(tabId)
-  })
-  handleBrowserIpc('browser:set-zoom', (event, options: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof options !== 'object' || options === null) throw new TypeError('Invalid page zoom options')
-    const { tabId, action, percent } = options as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (action !== 'in' && action !== 'out' && action !== 'reset' && action !== 'set')
-      || (percent !== undefined && typeof percent !== 'number')
-    ) throw new TypeError('Invalid page zoom options')
-    return tabsManager!.setZoom({ tabId, action, percent })
-  })
-  handleBrowserIpc('browser:save-pdf', (event, options: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof options !== 'object' || options === null) throw new TypeError('Invalid PDF options')
-    const { tabId, filename, landscape, pageSize, outline, preferCSSPageSize } = options as Record<string, unknown>
-    if (
-      (tabId !== undefined && typeof tabId !== 'string')
-      || (filename !== undefined && typeof filename !== 'string')
-      || (landscape !== undefined && typeof landscape !== 'boolean')
-      || (pageSize !== undefined && pageSize !== 'A4' && pageSize !== 'Letter' && pageSize !== 'Legal')
-      || (outline !== undefined && typeof outline !== 'boolean')
-      || (preferCSSPageSize !== undefined && typeof preferCSSPageSize !== 'boolean')
-    ) throw new TypeError('Invalid PDF options')
-    return tabsManager!.savePdf({ tabId, filename, landscape, pageSize, outline, preferCSSPageSize })
   })
   registerCollectionIpc(ipcMain, {
     runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),
