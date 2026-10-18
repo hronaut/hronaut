@@ -83,6 +83,8 @@ import type { BrowserElementPickerResult, BrowserElementPickerSession, ElementPi
 import { cancelElementPicker, captureElementScreenshot, pickElement, queueElementPickerMouseInput } from './element-picker/element-picker.js'
 import type { BrowserScreenshotAreaSession, ScreenshotAreaAccess } from './screenshot-area/screenshot-area-access.js'
 import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput } from './screenshot-area/screenshot-area.js'
+import type { NativeSelectionsAccess } from './native-selections/native-selections-access.js'
+import { cancelNativeSelectionSessions } from './native-selections/native-selections.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
@@ -2913,23 +2915,24 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  /**
+   * The narrow view ending a page's native selections gets of this manager's
+   * private screenshot area selections, element pickers and human input
+   * lock. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each member
+   * reads the manager when called.
+   */
+  private nativeSelectionsAccess(): NativeSelectionsAccess<BrowserTab> {
+    return {
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab)
+    }
+  }
+
   private cancelNativeSelectionSessions(tab: BrowserTab): void {
-    const webContentsId = tab.webContents.id
-    const screenshotSession = this.screenshotAreaSessions.get(webContentsId)
-    if (screenshotSession) {
-      screenshotSession.canceled = true
-      screenshotSession.resolve({ canceled: true })
-      this.screenshotAreaSessions.delete(webContentsId)
-    }
-    const elementPickerSession = this.elementPickerSessions.get(webContentsId)
-    if (elementPickerSession) {
-      elementPickerSession.canceled = true
-      elementPickerSession.resolve({ canceled: true })
-      this.elementPickerSessions.delete(webContentsId)
-    }
-    if ((screenshotSession || elementPickerSession) && this.isHumanInteractionLocked(tab)) {
-      void this.syncHumanInteractionInputGuard(tab).catch(() => undefined)
-    }
+    cancelNativeSelectionSessions(this.nativeSelectionsAccess(), tab)
   }
 
   private async closeTabs(
