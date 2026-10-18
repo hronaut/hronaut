@@ -477,6 +477,8 @@ import { rightClickEnvironment } from './native-click/right-click-environment.js
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
 import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVisibleViewport, assertRightClickViewport } from './input-targets/target-checks.js'
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
+import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-staging-access.js'
+import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
@@ -3146,75 +3148,36 @@ export class BrowserTabsManager {
     })
   }
 
+  /**
+   * The narrow view staging a beforeunload close gets of this manager's
+   * private tabs, window, active tab, split view, close transition, view
+   * bounds, page corners, page geometry, layout and focus. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it.
+   */
+  private beforeUnloadStagingAccess(): BeforeUnloadStagingAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      activeTabId: () => this.activeTabId,
+      splitView: () => this.splitView,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      window: () => this.window,
+      closeTabTransition: (tab) => this.closeTabTransition(tab),
+      browserViewBounds: () => this.browserViewBounds(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      roundPageCorners: (view) => this.roundPageCorners(view),
+      publishPageGeometry: () => this.publishPageGeometry(),
+      layout: () => this.layout(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab)
+    }
+  }
+
   private stageBeforeUnloadClose(tab: BrowserTab): {
     targetDetached: boolean
     cleanup: () => void
     rollback: () => void
   } {
-    const wasActive = tab.id === this.activeTabId
-    const splitPartnerId = this.splitViewContains(tab.id)
-      ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
-      : null
-    if (!wasActive && !splitPartnerId) {
-      return { targetDetached: false, cleanup: () => undefined, rollback: () => undefined }
-    }
-
-    const bounds = tab.view.getBounds()
-    const visible = tab.view.getVisible()
-    const nextId = this.closeTabTransition(tab).nextId
-    const replacement = wasActive && !splitPartnerId && nextId
-      ? this.tabs.get(nextId)
-      : undefined
-    let replacementWasAttached = false
-    this.window.contentView.removeChildView(tab.view)
-    try {
-      if (replacement && !replacement.webContents.isDestroyed()) {
-        this.window.contentView.addChildView(replacement.view)
-        replacementWasAttached = true
-        // The closing tab's bounds can be sized for its own emulated viewport.
-        replacement.view.setBounds(this.tabViewBounds(replacement, this.browserViewBounds()))
-        this.roundPageCorners(replacement.view)
-        replacement.view.setVisible(visible)
-      }
-    } catch (error) {
-      if (replacementWasAttached && replacement && !replacement.webContents.isDestroyed()) {
-        this.window.contentView.removeChildView(replacement.view)
-      }
-      if (!tab.webContents.isDestroyed()) {
-        this.window.contentView.addChildView(tab.view)
-        tab.view.setBounds(bounds)
-        tab.view.setVisible(visible)
-      }
-      throw error
-    }
-    // The closing tab's frame and caption leave with its page.
-    this.publishPageGeometry()
-
-    const cleanup = (): void => {
-      // A user can select another page while Chromium runs beforeunload.
-      // Restore only the views owned by the current selection, not the
-      // selection that existed when the close probe started.
-      if (
-        replacementWasAttached && replacement && !replacement.webContents.isDestroyed()
-        && this.activeTabId !== replacement.id && !this.splitViewContains(replacement.id)
-      ) {
-        this.window.contentView.removeChildView(replacement.view)
-        replacementWasAttached = false
-      }
-    }
-    return {
-      targetDetached: true,
-      cleanup,
-      rollback: () => {
-        cleanup()
-        if (tab.webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
-        if (this.activeTabId === tab.id || this.splitViewContains(tab.id)) {
-          this.window.contentView.addChildView(tab.view)
-        }
-        this.layout()
-        if (this.activeTabId === tab.id) this.focusTabOrTrustedChrome(tab)
-      }
-    }
+    return stageBeforeUnloadClose(this.beforeUnloadStagingAccess(), tab)
   }
 
   private attemptBeforeUnloadClose(webContents: WebContents): Promise<'closed' | 'prevented'> {
