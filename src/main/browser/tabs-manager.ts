@@ -453,6 +453,8 @@ import {
 import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
+import type { PageFocusEventsAccess } from './tab-events/page-focus-events-access.js'
+import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
 import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
@@ -6516,32 +6518,7 @@ export class BrowserTabsManager {
           this.options.onActionFailed?.('recover from a closed page renderer', error)
         })
     })
-    webContents.on('focus', () => {
-      if (this.restoringLayout) return
-      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
-        // A page kept on screen for its snapshot must not take keyboard focus from trusted chrome.
-        // Chromium can ignore a re-entrant transfer from this callback, so restore on the next turn.
-        setImmediate(() => {
-          if (
-            this.browserContentOccluded
-            && !this.window.isDestroyed()
-            && this.window.isFocused()
-            && !webContents.isDestroyed()
-            && electronWebContents.getFocusedWebContents()?.id === webContents.id
-          ) this.window.webContents.focus()
-        })
-        return
-      }
-      tab.lastActiveAt = Date.now()
-      if (tab.sleeping) void this.wakeTab(tab.id).catch((error) => console.error('[browser] Could not wake focused tab:', error))
-      // A WebContentsView can receive a delayed programmatic focus while its
-      // sibling is being restored. Human split-pane activation is handled by
-      // the native mouse event below; explicit agent focus remains intentional.
-      if (!this.agentInputWebContents.has(webContents.id) || !this.splitViewContains(tab.id) || this.activeTabId === tab.id) return
-      this.activeTabId = tab.id
-      this.markTabActiveInGroup(tab)
-      this.changed()
-    })
+    attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     webContents.on('before-input-event', (event, input) => {
       if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
         // Trusted chrome is open; the page is only on screen until its snapshot is shown.
@@ -7016,6 +6993,29 @@ export class BrowserTabsManager {
     attachConsoleMessageEvents(tab, webContents)
     attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
     attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
+  }
+
+  /**
+   * The narrow view a page's focus listener gets of this manager's private
+   * layout restoration, trusted chrome occlusion, in-flight agent input,
+   * window, tab waking, split view, active tab, workspace activation and state
+   * publication. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. Each
+   * member reads the manager when called.
+   */
+  private pageFocusEventsAccess(): PageFocusEventsAccess<BrowserTab> {
+    return {
+      restoringLayout: () => this.restoringLayout,
+      browserContentOccluded: () => this.browserContentOccluded,
+      agentInputWebContents: () => this.agentInputWebContents,
+      window: () => this.window,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      changed: (persist) => this.changed(persist)
+    }
   }
 
   /**
