@@ -17,17 +17,14 @@ import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
-import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import { createAgentPresence } from './agent-presence.js'
 import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
-import type { ConnectedAgent } from '../shared/agent-status.js'
-import type { HomeDashboard } from '../shared/home.js'
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention } from './tray-attention.js'
-import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import {
   app,
   BrowserWindow,
@@ -36,7 +33,6 @@ import {
   nativeImage,
   nativeTheme,
   protocol,
-  safeStorage,
   session,
   shell,
   WebContentsView,
@@ -49,11 +45,7 @@ import { createAppUpdates } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { WorkspaceMetadataError } from './browser/tab-store.js'
-import { WalletBroker, type WalletBrokerContext } from './wallet/broker.js'
-import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
-import type { WalletSafeStorage } from './wallet/key-provider.js'
-import { generateWalletWithRecoveryConfirmation } from './wallet/onboarding.js'
-import { WalletService } from './wallet/service.js'
+import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
@@ -73,7 +65,6 @@ import { createSiteData } from './site-data.js'
 import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { registerHomeIpc } from './home-ipc.js'
-import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { McpPortRecovery } from './mcp-port-suggestion.js'
 import { registerMcpControlIpc } from './mcp-control-ipc.js'
 import {
@@ -84,10 +75,9 @@ import {
   McpHttpServer,
   mcpToolCatalogForSet,
   type SiteDataType,
-  type WalletAgentToolTarget,
   type UserAttentionRequest
 } from './mcp/server.js'
-import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
+import { createHomeDashboard } from './home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
 import { loadMcpToken } from './mcp-token-store.js'
@@ -96,7 +86,8 @@ import { AuditReceiptService } from './mcp/audit-receipt-service.js'
 import { McpPauseState } from './mcp-pause-state.js'
 import { McpActionTracker } from './mcp/action-tracker.js'
 import { createMcpRuntime, type McpRuntimeState } from './mcp-runtime.js'
-import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
+import { DEFAULT_SETTINGS } from './settings-store.js'
+import { createSettingsRuntime, type SettingsState } from './settings-runtime.js'
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
 import { registerSettingsIpc } from './settings-ipc.js'
 import { createBrowserSession } from './browser-session.js'
@@ -112,9 +103,7 @@ import type {
   BrowserHistoryEntry,
   CredentialStorageStatus,
   LanguagePreference,
-  RendererSettingsState,
-  ThemeName,
-  SupportedLocale
+  ThemeName
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
@@ -125,11 +114,10 @@ import {
 } from '../shared/locale.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
-import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
+import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow, type PanelWindowRefs } from './windows/panel-window.js'
-import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
@@ -199,8 +187,8 @@ const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
   trustedUrlMatches,
   mainWindowRefs,
-  settings: () => settings,
-  resolvedLocale: () => resolvedLocale
+  settings: () => settingsState.current,
+  resolvedLocale: () => settingsState.resolvedLocale
 })
 const tooltipView = new ShellOverlayView({
   name: 'tooltip',
@@ -303,10 +291,26 @@ let mcpCapabilityProfiles: McpCapabilityProfileStore | null = null
 let auditReceipts: AuditReceiptService | null = null
 let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
 let taskRuns: import('./mcp/task-run-service.js').TaskRunService | null = null
-let walletService: WalletService | null = null
-let walletBroker: WalletBroker | null = null
-let walletUnavailableStatus = walletStartupFailureStatus(undefined)
-let homePresentationRevision = 0
+const walletRuntime: WalletRuntimeState = {
+  service: null,
+  broker: null,
+  unavailableStatus: walletStartupFailureStatus(undefined)
+}
+const {
+  startWallets,
+  assertWalletPageSender,
+  currentWalletServiceStatus,
+  requireWalletBroker,
+  walletAgentContext,
+  generateWallet
+} = createWalletRuntime({
+  state: walletRuntime,
+  sendToMainWindow,
+  commercialLicenseStore: () => commercialLicenseStore,
+  tabs: () => tabsManager,
+  workspaceStartupFailure: () => workspaceStartupFailure,
+  mainWindowRefs
+})
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
   // Command progress updates the shell without reloading a visible Home tab.
@@ -343,9 +347,36 @@ const {
   logPrefix: '[panel-window]'
 })
 let persistentSession: Session | null = null
-let settingsStore: SettingsStore | null = null
+const settingsState: SettingsState = {
+  store: null,
+  persisted: { ...DEFAULT_SETTINGS },
+  current: { ...DEFAULT_SETTINGS },
+  systemLocale: 'en-US',
+  resolvedLocale: 'en-US',
+  mutationQueue: Promise.resolve()
+}
 let startupLaunchManager: StartupLaunchManager | null = null
 let sitePermissionStore: SitePermissionStore | null = null
+const {
+  text,
+  defaultDownloadDirectory,
+  effectiveDownloadDirectory,
+  updateSettings,
+  currentRendererSettingsState,
+  applyDownloadSettings,
+  publishSettings,
+  loadAuthoritativeSettings,
+  reconcileStartupSetting
+} = createSettingsRuntime({
+  state: settingsState,
+  mainWindowRefs,
+  sendToShellWindows,
+  mcpRuntime,
+  mcpAuthDisabled: MCP_AUTH_DISABLED,
+  startupLaunchManager: () => startupLaunchManager,
+  persistentSession: () => persistentSession,
+  tabs: () => tabsManager
+})
 const { configureBrowserSession, configurePersistentSession } = createBrowserSession({
   text,
   effectiveDownloadDirectory,
@@ -389,11 +420,6 @@ const undoOffers = new UndoOffers((offer) => {
   reportBrowserActionFailure(action, error)
 })
 let credentialStorageStatus: CredentialStorageStatus = { available: false, reason: 'Secure storage is initializing.' }
-let persistedSettings: AppSettings = { ...DEFAULT_SETTINGS }
-let settings: AppSettings = { ...DEFAULT_SETTINGS }
-let systemLocale: SupportedLocale = 'en-US'
-let resolvedLocale: SupportedLocale = 'en-US'
-let settingsMutationQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -437,11 +463,11 @@ const {
   setAttentionQuiet: (value) => { attentionQuiet = value },
   attentionDecisionId: () => attentionDecisionId,
   setAttentionDecisionId: (value) => { attentionDecisionId = value },
-  agentPresenceSnapshot,
-  scheduleAgentPresencePublish,
+  agentPresenceSnapshot: () => agentPresenceSnapshot(),
+  scheduleAgentPresencePublish: () => scheduleAgentPresencePublish(),
   activeMcpActivities: () => activeMcpActivities,
-  settings: () => settings,
-  setSettings: (value) => { settings = value },
+  settings: () => settingsState.current,
+  setSettings: (value) => { settingsState.current = value },
   publishSettings,
   updateSettings
 })
@@ -454,10 +480,6 @@ const {
   text,
   mainWindow: () => mainWindowRefs.window
 })
-
-function text(key: MessageKey, parameters?: MessageParameters): string {
-  return translate(resolvedLocale, key, parameters)
-}
 
 function reportBrowserActionFailure(action: string, error: unknown): void {
   const rawMessage = error instanceof Error ? error.message : ''
@@ -481,61 +503,6 @@ function runNativeBrowserAction(action: string, callback: () => unknown): void {
   }
 }
 
-function defaultDownloadDirectory(): string {
-  return resolve(process.env.HRONAUT_DOWNLOAD_DIR || app.getPath('downloads'))
-}
-
-function effectiveDownloadDirectory(value: AppSettings = settings): string {
-  return resolve(value.downloadDirectory || defaultDownloadDirectory())
-}
-
-function updateSettings(
-  updates: Partial<AppSettings>,
-  applyRuntime?: (value: AppSettings) => void | Promise<void>
-): Promise<AppSettings> {
-  let committed: AppSettings | undefined
-  const operation = settingsMutationQueue.then(async () => {
-    const previous = settings
-    const next = { ...settings, ...updates }
-    const nextPersisted = { ...persistedSettings, ...updates }
-    if (applyRuntime) {
-      await commitRuntimeSetting({
-        previous,
-        next,
-        apply: applyRuntime,
-        persist: () => settingsStore!.save(nextPersisted)
-      })
-    } else {
-      await settingsStore!.save(nextPersisted)
-    }
-    persistedSettings = nextPersisted
-    settings = next
-    committed = { ...settings }
-  })
-  settingsMutationQueue = operation.catch(() => undefined)
-  return operation.then(() => committed!)
-}
-
-function currentRendererSettingsState(): RendererSettingsState {
-  return {
-    settings: { ...settings },
-    systemTheme: nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
-    systemLocale,
-    resolvedLocale,
-    windowMaterial: mainWindowRefs.material
-  }
-}
-
-async function applyDownloadSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
-  const directory = effectiveDownloadDirectory({ ...settings, ...updates })
-  await mkdir(directory, { recursive: true })
-  const next = await updateSettings(updates)
-  const committedDirectory = effectiveDownloadDirectory(next)
-  persistentSession?.setDownloadPath(committedDirectory)
-  tabsManager?.setDownloadPreferences(committedDirectory, next.askWhereToSaveDownloads)
-  publishSettings()
-  return { ...settings }
-}
 const activeMcpActivities = new Set<string>()
 
 if (!isLoopbackHost(mcpRuntime.host)) {
@@ -589,13 +556,15 @@ function sendToMainWindow(channel: string, ...args: unknown[]): void {
   }
 }
 
-let agentPresenceRevision = 0
-let agentPresenceSerialized = '{}'
-let agentPresenceSentRevision = 0
-let connectedAgentsSent = '[]'
-let agentPresencePublishScheduled = false
-/** The Home feed revision Home was last told about. */
-let homeFeedSentRevision = 0
+const { agentPresenceSnapshot, scheduleAgentPresencePublish, connectedAgents } = createAgentPresence({
+  mcpRuntime,
+  tabs: () => tabsManager,
+  publishMcpControlState: (options) => publishMcpControlState(options),
+  attentionQuiet: () => attentionQuiet,
+  userAttentionShown,
+  endUserAttention,
+  sendToMainWindow
+})
 
 /** Offers a take over when the person touches a page an agent is working on, and takes it from the page's key. */
 const takeOvers = new TakeOverOffers({
@@ -610,61 +579,10 @@ const takeOvers = new TakeOverOffers({
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
 })
 
-/** The agents in each open workspace; the revision increases only when the list changes. */
-function agentPresenceSnapshot(): AgentPresenceSnapshot {
-  let workspaces: AgentPresenceSnapshot['workspaces'] = {}
-  try {
-    workspaces = mcpRuntime.server?.getAgentPresence() ?? {}
-  } catch (error) {
-    console.error('[mcp] Failed to read agent presence:', error)
-  }
-  // A step getting its picture changes only the history "All steps" reads, so it counts as a change too.
-  const serialized = JSON.stringify([workspaces, mcpRuntime.server?.agentStepHistoryRevision ?? 0])
-  if (serialized !== agentPresenceSerialized) {
-    agentPresenceSerialized = serialized
-    agentPresenceRevision += 1
-  }
-  return { revision: agentPresenceRevision, workspaces }
-}
-
-/** Sends at most one presence update per event-loop turn, and only a changed one. */
-function scheduleAgentPresencePublish(): void {
-  if (agentPresencePublishScheduled) return
-  agentPresencePublishScheduled = true
-  setImmediate(() => {
-    agentPresencePublishScheduled = false
-    const snapshot = agentPresenceSnapshot()
-    tabsManager?.retainAgentFollow(new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
-    // The toolbar status names connected agents from the MCP state, so it follows them too.
-    const agents = JSON.stringify(connectedAgents(snapshot.workspaces))
-    const feedRevision = mcpRuntime.server?.homeFeedRevision ?? 0
-    if (agents !== connectedAgentsSent) {
-      connectedAgentsSent = agents
-      publishMcpControlState({ refreshHome: false })
-    } else if (snapshot.revision !== agentPresenceSentRevision || feedRevision !== homeFeedSentRevision) {
-      // Home shows presence and the steps agents finish, so it reads them again too, including when only its feed
-      // changed, such as when history was cleared.
-      tabsManager?.notifyHomeChanged()
-    }
-    homeFeedSentRevision = feedRevision
-    // A seen request whose avatar went away, such as when the MCP server stopped or agent access was
-    // turned off, has no card left to answer it, so it ends.
-    if (attentionQuiet && !userAttentionShown(snapshot.workspaces)) endUserAttention({ keepPending: true })
-    if (snapshot.revision === agentPresenceSentRevision) return
-    agentPresenceSentRevision = snapshot.revision
-    sendToMainWindow('agent-presence:changed', snapshot)
-  })
-}
-
 function sendToPanelWindow(channel: string, ...args: unknown[]): void {
   if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.webContents.isDestroyed()) {
     panelWindowRefs.window.webContents.send(channel, ...args)
   }
-}
-
-function publishSettings(): void {
-  sendToShellWindows('settings:changed', settings)
-  sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
 }
 
 function publishCredentials(): void {
@@ -684,15 +602,17 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
   return entries
 }
 
-/** Each connected agent once, with its strongest state; nothing when the server is not running. */
-function connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): ConnectedAgent[] {
-  try {
-    return mcpRuntime.server?.getConnectedAgents(presence) ?? []
-  } catch (error) {
-    console.error('[mcp] Failed to read connected agents:', error)
-    return []
-  }
-}
+const { refreshHomeAfterCommittedChange, homeDashboardState } = createHomeDashboard({
+  mcpRuntime,
+  workspaceStartupFailure: () => workspaceStartupFailure,
+  tabsInitializationPromise: () => tabsInitializationPromise,
+  tabs: () => tabsManager,
+  connectedAgents,
+  currentMcpControlState: () => currentMcpControlState(),
+  settings: () => settingsState.current,
+  mcpPauseState,
+  resolvedTheme
+})
 
 const {
   currentMcpControlState,
@@ -711,14 +631,6 @@ const {
   sendToShellWindows,
   refreshHomeAfterCommittedChange
 })
-
-function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
-  homePresentationRevision += 1
-  if (workspaceStartupFailure || tabsInitializationPromise) return
-  void tabsManager?.reloadHome().catch((error) => {
-    console.error(`[${scope}] Could not refresh Hronaut Home after a committed state change:`, error)
-  })
-}
 
 const { currentBrowsingDataSiteSummary, clearWorkspaceSiteData } = createSiteData({
   tabs: () => tabsManager,
@@ -757,7 +669,7 @@ const {
   applyMainWindowBackground
 } = createMainWindow({
   refs: mainWindowRefs,
-  settings: () => settings,
+  settings: () => settingsState.current,
   resolvedTheme,
   themeBackground: THEME_BACKGROUND,
   acknowledgeUserAttention
@@ -782,8 +694,8 @@ function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
 }
 
 function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
-  if (preference === 'system') systemLocale = resolveSupportedLocale(app.getLocale())
-  resolvedLocale = resolveLocalePreference(preference, systemLocale)
+  if (preference === 'system') settingsState.systemLocale = resolveSupportedLocale(app.getLocale())
+  settingsState.resolvedLocale = resolveLocalePreference(preference, settingsState.systemLocale)
   publishSettings()
   installApplicationMenu()
   setTrayContextMenu()
@@ -792,83 +704,6 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
     panelWindowRefs.window.setTitle(detachedPanelTitle(panelWindowRefs.panel))
   }
   refreshHomeAfterCommittedChange('settings')
-}
-
-/** Live agent data for Home, from one presence read: who is connected, what each workspace is doing, and the feed. */
-function homeAgentData(): Required<Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>> {
-  try {
-    const presence = mcpRuntime.server?.getAgentPresence() ?? {}
-    return { agents: connectedAgents(presence), workspaceActivity: mcpRuntime.server?.getWorkspaceActivity(presence) ?? {}, feed: mcpRuntime.server?.getHomeFeed() ?? [] }
-  } catch (error) {
-    console.error('[mcp] Failed to read agent activity for Home:', error)
-    return { agents: [], workspaceActivity: {}, feed: [] }
-  }
-}
-
-function mcpPortFailureForHome(): Pick<HomeDashboard, 'errorCode' | 'failedPort' | 'suggestedPort'> {
-  const { errorCode, failedPort, suggestedPort } = currentMcpControlState()
-  return { ...(errorCode ? { errorCode } : {}), ...(failedPort ? { failedPort } : {}), ...(suggestedPort ? { suggestedPort } : {}) }
-}
-
-function homeDashboardState(): HomeDashboard {
-  const serverState = mcpRuntime.server?.getDashboardState()
-  const tools = mcpToolCatalogForSet(settings.mcpToolSet)
-  const status = currentMcpControlState().status
-  const state = {
-    ...(serverState ?? {
-      name: 'hronaut',
-      version: app.getVersion(),
-      endpoint: mcpRuntime.url,
-      startedAt: null,
-      activeRequests: 0,
-      totalRequests: 0,
-      paused: mcpPauseState.paused,
-      status: 'starting',
-      completedToolCalls: 0,
-      clients: [],
-      recentActivity: [],
-      toolMetrics: [],
-      outcomeTotals: {},
-      tools,
-      readiness: buildMcpReadinessDiagnostic({
-        checkedAt: new Date().toISOString(),
-        serverStatus: status,
-        serverError: mcpRuntime.startupError,
-        startedAt: null,
-        advertisedToolNames: tools.map((tool) => tool.name),
-        clients: []
-      })
-    }),
-    endpoint: mcpRuntime.url,
-    tools,
-    presentationRevision: homePresentationRevision,
-    theme: resolvedTheme(settings.theme),
-    status,
-    ...homeAgentData(),
-    ...(mcpRuntime.startupError ? { error: mcpRuntime.startupError } : {}),
-    ...mcpPortFailureForHome()
-  }
-  return {
-    ...state,
-    // Home never sees a session id or a credential id; it knows agents by their presence key.
-    clients: state.clients.map(({ name, version, lastSeenAt, requestCount, activeRequests, initializedAt, readinessProbe }) => ({
-      name,
-      ...(version ? { version } : {}),
-      lastSeenAt,
-      requestCount,
-      activeRequests,
-      ...(initializedAt ? { initializedAt } : {}),
-      ...(readinessProbe ? { readinessProbe: { outcome: readinessProbe.outcome } } : {})
-    })),
-    readiness: buildMcpReadinessDiagnostic({
-      checkedAt: new Date().toISOString(),
-      serverStatus: status,
-      serverError: mcpRuntime.startupError,
-      startedAt: state.startedAt,
-      advertisedToolNames: tools.map((tool) => tool.name),
-      clients: state.clients
-    })
-  }
 }
 
 function registerHomeProtocol(): void {
@@ -881,10 +716,10 @@ function registerHomeProtocol(): void {
     state: () => ({
         endpoint: mcpRuntime.url,
         tokenPath: mcpRuntime.tokenConfiguration?.tokenPath,
-        authenticationDisabled: !settings.mcpAuthentication,
+        authenticationDisabled: !settingsState.current.mcpAuthentication,
         initialState: homeDashboardState(),
         workspaces: tabsManager ? homeWorkspaceState(tabsManager) : undefined,
-        locale: resolvedLocale,
+        locale: settingsState.resolvedLocale,
         platform: process.platform
     })
   }))
@@ -911,17 +746,6 @@ const { installApplicationMenu } = createApplicationMenu({
   tabs: () => tabsManager
 })
 
-function trustedShellUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    const url = new URL(process.env.ELECTRON_RENDERER_URL)
-    if (url.protocol !== 'http:' || !isLoopbackHost(url.hostname)) {
-      throw new Error('ELECTRON_RENDERER_URL must use HTTP on a loopback host')
-    }
-    return url.href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/index.html')).href
-}
-
 const {
   trustedAgentCardUrl,
   ensureAgentCardSurface,
@@ -942,15 +766,9 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   text,
   trustedShellUrl,
   mainWindow: () => mainWindowRefs.window,
-  panelWindow: () => panelWindowRefs.window,
-  setPanelWindow: (window) => { panelWindowRefs.window = window },
-  setPanelWindowUrl: (url) => { panelWindowRefs.url = url },
-  panelWindowPanel: () => panelWindowRefs.panel,
-  setPanelWindowPanel: (panel) => { panelWindowRefs.panel = panel },
-  panelWindowRedocking: () => panelWindowRefs.redocking,
-  setPanelWindowRedocking: (value) => { panelWindowRefs.redocking = value },
+  refs: panelWindowRefs,
   sendToPanelWindow,
-  settings: () => settings,
+  settings: () => settingsState.current,
   resolvedTheme,
   themeBackground: THEME_BACKGROUND,
   tabs: () => tabsManager,
@@ -961,115 +779,30 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   sitePermissionStore: () => sitePermissionStore,
   bookmarkStore: () => bookmarkStore,
   historyStore: () => historyStore,
-  panelWindowStateStore: () => panelWindowRefs.stateStore,
-  lastPanelWindowState: () => panelWindowRefs.lastState,
-  setLastPanelWindowState: (state) => { panelWindowRefs.lastState = state },
   currentPanelWindowState,
   schedulePanelWindowStateSave,
   flushPanelWindowState
 })
 
-function trustedUrlMatches(actual: string | undefined, expected: string): boolean {
-  return Boolean(actual && (actual === expected || actual.startsWith(`${expected}#`)))
-}
-
-function assertTrustedShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  const fromMain = Boolean(mainWindowRefs.window && event.sender === mainWindowRefs.window.webContents && trustedUrlMatches(actual, trustedShellUrl()))
-  const fromPanel = Boolean(panelWindowRefs.window
-    && panelWindowRefs.url
-    && event.sender === panelWindowRefs.window.webContents
-    && trustedUrlMatches(actual, panelWindowRefs.url))
-  if (!fromMain && !fromPanel) throw new Error('Rejected IPC from an untrusted renderer')
-}
-
-function assertMainShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  if (!mainWindowRefs.window || event.sender !== mainWindowRefs.window.webContents || !trustedUrlMatches(actual, trustedShellUrl())) {
-    throw new Error('Rejected IPC from a non-primary renderer')
-  }
-}
-
-function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.IpcMainEvent): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  const actual = event.senderFrame?.url
-  if (!panelWindowRefs.window || !panelWindowRefs.url || event.sender !== panelWindowRefs.window.webContents || !trustedUrlMatches(actual, panelWindowRefs.url)) {
-    throw new Error('Rejected IPC from a non-panel renderer')
-  }
-}
-
-function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
-  return walletBrokerContextFromIpc(event, tabsManager)
-}
-
-function requireWalletService(): WalletService {
-  if (!walletService) throw new Error('Wallet service is unavailable')
-  return walletService
-}
-
-function currentWalletServiceStatus() {
-  return walletService?.status() ?? structuredClone(walletUnavailableStatus)
-}
-
-function requireWalletBroker(): WalletBroker {
-  if (!walletBroker) throw new Error('Wallet broker is unavailable')
-  return walletBroker
-}
-
-function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext {
-  if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
-  const page = tabsManager.walletPageContextForMcpTab(target.workspaceId, target.tabId)
-  return {
-    workspaceId: page.workspaceId,
-    tabId: page.tabId,
-    navigationGeneration: page.navigationGeneration,
-    topLevelOrigin: page.topLevelOrigin,
-    requester: {
-      type: 'agent',
-      id: target.client.id,
-      name: target.client.version ? `${target.client.name} ${target.client.version}` : target.client.name
-    },
-    ...(target.signal ? { signal: target.signal } : {})
-  }
-}
-
-// Readiness is separate from sender trust. Never admit browser mutations into
-// the partially initialized model, including while metadata IO is pending.
-function assertWorkspaceInitialized(): void {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  if (tabsInitializationPromise) throw new Error('Saved workspaces are still initializing. Try again after startup completes.')
-  if (!tabsManager || initializedTabsManager !== tabsManager) throw new Error('Saved workspaces are unavailable.')
-}
-
-function assertInitializedMainShellSender(event: Electron.IpcMainInvokeEvent): void {
-  assertMainShellSender(event)
-  assertWorkspaceInitialized()
-}
-
-function assertInitializedTrustedShellSender(event: Electron.IpcMainInvokeEvent): void {
-  assertTrustedShellSender(event)
-  assertWorkspaceInitialized()
-}
-
-function runWorkspaceRead<T>(event: Electron.IpcMainInvokeEvent, assertSender: (event: Electron.IpcMainInvokeEvent) => void, read: () => T): Promise<T> {
-  const manager = tabsManager
-  return workspaceStartupReads.run(event, tabsInitializationPromise, () => assertSender(event), () => {
-    assertWorkspaceInitialized()
-    if (tabsManager !== manager) throw new Error('Workspace read is no longer available.')
-  }, read)
-}
-
-function handleBrowserIpc(channel: string, listener: Parameters<typeof ipcMain.handle>[1]): void {
-  ipcMain.handle(channel, (event, ...args) => {
-    if (workspaceStartupFailure) throw workspaceStartupFailure
-    if (!['browser:get-state', 'browser:get-tab-overview-previews', 'browser:get-tab-overview-page-preview', 'split-divider:get', 'emulation-frame:get', 'page-card:get'].includes(channel)) assertWorkspaceInitialized()
-    return listener(event, ...args)
-  })
-}
+const {
+  assertTrustedShellSender,
+  assertMainShellSender,
+  assertPanelShellSender,
+  assertWorkspaceInitialized,
+  assertInitializedMainShellSender,
+  assertInitializedTrustedShellSender,
+  runWorkspaceRead,
+  handleBrowserIpc
+} = createIpcGuards({
+  ipcMain,
+  workspaceStartupFailure: () => workspaceStartupFailure,
+  tabsInitializationPromise: () => tabsInitializationPromise,
+  tabs: () => tabsManager,
+  initializedTabs: () => initializedTabsManager,
+  mainWindowRefs,
+  panelWindowRefs,
+  workspaceStartupReads
+})
 
 function registerIpc(): void {
   registerOverlayViewsIpc(ipcMain, {
@@ -1092,9 +825,7 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     assertPanelShellSender,
     openPanelWindow,
-    panelWindow: () => panelWindowRefs.window,
-    setPanelWindowPanel: (panel) => { panelWindowRefs.panel = panel },
-    setPanelWindowRedocking: (value) => { panelWindowRefs.redocking = value },
+    panelWindowRefs,
     detachedPanelTitle,
     mainWindow: () => mainWindowRefs.window
   })
@@ -1108,28 +839,10 @@ function registerIpc(): void {
   registerWalletIpc(ipcMain, {
     assertMainShellSender,
     assertWalletPageSender,
-    service: () => walletService,
-    broker: () => walletBroker,
+    service: () => walletRuntime.service,
+    broker: () => walletRuntime.broker,
     status: currentWalletServiceStatus,
-    generateWallet: async (input) => {
-      const service = requireWalletService()
-      const owner = mainWindowRefs.window
-      if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
-      return generateWalletWithRecoveryConfirmation(service, input, async (recoveryMaterial) => {
-        if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
-        const { response } = await dialog.showMessageBox(owner, {
-          type: 'warning',
-          title: 'Save wallet recovery material',
-          message: 'Write down this recovery phrase and store it offline.',
-          detail: `${recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
-          buttons: ['I saved it', 'Not yet'],
-          defaultId: 1,
-          cancelId: 1,
-          noLink: true
-        })
-        return response === 0
-      })
-    }
+    generateWallet
   })
   registerTabsIpc({
     assertTrustedSender: assertTrustedShellSender,
@@ -1185,7 +898,7 @@ function registerIpc(): void {
     copyTextToClipboard,
     reportClipboardFailure,
     mcpUrl: () => mcpRuntime.url,
-    settings: () => settings,
+    settings: () => settingsState.current,
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
     showMessageBox,
@@ -1316,7 +1029,7 @@ function registerIpc(): void {
   registerSettingsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
-    settings: () => settings,
+    settings: () => settingsState.current,
     currentRendererSettingsState,
     updateSettings,
     publishSettings,
@@ -1387,34 +1100,6 @@ function registerIpc(): void {
   })
 }
 
-async function loadAuthoritativeSettings(): Promise<void> {
-  settingsStore = new SettingsStore(join(app.getPath('userData'), 'settings.json'))
-  persistedSettings = await settingsStore.load()
-  await settingsStore.save(persistedSettings)
-  settings = { ...persistedSettings }
-  systemLocale = resolveSupportedLocale(app.getLocale())
-  resolvedLocale = resolveLocalePreference(settings.languagePreference, systemLocale)
-  if (process.env.HRONAUT_MCP_PORT !== undefined) {
-    const overriddenPort = Number(process.env.HRONAUT_MCP_PORT)
-    if (!isValidMcpPort(overriddenPort)) throw new Error('HRONAUT_MCP_PORT must be an integer from 1024 through 65535')
-    settings = { ...settings, mcpPort: overriddenPort }
-  }
-  if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false }
-  if (settings.mcpRemoteAccess) mcpRuntime.host = '0.0.0.0'
-  mcpRuntime.port = settings.mcpPort
-  mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${mcpRuntime.port}/mcp`
-}
-
-async function reconcileStartupSetting(): Promise<void> {
-  if (!startupLaunchManager) return
-  try {
-    const launchAtStartup = await startupLaunchManager.isEnabled()
-    if (launchAtStartup !== settings.launchAtStartup) await updateSettings({ launchAtStartup })
-  } catch (error) {
-    console.warn('[startup] Could not read the operating-system startup setting:', error)
-  }
-}
-
 async function createWindow(startMinimized = false): Promise<void> {
   bookmarkStore = new BookmarkStore(join(app.getPath('userData'), 'bookmarks.json'))
   await bookmarkStore.load()
@@ -1423,43 +1108,15 @@ async function createWindow(startMinimized = false): Promise<void> {
   persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
   await configureCommercialLicenseStore()
-  const candidateWalletService = new WalletService({
-    directory: join(app.getPath('userData'), 'wallet'),
-    platform: process.platform,
-    safeStorage: safeStorage as unknown as WalletSafeStorage,
-    onChanged: (wallets) => {
-      sendToMainWindow('wallets:changed', wallets)
-      walletBroker?.refreshProviderSessions()
-    },
-    onStatusChanged: (status) => sendToMainWindow('wallets:status-changed', status),
-    warn: (message) => console.warn(`[wallet] ${message}`)
-  })
-  try {
-    await candidateWalletService.initialize()
-    walletService = candidateWalletService
-    walletBroker = new WalletBroker(candidateWalletService, {
-      assertAgentAccess: () => {
-        if (!commercialLicenseStore) throw new Error('License storage is unavailable')
-        commercialLicenseStore.assertAutomationAccess()
-      },
-      onPendingChanged: (requests) => sendToMainWindow('wallets:requests-changed', requests),
-      onProviderEvent: (tabId, event) => tabsManager?.sendWalletProviderEvent(tabId, event)
-    })
-  } catch (error) {
-    candidateWalletService.dispose()
-    walletService = null
-    walletBroker = null
-    walletUnavailableStatus = walletStartupFailureStatus(error)
-    console.error(`[wallet] Wallet startup disabled (${walletUnavailableStatus.backend}).`)
-  }
-  applyTheme(settings.theme)
+  await startWallets()
+  applyTheme(settingsState.current.theme)
   mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
   const savedWindowState = await mainWindowRefs.stateStore.load()
   mainWindowRefs.window = openMainWindow(savedWindowState)
-  mainWindowRefs.window.webContents.setZoomFactor(settings.interfaceScale)
+  mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
-  const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
+  const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
   if (!humanWaiting) {
     const { HumanWaitingService } = await import('./mcp/human-waiting-service.js')
     const { HumanWaitingPersistence } = await import('./mcp/human-waiting-persistence.js')
@@ -1489,15 +1146,15 @@ async function createWindow(startMinimized = false): Promise<void> {
     mcpUrl: mcpRuntime.url,
     profilePath: app.getPath('userData'),
     downloadDirectory: effectiveDownloadDirectory(),
-    askWhereToSaveDownloads: settings.askWhereToSaveDownloads,
-    memorySaverEnabled: settings.memorySaverEnabled,
-    memorySaverTimeoutMinutes: settings.memorySaverTimeoutMinutes,
-    followAgentActivity: settings.followAgentActivity,
-    getShowAgentCursor: () => settings.showAgentCursor,
-    getChallengeDetectionEnabled: () => settings.challengeDetectionEnabled,
-    getSearchEngine: () => settings.searchEngine,
-    getLocale: () => resolvedLocale,
-    getTabPosition: () => settings.tabPosition,
+    askWhereToSaveDownloads: settingsState.current.askWhereToSaveDownloads,
+    memorySaverEnabled: settingsState.current.memorySaverEnabled,
+    memorySaverTimeoutMinutes: settingsState.current.memorySaverTimeoutMinutes,
+    followAgentActivity: settingsState.current.followAgentActivity,
+    getShowAgentCursor: () => settingsState.current.showAgentCursor,
+    getChallengeDetectionEnabled: () => settingsState.current.challengeDetectionEnabled,
+    getSearchEngine: () => settingsState.current.searchEngine,
+    getLocale: () => settingsState.resolvedLocale,
+    getTabPosition: () => settingsState.current.tabPosition,
     configureSession: configureBrowserSession,
     onUserInteraction: (touched) => {
       // A key press in a page hides a shell tooltip, as it hides a native one.
@@ -1639,7 +1296,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.on('enter-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('leave-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('close', (event) => {
-    if (!quitting && settings.hideInTray) {
+    if (!quitting && settingsState.current.hideInTray) {
       event.preventDefault()
       panelWindowRefs.window?.hide()
       mainWindowRefs.window?.hide()
@@ -1665,7 +1322,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   })
   attachMenuBarGesture()
   mainWindowRefs.window.webContents.on('did-finish-load', () => {
-    applyInterfaceScale(settings.interfaceScale)
+    applyInterfaceScale(settingsState.current.interfaceScale)
     if (tabsManager && mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
       if (!tabsInitializationPromise) mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
       mainWindowRefs.window.webContents.send('updates:changed', updateState)
@@ -1702,7 +1359,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   }
   if (!mainWindowRefs.window.webContents.isDestroyed()) {
     mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
-    mainWindowRefs.window.webContents.send('settings:changed', settings)
+    mainWindowRefs.window.webContents.send('settings:changed', settingsState.current)
     mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
     mainWindowRefs.window.webContents.send('updates:changed', updateState)
     mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
@@ -1720,8 +1377,8 @@ async function releaseRuntimeResources(): Promise<void> {
   const manager = tabsManager
   manager?.stopTabLabelEdits()
   const server = mcpRuntime.server
-  const wallets = walletService
-  const broker = walletBroker
+  const wallets = walletRuntime.service
+  const broker = walletRuntime.broker
   mcpRuntime.server = null
   runtimeShutdown = (async () => {
     historyStore?.dispose()
@@ -1740,7 +1397,7 @@ async function releaseRuntimeResources(): Promise<void> {
         historyStore?.flush(),
         sitePermissionStore?.flush(),
         commercialLicenseStore?.flush(),
-        settingsMutationQueue,
+        settingsState.mutationQueue,
         flushWindowState(),
         flushPanelWindowState(),
         flushBrowserProfile()
@@ -1752,15 +1409,15 @@ async function releaseRuntimeResources(): Promise<void> {
     manager?.destroy()
     wallets?.dispose()
     if (tabsManager === manager) tabsManager = null
-    if (walletService === wallets) walletService = null
-    if (walletBroker === broker) walletBroker = null
+    if (walletRuntime.service === wallets) walletRuntime.service = null
+    if (walletRuntime.broker === broker) walletRuntime.broker = null
   })()
   return runtimeShutdown
 }
 
 function createRuntimeMcpServer(
   port: number,
-  authenticationEnabled = settings.mcpAuthentication
+  authenticationEnabled = settingsState.current.mcpAuthentication
 ): McpHttpServer {
   if (!tabsManager || !mcpRuntime.tokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
@@ -1785,7 +1442,7 @@ function createRuntimeMcpServer(
     token: authenticationEnabled ? mcpRuntime.tokenConfiguration.token : undefined,
     capabilityProfiles: mcpCapabilityProfiles ?? undefined,
     version: app.getVersion(),
-    toolSet: settings.mcpToolSet,
+    toolSet: settingsState.current.mcpToolSet,
     showWindowInactive,
     userAttentionLifecycle,
     getUserAttention: () => (userAttention && !attentionQuiet ? { ...userAttention } : null),
@@ -1871,8 +1528,8 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
   createServer: createRuntimeMcpServer,
   mcpPauseState,
   mcpPortRecovery,
-  settings: () => settings,
-  persistedSettings: () => persistedSettings,
+  settings: () => settingsState.current,
+  persistedSettings: () => settingsState.persisted,
   updateSettings,
   publishSettings,
   publishMcpControlState,
@@ -1890,7 +1547,7 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
 async function startRuntime(): Promise<void> {
   nativeTheme.on('updated', () => {
     const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    if (settings.theme === 'system') {
+    if (settingsState.current.theme === 'system') {
       panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
       applyMainWindowTitleBarOverlay()
     }
@@ -1923,7 +1580,7 @@ async function startRuntime(): Promise<void> {
   await loadAuthoritativeSettings()
   if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
-  const startMinimized = shouldStartMinimized(settings, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })
+  const startMinimized = shouldStartMinimized(settingsState.current, { platform: process.platform, argv: process.argv, wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin() })
   try {
     requireExistingWorkspaceMetadata = await discardObsoleteBrowserData(app.getPath('userData'))
     await configurePersistentSession()
@@ -1943,12 +1600,12 @@ async function startRuntime(): Promise<void> {
     finally { app.quit() }
     return
   }
-  if (!settings.mcpAuthentication) {
+  if (!settingsState.current.mcpAuthentication) {
     console.warn('[mcp] Authentication is disabled. Anyone who can reach the listener can control this browser profile.')
   }
   if (!createTray() && startMinimized) showWindow()
   await startMcpServer()
-  if (settings.checkForUpdatesOnStartup) {
+  if (settingsState.current.checkForUpdatesOnStartup) {
     setTimeout(() => void checkForUpdates(), 5_000)
   }
   {
@@ -1969,7 +1626,7 @@ registerAppLifecycle(app, {
   gotLock,
   quitRequestedAtStartup,
   setQuitting: (value) => { quitting = value },
-  settings: () => settings,
+  settings: () => settingsState.current,
   showWindow,
   commercialLicenseStateTimer: () => commercialLicenseStateTimer,
   mainWindowRefs,
