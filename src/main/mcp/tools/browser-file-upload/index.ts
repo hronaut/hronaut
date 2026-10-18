@@ -32,6 +32,7 @@ export function registerBrowserFileUpload(context: McpToolContext): void {
         }
       }
       return textResult(await manager.uploadFiles(target, paths, validateUpload))
-    })
+    }),
+    { stepTarget: input => ({ ref: input.ref }) }
   )
 }

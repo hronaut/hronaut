@@ -36,4 +36,10 @@ describe('MCP tool folders', () => {
     expect(hooks.filter(hook => new RegExp(`\\b${hook}\\b`, 'u').test(server))).toEqual([])
     expect(server).toMatch(/await handler\(\{ \.\.\.actionInput, tabId: resolvedTabId \} as unknown as T, call\)/u)
   })
+
+  it('keeps tool names out of the shared call wrappers, which read each tool\'s options and settlement instead', () => {
+    const server = readFileSync('src/main/mcp/server.ts', 'utf8')
+    const wrappers = server.slice(server.indexOf('function createBrowserMcpServer('))
+    expect([...wrappers.matchAll(/'(?:browser|wallet)_[a-z_]+'/gu)].map(match => match[0])).toEqual([])
+  })
 })

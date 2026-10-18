@@ -55,6 +55,7 @@ export function registerBrowserPreflight(context: McpToolContext): void {
         observeState: () => null, signal: extra?.signal,
         operation, isErrorResult: result => result.isError === true
       }) : operation()
-    })
+    }),
+    { singleTabControl: true }
   )
 }

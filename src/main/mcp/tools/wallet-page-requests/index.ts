@@ -17,6 +17,7 @@ export function registerWalletPageRequests(context: McpToolContext): void {
       const operations = requireWallets()
       if (!operations.pageRequests) throw new Error('Wallet page requests are unavailable')
       return textResult(await operations.pageRequests(target))
-    })
+    }),
+    { leaseExempt: () => true }
   )
 }

@@ -42,7 +42,8 @@ export function registerBrowserSelect(context: McpToolContext): void {
       normalizeArguments: args => {
         if ((args.value !== undefined) === (args.values !== undefined)) throw new Error('Provide exactly one of value or values')
         return args.values === undefined ? args : { ...args, values: normalizeSelectValues(args.values) }
-      }
+      },
+      stepTarget: input => ({ ref: input.ref })
     }
   )
 }

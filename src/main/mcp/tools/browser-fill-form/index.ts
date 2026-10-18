@@ -21,6 +21,9 @@ export function registerBrowserFillForm(context: McpToolContext): void {
     tabTool('browser_fill_form', async ({ tabId, fields }: {
       tabId?: string
       fields: Array<{ ref?: string; selector?: string; value: string | boolean }>
-    }) => textResult(await manager.fillForm(tabId, fields)))
+    }) => textResult(await manager.fillForm(tabId, fields))),
+    {
+      stepTarget: input => ({ ref: Array.isArray(input.fields) && input.fields.length === 1 ? (input.fields[0] as { ref?: unknown } | null)?.ref : undefined })
+    }
   )
 }

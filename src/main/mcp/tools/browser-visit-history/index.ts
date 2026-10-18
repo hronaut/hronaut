@@ -60,6 +60,6 @@ export function registerBrowserVisitHistory(context: McpToolContext): void {
       if (action === 'remove') return textResult(visibleHistory(profile, await history.remove(id)))
       return textResult(await manager.newAgentTab({ url: entry.url, active, mcpGroupId: workspaceId! }))
     }),
-    { tabTarget: 'none' }
+    { tabTarget: 'none', pageOrigins: 'none' }
   )
 }

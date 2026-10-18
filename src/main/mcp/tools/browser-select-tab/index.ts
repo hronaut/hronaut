@@ -11,6 +11,7 @@ export function registerBrowserSelectTab(context: McpToolContext): void {
       'browser_select_tab',
       async ({ tabId }: { tabId: string }) => textResult(await manager.selectAgentTabAndWait(tabId)),
       'handler-owned'
-    )
+    ),
+    { publicObserverAllowed: true }
   )
 }

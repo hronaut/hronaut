@@ -11,6 +11,6 @@ export function registerBrowserShow(context: McpToolContext): void {
       showWindowInactive()
       return textResult('Browser window is visible without taking keyboard or mouse focus.')
     }),
-    { tabTarget: 'if-any', continuityInspection: () => true }
+    { tabTarget: 'if-any', continuityInspection: () => true, pageOrigins: 'none' }
   )
 }

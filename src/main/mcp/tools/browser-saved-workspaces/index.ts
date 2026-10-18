@@ -111,6 +111,10 @@ export function registerBrowserSavedWorkspaces(context: McpToolContext): void {
       workspaceLeases.releaseAfterMutation(savedWorkspaceId, client.id)
       savedWorkspaceIds.delete(savedWorkspaceId)
       return leaseOutcome ?? textResult(authorizedSavedWorkspaces())
-    })
+    }),
+    {
+      leaseTarget: input => ({ workspaceId: input.savedWorkspaceId, saved: input.action === 'open' || input.action === 'delete' }),
+      pageOrigins: 'none'
+    }
   )
 }

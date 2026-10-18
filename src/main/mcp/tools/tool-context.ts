@@ -1,5 +1,6 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { RegisteredTool, ToolCallback } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { AnySchema, ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js'
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { McpTabActivity, UserAttentionInput, UserAttentionRequest } from '../../../shared/types.js'
 import type { BrowserTabsManager } from '../../browser/tabs-manager.js'
@@ -125,14 +126,42 @@ export interface ToolCallSettlement {
   dispose?(): void
 }
 
-/** What a workspace tool adds to the shared call handling in server.ts. */
-export interface WorkspaceToolOptions<S extends ToolCallSettlement | undefined> {
+/** What any tool may declare about its calls, for the shared wrapper in server.ts that admits and settles them. */
+export interface ToolOptions<S extends ToolCallSettlement | undefined> {
   /** Creates the tool's bookkeeping for one call, or undefined when this call needs none. */
   settlement?: (input: Record<string, unknown>) => S
-  /** Whether a call with this input only reads, for a tool not annotated read-only. */
-  readOnly?: (input: Record<string, unknown>) => boolean
   /** Whether this call's outcome becomes the client's latest readiness probe. */
   recordsReadiness?: (input: Record<string, unknown>) => boolean
+  /**
+   * Which pages the call's capability check names besides the addresses in its arguments. 'none': no page.
+   * 'all-tabs': every tab in its workspace. Omitted: its target tab, or the workspace's selected tab.
+   */
+  pageOrigins?: 'none' | 'all-tabs'
+  /** Agent control is checked for the call's tab, not the whole browser. Workspace tools with a tab target get this. */
+  singleTabControl?: boolean
+  /**
+   * What the call acts on, for the plain-words step the shell shows: a page address it opens, or a control it names
+   * by snapshot ref. The shell shows only Hronaut's own name for that control or the address's host and path.
+   */
+  stepTarget?: (input: Record<string, unknown>) => { url: unknown } | { ref: unknown }
+  /** Whether this call needs no workspace write lease although it may change state, such as an observation or wallet call. */
+  leaseExempt?: (input: Record<string, unknown>) => boolean
+  /**
+   * The workspace whose write lease the call takes when it has no workspaceId argument. saved: the call opens or
+   * deletes that saved workspace, so it is checked against saved workspaces and claimed when unclaimed.
+   */
+  leaseTarget?: (input: Record<string, unknown>) => { workspaceId: unknown; saved: boolean }
+}
+
+/** What a workspace tool may also declare about its calls, for the workspace wrapper in server.ts. */
+export interface WorkspaceToolOptions<S extends ToolCallSettlement | undefined> extends ToolOptions<S> {
+  /** Whether a call with this input only reads, for a tool not annotated read-only. */
+  readOnly?: (input: Record<string, unknown>) => boolean
+  /**
+   * A read-only public observer workspace still allows this tool, although it is not annotated read-only.
+   * Only browser_* tools can use this; wallet tools stay denied to public observers whatever they declare.
+   */
+  publicObserverAllowed?: boolean
   /**
    * Whether this call must leave the page as the person sees it: it does not select or wake its tab, and its
    * activity does not make the window follow it.
@@ -202,7 +231,14 @@ export interface McpToolContext {
   getUserAttention: () => UserAttentionRequest | null
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>
   onTabActivity: ((activity: McpTabActivity, workspaceId: string) => void) | undefined
-  registerTool: McpServer['registerTool']
+  registerTool: <OutputArgs extends ZodRawShapeCompat | AnySchema, InputArgs extends undefined | ZodRawShapeCompat | AnySchema = undefined>(name: string, config: {
+    title?: string
+    description?: string
+    inputSchema?: InputArgs
+    outputSchema?: OutputArgs
+    annotations?: ToolAnnotations
+    _meta?: Record<string, unknown>
+  }, cb: ToolCallback<InputArgs>, options?: ToolOptions<ToolCallSettlement | undefined>) => RegisteredTool
   registerWorkspaceTool: <T extends object, S extends ToolCallSettlement | undefined = undefined>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>

@@ -179,7 +179,7 @@ import { registerWalletRequest } from './tools/wallet-request/index.js'
 import { registerWalletRequestStatus } from './tools/wallet-request-status/index.js'
 import { registerWalletPageRequests } from './tools/wallet-page-requests/index.js'
 import { registerWalletCancelRequest } from './tools/wallet-cancel-request/index.js'
-import type { McpToolContext, ResolvedTargetWakePolicy, ToolActivityClassification, ToolCallSettlement, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
+import type { McpToolContext, ResolvedTargetWakePolicy, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
 export { assertMcpCapabilityClassificationContract, mcpCapabilityAction, mcpCapabilityOperationClass, READ_ONLY_MULTI_ACTIONS } from './capability-classification.js'
 export { classifyMcpActivityResult, closedTabWaitResult } from './tool-results.js'
 export { auditEvidenceExpiredReason } from './tools/browser-audit-receipts/index.js'
@@ -431,22 +431,8 @@ export function mcpRequestAuthorized(configuredToken: string | undefined, author
   return bearer?.[1] === configuredToken
 }
 
-const WORKSPACE_LEASE_OBSERVATION_TOOLS = new Set([
-  'browser_human_waiting',
-  'browser_continuity',
-  'browser_audit_receipts',
-  'browser_task_runs',
-  'browser_request_user_attention',
-  'wallet_list',
-  'wallet_balance',
-  'wallet_prepare_transaction',
-  'wallet_request_status',
-  'wallet_page_requests'
-])
-
-function requiresWorkspaceWriteLease(toolName: string, input: Record<string, unknown>): boolean {
-  return mcpCapabilityOperationClass(toolName, input) !== 'read'
-    && !WORKSPACE_LEASE_OBSERVATION_TOOLS.has(toolName)
+function requiresWorkspaceWriteLease(toolName: string, input: Record<string, unknown>, exempt: boolean): boolean {
+  return mcpCapabilityOperationClass(toolName, input) !== 'read' && !exempt
 }
 
 export function assertMcpToolRegistrationContract(
@@ -468,21 +454,8 @@ export function assertMcpToolRegistrationContract(
   if (issues.length) throw new Error(`Invalid MCP tool contract (${issues.join('; ')})`)
 }
 
-const PUBLIC_OBSERVER_LOCAL_TOOLS = new Set([
-  'browser_audit_receipts',
-  'browser_close_tab',
-  'browser_continuity',
-  'browser_navigate',
-  'browser_new_tab',
-  'browser_preflight',
-  'browser_screenshot',
-  'browser_select_tab',
-  'browser_task_runs'
-])
-
-function publicObserverAllowsTool(name: string): boolean {
-  return name.startsWith('browser_')
-    && (toolDefinition(name).annotations.readOnlyHint || PUBLIC_OBSERVER_LOCAL_TOOLS.has(name))
+function publicObserverAllowsTool(name: string, allowed: boolean): boolean {
+  return name.startsWith('browser_') && (toolDefinition(name).annotations.readOnlyHint || allowed)
 }
 
 export function mcpCapabilityProfileInputFromPreset(
@@ -687,7 +660,8 @@ function createBrowserMcpServer(
     .filter(({ name }) => !capabilityProfile || capabilityProfile.allowedTools.includes(name))
   const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
   const agentControlContext = new AsyncLocalStorage<() => void>()
-  const singleTabControlTools = new Set<string>(['browser_preflight'])
+  const singleTabControlTools = new Set<string>()
+  const toolOptions = new Map<string, ToolOptions<ToolCallSettlement | undefined>>()
   const requireAgentControl = (name: string, input: Record<string, unknown>, tabId?: string): void => {
     requireTabAgentControl(manager, getPaused(), name, input, singleTabControlTools.has(name), tabId)
   }
@@ -707,16 +681,13 @@ function createBrowserMcpServer(
     }
     const workspaceId = target?.workspaceId
       ?? (typeof input.workspaceId === 'string' ? input.workspaceId : undefined)
-    const toolsWithoutPageOrigin = new Set([
-      'browser_workspaces', 'browser_saved_workspaces', 'browser_bookmarks', 'browser_visit_history',
-      'browser_show', 'browser_request_user_attention', 'browser_user_attention', 'browser_human_waiting', 'browser_task_runs'
-    ])
-    if (workspaceId && !toolsWithoutPageOrigin.has(name) && name !== 'browser_new_tab') {
+    const pageOrigins = toolOptions.get(name)?.pageOrigins
+    if (workspaceId && pageOrigins !== 'none') {
       try {
         const state = manager.getMcpGroupState(workspaceId)
         const tabId = target?.tabId
           ?? (typeof input.tabId === 'string' ? input.tabId : state.activeTabId)
-        if (name === 'browser_status' || name === 'browser_tabs') origins.push(...state.tabs.map(tab => tab.url))
+        if (pageOrigins === 'all-tabs') origins.push(...state.tabs.map(tab => tab.url))
         else {
           const tab = state.tabs.find(candidate => candidate.id === tabId)
           if (tab) origins.push(tab.url)
@@ -775,16 +746,14 @@ function createBrowserMcpServer(
   // typed text, query or anything the agent wrote, and a lookup that fails never fails the call.
   const agentCallTarget = (name: string, input: Record<string, unknown>, workspaceId: string): string | undefined => {
     try {
-      if (name === 'browser_navigate' || name === 'browser_new_tab') {
+      const target = toolOptions.get(name)?.stepTarget?.(input)
+      if (!target) return undefined
+      if ('url' in target) {
         // Search terms name no page: the search engine is the user's, so the step keeps its general phrase.
-        const address = typeof input.url === 'string' && input.url.trim() ? webAddress(input.url) : undefined
+        const address = typeof target.url === 'string' && target.url.trim() ? webAddress(target.url) : undefined
         return address ? agentStepAddress(address) : undefined
       }
-      const fields = input.fields
-      const ref = name === 'browser_drag' ? input.sourceRef
-        : name === 'browser_fill_form' ? (Array.isArray(fields) && fields.length === 1 ? (fields[0] as { ref?: unknown } | null)?.ref : undefined)
-          : ['browser_click', 'browser_type', 'browser_select', 'browser_hover', 'browser_file_upload'].includes(name) ? input.ref : undefined
-      return typeof ref === 'string' ? manager.agentStepName(workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined, ref) : undefined
+      return typeof target.ref === 'string' ? manager.agentStepName(workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined, target.ref) : undefined
     } catch {
       return undefined
     }
@@ -817,9 +786,11 @@ function createBrowserMcpServer(
     name: string,
     config: unknown,
     handler: unknown,
-    options: WorkspaceToolOptions<ToolCallSettlement | undefined> = {}
+    options: ToolOptions<ToolCallSettlement | undefined> = {}
   ): ReturnType<typeof baseRegisterTool> => {
     implementedToolNames.push(name)
+    toolOptions.set(name, options)
+    if (options.singleTabControl) singleTabControlTools.add(name)
     const definition = toolDefinition(name)
     const registered = baseRegisterTool(name, {
       ...(config as Record<string, unknown>),
@@ -843,15 +814,14 @@ function createBrowserMcpServer(
         requireAgentControl(name, input)
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
-        const leaseExemptWorkspaceAction = name === 'browser_workspaces'
-          && ['create', 'resume', 'ownership-status', 'claim-ownership', 'release-ownership'].includes(String(input.action))
+        const leaseExempt = options.leaseExempt?.(input) === true
+        const leaseTarget = options.leaseTarget?.(input)
         const leaseWorkspaceId = typeof input.workspaceId === 'string'
           ? input.workspaceId
-          : name === 'browser_saved_workspaces' && typeof input.savedWorkspaceId === 'string'
-            ? input.savedWorkspaceId
+          : typeof leaseTarget?.workspaceId === 'string'
+            ? leaseTarget.workspaceId
             : undefined
-        const targetsSavedWorkspace = name === 'browser_saved_workspaces'
-          && (input.action === 'open' || input.action === 'delete')
+        const targetsSavedWorkspace = leaseTarget?.saved === true
         const authorizedLeaseWorkspace = leaseWorkspaceId !== undefined
           && (targetsSavedWorkspace ? savedWorkspaceIds : activeWorkspaceIds).has(leaseWorkspaceId)
           && manager.isWorkspaceAgentAccessible(leaseWorkspaceId)
@@ -859,8 +829,8 @@ function createBrowserMcpServer(
           && workspaceLeases.status(leaseWorkspaceId, client.id).status === 'unclaimed') {
           workspaceLeases.claim(leaseWorkspaceId, client.id)
         }
-        if (!leaseExemptWorkspaceAction && leaseWorkspaceId && authorizedLeaseWorkspace
-          && requiresWorkspaceWriteLease(name, input)) {
+        if (leaseWorkspaceId && authorizedLeaseWorkspace
+          && requiresWorkspaceWriteLease(name, input, leaseExempt)) {
           finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
         }
         await authorizeCapability(name, input, 'consume')
@@ -932,7 +902,8 @@ function createBrowserMcpServer(
     else registered.disable()
     return registered
   }
-  const registerTool = ((name: string, config: unknown, handler: unknown) => registerToolWithSettlement(name, config, handler)) as typeof baseRegisterTool
+  const registerTool = ((name: string, config: unknown, handler: unknown, options?: ToolOptions<ToolCallSettlement | undefined>) =>
+    registerToolWithSettlement(name, config, handler, options)) as McpToolContext['registerTool']
   const activeWorkspaceIds = new Set<string>()
   const savedWorkspaceIds = new Set<string>()
   const workspaceAuthorizationError = (): Error => new Error(
@@ -1075,10 +1046,10 @@ function createBrowserMcpServer(
         const continuityInspection = options.continuityInspection?.(actionInput) === true
         requireActiveCapabilityDispatch(name, actionInput)
         const workspace = requireAgentWorkspace(workspaceId)
-        const writeLease = requiresWorkspaceWriteLease(name, actionInput)
+        const writeLease = requiresWorkspaceWriteLease(name, actionInput, options.leaseExempt?.(actionInput) === true)
           ? workspaceLeases.require(workspaceId, client.id)
           : undefined
-        if (workspace.contextClass === 'public-observer' && !publicObserverAllowsTool(name)) {
+        if (workspace.contextClass === 'public-observer' && !publicObserverAllowsTool(name, options.publicObserverAllowed === true)) {
           throw new Error(`Tool ${name} is unavailable in a read-only public observer workspace`)
         }
         const reviewedBinding = reviewBinding(name, input)

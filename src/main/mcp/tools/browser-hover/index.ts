@@ -42,6 +42,7 @@ export function registerBrowserHover(context: McpToolContext): void {
         }
       }
       return textResult(await manager.hover(input, validateNativeInput, agentCursorIdentity(client.name)))
-    })
+    }),
+    { stepTarget: input => ({ ref: input.ref }) }
   )
 }

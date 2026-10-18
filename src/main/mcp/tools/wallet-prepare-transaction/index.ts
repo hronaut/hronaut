@@ -20,6 +20,7 @@ export function registerWalletPrepareTransaction(context: McpToolContext): void 
       workspaceId: string; tabId: string; walletSessionId: string; walletId: string; transaction: unknown
     }) => textResult(await requireWallets().prepareTransaction(
       walletTarget(walletSessionId, workspaceId, tabId), walletId, transaction
-    )))
+    ))),
+    { leaseExempt: () => true }
   )
 }
