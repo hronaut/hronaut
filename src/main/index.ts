@@ -25,7 +25,7 @@ import {
   type AgentCardEvent,
   type AgentCardShowRequest
 } from '../shared/agent-card.js'
-import { humanWaitingDecisionOpen, normalizeHumanWaitingNote } from '../shared/human-waiting.js'
+import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
 import { ShellTooltipOverlay, type ShellTooltipSurface } from './shell-tooltip-overlay.js'
 import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -37,8 +37,6 @@ import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '.
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
-import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
-import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
 import { bindTrayActivation } from './tray-activation.js'
 import { mkdir, readFile } from 'node:fs/promises'
 import { release as osRelease } from 'node:os'
@@ -86,7 +84,6 @@ import { WalletService } from './wallet/service.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
-import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
 import { BookmarkStore } from './bookmark-store.js'
 import { UndoOffers } from './undo-offers.js'
 import { isUndoToken } from '../shared/undo.js'
@@ -119,7 +116,7 @@ import {
   type UserAttentionRequest
 } from './mcp/server.js'
 import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
-import { agentAnswerForDecision } from './mcp/agent-presence.js'
+import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
@@ -160,9 +157,6 @@ import {
   type BrowserNetworkSearchOptions,
   type BrowserBookmark,
   type BrowserHistoryEntry,
-  type BrowserTabGroupUpdate,
-  type BrowserWorkspaceCreateOptions,
-  type BrowserWorkspaceStorageTransferOptions,
   type BrowserEnvironmentSettings,
   type BrowserViewportEmulation,
   type BrowsingDataSiteSummary,
@@ -186,7 +180,6 @@ import {
   resolveLocalePreference,
   resolveSupportedLocale
 } from '../shared/locale.js'
-import { isBrowserTabGroupColor } from '../shared/tab-groups.js'
 import { isBrowserViewportEmulation } from '../shared/viewport-presets.js'
 import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
@@ -2792,182 +2785,20 @@ function registerIpc(): void {
     if (typeof tabId !== 'string') throw new TypeError('Invalid CSS state preview tab')
     return tabsManager!.clearCssStatePreview(tabId)
   })
-  handleBrowserIpc('browser:rename-tab-group', (event, groupId: unknown, name: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof groupId !== 'string' || typeof name !== 'string') throw new TypeError('Invalid workspace rename request')
-    tabsManager!.renameMcpTabGroup(groupId, name)
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:update-tab-group', (event, groupId: unknown, updates: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof groupId !== 'string' || !updates || typeof updates !== 'object' || Array.isArray(updates)) {
-      throw new TypeError('Invalid workspace update request')
-    }
-    const candidate = updates as Record<string, unknown>
-    if (candidate.hiddenFromSidebar !== undefined && typeof candidate.hiddenFromSidebar !== 'boolean') throw new TypeError('Invalid workspace preference')
-    if (candidate.deletionProtected !== undefined && typeof candidate.deletionProtected !== 'boolean') throw new TypeError('Invalid workspace preference')
-    if (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean') throw new TypeError('Invalid workspace agent access')
-    if (candidate.name !== undefined && typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
-    if (candidate.description !== undefined && typeof candidate.description !== 'string') throw new TypeError('Invalid workspace description')
-    if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
-    tabsManager!.updateMcpTabGroup(groupId, {
-      ...(typeof candidate.hiddenFromSidebar === 'boolean' ? { hiddenFromSidebar: candidate.hiddenFromSidebar } : {}),
-      ...(typeof candidate.deletionProtected === 'boolean' ? { deletionProtected: candidate.deletionProtected } : {}),
-      ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
-      ...(typeof candidate.name === 'string' ? { name: candidate.name } : {}),
-      ...(typeof candidate.description === 'string' ? { description: candidate.description } : {}),
-      ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {})
-    } satisfies BrowserTabGroupUpdate)
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:review-workspace-continuity', (event, workspaceId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
-    return tabsManager!.inspectWorkspaceContinuity(workspaceId)
-  })
-  handleBrowserIpc('browser:list-human-waiting', (event, workspaceId: unknown) => {
-    const authorize = (): void => { assertTrustedShellSender(event) }
-    authorize()
-    if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !humanWaiting) throw new Error('Waiting workspace unavailable')
-    return humanWaiting.list(workspaceId, authorize)
-  })
-  handleBrowserIpc('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown, note: unknown) => {
-    const authorize = (): void => { assertTrustedShellSender(event) }
-    authorize()
-    if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
-      || workspaceId.length > 128 || id.length > 128 || revision.length > 128
-      || (action !== 'acknowledge' && action !== 'cancel' && action !== 'reject' && action !== 'resolve') || !humanWaiting) throw new Error('Waiting decision unavailable')
-    const trustedConfirmation = confirmation === undefined
-      ? undefined
-      : confirmation && typeof confirmation === 'object' && !Array.isArray(confirmation)
-        && Object.keys(confirmation).length === 1
-        && (confirmation as Record<string, unknown>).accountAndTargetVerified === true
-        ? { accountAndTargetVerified: true as const }
-        : null
-    if (trustedConfirmation === null || (action !== 'resolve' && trustedConfirmation !== undefined)) {
-      throw new Error('Waiting decision confirmation unavailable')
-    }
-    const answerNote = normalizeHumanWaitingNote(note)
-    if (answerNote === null || (answerNote !== undefined && action === 'acknowledge')) {
-      throw new Error('Waiting decision note unavailable')
-    }
-    let checkpointId: string | null | undefined
-    const validateFresh = async (): Promise<void> => {
-      const report = await tabsManager!.inspectWorkspaceContinuity(workspaceId)
-      authorize()
-      if (report.suspended || report.status === 'BLOCKED' || !report.checkpointId
-        || (checkpointId !== undefined && checkpointId !== report.checkpointId)
-        || (report.priorOutcome === 'OUTCOME_UNKNOWN' && !report.priorOutcomeAcknowledged)) {
-        tabsManager!.suspendWorkspaceContinuity(workspaceId)
-        throw new Error('Review current workspace continuity before resolving the human decision')
-      }
-      checkpointId = report.checkpointId
-    }
-    const attentionId = userAttention?.workspaceId === workspaceId && attentionDecisionId === id ? userAttention.id : undefined
-    const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh, trustedConfirmation, { note: answerNote })
-    // The agent that asked sees how you answered in its steps, even when its request ended or another one replaced it.
-    if (action !== 'acknowledge' && !humanWaitingDecisionOpen(record.state)) {
-      mcpServer?.recordAgentDecisionAnswer(workspaceId, id, agentAnswerForDecision(record.decision, action))
-    }
-    if (attentionId && userAttention?.id === attentionId) {
-      if (humanWaitingDecisionOpen(record.state)) quietUserAttention()
-      else endUserAttention()
-    }
-    return record
-  })
-  handleBrowserIpc('browser:checkpoint-workspace-continuity', async (event, workspaceId: unknown, markerSelector: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof workspaceId !== 'string' || (markerSelector !== undefined && typeof markerSelector !== 'string')) throw new TypeError('Invalid continuity checkpoint')
-    await tabsManager!.armWorkspaceContinuity(workspaceId, markerSelector)
-    return tabsManager!.inspectWorkspaceContinuity(workspaceId)
-  })
-  handleBrowserIpc('browser:reconcile-workspace-continuity', async (event, workspaceId: unknown, reviewId: unknown, acknowledge: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof workspaceId !== 'string' || typeof reviewId !== 'string' || typeof acknowledge !== 'boolean') throw new TypeError('Invalid continuity review')
-    await tabsManager!.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledge)
-    return tabsManager!.inspectWorkspaceContinuity(workspaceId)
-  })
-  handleBrowserIpc('browser:update-workspace-navigation-policy', (event, groupId: unknown, policy: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
-    const normalized = normalizeWorkspaceNavigationPolicy(policy)
-    return tabsManager!.updateWorkspaceNavigationPolicy(groupId, normalized)
-  })
-  handleBrowserIpc('browser:list-workspace-navigation-audit', (event, groupId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
-    return tabsManager!.listWorkspaceNavigationAudit(groupId)
-  })
-  handleBrowserIpc('browser:open-workspace-template-file', async (event) => {
-    assertTrustedShellSender(event)
-    if (!mainWindow || mainWindow.isDestroyed()) throw new Error(text('native.errors.actionFailed'))
-    const selection = await dialog.showOpenDialog(mainWindow, {
-      title: text('workspaceTemplates.openFile'),
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-      properties: ['openFile', 'dontAddToRecent']
-    })
-    if (selection.canceled || !selection.filePaths[0]) return null
-    try {
-      return await readWorkspaceTemplateFile(selection.filePaths[0])
-    } catch {
-      throw new Error(text('workspaceTemplates.readFailed'))
-    }
-  })
-  handleBrowserIpc('browser:save-workspace-template-file', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
-    parseWorkspaceTemplate(value)
-    if (!mainWindow || mainWindow.isDestroyed()) throw new Error(text('native.errors.actionFailed'))
-    const selection = await dialog.showSaveDialog(mainWindow, {
-      title: text('workspaceTemplates.saveFile'),
-      defaultPath: 'hronaut-workspace-template.json',
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-      properties: ['showOverwriteConfirmation', 'dontAddToRecent']
-    })
-    if (selection.canceled || !selection.filePath) return false
-    try {
-      await writeWorkspaceTemplateFile(selection.filePath, value)
-      return true
-    } catch {
-      throw new Error(text('workspaceTemplates.writeFailed'))
-    }
-  })
-  handleBrowserIpc('browser:import-workspace-template', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
-    const result = await tabsManager!.importWorkspaceTemplate(value)
-    return { ...result, state: tabsManager!.getState() }
-  })
-  handleBrowserIpc('browser:create-workspace', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace creation request')
-    const candidate = value as Record<string, unknown>
-    if (typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
-    if (candidate.description !== undefined && typeof candidate.description !== 'string') throw new TypeError('Invalid workspace description')
-    if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
-    if (candidate.storage !== 'scratch' && candidate.storage !== 'fork-workspace') throw new TypeError('Invalid workspace storage mode')
-    if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {
-      throw new TypeError('Invalid workspace storage origins')
-    }
-    if (candidate.hiddenFromSidebar !== undefined && typeof candidate.hiddenFromSidebar !== 'boolean') throw new TypeError('Invalid workspace preference')
-    if (candidate.deletionProtected !== undefined && typeof candidate.deletionProtected !== 'boolean') throw new TypeError('Invalid workspace preference')
-    if (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean') throw new TypeError('Invalid workspace agent access')
-    if (candidate.storage === 'fork-workspace' && typeof candidate.sourceWorkspaceId !== 'string') throw new TypeError('Source workspace is required')
-    const navigationPolicy = candidate.navigationPolicy === undefined
-      ? undefined
-      : normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
-    return tabsManager!.createWorkspace({
-      name: candidate.name,
-      ...(typeof candidate.description === 'string' ? { description: candidate.description } : {}),
-      ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {}),
-      storage: candidate.storage,
-      ...(typeof candidate.sourceWorkspaceId === 'string' ? { sourceWorkspaceId: candidate.sourceWorkspaceId } : {}),
-      ...(typeof candidate.hiddenFromSidebar === 'boolean' ? { hiddenFromSidebar: candidate.hiddenFromSidebar } : {}),
-      ...(typeof candidate.deletionProtected === 'boolean' ? { deletionProtected: candidate.deletionProtected } : {}),
-      ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
-      ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {}),
-      ...(navigationPolicy ? { navigationPolicy } : {})
-    } satisfies BrowserWorkspaceCreateOptions)
+  registerWorkspacesIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabsManager,
+    humanWaiting: () => humanWaiting,
+    userAttention: () => userAttention,
+    attentionDecisionId: () => attentionDecisionId,
+    mcpServer: () => mcpServer,
+    quietUserAttention,
+    endUserAttention,
+    mainWindow: () => mainWindow,
+    showOpenDialog: (window, options) => dialog.showOpenDialog(window, options),
+    showSaveDialog: (window, options) => dialog.showSaveDialog(window, options),
+    text
   })
   const cancelBrowserImport = registerBrowserImportIpc({
     assertSender: assertInitializedMainShellSender,
@@ -2990,55 +2821,6 @@ function registerIpc(): void {
   })
   mainWindow?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
   mainWindow?.webContents.once('destroyed', cancelBrowserImport)
-  handleBrowserIpc('browser:list-workspace-storage-origins', (event, workspaceId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
-    return tabsManager!.listWorkspaceStorageOrigins(workspaceId)
-  })
-  handleBrowserIpc('browser:transfer-workspace-storage', (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace storage transfer')
-    const candidate = value as Record<string, unknown>
-    if (typeof candidate.sourceWorkspaceId !== 'string' || typeof candidate.targetWorkspaceId !== 'string') throw new TypeError('Source and destination workspaces are required')
-    if (candidate.mode !== 'copy' && candidate.mode !== 'move') throw new TypeError('Invalid workspace transfer mode')
-    if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) throw new TypeError('Invalid workspace storage origins')
-    return tabsManager!.transferWorkspaceStorage({
-      sourceWorkspaceId: candidate.sourceWorkspaceId,
-      targetWorkspaceId: candidate.targetWorkspaceId,
-      mode: candidate.mode,
-      ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
-    } satisfies BrowserWorkspaceStorageTransferOptions)
-  })
-  handleBrowserIpc('browser:close-workspace', async (event, workspaceId: unknown, options: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
-    if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) throw new TypeError('Invalid workspace close options')
-    const undoable = (options as { undoable?: unknown } | undefined)?.undoable === true
-    return undoable ? tabsManager!.closeWorkspaceForPerson(workspaceId) : tabsManager!.closeWorkspace(workspaceId)
-  })
-  handleBrowserIpc('browser:save-and-close-tab-group', async (event, groupId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
-    await tabsManager!.saveAndCloseTabGroup(groupId)
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:restore-saved-tab-group', async (event, savedGroupId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
-    await tabsManager!.restoreSavedTabGroup(savedGroupId)
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:delete-saved-tab-group', async (event, savedGroupId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof savedGroupId !== 'string') throw new TypeError('Invalid archived workspace ID')
-    await tabsManager!.deleteSavedTabGroup(savedGroupId)
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:show-workspace-context-menu', (event, workspaceId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
-    tabsManager!.showWorkspaceContextMenu(workspaceId)
-  })
   handleBrowserIpc('browser:toggle-devtools', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
