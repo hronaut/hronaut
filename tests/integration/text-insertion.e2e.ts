@@ -17,6 +17,7 @@ const EDITOR_PAGE = `(() => {
   document.body.innerHTML = '<textarea id="notes" aria-label="Notes">hello world</textarea>'
     + '<input id="name" aria-label="Name" value="Ada">'
     + '<input id="limited" aria-label="Limited" maxlength="5" value="abc">'
+    + '<textarea id="short" aria-label="Short" maxlength="5">ab</textarea>'
     + '<input id="locked" aria-label="Locked" readonly value="fixed">'
     + '<fieldset disabled><input id="off" aria-label="Off" value="off"></fieldset>'
     + '<input id="ghost" aria-label="Ghost" style="width:0;height:0;padding:0;border:0">'
@@ -55,7 +56,7 @@ const EDITOR_PAGE = `(() => {
 
 const STATE = `({
   events: window.editorEvents,
-  values: Object.fromEntries(['notes', 'name', 'limited', 'locked', 'reset', 'jumpy', 'nested', 'other'].map((id) => [id, document.getElementById(id).value])
+  values: Object.fromEntries(['notes', 'name', 'limited', 'short', 'locked', 'reset', 'jumpy', 'nested', 'other'].map((id) => [id, document.getElementById(id).value])
     .concat(['rich', 'model', 'refuse'].map((id) => [id, document.getElementById(id).textContent]))
     .concat([['inner', document.getElementById('frame').contentDocument.getElementById('inner').value]])),
   model: window.editorModel.text
@@ -173,6 +174,10 @@ test('inserts text natively at the caret of a focused editor, reports what the e
   await onPage(electronApp, fixtureUrl, caretScript('limited', 2, 3))
   expect(JSON.parse(text(await insert({ selector: '#limited', text: 'zzz' })))).toMatchObject({ status: 'INSERTED', editor: 'input' })
   expect((await state()).values.limited).toBe('abzzz')
+  // A line break counts as one character toward a textarea's limit, as Hronaut counts it, so nothing is cut short.
+  await onPage(electronApp, fixtureUrl, caretScript('short', 2))
+  expect(JSON.parse(text(await insert({ selector: '#short', text: 'c\nd' })))).toMatchObject({ status: 'INSERTED', editor: 'textarea' })
+  expect((await state()).values.short).toBe('abc\nd')
 
   // Editors that are not ready are refused before any text is sent, and nothing lands elsewhere.
   const refusals: Array<[string, Record<string, unknown>, RegExp]> = [
