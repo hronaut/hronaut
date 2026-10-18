@@ -62,7 +62,8 @@ import { renderBrowserVideo } from './video-export.js'
 import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
-import { credentialCapturePageScript } from './credential-capture-page.js'
+import type { BrowserCredentialCandidate, CredentialCaptureAccess } from './credential-capture/credential-capture-access.js'
+import { watchCredentialSubmission } from './credential-capture/credential-capture.js'
 import { trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import type { PerformanceEnvironmentAccess } from './emulation/performance-environment-access.js'
 import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
@@ -523,7 +524,6 @@ const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 const MIN_SHELL_HEIGHT = 44
 const ABORTED_LOAD_ERROR = -3
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
-const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
@@ -749,11 +749,7 @@ interface BrowserVisualComparisonInternal {
 
 export type { BrowserVisualCompareResult }
 
-export interface BrowserCredentialCandidate {
-  origin: string
-  username: string
-  password: string
-}
+export type { BrowserCredentialCandidate }
 
 export interface BrowserWalletPageContext {
   tabId: string
@@ -6630,24 +6626,20 @@ export class BrowserTabsManager {
     return loadFavicon(this.tabFaviconAccess(), tab, favicons)
   }
 
+  /**
+   * The narrow view watching for submitted credentials gets of this manager's
+   * private options. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it.
+   */
+  private credentialCaptureAccess(): CredentialCaptureAccess {
+    return {
+      options: () => this.options
+    }
+  }
+
   private watchCredentialSubmission(tab: BrowserTab): void {
-    if (!this.options.onCredentialSubmitted || isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) return
-    const script = credentialCapturePageScript()
-    void tab.webContents.executeJavaScriptInIsolatedWorld(CREDENTIAL_CAPTURE_WORLD_ID, [{ code: script }], false)
-      .then((candidate: BrowserCredentialCandidate | null) => {
-        if (!candidate) return
-        this.watchCredentialSubmission(tab)
-        if (Date.now() - tab.lastHumanInteractionAt > 15_000) return
-        let currentOrigin: string | null = null
-        try {
-          currentOrigin = new URL(candidate.origin).origin
-        } catch {
-          return
-        }
-        if (currentOrigin !== candidate.origin || !candidate.password) return
-        this.options.onCredentialSubmitted?.(candidate)
-      })
-      .catch(() => undefined)
+    watchCredentialSubmission(this.credentialCaptureAccess(), tab)
   }
 
   private sleepBlockReason(tab: BrowserTab, allowActiveTab?: boolean): string | undefined {
