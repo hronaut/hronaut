@@ -34,7 +34,7 @@ import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentSte
 import type { ConnectedAgent } from '../shared/agent-status.js'
 import type { HomeDashboard } from '../shared/home.js'
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
-import { TakeOverOffers, tabAgentPauseOptions } from './take-over-offers.js'
+import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
@@ -149,7 +149,6 @@ import {
 import {
   DETACHABLE_PANEL_IDS,
   PANEL_DOCKS,
-  validateTabOverviewPreviewIds,
   type AppSettings,
   type AppUpdateState,
   type BrowserState,
@@ -181,6 +180,7 @@ import {
   type ThemeName,
   type SupportedLocale
 } from '../shared/types.js'
+import { registerTabsIpc } from './tabs-ipc.js'
 import { CYBERPUNK_TURBO_COLORS, isResolvedThemeName, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
 import {
   resolveLocalePreference,
@@ -2691,8 +2691,14 @@ function registerIpc(): void {
       })
     }
   })
-  handleBrowserIpc('browser:get-state', async (event) => {
-    return runWorkspaceRead(event, assertTrustedShellSender, () => tabsManager!.getState())
+  registerTabsIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    assertMainShellSender,
+    handleBrowserIpc,
+    runWorkspaceRead,
+    tabs: () => tabsManager,
+    mcpServer: () => mcpServer,
+    takeOvers: () => takeOvers
   })
   ipcMain.handle('attention:get', (event) => {
     assertMainShellSender(event)
@@ -2737,16 +2743,6 @@ function registerIpc(): void {
     const request = parseAgentStepHistoryRequest(value)
     return mcpServer?.getAgentStepHistory(request.clientKey, request.workspaceId, request.known) ?? null
   })
-  handleBrowserIpc('browser:get-tab-overview-previews', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    const tabIds = validateTabOverviewPreviewIds(value)
-    return runWorkspaceRead(event, assertTrustedShellSender, () => tabsManager!.getTabOverviewPreviews(tabIds))
-  })
-  handleBrowserIpc('browser:get-tab-overview-page-preview', async (event, value: unknown) => {
-    assertTrustedShellSender(event)
-    const [tabId] = validateTabOverviewPreviewIds([value])
-    return runWorkspaceRead(event, assertTrustedShellSender, () => tabsManager!.getTabOverviewPagePreview(tabId!))
-  })
   handleBrowserIpc('browser:copy-text', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
@@ -2765,41 +2761,6 @@ function registerIpc(): void {
     mcpPortRecovery: () => mcpPortRecovery,
     showMessageBox,
     text
-  })
-  handleBrowserIpc('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
-  handleBrowserIpc('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })
-  handleBrowserIpc('browser:reopen-closed-tab', (event, closedTabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (closedTabId !== undefined && typeof closedTabId !== 'string') throw new TypeError('Invalid closed tab ID')
-    return tabsManager!.reopenClosedTab(closedTabId)
-  })
-  handleBrowserIpc('browser:select-tab', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.selectTabAndWait(tabId) })
-  handleBrowserIpc('browser:close-tab', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    return tabsManager!.closeTabsForPerson([tabId])
-  })
-  handleBrowserIpc('browser:open-split-view', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid split-view tab ID')
-    return tabsManager!.openSplitViewAndWait(tabId)
-  })
-  handleBrowserIpc('browser:update-split-view', (event, updates: unknown) => {
-    assertTrustedShellSender(event)
-    if (!updates || typeof updates !== 'object' || Array.isArray(updates)) throw new TypeError('Invalid split-view update')
-    const candidate = updates as Record<string, unknown>
-    if (candidate.orientation !== undefined && candidate.orientation !== 'vertical' && candidate.orientation !== 'horizontal') {
-      throw new TypeError('Invalid split-view orientation')
-    }
-    if (candidate.ratio !== undefined && (typeof candidate.ratio !== 'number' || !Number.isFinite(candidate.ratio))) {
-      throw new TypeError('Invalid split-view ratio')
-    }
-    if (candidate.swap !== undefined && typeof candidate.swap !== 'boolean') throw new TypeError('Invalid split-view swap flag')
-    return tabsManager!.updateSplitView({
-      ...(candidate.orientation === 'vertical' || candidate.orientation === 'horizontal' ? { orientation: candidate.orientation } : {}),
-      ...(typeof candidate.ratio === 'number' ? { ratio: candidate.ratio } : {}),
-      ...(candidate.swap === true ? { swap: true } : {})
-    })
   })
   handleBrowserIpc('split-divider:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getSplitDivider()))
   handleBrowserIpc('emulation-frame:get', (event) => runWorkspaceRead(event, assertMainShellSender, () => tabsManager!.getEmulationFrames()))
@@ -2826,56 +2787,10 @@ function registerIpc(): void {
       || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split divider ratio')
     return tabsManager!.setSplitDividerRatio(revision, ratio)
   })
-  handleBrowserIpc('browser:close-split-view', (event) => {
-    assertTrustedShellSender(event)
-    return tabsManager!.closeSplitView()
-  })
-  handleBrowserIpc('browser:set-tab-label', (event, tabId: unknown, label: unknown) => {
-    assertMainShellSender(event)
-    if (typeof tabId !== 'string' || typeof label !== 'string') throw new TypeError('Invalid tab label')
-    return tabsManager!.setTabLabel(tabId, label)
-  })
-  handleBrowserIpc('browser:set-tab-pinned', (event, tabId: unknown, pinned: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof pinned !== 'boolean') throw new TypeError('Invalid pinned tab state')
-    return tabsManager!.setTabPinned(tabId, pinned)
-  })
-  handleBrowserIpc('browser:set-tab-sleeping', (event, tabId: unknown, sleeping: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof sleeping !== 'boolean') throw new TypeError('Invalid tab sleeping state')
-    return tabsManager!.setTabSleeping(tabId, sleeping)
-  })
-  handleBrowserIpc('browser:set-tab-agent-paused', (event, tabId: unknown, paused: unknown, options: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof paused !== 'boolean') throw new TypeError('Invalid tab agent pause state')
-    const pauseOptions = tabAgentPauseOptions(options)
-    if (!mcpServer) throw new Error('Agent service is unavailable')
-    const state = mcpServer.setTabAgentPaused(tabId, paused, pauseOptions)
-    if (paused) takeOvers.paused(tabId)
-    return state
-  })
   handleBrowserIpc('browser:clear-css-state-preview', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid CSS state preview tab')
     return tabsManager!.clearCssStatePreview(tabId)
-  })
-  handleBrowserIpc('browser:set-tab-page-lifecycle', (event, tabId: unknown, state: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || (state !== 'active' && state !== 'frozen')) throw new TypeError('Invalid tab page lifecycle state')
-    return tabsManager!.setTabPageLifecycle(tabId, state)
-  })
-  handleBrowserIpc('browser:sleep-inactive-tabs', (event) => {
-    assertTrustedShellSender(event)
-    return tabsManager!.sleepInactiveTabs()
-  })
-  handleBrowserIpc('browser:reorder-tab', (event, tabId: unknown, targetTabId: unknown, placement: unknown) => {
-    assertTrustedShellSender(event)
-    if (
-      typeof tabId !== 'string'
-      || typeof targetTabId !== 'string'
-      || (placement !== 'before' && placement !== 'after')
-    ) throw new TypeError('Invalid tab reorder request')
-    return tabsManager!.reorderTab(tabId, targetTabId, placement)
   })
   handleBrowserIpc('browser:rename-tab-group', (event, groupId: unknown, name: unknown) => {
     assertTrustedShellSender(event)
@@ -3124,11 +3039,6 @@ function registerIpc(): void {
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     tabsManager!.showWorkspaceContextMenu(workspaceId)
   })
-  handleBrowserIpc('browser:show-tab-context-menu', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    tabsManager!.showTabContextMenu(tabId)
-  })
   handleBrowserIpc('browser:toggle-devtools', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
@@ -3320,16 +3230,6 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid page zoom options')
     return tabsManager!.setZoom({ tabId, action, percent })
   })
-  handleBrowserIpc('browser:set-tab-muted', (event, tabId: unknown, muted: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof muted !== 'boolean') throw new TypeError('Invalid tab audio state')
-    return tabsManager!.setTabMuted(tabId, muted)
-  })
-  handleBrowserIpc('browser:set-all-tabs-muted', (event, muted: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof muted !== 'boolean') throw new TypeError('Invalid global tab audio state')
-    return tabsManager!.setAllTabsMuted(muted)
-  })
   handleBrowserIpc('browser:save-pdf', (event, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid PDF options')
@@ -3376,16 +3276,6 @@ function registerIpc(): void {
     mcpServer: () => mcpServer,
     publishVisitHistory,
     currentBrowsingDataSiteSummary
-  })
-  handleBrowserIpc('browser:set-tab-human-interaction-locked', (event, tabId: unknown, locked: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof locked !== 'boolean') throw new TypeError('Invalid tab interaction lock')
-    return tabsManager!.setTabHumanInteractionLocked(tabId, locked)
-  })
-  handleBrowserIpc('browser:set-all-human-interaction-locked', (event, locked: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof locked !== 'boolean') throw new TypeError('Invalid global interaction lock')
-    return tabsManager!.setAllHumanInteractionLocked(locked)
   })
   handleBrowserIpc('browser:copy-snapshot', async (event, tabId: unknown) => {
     assertTrustedShellSender(event)
