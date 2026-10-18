@@ -46,8 +46,7 @@ import {
   WebContentsView,
   webContents as allWebContents,
   type MessageBoxOptions,
-  type Session,
-  type WebContents
+  type Session
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { createAppUpdates } from './app-updates.js'
@@ -105,7 +104,7 @@ import {
   synchronizeMcpRuntimeCandidate
 } from './mcp-runtime-candidate.js'
 import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
-import { scaleShellMetric } from '../shared/interface-scale.js'
+import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
 import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
 import { registerSettingsIpc } from './settings-ipc.js'
 import { createBrowserSession } from './browser-session.js'
@@ -128,7 +127,7 @@ import type {
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
-import { CYBERPUNK_TURBO_COLORS, isResolvedThemeName, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
+import { CYBERPUNK_TURBO_COLORS, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
 import {
   resolveLocalePreference,
   resolveSupportedLocale
@@ -146,12 +145,6 @@ import {
 import { registerShellIpc } from './shell-ipc.js'
 import { createClipboardOperations } from './clipboard-operations.js'
 import { createPanelWindow } from './windows/panel-window.js'
-import type {
-  AddressSuggestion,
-  AddressSuggestionOverlayRequest,
-  AddressSuggestionOverlayState,
-  AddressSuggestionSelection
-} from '../shared/address-suggestions.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
@@ -159,6 +152,7 @@ import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
 import type { McpRuntimeState } from './mcp-runtime.js'
 import type { MainWindowRefs } from './windows/main-window.js'
+import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
@@ -211,17 +205,13 @@ const mainWindowRefs: MainWindowRefs = {
   lastState: null
 }
 let panelWindow: BrowserWindow | null = null
-interface AddressSuggestionSurface {
-  view: WebContentsView
-  webContents: WebContents
-  sessionId: number
-}
-let addressSuggestionSurface: AddressSuggestionSurface | null = null
-let addressSuggestionSurfaceLoad: Promise<AddressSuggestionSurface> | null = null
-let addressSuggestionOverlayGeneration = 0
-let addressSuggestionOverlayBounds: { x: number; y: number; width: number; maxHeight: number } | null = null
-let addressSuggestionOverlayVisible = false
-let addressSuggestionOverlayDismissalPending = false
+const addressSuggestionOverlay = createAddressSuggestionOverlay({
+  trustedShellUrl,
+  trustedUrlMatches,
+  mainWindowRefs,
+  settings: () => settings,
+  resolvedLocale: () => resolvedLocale
+})
 const tooltipView = new ShellOverlayView({
   name: 'tooltip',
   preload: join(__dirname, '../preload/tooltipOverlay.cjs'),
@@ -268,7 +258,7 @@ const toastOverlayView = new ShellOverlayView({
   urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
   onLost: () => toastOverlay.surfaceLost(),
   // A toast is about something the person did; the agent card, a tooltip or address suggestions they open go above it.
-  keepAbove: () => [agentCardView.currentView(), tooltipView.currentView(), addressSuggestionSurface?.view].filter((view) => !!view)
+  keepAbove: () => [agentCardView.currentView(), tooltipView.currentView(), addressSuggestionOverlay.currentView()].filter((view) => !!view)
 })
 const toastOverlay = new ToastOverlay({
   surface: () => ensureToastOverlaySurface(),
@@ -296,7 +286,7 @@ const toastOverlay = new ToastOverlay({
       if (!focused || !toastOverlayView.owns(focused)) return
       const previous = owner as Electron.WebContents | null
       const overlay = !!previous && (toastOverlayView.owns(previous) || agentCardView.owns(previous) || tooltipView.owns(previous)
-        || addressSuggestionSurface?.webContents === previous)
+        || addressSuggestionOverlay.owns(previous))
       // Back to a page only while it still shows; from an overlay that has since closed, or a page that went, the shell.
       const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
         child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
@@ -867,9 +857,7 @@ function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
       window.webContents.setZoomFactor(scale)
     }
   }
-  if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
-    addressSuggestionSurface.webContents.setZoomFactor(scale)
-  }
+  addressSuggestionOverlay.setZoomFactor(scale)
   applyMainWindowTitleBarOverlay()
   toastOverlay.relayout()
 }
@@ -1015,24 +1003,6 @@ function trustedShellUrl(): string {
   return pathToFileURL(join(__dirname, '../renderer/index.html')).href
 }
 
-function trustedAddressOverlayUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return new URL('address-overlay.html', trustedShellUrl()).href
-  }
-  return pathToFileURL(join(__dirname, '../renderer/address-overlay.html')).href
-}
-
-function assertAddressOverlaySender(event: Electron.IpcMainEvent): void {
-  const actual = event.senderFrame?.url
-  if (
-    !addressSuggestionSurface
-    || event.sender !== addressSuggestionSurface.webContents
-    || !trustedUrlMatches(actual, trustedAddressOverlayUrl())
-  ) {
-    throw new Error('Rejected IPC from a non-address-overlay renderer')
-  }
-}
-
 const {
   trustedAgentCardUrl,
   ensureAgentCardSurface,
@@ -1048,158 +1018,6 @@ const {
   toastOverlay,
   tooltipView
 })
-
-function validAddressSuggestion(value: unknown): value is AddressSuggestion {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const suggestion = value as Record<string, unknown>
-  return (
-    typeof suggestion.id === 'string'
-    && suggestion.id.length > 0
-    && suggestion.id.length <= 512
-    && (suggestion.kind === 'bookmark' || suggestion.kind === 'history')
-    && typeof suggestion.title === 'string'
-    && suggestion.title.length <= 4_096
-    && typeof suggestion.url === 'string'
-    && suggestion.url.length > 0
-    && suggestion.url.length <= 32_768
-    && (
-      suggestion.visitCount === undefined
-      || (typeof suggestion.visitCount === 'number' && Number.isFinite(suggestion.visitCount) && suggestion.visitCount >= 0)
-    )
-  )
-}
-
-function validatedAddressOverlayRequest(value: unknown): AddressSuggestionOverlayRequest {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid address overlay request')
-  const request = value as Record<string, unknown>
-  if (typeof request.sessionId !== 'number' || !Number.isSafeInteger(request.sessionId) || request.sessionId < 1) {
-    throw new TypeError('Invalid address overlay session')
-  }
-  const bounds = request.bounds
-  if (!bounds || typeof bounds !== 'object' || Array.isArray(bounds)) throw new TypeError('Invalid address overlay bounds')
-  const rawBounds = bounds as Record<string, unknown>
-  if (
-    ![rawBounds.x, rawBounds.y, rawBounds.width, rawBounds.maxHeight].every((metric) => (
-      typeof metric === 'number' && Number.isFinite(metric)
-    ))
-    || (rawBounds.x as number) < 0
-    || (rawBounds.y as number) < 0
-    || (rawBounds.width as number) <= 0
-    || (rawBounds.maxHeight as number) <= 0
-    || (rawBounds.width as number) > 10_000
-    || (rawBounds.maxHeight as number) > 10_000
-  ) {
-    throw new TypeError('Invalid address overlay bounds')
-  }
-  if (
-    !Array.isArray(request.suggestions)
-    || request.suggestions.length < 1
-    || request.suggestions.length > 20
-    || !request.suggestions.every(validAddressSuggestion)
-  ) {
-    throw new TypeError('Invalid address overlay suggestions')
-  }
-  if (
-    typeof request.selectedIndex !== 'number'
-    || !Number.isInteger(request.selectedIndex)
-    || request.selectedIndex < -1
-    || request.selectedIndex >= request.suggestions.length
-  ) {
-    throw new TypeError('Invalid address overlay selection')
-  }
-  if (!isResolvedThemeName(request.theme)) {
-    throw new TypeError('Invalid address overlay theme')
-  }
-  return request as unknown as AddressSuggestionOverlayRequest
-}
-
-function hideAddressSuggestionOverlay(): void {
-  addressSuggestionOverlayVisible = false
-  addressSuggestionOverlayBounds = null
-  const surface = addressSuggestionSurface
-  const window = mainWindowRefs.window
-  if (!surface) return
-  if (!surface.webContents.isDestroyed()) surface.view.setVisible(false)
-  if (window && !window.isDestroyed()) {
-    try {
-      window.contentView.removeChildView(surface.view)
-    } catch (error) {
-      console.error('[address-overlay] Failed to detach suggestion view:', error)
-    }
-  }
-}
-
-async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSuggestionSurface> {
-  // A view exists before its preload and renderer are ready to receive state.
-  // Every concurrent typing update must wait for that same initial load.
-  if (addressSuggestionSurfaceLoad) {
-    if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
-      addressSuggestionSurface.sessionId = sessionId
-    }
-    return addressSuggestionSurfaceLoad
-  }
-  if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
-    addressSuggestionSurface.sessionId = sessionId
-    return addressSuggestionSurface
-  }
-  const opening = (async () => {
-    const expectedUrl = trustedAddressOverlayUrl()
-    const view = new WebContentsView({
-      webPreferences: {
-        preload: join(__dirname, '../preload/addressOverlay.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-        backgroundThrottling: false
-      }
-    })
-    // Cache WebContents while the native view is intact. Electron can
-    // invalidate WebContentsView.webContents during native teardown, so every
-    // asynchronous lifecycle path must use this stable reference instead of
-    // reading the getter again.
-    const webContents = view.webContents
-    const surface: AddressSuggestionSurface = { view, webContents, sessionId }
-    addressSuggestionSurface = surface
-    try {
-      view.setBackgroundColor('#00000000')
-      view.setVisible(false)
-      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-      webContents.on('will-navigate', (event, url) => {
-        if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
-      })
-      webContents.on('destroyed', () => {
-        if (addressSuggestionSurface !== surface) return
-        addressSuggestionOverlayGeneration += 1
-        addressSuggestionOverlayDismissalPending = true
-        hideAddressSuggestionOverlay()
-        addressSuggestionSurface = null
-        if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
-          mainWindowRefs.window.webContents.send('address-overlay:dismissed', surface.sessionId)
-        }
-      })
-      webContents.on('render-process-gone', () => {
-        // A crashed renderer leaves its WebContents alive. Destroy that cached
-        // surface so the existing dismissal path allows fresh input to recreate it.
-        if (!webContents.isDestroyed()) webContents.close()
-      })
-      await webContents.loadURL(expectedUrl)
-      // Initial navigation resets the view's zoom. Apply the latest shell
-      // scale after loading, before sending state or measuring the popup.
-      if (!webContents.isDestroyed()) webContents.setZoomFactor(settings.interfaceScale)
-      return surface
-    } catch (error) {
-      if (!webContents.isDestroyed()) webContents.close()
-      if (addressSuggestionSurface === surface) addressSuggestionSurface = null
-      throw error
-    }
-  })()
-  addressSuggestionSurfaceLoad = opening
-  try {
-    return await opening
-  } finally {
-    if (addressSuggestionSurfaceLoad === opening) addressSuggestionSurfaceLoad = null
-  }
-}
 
 const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   text,
@@ -1345,97 +1163,10 @@ function registerIpc(): void {
     toastOverlayView: () => toastOverlayView,
     tooltipView: () => tooltipView
   })
-  ipcMain.on('address-overlay:show', (event, value: unknown) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    const request = validatedAddressOverlayRequest(value)
-    // When the native renderer exits unexpectedly, ignore any already-queued
-    // show requests until the shell acknowledges the dismissal with hide.
-    // This prevents a stale resize/reactivity update from resurrecting the
-    // dead popup before fresh user input opens a new one.
-    if (addressSuggestionOverlayDismissalPending) return
-    const generation = ++addressSuggestionOverlayGeneration
-    const scale = event.sender.getZoomFactor()
-    const bounds = {
-      x: scaleShellMetric(request.bounds.x, scale),
-      y: scaleShellMetric(request.bounds.y, scale),
-      width: scaleShellMetric(request.bounds.width, scale),
-      maxHeight: scaleShellMetric(request.bounds.maxHeight, scale)
-    }
-    const state: AddressSuggestionOverlayState = {
-      sessionId: request.sessionId,
-      suggestions: request.suggestions,
-      selectedIndex: request.selectedIndex,
-      theme: request.theme,
-      locale: resolvedLocale
-    }
-    void ensureAddressSuggestionView(request.sessionId).then(({ view, webContents }) => {
-      if (
-        generation !== addressSuggestionOverlayGeneration
-        || !mainWindowRefs.window
-        || mainWindowRefs.window.isDestroyed()
-        || webContents.isDestroyed()
-      ) return
-      addressSuggestionOverlayVisible = true
-      addressSuggestionOverlayBounds = bounds
-      view.setBounds({ x: bounds.x, y: bounds.y, width: bounds.width, height: 1 })
-      view.setVisible(false)
-      mainWindowRefs.window.contentView.addChildView(view)
-      webContents.send('address-overlay:state', state)
-    }).catch((error) => console.error('[address-overlay] Failed to show suggestions:', error))
-  })
-  ipcMain.on('address-overlay:hide', (event) => {
-    if (workspaceStartupFailure) return
-    assertMainShellSender(event)
-    addressSuggestionOverlayDismissalPending = false
-    addressSuggestionOverlayGeneration += 1
-    hideAddressSuggestionOverlay()
-  })
-  ipcMain.on('address-overlay:measured', (event, value: unknown) => {
-    if (workspaceStartupFailure) return
-    assertAddressOverlaySender(event)
-    if (
-      !addressSuggestionOverlayVisible
-      || !addressSuggestionOverlayBounds
-      || !addressSuggestionSurface
-      || !mainWindowRefs.window
-      || mainWindowRefs.window.isDestroyed()
-      || typeof value !== 'number'
-      || !Number.isFinite(value)
-      || value <= 0
-    ) return
-    const height = Math.min(
-      addressSuggestionOverlayBounds.maxHeight,
-      scaleShellMetric(value, event.sender.getZoomFactor())
-    )
-    addressSuggestionSurface.view.setBounds({
-      x: addressSuggestionOverlayBounds.x,
-      y: addressSuggestionOverlayBounds.y,
-      width: addressSuggestionOverlayBounds.width,
-      height: Math.max(1, height)
-    })
-    addressSuggestionSurface.view.setVisible(true)
-    // Re-adding an existing child explicitly makes the overlay the topmost
-    // native view, including after a website tab was selected meanwhile.
-    mainWindowRefs.window.contentView.addChildView(addressSuggestionSurface.view)
-  })
-  ipcMain.on('address-overlay:select', (event, value: unknown) => {
-    if (workspaceStartupFailure) return
-    assertAddressOverlaySender(event)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new TypeError('Invalid address suggestion selection')
-    }
-    const selection = value as AddressSuggestionSelection
-    if (!Number.isSafeInteger(selection.sessionId) || selection.sessionId < 1
-      || typeof selection.suggestionId !== 'string' || selection.suggestionId.length < 1 || selection.suggestionId.length > 512) {
-      throw new TypeError('Invalid address suggestion selection')
-    }
-    if (selection.sessionId !== addressSuggestionSurface?.sessionId) return
-    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
-      mainWindowRefs.window.webContents.send('address-overlay:selected', selection)
-    }
-    addressSuggestionOverlayGeneration += 1
-    hideAddressSuggestionOverlay()
+  registerAddressOverlayIpc(ipcMain, {
+    assertMainShellSender,
+    workspaceStartupFailure: () => workspaceStartupFailure,
+    addressOverlay: () => addressSuggestionOverlay
   })
   registerPanelWindowIpc(ipcMain, {
     assertMainShellSender,
@@ -2035,14 +1766,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   })
   mainWindowRefs.window.on('closed', () => {
     if (panelWindow && !panelWindow.isDestroyed()) panelWindow.close()
-    if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
-      addressSuggestionSurface.webContents.close()
-    }
-    addressSuggestionSurface = null
-    addressSuggestionSurfaceLoad = null
-    addressSuggestionOverlayBounds = null
-    addressSuggestionOverlayVisible = false
-    addressSuggestionOverlayDismissalPending = false
+    addressSuggestionOverlay.mainWindowClosed()
     shellTooltips.hide()
     tooltipView.close()
     agentCards.hide()
