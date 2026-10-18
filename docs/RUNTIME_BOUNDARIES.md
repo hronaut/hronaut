@@ -6,9 +6,12 @@ than the entire browser runtime.
 
 - `main/index.ts` composes runtime services and registers trusted IPC through
   per-feature `main/*-ipc.ts` modules, which keep each handler's sender check
-  with the handler and read index state through a small host object. It supplies
-  Home data through `platform/home-protocol.ts`; that protocol owns its assets,
-  MIME types, CSP, and status response in Home's separate application session.
+  with the handler and read index state through a small host object. The checks
+  themselves, which shell document sent a message and whether saved workspaces are
+  ready, come from `main/ipc-guards.ts`. Home's dashboard state comes from
+  `main/home-dashboard.ts`, and index.ts supplies it through
+  `platform/home-protocol.ts`; that protocol owns its assets, MIME types, CSP, and
+  status response in Home's separate application session.
   Startup features are controllers built from the same kind of host:
   `main/windows/application-menu.ts`, `main/windows/window-state-persistence.ts`,
   `main/tray-attention.ts`, `main/commercial-license-runtime.ts` and `main/app-updates.ts`.
@@ -16,13 +19,18 @@ than the entire browser runtime.
   detached panel window are built the same way: `main/browser-session.ts`,
   `main/clipboard-operations.ts`, `main/credential-runtime.ts`,
   `main/windows/overlay-surfaces.ts` and `main/windows/panel-window.ts`. So are site
-  data summaries and clearing, the MCP status and pause, the main window's chrome and
-  the address suggestions overlay: `main/site-data.ts`, `main/mcp-control-state.ts`,
-  `main/windows/main-window.ts` and `main/windows/address-suggestion-overlay.ts`, whose
-  messages `main/address-overlay-ipc.ts` checks. State that several features change is
-  one record that index.ts creates once, typed beside its owner: `McpRuntimeState` in
-  `main/mcp-runtime.ts`, which starts, moves and resets the listener, `MainWindowRefs`
-  in `main/windows/main-window.ts` and `PanelWindowRefs` in `main/windows/panel-window.ts`.
+  data summaries and clearing, the MCP status and pause, agent presence, the main
+  window's chrome and the address suggestions overlay: `main/site-data.ts`,
+  `main/mcp-control-state.ts`, `main/agent-presence.ts`, `main/windows/main-window.ts`
+  and `main/windows/address-suggestion-overlay.ts`, whose messages
+  `main/address-overlay-ipc.ts` checks. State that several features change is one
+  record that index.ts creates once, typed beside its owner: `McpRuntimeState` in
+  `main/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
+  in `main/settings-runtime.ts`, which loads, commits and publishes settings and
+  translates into the interface language, `WalletRuntimeState` in
+  `main/wallet/runtime.ts`, which starts wallets and admits page and agent requests,
+  `MainWindowRefs` in `main/windows/main-window.ts` and `PanelWindowRefs` in
+  `main/windows/panel-window.ts`, whose module and IPC take the record itself.
   `main/app-lifecycle.ts` registers the application's events and runs index.ts's
   `startRuntime` once Electron is ready.
 - `browser/tabs-manager.ts` remains the **TabRuntime** host: Electron contents,
