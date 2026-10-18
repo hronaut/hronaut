@@ -1,4 +1,8 @@
-import { reconcileAccountProviderSessions, type AccountProviderSession, type SolanaTronProviderAccess } from './solana-tron-provider.js'
+import {
+  reconcileAccountProviderSessions,
+  type AccountProviderSession,
+  type SolanaTronProviderAccess
+} from './solana-tron-provider.js'
 import type {
   WalletAgentDescriptor,
   WalletChainFamily,
@@ -20,13 +24,22 @@ import { EvmCallBundleStore } from './evm-call-bundles.js'
 import { EvmFilterRegistry } from './evm-filters.js'
 import { EvmAssetSuggestionLog } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
-import { reconcileEvmProviderSessions, uninstallEvmFilters, type EvmProviderAccess, type EvmProviderSession } from './evm-provider.js'
+import {
+  reconcileEvmProviderSessions,
+  uninstallEvmFilters,
+  type EvmProviderAccess,
+  type EvmProviderSession
+} from './evm-provider.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
 import type { WalletChainAdapter, WalletNormalizedTransaction } from './adapters/types.js'
 import { WalletPolicyEngine, type WalletPolicyDecision, type WalletWebsiteSignInEvaluation } from './policy.js'
 import type { WalletService } from './service.js'
-import { drainConfirmationTasks, resumeSubmittedConfirmations, type TransactionConfirmationAccess } from './transaction-confirmations.js'
+import {
+  drainConfirmationTasks,
+  resumeSubmittedConfirmations,
+  type TransactionConfirmationAccess
+} from './transaction-confirmations.js'
 import {
   agentBalance,
   agentPageRequests,
@@ -41,15 +54,50 @@ import {
 import { listPending, type PendingRequestsAccess } from './broker/pending-requests.js'
 import { keepsTabAwake, providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
 import { approve, reject, type HumanApprovalsAccess } from './broker/human-approvals.js'
-import { assertRecordPageActive, assertRequestContextActive, cancelForNavigation, cancelForTab, cancelForWorkspace, isRequestContextActive, resumeTab, type PageLifecycleAccess } from './broker/page-lifecycle.js'
-import { assertAgentOperationActive, cancelForRequester, isAgentOperationActive, withAgentOperation, type AgentOperationLifecycle, type AgentOperationsAccess } from './broker/agent-operations.js'
-import { clearRequestExpiry, createRequest, fail, wait, type PendingResult, type RequestRecordsAccess } from './broker/request-records.js'
+import {
+  assertRecordPageActive,
+  assertRequestContextActive,
+  cancelForNavigation,
+  cancelForTab,
+  cancelForWorkspace,
+  isRequestContextActive,
+  resumeTab,
+  type PageLifecycleAccess
+} from './broker/page-lifecycle.js'
+import {
+  assertAgentOperationActive,
+  cancelForRequester,
+  isAgentOperationActive,
+  withAgentOperation,
+  type AgentOperationLifecycle,
+  type AgentOperationsAccess
+} from './broker/agent-operations.js'
+import {
+  clearRequestExpiry,
+  createRequest,
+  fail,
+  wait,
+  type PendingResult,
+  type RequestRecordsAccess
+} from './broker/request-records.js'
 import { execute, type RequestExecutionAccess } from './broker/request-execution.js'
 import { approveWebsiteSignIn, websiteSignInDecision, type WebsiteSignInAccess } from './broker/website-sign-in.js'
-import { connect, createAddressPermissionRequest, disconnectWallet, type AccountConnectionsAccess } from './broker/account-connections.js'
+import {
+  connect,
+  createAddressPermissionRequest,
+  disconnectWallet,
+  type AccountConnectionsAccess
+} from './broker/account-connections.js'
 import { transactionRequest, type TransactionRequestsAccess } from './broker/transaction-requests.js'
 import { messageRequest, type MessageRequestsAccess } from './broker/message-requests.js'
-import { removePolicy, removeWallet, revokePermission, setPolicy, updateWallet, type WalletManagementAccess } from './broker/wallet-management.js'
+import {
+  removePolicy,
+  removeWallet,
+  revokePermission,
+  setPolicy,
+  updateWallet,
+  type WalletManagementAccess
+} from './broker/wallet-management.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -551,7 +599,11 @@ export class WalletBroker {
     return connect(this.accountConnectionsAccess(), context, wallet)
   }
 
-  private createAddressPermissionRequest(context: WalletBrokerContext, wallet: WalletDescriptor, allowWebsiteSignIn = false): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
+  private createAddressPermissionRequest(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    allowWebsiteSignIn = false
+  ): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
     return createAddressPermissionRequest(this.accountConnectionsAccess(), context, wallet, allowWebsiteSignIn)
   }
 
@@ -580,7 +632,14 @@ export class WalletBroker {
     }
   }
 
-  private transactionRequest(context: WalletBrokerContext, wallet: WalletDescriptor, payload: unknown, broadcast: boolean, returnSummary = false, prepared?: WalletNormalizedTransaction): Promise<unknown> {
+  private transactionRequest(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    payload: unknown,
+    broadcast: boolean,
+    returnSummary = false,
+    prepared?: WalletNormalizedTransaction
+  ): Promise<unknown> {
     return transactionRequest(this.transactionRequestsAccess(), context, wallet, payload, broadcast, returnSummary, prepared)
   }
 
@@ -593,7 +652,8 @@ export class WalletBroker {
       assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
       createRequest: (context, wallet, operation, capability, payload) => this.createRequest(context, wallet, operation, capability, payload),
       websiteSignInDecision: (context, wallet, recordId, message) => this.websiteSignInDecision(context, wallet, recordId, message),
-      approveWebsiteSignIn: (context, wallet, recordId, policies, policyId, typedData) => this.approveWebsiteSignIn(context, wallet, recordId, policies, policyId, typedData),
+      approveWebsiteSignIn: (context, wallet, recordId, policies, policyId, typedData) =>
+        this.approveWebsiteSignIn(context, wallet, recordId, policies, policyId, typedData),
       clearRequestExpiry: (requestId) => this.clearRequestExpiry(requestId),
       wait: (requestId) => this.wait(requestId),
       fail: (requestId, error) => this.fail(requestId, error),
@@ -602,7 +662,13 @@ export class WalletBroker {
     }
   }
 
-  private messageRequest(context: WalletBrokerContext, wallet: WalletDescriptor, input: WalletMessageSigningInput, rawSigning = false, returnSummary = false): Promise<unknown> {
+  private messageRequest(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    input: WalletMessageSigningInput,
+    rawSigning = false,
+    returnSummary = false
+  ): Promise<unknown> {
     return messageRequest(this.messageRequestsAccess(), context, wallet, input, rawSigning, returnSummary)
   }
 
@@ -619,11 +685,23 @@ export class WalletBroker {
     }
   }
 
-  private websiteSignInDecision(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, message?: WalletWebsiteSignInEvaluation['message']): { decision: WalletPolicyDecision; policies: WalletPolicy[] } | undefined {
+  private websiteSignInDecision(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    recordId: string,
+    message?: WalletWebsiteSignInEvaluation['message']
+  ): { decision: WalletPolicyDecision; policies: WalletPolicy[] } | undefined {
     return websiteSignInDecision(this.websiteSignInAccess(), context, wallet, recordId, message)
   }
 
-  private approveWebsiteSignIn(context: WalletBrokerContext, wallet: WalletDescriptor, recordId: string, policies: readonly WalletPolicy[], policyId: string, typedData = false): Promise<{ approved: false } | { approved: true; result: unknown }> {
+  private approveWebsiteSignIn(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    recordId: string,
+    policies: readonly WalletPolicy[],
+    policyId: string,
+    typedData = false
+  ): Promise<{ approved: false } | { approved: true; result: unknown }> {
     return approveWebsiteSignIn(this.websiteSignInAccess(), context, wallet, recordId, policies, policyId, typedData)
   }
 
@@ -666,7 +744,13 @@ export class WalletBroker {
     }
   }
 
-  private createRequest(context: WalletBrokerContext, wallet: WalletDescriptor, operation: WalletOperation, capability: 'read' | 'sign' | 'send', payload: Record<string, unknown>): Promise<WalletApprovalRecord> {
+  private createRequest(
+    context: WalletBrokerContext,
+    wallet: WalletDescriptor,
+    operation: WalletOperation,
+    capability: 'read' | 'sign' | 'send',
+    payload: Record<string, unknown>
+  ): Promise<WalletApprovalRecord> {
     return createRequest(this.requestRecordsAccess(), context, wallet, operation, capability, payload)
   }
 
