@@ -38,6 +38,7 @@ import {
   webContents as allWebContents
 } from 'electron'
 import electronUpdater from 'electron-updater'
+import { enableNativeWebMcp } from './native-webmcp-switch.js'
 import { createAppUpdates } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
@@ -120,20 +121,7 @@ const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
 const PARTITION = 'persist:hronaut'
 const { autoUpdater } = electronUpdater
 
-// Electron 44 ships Chromium's native WebMCP implementation behind the same
-// feature gate as Chrome's local testing flag. Enable only the browser-native
-// API; Hronaut never injects a page polyfill. An explicit Chromium disable
-// switch remains authoritative for troubleshooting or enterprise policy.
-const disabledChromiumFeatures = new Set(
-  app.commandLine.getSwitchValue('disable-features').split(',').map(value => value.trim()).filter(Boolean)
-)
-if (!disabledChromiumFeatures.has('WebMCP')) {
-  const enabledChromiumFeatures = new Set(
-    app.commandLine.getSwitchValue('enable-features').split(',').map(value => value.trim()).filter(Boolean)
-  )
-  enabledChromiumFeatures.add('WebMCP')
-  app.commandLine.appendSwitch('enable-features', [...enabledChromiumFeatures].join(','))
-}
+enableNativeWebMcp(app.commandLine)
 
 protocol.registerSchemesAsPrivileged([
   {
