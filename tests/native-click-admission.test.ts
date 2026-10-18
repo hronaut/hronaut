@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
+import { RendererExitedError } from '../src/main/browser/renderer-exit-guard.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, nativeClickReason, nativeClickEffectsPossible, NativeClickAdmissionError } from '../src/main/browser/native-click-admission.js'
 
-function fixture(options: { reason?: string; node?: object; cleanupFails?: boolean; acquisitionFails?: boolean } = {}) {
+function fixture(options: { reason?: string; node?: object; cleanupFails?: boolean; acquisitionFails?: boolean; rendererExited?: boolean } = {}) {
   const calls: Array<[string, Record<string, unknown> | undefined]> = []
   const api = { sendCommand: vi.fn(async (method: string, params?: Record<string, unknown>) => {
     calls.push([method, params])
+    if (options.rendererExited) throw new RendererExitedError(false)
     if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'top' } } }
     if (method === 'Page.createIsolatedWorld') return { executionContextId: 9 }
     if (method === 'Runtime.evaluate') return options.acquisitionFails ? { exceptionDetails: { text: 'private value' } } : { result: { objectId: 'guard' } }
@@ -66,6 +68,12 @@ describe('operation-owned native click admission', () => {
     const f = fixture({ cleanupFails: true }); const guard = await acquireNativeClickAdmission(f.api, { selector: '#one' }, () => {}, f.progress, () => {})
     await expect(guard.dispose()).rejects.toBeInstanceOf(NativeClickAdmissionError); await guard.dispose()
     expect(f.progress.targetCleanup).toBe('unconfirmed'); expect(f.calls.filter(([m]) => m === 'Runtime.releaseObjectGroup')).toHaveLength(1)
+  })
+  it('confirms cleanup when the page renderer has exited, since its objects exited with it', async () => {
+    const f = fixture({ rendererExited: true })
+    await expect(acquireNativeClickAdmission(f.api, { selector: '#one' }, () => {}, f.progress, () => {})).rejects.toMatchObject({ reason: 'TARGET_UNAVAILABLE' })
+    expect(f.calls.map(([method]) => method)).toEqual(['Page.getFrameTree', 'Runtime.releaseObjectGroup'])
+    expect(f.progress.targetCleanup).toBe('confirmed')
   })
   it('distinguishes an attempted down from its acknowledgement and matching release', () => {
     const p = nativeClickProgress(), publish = vi.fn(), observer = nativeClickObserver(p, publish)

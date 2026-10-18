@@ -1,11 +1,12 @@
 import { createNativeSelectionSession } from '../native-selection-session.js'
 import { cancelScreenshotAreaScript, screenshotAreaNativeInputScript, screenshotAreaScript } from '../page-scripts.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl } from '../url.js'
 import type { BrowserScreenshotAreaResult, BrowserScreenshotAreaSession, ScreenshotAreaAccess, ScreenshotAreaTab } from './screenshot-area-access.js'
 
 // The same check the element picker and the human input guard make.
 function nativeSelectionContextUnavailable(error: unknown): boolean {
-  return /context.*destroyed|frame.*removed|navigat/i.test(String(error))
+  return error instanceof RendererExitedError || /context.*destroyed|frame.*removed|navigat/i.test(String(error))
 }
 
 /**

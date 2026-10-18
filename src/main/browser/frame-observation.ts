@@ -5,6 +5,7 @@ import { FRAME_OBSERVATION_LIMITS, type BrowserFrameSnapshot, type FrameObservat
 import { redactDiagnosticText } from '../../shared/debug-report.js'
 import { FrameProvenance, type ObservedFrame } from './frame-provenance.js'
 import { frameObservationScript, frameSelectorScript } from './frame-observation-script.js'
+import { RendererExitedError } from './renderer-exit-guard.js'
 interface Target { page: WebContents; identity: object; workspace: object | undefined; generation: number; observationGeneration: number; permissionGeneration: number }
 interface Host {
   resolve(tabId: string): Target
@@ -98,7 +99,11 @@ export class FrameObservationController {
         if (contextId !== undefined) await evaluate(`(()=>{const h=this[${javascriptLiteral(key)}];if(h)h.close();delete this[${javascriptLiteral(key)}];return true})()`)
         await send('Runtime.releaseObjectGroup', { objectGroup: group })
         clearSlot()
-      }).catch(() => { /* Ownership loss or a hung renderer cannot certify cleanup. */ })
+      }).catch(error => {
+        // The observation's objects exited with the renderer.
+        if (error instanceof RendererExitedError) clearSlot()
+        // Ownership loss or a hung renderer cannot certify cleanup.
+      })
     }
     this.slots.set(page.id, discard)
     const timer = setTimeout(discard, FRAME_OBSERVATION_LIMITS.deadlineMs)

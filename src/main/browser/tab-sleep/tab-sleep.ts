@@ -1,5 +1,6 @@
 import type { BrowserState } from '../../../shared/types.js'
 import { liveRegionRecordingKeepsTabAwake } from '../live-region-recorder.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 import { isHronautHomeUrl, isWebUrl } from '../url.js'
 import type { TabSleepAccess, TabSleepTab } from './tab-sleep-access.js'
 
@@ -205,7 +206,7 @@ export function sleepBlockReason<Tab extends TabSleepTab>(access: TabSleepAccess
 /**
  * Whether the page holds form input the person changed, including edited
  * content, so sleeping would lose it. A page that cannot answer counts as
- * changed.
+ * changed, except one whose renderer exited, which holds no input.
  */
 async function hasChangedFormState(tab: TabSleepTab): Promise<boolean> {
   try {
@@ -227,8 +228,8 @@ async function hasChangedFormState(tab: TabSleepTab): Promise<boolean> {
         })) return true;
         return window.__hronautContentEditableDirty === true;
       })()`) === true
-  } catch {
-    return true
+  } catch (error) {
+    return !(error instanceof RendererExitedError)
   }
 }
 

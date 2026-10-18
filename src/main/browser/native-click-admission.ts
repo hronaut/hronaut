@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { NativeInputCleanupError } from './native-input-cleanup.js'
+import { RendererExitedError } from './renderer-exit-guard.js'
 import type { NativeInputDispatchObserver } from './native-key-hold.js'
 
 interface AttachedDebugger { sendCommand(method: string, params?: Record<string, unknown>): Promise<unknown> }
@@ -91,7 +92,11 @@ export async function acquireNativeClickAdmission(api: AttachedDebugger, target:
     if (disposed) return
     disposed = true
     try { await api.sendCommand('Runtime.releaseObjectGroup', { objectGroup: group }); progress.targetCleanup = 'confirmed' }
-    catch (cause) { progress.targetCleanup = 'unconfirmed'; throw new NativeClickAdmissionError('TARGET_CLEANUP_UNCONFIRMED', { ...progress }, cause) }
+    catch (cause) {
+      // The object group lived in the renderer and exited with it.
+      if (cause instanceof RendererExitedError) { progress.targetCleanup = 'confirmed'; return }
+      progress.targetCleanup = 'unconfirmed'; throw new NativeClickAdmissionError('TARGET_CLEANUP_UNCONFIRMED', { ...progress }, cause)
+    }
     finally { publish() }
   }
   try {

@@ -1,8 +1,10 @@
 import type { InteractionLockAccess, InteractionLockTab } from './interaction-lock-access.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 
-// A copy of the tab manager's own check, which its native selections keep using.
+// The same check the screenshot area and the element picker make. A page
+// whose renderer exited has no frames to guard; its next load syncs again.
 function nativeSelectionContextUnavailable(error: unknown): boolean {
-  return /context.*destroyed|frame.*removed|navigat/i.test(String(error))
+  return error instanceof RendererExitedError || /context.*destroyed|frame.*removed|navigat/i.test(String(error))
 }
 
 /** Page script that adds, or removes, a capturing listener cancelling wheel events in the frame. */
