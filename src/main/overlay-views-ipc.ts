@@ -1,0 +1,133 @@
+import type { IpcMain, IpcMainEvent } from 'electron'
+import type { AgentCardOverlay } from './agent-card-overlay.js'
+import type { ShellOverlayView } from './shell-overlay-view.js'
+import type { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
+import type { ToastOverlay } from './toast-overlay.js'
+import {
+  parseAgentCardMeasurement,
+  parseAgentCardShowRequest,
+  parseAgentCardViewMessage,
+  validAgentCardId,
+  type AgentCardShowRequest
+} from '../shared/agent-card.js'
+import { parseShellTooltipMeasurement, parseShellTooltipRequest } from '../shared/shell-tooltip.js'
+import {
+  parseToastOverlayMeasurement,
+  parseToastOverlayMessage,
+  parseToastOverlayRequest,
+  toastOverlayRequestId,
+  type ToastOverlayRequest
+} from '../shared/toast-overlay.js'
+
+interface OverlayViewsIpcHost {
+  /** Admits only the main window's shell document, not a detached panel window. */
+  assertMainShellSender(event: IpcMainEvent): void
+  /** Why saved workspaces could not start, if they could not; read on every check. */
+  workspaceStartupFailure(): Error | undefined
+  shellTooltips(): Pick<ShellTooltipOverlay, 'show' | 'hide' | 'measured'>
+  agentCards(): Pick<AgentCardOverlay, 'refused' | 'show' | 'hide' | 'measured' | 'received'>
+  toastOverlay(): Pick<ToastOverlay, 'refused' | 'show' | 'measured' | 'received'>
+  /** The transparent view that draws the agent card above the page views. */
+  agentCardView(): Pick<ShellOverlayView, 'isSender'>
+  /** The transparent view that draws toasts at the bottom of the page area. */
+  toastOverlayView(): Pick<ShellOverlayView, 'isSender'>
+  /** The transparent view that draws the shell's tooltips above the page views. */
+  tooltipView(): Pick<ShellOverlayView, 'isSender'>
+}
+
+/**
+ * The shell's requests to show and hide tooltips, agent cards and toasts drawn in overlay views above the
+ * pages, and those views' own reports. Dependencies stay lazy because handlers are registered before the
+ * window loads.
+ */
+export function registerOverlayViewsIpc(ipcMain: Pick<IpcMain, 'on'>, host: OverlayViewsIpcHost): void {
+  function assertAgentCardSender(event: Electron.IpcMainEvent): void {
+    if (!host.agentCardView().isSender(event)) throw new Error('Rejected IPC from a non-agent-card renderer')
+  }
+
+  function assertToastOverlaySender(event: Electron.IpcMainEvent): void {
+    if (!host.toastOverlayView().isSender(event)) throw new Error('Rejected IPC from a non-toast renderer')
+  }
+
+  function assertTooltipOverlaySender(event: Electron.IpcMainEvent): void {
+    if (!host.tooltipView().isSender(event)) throw new Error('Rejected IPC from a non-tooltip renderer')
+  }
+
+  ipcMain.on('shell-tooltip:show', (event, value: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    host.shellTooltips().show(parseShellTooltipRequest(value), event.sender.getZoomFactor())
+  })
+  ipcMain.on('shell-tooltip:hide', (event, id: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    if (id !== undefined && !(Number.isSafeInteger(id) && (id as number) > 0)) throw new TypeError('Invalid tooltip id')
+    host.shellTooltips().hide(id as number | undefined)
+  })
+  ipcMain.on('agent-card:show', (event, value: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    let request: AgentCardShowRequest
+    try {
+      request = parseAgentCardShowRequest(value)
+    } catch (error) {
+      // Nothing outside the contract is drawn; the shell hears the card closed and resets its avatar.
+      const cardId = value && typeof value === 'object' ? (value as { cardId?: unknown }).cardId : undefined
+      if (validAgentCardId(cardId)) host.agentCards().refused(cardId)
+      throw error
+    }
+    host.agentCards().show(request, event.sender.getZoomFactor())
+  })
+  ipcMain.on('agent-card:hide', (event, cardId: unknown) => {
+    if (host.workspaceStartupFailure()) return
+    host.assertMainShellSender(event)
+    if (!validAgentCardId(cardId)) throw new TypeError('Invalid agent card id')
+    host.agentCards().hide(cardId)
+  })
+  ipcMain.on('agent-card-view:measured', (event, value: unknown) => {
+    assertAgentCardSender(event)
+    const measurement = parseAgentCardMeasurement(value)
+    if (measurement) host.agentCards().measured(measurement)
+  })
+  ipcMain.on('agent-card-view:message', (event, value: unknown) => {
+    assertAgentCardSender(event)
+    const message = parseAgentCardViewMessage(value)
+    if (message) host.agentCards().received(message)
+  })
+  ipcMain.on('toast-overlay:show', (event, value: unknown) => {
+    const refuse = (): void => {
+      const id = toastOverlayRequestId(value)
+      if (id !== undefined) host.toastOverlay().refused(id)
+    }
+    // As for the other shell overlays, nothing is drawn while startup has stopped; the shell keeps its own copy.
+    if (host.workspaceStartupFailure()) {
+      refuse()
+      return
+    }
+    host.assertMainShellSender(event)
+    let request: ToastOverlayRequest
+    try {
+      request = parseToastOverlayRequest(value)
+    } catch (error) {
+      // Nothing outside the contract is drawn; the shell hears the toast is not shown and shows its own copy.
+      refuse()
+      throw error
+    }
+    host.toastOverlay().show(request)
+  })
+  ipcMain.on('toast-overlay-view:measured', (event, value: unknown) => {
+    assertToastOverlaySender(event)
+    const measurement = parseToastOverlayMeasurement(value)
+    if (measurement) host.toastOverlay().measured(measurement)
+  })
+  ipcMain.on('toast-overlay-view:message', (event, value: unknown) => {
+    assertToastOverlaySender(event)
+    const message = parseToastOverlayMessage(value)
+    if (message) host.toastOverlay().received(message)
+  })
+  ipcMain.on('tooltip-overlay:measured', (event, value: unknown) => {
+    assertTooltipOverlaySender(event)
+    const measurement = parseShellTooltipMeasurement(value)
+    if (measurement) host.shellTooltips().measured(measurement)
+  })
+}
