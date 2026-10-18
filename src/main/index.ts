@@ -74,7 +74,7 @@ import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
 import { registerLicenseIpc } from './license-ipc.js'
 import type { CommercialLicenseStore } from './commercial-license-store.js'
 import { registerUpdatesIpc } from './updates-ipc.js'
-import { cookieAvailableToOrigin } from './browsing-data-websites.js'
+import { createSiteData } from './site-data.js'
 import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { registerHomeIpc } from './home-ipc.js'
@@ -119,7 +119,6 @@ import type {
   BrowserActionFailure,
   BrowserBookmark,
   BrowserHistoryEntry,
-  BrowsingDataSiteSummary,
   CredentialStorageStatus,
   DetachablePanelId,
   LanguagePreference,
@@ -814,65 +813,11 @@ function acquireTemporaryMcpPause(): () => void {
   }
 }
 
-async function currentBrowsingDataSiteSummary(
-  value: string,
-  browserSession: Session | undefined
-): Promise<BrowsingDataSiteSummary> {
-  if (!browserSession) throw new Error('Persistent browser storage is unavailable')
-  let url: URL
-  try {
-    url = new URL(value)
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) throw new Error()
-  } catch {
-    throw new TypeError('Website must be a valid HTTP or HTTPS address')
-  }
-  const history = (historyStore?.list() ?? []).filter((entry) => new URL(entry.url).origin === url.origin)
-  const cookies = (await browserSession.cookies.get({}))
-    .filter((cookie) => cookieAvailableToOrigin(cookie, url.origin))
-  return {
-    origin: url.origin,
-    cookieCount: cookies.length,
-    historyEntries: history.length,
-    historyVisits: history.reduce((total, entry) => total + entry.visitCount, 0)
-  }
-}
-
-async function clearWorkspaceSiteData(
-  workspaceId: string,
-  value: string,
-  dataTypes: SiteDataType[]
-): Promise<{ origin: string; cleared: SiteDataType[]; remaining: BrowsingDataSiteSummary }> {
-  if (!tabsManager || !historyStore) throw new Error('Workspace browser storage is unavailable')
-  const store = historyStore
-  return tabsManager.withWorkspaceSiteDataCleanup(workspaceId, async (browserSession) => {
-    const site = await currentBrowsingDataSiteSummary(value, browserSession)
-    const selected = new Set(dataTypes)
-    const originScope = { origins: [site.origin], originMatchingMode: 'origin-in-all-contexts' as const }
-    if (selected.has('history')) {
-      await store.clearOrigin(site.origin)
-      publishVisitHistory()
-    }
-    if (selected.has('cookies-and-storage') && selected.has('cache')) {
-      await browserSession.clearData({
-        dataTypes: ['backgroundFetch', 'cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
-        ...originScope
-      })
-    } else if (selected.has('cookies-and-storage')) {
-      await browserSession.clearData({
-        dataTypes: ['backgroundFetch', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
-        ...originScope
-      })
-      await browserSession.clearStorageData({ storages: ['cachestorage'], origin: site.origin })
-    } else if (selected.has('cache')) {
-      await browserSession.clearData({ dataTypes: ['cache'], ...originScope })
-    }
-    return {
-      origin: site.origin,
-      cleared: dataTypes,
-      remaining: await currentBrowsingDataSiteSummary(site.origin, browserSession)
-    }
-  })
-}
+const { currentBrowsingDataSiteSummary, clearWorkspaceSiteData } = createSiteData({
+  tabs: () => tabsManager,
+  historyStore: () => historyStore,
+  publishVisitHistory
+})
 
 const { handleCredentialCandidate, configureCredentialStore } = createCredentialRuntime({
   text,
