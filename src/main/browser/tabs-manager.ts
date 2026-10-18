@@ -485,6 +485,8 @@ import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-stagin
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
+import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
+import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
@@ -2412,26 +2414,26 @@ export class BrowserTabsManager {
     return saveTabLabel(this.tabLabelsAccess(), tabId, value, validateAuthority, onCommitted)
   }
 
-  async setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Hronaut Home cannot be pinned')
-    const previousPinned = tab.pinned
-    if (tab.pinned !== pinned) {
-      tab.pinned = pinned
-      this.changed()
+  /**
+   * The narrow view pinning and reordering tabs get of this manager's private
+   * tabs, their order, waking and state. It is a prototype method rather than
+   * a field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's result
+   * directly, so callers see the same ticks as before.
+   */
+  private tabArrangementAccess(): TabArrangementAccess<BrowserTab> {
+    return {
+      tabs: () => this.tabs,
+      getTab: (tabId) => this.getTab(tabId),
+      orderedTabs: () => this.orderedTabs(),
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    if (pinned && (tab.sleeping || tab.wakePromise)) {
-      try {
-        await this.wakeTab(tab.id)
-      } catch (error) {
-        if (this.tabs.get(tab.id) === tab && tab.pinned === pinned) {
-          tab.pinned = previousPinned
-          this.changed()
-        }
-        throw error
-      }
-    }
-    return this.getState()
+  }
+
+  setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState> {
+    return setTabPinned(this.tabArrangementAccess(), tabId, pinned)
   }
 
   /**
@@ -2591,21 +2593,7 @@ export class BrowserTabsManager {
   }
 
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
-    const tab = this.getTab(tabId)
-    const target = this.getTab(targetTabId)
-    if (tab.id === target.id) return this.getState()
-    if (isHronautHomeUrl(tab.url) || isHronautHomeUrl(target.url)) throw new Error('Hronaut Home cannot be reordered')
-    if (tab.pinned !== target.pinned) throw new Error('Pin or unpin a tab before moving it across the pinned boundary')
-    if (tab.mcpGroupId !== target.mcpGroupId) throw new Error('Tabs can only be reordered within the same workspace')
-
-    const ordered = this.orderedTabs()
-    ordered.splice(ordered.indexOf(tab), 1)
-    const targetIndex = ordered.indexOf(target)
-    ordered.splice(targetIndex + (placement === 'after' ? 1 : 0), 0, tab)
-    this.tabs.clear()
-    for (const orderedTab of ordered) this.tabs.set(orderedTab.id, orderedTab)
-    this.changed()
-    return this.getState()
+    return reorderTab(this.tabArrangementAccess(), tabId, targetTabId, placement)
   }
 
   /**
