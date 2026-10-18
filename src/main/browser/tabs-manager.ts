@@ -416,6 +416,8 @@ import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened
 import { pageShortcut, type TakeOverMark } from './take-over.js'
 import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
+import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
+import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -4380,132 +4382,45 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  private async prepareInteractionLock(tabs: readonly BrowserTab[]): Promise<void> {
-    // Do not mutate lock state or enqueue guard writes behind an indefinitely
-    // pending native command. A late queue completion cannot apply this request.
-    const pending = tabs.flatMap(tab => [
-      this.debuggerQueue.pending(tab.webContents.id),
-      this.dialogMonitorAttachPromises.get(tab.webContents.id)
-    ].filter((value): value is Promise<void> => value !== undefined))
-    if (pending.length) {
-      let timer: NodeJS.Timeout | undefined
-      try {
-        await Promise.race([
-          Promise.allSettled(pending),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error('A page is busy. Input locks were not changed. Wait for its operation to finish, then try again.')), 2000)
-          })
-        ])
-      } finally { if (timer) clearTimeout(timer) }
+  /**
+   * The narrow view the person's input lock gets of this manager's private
+   * tabs, workspaces, debugger queue, dialog monitoring, lock queue and
+   * counter, global lock, native input guard, layout and state publication. It
+   * is a prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so the generation and counter
+   * changes still happen before they return.
+   */
+  private interactionLockAccess(): InteractionLockAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabs: () => this.tabs.values(),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      isDestroyed: () => this.destroyed,
+      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId),
+      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
+      interactionLockTail: () => this.interactionLockTail,
+      writeInteractionLockTail: (tail) => { this.interactionLockTail = tail },
+      nativeInputLockMutations: () => this.nativeInputLockMutations,
+      writeNativeInputLockMutations: (count) => { this.nativeInputLockMutations = count },
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      writeAllHumanInteractionLocked: (locked) => { this.allHumanInteractionLocked = locked },
+      globallyUnlockedTabIds: () => this.globallyUnlockedTabIds,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
+      layout: () => this.layout(),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-  }
-
-  private enqueueInteractionLockMutation(operation: () => Promise<BrowserState>): Promise<BrowserState> {
-    const result = this.interactionLockTail.then(() => {
-      if (this.destroyed) throw new Error('Browser tabs manager has been destroyed')
-      return operation()
-    })
-    // Keep each mutation and any rollback together across tab and global requests.
-    this.interactionLockTail = result.then(() => undefined, () => undefined)
-    return result
   }
 
   setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
-    const tab = this.tabs.get(tabId)
-    if (tab) tab.nativeInputEnvironmentGeneration += 1
-    this.nativeInputLockMutations += 1
-    return this.enqueueInteractionLockMutation(() => this.applyTabHumanInteractionLocked(tabId, locked))
-      .finally(() => { this.nativeInputLockMutations -= 1 })
-  }
-
-  private async applyTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (!locked && tab.mcpGroupId && this.mcpTabGroups.get(tab.mcpGroupId)?.contextClass === 'public-observer') {
-      throw new Error('Page input remains locked in a read-only public observer workspace.')
-    }
-    await this.prepareInteractionLock([tab])
-    if (this.tabs.get(tabId) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab closed before its input lock changed.')
-    const previousLocked = tab.humanInteractionLocked
-    const wasGloballyUnlocked = this.globallyUnlockedTabIds.has(tabId)
-    if (this.allHumanInteractionLocked) {
-      if (locked) this.globallyUnlockedTabIds.delete(tabId)
-      else this.globallyUnlockedTabIds.add(tabId)
-    } else {
-      tab.humanInteractionLocked = locked
-    }
-    if (this.isHumanInteractionLocked(tab)) {
-      if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
-    }
-    try {
-      await this.syncHumanInteractionInputGuard(tab)
-    } catch (error) {
-      tab.humanInteractionLocked = previousLocked
-      if (wasGloballyUnlocked) this.globallyUnlockedTabIds.add(tabId)
-      else this.globallyUnlockedTabIds.delete(tabId)
-      try {
-        await this.syncHumanInteractionInputGuard(tab)
-      } catch (rollbackError) {
-        this.changed()
-        throw new AggregateError(
-          [error, rollbackError],
-          `Tab ${tab.id} interaction lock could not be updated or restored.`
-        )
-      }
-      this.changed()
-      throw error
-    }
-    this.changed()
-    return this.getState()
+    return setTabHumanInteractionLocked(this.interactionLockAccess(), tabId, locked)
   }
 
   setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
-    for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
-    this.nativeInputLockMutations += 1
-    return this.enqueueInteractionLockMutation(() => this.applyAllHumanInteractionLocked(locked))
-      .finally(() => { this.nativeInputLockMutations -= 1 })
-  }
-
-  private async applyAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
-    await this.prepareInteractionLock([...this.tabs.values()])
-    if (this.destroyed) throw new Error('Browser tabs manager has been destroyed')
-    const previousLocked = this.allHumanInteractionLocked
-    const previousGloballyUnlockedTabIds = new Set(this.globallyUnlockedTabIds)
-    this.allHumanInteractionLocked = locked
-    this.globallyUnlockedTabIds.clear()
-    this.layout()
-    if (locked) {
-      for (const tab of this.tabs.values()) {
-        if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
-      }
-    }
-    const results = await Promise.allSettled(
-      [...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab))
-    )
-    const errors = results
-      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-      .map((result) => result.reason)
-    if (errors.length) {
-      this.allHumanInteractionLocked = previousLocked
-      for (const tabId of previousGloballyUnlockedTabIds) this.globallyUnlockedTabIds.add(tabId)
-      this.layout()
-      const rollbackResults = await Promise.allSettled(
-        [...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab))
-      )
-      const rollbackErrors = rollbackResults
-        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-        .map((result) => result.reason)
-      this.changed()
-      if (rollbackErrors.length) {
-        throw new AggregateError(
-          [...errors, ...rollbackErrors],
-          'Global interaction lock could not be updated or restored for every tab.'
-        )
-      }
-      if (errors.length === 1) throw errors[0]
-      throw new AggregateError(errors, 'Global interaction lock could not be updated for every tab.')
-    }
-    this.changed()
-    return this.getState()
+    return setAllHumanInteractionLocked(this.interactionLockAccess(), locked)
   }
 
   /**
