@@ -2,8 +2,9 @@ import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDel
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
 import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-click.js'
-import { fileSourceAcquisitionPool, AcquisitionFailure } from '../file-source-acquisition.js'
-import { fileEvaluationFailure, type FileEvaluationSource, type FileEvaluationHooks, type FileEvaluationProgress } from '../../shared/file-evaluation.js'
+import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
+import { evaluateFile } from './page-evaluation/evaluate-file.js'
+import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
 import { normalizeTabLabel } from '../../shared/tab-label.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
 import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
@@ -43,7 +44,8 @@ import { clearRendererAgentInputFlag, matchingNativeInputRelease, NativeInputCle
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
-import { CSS_PAGE_SIZE_PAGE_LIMIT, pdfPageCount } from './pdf-pages.js'
+import type { PdfExportAccess } from './pdf-export/pdf-export-access.js'
+import { savePdf } from './pdf-export/pdf-export.js'
 import { FrameObservationController } from './frame-observation.js'
 import { reactInspectionMenu } from './react-inspection-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
@@ -63,8 +65,9 @@ import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '
 import { credentialCapturePageScript } from './credential-capture-page.js'
 import { recordNetworkDebuggerMessage, retireNetworkPriorityObservations, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
-import { DEFAULT_RENDERING_DEBUG } from '../../shared/browser-environment.js'
-import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from './emulation-state.js'
+import type { EmulationAccess } from './emulation/emulation-access.js'
+import { emulate } from './emulation/emulation.js'
+import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
@@ -119,7 +122,7 @@ import { suggestWorkspaceName } from '../../shared/workspace-names.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
-import { settledViewportSize, type PageViewportSize } from './viewport-settle.js'
+import { resizeViewport } from './emulation/resize-viewport.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import { decodeWebsiteFavicon } from './favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
@@ -372,7 +375,6 @@ import {
   cancelScreenshotAreaScript,
   dialogAwareClickScript,
   dialogAwareCoordinateClickScript,
-  dialogAwareEvaluateScript,
   dragPointsScript,
   elementPickerInspectionAtPointScript,
   elementPickerNativeInputScript,
@@ -386,10 +388,15 @@ import {
   targetPointScript,
   type BrowserFormField
 } from './page-scripts.js'
+import { evaluate } from './page-evaluation/evaluate.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
+import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
+import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
+import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
@@ -438,21 +445,8 @@ const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
-const PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS = 5_000
 /** How long wheel events after an agent's wheel call still count as the agent's. */
 const AGENT_WHEEL_SETTLE_MS = 250
-const HOLD_PAGE_ANIMATIONS_SCRIPT = `(() => {
-  try {
-    return Array.from(document.getAnimations()).slice(0, 10000).map(animation => {
-      const record = {
-        currentTime: animation.currentTime,
-        playbackRate: animation.playbackRate
-      };
-      animation.playbackRate = 0;
-      return record;
-    });
-  } catch { return []; }
-})()`
 const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
 
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
@@ -908,9 +902,6 @@ export interface TabsManagerOptions {
   confirmBeforeUnloadClose?: () => Promise<boolean>
   configureSession?: (browserSession: Session) => void
 }
-
-// Process-wide admission survives client and manager reconnects.
-let activeFileEvaluations = 0
 
 export class BrowserTabsManager {
   private nativeInputLockMutations = 0
@@ -2860,205 +2851,44 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  pageLifecycle(tabId: string): BrowserPageLifecycleResult {
-    const tab = this.getTab(tabId)
+  /**
+   * The narrow view freezing and resuming a page gets of this manager's
+   * private tabs, debugger queue, dialog monitoring, DevTools opening, page
+   * presentation and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private pageLifecycleAccess(): PageLifecycleAccess<BrowserTab> {
     return {
-      tabId: tab.id,
-      state: tab.pageLifecycleState,
-      status: tab.pageLifecycleState === 'unknown' ? 'outcome-unknown' : 'unchanged',
-      navigationGeneration: tab.navigationGeneration,
-      retrySafe: tab.pageLifecycleState !== 'unknown',
-      ...(tab.pageLifecycleState === 'unknown' ? {
-        nextAction: 'Do not repeat the ambiguous command. Explicitly request the opposite lifecycle state, or navigate/reload to establish a fresh active document.'
-      } : {})
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
+      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
   }
 
-  async setTabPageLifecycle(
+  pageLifecycle(tabId: string): BrowserPageLifecycleResult {
+    return pageLifecycle(this.pageLifecycleAccess(), tabId)
+  }
+
+  setTabPageLifecycle(
     tabId: string,
     state: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserState> {
-    await this.controlPageLifecycle(tabId, state)
-    return this.getState()
+    return setTabPageLifecycle(this.pageLifecycleAccess(), tabId, state)
   }
 
-  async controlPageLifecycle(
+  controlPageLifecycle(
     tabId: string,
     requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
   ): Promise<BrowserPageLifecycleResult> {
-    const tab = this.getTab(tabId)
-    tab.nativeInputEnvironmentGeneration += 1
-    if (isHronautHomeUrl(tab.url)) throw new Error('Only live page tabs can be frozen or resumed.')
-    if (tab.sleeping || tab.wakePromise) throw new Error('Wake the sleeping tab before changing its page lifecycle.')
-    if (tab.webContents.isDestroyed()) throw new Error('The tab renderer is unavailable.')
-    const pending = tab.pageLifecycleOperation
-    if (pending) {
-      if (pending.requestedState === requestedState) return pending.promise
-      await pending.promise
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab closed while changing its page lifecycle.')
-      return this.controlPageLifecycle(tab.id, requestedState)
-    }
-    if (tab.pageLifecycleState === requestedState) {
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: requestedState,
-        status: 'unchanged',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: true
-      }
-    }
-    if (tab.pageLifecycleState === 'unknown' && tab.pageLifecycleUnknownRequest === requestedState) {
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: 'unknown',
-        status: 'outcome-unknown',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: false,
-        nextAction: 'Do not repeat the ambiguous command. Explicitly request the opposite lifecycle state, or navigate/reload to establish a fresh active document.'
-      }
-    }
-    const operation = this.controlPageLifecycleInternal(tab, requestedState)
-    tab.pageLifecycleOperation = { requestedState, promise: operation }
-    try {
-      return await operation
-    } finally {
-      if (tab.pageLifecycleOperation?.promise === operation) tab.pageLifecycleOperation = undefined
-    }
-  }
-
-  private async controlPageLifecycleInternal(
-    tab: BrowserTab,
-    requestedState: Exclude<BrowserPageLifecycleState, 'unknown'>
-  ): Promise<BrowserPageLifecycleResult> {
-    const navigationGeneration = tab.navigationGeneration
-    const webContents = tab.webContents
-    let dispatched = false
-    const assertCurrentDocument = (): void => {
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
-        throw new Error('The tab closed before its page lifecycle command was dispatched.')
-      }
-      if (tab.navigationGeneration !== navigationGeneration) {
-        throw new Error('The document changed before its page lifecycle command was dispatched.')
-      }
-    }
-    const command = this.debuggerQueue.run(webContents.id, async () => {
-      assertCurrentDocument()
-      await this.dialogMonitorAttachPromises.get(webContents.id)
-      if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
-        throw new Error('Close Developer Tools for this tab before changing its page lifecycle.')
-      }
-      if (!webContents.debugger.isAttached()) {
-        webContents.debugger.attach('1.3')
-        await webContents.debugger.sendCommand('Page.enable')
-      }
-      // Queueing and debugger attachment may outlive the requested document.
-      assertCurrentDocument()
-      if (requestedState === 'frozen') {
-        dispatched = true
-        let records: unknown = []
-        try { records = await webContents.executeJavaScript(HOLD_PAGE_ANIMATIONS_SCRIPT, false) } catch { /* best effort */ }
-        const validRecords = Array.isArray(records) && records.length <= 10_000 && !records.some(record => {
-          if (!record || typeof record !== 'object') return true
-          const candidate = record as { currentTime?: unknown; playbackRate?: unknown }
-          return (candidate.currentTime !== null && (
-            typeof candidate.currentTime !== 'number' || !Number.isFinite(candidate.currentTime)
-          )) || typeof candidate.playbackRate !== 'number' || !Number.isFinite(candidate.playbackRate)
-        })
-        const animationRecords = validRecords ? records as unknown[] : []
-        tab.pageLifecycleAnimations = animationRecords.map(record => ({
-          currentTime: (record as { currentTime: number | null }).currentTime,
-          playbackRate: (record as { playbackRate: number }).playbackRate
-        }))
-        await webContents.debugger.sendCommand('Page.setWebLifecycleState', { state: 'frozen' })
-      } else {
-        dispatched = true
-        await webContents.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' })
-        const records = tab.pageLifecycleAnimations ?? []
-        const backgroundThrottling = webContents.getBackgroundThrottling()
-        if (backgroundThrottling) webContents.setBackgroundThrottling(false)
-        try {
-          await new Promise(resolve => setTimeout(resolve, 34))
-          await webContents.executeJavaScript(`(() => {
-            try {
-              const records = ${JSON.stringify(records)};
-              const animations = Array.from(document.getAnimations());
-              for (let index = 0; index < records.length; index += 1) {
-                const animation = animations[index];
-                if (!animation) continue;
-                animation.playbackRate = records[index].playbackRate;
-                animation.currentTime = records[index].currentTime;
-              }
-            } catch { /* Animation restoration is best effort for adversarial pages. */ }
-          })()`, false)
-        } finally {
-          if (backgroundThrottling) webContents.setBackgroundThrottling(true)
-        }
-        tab.pageLifecycleAnimations = undefined
-      }
-    })
-    const deadline = Symbol('page-lifecycle-command-timeout')
-    let timer: NodeJS.Timeout | undefined
-    const timeout = new Promise<typeof deadline>((resolve) => {
-      timer = setTimeout(() => resolve(deadline), PAGE_LIFECYCLE_COMMAND_TIMEOUT_MS)
-      timer.unref()
-    })
-    const settled = command.then(
-      () => ({ kind: 'completed' as const }),
-      (error: unknown) => ({ kind: 'failed' as const, error })
-    )
-    const outcome = await Promise.race([settled, timeout])
-    if (timer) clearTimeout(timer)
-    if (outcome === deadline || (outcome.kind === 'failed' && dispatched)) {
-      if (this.tabs.get(tab.id) === tab) {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest = requestedState
-        this.changed(false)
-      }
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: 'unknown',
-        status: 'outcome-unknown',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: false,
-        nextAction: 'The command may have reached Chromium. Do not repeat it automatically; explicitly request the opposite state, or navigate/reload to establish a fresh active document.'
-      }
-    }
-    if (outcome.kind === 'failed') throw outcome.error
-    if (
-      this.tabs.get(tab.id) !== tab
-      || webContents.isDestroyed()
-      || tab.navigationGeneration !== navigationGeneration
-    ) {
-      if (this.tabs.get(tab.id) === tab) {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest = requestedState
-        this.changed(false)
-      }
-      return {
-        tabId: tab.id,
-        requestedState,
-        state: 'unknown',
-        status: 'outcome-unknown',
-        navigationGeneration: tab.navigationGeneration,
-        retrySafe: false,
-        nextAction: 'The document changed while Chromium applied the command. Inspect the current tab and navigate/reload if a fresh active document is required.'
-      }
-    }
-    tab.pageLifecycleState = requestedState
-    tab.pageLifecycleUnknownRequest = undefined
-    this.changed(false)
-    if (requestedState === 'active') this.reconcileTabPresentation(tab)
-    return {
-      tabId: tab.id,
-      requestedState,
-      state: requestedState,
-      status: 'changed',
-      navigationGeneration,
-      retrySafe: true
-    }
+    return controlPageLifecycle(this.pageLifecycleAccess(), tabId, requestedState)
   }
 
   private sleepFallbackTab(tab: BrowserTab): BrowserTab | undefined {
@@ -4136,136 +3966,50 @@ export class BrowserTabsManager {
     group.lastUsedAt = new Date().toISOString()
   }
 
-  async navigate(url: string, tabId?: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    const normalized = normalizeAddress(url, this.options.getSearchEngine?.())
-    if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
-      throw new Error('Hronaut Home is a human application page and cannot be opened inside an agent workspace.')
+  /**
+   * The narrow view navigation gets of this manager's private tabs, search
+   * engine setting, workspace navigation policy, diagnostic log reset,
+   * renderer recovery, waking, page waits and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's results directly, so callers see the same ticks as
+   * before.
+   */
+  private pageNavigationAccess(): PageNavigationAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      searchEngine: () => this.options.getSearchEngine?.(),
+      assertWorkspaceNavigationAllowed: (groupId, url, source) => this.assertWorkspaceNavigationAllowed(groupId, url, source),
+      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
+      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      isRendererRecovering: (webContents) => this.rendererRecovery.isRecovering(webContents),
+      recoverRenderer: (webContents, loadReplacement) => this.rendererRecovery.recover(webContents, loadReplacement),
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      waitForPage: (tabId, timeoutMs) => this.waitForPage(tabId, timeoutMs),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    if (tab.mcpGroupId) {
-      this.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
-    }
-    const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
-    this.prepareDiagnosticNavigation(tab)
-    type NavigationOutcome =
-      | { kind: 'loaded' }
-      | { kind: 'failed'; error: unknown }
-      | { kind: 'policy-denied' }
-    let resolvePolicyDenial!: (outcome: NavigationOutcome) => void
-    const policyDenial = new Promise<NavigationOutcome>((resolve) => {
-      resolvePolicyDenial = resolve
-    })
-    const detectPolicyDenial = (): void => {
-      if (tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) {
-        resolvePolicyDenial({ kind: 'policy-denied' })
-      }
-    }
-    tab.webContents.on('will-frame-navigate', detectPolicyDenial)
-    tab.webContents.on('will-redirect', detectPolicyDenial)
-    const load = tab.webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
-      () => ({ kind: 'loaded' }),
-      (error: unknown) => ({ kind: 'failed', error })
-    )
-    let outcome: NavigationOutcome
-    try {
-      // Electron can leave loadURL pending after preventDefault() rejects a
-      // redirect. A policy decision is already terminal for this navigation,
-      // so do not strand renderer IPC waiting for a load event that may never
-      // arrive under compositor pressure.
-      outcome = await Promise.race([load, policyDenial])
-    } finally {
-      tab.webContents.removeListener('will-frame-navigate', detectPolicyDenial)
-      tab.webContents.removeListener('will-redirect', detectPolicyDenial)
-    }
-    if (outcome.kind === 'failed') {
-      if (
-        this.tabs.get(tab.id) === tab
-        && !isAbortedLoad(outcome.error)
-        && tab.navigationPolicyDenialSequence === navigationPolicyDenialSequence
-      ) throw outcome.error
-    }
-    return this.getState()
   }
 
-  async back(tabId?: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (tab.webContents.navigationHistory.canGoBack()) {
-      const history = tab.webContents.navigationHistory
-      const target = history.getAllEntries()[history.getActiveIndex() - 1]
-      if (tab.mcpGroupId
-        && target
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return this.getState()
-      this.prepareDiagnosticNavigation(tab)
-      await history.goBack()
-    }
-    return this.getState()
+  navigate(url: string, tabId?: string): Promise<BrowserState> {
+    return navigate(this.pageNavigationAccess(), url, tabId)
   }
 
-  async forward(tabId?: string): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (tab.webContents.navigationHistory.canGoForward()) {
-      const history = tab.webContents.navigationHistory
-      const target = history.getAllEntries()[history.getActiveIndex() + 1]
-      if (tab.mcpGroupId
-        && target
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return this.getState()
-      this.prepareDiagnosticNavigation(tab)
-      await history.goForward()
-    }
-    return this.getState()
+  back(tabId?: string): Promise<BrowserState> {
+    return back(this.pageNavigationAccess(), tabId)
   }
 
-  async reload(tabId?: string): Promise<BrowserState> {
-    return this.reloadPage(tabId, false)
+  forward(tabId?: string): Promise<BrowserState> {
+    return forward(this.pageNavigationAccess(), tabId)
   }
 
-  async reloadIgnoringCache(tabId?: string): Promise<BrowserState> {
-    return this.reloadPage(tabId, true)
+  reload(tabId?: string): Promise<BrowserState> {
+    return reload(this.pageNavigationAccess(), tabId)
   }
 
-  private async reloadPage(tabId: string | undefined, ignoreCache: boolean): Promise<BrowserState> {
-    const tab = this.getTab(tabId)
-    if (this.rendererRecovery.isRecovering(tab.webContents)) throw new Error('The tab renderer is already being recovered.')
-    this.prepareDiagnosticNavigation(tab)
-    if (tab.sleeping || tab.wakePromise) {
-      await this.wakeTab(tab.id)
-      if (!ignoreCache) return this.getState()
-    }
-    const pageProblem = tab.pageProblem
-    tab.pageProblem = undefined
-    this.changed(false)
-    if (pageProblem?.kind === 'load-error' || pageProblem?.kind === 'renderer-gone') {
-      await tab.webContents.loadURL(pageProblem.url, ignoreCache
-        ? { extraHeaders: 'Cache-Control: no-cache\r\nPragma: no-cache\r\n' }
-        : undefined).catch(() => undefined)
-    } else if (pageProblem?.kind === 'unresponsive') {
-      const contents = tab.webContents
-      const navigationGeneration = tab.navigationGeneration
-      const isCurrent = (): boolean => this.tabs.get(tab.id) === tab
-        && tab.webContents === contents && !contents.isDestroyed()
-        && tab.navigationGeneration === navigationGeneration
-      try {
-        await this.rendererRecovery.recover(contents, async () => {
-          if (!isCurrent()) throw new Error('The page changed while recovering its renderer.')
-          // Reloading before the old process exits can stop at its crash rather
-          // than load a replacement. Await that one intentional exit first.
-          if (ignoreCache) contents.reloadIgnoringCache()
-          else contents.reload()
-          await this.waitForPage(tab.id, 30_000)
-        })
-      } catch (error) {
-        if (isCurrent() && !tab.pageProblem) {
-          tab.pageProblem = pageProblem
-          this.changed(false)
-        }
-        throw error
-      }
-    } else {
-      if (ignoreCache) tab.webContents.reloadIgnoringCache()
-      else tab.webContents.reload()
-    }
-    await this.waitForPage(tab.id, 30_000)
-    return this.getState()
+  reloadIgnoringCache(tabId?: string): Promise<BrowserState> {
+    return reloadIgnoringCache(this.pageNavigationAccess(), tabId)
   }
 
   async findInPage(
@@ -4372,8 +4116,7 @@ export class BrowserTabsManager {
   }
 
   stop(tabId?: string): BrowserState {
-    this.getTab(tabId).webContents.stop()
-    return this.getState()
+    return stop(this.pageNavigationAccess(), tabId)
   }
 
   /**
@@ -5214,29 +4957,34 @@ export class BrowserTabsManager {
     } finally { authority.dispose() }
   }
 
-  async resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    if (reset) await this.emulate({ tabId: tab.id, viewport: null })
-    else {
-      if (width === undefined || height === undefined) throw new Error('width and height are required unless reset is true')
-      await this.emulate({
-        tabId: tab.id,
-        viewport: { width, height, deviceScaleFactor: 1, mobile: false, touch: false, orientation: 'portrait' }
-      })
+  /**
+   * The narrow view emulation gets of this manager's private tabs, debugger
+   * lease, state publication, emulation result and confirmation check, network
+   * condition checks, view sizing and native network throttling. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so no extra ticks separate its
+   * final checks from the caller.
+   */
+  private emulationAccess(): EmulationAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
+      emulationResult: (tab) => this.emulationResult(tab),
+      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab),
+      requireNetworkConditionsKnown: (tab) => this.requireNetworkConditionsKnown(tab),
+      markNetworkConditionsUnknown: (tab) => this.markNetworkConditionsUnknown(tab),
+      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
+      applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
+      changed: (persist) => this.changed(persist),
+      emulate: (options) => this.emulate(options)
     }
-    // A size read needs no user activation, and a reset may read several times.
-    const read = (): Promise<PageViewportSize> => webContents.executeJavaScript(`({ width: innerWidth, height: innerHeight, devicePixelRatio })`, false)
-    // An override pins the page's size; without one the agent gets the size the page settles at in its view.
-    if (!reset || tab.emulation.viewport) return read()
-    const revision = tab.emulationRevision
-    return settledViewportSize(read, () => {
-      // A newer emulation change owns the view's size, so the wait ends with the page as it is.
-      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.emulationRevision !== revision) return null
-      const { width: viewWidth, height: viewHeight } = tab.view.getBounds()
-      const zoom = webContents.getZoomFactor()
-      return { width: viewWidth / zoom, height: viewHeight / zoom }
-    })
+  }
+
+  resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
+    return resizeViewport(this.emulationAccess(), width, height, reset, tabId)
   }
 
   private emulationResult(tab: BrowserTab): BrowserEmulationResult {
@@ -5254,105 +5002,8 @@ export class BrowserTabsManager {
     if (tab.emulationApplication !== 'confirmed') throw new Error('Native emulation application is not confirmed. Inspect retained settings and explicitly restore them before a new change; do not replay the failed request.')
   }
 
-  private emulationPublication(tabId: string | undefined, expected: BrowserEmulationResult): () => void {
-    const tab = this.getTab(tabId)
-    const revision = tab.emulationRevision
-    const contextGeneration = tab.emulationContextGeneration
-    const navigationGeneration = tab.navigationGeneration
-    const serialized = JSON.stringify(expected)
-    const assert = (): void => {
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed() || tab.emulationRevision !== revision || tab.emulationContextGeneration !== contextGeneration || tab.navigationGeneration !== navigationGeneration || JSON.stringify(this.emulationResult(tab)) !== serialized) throw new Error('Emulation state changed before publication')
-    }
-    assert()
-    return assert
-  }
-
-  async emulate(options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
-    const tab = this.getTab(options.tabId)
-    validate()
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before changing browser emulation')
-    // Validation and reads never attach a debugger or repair native state.
-    if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
-      const result = this.emulationResult(tab)
-      retainPublication?.(this.emulationPublication(tab.id, result))
-      return result
-    }
-    if (!options.recover && tab.emulationApplication === 'unknown') this.requireEmulationConfirmed(tab)
-    this.requireNetworkConditionsKnown(tab)
-    const webContents = tab.webContents
-    const generation = tab.navigationGeneration
-    const observation = tab.observationGeneration
-    const contextGeneration = tab.emulationContextGeneration
-    const debuggerEpoch = tab.networkDebuggerEpoch
-    const context = (): void => {
-      if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents
-        || tab.navigationGeneration !== generation || tab.observationGeneration !== observation || tab.emulationContextGeneration !== contextGeneration || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Emulation target changed')
-    }
-    const admission = (): void => { validate(); context() }
-    return this.withDebugger(webContents, async () => {
-      admission()
-      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Network application must be confirmed before changing or restoring emulation. Recover Network conditions separately.')
-      if (!options.recover) this.requireEmulationConfirmed(tab)
-      const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
-      if (!prepared) return this.emulationResult(tab)
-      const { state: next, headers: nextHeaders } = prepared
-      const networkEpoch = tab.networkConditionEpoch
-      const routes = tab.networkRoutes
-      const networkContext = (): void => {
-        if (tab.networkConditionEpoch !== networkEpoch || tab.networkRoutes !== routes) throw new Error('Network application changed during emulation')
-      }
-      const previousApplication = tab.emulationApplication
-      const revision = ++tab.emulationRevision
-      const networkChanged = next.network !== tab.emulation.network
-      let submitted = false
-      tab.nativeInputEnvironmentGeneration += 1
-      tab.emulationApplication = 'pending'
-      const previousViewSize = tab.emulationViewSize
-      try {
-        this.changed(false)
-        // The view takes its new size before the override changes. Chromium
-        // sizes captures of an emulated page by the view it had when the
-        // override arrived, so a view resized afterwards would cut a viewport
-        // larger than the window down to the window. Removing the override
-        // hands the page the view's own size, so the view also fills its
-        // space first, while the override still pins the page.
-        this.setEmulationViewSize(tab, next.viewport)
-        await this.applyEmulationState(tab, next, nextHeaders, async (method, params) => {
-          admission()
-          networkContext()
-          submitted = true
-          markSubmitted()
-          const result = await webContents.debugger.sendCommand(method, params)
-          // Native settlement owns the queue even if authority was lost while awaiting it.
-          context()
-          return result
-        })
-        context()
-        networkContext()
-      } catch (error) {
-        if (tab.emulationRevision === revision) {
-          tab.emulationApplication = submitted ? 'unknown' : previousApplication
-          tab.emulationRevision += 1
-          // Native Network may contain the proposed throttle. If it differs
-          // from the retained configuration, it needs its own recovery.
-          if (submitted && networkChanged) this.markNetworkConditionsUnknown(tab)
-          this.changed(false)
-          this.setEmulationViewSize(tab, submitted ? undefined : previousViewSize)
-        }
-        throw error
-      }
-      // Native acknowledgement commits independently of UI/MCP publication.
-      tab.emulation = next
-      tab.emulationExtraHttpHeaders = nextHeaders
-      tab.emulationApplication = 'confirmed'
-      tab.networkConditionApplication = 'confirmed'
-      this.changed(false)
-      this.setEmulationViewSize(tab, next.viewport)
-      validate()
-      const result = this.emulationResult(tab)
-      retainPublication?.(this.emulationPublication(tab.id, result))
-      return result
-    }, admission)
+  emulate(options: BrowserEmulationOptions = {}, validate: () => void = () => {}, markSubmitted: () => void = () => {}, retainPublication?: (assert: () => void) => void): Promise<BrowserEmulationResult> {
+    return emulate(this.emulationAccess(), options, validate, markSubmitted, retainPublication)
   }
 
   async wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
@@ -5955,104 +5606,38 @@ export class BrowserTabsManager {
     } finally { authority.dispose() }
   }
 
-  async evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
-    const progress: FileEvaluationProgress = { submitted: false, acknowledged: false }
-    if (activeFileEvaluations >= 2) return fileEvaluationFailure(progress, 'BUSY')
-    activeFileEvaluations++
-    const controller = new AbortController()
-    const signal = hooks.signal ? AbortSignal.any([hooks.signal, controller.signal]) : controller.signal
-    const timer = setTimeout(() => controller.abort(), 30_000)
-    let dispose = (): void => undefined
-    let retained = false
-    const work = async (): Promise<Record<string, unknown>> => {
-      const tab = this.getTab(source.tabId)
-      const contents = tab.webContents
-      const generation = tab.navigationGeneration
-      const mainFrame = contents.mainFrame
-      const frameId = tab.mainFrameId
-      let documentCommitted = false
-      const onCommitted = (): void => { documentCommitted = true }
-      dispose = () => { contents.removeListener('did-navigate', onCommitted) }
-      const validate = (): void => {
-        hooks.validate()
-        if (documentCommitted || signal.aborted || this.destroyed || contents.isDestroyed()
-          || this.tabs.get(source.tabId) !== tab || tab.navigationGeneration !== generation
-          || contents.mainFrame !== mainFrame || tab.mainFrameId !== frameId
-          || !this.tabBelongsToMcpGroup(source.workspaceId, source.tabId)
-          || new URL(contents.getURL()).origin !== source.expectedOrigin) throw new Error('File evaluation target unavailable')
-      }
-      // A WebFrameMain object and navigation-start generation can both survive
-      // a navigation which started before admission and commits during acquisition.
-      contents.on('did-navigate', onCommitted)
-      hooks.retainPublication({ validate, dispose })
-      retained = true
-      validate()
-      const script = await fileSourceAcquisitionPool.acquire(source.path, source.sha256, signal, 1000, validate)
-      validate()
-      return this.withBackgroundAgentFocusGuard(() => this.withDebugger(contents, async () => {
-        validate()
-        const tree = await contents.debugger.sendCommand('Page.getFrameTree') as { frameTree?: { frame?: { id?: string } } }
-        validate()
-        const currentFrame = tree.frameTree?.frame?.id
-        const context = currentFrame ? this.defaultExecutionContexts.get(contents.id)?.get(currentFrame) : undefined
-        if (!frameId || currentFrame !== frameId || !context?.uniqueId) throw new Error('Unique context unavailable')
-        validate()
-        // No await between the complete main-owned authority check and submission.
-        progress.submitted = true
-        hooks.submitted()
-        const response = await contents.debugger.sendCommand('Runtime.evaluate', {
-          expression: script, uniqueContextId: context.uniqueId, awaitPromise: true,
-          returnByValue: true, userGesture: true, silent: true, timeout: 10_000
-        }) as { result?: { value?: unknown; unserializableValue?: string; objectId?: string }; exceptionDetails?: { exception?: { objectId?: string } } }
-        progress.acknowledged = true
-        try {
-          validate()
-          if (response.exceptionDetails) return fileEvaluationFailure(progress, 'SCRIPT_FAILED')
-          return { status: 'RETURNED', submitted: true, acknowledged: true, retrySafe: false,
-            value: response.result && Object.hasOwn(response.result, 'value') ? response.result.value : response.result?.unserializableValue }
-        } finally { await this.releaseDebuggerEvaluationObjects(contents, response) }
-      }, validate))
-    }
-    let abort!: () => void
-    const cancelled = new Promise<Record<string, unknown>>(resolve => {
-      abort = () => resolve(fileEvaluationFailure(progress, 'CANCELLED_OR_DEADLINE'))
-      signal.addEventListener('abort', abort, { once: true })
-      if (signal.aborted) abort()
-    })
-    const running = work().catch(error => fileEvaluationFailure(progress,
-      error instanceof AcquisitionFailure ? error.code : 'UNAVAILABLE')).finally(() => { activeFileEvaluations--; if (!retained) dispose() })
-    hooks.retainCompletion(running.then(() => undefined))
-    // The debugger queue retains running native work after caller cancellation.
-    try { return await Promise.race([running, cancelled]) } finally {
-      clearTimeout(timer)
-      signal.removeEventListener('abort', abort)
+  /**
+   * The narrow view page script evaluation gets of this manager's private
+   * tabs, window, DevTools opening, workspaces, default execution contexts,
+   * background focus isolation, debugger lease and evaluation helpers. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so no extra ticks separate its
+   * final checks from the caller.
+   */
+  private pageEvaluationAccess(): PageEvaluationAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      isWindowFocused: () => this.window.isFocused(),
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      tabBelongsToMcpGroup: (groupId, tabId) => this.tabBelongsToMcpGroup(groupId, tabId),
+      defaultExecutionContexts: (webContentsId) => this.defaultExecutionContexts.get(webContentsId),
+      withBackgroundAgentFocusGuard: (operation) => this.withBackgroundAgentFocusGuard(operation),
+      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
+      evaluateWithAttachedDebugger: (webContents, expression, contextId) => this.evaluateWithAttachedDebugger(webContents, expression, contextId),
+      mainWorldContextId: (webContents) => this.mainWorldContextId(webContents),
+      releaseDebuggerEvaluationObjects: (webContents, response) => this.releaseDebuggerEvaluationObjects(webContents, response)
     }
   }
 
-  async evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
-    const webContents = this.getTab(tabId).webContents
-    if (dialog.promptText !== undefined) throw new Error('Text prompts are supported by browser_click; Electron does not implement prompt() evaluation')
-    // Preserve foreground native-dialog behavior, but never let a background
-    // evaluation activate Hronaut. Unexpected background dialogs are dismissed
-    // inside the page wrapper; explicit dialogAction still wins.
-    if (dialog.dialogAction === undefined && this.window.isFocused()) {
-      return this.withBackgroundAgentFocusGuard(() => webContents.executeJavaScript(script, true))
-    }
-    // DevTools owns Chromium's debugger session. Keep direct evaluation
-    // available there while the native non-focusable guard blocks activation.
-    if (dialog.dialogAction === undefined && (
-      this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()
-    )) {
-      return this.withBackgroundAgentFocusGuard(() => webContents.executeJavaScript(script, true))
-    }
-    const dialogAction = dialog.dialogAction ?? 'dismiss'
-    return this.withBackgroundAgentFocusGuard(() => this.withDebugger(webContents, async () => (
-      this.evaluateWithAttachedDebugger(
-        webContents,
-        dialogAwareEvaluateScript(script, dialogAction),
-        await this.mainWorldContextId(webContents)
-      )
-    )))
+  evaluateFile(source: FileEvaluationSource, hooks: FileEvaluationHooks): Promise<Record<string, unknown>> {
+    return evaluateFile(this.pageEvaluationAccess(), source, hooks)
+  }
+
+  evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
+    return evaluate(this.pageEvaluationAccess(), script, tabId, dialog)
   }
 
   /**
@@ -6242,70 +5827,30 @@ export class BrowserTabsManager {
     return screenshot(this.screenshotsAccess(), options)
   }
 
-  async savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
-    const tab = this.getTab(options.tabId)
-    const workspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const permissionGeneration = workspace ? this.inspectionPermissions.get(workspace) ?? 0 : 0
-    const filename = pdfFilename(options.filename, tab.title)
-    const webContents = tab.webContents
-    const navigationGeneration = tab.navigationGeneration
-    let documentCommitted = false
-    let publicationDeferred = false
-    const onDocumentCommitted = (): void => { documentCommitted = true }
-    const discard = (): void => { webContents.removeListener('did-navigate', onDocumentCommitted) }
-    const assertCurrent = (): void => {
-      validateExport?.()
-      if (validateExport) {
-        const currentWorkspace = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-        if (currentWorkspace !== workspace || (currentWorkspace ? this.inspectionPermissions.get(currentWorkspace) ?? 0 : 0) !== permissionGeneration) {
-          throw new Error('Workspace access changed while exporting its PDF. Export again with current authority.')
-        }
-      }
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
-        throw new Error('The tab closed while exporting its PDF. Open the page and export again.')
-      }
-      if (documentCommitted || tab.navigationGeneration !== navigationGeneration) {
-        throw new Error('The page changed while exporting its PDF. Export the current page again.')
-      }
+  /**
+   * The narrow view a PDF export gets of this manager's private tabs,
+   * workspaces, inspection permissions, page presentation, agent pointer,
+   * download writing and export file name. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it. The delegate below returns the feature's promise
+   * directly, so no extra ticks separate its final checks from the caller.
+   */
+  private pdfExportAccess(): PdfExportAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      isDestroyed: () => this.destroyed,
+      withRenderableTab: (tab, operation, mode) => this.withRenderableTab(tab, operation, mode),
+      dismissAgentPointer: (webContents) => this.dismissAgentPointer(webContents),
+      writeUniqueDownload: (filename, data, validate) => this.writeUniqueDownload(filename, data, validate),
+      pdfFilename: (requested, title) => pdfFilename(requested, title)
     }
-    assertCurrent()
-    // A navigation may already have started when export is requested. Its
-    // later commit does not increment navigationGeneration a second time.
-    webContents.on('did-navigate', onDocumentCommitted)
-    try {
-      const data = await this.withRenderableTab(tab, async () => {
-        assertCurrent()
-        // An agent's cursor is fixed to the viewport, so it would print on every page.
-        await this.dismissAgentPointer(webContents)
-        assertCurrent()
-        return webContents.printToPDF({
-          landscape: options.landscape ?? false,
-          pageSize: options.pageSize ?? 'Letter',
-          printBackground: true,
-          preferCSSPageSize: options.preferCSSPageSize ?? false,
-          // Chromium renders only the pages in range, so a tiny authored page size cannot run on for thousands of pages.
-          ...(options.preferCSSPageSize ? { pageRanges: `1-${CSS_PAGE_SIZE_PAGE_LIMIT + 1}` } : {}),
-          // Chromium 152 writes no outline into an untagged PDF.
-          ...(options.outline ? { generateDocumentOutline: true, generateTaggedPDF: true } : {})
-        })
-      }, 'print')
-      assertCurrent()
-      if (options.preferCSSPageSize) {
-        const pages = pdfPageCount(data)
-        if (pages === undefined) throw new Error('Hronaut could not count the pages of this PDF, so it was not saved. Export again without preferCSSPageSize.')
-        if (pages > CSS_PAGE_SIZE_PAGE_LIMIT) {
-          throw new Error(`This PDF has more than ${CSS_PAGE_SIZE_PAGE_LIMIT.toLocaleString('en-US')} pages with preferCSSPageSize, so it was not saved. Check the page's CSS @page size, or export without preferCSSPageSize to use pageSize instead.`)
-        }
-      }
-      const path = await this.writeUniqueDownload(filename, data, assertCurrent)
-      if (deferExport) {
-        deferExport({ assertCurrent, discard })
-        publicationDeferred = true
-      }
-      return { filename: basename(path), path, bytes: data.length }
-    } finally {
-      if (!publicationDeferred) discard()
-    }
+  }
+
+  savePdf(options: BrowserPdfOptions = {}, validateExport?: () => void, deferExport?: (pending: PendingPdfExport) => void): Promise<BrowserPdfExport> {
+    return savePdf(this.pdfExportAccess(), options, validateExport, deferExport)
   }
 
   /**
@@ -9244,134 +8789,6 @@ export class BrowserTabsManager {
       tab.zoomIsolated,
       tab.defaultFontSize
     )
-  }
-
-  private async applyEmulationState(
-    tab: BrowserTab,
-    state: BrowserEmulationState,
-    extraHttpHeaders: Record<string, string>,
-    send: (method: string, params?: Record<string, unknown>) => Promise<unknown>
-  ): Promise<void> {
-    this.requireNetworkConditionsKnown(tab)
-    const webContents = tab.webContents
-    const routes = tab.networkRoutes
-    const epoch = tab.networkConditionEpoch
-    const projection = routes.map(route => ({ ...route }))
-    await send('Network.enable')
-    await send('Network.setCacheDisabled', {
-      cacheDisabled: state.cacheDisabled
-    })
-    await send('Network.setBypassServiceWorker', {
-      bypass: state.bypassServiceWorker
-    })
-    this.requireNetworkConditionsKnown(tab)
-    if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation context changed before application')
-    tab.networkConditionApplication = 'pending'
-    try {
-      await this.applyNetworkEmulation(webContents, state.network, projection, async (method, params) => {
-        this.requireNetworkConditionsKnown(tab)
-        if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation context changed')
-        return send(method, params)
-      })
-      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkConditionEpoch !== epoch || tab.networkRoutes !== routes) throw new Error('Network emulation acknowledgement was superseded')
-      // A proposed throttle is not yet the retained throttle. Keep Network
-      // pending until the entire emulation configuration commits atomically.
-      tab.networkConditionApplication = state.network === tab.emulation.network ? 'confirmed' : 'pending'
-    } catch (error) {
-      this.markNetworkConditionsUnknown(tab)
-      this.changed(false)
-      throw error
-    }
-    await send(
-      'Emulation.setDataSaverOverride',
-      state.dataSaver === 'auto' ? {} : { dataSaverEnabled: state.dataSaver === 'enabled' }
-    )
-    await send('Network.setExtraHTTPHeaders', { headers: extraHttpHeaders })
-    await send('Emulation.setCPUThrottlingRate', {
-      rate: state.cpuThrottlingRate
-    })
-    await send('Animation.enable')
-    await send('Animation.setPlaybackRate', {
-      playbackRate: state.animationPlaybackRate ?? 1
-    })
-    const features: Array<{ name: string; value: string }> = []
-    if (state.colorScheme !== 'auto') {
-      features.push({ name: 'prefers-color-scheme', value: state.colorScheme })
-    }
-    if (state.reducedMotion !== 'auto') {
-      features.push({ name: 'prefers-reduced-motion', value: state.reducedMotion })
-    }
-    if (state.forcedColors !== 'auto') {
-      features.push({ name: 'forced-colors', value: state.forcedColors })
-    }
-    if (state.contrast !== 'auto') {
-      features.push({ name: 'prefers-contrast', value: state.contrast })
-    }
-    if (state.reducedTransparency !== 'auto') {
-      features.push({ name: 'prefers-reduced-transparency', value: state.reducedTransparency })
-    }
-    await send('Emulation.setEmulatedMedia', {
-      media: state.mediaType === 'auto' ? '' : state.mediaType,
-      features
-    })
-    await send('Emulation.setEmulatedVisionDeficiency', {
-      type: state.visionDeficiency
-    })
-    await send('Emulation.setUserAgentOverride', {
-      // Leave the UA override empty to preserve native Client Hints when only
-      // acceptLanguage changes; an explicit UA keeps its existing semantics.
-      userAgent: state.userAgent ?? '',
-      ...(state.locale ? { acceptLanguage: state.locale } : {})
-    })
-    await send('Emulation.setLocaleOverride', {
-      locale: state.locale ?? ''
-    })
-    await send('Emulation.setTimezoneOverride', {
-      timezoneId: state.timezoneId ?? ''
-    })
-    if (state.viewport) {
-      await send('Emulation.setDeviceMetricsOverride', {
-        width: state.viewport.width,
-        height: state.viewport.height,
-        deviceScaleFactor: state.viewport.deviceScaleFactor,
-        mobile: state.viewport.mobile,
-        screenOrientation: {
-          type: state.viewport.orientation === 'landscape' ? 'landscapePrimary' : 'portraitPrimary',
-          angle: state.viewport.orientation === 'landscape' ? 90 : 0
-        }
-      })
-      await send('Emulation.setTouchEmulationEnabled', {
-        enabled: state.viewport.touch,
-        maxTouchPoints: state.viewport.touch ? 5 : 1
-      })
-    } else {
-      await send('Emulation.clearDeviceMetricsOverride')
-      await send('Emulation.setTouchEmulationEnabled', { enabled: false })
-    }
-    if (state.geolocation) {
-      await send('Emulation.setGeolocationOverride', { ...state.geolocation })
-    } else {
-      await send('Emulation.clearGeolocationOverride')
-    }
-    // An empty override resolves every safe-area variable to 0px, matching a
-    // tab that never had one; there is no separate clear command.
-    await send('Emulation.setSafeAreaInsetsOverride', { insets: state.safeAreaInsets ?? {} })
-    // Omitting scale removes the override and restores the browser's preference.
-    await send('Emulation.setEmulatedOSTextScale', state.osTextScale === undefined ? {} : { scale: state.osTextScale })
-    // There is no clear command; a difference of 0 matches a desktop tab with no browser controls.
-    await send('Emulation.setSmallViewportHeightDifferenceOverride', { difference: state.smallViewportHeightDifference ?? 0 })
-    await send('Emulation.setScriptExecutionDisabled', {
-      value: state.javaScriptDisabled === true
-    })
-    const renderingDebug = { ...DEFAULT_RENDERING_DEBUG, ...state.renderingDebug }
-    await send('DOM.enable')
-    await send('Overlay.enable')
-    await send('Overlay.setShowPaintRects', { result: renderingDebug.paintFlashing })
-    await send('Overlay.setShowLayoutShiftRegions', { result: renderingDebug.layoutShiftRegions })
-    await send('Overlay.setShowDebugBorders', { show: renderingDebug.layerBorders })
-    await send('Overlay.setShowFPSCounter', { show: renderingDebug.fpsCounter })
-    await send('Overlay.setShowScrollBottleneckRects', { show: renderingDebug.scrollBottlenecks })
-    if (!Object.values(renderingDebug).some(Boolean)) await send('Overlay.disable')
   }
 
   private async applyNetworkEmulation(
