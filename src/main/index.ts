@@ -12,7 +12,6 @@ import { AgentCardOverlay } from './agent-card-overlay.js'
 import { ToastOverlay } from './toast-overlay.js'
 import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { AgentCardEvent } from '../shared/agent-card.js'
-import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
 import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
@@ -70,15 +69,13 @@ import {
 } from './startup-launch.js'
 import {
   McpHttpServer,
-  mcpToolCatalogForSet,
   type SiteDataType
 } from './mcp/server.js'
 import { createHomeDashboard } from './home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
 import { loadMcpToken } from './mcp-token-store.js'
-import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
-import { AuditReceiptService } from './mcp/audit-receipt-service.js'
+import { createAgentServices, type AgentServicesState } from './agent-services.js'
 import { McpPauseState } from './mcp-pause-state.js'
 import { McpActionTracker } from './mcp/action-tracker.js'
 import { createMcpRuntime, type McpRuntimeState } from './mcp-runtime.js'
@@ -279,10 +276,12 @@ let initializedTabsManager: BrowserTabsManager | null = null
 const workspaceStartupReads = new WorkspaceStartupReads()
 let workspaceStartupFailure: WorkspaceMetadataError | undefined
 let requireExistingWorkspaceMetadata = false
-let mcpCapabilityProfiles: McpCapabilityProfileStore | null = null
-let auditReceipts: AuditReceiptService | null = null
-let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
-let taskRuns: import('./mcp/task-run-service.js').TaskRunService | null = null
+const agentServices: AgentServicesState = {
+  capabilityProfiles: null,
+  auditReceipts: null,
+  humanWaiting: null,
+  taskRuns: null
+}
 const walletRuntime: WalletRuntimeState = {
   service: null,
   broker: null,
@@ -457,6 +456,12 @@ const {
   setSettings: (value) => { settingsState.current = value },
   publishSettings,
   updateSettings
+})
+const { openCapabilityProfiles, startAgentServices } = createAgentServices({
+  state: agentServices,
+  mcpActionTracker,
+  userAttention: userAttentionState,
+  endUserAttention
 })
 const {
   copyTextToClipboard,
@@ -881,7 +886,7 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     tabs: () => tabsManager,
-    humanWaiting: () => humanWaiting,
+    humanWaiting: () => agentServices.humanWaiting,
     userAttention: () => userAttentionState.request,
     attentionDecisionId: () => userAttentionState.decisionId,
     mcpServer: () => mcpRuntime.server,
@@ -1022,7 +1027,7 @@ function registerIpc(): void {
     refreshHomeAfterCommittedChange,
     setMcpPort,
     resetMcpSettings,
-    mcpCapabilityProfiles: () => mcpCapabilityProfiles
+    mcpCapabilityProfiles: () => agentServices.capabilityProfiles
   })
   registerPermissionsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
@@ -1079,27 +1084,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
-  if (!humanWaiting) {
-    const { HumanWaitingService } = await import('./mcp/human-waiting-service.js')
-    const { HumanWaitingPersistence } = await import('./mcp/human-waiting-persistence.js')
-    humanWaiting = new HumanWaitingService(new HumanWaitingPersistence(join(app.getPath('userData'), 'human-waiting.json')))
-    humanWaiting.onSaved((records) => {
-      // A decision's request ends with the decision, however it ends.
-      const decisionId = userAttentionState.decisionId
-      if (!decisionId || !userAttentionState.request) return
-      const record = records.find((candidate) => candidate.id === decisionId)
-      if (!record || !humanWaitingDecisionOpen(record.state)) endUserAttention({ keepPending: true })
-    })
-  }
-  if (!taskRuns) {
-    const { TaskRunService } = await import('./mcp/task-run-service.js')
-    const { TaskRunPersistence } = await import('./mcp/task-run-persistence.js')
-    taskRuns = new TaskRunService(new TaskRunPersistence(join(app.getPath('userData'), 'task-runs.json')))
-  }
-  auditReceipts ??= new AuditReceiptService(
-    join(app.getPath('userData'), 'audit-receipts'),
-    new Set(mcpToolCatalogForSet('complete').filter(tool => tool.name.startsWith('browser_')).map(tool => tool.name))
-  )
+  await startAgentServices()
   tabsManager = new BrowserTabsManager(mainWindowRefs.window, {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
@@ -1132,13 +1117,13 @@ async function createWindow(startMinimized = false): Promise<void> {
       takeOvers.resolvedOn(tabId)
     },
     onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
-      auditReceipts?.recordSiteAccess(workspaceId, decision, source)
+      agentServices.auditReceipts?.recordSiteAccess(workspaceId, decision, source)
     },
     onWorkspaceClosed: (workspaceId) => {
       mcpRuntime.server?.forgetAgentWorkspaceSteps(workspaceId)
       // Closing can itself be part of an active browser operation. Finalize
       // asynchronously so that operation can write its reserved outcome first.
-      void Promise.resolve().then(() => auditReceipts?.stop(workspaceId)).catch(() => {
+      void Promise.resolve().then(() => agentServices.auditReceipts?.stop(workspaceId)).catch(() => {
         console.error('[audit] Failed to finalize receipts for a closed workspace.')
       })
     },
@@ -1346,7 +1331,7 @@ async function releaseRuntimeResources(): Promise<void> {
     historyStore?.dispose()
     const results = [
       ...await Promise.allSettled([server?.stop()]),
-      ...await Promise.allSettled([auditReceipts?.stopAll()]),
+      ...await Promise.allSettled([agentServices.auditReceipts?.stopAll()]),
       // A workspace closed with Undo still on offer is deleted now, and so is one closed while quitting.
       ...await Promise.allSettled([undoOffers.close()]),
       ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
@@ -1396,13 +1381,13 @@ function createRuntimeMcpServer(
       if (!commercialLicenseRuntime.store) throw new Error('License storage is unavailable')
       commercialLicenseRuntime.store.assertAutomationAccess()
     },
-    auditReceipts: auditReceipts ?? undefined,
-    humanWaiting: humanWaiting ?? undefined,
-    taskRuns: taskRuns ?? undefined,
+    auditReceipts: agentServices.auditReceipts ?? undefined,
+    humanWaiting: agentServices.humanWaiting ?? undefined,
+    taskRuns: agentServices.taskRuns ?? undefined,
     host: mcpRuntime.host,
     port,
     token: authenticationEnabled ? mcpRuntime.tokenConfiguration.token : undefined,
-    capabilityProfiles: mcpCapabilityProfiles ?? undefined,
+    capabilityProfiles: agentServices.capabilityProfiles ?? undefined,
     version: app.getVersion(),
     toolSet: settingsState.current.mcpToolSet,
     showWindowInactive,
@@ -1512,12 +1497,7 @@ async function startRuntime(): Promise<void> {
     join(app.getPath('userData'), 'mcp-token'),
     process.env.HRONAUT_MCP_TOKEN
   )
-  mcpCapabilityProfiles = new McpCapabilityProfileStore(
-    join(app.getPath('userData'), 'mcp-capability-profiles.json'),
-    () => new Date(),
-    () => mcpActionTracker.invalidatePendingDispatches()
-  )
-  await mcpCapabilityProfiles.load()
+  await openCapabilityProfiles()
   configureAutoUpdater()
   startupLaunchManager = new StartupLaunchManager({
     platform: process.platform,
