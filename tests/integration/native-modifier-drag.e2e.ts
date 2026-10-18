@@ -22,6 +22,7 @@ interface PadEvent {
 interface DragState {
   events: PadEvent[]
   drops: Array<{ x: number; y: number }>
+  hovers: number
 }
 
 // A canvas-style pad: Shift keeps a drag on its main axis, Alt snaps the drop to a 50px grid.
@@ -31,10 +32,13 @@ const PAGE = `<!doctype html><title>Modifier drag fixture</title>
 <div id="pad"><div id="from"></div><div id="to"></div></div>
 <script>
   let start = null
-  window.dragState = { events: [], drops: [] }
+  window.dragState = { events: [], drops: [], hovers: 0 }
   const pad = document.querySelector('#pad')
   for (const type of ['pointermove', 'pointerdown', 'pointerup']) pad.addEventListener(type, event => {
-    if (type === 'pointermove' && !event.buttons) return
+    if (type === 'pointermove' && !event.buttons) {
+      window.dragState.hovers += 1
+      return
+    }
     window.dragState.events.push({ type, shift: event.shiftKey, alt: event.altKey, ctrl: event.ctrlKey, meta: event.metaKey, buttons: event.buttons, trusted: event.isTrusted })
     if (type === 'pointerdown') start = { x: event.clientX, y: event.clientY }
     if (type !== 'pointerup' || !start) return
@@ -86,7 +90,7 @@ test('sends Shift, Alt and ControlOrMeta on every mouse event of one drag, and d
     const ready = await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, selector: '#to', state: 'visible' } }) as CallToolResult
     expect(ready.isError, textOf(ready)).not.toBe(true)
     const dragState = () => call<DragState>('browser_evaluate', { workspaceId, tabId, script: 'window.dragState' })
-    const resetState = () => call('browser_evaluate', { workspaceId, tabId, script: 'JSON.stringify((window.dragState = { events: [], drops: [] }, true))' })
+    const resetState = () => call('browser_evaluate', { workspaceId, tabId, script: 'JSON.stringify((window.dragState = { events: [], drops: [], hovers: 0 }, true))' })
     // Every pressed pointer event of the drag carries exactly these keys, and the drag starts and ends once.
     const expectDrag = async (keys: Pick<PadEvent, 'shift' | 'alt' | 'ctrl' | 'meta'>, drop: { x: number; y: number }) => {
       const state = await dragState()
@@ -121,9 +125,12 @@ test('sends Shift, Alt and ControlOrMeta on every mouse event of one drag, and d
     }
     expect((await dragState()).events).toEqual([])
 
-    // The input guard of a tab the person locked admits the agent's pressed moves, with or without keys.
+    // The input guard of a tab the person locked admits the agent's hover and pressed moves, with or without keys.
     await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(tabId)}, true)`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.humanInteractionLocked)`)).toBe(true)
+    await call('browser_hover', { workspaceId, tabId, x: 120, y: 120 })
+    expect((await dragState()).hovers).toBeGreaterThan(0)
+    await resetState()
     await coordinateDrag()
     await expectDrag(none, { x: 250, y: 110 })
     expect(await coordinateDrag(['Shift'])).toMatchObject({ ok: true, modifiers: ['Shift'] })

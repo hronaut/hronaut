@@ -189,13 +189,15 @@ function isAuthorizedAgentMouseInput<Tab extends AgentInputAuthorizationTab>(
   const expected = access.authorizedAgentMouseInput().get(webContentsId)
   // Electron's before-mouse-event omits modifiers, which also carry the held
   // buttons, so a pressed drag move or a modifier click is compared on the
-  // fields it does report.
+  // fields it does report. It reports a move with no button as 'none', which
+  // the CDP command leaves out.
   const reported = mouse.modifiers !== undefined
+  const button = (mouse.button as string | undefined) === 'none' ? undefined : mouse.button
   const matches = expected !== undefined
     && mouse.type === expected.type
     && Math.abs(mouse.x - expected.x) < 1
     && Math.abs(mouse.y - expected.y) < 1
-    && mouse.button === expected.button
+    && button === expected.button
     && (!reported || electronButtonBits(mouse.modifiers) === expected.buttons)
     && (mouse.clickCount ?? 0) === expected.clickCount
     && (!reported || electronModifierBits(mouse.modifiers) === expected.modifiers)

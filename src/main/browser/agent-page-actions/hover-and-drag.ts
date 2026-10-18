@@ -85,7 +85,7 @@ const DRAG_MODIFIER_BITS = { Alt: 1, Control: 2, Meta: 4, Shift: 8 } as const
 function dragModifierBits(modifiers: readonly BrowserDragModifier[], platform: NodeJS.Platform): number {
   if (!modifiers.length || new Set(modifiers).size !== modifiers.length
     || modifiers.some(modifier => modifier !== 'Shift' && modifier !== 'Alt' && modifier !== 'ControlOrMeta')) {
-    throw new TypeError('Drag modifiers must name each of Shift, Alt or ControlOrMeta at most once.')
+    throw new TypeError('Drag modifiers must name one to three of Shift, Alt or ControlOrMeta, each once.')
   }
   return modifiers.reduce((bits, modifier) => bits
     | (modifier === 'ControlOrMeta' ? DRAG_MODIFIER_BITS[platform === 'darwin' ? 'Meta' : 'Control'] : DRAG_MODIFIER_BITS[modifier]), 0)

@@ -21,7 +21,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- An agent's drag on a tab whose input you locked now moves the pointer while the button is held. Before, Hronaut's lock let only the press and the release through, so the page saw the button go down and come up somewhere else with no movement in between, and a page that follows the pointer while the button is held, such as a canvas editor or a sortable list, saw no drag, although `browser_drag` reported success.
+- An agent's hover or drag on a tab whose input you locked now reaches the page. Before, Hronaut's lock kept out every pointer move the agent made: `browser_hover` reported success but the page saw no movement, so no hover menu or tooltip opened, and a drag delivered only its press and release, so a page that follows the pointer while the button is held, such as a canvas editor or a sortable list, saw no drag, although `browser_drag` reported success. Your own pointer input stays locked out.
 - When Hronaut refuses a wallet transaction without asking anyone, for example a send from a watch-only account, the page or agent now gets the reason, such as `Wallet policy rejected the request: wallet-capability-disabled`, instead of "Wallet request was rejected by the user". No person saw those requests. Pages still get error code 4001.
 
 ## [3.0.0] - 2026-10-17

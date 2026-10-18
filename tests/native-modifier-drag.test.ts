@@ -99,7 +99,7 @@ describe('native modifier drags', () => {
   ])('rejects %s before touching the page', async (_name, modifiers) => {
     const access = {} as AgentPageActionsAccess<AgentPageActionsTab>
     await expect(drag(access, { ...coordinates, modifiers: modifiers as BrowserDragModifier[] }))
-      .rejects.toThrow('Drag modifiers must name each of Shift, Alt or ControlOrMeta at most once.')
+      .rejects.toThrow('Drag modifiers must name one to three of Shift, Alt or ControlOrMeta, each once.')
   })
 })
 
@@ -166,5 +166,15 @@ describe('locked tab input guard for drags', () => {
   it('blocks a move that is not the recorded one', () => {
     expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ y: 90 }))).toBe(true)
     expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ type: 'mouseDown' }))).toBe(true)
+    // A hover is what Electron reports for a move with no button held.
+    expect(shouldBlockHumanMouseInput(access(pressedMove), tab, move({ button: 'none' as 'left' }))).toBe(true)
+  })
+
+  it('admits the agent hover, which Electron reports with button none', () => {
+    const hover: AuthorizedAgentMouseInput = { type: 'mouseMove', x: 30, y: 40, button: undefined, buttons: 0, clickCount: 0, modifiers: 0 }
+    const guard = access(hover)
+    expect(shouldBlockHumanMouseInput(guard, tab, move({ button: 'left' }))).toBe(true)
+    expect(shouldBlockHumanMouseInput(guard, tab, move({ button: 'none' as 'left' }))).toBe(false)
+    expect(shouldBlockHumanMouseInput(guard, tab, move({ button: 'none' as 'left' }))).toBe(true)
   })
 })
