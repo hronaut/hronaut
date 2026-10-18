@@ -63,7 +63,7 @@ import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
-import { recordNetworkDebuggerMessage, retireNetworkPriorityObservations, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
+import { retireNetworkPriorityObservations, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
@@ -188,15 +188,6 @@ import { accessibilityAudit } from './page-audits/accessibility-audit.js'
 import type { DebugReportAccess } from './debug-report/debug-report-access.js'
 import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
-import {
-  normalizeConsoleLogEntry,
-  normalizeRuntimeConsoleCall,
-  normalizeRuntimeConsolePresentation,
-  normalizeRuntimeException,
-  type CdpLogEntry,
-  type CdpRuntimeConsoleCall,
-  type CdpRuntimeExceptionDetails
-} from '../../shared/console-exceptions.js'
 import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
@@ -453,6 +444,8 @@ import {
 import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
+import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
+import { attachDebuggerEvents } from './tab-events/debugger-events.js'
 import type { PageFocusEventsAccess } from './tab-events/page-focus-events-access.js'
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
 import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
@@ -6685,116 +6678,7 @@ export class BrowserTabsManager {
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
-    webContents.debugger.on('message', (_event, method, params) => {
-      if (method === 'Fetch.requestPaused') {
-        this.queueNetworkRouteRequest(tab, params)
-      } else if (method.startsWith('Network.')) {
-        recordNetworkDebuggerMessage(tab, method, params)
-        this.networkWaitController.notify(tab)
-      } else if (method === 'Page.frameNavigated') {
-        const frame = (params as { frame?: { id?: string; parentId?: string } }).frame
-        if (frame?.id && !frame.parentId) tab.mainFrameId = frame.id
-      } else if (method === 'Log.entryAdded') {
-        const message = normalizeConsoleLogEntry((params as { entry?: CdpLogEntry }).entry)
-        if (message) appendConsoleMessage(tab, message, 'log')
-      } else if (method === 'Runtime.exceptionThrown') {
-        const message = normalizeRuntimeException(params as {
-          timestamp?: number
-          exceptionDetails?: CdpRuntimeExceptionDetails
-        })
-        if (message) appendConsoleMessage(tab, message, 'runtime')
-      } else if (method === 'Runtime.consoleAPICalled') {
-        const call = params as CdpRuntimeConsoleCall
-        const formatted = normalizeRuntimeConsolePresentation(call)
-        const message = formatted?.match ?? normalizeRuntimeConsoleCall(call)
-        if (message) retainRuntimeConsoleMessage(tab, { ...message,
-          ...(formatted ? { presentation: formatted.presentation } : {})
-        })
-      } else if (method === 'Runtime.exceptionRevoked') {
-        const exceptionId = (params as { exceptionId?: number }).exceptionId
-        if (Number.isFinite(exceptionId)) {
-          const message = [...tab.consoleMessages].reverse().find((candidate) => candidate.exceptionId === exceptionId)
-          if (message) message.handled = true
-        }
-      } else if (method === 'Runtime.executionContextCreated') {
-        const details = params as {
-          context?: { id?: number; uniqueId?: string; auxData?: { frameId?: string; isDefault?: boolean } }
-        }
-        const context = details.context
-        const frameId = context?.auxData?.frameId
-        if (context?.auxData?.isDefault && frameId && context.id !== undefined) {
-          const contexts = this.defaultExecutionContexts.get(webContents.id) ?? new Map<string, { id: number; uniqueId?: string }>()
-          contexts.set(frameId, { id: context.id, uniqueId: context.uniqueId })
-          this.defaultExecutionContexts.set(webContents.id, contexts)
-        }
-      } else if (method === 'Runtime.executionContextDestroyed') {
-        const contextId = (params as { executionContextId?: number }).executionContextId
-        if (contextId !== undefined) {
-          const contexts = this.defaultExecutionContexts.get(webContents.id)
-          for (const [frameId, id] of contexts ?? []) {
-            if (id.id === contextId) contexts?.delete(frameId)
-          }
-        }
-      } else if (method === 'Runtime.executionContextsCleared') {
-        this.defaultExecutionContexts.delete(webContents.id)
-      } else if (method === 'Page.javascriptDialogOpening') {
-        const details = params as {
-          type?: string
-          message?: string
-          url?: string
-          defaultPrompt?: string
-        }
-        if (!['alert', 'confirm', 'prompt'].includes(details.type ?? '')) return
-        if (this.browserContentOccluded) {
-          void this.dismissWebsiteDialogForTrustedChrome(tab)
-          return
-        }
-        tab.dialog = {
-          type: details.type as BrowserJavaScriptDialog['type'],
-          message: String(details.message ?? '').slice(0, 4096),
-          url: String(details.url ?? tab.url).slice(0, 8192),
-          ...(details.defaultPrompt !== undefined ? { defaultPrompt: String(details.defaultPrompt).slice(0, 4096) } : {})
-        }
-        this.changed(false)
-      } else if (method === 'Page.javascriptDialogClosed') {
-        tab.dialog = undefined
-        this.changed(false)
-      } else if (method === 'Audits.issueAdded') {
-        this.addInspectorIssue(tab, (params as { issue?: unknown }).issue)
-      } else if (method === 'CSS.styleSheetAdded' || method === 'CSS.styleSheetRemoved') {
-        this.profiling.handleDebuggerMessage(tab, method, params)
-      }
-    })
-    webContents.debugger.on('detach', () => {
-      tab.networkConditionEpoch++
-      tab.networkDebuggerEpoch++
-      tab.emulationRevision++
-      tab.emulationContextGeneration++
-      tab.emulationApplication = 'unknown'
-      tab.nativeInputEnvironmentGeneration++
-      tab.networkConditionApplication = 'unknown'
-      retireNetworkPriorityObservations(tab)
-      tab.dialog = undefined
-      tab.mainFrameId = undefined
-      tab.networkDebuggerEnabled = false
-      if (tab.pageLifecycleState === 'frozen') {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest = 'frozen'
-      }
-      this.profiling.handleDebuggerDetached(tab)
-      this.cssStatePreview.debuggerDetached(tab)
-      this.defaultExecutionContexts.delete(webContents.id)
-      this.changed(false)
-      this.setEmulationViewSize(tab, undefined)
-      if (
-        !this.destroyed
-        && this.tabs.has(tab.id)
-        && !this.devToolsOpening.has(webContents.id)
-        && !webContents.isDevToolsOpened()
-      ) {
-        setImmediate(() => { void this.ensureDialogMonitoring(tab) })
-      }
-    })
+    attachDebuggerEvents(this.debuggerEventsAccess(), tab, webContents)
     void this.ensureDialogMonitoring(tab)
     const syncNavigation = (): void => {
       if (this.destroyed || webContents.isDestroyed()) return
@@ -6993,6 +6877,36 @@ export class BrowserTabsManager {
     attachConsoleMessageEvents(tab, webContents)
     attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
     attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
+  }
+
+  /**
+   * The narrow view a page's debugger listeners get of this manager's private
+   * request rules, network waits, console messages, execution contexts,
+   * trusted chrome occlusion, website dialogs, inspector issues, profiling,
+   * CSS state preview, emulation sizing, tabs, DevTools opening set, dialog
+   * monitoring and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. Each member reads the manager when called.
+   */
+  private debuggerEventsAccess(): DebuggerEventsAccess<BrowserTab> {
+    return {
+      queueNetworkRouteRequest: (tab, params) => this.queueNetworkRouteRequest(tab, params),
+      networkWaitController: () => this.networkWaitController,
+      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
+      retainRuntimeConsoleMessage: (tab, message) => retainRuntimeConsoleMessage(tab, message),
+      defaultExecutionContexts: () => this.defaultExecutionContexts,
+      browserContentOccluded: () => this.browserContentOccluded,
+      dismissWebsiteDialogForTrustedChrome: (tab) => this.dismissWebsiteDialogForTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      addInspectorIssue: (tab, value) => this.addInspectorIssue(tab, value),
+      profiling: () => this.profiling,
+      cssStatePreview: () => this.cssStatePreview,
+      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
+      isDestroyed: () => this.destroyed,
+      hasTab: (tabId) => this.tabs.has(tabId),
+      devToolsOpening: () => this.devToolsOpening,
+      ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab)
+    }
   }
 
   /**
