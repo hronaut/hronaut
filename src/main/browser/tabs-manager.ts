@@ -378,12 +378,19 @@ import {
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
-import { isAgentWorkspaceNavigationUrl, isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from './workspace-navigation-policy.js'
+import type { WorkspaceNavigationAccess } from './workspace-navigation/workspace-navigation-access.js'
+import {
+  assertWorkspaceNavigationAllowed,
+  listWorkspaceNavigationAudit,
+  updateWorkspaceNavigationPolicy,
+  workspaceNavigationAllowed
+} from './workspace-navigation/workspace-navigation.js'
 import {
   destroyWorkspaceStorage,
   flushBrowserSessionStorage,
@@ -412,7 +419,6 @@ const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 /** How long deleting a closed workspace waits for an operation on its archive before leaving it archived. */
 const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
-const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SNAPSHOT_BASELINES = 64
 const MAX_CLOSED_TABS = MAX_TABS
@@ -573,8 +579,6 @@ function isAbortedLoad(error: unknown): boolean {
     || details.code === 'ERR_ABORTED'
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
 }
-
-const AGENT_NAVIGATION_SCHEME_ERROR = 'Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.'
 
 function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: Referrer): LoadURLOptions | undefined {
   const options: LoadURLOptions = {}
@@ -1958,83 +1962,39 @@ export class BrowserTabsManager {
     }
   }
 
-  listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
-    const audit = this.mcpTabGroups.get(groupId)?.navigationAudit
-      ?? this.savedTabGroups.get(groupId)?.navigationAudit
-    if (!audit) throw new Error(`Unknown workspace: ${groupId}.`)
-    return [...audit].reverse().map((entry) => ({ ...entry }))
+  /**
+   * The narrow view the workspace navigation policy gets of this manager's
+   * private tabs, active and archived workspaces, busy workspaces, inspection
+   * permissions, options and state publication. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's
+   * value or promise directly, so no extra ticks separate its final checks
+   * from the caller.
+   */
+  private workspaceNavigationAccess(): WorkspaceNavigationAccess<BrowserTab> {
+    return {
+      findWorkspace: (workspaceId) => this.mcpTabGroups.get(workspaceId),
+      findArchivedWorkspace: (workspaceId) => this.savedTabGroups.get(workspaceId),
+      assertWorkspaceIdle: (workspaceId) => this.assertWorkspaceIdle(workspaceId),
+      inspectionPermission: (workspace) => this.inspectionPermissions.get(workspace),
+      setInspectionPermission: (workspace, generation) => { this.inspectionPermissions.set(workspace, generation) },
+      tabs: () => this.tabs.values(),
+      options: () => this.options,
+      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
+    }
   }
 
-  async updateWorkspaceNavigationPolicy(
+  listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
+    return listWorkspaceNavigationAudit(this.workspaceNavigationAccess(), groupId)
+  }
+
+  updateWorkspaceNavigationPolicy(
     groupId: string,
     value: BrowserWorkspaceNavigationPolicy
   ): Promise<BrowserState> {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    this.assertWorkspaceIdle(groupId)
-    const policy = normalizeWorkspaceNavigationPolicy(value)
-    if (group.contextClass === 'public-observer'
-      && JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) {
-      throw new Error('A public observer origin cannot be changed or widened.')
-    }
-    if (JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) this.inspectionPermissions.set(group, (this.inspectionPermissions.get(group) ?? 0) + 1)
-    group.navigationPolicy = policy
-    group.lastUsedAt = new Date().toISOString()
-    for (const tab of this.tabs.values()) {
-      if (tab.mcpGroupId !== groupId) continue
-      const decision = this.workspaceNavigationDecision(groupId, tab.url)
-      this.options.onWorkspaceNavigationDecision?.(groupId, decision, 'policy-change')
-      if (decision.allowed) continue
-      this.recordWorkspaceNavigationDenied(groupId, decision, 'policy-change')
-      this.prepareDiagnosticNavigation(tab)
-      try {
-        await tab.webContents.loadURL('about:blank')
-      } catch (error) {
-        if (!isAbortedLoad(error)) throw error
-      }
-    }
-    this.changed()
-    return this.getState()
-  }
-
-  private workspaceNavigationDecision(groupId: string, url: string): WorkspaceNavigationDecision {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    const decision = evaluateWorkspaceNavigation(group.navigationPolicy, url)
-    if (isAgentWorkspaceNavigationUrl(url) || !decision.allowed) return decision
-    return { allowed: false, targetOrigin: decision.targetOrigin, reason: 'unsupported-scheme' }
-  }
-
-  private recordWorkspaceNavigationDenied(
-    groupId: string,
-    decision: WorkspaceNavigationDecision,
-    source: BrowserWorkspaceNavigationAuditSource
-  ): void {
-    if (decision.allowed || (
-      decision.reason !== 'credentials'
-      && decision.reason !== 'malformed'
-      && decision.reason !== 'unsupported-scheme'
-      && decision.reason !== 'no-match'
-    )) return
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) return
-    const previous = group.navigationAudit.at(-1)
-    if (
-      previous
-      && previous.targetOrigin === decision.targetOrigin
-      && previous.reason === decision.reason
-      && previous.source === source
-      && Date.now() - Date.parse(previous.timestamp) < 1_000
-    ) return
-    group.navigationAudit.push({
-      id: uuidV7(),
-      timestamp: new Date().toISOString(),
-      targetOrigin: decision.targetOrigin,
-      reason: decision.reason,
-      source
-    })
-    if (group.navigationAudit.length > MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES) group.navigationAudit.shift()
-    this.changed()
+    return updateWorkspaceNavigationPolicy(this.workspaceNavigationAccess(), groupId, value)
   }
 
   private workspaceNavigationAllowed(
@@ -2042,11 +2002,7 @@ export class BrowserTabsManager {
     url: string,
     source: BrowserWorkspaceNavigationAuditSource
   ): boolean {
-    const decision = this.workspaceNavigationDecision(groupId, url)
-    this.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
-    if (decision.allowed) return true
-    this.recordWorkspaceNavigationDenied(groupId, decision, source)
-    return false
+    return workspaceNavigationAllowed(this.workspaceNavigationAccess(), groupId, url, source)
   }
 
   private assertWorkspaceNavigationAllowed(
@@ -2054,14 +2010,7 @@ export class BrowserTabsManager {
     url: string,
     source: BrowserWorkspaceNavigationAuditSource
   ): void {
-    const decision = this.workspaceNavigationDecision(groupId, url)
-    this.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
-    if (decision.allowed) return
-    this.recordWorkspaceNavigationDenied(groupId, decision, source)
-    if (decision.reason !== 'no-match') throw new Error(AGENT_NAVIGATION_SCHEME_ERROR)
-    throw new Error(
-      `Workspace navigation to ${decision.targetOrigin} is blocked. Allow this origin in the trusted workspace Site access settings.`
-    )
+    assertWorkspaceNavigationAllowed(this.workspaceNavigationAccess(), groupId, url, source)
   }
 
   mcpWorkspaceResumeKey(workspaceId: string): string {
