@@ -399,6 +399,8 @@ import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
 import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
+import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
+import { setZoom } from './page-zoom/page-zoom.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
@@ -487,7 +489,6 @@ const MAX_AGENT_STEP_THUMBNAIL_WIDTH = 320
 const MAX_AGENT_STEP_THUMBNAIL_HEIGHT = 200
 const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
 const MIN_SHELL_HEIGHT = 44
-const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
 const ABORTED_LOAD_ERROR = -3
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
@@ -3985,24 +3986,23 @@ export class BrowserTabsManager {
     this.pageFind.stop(this.getTab(tabId).webContents)
   }
 
-  setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
-    const tab = this.getTab(options.tabId)
-    const webContents = tab.webContents
-    tab.nativeInputEnvironmentGeneration += 1
-    const current = Math.round(webContents.getZoomFactor() * 100)
-    let percent: number
-    if (options.action === 'reset') percent = 100
-    else if (options.action === 'in') percent = PAGE_ZOOM_STEPS.find((step) => step > current) ?? PAGE_ZOOM_STEPS.at(-1)!
-    else if (options.action === 'out') percent = [...PAGE_ZOOM_STEPS].reverse().find((step) => step < current) ?? PAGE_ZOOM_STEPS[0]
-    else {
-      if (options.percent === undefined || !Number.isInteger(options.percent) || options.percent < 50 || options.percent > 400) {
-        throw new Error('Page zoom percent must be an integer from 50 to 400')
-      }
-      percent = options.percent
+  /**
+   * The narrow view zooming a page gets of this manager's private tabs and
+   * state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegate below returns the feature's value directly, and stays
+   * synchronous.
+   */
+  private pageZoomAccess(): PageZoomAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    webContents.setZoomFactor(percent / 100)
-    this.changed(false)
-    return this.getState()
+  }
+
+  setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
+    return setZoom(this.pageZoomAccess(), options)
   }
 
   /**
