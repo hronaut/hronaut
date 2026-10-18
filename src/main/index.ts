@@ -386,6 +386,7 @@ const {
   userAttentionForAgents,
   openUserAttentionId,
   agentMovedOn,
+  noteMcpTabActivity,
   createTray
 } = createTrayAttention({
   text,
@@ -400,7 +401,6 @@ const {
   state: userAttentionState,
   agentPresenceSnapshot: () => agentPresenceSnapshot(),
   scheduleAgentPresencePublish: () => scheduleAgentPresencePublish(),
-  activeMcpActivities: () => activeMcpActivities,
   settings: () => settingsState.current,
   setSettings: (value) => { settingsState.current = value },
   publishSettings,
@@ -421,8 +421,6 @@ const {
   text,
   mainWindow: () => mainWindowRefs.window
 })
-
-const activeMcpActivities = new Set<string>()
 
 if (!isLoopbackHost(mcpRuntime.host)) {
   throw new Error('HRONAUT_MCP_HOST must be a loopback host. Use an authenticated TLS proxy for remote access.')
@@ -1203,8 +1201,7 @@ function createRuntimeMcpServer(
     siteData: agentSiteData,
     wallets: agentWallets,
     onTabActivity: (activity, agent) => {
-      if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
-      else activeMcpActivities.delete(activity.activityId)
+      noteMcpTabActivity(activity)
       tabRuntime.tabs?.handleMcpTabActivity(activity, agent)
       if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
         mainWindowRefs.window.webContents.send('browser:mcp-tab-activity', activity)
