@@ -14,6 +14,18 @@ import {
 } from '../shared/agent-card.js'
 import type { ShellTooltipRect } from '../shared/shell-tooltip.js'
 
+/**
+ * What keeps Follow from switching tabs to agent activity, created once by index.ts: the shell's request and an open
+ * agent card. The shell IPC and the card's openChanged port each set their own flag and read both when they run, and
+ * the tab runtime follows only while neither is set.
+ */
+export interface FollowSuspensionState {
+  /** Whether the shell asked to stop following agent activity, as it last reported. */
+  shellSuspended: boolean
+  /** Whether an agent card is open; Follow would switch tabs under it. */
+  agentCardOpen: boolean
+}
+
 /** The native view that draws the agent card above the page views. */
 export interface AgentCardSurface {
   send(state: AgentCardState): void

@@ -8,7 +8,7 @@ import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import { ShellOverlayView } from './shell-overlay-view.js'
-import { AgentCardOverlay } from './agent-card-overlay.js'
+import { AgentCardOverlay, type FollowSuspensionState } from './agent-card-overlay.js'
 import { ToastOverlay } from './toast-overlay.js'
 import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { AgentCardEvent } from '../shared/agent-card.js'
@@ -185,8 +185,7 @@ const agentCardView = new ShellOverlayView({
   urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
   onLost: () => agentCards.surfaceLost()
 })
-let shellFollowAgentActivitySuspended = false
-let agentCardOpen = false
+const followSuspension: FollowSuspensionState = { shellSuspended: false, agentCardOpen: false }
 const agentCards = new AgentCardOverlay({
   surface: () => ensureAgentCardSurface(),
   windowSize: () => {
@@ -201,9 +200,9 @@ const agentCards = new AgentCardOverlay({
     if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.focus()
   },
   openChanged: (open) => {
-    agentCardOpen = open
+    followSuspension.agentCardOpen = open
     // Follow would switch tabs under the open card.
-    tabRuntime.tabs?.setFollowAgentActivitySuspended(shellFollowAgentActivitySuspended || agentCardOpen)
+    tabRuntime.tabs?.setFollowAgentActivitySuspended(followSuspension.shellSuspended || followSuspension.agentCardOpen)
   },
   focusOwner: () => allWebContents.getFocusedWebContents()?.id ?? null
 })
@@ -794,9 +793,7 @@ function registerIpc(): void {
     toastOverlay: () => toastOverlay,
     setWindowControlsScrim: (scrim) => { mainWindowRefs.controlsScrim = scrim },
     applyMainWindowTitleBarOverlay,
-    shellFollowAgentActivitySuspended: () => shellFollowAgentActivitySuspended,
-    setShellFollowAgentActivitySuspended: (value) => { shellFollowAgentActivitySuspended = value },
-    agentCardOpen: () => agentCardOpen
+    followSuspension
   })
   registerHomeIpc({
     handleBrowserIpc,

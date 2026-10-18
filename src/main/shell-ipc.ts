@@ -1,5 +1,6 @@
 import type { BrowserWindow, IpcMain, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import type { AppQuitState } from './app-lifecycle.js'
+import type { FollowSuspensionState } from './agent-card-overlay.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { ToastOverlay } from './toast-overlay.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
@@ -32,10 +33,8 @@ interface ShellIpcHost {
   setWindowControlsScrim(scrim: ScrimColor | null): void
   /** Restyles the native window controls for the current theme and scrim. */
   applyMainWindowTitleBarOverlay(): void
-  /** Whether the shell asked to stop following agent activity; an open agent card suspends it too. */
-  shellFollowAgentActivitySuspended(): boolean
-  setShellFollowAgentActivitySuspended(value: boolean): void
-  agentCardOpen(): boolean
+  /** What suspends following agent activity: the shell's request, which this IPC sets, and an open agent card. */
+  followSuspension: FollowSuspensionState
 }
 
 /**
@@ -104,7 +103,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
     if (host.workspaceStartupFailure()) return
     host.assertMainShellSender(event)
     if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')
-    host.setShellFollowAgentActivitySuspended(suspended)
-    host.tabs()?.setFollowAgentActivitySuspended(host.shellFollowAgentActivitySuspended() || host.agentCardOpen())
+    host.followSuspension.shellSuspended = suspended
+    host.tabs()?.setFollowAgentActivitySuspended(host.followSuspension.shellSuspended || host.followSuspension.agentCardOpen)
   })
 }
