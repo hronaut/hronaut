@@ -74,7 +74,7 @@ import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
 import { BookmarkStore } from './bookmark-store.js'
 import { UndoOffers } from './undo-offers.js'
-import { isUndoToken } from '../shared/undo.js'
+import { registerUndoIpc } from './undo-ipc.js'
 import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
@@ -2570,20 +2570,9 @@ function registerIpc(): void {
     endUserAttention,
     takeOvers: () => takeOvers
   })
-  ipcMain.handle('undo:run', (event, token: unknown) => {
-    assertMainShellSender(event)
-    if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
-    return undoOffers.undo(token)
-  })
-  ipcMain.handle('undo:hold', (event, token: unknown) => {
-    assertMainShellSender(event)
-    if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
-    undoOffers.hold(token)
-  })
-  ipcMain.handle('undo:finish', (event, token: unknown) => {
-    assertMainShellSender(event)
-    if (!isUndoToken(token)) throw new TypeError('Invalid undo token')
-    undoOffers.finish(token)
+  registerUndoIpc(ipcMain, {
+    assertMainShellSender,
+    undoOffers: () => undoOffers
   })
   ipcMain.handle('agent-presence:get', (event): AgentPresenceSnapshot => {
     assertMainShellSender(event)
