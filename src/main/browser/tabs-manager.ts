@@ -64,7 +64,8 @@ import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
 import { trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
-import { performanceEnvironmentFingerprint } from './performance-environment.js'
+import type { PerformanceEnvironmentAccess } from './emulation/performance-environment-access.js'
+import { performanceEnvironment, tabPerformanceEnvironmentFingerprint } from './emulation/performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
 import { applyNetworkEmulation } from './emulation/network-emulation.js'
@@ -7341,53 +7342,24 @@ export class BrowserTabsManager {
     return withRenderableTab(this.renderableTabAccess(), tab, operation, mode)
   }
 
-  private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {
-    this.requireEmulationConfirmed(tab)
-    const bounds = tab.view.getBounds()
-    const viewport = tab.emulation.viewport
+  /**
+   * The narrow view describing a tab's performance environment gets of this
+   * manager's emulation confirmation check. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it.
+   */
+  private performanceEnvironmentAccess(): PerformanceEnvironmentAccess<BrowserTab> {
     return {
-      network: tab.emulation.network,
-      cacheDisabled: tab.emulation.cacheDisabled,
-      bypassServiceWorker: tab.emulation.bypassServiceWorker,
-      dataSaver: tab.emulation.dataSaver,
-      cpuThrottlingRate: tab.emulation.cpuThrottlingRate,
-      animationPlaybackRate: tab.emulation.animationPlaybackRate ?? 1,
-      viewport: viewport
-        ? {
-            width: viewport.width,
-            height: viewport.height,
-            deviceScaleFactor: viewport.deviceScaleFactor,
-            mobile: viewport.mobile,
-            touch: viewport.touch
-          }
-        : {
-            width: bounds.width,
-            height: bounds.height,
-            deviceScaleFactor: 1,
-            mobile: false,
-            touch: false
-          },
-      zoomPercent: Math.round(tab.webContents.getZoomFactor() * 100),
-      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
-      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-      userAgentOverridden: tab.emulation.userAgent !== undefined,
-      localeOverridden: tab.emulation.locale !== undefined,
-      timezoneOverridden: tab.emulation.timezoneId !== undefined,
-      extraHttpHeaders: Boolean(Object.keys(tab.emulationExtraHttpHeaders).length)
+      requireEmulationConfirmed: (tab) => this.requireEmulationConfirmed(tab)
     }
   }
 
+  private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {
+    return performanceEnvironment(this.performanceEnvironmentAccess(), tab)
+  }
+
   private performanceEnvironmentFingerprint(tab: BrowserTab): string {
-    this.requireEmulationConfirmed(tab)
-    const bounds = tab.view.getBounds()
-    return performanceEnvironmentFingerprint(
-      tab.emulation,
-      tab.emulationExtraHttpHeaders,
-      bounds,
-      Math.round(tab.webContents.getZoomFactor() * 100),
-      tab.zoomIsolated,
-      tab.defaultFontSize
-    )
+    return tabPerformanceEnvironmentFingerprint(this.performanceEnvironmentAccess(), tab)
   }
 
   private applyNetworkEmulation(
