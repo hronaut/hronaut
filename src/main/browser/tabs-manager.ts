@@ -249,6 +249,8 @@ import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
+import type { PageGeometryAccess } from './page-geometry/page-geometry-access.js'
+import { getEmulationFrames, getPageCards, publishPageGeometry } from './page-geometry/page-geometry.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -5242,85 +5244,44 @@ export class BrowserTabsManager {
   setSplitDividerRatio(revision: number, ratio: number): SplitDividerGeometry | null { return this.splitDivider.setRatio(revision, ratio) }
 
   /**
-   * Tabs emulating a viewport smaller than their space, for the renderer to
-   * frame. Their pages keep the emulated size, centered in that space.
+   * The narrow view the page cards and emulation frames get of this manager's
+   * private tabs, window, active tab, split view, toolbar height, trusted
+   * chrome occlusion, occluded geometry, view bounds and the geometry last
+   * sent to the shell. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it.
    */
+  private pageGeometryAccess(): PageGeometryAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      findTab: (tabId) => this.tabs.get(tabId),
+      splitView: () => this.splitView,
+      toolbarHeight: () => this.toolbarHeight,
+      browserContentOccluded: () => this.browserContentOccluded,
+      occlusionSnapshot: () => this.occlusionSnapshot,
+      occludedEmulationFrames: () => this.occludedEmulationFrames,
+      occludedPageCards: () => this.occludedPageCards,
+      browserViewBounds: () => this.browserViewBounds(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      lastEmulationFrames: () => this.lastEmulationFrames,
+      setLastEmulationFrames: (serialized) => { this.lastEmulationFrames = serialized },
+      lastPageCards: () => this.lastPageCards,
+      setLastPageCards: (serialized) => { this.lastPageCards = serialized }
+    }
+  }
+
   getEmulationFrames(): EmulationFrameGeometry[] {
-    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
-      || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
-    if (this.browserContentOccluded) return this.occlusionSnapshot.active ? this.occludedEmulationFrames : []
-    const area = this.browserViewBounds()
-    const scale = this.window.webContents.getZoomFactor?.() ?? 1
-    const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
-    const second = this.splitView ? this.tabs.get(this.splitView.secondTabId) : undefined
-    const split = this.splitView && first && second
-      ? splitViewBounds(area, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * scale))
-      : undefined
-    const panes: Array<[BrowserTab | undefined, Rectangle]> = split
-      ? [[first, split.first], [second, split.second]]
-      : [[this.tabs.get(this.activeTabId), area]]
-    const cssBounds = (rect: Rectangle): Rectangle => ({
-      x: rect.x / scale, y: rect.y / scale, width: rect.width / scale, height: rect.height / scale
-    })
-    const frames: EmulationFrameGeometry[] = []
-    for (const [tab, space] of panes) {
-      const viewport = tab?.emulation.viewport
-      // A tab whose page is out of the window, such as one closing behind its beforeunload check, has no frame.
-      if (!tab || !viewport || !tab.emulationViewSize || !this.window.contentView.children.includes(tab.view)) continue
-      const bounds = this.tabViewBounds(tab, space)
-      if (bounds.width === space.width && bounds.height === space.height) continue
-      frames.push({
-        tabId: tab.id, bounds: cssBounds(bounds), area: cssBounds(space),
-        viewport: { ...viewport }, available: { width: space.width, height: space.height }
-      })
-    }
-    return frames
+    return getEmulationFrames(this.pageGeometryAccess())
   }
 
-  /**
-   * The pages' spaces in shell CSS pixels, one per pane, for the shell to draw
-   * each page's card under it. An emulated page's card is its whole space,
-   * which its frame fills.
-   */
   getPageCards(): PageCardGeometry[] {
-    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed() || !this.activeTabId
-      || this.toolbarHeight >= this.window.getContentBounds().height - 1) return []
-    // While a picture stands in for the pages, their cards name no tab: the edge light waits for the live page.
-    if (this.browserContentOccluded) {
-      return this.occlusionSnapshot.active ? this.occludedPageCards.map(({ x, y, width, height }) => ({ x, y, width, height })) : []
-    }
-    const area = this.browserViewBounds()
-    const scale = this.window.webContents.getZoomFactor?.() ?? 1
-    const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
-    const second = this.splitView ? this.tabs.get(this.splitView.secondTabId) : undefined
-    const split = this.splitView && first && second
-      ? splitViewBounds(area, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * scale))
-      : undefined
-    const panes = split && first && second
-      ? [{ tab: first, space: split.first }, { tab: second, space: split.second }]
-      : [{ tab: this.tabs.get(this.activeTabId), space: area }]
-    return panes.filter(({ space }) => space.width > 0 && space.height > 0).map(({ tab, space }) => ({
-      x: space.x / scale, y: space.y / scale, width: space.width / scale, height: space.height / scale,
-      // A page out of the window, such as one closing behind its beforeunload check, is not the one in its card.
-      ...(tab && this.window.contentView.children.includes(tab.view) ? { tabId: tab.id } : {})
-    }))
+    return getPageCards(this.pageGeometryAccess())
   }
 
-  /** Tells the shell where the page cards and the frames around emulated pages are now. */
   private publishPageGeometry(): void {
-    if (this.window.webContents.isDestroyed()) return
-    const frames = this.getEmulationFrames()
-    const serializedFrames = JSON.stringify(frames)
-    if (serializedFrames !== this.lastEmulationFrames) {
-      this.lastEmulationFrames = serializedFrames
-      this.window.webContents.send('emulation-frame:changed', frames)
-    }
-    const cards = this.getPageCards()
-    const serializedCards = JSON.stringify(cards)
-    if (serializedCards !== this.lastPageCards) {
-      this.lastPageCards = serializedCards
-      this.window.webContents.send('page-card:changed', cards)
-    }
+    publishPageGeometry(this.pageGeometryAccess())
   }
 
   /** Rounds a page view's corners to the shell's page card, which scales with the shell's zoom. */
