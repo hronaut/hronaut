@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
-import { address, getAddressEncoder, getBase58Encoder } from '@solana/kit'
+import {
+  reconcileAccountProviderSessions,
+  solanaRequest,
+  tronRequest,
+  type AccountProviderSession,
+  type SolanaTronProviderAccess
+} from './solana-tron-provider.js'
 import type {
   WalletAgentDescriptor,
   WalletChainFamily,
@@ -23,7 +29,6 @@ import {
   WalletUpdateInputSchema,
   walletAllowsWorkspace
 } from '../../shared/wallet.js'
-import { normalizeTronProviderChainId, tronProviderChainId } from '../../shared/tron-chain-id.js'
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
@@ -44,7 +49,6 @@ import {
   type EvmTokenContractDetails
 } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
-import { solanaSignInMessage } from './solana-sign-in.js'
 import { typedDataDisplay } from './typed-data-display.js'
 import { TYPED_DATA_V3_UNSUPPORTED, typedDataV3MatchesV4 } from './typed-data-v3.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
@@ -120,17 +124,6 @@ interface EvmProviderSession {
   accounts: string[]
 }
 
-interface AccountProviderSession {
-  family: Exclude<WalletChainFamily, 'evm'>
-  walletId: string
-  workspaceId: string
-  tabId: string
-  navigationGeneration: number
-  topLevelOrigin: string
-  requester: WalletRequester
-  account: string
-}
-
 export interface WalletBrokerOptions {
   assertAgentAccess?: () => void
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
@@ -200,12 +193,6 @@ function jsonBytes(value: unknown): number {
 
 function paramsArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : value === undefined ? [] : [value]
-}
-
-function isSilentSolanaConnect(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const options = value as { silent?: unknown; onlyIfTrusted?: unknown }
-  return options.silent === true || options.onlyIfTrusted === true
 }
 
 export class WalletBroker {
@@ -469,8 +456,8 @@ export class WalletBroker {
       const request = WalletProviderRequestSchema.parse(input)
       const wallets = this.accessibleWallets(context, request.family)
       if (request.family === 'evm') return await this.evmRequest(context, wallets, request.method, request.params)
-      if (request.family === 'solana') return await this.solanaRequest(context, wallets, request.method, request.params)
-      return await this.tronRequest(context, wallets, request.method, request.params)
+      if (request.family === 'solana') return await solanaRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
+      return await tronRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
     } catch (error) {
       const sanitized = sanitizedError(error)
       this.recordPageCallFailure(context, input, sanitized)
@@ -774,168 +761,30 @@ export class WalletBroker {
     throw new Error(`Unsupported EVM wallet method: ${method}`)
   }
 
-  private async solanaRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    const legacy = method.startsWith('legacy_')
-    const walletMethod = legacy ? method.slice('legacy_'.length) : method
-    const connectedWallet = this.activeAccountProviderWallet(context, 'solana', wallets)
-    if (walletMethod === 'disconnect') {
-      const wallet = connectedWallet ?? this.preferredPermittedWallet(context, wallets)
-      if (wallet) await this.disconnectWallet(context, wallet)
-      return undefined
+  /**
+   * The narrow view the Solana and Tron page providers get of this broker's
+   * private state and request path. It is built on each call, and the calls
+   * below return the provider's promise directly.
+   */
+  private solanaTronProviderAccess(): SolanaTronProviderAccess {
+    return {
+      adapters: this.adapters,
+      options: this.options,
+      accountProviderSessions: this.accountProviderSessions,
+      accessibleWallets: (context, family) => this.accessibleWallets(context, family),
+      selectWallet: (wallets) => this.selectWallet(wallets),
+      hasAddressPermission: (context, wallet) => this.hasAddressPermission(context, wallet),
+      assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      scheduleProviderPermissionExpiry: () => this.scheduleProviderPermissionExpiry(),
+      connect: (context, wallet) => this.connect(context, wallet),
+      disconnectWallet: (context, wallet) => this.disconnectWallet(context, wallet),
+      transactionRequest: (context, wallet, payload, broadcast, returnSummary, prepared) => (
+        this.transactionRequest(context, wallet, payload, broadcast, returnSummary, prepared)
+      ),
+      messageRequest: (context, wallet, input) => this.messageRequest(context, wallet, input),
+      messageBytes: (value) => this.messageBytes(value)
     }
-    const permittedWallet = walletMethod === 'connect'
-      ? this.preferredPermittedWallet(context, wallets)
-      : undefined
-    if (walletMethod === 'connect' && isSilentSolanaConnect(params) && !permittedWallet) return { accounts: [] }
-    const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
-    if (walletMethod === 'connect') {
-      const accounts = await this.connect(context, wallet)
-      this.trackAccountProviderSession(context, wallet)
-      return { accounts: (accounts as string[]).map((value) => ({
-        address: value,
-        publicKey: getAddressEncoder().encode(address(value)),
-        chains: [`solana:${wallet.network.id}`],
-        features: [
-          ...(wallet.capabilities.includes('sign') ? ['solana:signTransaction', 'solana:signMessage'] : []),
-          ...(wallet.capabilities.includes('send') ? ['solana:signAndSendTransaction'] : [])
-        ],
-        label: wallet.name
-      })) }
-    }
-    this.assertAddressPermission(context, wallet, walletMethod === 'signAndSendTransaction' ? 'send' : 'sign')
-    if (walletMethod === 'signIn') {
-      const message = new TextEncoder().encode(solanaSignInMessage(paramsArray(params)[0], context.topLevelOrigin, wallet.publicAddress))
-      const signature = await this.messageRequest(context, wallet, { kind: 'message', message })
-      return {
-        account: wallet.publicAddress,
-        signedMessage: message,
-        signature: this.base64ResultBytes(signature, 'Solana sign-in signature'),
-        signatureType: 'ed25519'
-      }
-    }
-    if (walletMethod === 'signTransaction' || walletMethod === 'signAllTransactions' || walletMethod === 'signAndSendTransaction') {
-      const values = paramsArray(params)
-      if (!values.length || values.length > 64) throw new Error('Solana wallet request must include between 1 and 64 transactions')
-      if (legacy && walletMethod !== 'signAllTransactions' && values.length !== 1) {
-        throw new Error('Legacy Solana wallet request must include exactly one transaction')
-      }
-      const broadcast = walletMethod === 'signAndSendTransaction'
-      const inputs = values.map((value) => (
-        value && typeof value === 'object' && 'transaction' in value
-          ? value
-          : { transaction: value, account: wallet.publicAddress, chain: `solana:${wallet.network.id}` }
-      ))
-      if (!legacy) inputs.forEach((input) => this.assertSolanaTransactionInput(wallet, input, broadcast))
-      const normalized: WalletNormalizedTransaction[] = []
-      for (const input of inputs) {
-        normalized.push(await this.adapters.solana.normalizeTransaction(wallet, input))
-        this.assertRequestContextActive(context)
-      }
-      const results: unknown[] = []
-      for (const [index, input] of inputs.entries()) {
-        const result = await this.transactionRequest(context, wallet, input, broadcast, false, normalized[index])
-        if (broadcast) {
-          const signature = getBase58Encoder().encode(String(result))
-          results.push(legacy ? String(result) : { signature })
-        } else {
-          const signedTransaction = this.base64ResultBytes(result, 'Solana signed transaction')
-          results.push(legacy ? signedTransaction : { signedTransaction })
-        }
-      }
-      return legacy && walletMethod !== 'signAllTransactions' ? results[0] : results
-    }
-    if (walletMethod === 'signMessage') {
-      const inputs = paramsArray(params) as Array<{ account?: { address?: unknown } | string; message?: unknown }>
-      if (!inputs.length || inputs.length > 64) throw new Error('Solana wallet request must include between 1 and 64 messages')
-      if (legacy && inputs.length !== 1) throw new Error('Legacy Solana wallet request must include exactly one message')
-      const messages = inputs.map((input) => {
-        const requestedAddress = typeof input?.account === 'string' ? input.account : input?.account?.address
-        if ((!legacy || requestedAddress !== undefined) && requestedAddress !== wallet.publicAddress) {
-          throw new Error('Solana message signer does not match the selected wallet')
-        }
-        return this.messageBytes(input?.message)
-      })
-      const results: unknown[] = []
-      for (const message of messages) {
-        const signature = await this.messageRequest(context, wallet, { kind: 'message', message })
-        const signatureBytes = this.base64ResultBytes(signature, 'Solana message signature')
-        results.push(legacy
-          ? { signature: signatureBytes, publicKey: wallet.publicAddress }
-          : { signedMessage: Uint8Array.from(message), signature: signatureBytes })
-      }
-      return legacy ? results[0] : results
-    }
-    throw new Error(`Unsupported Solana wallet method: ${walletMethod}`)
-  }
-
-  private assertSolanaTransactionInput(
-    wallet: WalletDescriptor,
-    input: object,
-    requireChain: boolean
-  ): void {
-    const candidate = input as { account?: unknown; chain?: unknown }
-    const requestedAddress = typeof candidate.account === 'string'
-      ? candidate.account
-      : candidate.account && typeof candidate.account === 'object'
-        ? (candidate.account as { address?: unknown }).address
-        : undefined
-    if (requestedAddress !== wallet.publicAddress) {
-      throw new Error('Solana transaction signer does not match the selected wallet')
-    }
-    const expectedChain = `solana:${wallet.network.id}`
-    if (requireChain && candidate.chain === undefined) {
-      throw new Error('Solana transaction chain is required')
-    }
-    if (candidate.chain !== undefined && candidate.chain !== expectedChain) {
-      throw new Error('Solana transaction chain does not match the selected wallet')
-    }
-  }
-
-  private async tronRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    const connectedWallet = this.activeAccountProviderWallet(context, 'tron', wallets)
-    const permittedWallet = this.preferredPermittedWallet(context, wallets)
-    if (method === 'eth_accounts') {
-      const wallet = connectedWallet ?? permittedWallet
-      if (wallet && this.trackAccountProviderSession(context, wallet)) {
-        this.publishTronConnection(context, wallet)
-      }
-      return wallet ? [wallet.publicAddress] : []
-    }
-    const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
-    if (method === 'eth_chainId') {
-      const chainId = tronProviderChainId(wallet.network.id)
-      if (!chainId) throw new Error('Tron provider chain ID is unavailable for the configured network')
-      return chainId
-    }
-    if (method === 'eth_requestAccounts') {
-      const accounts = await this.connect(context, wallet)
-      if (this.trackAccountProviderSession(context, wallet)) this.publishTronConnection(context, wallet)
-      return accounts
-    }
-    if (method === 'wallet_switchEthereumChain') {
-      const requested = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
-      const chainId = typeof requested === 'string' ? normalizeTronProviderChainId(requested) : undefined
-      if (!chainId) throw new Error('Requested Tron chain is invalid')
-      if (chainId !== tronProviderChainId(wallet.network.id)) {
-        throw new Error('Requested Tron network is not configured for this workspace wallet')
-      }
-      return null
-    }
-    this.assertAddressPermission(context, wallet, method === 'tron_signAndSendTransaction' ? 'send' : 'sign')
-    if (method === 'tron_signTransaction' || method === 'tron_signAndSendTransaction') {
-      const broadcast = method === 'tron_signAndSendTransaction'
-      const result = await this.transactionRequest(context, wallet, paramsArray(params)[0], broadcast)
-      if (broadcast) return result
-      return this.tronSignedTransaction(result)
-    }
-    if (method === 'tron_signMessage') {
-      const values = paramsArray(params)
-      const requestedAddress = values.length > 1 ? values[0] : wallet.publicAddress
-      const message = values.length > 1 ? values[1] : values[0]
-      if (requestedAddress !== wallet.publicAddress) throw new Error('Tron message signer does not match the selected wallet')
-      return this.messageRequest(context, wallet, { kind: 'message', message: this.messageBytes(message) })
-    }
-    throw new Error(`Unsupported Tron wallet method: ${method}`)
   }
 
   private async connect(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<unknown> {
@@ -1901,107 +1750,15 @@ export class WalletBroker {
     }
   }
 
-  private accountProviderSessionKey(context: WalletBrokerContext, family: Exclude<WalletChainFamily, 'evm'>): string {
-    return JSON.stringify([
-      family,
-      context.workspaceId,
-      context.tabId,
-      context.navigationGeneration,
-      context.topLevelOrigin,
-      context.requester.type,
-      context.requester.id
-    ])
-  }
-
-  private activeAccountProviderWallet(
-    context: WalletBrokerContext,
-    family: Exclude<WalletChainFamily, 'evm'>,
-    wallets: WalletDescriptor[]
-  ): WalletDescriptor | undefined {
-    const session = this.accountProviderSessions.get(this.accountProviderSessionKey(context, family))
-    return session
-      ? wallets.find((wallet) => (
-          wallet.id === session.walletId
-          && wallet.publicAddress === session.account
-          && this.hasAddressPermission(context, wallet)
-        ))
-      : undefined
-  }
-
-  private preferredPermittedWallet(
-    context: WalletBrokerContext,
-    wallets: WalletDescriptor[]
-  ): WalletDescriptor | undefined {
-    return wallets.find((wallet) => wallet.kind !== 'watch-only' && this.hasAddressPermission(context, wallet))
-      ?? wallets.find((wallet) => this.hasAddressPermission(context, wallet))
-  }
-
-  private trackAccountProviderSession(context: WalletBrokerContext, wallet: WalletDescriptor): boolean {
-    if (wallet.chainFamily === 'evm') return false
-    const key = this.accountProviderSessionKey(context, wallet.chainFamily)
-    const existing = this.accountProviderSessions.get(key)
-    this.accountProviderSessions.set(key, {
-      family: wallet.chainFamily,
-      walletId: wallet.id,
-      workspaceId: context.workspaceId,
-      tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration,
-      topLevelOrigin: context.topLevelOrigin,
-      requester: structuredClone(context.requester),
-      account: wallet.publicAddress
-    })
-    this.scheduleProviderPermissionExpiry()
-    return !existing || existing.walletId !== wallet.id || existing.account !== wallet.publicAddress
-  }
-
-  private publishTronConnection(context: WalletBrokerContext, wallet: WalletDescriptor): void {
-    this.options.onProviderEvent?.(context.tabId, {
-      family: 'tron', event: 'accountsChanged', payload: [wallet.publicAddress]
-    })
-    const chainId = tronProviderChainId(wallet.network.id)
-    if (chainId) {
-      this.options.onProviderEvent?.(context.tabId, {
-        family: 'tron', event: 'connect', payload: { chainId }
-      })
-    }
-  }
-
   private clearAccountProviderSessions(predicate: (session: AccountProviderSession) => boolean): void {
     for (const [key, session] of this.accountProviderSessions) {
       if (predicate(session)) this.accountProviderSessions.delete(key)
     }
   }
 
-  private reconcileAccountProviderSessions(): void {
-    for (const [key, session] of this.accountProviderSessions) {
-      const context: WalletBrokerContext = {
-        workspaceId: session.workspaceId,
-        tabId: session.tabId,
-        navigationGeneration: session.navigationGeneration,
-        topLevelOrigin: session.topLevelOrigin,
-        requester: structuredClone(session.requester)
-      }
-      const wallet = this.accessibleWallets(context, session.family).find((entry) => entry.id === session.walletId)
-      if (wallet?.publicAddress === session.account && this.hasAddressPermission(context, wallet)) continue
-      this.accountProviderSessions.delete(key)
-      this.options.onProviderEvent?.(session.tabId, {
-        family: session.family,
-        event: 'accountsChanged',
-        payload: []
-      })
-      this.options.onProviderEvent?.(session.tabId, {
-        family: session.family,
-        event: 'disconnect',
-        ...(session.family === 'tron' ? {
-          payload: { code: 4900, message: 'Tron provider disconnected' }
-        } : {})
-      })
-    }
-  }
-
   private reconcileProviderSessions(): void {
     this.reconcileEvmProviderSessions()
-    this.reconcileAccountProviderSessions()
+    reconcileAccountProviderSessions(this.solanaTronProviderAccess())
     this.scheduleProviderPermissionExpiry()
   }
 
@@ -2109,26 +1866,6 @@ export class WalletBroker {
     const bytes = Buffer.from(value, 'utf8')
     if (bytes.length > 1_048_576) throw new Error('Wallet message is invalid')
     return bytes
-  }
-
-  private base64ResultBytes(value: unknown, label: string): Uint8Array {
-    if (typeof value !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error(`${label} is invalid`)
-    const bytes = Buffer.from(value, 'base64')
-    if (!bytes.length || bytes.toString('base64') !== value) throw new Error(`${label} is invalid`)
-    return Uint8Array.from(bytes)
-  }
-
-  private tronSignedTransaction(value: unknown): Record<string, unknown> {
-    const bytes = this.base64ResultBytes(value, 'Signed Tron transaction')
-    try {
-      const parsed = JSON.parse(Buffer.from(bytes).toString('utf8')) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid')
-      return parsed as Record<string, unknown>
-    } catch {
-      throw new Error('Signed Tron transaction is invalid')
-    } finally {
-      bytes.fill(0)
-    }
   }
 
   private async fail(requestId: string, error: unknown): Promise<Error> {
