@@ -99,13 +99,9 @@ import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { AuditReceiptService } from './mcp/audit-receipt-service.js'
 import { McpPauseState } from './mcp-pause-state.js'
 import { McpActionTracker } from './mcp/action-tracker.js'
-import {
-  stageMcpRuntimeCandidate,
-  synchronizeMcpRuntimeCandidate
-} from './mcp-runtime-candidate.js'
+import { createMcpRuntime, type McpRuntimeState } from './mcp-runtime.js'
 import { DEFAULT_SETTINGS, SettingsStore } from './settings-store.js'
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
-import { DEFAULT_MCP_TOOL_SET } from '../shared/mcp-tool-sets.js'
 import { registerSettingsIpc } from './settings-ipc.js'
 import { createBrowserSession } from './browser-session.js'
 import type { SitePermissionStore } from './site-permission-store.js'
@@ -150,7 +146,6 @@ import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
-import type { McpRuntimeState } from './mcp-runtime.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
 
@@ -727,42 +722,6 @@ const {
   sendToShellWindows,
   refreshHomeAfterCommittedChange
 })
-
-/**
- * The startup dialog for a listener that could not start. A busy or refused port offers the free one; if that was taken
- * meanwhile, the dialog comes back with the next offer. It closes itself once the listener starts from Home or Settings.
- */
-async function showMcpStartupFailure(): Promise<void> {
-  for (let attempt = 0; attempt < 3 && mcpRuntime.status === 'error'; attempt++) {
-    const failure = mcpPortRecovery.failure
-    const problem = failure && failure.code !== 'other' ? failure : undefined
-    const signal = mcpPortRecovery.signal
-    const { response } = await showMessageBox({
-      type: 'error',
-      title: text('native.dialog.mcpFailedTitle'),
-      message: problem
-        ? text(problem.code === 'port-in-use' ? 'native.dialog.mcpPortInUseMessage' : 'native.dialog.mcpPortDeniedMessage', { port: problem.port })
-        : text('native.dialog.mcpFailedMessage', { host: mcpRuntime.host, port: mcpRuntime.port }),
-      detail: problem
-        ? (problem.suggestedPort ? text('native.dialog.mcpPortSuggestion', { port: problem.suggestedPort }) : text('native.dialog.mcpPortNoneFree'))
-        : mcpRuntime.startupError,
-      signal,
-      ...(problem?.suggestedPort ? {
-        buttons: [text('native.dialog.notNow'), text('native.dialog.mcpUsePort', { port: problem.suggestedPort })],
-        defaultId: 1,
-        cancelId: 0,
-        noLink: true
-      } : {})
-    })
-    // A port the person changed meanwhile, from Home or Settings, wins over this older answer.
-    if (signal.aborted || response !== 1 || !problem?.suggestedPort || mcpPortRecovery.failure !== failure) return
-    const result = await mcpPortRecovery.move(problem.suggestedPort)
-    if (result.outcome === 'failed') {
-      await showMessageBox({ type: 'error', title: text('native.dialog.mcpFailedTitle'), message: text('native.dialog.mcpFailedMessage', { host: mcpRuntime.host, port: result.port }) })
-    }
-    if (result.outcome !== 'taken') return
-  }
-}
 
 function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
   homePresentationRevision += 1
@@ -2009,116 +1968,22 @@ function createRuntimeMcpServer(
   })
 }
 
-async function setMcpPort(port: number): Promise<AppSettings> {
-  assertWorkspaceInitialized()
-  if (!isValidMcpPort(port)) throw new TypeError('MCP port must be an integer from 1024 through 65535')
-  if (port === mcpRuntime.port && mcpRuntime.status === 'ready') {
-    if (persistedSettings.mcpPort !== port) await updateSettings({ mcpPort: port })
-    return { ...settings }
-  }
-
-  const candidate = createRuntimeMcpServer(port)
-  stageMcpRuntimeCandidate(candidate)
-  try {
-    await candidate.start()
-  } catch (error) {
-    await candidate.stop().catch(() => undefined)
-    throw new Error(`Could not listen on ${mcpRuntime.host}:${port}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
-  }
-
-  try {
-    await updateSettings({ mcpPort: port })
-  } catch (error) {
-    await candidate.stop().catch(() => undefined)
-    throw error
-  }
-
-  synchronizeMcpRuntimeCandidate(candidate, () => ({
-    paused: mcpPauseState.paused,
-    allowTabPauseOverrides: !mcpPauseState.temporarilyPaused,
-    authenticationToken: settings.mcpAuthentication ? mcpRuntime.tokenConfiguration?.token : undefined
-  }))
-  const previous = mcpRuntime.server
-  mcpRuntime.server = candidate
-  mcpRuntime.port = port
-  mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${port}/mcp`
-  mcpRuntime.status = 'ready'
-  mcpRuntime.startupError = undefined
-  mcpPortRecovery.clear()
-  tabsManager?.setMcpUrl(mcpRuntime.url)
-  publishSettings()
-  publishMcpControlState()
-  await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
-  console.info(`[mcp] Moved listener to ${mcpRuntime.url}`)
-  return { ...settings }
-}
-
-async function resetMcpSettings(): Promise<AppSettings> {
-  assertWorkspaceInitialized()
-  if (mcpRuntime.port === DEFAULT_MCP_PORT && mcpRuntime.status === 'ready') {
-    await updateSettings({
-      mcpRemoteAccess: false,
-      mcpAuthentication: false,
-      mcpPort: DEFAULT_MCP_PORT,
-      mcpToolSet: DEFAULT_MCP_TOOL_SET,
-      challengeDetectionEnabled: false
-    })
-    mcpRuntime.server?.setAuthenticationToken(settings.mcpAuthentication ? mcpRuntime.tokenConfiguration?.token : undefined)
-    mcpRuntime.server?.setToolSet(DEFAULT_MCP_TOOL_SET)
-    publishSettings()
-    refreshHomeAfterCommittedChange('mcp')
-    console.info('[mcp] Settings reset; remote-access changes apply after restart.')
-    return { ...settings }
-  }
-
-  // Keep the candidate listener paused until both reset settings have
-  // committed. A bind or persistence failure therefore leaves the current
-  // runtime and settings untouched instead of applying half of the reset.
-  const candidate = createRuntimeMcpServer(DEFAULT_MCP_PORT, settings.mcpAuthentication)
-  stageMcpRuntimeCandidate(candidate)
-  try {
-    await candidate.start()
-  } catch (error) {
-    await candidate.stop().catch(() => undefined)
-    throw new Error(
-      `Could not listen on ${mcpRuntime.host}:${DEFAULT_MCP_PORT}: ${error instanceof Error ? error.message : String(error)}`
-    )
-  }
-
-  try {
-    await updateSettings({
-      mcpRemoteAccess: false,
-      mcpAuthentication: false,
-      mcpPort: DEFAULT_MCP_PORT,
-      mcpToolSet: DEFAULT_MCP_TOOL_SET,
-      challengeDetectionEnabled: false
-    })
-  } catch (error) {
-    await candidate.stop().catch(() => undefined)
-    throw error
-  }
-
-  synchronizeMcpRuntimeCandidate(candidate, () => ({
-    paused: mcpPauseState.paused,
-    allowTabPauseOverrides: !mcpPauseState.temporarilyPaused,
-    authenticationToken: settings.mcpAuthentication ? mcpRuntime.tokenConfiguration?.token : undefined
-  }))
-  const previous = mcpRuntime.server
-  candidate.setToolSet(DEFAULT_MCP_TOOL_SET)
-  mcpRuntime.server = candidate
-  mcpRuntime.port = DEFAULT_MCP_PORT
-  mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${DEFAULT_MCP_PORT}/mcp`
-  mcpRuntime.status = 'ready'
-  mcpRuntime.startupError = undefined
-  mcpPortRecovery.clear()
-  tabsManager?.setMcpUrl(mcpRuntime.url)
-  publishSettings()
-  publishMcpControlState()
-  await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
-  console.info(`[mcp] Reset listener to ${mcpRuntime.url}`)
-  console.info('[mcp] Settings reset; remote-access changes apply after restart.')
-  return { ...settings }
-}
+const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
+  state: mcpRuntime,
+  createServer: createRuntimeMcpServer,
+  mcpPauseState,
+  mcpPortRecovery,
+  settings: () => settings,
+  persistedSettings: () => persistedSettings,
+  updateSettings,
+  publishSettings,
+  publishMcpControlState,
+  refreshHomeAfterCommittedChange,
+  assertWorkspaceInitialized,
+  tabs: () => tabsManager,
+  text,
+  showMessageBox
+})
 
 app.on('second-instance', (_event, argv) => {
   if (argv.includes('--quit')) {
@@ -2208,25 +2073,7 @@ app.whenReady().then(async () => {
     console.warn('[mcp] Authentication is disabled. Anyone who can reach the listener can control this browser profile.')
   }
   if (!createTray() && startMinimized) showWindow()
-  mcpRuntime.server = createRuntimeMcpServer(mcpRuntime.port)
-  mcpRuntime.server.setPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
-  try {
-    const url = await mcpRuntime.server.start()
-    mcpRuntime.status = 'ready'
-    mcpRuntime.startupError = undefined
-    mcpPortRecovery.clear()
-    // Listener status is polled by Home; startup changes no bootstrap settings.
-    // Reloading here races module initialization and discards early setup input.
-    publishMcpControlState({ refreshHome: false })
-    console.log(`[mcp] Hronaut listening at ${url}`)
-  } catch (error) {
-    mcpRuntime.status = 'error'
-    mcpRuntime.startupError = error instanceof Error ? error.message : String(error)
-    await mcpPortRecovery.record(error, mcpRuntime.port)
-    publishMcpControlState({ refreshHome: false })
-    console.error('[mcp] Failed to start:', error)
-    await showMcpStartupFailure()
-  }
+  await startMcpServer()
   if (settings.checkForUpdatesOnStartup) {
     setTimeout(() => void checkForUpdates(), 5_000)
   }
