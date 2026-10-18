@@ -1,0 +1,63 @@
+import type { WebContents, WebContentsView } from 'electron'
+import type {
+  BrowserEmulationOptions,
+  BrowserEmulationResult,
+  BrowserEmulationState,
+  BrowserNetworkRouteSummary
+} from '../../../shared/types.js'
+
+/**
+ * The tab fields emulation reads and writes: the page and its view, the
+ * emulation state with its native application, revision, context generation
+ * and view size, the request rules and network application emulation must
+ * agree with, and the generations that tell a changed document apart.
+ */
+export interface EmulationTab {
+  id: string
+  url: string
+  navigationGeneration: number
+  observationGeneration: number
+  nativeInputEnvironmentGeneration: number
+  view: WebContentsView
+  webContents: WebContents
+  emulation: BrowserEmulationState
+  emulationApplication: 'confirmed' | 'pending' | 'unknown'
+  emulationRevision: number
+  emulationContextGeneration: number
+  emulationExtraHttpHeaders: Record<string, string>
+  emulationViewSize?: { width: number; height: number }
+  networkRoutes: BrowserNetworkRouteSummary[]
+  networkConditionApplication: 'confirmed' | 'pending' | 'unknown'
+  networkConditionEpoch: number
+  networkDebuggerEpoch: number
+}
+
+/**
+ * What emulation needs from the tab manager, which keeps the tabs, the
+ * debugger lease, state publication, the emulation result, the network
+ * condition checks, the view sizing and the native network throttling
+ * private. The emulation result and confirmation check stay manager methods
+ * because the published state, input and captures read them; the view sizing
+ * stays because renderer and navigation handling reset it; the native network
+ * throttling stays because request rules apply it too. Resizing the viewport
+ * goes through the manager's emulate, as before.
+ */
+export interface EmulationAccess<Tab extends EmulationTab> {
+  getTab(tabId?: string): Tab
+  findTab(tabId: string): Tab | undefined
+  isDestroyed(): boolean
+  withDebugger<T>(webContents: WebContents, operation: () => Promise<T>, validateAdmission?: () => void): Promise<T>
+  emulationResult(tab: Tab): BrowserEmulationResult
+  requireEmulationConfirmed(tab: Tab): void
+  requireNetworkConditionsKnown(tab: Tab): void
+  markNetworkConditionsUnknown(tab: Tab): void
+  setEmulationViewSize(tab: Tab, viewport: { width: number; height: number } | undefined): void
+  applyNetworkEmulation(
+    webContents: WebContents,
+    preset: BrowserEmulationState['network'],
+    routes?: BrowserNetworkRouteSummary[],
+    send?: (method: string, params?: Record<string, unknown>) => Promise<unknown>
+  ): Promise<void>
+  changed(persist?: boolean): void
+  emulate(options: BrowserEmulationOptions): Promise<BrowserEmulationResult>
+}
