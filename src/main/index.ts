@@ -22,7 +22,7 @@ import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import {
   app,
@@ -64,8 +64,7 @@ import { registerHomeIpc } from './home-ipc.js'
 import { McpPortRecovery } from './mcp-port-suggestion.js'
 import { registerMcpControlIpc } from './mcp-control-ipc.js'
 import {
-  shouldStartMinimized,
-  StartupLaunchManager
+  shouldStartMinimized
 } from './startup-launch.js'
 import {
   McpHttpServer
@@ -345,9 +344,9 @@ const settingsState: SettingsState = {
   current: { ...DEFAULT_SETTINGS },
   systemLocale: 'en-US',
   resolvedLocale: 'en-US',
-  mutationQueue: Promise.resolve()
+  mutationQueue: Promise.resolve(),
+  startupLaunchManager: null
 }
-let startupLaunchManager: StartupLaunchManager | null = null
 const {
   text,
   defaultDownloadDirectory,
@@ -356,6 +355,7 @@ const {
   currentRendererSettingsState,
   applyDownloadSettings,
   publishSettings,
+  createStartupLaunchManager,
   loadAuthoritativeSettings,
   reconcileStartupSetting
 } = createSettingsRuntime({
@@ -364,7 +364,6 @@ const {
   sendToShellWindows,
   mcpRuntime,
   mcpAuthDisabled: MCP_AUTH_DISABLED,
-  startupLaunchManager: () => startupLaunchManager,
   persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabRuntime.tabs
 })
@@ -939,7 +938,7 @@ function registerIpc(): void {
     applyLanguagePreferenceRuntime,
     applyMainWindowTitleBarOverlay,
     applyMainWindowBackground,
-    startupLaunchManager: () => startupLaunchManager,
+    startupLaunchManager: () => settingsState.startupLaunchManager,
     defaultDownloadDirectory,
     effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
     chooseDownloadDirectory: () => {
@@ -1322,16 +1321,7 @@ async function startRuntime(): Promise<void> {
   )
   await openCapabilityProfiles()
   configureAutoUpdater()
-  startupLaunchManager = new StartupLaunchManager({
-    platform: process.platform,
-    isPackaged: app.isPackaged,
-    executablePath: process.platform === 'linux' && process.env.APPIMAGE
-      ? resolve(process.env.APPIMAGE)
-      : process.execPath,
-    autostartDirectory: join(app.getPath('appData'), 'autostart'),
-    nativeLoginItems: app,
-    warn: (message, error) => { console.warn(`[startup] ${message}:`, error) }
-  })
+  const startupLaunchManager = createStartupLaunchManager()
   await loadAuthoritativeSettings()
   if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
