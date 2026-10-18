@@ -153,7 +153,9 @@ import {
 } from 'electron'
 import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { parseBrowserKeyPress } from '../../shared/keyboard-input.js'
-import { MAX_BROWSER_TABS, MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
+import { MAX_BROWSER_TABS } from '../../shared/types.js'
+import type { PageFindAccess } from './page-find/page-find-access.js'
+import { findInPage, stopFindInPage } from './page-find/page-find.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
@@ -3969,21 +3971,30 @@ export class BrowserTabsManager {
     return reloadIgnoringCache(this.pageNavigationAccess(), tabId)
   }
 
-  async findInPage(
+  /**
+   * The narrow view finding text in a page gets of this manager's private
+   * tabs and page find controller. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private pageFindAccess(): PageFindAccess {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      searchPage: (webContents, query, options) => this.pageFind.search(webContents, query, options),
+      stopPageSearch: (webContents) => this.pageFind.stop(webContents)
+    }
+  }
+
+  findInPage(
     query: string,
     options: { tabId?: string; forward?: boolean; findNext?: boolean; caseSensitive?: boolean } = {}
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
-    if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new Error('Find query must contain between 1 and 1,000 characters')
-    const webContents = this.getTab(options.tabId).webContents
-    return this.pageFind.search(webContents, query, {
-      forward: options.forward ?? true,
-      findNext: options.findNext ?? true,
-      matchCase: options.caseSensitive ?? false
-    })
+    return findInPage(this.pageFindAccess(), query, options)
   }
 
   stopFindInPage(tabId?: string): void {
-    this.pageFind.stop(this.getTab(tabId).webContents)
+    stopFindInPage(this.pageFindAccess(), tabId)
   }
 
   /**
