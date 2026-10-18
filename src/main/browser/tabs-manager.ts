@@ -499,6 +499,8 @@ import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVis
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-staging-access.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
+import type { CloseTabAccess } from './tab-close/close-tab-access.js'
+import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
@@ -2747,22 +2749,23 @@ export class BrowserTabsManager {
     ensureReplacement: boolean,
     respectBeforeUnload = false
   ): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => this.closeTabAfterLabelSave(tabId, ensureReplacement, respectBeforeUnload))
+    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.closeTabAccess(), tabId, ensureReplacement, respectBeforeUnload))
   }
 
-  private closeTabAfterLabelSave(tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean): Promise<BrowserState> {
-    if (!respectBeforeUnload) {
-      return this.performCloseTab(tabId, ensureReplacement, false, true)
+  /**
+   * The narrow view closing a tab once label saves have settled gets of this
+   * manager's private tabs, closes in flight that let pages ask to stay and
+   * the close itself. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it. Each member reads the manager when called.
+   */
+  private closeTabAccess(): CloseTabAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      pendingHumanTabCloses: () => this.pendingHumanTabCloses,
+      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose) =>
+        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose)
     }
-    const tab = this.getTab(tabId)
-    const existing = this.pendingHumanTabCloses.get(tabId)
-    if (existing?.tab === tab) return existing.operation
-    const operation = this.performCloseTab(tabId, ensureReplacement, true, false)
-    this.pendingHumanTabCloses.set(tabId, { tab, operation })
-    void operation.finally(() => {
-      if (this.pendingHumanTabCloses.get(tabId)?.operation === operation) this.pendingHumanTabCloses.delete(tabId)
-    }).catch(() => undefined)
-    return operation
   }
 
   private async performCloseTab(
