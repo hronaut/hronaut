@@ -490,6 +490,8 @@ import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
+import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
+import { sendWalletProviderEvent, walletPageContext, walletPageContextForMcpTab } from './wallet-pages/wallet-pages.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
@@ -746,13 +748,7 @@ export type { BrowserVisualCompareResult }
 
 export type { BrowserCredentialCandidate }
 
-export interface BrowserWalletPageContext {
-  tabId: string
-  workspaceId: string
-  navigationGeneration: number
-  topLevelOrigin: string
-  url: string
-}
+export type { BrowserWalletPageContext }
 
 interface BrowserTabSelectionOptions {
   /** Keep an already-visible split pane from claiming keyboard focus. */
@@ -1924,48 +1920,30 @@ export class BrowserTabsManager {
     }))
   }
 
-  walletPageContext(webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
-    const context = this.walletContextForWebContents(webContentsId)
-    return { ...context, pageUnloading: this.tabs.get(context.tabId)?.walletPageUnloading === true }
+  /**
+   * The narrow view the wallet page bridge gets of this manager's private
+   * tabs, page tab ids and workspace tab lookup. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it.
+   */
+  private walletPagesAccess(): WalletPagesAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
+      requireTabInMcpGroup: (groupId, tabId) => this.requireTabInMcpGroup(groupId, tabId)
+    }
   }
 
-  private walletContextForWebContents(webContentsId: number): BrowserWalletPageContext {
-    const tabId = this.webContentsToTab.get(webContentsId)
-    const tab = tabId ? this.tabs.get(tabId) : undefined
-    if (!tab || tab.webContents.isDestroyed() || tab.webContents.id !== webContentsId) {
-      throw new Error('Wallet request did not originate from an active browser tab')
-    }
-    if (!tab.mcpGroupId) throw new Error('Wallets are unavailable on Hronaut application pages')
-    const url = tab.webContents.getURL() || tab.url
-    let parsed: URL
-    try {
-      parsed = new URL(url)
-    } catch {
-      throw new Error('Wallets require an HTTP or HTTPS top-level page')
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error('Wallets require an HTTP or HTTPS top-level page')
-    }
-    return {
-      tabId: tab.id,
-      workspaceId: tab.mcpGroupId,
-      navigationGeneration: tab.walletNavigationGeneration,
-      topLevelOrigin: parsed.origin,
-      url: parsed.href
-    }
+  walletPageContext(webContentsId: number): BrowserWalletPageContext & { pageUnloading: boolean } {
+    return walletPageContext(this.walletPagesAccess(), webContentsId)
   }
 
   walletPageContextForMcpTab(workspaceId: string, tabId: string): BrowserWalletPageContext {
-    const resolvedTabId = this.requireTabInMcpGroup(workspaceId, tabId)
-    const tab = this.tabs.get(resolvedTabId)
-    if (!tab || tab.webContents.isDestroyed()) throw new Error('Wallet request target tab is unavailable')
-    return this.walletContextForWebContents(tab.webContents.id)
+    return walletPageContextForMcpTab(this.walletPagesAccess(), workspaceId, tabId)
   }
 
   sendWalletProviderEvent(tabId: string, event: import('../../shared/wallet.js').WalletProviderEvent): void {
-    const tab = this.tabs.get(tabId)
-    if (!tab || tab.webContents.isDestroyed() || tab.sleeping) return
-    tab.webContents.send('wallet-provider:event', structuredClone(event))
+    sendWalletProviderEvent(this.walletPagesAccess(), tabId, event)
   }
 
   closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
