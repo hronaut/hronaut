@@ -484,6 +484,8 @@ import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-evaluation-access.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
+import type { DebuggerLeaseAccess } from './debugger-lease/debugger-lease-access.js'
+import { withDebugger } from './debugger-lease/debugger-lease.js'
 import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
 import type { RightClickEnvironmentAccess } from './native-click/right-click-environment-access.js'
@@ -5707,38 +5709,25 @@ export class BrowserTabsManager {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
 
-  private async withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
-    validateAdmission?.()
-    return this.debuggerQueue.run(webContents.id, async () => {
-      validateAdmission?.()
-      await this.dialogMonitorAttachPromises.get(webContents.id)
-      validateAdmission?.()
-      if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
-        throw new Error('Close Developer Tools for this tab before using this MCP action')
-      }
-      const attachedHere = !webContents.debugger.isAttached()
-      if (attachedHere) {
-        validateAdmission?.()
-        webContents.debugger.attach('1.3')
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Page.enable')
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Runtime.enable')
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }).catch(() => undefined)
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Log.enable').catch(() => undefined)
-      }
-      validateAdmission?.()
-      try {
-        return await operation()
-      } finally {
-        if (!validateAdmission && attachedHere && webContents.debugger.isAttached() && !this.destroyed) {
-          await webContents.debugger.sendCommand('Page.enable').catch(() => undefined)
-          await webContents.debugger.sendCommand('Runtime.enable').catch(() => undefined)
-        }
-      }
-    })
+  /**
+   * The narrow view leasing a page's debugger gets of this manager's private
+   * debugger queue, dialog monitor attachments, DevTools opening set and
+   * destroyed flag. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegate below returns the feature's promise directly, so callers see the
+   * same ticks as before.
+   */
+  private debuggerLeaseAccess(): DebuggerLeaseAccess {
+    return {
+      inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
+      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      isDestroyed: () => this.destroyed
+    }
+  }
+
+  private withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
+    return withDebugger(this.debuggerLeaseAccess(), webContents, operation, validateAdmission)
   }
 
   private withOptionalDialogHandling<T>(
