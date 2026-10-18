@@ -1,7 +1,7 @@
 import { assertExclusiveWorkspaceStorage, canonicalStorageId, cleanExplicitlyDeletedWorkspaceStorage } from './workspace-storage-deletion.js'
 import { ImageInspectionSlots } from './image-state.js'
 import type { BrowserEmulationResult, BrowserUnconfirmedEmulation } from '../../shared/types.js'
-import { assertRightClickPlatform, ownedRightClickPress } from './owned-right-click.js'
+import { assertRightClickPlatform } from './owned-right-click.js'
 import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-access.js'
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
@@ -475,6 +475,8 @@ import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-evaluation-access.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
+import type { NativeClickAccess } from './native-click/native-click-access.js'
+import { dispatchNativeClick } from './native-click/native-click.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -4370,57 +4372,30 @@ export class BrowserTabsManager {
     }
   }
 
-  private async dispatchNativeClick(
+  /**
+   * The narrow view dispatching a native click gets of this manager's
+   * authorized agent input. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegate below returns the feature's promise directly, so callers
+   * see the same ticks as before.
+   */
+  private nativeClickAccess(): NativeClickAccess {
+    return {
+      sendAuthorizedAgentInputCommand: (webContents, method, commandParams, validateInput, observer, beforeRawDispatch) =>
+        this.sendAuthorizedAgentInputCommand(webContents, method, commandParams, validateInput, observer, beforeRawDispatch)
+    }
+  }
+
+  private dispatchNativeClick(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
     doubleClick: boolean,
     validateClick: () => void,
     sample?: (x: number, y: number) => Promise<void>,
     observer?: NativeInputDispatchObserver,
-    rightClick = false
+    rightClick?: boolean
   ): Promise<void> {
-    const inputDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
-      this.sendAuthorizedAgentInputCommand(webContents, method, params, validateClick, observer,
-        params.type === 'mousePressed' && sample ? () => sample(point.x, point.y) : undefined) }
-    // After a successful press, its matching release must still run if authority
-    // changes. Reject subsequent presses without leaving a held mouse button.
-    const releaseDebugger = { sendCommand: (method: string, params: Record<string, unknown>) =>
-      this.sendAuthorizedAgentInputCommand(webContents, method, params, undefined, observer) }
-    await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x: point.x,
-      y: point.y
-    })
-    if (rightClick) {
-      await ownedRightClickPress(
-        tracked => this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchMouseEvent', {
-          type: 'mousePressed', x: point.x, y: point.y, button: 'right', buttons: 2, clickCount: 1
-        }, validateClick, tracked, sample ? () => sample(point.x, point.y) : undefined),
-        tracked => this.sendAuthorizedAgentInputCommand(webContents, 'Input.dispatchMouseEvent', {
-          type: 'mouseReleased', x: point.x, y: point.y, button: 'right', buttons: 0, clickCount: 1
-        }, undefined, tracked),
-        observer
-      )
-      return
-    }
-    for (const clickCount of doubleClick ? [1, 2] : [1]) {
-      await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
-        type: 'mousePressed',
-        x: point.x,
-        y: point.y,
-        button: 'left',
-        buttons: 1,
-        clickCount
-      })
-      await releaseDebugger.sendCommand('Input.dispatchMouseEvent', {
-        type: 'mouseReleased',
-        x: point.x,
-        y: point.y,
-        button: 'left',
-        buttons: 0,
-        clickCount
-      })
-    }
+    return dispatchNativeClick(this.nativeClickAccess(), webContents, point, doubleClick, validateClick, sample, observer, rightClick)
   }
 
   /**
