@@ -106,11 +106,17 @@ test('copies a finished download only into a folder its capability profile names
 type CopyGate = { held: boolean; release(): void; restore(): void }
 type CopyGateGlobal = typeof globalThis & { __downloadCopyGate?: CopyGate }
 
-// Each stage holds the copy at one point, withdraws access there, and checks what the agent is told once the shared
-// checks discard the call's own result. The audit outcome is saved after the workspace checks, so the last stage
-// revokes the capability profile, which is checked again before the result is published.
-for (const stage of ['before the copy is created', 'after the copy is created', 'after the copy is written'] as const) {
-  test(`reports what a copy left behind when its access is withdrawn ${stage}`, async ({ capabilities, appWindow, electronApp, mcpPort, profileDirectory }) => {
+// Each case holds the copy at one point, withdraws access there, and checks what the agent is told once the call's
+// own result is discarded. The audit outcome is saved after the copy is written and after the shared checks, so
+// publication checks the call's authority once more.
+const holds = [
+  ['before the copy is created', 'workspace access'],
+  ['after the copy is created', 'workspace access'],
+  ['after the copy is written', 'workspace access'],
+  ['after the copy is written', 'the capability profile']
+] as const
+for (const [stage, withdrawn] of holds) {
+  test(`reports what a copy left behind when ${withdrawn} is withdrawn ${stage}`, async ({ capabilities, appWindow, electronApp, mcpPort, profileDirectory }) => {
     const { client: owner, tabId, workspace } = capabilities
     await owner.callTool({ name: 'browser_click', arguments: { tabId, selector: '#download' } })
     let download: DownloadRecord | undefined
@@ -170,7 +176,7 @@ for (const stage of ['before the copy is created', 'after the copy is created', 
       }, { stage, source: download!.savePath!, target: join(await realpath(folder), 'held copy.txt') })
       pending = client.callTool({ name: 'browser_download_copy', arguments: { downloadId: download!.id, directory: folder, filename: 'held copy.txt' } }) as Promise<CallToolResult>
       await expect.poll(() => electronApp.evaluate(() => (globalThis as CopyGateGlobal).__downloadCopyGate?.held)).toBe(true)
-      if (stage === 'after the copy is written') {
+      if (withdrawn === 'the capability profile') {
         await appWindow.evaluate(id => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.revokeMcpCapabilityProfile(id), grant.profile.id)
       } else {
         await appWindow.evaluate(async workspaceId => {
@@ -183,6 +189,7 @@ for (const stage of ['before the copy is created', 'after the copy is created', 
       const target = join(folder, 'held copy.txt')
       if (stage === 'after the copy is written') {
         expect(result.structuredContent).toMatchObject({ status: 'COPIED_UNCONFIRMED', effects: 'file-written', retrySafe: false })
+        expect(text(result)).not.toContain('held copy')
         expect(await readFile(target, 'utf8')).toBe(CONTENT)
       } else {
         // Nothing was created, or the partial copy was removed: the agent is told nothing was copied.

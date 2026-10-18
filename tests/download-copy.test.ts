@@ -242,9 +242,17 @@ describe('browser_download_copy tool', () => {
     } as never)
     const settlement = options!.settlement!()
     const outcomes: unknown[] = []
-    const call = { signal: undefined, requireCurrentTarget: () => undefined, setInvalidatedOutcome: (outcome: unknown) => { outcomes.push(outcome) }, settlement }
+    let authorized = true
+    const abort = new AbortController()
+    const call = {
+      signal: abort.signal,
+      requireCurrentTarget: () => { if (!authorized) throw new Error('Workspace access was withdrawn') },
+      setInvalidatedOutcome: (outcome: unknown) => { outcomes.push(outcome) },
+      settlement
+    }
+    settlement.prepare(call as never)
     const run = () => handler!({ workspaceId: 'workspace', downloadId: 'download', directory: destination, filename: 'copy.bin' }, call)
-    return { outcomes, run, settlement }
+    return { outcomes, run, settlement, revoke: () => { authorized = false }, cancel: () => abort.abort() }
   }
   const failed = { content: [{ type: 'text' as const, text: 'failed' }], isError: true }
   const status = (result: CallToolResult | undefined) => result?.structuredContent?.status
@@ -259,6 +267,15 @@ describe('browser_download_copy tool', () => {
     expect(copied.settlement.publish(failed)?.structuredContent).toMatchObject({ effects: 'file-written', retrySafe: false })
     expect(status(copied.settlement.settleError())).toBe('COPIED_UNCONFIRMED')
     expect(status(copied.settlement.publicationRevoked())).toBe('COPIED_UNCONFIRMED')
+
+    // Access withdrawn, or the call cancelled, after the shared checks: the copy is not confirmed and its path is withheld.
+    copied.revoke()
+    expect(copied.settlement.publish(result)?.structuredContent).toMatchObject({ status: 'COPIED_UNCONFIRMED', effects: 'file-written' })
+    expect(JSON.stringify(copied.settlement.publish(result))).not.toContain('copy.bin')
+    const cancelled = tool(async () => ({ status: 'COPIED', filename: 'copy.bin', bytes: 3 }))
+    const finished = await cancelled.run()
+    cancelled.cancel()
+    expect(status(cancelled.settlement.publish(finished))).toBe('COPIED_UNCONFIRMED')
   })
 
   it('reports a copy that may remain, and passes through failures that left nothing behind', async () => {

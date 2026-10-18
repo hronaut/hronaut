@@ -1,6 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { DownloadCopyProgress } from '../../../browser/download-copy/download-copy.js'
 import { textResult } from '../../tool-results.js'
+import type { WorkspaceToolCall } from '../tool-context.js'
 
 const SEPARATE_GRANT_REQUIRED = {
   status: 'REFUSED',
@@ -51,13 +52,15 @@ function notCopiedResult(dispatched: boolean): CallToolResult {
  * every failure says so instead of the shared outcome-unknown result, so the agent checks the folder rather than
  * taking it for nothing having happened. When nothing remains, the copy's own refusal is reported as it is; if the
  * call's authority or workspace changed and its result was discarded, the agent is told that nothing was copied.
- * These hooks run after the handler returned, so the progress they read is final.
+ * A copy is published only if the call still has its authority then. These hooks run after the handler returned, so
+ * the progress they read is final.
  */
 export function downloadCopySettlement(hasCapability: boolean) {
   const progress: DownloadCopyProgress & { copied: boolean } = { created: false, removed: false, copied: false }
   // The status of the handler's own result, once it returned, to tell it from the shared result that replaces a
   // discarded one. A rejection before the handler ran is reported as it is.
   let dispatched: { status: unknown } | undefined
+  let admitted: WorkspaceToolCall<unknown> | undefined
   const uncertain = (): CallToolResult | undefined => progress.copied
     ? uncertainCopyResult(true)
     : progress.created && !progress.removed ? uncertainCopyResult(false) : undefined
@@ -66,12 +69,23 @@ export function downloadCopySettlement(hasCapability: boolean) {
     admit: (): CallToolResult | undefined => hasCapability
       ? undefined
       : { ...textResult(SEPARATE_GRANT_REQUIRED), structuredContent: SEPARATE_GRANT_REQUIRED, isError: true },
+    prepare: (call: WorkspaceToolCall<unknown>): void => { admitted = call },
     effectsPossible: (): boolean => uncertain() !== undefined,
     afterDispatch: (result: CallToolResult): void => { dispatched = { status: result.structuredContent?.status } },
     publicationRevoked: (): CallToolResult => uncertain() ?? notCopiedResult(dispatched !== undefined),
     settleDenied: (): CallToolResult => uncertain() ?? notCopiedResult(dispatched !== undefined),
-    publish: (result: CallToolResult): CallToolResult | undefined => !result.isError ? undefined
-      : uncertain() ?? (dispatched && result.structuredContent?.status !== dispatched.status ? notCopiedResult(true) : undefined),
+    publish: (result: CallToolResult): CallToolResult | undefined => {
+      if (result.isError) return uncertain() ?? (dispatched && result.structuredContent?.status !== dispatched.status ? notCopiedResult(true) : undefined)
+      // The audit outcome is saved after the shared checks, so the call's authority is checked once more, with no
+      // await before the result is returned: an agent whose access was withdrawn is not told where the copy went.
+      try {
+        if (!admitted || admitted.signal?.aborted) throw new Error('Download copy publication guard is unavailable')
+        admitted.requireCurrentTarget()
+      } catch {
+        return uncertainCopyResult(true)
+      }
+      return undefined
+    },
     settleError: (): CallToolResult | undefined => uncertain()
   }
 }
