@@ -409,11 +409,12 @@ import {
 } from './workspace-navigation/workspace-navigation.js'
 import {
   destroyWorkspaceStorage,
-  flushBrowserSessionStorage,
   normalizeWorkspaceStorageOrigins,
   transferWorkspaceStorage,
   workspacePartition
 } from './workspace-storage.js'
+import type { QuitFlushAccess } from './quit-flush/quit-flush-access.js'
+import { drainWorkspaceOperations, flushPersist, flushWorkspaceProfiles } from './quit-flush/quit-flush.js'
 import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.js'
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
@@ -526,7 +527,6 @@ const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
-const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
   const override = Number(process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS)
@@ -5397,60 +5397,39 @@ export class BrowserTabsManager {
     this.publishPageGeometry()
   }
 
-  async flushPersist(): Promise<void> {
-    if (this.persistTimer) {
-      clearTimeout(this.persistTimer)
-      this.persistTimer = null
-    }
-    this.downloadController.clearPendingNotification()
-    // The manager exists before the shell finishes loading so IPC can be
-    // registered early. A quit request during that window must not replace a
-    // valid on-disk session with this still-empty in-memory model.
-    if (!this.initialized) return
-    await this.store.save(() => this.persistedState())
-  }
-
-  async drainWorkspaceOperations(): Promise<void> {
-    const deadline = Date.now() + WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS
-    while (this.pendingWorkspaceOperationPromises.size) {
-      const pending = [...this.pendingWorkspaceOperationPromises]
-      const remainingMs = deadline - Date.now()
-      if (remainingMs <= 0) {
-        throw new Error(`Workspace operations did not finish within ${WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS} ms.`)
-      }
-      let timer: NodeJS.Timeout | undefined
-      try {
-        await Promise.race([
-          Promise.allSettled(pending).then(() => undefined),
-          new Promise<never>((_resolve, reject) => {
-            timer = setTimeout(() => {
-              reject(new Error(`Workspace operations did not finish within ${WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS} ms.`))
-            }, remainingMs)
-          })
-        ])
-      } finally {
-        if (timer) clearTimeout(timer)
-      }
+  /**
+   * The narrow view settling the browser before quit gets of this manager's
+   * private save timer, downloads controller, store, persisted state,
+   * workspace operations, workspaces and options. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's
+   * promise directly, so callers see the same ticks as before.
+   */
+  private quitFlushAccess(): QuitFlushAccess {
+    return {
+      persistTimer: () => this.persistTimer,
+      setPersistTimer: (timer) => { this.persistTimer = timer },
+      downloadController: () => this.downloadController,
+      initialized: () => this.initialized,
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      pendingWorkspaceOperationPromises: () => this.pendingWorkspaceOperationPromises,
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      options: () => this.options
     }
   }
 
-  async flushWorkspaceProfiles(): Promise<void> {
-    const storageIds = new Set<string>()
-    for (const workspace of this.mcpTabGroups.values()) {
-      if (workspace.storageId) storageIds.add(workspace.storageId)
-    }
-    for (const workspace of this.savedTabGroups.values()) {
-      if (workspace.storageId) storageIds.add(workspace.storageId)
-    }
-    const results = await Promise.allSettled([...storageIds].map(async (storageId) => {
-      const browserSession = session.fromPartition(workspacePartition(this.options.partition, storageId), { cache: true })
-      this.options.configureSession?.(browserSession)
-      await flushBrowserSessionStorage(browserSession)
-    }))
-    const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : [])
-    if (errors.length) {
-      throw new AggregateError(errors, `${errors.length} isolated browser profile${errors.length === 1 ? '' : 's'} could not be fully flushed.`)
-    }
+  flushPersist(): Promise<void> {
+    return flushPersist(this.quitFlushAccess())
+  }
+
+  drainWorkspaceOperations(): Promise<void> {
+    return drainWorkspaceOperations(this.quitFlushAccess())
+  }
+
+  flushWorkspaceProfiles(): Promise<void> {
+    return flushWorkspaceProfiles(this.quitFlushAccess())
   }
 
   destroy(): void {
