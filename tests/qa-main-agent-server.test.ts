@@ -254,7 +254,7 @@ describe('workspace activity and connected agents from a presence snapshot', () 
     expect(server.getWorkspaceActivity({ [workspaceId]: [] })).toEqual({})
   })
 
-  it('lists an agent that waits for you without a live session, with the workspace that needs you first', async () => {
+  it('lists an agent that waits for you with only the workspace that needs you, also without a live session', async () => {
     const { server } = await startServer()
     const registry = new AgentPresenceRegistry()
     const asking = { id: 'asking-session', name: 'claude-code' }
@@ -267,8 +267,9 @@ describe('workspace activity and connected agents from a presence snapshot', () 
       colorIndex: expect.any(Number),
       state: 'needs-you'
     }
+    // Home names the workspaces where an agent has its strongest state, so its work elsewhere is left out.
     expect(server.getConnectedAgents(presenceOf(registry, 60_000, 'attention-3'), 60_000))
-      .toEqual([{ ...expected, workspaceIds: [workspaceId, otherWorkspaceId] }])
+      .toEqual([{ ...expected, workspaceIds: [workspaceId] }])
     // Its session closing ends its other activity, but it stays listed until you answer.
     registry.removeClient('asking-session')
     expect(server.getConnectedAgents(presenceOf(registry, 60_000, 'attention-3'), 60_000)).toEqual([{ ...expected, workspaceIds: [workspaceId] }])
