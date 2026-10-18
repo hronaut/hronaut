@@ -2,7 +2,8 @@ import { z } from 'zod'
 import type { TextFileFillProgress } from '../../../browser/text-file-fill/text-file-fill.js'
 import { textResult, toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import type { McpToolContext } from '../tool-context.js'
+import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
+import { type FillSettlement, fillSettlement } from './fill-settlement.js'
 
 export function registerBrowserFillFromFile(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -24,7 +25,7 @@ export function registerBrowserFillFromFile(context: McpToolContext): void {
     },
     tabTool('browser_fill_from_file', async ({ path, expectedOrigin, sha256, ...target }: {
       tabId?: string; ref?: string; selector?: string; path: string; expectedOrigin: string; sha256?: string
-    }, call) => {
+    }, call: WorkspaceToolCall<FillSettlement>) => {
       const progress: TextFileFillProgress = { written: false }
       // Re-checks the call after the file is read, before the text is written, and before its result is published.
       const validateFill = (validateContext: () => void): void => {
@@ -49,13 +50,14 @@ export function registerBrowserFillFromFile(context: McpToolContext): void {
         }
       }
       try {
-        return textResult(await manager.fillFromFile(target, { path, expectedOrigin, sha256 }, validateFill, progress))
+        const result = await manager.fillFromFile(target, { path, expectedOrigin, sha256 }, validateFill, progress)
+        return { ...textResult(result), structuredContent: { ...result } }
       } catch (error) {
         // Also a failure after writing that the checks above never saw.
         if (progress.written) call.setInvalidatedOutcome('outcome-unknown')
         throw error
       }
     }),
-    { stepTarget: input => ({ ref: input.ref }) }
+    { stepTarget: input => ({ ref: input.ref }), settlement: () => fillSettlement() }
   )
 }

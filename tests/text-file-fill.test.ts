@@ -1,13 +1,16 @@
 import { createHash } from 'node:crypto'
 import { EventEmitter } from 'node:events'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { fillFromFile, MAX_FILL_FILE_BYTES, readFillText, type TextFileFillProgress } from '../src/main/browser/text-file-fill/text-file-fill.js'
 import type { TextFileFillAccess, TextFileFillTab } from '../src/main/browser/text-file-fill/text-file-fill-access.js'
-import type { TextFileFillPageResult } from '../src/main/browser/text-file-fill/text-file-fill-scripts.js'
+import type { TextFileFillCheck, TextFileFillPageResult } from '../src/main/browser/text-file-fill/text-file-fill-scripts.js'
+import { fillSettlement } from '../src/main/mcp/tools/browser-fill-from-file/fill-settlement.js'
 import { registerBrowserFillFromFile } from '../src/main/mcp/tools/browser-fill-from-file/index.js'
 
 const ORIGIN = 'http://127.0.0.1:4100'
@@ -63,12 +66,53 @@ describe('reading the file', () => {
     expect(await fileProblem(binary)).toMatch(/not valid UTF-8/u)
     expect(await fileProblem(textFile, sha256('other'))).toMatch(/does not match sha256/u)
     expect(await fileProblem(textFile, 'ABC')).toMatch(/64 lowercase hexadecimal/u)
+    // A byte order mark alone is no text.
+    const markOnly = join(directory, 'mark-only.txt')
+    await writeFile(markOnly, Buffer.from([0xef, 0xbb, 0xbf]))
+    expect(await fileProblem(markOnly)).toMatch(/empty/u)
+  })
+
+  it('follows a symbolic link to its file, and refuses one that leads to a folder', async () => {
+    const link = join(directory, 'link.txt')
+    await symlink(textFile, link)
+    expect(await readFillText(link)).toBe(TEXT)
+    const folderLink = join(directory, 'folder-link')
+    await mkdir(join(directory, 'linked-folder'))
+    await symlink(join(directory, 'linked-folder'), folderLink)
+    expect(await fileProblem(folderLink)).toMatch(/not a regular file/u)
+  })
+
+  it.runIf(process.platform !== 'win32')('refuses a named pipe without opening it, so a pipe with no writer cannot hold the read', async () => {
+    const pipe = join(directory, 'pipe.txt')
+    try {
+      execFileSync('mkfifo', [pipe])
+    } catch {
+      return
+    }
+    expect(await fileProblem(pipe)).toMatch(/not a regular file/u)
+  })
+
+  it.runIf(process.platform === 'linux')('refuses a file whose size differs from what it read', async () => {
+    // Linux reports a size of zero for its process files but returns their text when read.
+    expect(await fileProblem('/proc/self/status')).toMatch(/changed while it was read/u)
+  })
+
+  it('reads at most two files at once and refuses a third until one finishes', async () => {
+    const reads = await Promise.allSettled([readFillText(textFile), readFillText(textFile), readFillText(textFile)])
+    expect(reads.map(read => read.status)).toEqual(['fulfilled', 'fulfilled', 'rejected'])
+    expect(((reads[2] as PromiseRejectedResult).reason as Error).message).toMatch(/still reading their files/u)
+    expect(await readFillText(textFile)).toBe(TEXT)
   })
 })
 
-/** A page whose fill script answers from a queue, and a manager view whose authority checks call the fill's validator. */
+/**
+ * A page whose check script answers with `check` and whose fill script answers from a queue, and a manager view
+ * whose authority checks call the fill's validator.
+ */
 function fieldPage(options: {
   url?: string
+  loading?: boolean
+  check?: TextFileFillCheck
   results?: Array<TextFileFillPageResult | Error>
   /** Runs inside the agent input scope, before the fill's last check. */
   beforeWrite?: () => void
@@ -78,8 +122,10 @@ function fieldPage(options: {
   const events = new EventEmitter()
   const webContents = Object.assign(events, {
     getURL: () => options.url ?? `${ORIGIN}/form`,
+    isLoadingMainFrame: () => options.loading ?? false,
     executeJavaScriptInIsolatedWorld: async (world: number, sources: Array<{ code: string }>) => {
       scripts.push({ world, code: sources[0]!.code })
+      if (scripts.length === 1) return options.check ?? { field: 'textarea' }
       const next = results.shift()
       if (next instanceof Error) throw next
       return next
@@ -112,15 +158,23 @@ function fieldPage(options: {
 const source = (overrides: Partial<{ path: string; expectedOrigin: string; sha256: string }> = {}) => ({ path: textFile, expectedOrigin: ORIGIN, ...overrides })
 
 describe('filling a field from a file', () => {
-  it('sends the file text to the page once, in its own world, and reports a matching field without the text or path', async () => {
+  it('checks the target with only the text\'s shape, then sends the text once with a start deadline, in its own world', async () => {
     const page = fieldPage()
     const progress: TextFileFillProgress = { written: false }
+    const sent = Date.now()
     const result = await fillFromFile(page.access, { selector: '#notes' }, source({ expectedOrigin: `${ORIGIN}/any/path` }), undefined, progress)
     expect(result).toEqual(expect.objectContaining({ status: 'MATCHED', field: 'textarea', characters: TEXT.length }))
-    expect(page.scripts).toHaveLength(1)
-    expect(page.scripts[0]!.world).toBe(ISOLATED_WORLDS.textFileFill)
-    expect(page.scripts[0]!.code).toContain(JSON.stringify(TEXT))
-    expect(page.scripts[0]!.code).toContain(JSON.stringify(ORIGIN))
+    expect(page.scripts).toHaveLength(2)
+    expect(page.scripts.map(script => script.world)).toEqual([ISOLATED_WORLDS.textFileFill, ISOLATED_WORLDS.textFileFill])
+    const [check, write] = page.scripts.map(script => script.code)
+    expect(check).not.toMatch(/private-fixture-canary|second line/u)
+    expect(check).toContain(String(TEXT.length))
+    expect(check).toContain(JSON.stringify(ORIGIN))
+    expect(write).toContain(JSON.stringify(TEXT))
+    expect(write).toContain(JSON.stringify(ORIGIN))
+    const deadline = Number(/Date\.now\(\) > (\d+)/u.exec(write!)?.[1])
+    expect(deadline - sent).toBeGreaterThanOrEqual(4_000)
+    expect(deadline - Date.now()).toBeLessThanOrEqual(4_000)
     expect(JSON.stringify(result)).not.toMatch(/private-fixture-canary|private-path-canary/u)
     expect(progress.written).toBe(true)
     expect(page.disposed()).toBe(1)
@@ -134,13 +188,13 @@ describe('filling a field from a file', () => {
     expect(await fill({ field: 'input', matched: true, connected: false, fieldCharacters: 3 }))
       .toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('removed or replaced the field') })
     const lost = await fill(new Error('Execution context was destroyed'))
-    expect(lost).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('do not fill it again without checking') })
-    expect(lost.field).toBeUndefined()
+    expect(lost).toMatchObject({ status: 'UNCONFIRMED', field: 'textarea', note: expect.stringContaining('do not fill it again without checking') })
   })
 
   it('refuses before reading the file or writing anything when the page is elsewhere or the target was refused', async () => {
     const elsewhere = fieldPage({ url: 'https://other.example/form' })
-    await expect(fillFromFile(elsewhere.access, { ref: 'e4' }, source())).rejects.toThrow(/not at expectedOrigin/u)
+    // The origin is checked before the file is read: a missing file is not even looked for.
+    await expect(fillFromFile(elsewhere.access, { ref: 'e4' }, source({ path: join(directory, 'missing.txt') }))).rejects.toThrow(/not at expectedOrigin/u)
     expect(elsewhere.scripts).toHaveLength(0)
     const blank = fieldPage({ url: 'about:blank' })
     await expect(fillFromFile(blank.access, { ref: 'e4' }, source())).rejects.toThrow(/not at expectedOrigin/u)
@@ -148,11 +202,28 @@ describe('filling a field from a file', () => {
     await expect(fillFromFile(fieldPage().access, { ref: 'e4', selector: '#also' }, source())).rejects.toThrow(/exactly one of ref or selector/u)
     for (const [problem, message] of [['not-fillable', /not a plain text input or a textarea/u], ['too-long', /never shortens it/u], ['single-line', /drops line breaks/u], ['wrong-origin', /not at expectedOrigin/u]] as const) {
       const progress: TextFileFillProgress = { written: false }
-      const refused = fieldPage({ results: [{ problem }] })
+      const refused = fieldPage({ check: { problem } })
       await expect(fillFromFile(refused.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(message)
-      // The page script checks the target before writing: a refusal wrote nothing.
+      // Only the check ran: the text never reached the page.
+      expect(refused.scripts).toHaveLength(1)
       expect(progress.written).toBe(false)
     }
+    // The fill script checks again before writing, and writes nothing once its deadline passed.
+    for (const [problem, message] of [['late', /too busy to start the fill in time/u], ['not-found', /Field not found/u]] as const) {
+      const progress: TextFileFillProgress = { written: false }
+      const refused = fieldPage({ results: [{ problem }] })
+      await expect(fillFromFile(refused.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(message)
+      expect(refused.scripts).toHaveLength(2)
+      expect(progress.written).toBe(false)
+    }
+  })
+
+  it('refuses a page that is still loading, which Electron would hold the fill back for', async () => {
+    const loading = fieldPage({ loading: true })
+    const progress: TextFileFillProgress = { written: false }
+    await expect(fillFromFile(loading.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(/still loading/u)
+    expect(loading.scripts).toHaveLength(1)
+    expect(progress.written).toBe(false)
   })
 
   it('refuses a file with carriage returns, which no field keeps', async () => {
@@ -167,24 +238,24 @@ describe('filling a field from a file', () => {
     const navigating: ReturnType<typeof fieldPage> = fieldPage({ beforeWrite: () => navigating.navigate() })
     const progress: TextFileFillProgress = { written: false }
     await expect(fillFromFile(navigating.access, { ref: 'e4' }, source(), undefined, progress)).rejects.toThrow(/navigated before the text was written/u)
-    expect(navigating.scripts).toHaveLength(0)
+    expect(navigating.scripts).toHaveLength(1)
     expect(progress.written).toBe(false)
 
     let revoked = false
     const revoking = fieldPage({ beforeWrite: () => { revoked = true } })
     const validateFill = (): void => { if (revoked) throw new Error('authority revoked') }
     await expect(fillFromFile(revoking.access, { ref: 'e4' }, source(), validateFill)).rejects.toThrow('authority revoked')
-    expect(revoking.scripts).toHaveLength(0)
+    expect(revoking.scripts).toHaveLength(1)
   })
 
   it('throws, with the write recorded, when the authority ends after the text was written', async () => {
     let checks = 0
     const page = fieldPage()
     const progress: TextFileFillProgress = { written: false }
-    // The first two checks precede the write; the third guards the result's publication.
-    const validateFill = (): void => { checks += 1; if (checks === 3) throw new Error('authority ended') }
+    // The first three checks precede the write; the fourth guards the result's publication.
+    const validateFill = (): void => { checks += 1; if (checks === 4) throw new Error('authority ended') }
     await expect(fillFromFile(page.access, { ref: 'e4' }, source(), validateFill, progress)).rejects.toThrow('authority ended')
-    expect(page.scripts).toHaveLength(1)
+    expect(page.scripts).toHaveLength(2)
     expect(progress.written).toBe(true)
   })
 })
@@ -209,8 +280,20 @@ describe('browser_fill_from_file tool', () => {
       ...overrides
     }
     const run = () => handler!({ ref: 'e4', path: textFile, expectedOrigin: ORIGIN }, call).then(() => new Error('filled'), (caught: unknown) => caught as Error)
-    return { outcomes, run }
+    const result = () => handler!({ ref: 'e4', path: textFile, expectedOrigin: ORIGIN }, call) as Promise<CallToolResult>
+    return { outcomes, run, result }
   }
+
+  it('returns the result as structured content, which marks an unconfirmed fill as outcome-unknown', async () => {
+    const unconfirmed = await tool(async () => ({ status: 'UNCONFIRMED', field: 'textarea', characters: 3, note: 'Read the field.' })).result()
+    expect(unconfirmed.structuredContent).toMatchObject({ status: 'UNCONFIRMED', characters: 3 })
+    expect(JSON.parse((unconfirmed.content[0] as { text: string }).text)).toMatchObject({ status: 'UNCONFIRMED' })
+    const activity = { readOnly: false, dispatched: true, invalidatedOutcome: undefined }
+    expect(fillSettlement().classifyActivity(activity, false, unconfirmed)).toEqual({ ...activity, invalidatedOutcome: 'outcome-unknown' })
+    const matched = await tool(async () => ({ status: 'MATCHED', field: 'textarea', characters: 3, note: 'Read the page.' })).result()
+    expect(fillSettlement().classifyActivity(activity, false, matched)).toEqual(activity)
+    expect(fillSettlement().classifyActivity(activity, true, undefined)).toEqual(activity)
+  })
 
   it('says nothing was filled when its checks fail before the text is written', async () => {
     const rejected = tool(async validate => { validate(() => undefined) }, { authorityRejection: () => ({ content: [] }) })

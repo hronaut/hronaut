@@ -10,12 +10,14 @@ interface FieldPageState {
   values: Record<string, string>
 }
 
-// Plain fields, one whose input handler rewrites its value, fields Hronaut must refuse, and a frame. Every input,
-// change and key event the document sees is recorded.
+// Plain fields, one whose input handler rewrites its value, one that rewrites it from a timer, one whose input handler
+// removes it, fields Hronaut must refuse, and a frame. Every input, change and key event the document sees is recorded.
 const FIELD_PAGE = `(() => {
   document.body.innerHTML = '<textarea id="notes" aria-label="Notes">old notes</textarea>'
     + '<input id="title" aria-label="Title" value="old title">'
     + '<input id="upper" aria-label="Upper" value="">'
+    + '<input id="delayed" aria-label="Delayed" value="">'
+    + '<input id="vanish" aria-label="Vanish" value="">'
     + '<input id="short" aria-label="Short" maxlength="5" value="">'
     + '<input id="secret" type="password" aria-label="Secret">'
     + '<input id="email" type="email" aria-label="Email">'
@@ -23,6 +25,8 @@ const FIELD_PAGE = `(() => {
     + '<input id="off" aria-label="Off" disabled value="off">'
     + '<input id="locked" aria-label="Locked" readonly value="locked">'
     + '<input id="ghost" aria-label="Ghost" style="width:0;height:0;padding:0;border:0">'
+    + '<input id="none" aria-label="None" style="display:none">'
+    + '<input id="invisible" aria-label="Invisible" style="visibility:hidden">'
     + '<input class="twin" aria-label="Twin one"><input class="twin" aria-label="Twin two">'
     + '<iframe id="frame" srcdoc="<input id=inner>"></iframe>';
   window.fieldEvents = [];
@@ -33,12 +37,15 @@ const FIELD_PAGE = `(() => {
     }
   }
   document.querySelector('#upper').addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase(); });
+  // A formatter that runs after the input handlers, as a debounced one does.
+  document.querySelector('#delayed').addEventListener('input', (event) => { setTimeout(() => { event.target.value = event.target.value + '!'; }, 50); });
+  document.querySelector('#vanish').addEventListener('input', (event) => { event.target.remove(); });
   return true;
 })()`
 
 const STATE = `({
   events: window.fieldEvents,
-  values: Object.fromEntries(['notes', 'title', 'upper', 'short', 'secret', 'email', 'off', 'locked', 'ghost'].map((id) => [id, document.getElementById(id).value])
+  values: Object.fromEntries(['notes', 'title', 'upper', 'delayed', 'short', 'secret', 'email', 'off', 'locked', 'ghost', 'none', 'invisible'].map((id) => [id, document.getElementById(id).value])
     .concat([['rich', document.getElementById('rich').textContent], ['inner', document.getElementById('frame').contentDocument.getElementById('inner').value]]))
 })`
 
@@ -65,9 +72,9 @@ test('fills plain fields with the exact text of local files, reports a page that
   const state = () => onPage<FieldPageState>(electronApp, fixtureUrl, STATE)
   const clearEvents = () => onPage(electronApp, fixtureUrl, 'window.fieldEvents = []; true')
 
-  // A long synthetic text with quotes, backticks, non-Latin script, emoji and a terminal line break lands whole.
+  // A long synthetic text of whole lines with quotes, backticks, non-Latin script, emoji and a terminal line break lands whole.
   const line = 'private-fixture-canary "quoted" \'single\' `tick` ${not} мир 世界 😀\ttab\n'
-  const long = line.repeat(Math.ceil(20_000 / line.length)).slice(0, 19_999) + '\n'
+  const long = line.repeat(Math.floor(20_000 / line.length))
   const longPath = await file('long.txt', long)
   await clearEvents()
   const filled = await fill({ selector: '#notes', path: longPath })
@@ -94,6 +101,14 @@ test('fills plain fields with the exact text of local files, reports a page that
   expect(JSON.parse(text(await fill({ selector: '#upper', path: lowerPath })))).toMatchObject({ status: 'MISMATCH', field: 'input', characters: 12, fieldCharacters: 12 })
   expect((await state()).values.upper).toBe('MAKE ME LOUD')
 
+  // A page that rewrites it a moment later is caught by the second read.
+  expect(JSON.parse(text(await fill({ selector: '#delayed', path: lowerPath })))).toMatchObject({ status: 'MISMATCH', field: 'input', characters: 12, fieldCharacters: 13 })
+  expect((await state()).values.delayed).toBe('make me loud!')
+
+  // A page that removes the field once it gets the text leaves nowhere to check, and the result says so.
+  expect(JSON.parse(text(await fill({ selector: '#vanish', path: lowerPath })))).toMatchObject({ status: 'UNCONFIRMED', field: 'input' })
+  expect(await onPage(electronApp, fixtureUrl, 'document.getElementById("vanish") === null')).toBe(true)
+
   // Targets, files and pages it cannot fill faithfully are refused before anything is written.
   const shortPath = await file('short.txt', 'abc')
   const tooLongPath = await file('too-long.txt', 'abcdef')
@@ -105,6 +120,8 @@ test('fills plain fields with the exact text of local files, reports a page that
     [{ selector: '#off', path: shortPath }, /disabled/u],
     [{ selector: '#locked', path: shortPath }, /read-only/u],
     [{ selector: '#ghost', path: shortPath }, /hidden or has no size/u],
+    [{ selector: '#none', path: shortPath }, /hidden or has no size/u],
+    [{ selector: '#invisible', path: shortPath }, /hidden or has no size/u],
     [{ selector: '.twin', path: shortPath }, /more than one element/u],
     [{ selector: '#inner', path: shortPath }, /Field not found/u],
     [{ selector: '#short', path: tooLongPath }, /length limit \(maxlength\)/u],
@@ -127,7 +144,7 @@ test('fills plain fields with the exact text of local files, reports a page that
     expect((await state()).events, String(message)).toEqual([])
   }
   page = await state()
-  expect(page.values).toMatchObject({ short: '', secret: '', email: '', rich: 'rich', off: 'off', locked: 'locked', ghost: '', inner: '' })
+  expect(page.values).toMatchObject({ short: '', secret: '', email: '', rich: 'rich', off: 'off', locked: 'locked', ghost: '', none: '', invisible: '', inner: '' })
 
   // A field length limit that fits takes the text.
   expect(JSON.parse(text(await fill({ selector: '#short', path: shortPath })))).toMatchObject({ status: 'MATCHED' })
