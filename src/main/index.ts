@@ -18,7 +18,8 @@ import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
-import { parseAgentStepHistoryRequest, type AgentPresenceSnapshot, type AgentStepHistoryEntry } from '../shared/agent-presence.js'
+import type { AgentPresenceSnapshot } from '../shared/agent-presence.js'
+import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import type { ConnectedAgent } from '../shared/agent-status.js'
 import type { HomeDashboard } from '../shared/home.js'
 import { windowMaterialFor, windowMaterialOptions, type WindowMaterial } from '../shared/window-material.js'
@@ -2574,14 +2575,10 @@ function registerIpc(): void {
     assertMainShellSender,
     undoOffers: () => undoOffers
   })
-  ipcMain.handle('agent-presence:get', (event): AgentPresenceSnapshot => {
-    assertMainShellSender(event)
-    return agentPresenceSnapshot()
-  })
-  ipcMain.handle('agent-presence:steps', (event, value: unknown): AgentStepHistoryEntry[] | null => {
-    assertMainShellSender(event)
-    const request = parseAgentStepHistoryRequest(value)
-    return mcpServer?.getAgentStepHistory(request.clientKey, request.workspaceId, request.known) ?? null
+  registerAgentPresenceIpc(ipcMain, {
+    assertMainShellSender,
+    agentPresenceSnapshot,
+    mcpServer: () => mcpServer
   })
   registerShellIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
