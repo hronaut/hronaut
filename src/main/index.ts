@@ -54,7 +54,6 @@ import { createAppUpdates } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { WorkspaceMetadataError } from './browser/tab-store.js'
-import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
 import { WalletBroker, type WalletBrokerContext } from './wallet/broker.js'
 import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
 import type { WalletSafeStorage } from './wallet/key-provider.js'
@@ -67,7 +66,8 @@ import { BookmarkStore } from './bookmark-store.js'
 import { UndoOffers } from './undo-offers.js'
 import { registerUndoIpc } from './undo-ipc.js'
 import { HistoryStore } from './history-store.js'
-import { CredentialStore } from './credential-store.js'
+import { createCredentialRuntime } from './credential-runtime.js'
+import type { CredentialStore } from './credential-store.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
@@ -874,51 +874,16 @@ async function clearWorkspaceSiteData(
   })
 }
 
-async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
-  if (!credentialStorageStatus.available || !credentialStore || !mainWindow || mainWindow.isDestroyed()) return
-  if (candidate.username.length > 512 || !candidate.password || candidate.password.length > 16_384) return
-  try {
-    if (new URL(candidate.origin).origin !== candidate.origin) return
-  } catch {
-    return
-  }
-  const updating = credentialStore.has(candidate.origin, candidate.username)
-  const account = candidate.username || text('native.dialog.unnamedAccount')
-  const { response } = await showMessageBox({
-    type: 'question',
-    title: text(updating ? 'native.dialog.updatePasswordTitle' : 'native.dialog.savePasswordTitle'),
-    message: text(updating ? 'native.dialog.updatePasswordMessage' : 'native.dialog.savePasswordMessage', { account }),
-    detail: text('native.dialog.passwordDetail', { origin: candidate.origin }),
-    buttons: [text('native.dialog.notNow'), text(updating ? 'native.dialog.updatePassword' : 'native.dialog.savePassword')],
-    defaultId: 1,
-    cancelId: 0,
-    noLink: true
-  })
-  if (response !== 1) return
-  await credentialStore.save(candidate.origin, candidate.username, candidate.password)
-  publishCredentials()
-}
-
-async function configureCredentialStore(): Promise<void> {
-  const available = await safeStorage.isAsyncEncryptionAvailable()
-  const backend = process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : process.platform === 'darwin' ? 'macOS Keychain' : 'Windows DPAPI'
-  if (!available || backend === 'basic_text') {
-    credentialStorageStatus = {
-      available: false,
-      backend,
-      reason: backend === 'basic_text'
-        ? text('native.errors.linuxSecrets')
-        : text('native.errors.secureStorage')
-    }
-    return
-  }
-  credentialStorageStatus = { available: true, backend }
-  credentialStore = new CredentialStore(join(app.getPath('userData'), 'credentials.json'), {
-    encrypt: (value) => safeStorage.encryptStringAsync(value),
-    decrypt: (value) => safeStorage.decryptStringAsync(value)
-  })
-  await credentialStore.load()
-}
+const { handleCredentialCandidate, configureCredentialStore } = createCredentialRuntime({
+  text,
+  showMessageBox,
+  mainWindow: () => mainWindow,
+  credentialStorageStatus: () => credentialStorageStatus,
+  setCredentialStorageStatus: (status) => { credentialStorageStatus = status },
+  credentialStore: () => credentialStore,
+  setCredentialStore: (store) => { credentialStore = store },
+  publishCredentials
+})
 
 function publishSitePermissions(): void {
   sendToShellWindows('permissions:changed', sitePermissionStore?.list() ?? [])
