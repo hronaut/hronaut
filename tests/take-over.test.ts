@@ -49,6 +49,9 @@ describe('hand-back note privacy', () => {
     )
     expect(note).toContain('from https://shop.example/login to https://shop.example/confirm.')
     expect(note).not.toMatch(/user|pass|step|SPRING|98765|email|secret|REDACTED/)
+    // A move within the same path does not read as a move from an address to itself.
+    expect(handBackNote({ ...start, url: 'https://shop.example/cart?step=1' }, { ...start, url: 'https://shop.example/cart?step=2#review' }, true))
+      .toContain('The page stayed at https://shop.example/cart with another query or fragment.')
   })
 })
 

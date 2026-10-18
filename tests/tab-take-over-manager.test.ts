@@ -35,17 +35,17 @@ it('marks a take over and hands the tab back with a note of what the person did'
   vi.setSystemTime(1_005_000)
   manager.setTabAgentPaused(tab.id, true, { takeOver: true })
   expect(tab.takeOver?.at).toBe(1_000_000)
-  tab.url = 'https://shop.example/checkout'
+  tab.url = 'https://shop.example/checkout?order=98765'
   tab.navigationGeneration += 1
   tab.humanInteractionGeneration += 2
   vi.setSystemTime(1_030_000)
   manager.setTabAgentPaused(tab.id, false)
   expect(manager.isTabTakenOver(tab.id)).toBe(false)
   expect(tab.takeOver).toBeUndefined()
-  const note = 'The person had this tab for 30 s and handed it back. The page moved from https://shop.example/cart to https://shop.example/checkout. '
+  const note = (to: string) => `The person had this tab for 30 s and handed it back. The page moved from https://shop.example/cart to ${to}. `
     + 'They clicked or typed in the page. Read the page again before you continue.'
-  // The page moved, so agents that are kept from URL detail get a note of their own, here with the same addresses.
-  expect(tab.handedBack).toEqual({ at: 1_030_000, note, noteWithoutUrlDetail: note })
+  // The page moved, so agents kept from URL detail get a note of their own, without the query.
+  expect(tab.handedBack).toEqual({ at: 1_030_000, note: note('https://shop.example/checkout?order=98765'), noteWithoutUrlDetail: note('https://shop.example/checkout') })
   // The next take over starts afresh.
   manager.setTabAgentPaused(tab.id, true, { takeOver: true })
   expect(tab.handedBack).toBeUndefined()

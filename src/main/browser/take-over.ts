@@ -56,7 +56,9 @@ function shownDuration(milliseconds: number): string {
  */
 export function handBackNote(start: TakeOverMark, end: TakeOverMark, omitUrlDetail = false): string {
   const parts = [`The person had this tab for ${shownDuration(end.at - start.at)} and handed it back.`]
-  if (end.url !== start.url) parts.push(`The page moved from ${shownUrl(start.url, omitUrlDetail)} to ${shownUrl(end.url, omitUrlDetail)}.`)
+  const [from, to] = [shownUrl(start.url, omitUrlDetail), shownUrl(end.url, omitUrlDetail)]
+  // Addresses shown without their query or fragment may read the same although the page moved.
+  if (end.url !== start.url) parts.push(from === to ? `The page stayed at ${to} with another query or fragment.` : `The page moved from ${from} to ${to}.`)
   else if (end.navigationGeneration !== start.navigationGeneration) parts.push('The page reloaded or navigated and is at the same address again.')
   else parts.push('The page stayed at the same address.')
   parts.push(end.humanInteractionGeneration !== start.humanInteractionGeneration

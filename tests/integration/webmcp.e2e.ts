@@ -11,6 +11,7 @@ function text(result: CallToolResult): string {
 }
 
 test('binds native top-level WebMCP tools to the listed origin, navigation, and descriptor', async ({
+  appWindow,
   electronApp,
   mcpToken,
   mcpPort
@@ -192,7 +193,26 @@ test('binds native top-level WebMCP tools to the listed origin, navigation, and 
     expect(JSON.parse(text(navigated))).toMatchObject({
       status: 'STALE_PRECONDITION', dispatch: 'not-dispatched', effects: 'none', reason: 'NAVIGATION_CHANGED'
     })
+
+    // While the person hides URL details from agents, a call observes the page's address as origin and path only.
+    await appWindow.evaluate('window.hronautSettings.setOmitAgentUrlDetail(true)')
+    const current = JSON.parse(text(await client.callTool({
+      name: 'browser_webmcp', arguments: { action: 'list', tabId }
+    }) as CallToolResult)) as typeof listed
+    const withoutDetail = await client.callTool({
+      name: 'browser_webmcp',
+      arguments: {
+        action: 'call', tabId, expectedOrigin: current.origin,
+        navigationGeneration: current.navigationGeneration,
+        descriptorDigest: current.descriptorDigest,
+        toolName: 'read-count', arguments: {}
+      }
+    }) as CallToolResult
+    expect(withoutDetail.isError, text(withoutDetail)).not.toBe(true)
+    expect(text(withoutDetail)).not.toContain('next=1')
+    expect(JSON.parse(text(withoutDetail))).toMatchObject({ observation: { urlBefore: url, urlAfter: url, urlDetail: 'omitted' } })
   } finally {
+    await appWindow.evaluate('window.hronautSettings.setOmitAgentUrlDetail(false)').catch(() => undefined)
     await client.close().catch(() => undefined)
     await closeFixtureServer(fixture)
   }
