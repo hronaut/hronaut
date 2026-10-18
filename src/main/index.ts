@@ -415,6 +415,7 @@ const {
   recordPageVisit,
   updatePageTitle,
   offerBookmarkRestore,
+  historyCleared,
   agentBookmarks,
   agentHistory
 } = createBookmarksAndHistory({
@@ -881,7 +882,7 @@ function registerIpc(): void {
     downloads: () => tabRuntime.tabs!,
     publishBookmarks,
     publishVisitHistory,
-    historyCleared: () => mcpRuntime.server?.forgetHomeFeed(),
+    historyCleared,
     bookmarkRemoved: offerBookmarkRestore
   })
   registerBrowsingDataIpc({
