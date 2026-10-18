@@ -1,11 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
-import { address, getAddressEncoder, getBase58Encoder } from '@solana/kit'
+import {
+  reconcileAccountProviderSessions,
+  solanaRequest,
+  tronRequest,
+  type AccountProviderSession,
+  type SolanaTronProviderAccess
+} from './solana-tron-provider.js'
 import type {
   WalletAgentDescriptor,
   WalletChainFamily,
   WalletDescriptor,
-  WalletMessageWarning,
   WalletOperation,
   WalletOperationRequest,
   WalletPolicy,
@@ -19,65 +24,67 @@ import type {
 import {
   EVM_FILTER_RPC_METHODS,
   EVM_READ_RPC_METHODS,
-  WALLET_MESSAGE_DISPLAY_MAX_LENGTH,
   WALLET_PROVIDER_METHODS,
   WalletProviderRequestSchema,
   WalletUpdateInputSchema,
   walletAllowsWorkspace
 } from '../../shared/wallet.js'
-import { normalizeTronProviderChainId, tronProviderChainId } from '../../shared/tron-chain-id.js'
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
-import {
-  agentCallBundleId,
-  callBundleError,
-  callBundleState,
-  callBundleStatus,
-  callReceipt,
-  EVM_CALL_BUNDLE_VERSION,
-  EvmCallBundleStore,
-  parseSendCalls,
-  type EvmCallReceipt
-} from './evm-call-bundles.js'
-import { simulationRevertFromStored, storedSimulationRevert } from './evm-revert.js'
-import { EvmFilterRegistry, isEvmFilterCreateMethod, isEvmFilterId, MAX_EVM_FILTERS_PER_PAGE, type EvmFilterOwner } from './evm-filters.js'
-import {
-  EvmAssetSuggestionLog,
-  parseWatchAsset,
-  watchAssetRefusal,
-  withHiddenWalletAddresses,
-  type EvmTokenContractDetails
-} from './evm-watch-asset.js'
+import { EvmCallBundleStore } from './evm-call-bundles.js'
+import { EvmFilterRegistry } from './evm-filters.js'
+import { EvmAssetSuggestionLog } from './evm-watch-asset.js'
 import { WalletPageLog } from './page-log.js'
-import { solanaSignInMessage } from './solana-sign-in.js'
 import { typedDataDisplay } from './typed-data-display.js'
-import { TYPED_DATA_V3_UNSUPPORTED, typedDataV3MatchesV4 } from './typed-data-v3.js'
+import {
+  evmRequest,
+  reconcileEvmProviderSessions,
+  uninstallEvmFilters,
+  type EvmProviderAccess,
+  type EvmProviderSession
+} from './evm-provider.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
 import type {
   WalletChainAdapter,
-  WalletNormalizedTransaction,
-  WalletTokenBalance,
-  WalletTransactionSimulation
+  WalletNormalizedTransaction
 } from './adapters/types.js'
-import { hasHiddenMessageCharacters, revealHiddenMessageCharacters } from './hidden-characters.js'
-import { transactionWarnings } from './transaction-display.js'
-import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
-import { recoverPersonalSigner } from './evm-ec-recover.js'
+import { restoreWalletJson, walletJsonSafe } from './json-safe.js'
 import {
   isMainnetAgentAutomationPolicy,
-  isSignInText,
-  signInTextWarningIssue,
   websiteSignInPolicyApplies,
   websiteTypedDataPolicyApplies,
-  walletPolicyDestinationMatches,
   WalletPolicyEngine,
-  type WalletSignInTextIssue,
   type WalletPolicyDecision,
   type WalletWebsiteSignInEvaluation
 } from './policy.js'
 import type { WalletService } from './service.js'
+import {
+  agentSummary,
+  sanitizedSimulation,
+  summary,
+  trustedMessageDisplay,
+  trustedMessageRaw
+} from './request-summary.js'
+import {
+  appendTransactionAudit,
+  drainConfirmationTasks,
+  resumeSubmittedConfirmations,
+  scheduleConfirmation,
+  type TransactionConfirmationAccess
+} from './transaction-confirmations.js'
+import {
+  agentBalance,
+  agentPageRequests,
+  agentRequestStatus,
+  cancelAgentRequest,
+  listAgentWallets,
+  prepareAgentTransaction,
+  requestAgentMessage,
+  requestAgentTransaction,
+  type AgentWalletAccess
+} from './agent-wallet-requests.js'
 
 export interface WalletBrokerContext {
   workspaceId: string
@@ -99,27 +106,6 @@ interface AgentOperationLifecycle {
   drainWaiters: Array<() => void>
 }
 
-interface EvmProviderSession {
-  workspaceId: string
-  tabId: string
-  navigationGeneration: number
-  topLevelOrigin: string
-  requester: WalletRequester
-  networkId: string
-  accounts: string[]
-}
-
-interface AccountProviderSession {
-  family: Exclude<WalletChainFamily, 'evm'>
-  walletId: string
-  workspaceId: string
-  tabId: string
-  navigationGeneration: number
-  topLevelOrigin: string
-  requester: WalletRequester
-  account: string
-}
-
 export interface WalletBrokerOptions {
   assertAgentAccess?: () => void
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
@@ -134,16 +120,13 @@ export interface WalletBrokerOptions {
 }
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
-const MAX_AGENT_PAGE_REQUESTS = 50
-/** wallet_sendCalls batches `wallet_page_requests` lists for a site, newest kept. */
-const MAX_AGENT_CALL_BATCHES = 20
 /** Failed wallet calls remembered per tab for `wallet_page_requests`; the oldest is dropped first. */
 const MAX_PAGE_CALL_FAILURES_PER_TAB = 20
 /** Tabs whose failed wallet calls are remembered at once; closing a tab forgets them sooner. */
 const MAX_PAGE_CALL_FAILURE_TABS = 256
 
 /** A wallet call a page made that failed, as an agent testing the page sees it. */
-interface WalletPageCallFailure {
+export interface WalletPageCallFailure {
   family: WalletChainFamily
   /** The method the page called, or `invalid` when it is not a plain method name. */
   method: string
@@ -152,28 +135,7 @@ interface WalletPageCallFailure {
   failedAt: string
 }
 
-/** Text with each wallet address replaced by the label, the EVM ones in any letter case and with or without 0x. */
-function withoutWalletAddresses(text: string, addresses: string[], label: string): string {
-  return addresses.reduce((result, address) => (
-    /^0x[0-9a-fA-F]{40}$/.test(address)
-      ? result.replace(new RegExp(`(?:0x)?${address.slice(2)}`, 'gi'), label)
-      : result.split(address).join(label)
-  ), text)
-}
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
-// A batch waits for each call to be mined before preparing the next one.
-const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
-const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
-// A load-balanced node can briefly answer from a backend that lags behind, so a
-// transaction counts as replaced only after looking so on this many checks over
-// this long, without a longer pause between two checks (such as the computer
-// sleeping) than EVM_REPLACED_MAX_CHECK_GAP_MS.
-const EVM_REPLACED_TRANSACTION_MS = 60_000
-const EVM_REPLACED_TRANSACTION_CHECKS = 3
-const EVM_REPLACED_MAX_CHECK_GAP_MS = 30_000
-// Replaced transaction hashes kept for wallet_sendCalls batches, which Hronaut also keeps only in memory.
-const MAX_REPLACED_TRANSACTION_HASHES = 1_024
-const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
   'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
@@ -199,42 +161,6 @@ function sanitizedError(error: unknown): Error {
   return new Error(safe.slice(0, 512))
 }
 
-function walletChainName(family: WalletChainFamily): string {
-  if (family === 'evm') return 'EVM'
-  return family === 'solana' ? 'Solana' : 'Tron'
-}
-
-const SIMULATION_FAILED = 'Wallet transaction simulation failed'
-
-/**
- * The simulation as approval records keep it: adapter error text, which can
- * name the RPC endpoint, becomes a fixed message, or a revert reason read
- * from the revert data, stored in the error text older versions accept.
- */
-function sanitizedSimulation(simulation: WalletTransactionSimulation): WalletTransactionSimulation {
-  const revert = !simulation.success && simulation.revert ? storedSimulationRevert(simulation.revert) : undefined
-  return {
-    attempted: simulation.attempted,
-    success: simulation.success,
-    ...(simulation.estimatedFee && /^\d+(?:\.\d+)?$/.test(simulation.estimatedFee)
-      ? { estimatedFee: simulation.estimatedFee }
-      : {}),
-    ...(revert ? { error: revert } : simulation.error ? { error: SIMULATION_FAILED } : {})
-  }
-}
-
-/** A recorded simulation for an agent, with its revert reason read back. */
-function agentSimulation(simulation: WalletTransactionSimulation): Record<string, unknown> {
-  const revert = simulation.success ? undefined : simulationRevertFromStored(simulation.error)
-  return {
-    attempted: simulation.attempted,
-    success: simulation.success,
-    ...(simulation.estimatedFee ? { estimatedFee: simulation.estimatedFee } : {}),
-    ...(simulation.error ? { error: SIMULATION_FAILED } : {}),
-    ...(revert ? { revert } : {})
-  }
-}
-
 // Size in UTF-8 JSON bytes, as a page sends it; anything unserializable is unbounded.
 function jsonBytes(value: unknown): number {
   try {
@@ -242,169 +168,6 @@ function jsonBytes(value: unknown): number {
   } catch {
     return Number.POSITIVE_INFINITY
   }
-}
-
-function paramsArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : value === undefined ? [] : [value]
-}
-
-/** The nonce a prepared EVM transaction was signed with, if Hronaut recorded one. */
-function transactionNonce(record: WalletApprovalRecord): string | undefined {
-  if (!record.request.payload.normalized) return undefined
-  try {
-    return (restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction).nonceOrBlockhash
-  } catch {
-    return undefined
-  }
-}
-
-function isSilentSolanaConnect(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const options = value as { silent?: unknown; onlyIfTrusted?: unknown }
-  return options.silent === true || options.onlyIfTrusted === true
-}
-
-function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): WalletRequestSummary {
-  const normalized = record.request.payload.normalized
-    ? restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
-    : undefined
-  const warnings = normalized ? transactionWarnings(normalized.decoded) : []
-  const simulationRevert = record.simulation && !record.simulation.success ? simulationRevertFromStored(record.simulation.error) : undefined
-  return {
-    id: record.id,
-    walletId: record.request.walletId,
-    workspaceId: record.request.workspaceId,
-    status: record.status,
-    approvalHash: record.approvalHash ?? record.requestHash,
-    operation: record.request.operation,
-    requester: structuredClone(record.request.requester),
-    origin: record.request.topLevelOrigin,
-    networkId: record.request.networkId,
-    createdAt: record.createdAt,
-    expiresAt: record.request.expiresAt,
-    ...(record.transactionHash ? { transactionHash: record.transactionHash } : {}),
-    ...(wallet ? {
-      details: {
-        walletName: wallet.name,
-        publicAddress: wallet.publicAddress,
-        chainFamily: wallet.chainFamily,
-        networkName: wallet.network.name,
-        capability: record.request.capability,
-        understood: normalized?.decoded.understood ?? record.request.operation === 'connect-account',
-        simulationAttempted: record.simulation?.attempted ?? false,
-        simulationSuccess: record.simulation?.success ?? false,
-        ...(simulationRevert ? { simulationRevert } : {}),
-        ...(normalized?.decoded.contract ? { contract: normalized.decoded.contract } : {}),
-        ...(normalized?.decoded.source ? { source: normalized.decoded.source } : {}),
-        ...(normalized?.decoded.destination ? { destination: normalized.decoded.destination } : {}),
-        ...(normalized?.decoded.method ? { method: normalized.decoded.method } : {}),
-        ...(normalized?.decoded.nativeAmount ? { nativeAmount: normalized.decoded.nativeAmount } : {}),
-        ...(normalized?.decoded.tokenAmount ? { tokenAmount: normalized.decoded.tokenAmount } : {}),
-        ...((record.simulation?.estimatedFee ?? normalized?.decoded.estimatedFee) ? {
-          estimatedFee: record.simulation?.estimatedFee ?? normalized?.decoded.estimatedFee
-        } : {}),
-        ...(warnings.length ? { transactionWarnings: warnings } : {}),
-        raw: walletJsonInspectable(normalized?.raw ?? record.request.payload) as Record<string, unknown>
-      }
-    } : {})
-  }
-}
-
-const HIDDEN_WALLET_ADDRESS = 'this wallet (address hidden until account permission)'
-/** Hex digits of an address that a shortened message can end with and still be hidden. */
-const MIN_HIDDEN_ADDRESS_PREFIX = 4
-
-/** A contract's revert message with an EVM wallet's address hidden, including its start where the message was cut. */
-function hideAddressInRevertMessage(message: string, truncated: boolean, publicAddress: string): string {
-  const hex = publicAddress.slice(2).toLowerCase()
-  const hidden = withoutWalletAddresses(message, [publicAddress], HIDDEN_WALLET_ADDRESS)
-  const tail = truncated ? /[0-9a-fA-F]+$/.exec(hidden) : null
-  if (!tail) return hidden
-  for (let start = tail.index; start <= hidden.length - MIN_HIDDEN_ADDRESS_PREFIX; start += 1) {
-    if (!hex.startsWith(hidden.slice(start).toLowerCase())) continue
-    return `${hidden.slice(0, hidden.slice(start - 2, start).toLowerCase() === '0x' ? start - 2 : start)}${HIDDEN_WALLET_ADDRESS}`
-  }
-  return hidden
-}
-
-function agentSummary(
-  record: WalletApprovalRecord,
-  wallet?: WalletDescriptor,
-  includeAddress = true
-): Record<string, unknown> {
-  const full = summary(record, wallet)
-  if (!full.details) return full
-  const { raw: _raw, publicAddress, ...details } = full.details
-  if (!includeAddress) {
-    // A request can name the wallet itself, such as a transfer to its own address.
-    for (const field of ['contract', 'source', 'destination'] as const) {
-      if (walletPolicyDestinationMatches(details.chainFamily, [publicAddress], details[field])) details[field] = HIDDEN_WALLET_ADDRESS
-    }
-    // A contract can put the calling account in its revert message.
-    if (details.simulationRevert?.kind === 'message' && /^0x[0-9a-fA-F]{40}$/.test(publicAddress)) {
-      const { message, truncated } = details.simulationRevert
-      details.simulationRevert = { ...details.simulationRevert, message: hideAddressInRevertMessage(message, truncated === true, publicAddress) }
-    }
-  }
-  return {
-    ...full,
-    details: {
-      ...details,
-      ...(includeAddress ? { publicAddress } : {})
-    }
-  }
-}
-
-function trustedMessageRaw(input: WalletMessageSigningInput): Record<string, unknown> {
-  if (input.kind === 'typed-data') return { typedData: structuredClone(input.typedData) }
-  const bytes = Buffer.from(input.message)
-  const message: Record<string, unknown> = {
-    encoding: 'base64',
-    value: bytes.toString('base64')
-  }
-  try {
-    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-    message.utf8Preview = decoded.slice(0, 4_096)
-    if (decoded.length > 4_096) message.utf8PreviewTruncated = true
-  } catch {
-    // Binary messages remain fully inspectable through their canonical base64 value.
-  } finally {
-    bytes.fill(0)
-  }
-  return { message }
-}
-
-const SIGN_IN_TEXT_WARNINGS: Record<WalletSignInTextIssue, WalletMessageWarning> = {
-  'sign-in-domain-mismatch': 'sign-in-other-site',
-  'sign-in-address-mismatch': 'sign-in-other-account',
-  'sign-in-chain-mismatch': 'sign-in-other-chain',
-  'sign-in-message-unverified': 'sign-in-unverified'
-}
-
-/**
- * Readable text of a UTF-8 message for the trusted approval dialog. Hidden
- * characters are shown as [U+XXXX] markers, and sign-in text that names
- * another site, account or chain than this request is flagged. Binary
- * messages and typed data have no text; the raw request shows them.
- */
-function trustedMessageDisplay(
-  input: WalletMessageSigningInput,
-  wallet: WalletDescriptor,
-  topLevelOrigin: string
-): NonNullable<WalletRequestSummary['details']>['message'] {
-  if (input.kind !== 'message') return undefined
-  let text: string
-  try {
-    text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(input.message)
-  } catch {
-    return undefined
-  }
-  const warnings: WalletMessageWarning[] = []
-  if (hasHiddenMessageCharacters(text)) warnings.push('hidden-characters')
-  const signInIssue = isSignInText(text) ? signInTextWarningIssue(text, wallet, topLevelOrigin) : undefined
-  if (signInIssue) warnings.push(SIGN_IN_TEXT_WARNINGS[signInIssue])
-  const visible = revealHiddenMessageCharacters(text, WALLET_MESSAGE_DISPLAY_MAX_LENGTH)
-  return { text: visible.text, ...(visible.truncated ? { truncated: true as const } : {}), warnings }
 }
 
 export class WalletBroker {
@@ -424,7 +187,7 @@ export class WalletBroker {
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
-  private readonly evmFilters = new EvmFilterRegistry((owner, ids) => this.uninstallEvmFilters(owner.wallet, ids))
+  private readonly evmFilters = new EvmFilterRegistry((owner, ids) => uninstallEvmFilters(this.evmProviderAccess(), owner.wallet, ids))
   private readonly evmCallBundles = new EvmCallBundleStore()
   private readonly evmAssetSuggestions = new EvmAssetSuggestionLog()
   private readonly pageCallFailures = new WalletPageLog<WalletPageCallFailure>(MAX_PAGE_CALL_FAILURES_PER_TAB, MAX_PAGE_CALL_FAILURE_TABS)
@@ -445,7 +208,7 @@ export class WalletBroker {
       solana: options.adapters?.solana ?? new SolanaWalletAdapter(),
       tron: options.adapters?.tron ?? new TronWalletAdapter()
     }
-    this.resumeSubmittedConfirmations()
+    resumeSubmittedConfirmations(this.transactionConfirmationAccess())
   }
 
   shutdown(): Promise<void> {
@@ -466,7 +229,7 @@ export class WalletBroker {
         for (const requestId of [...this.pending.keys()]) {
           this.rejectPending(requestId, new Error('Wallet broker is shutting down'))
         }
-        const drained = await this.drainConfirmationTasks()
+        const drained = await drainConfirmationTasks(this.transactionConfirmationAccess())
         if (!drained) {
           this.confirmationShutdown.abort()
           while (this.confirmationTasks.size > 0) {
@@ -509,7 +272,7 @@ export class WalletBroker {
   lock(): Promise<WalletServiceStatus> {
     this.lockGeneration += 1
     this.service.lock()
-    this.reconcileEvmProviderSessions()
+    reconcileEvmProviderSessions(this.evmProviderAccess())
     return this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelAll()
@@ -520,238 +283,82 @@ export class WalletBroker {
     })
   }
 
+  /**
+   * The narrow view the agent wallet tools get of this broker's private
+   * state and request path. The delegates below return the tool's result or
+   * promise directly, so no extra ticks separate its final checks from the
+   * caller.
+   */
+  private agentWalletAccess(): AgentWalletAccess {
+    return {
+      service: this.service,
+      adapters: this.adapters,
+      pendingMessages: this.pendingMessages,
+      evmAssetSuggestions: this.evmAssetSuggestions,
+      pageCallFailures: this.pageCallFailures,
+      evmCallBundles: this.evmCallBundles,
+      replacedTransactionHashes: this.replacedTransactionHashes,
+      withAgentOperation: (context, operation) => this.withAgentOperation(context, operation),
+      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
+      requireWallet: (walletId) => this.requireWallet(walletId),
+      hasAddressPermission: (context, wallet) => this.hasAddressPermission(context, wallet),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      createAddressPermissionRequest: (context, wallet) => this.createAddressPermissionRequest(context, wallet),
+      transactionRequest: (context, wallet, payload, broadcast, returnSummary) => (
+        this.transactionRequest(context, wallet, payload, broadcast, returnSummary)
+      ),
+      messageRequest: (context, wallet, input, rawSigning, returnSummary) => (
+        this.messageRequest(context, wallet, input, rawSigning, returnSummary)
+      ),
+      rejectPending: (requestId, error) => this.rejectPending(requestId, error),
+      publish: () => this.publish(),
+      now: () => this.now()
+    }
+  }
+
   listAgentWallets(context: WalletBrokerContext): WalletAgentDescriptor[] {
-    return this.service.list()
-      .filter((wallet) => walletAllowsWorkspace(wallet, context.workspaceId))
-      .map((wallet) => {
-        const addressAllowed = this.hasAddressPermission(context, wallet)
-        return {
-          id: wallet.id,
-          name: wallet.name,
-          kind: wallet.kind,
-          chainFamily: wallet.chainFamily,
-          network: {
-            id: wallet.network.id,
-            name: wallet.network.name,
-            environment: wallet.network.environment
-          },
-          capabilities: [...wallet.capabilities],
-          ...(wallet.availableInAllWorkspaces === true ? { availableInAllWorkspaces: true } : {}),
-          addressPermission: addressAllowed,
-          ...(addressAllowed ? { publicAddress: wallet.publicAddress } : {})
-        }
-      })
+    return listAgentWallets(this.agentWalletAccess(), context)
   }
 
-  async agentBalance(context: WalletBrokerContext, walletId: string, token?: string, spender?: string): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const adapter = this.adapters[wallet.chainFamily]
-      if (spender !== undefined && token === undefined) throw new Error('Wallet token spender needs a token')
-      if (token !== undefined) {
-        if (!adapter.tokenBalance) throw new Error(`${walletChainName(wallet.chainFamily)} token balances are not supported`)
-        if (!adapter.validateAddress(token)) throw new Error(`${walletChainName(wallet.chainFamily)} token address is invalid`)
-      }
-      if (spender !== undefined) {
-        if (!adapter.tokenAllowances) throw new Error(`${walletChainName(wallet.chainFamily)} token allowances are not supported`)
-        if (!adapter.validateAddress(spender)) throw new Error(`${walletChainName(wallet.chainFamily)} token spender address is invalid`)
-      }
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      let balance: string
-      let tokenBalance: WalletTokenBalance | undefined
-      try {
-        if (token !== undefined) {
-          tokenBalance = spender === undefined
-            ? await adapter.tokenBalance!(wallet, token)
-            : await adapter.tokenBalance!(wallet, token, spender)
-        }
-        else balance = await adapter.balance(wallet)
-      } catch {
-        const lookup = token === undefined ? 'balance' : spender === undefined ? 'token balance' : 'token balance or allowance'
-        throw new Error(`${walletChainName(wallet.chainFamily)} ${lookup} lookup failed`)
-      }
-      this.assertRequestContextActive(context)
-      return {
-        status: 'ready',
-        walletId: wallet.id,
-        chainFamily: wallet.chainFamily,
-        networkId: wallet.network.id,
-        publicAddress: wallet.publicAddress,
-        ...(tokenBalance ? { token: tokenBalance } : { balance: balance! })
-      }
-    })
+  agentBalance(context: WalletBrokerContext, walletId: string, token?: string, spender?: string): Promise<Record<string, unknown>> {
+    return agentBalance(this.agentWalletAccess(), context, walletId, token, spender)
   }
 
-  async prepareAgentTransaction(
+  prepareAgentTransaction(
     context: WalletBrokerContext,
     walletId: string,
     payload: unknown
   ): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      const adapter = this.adapters[wallet.chainFamily]
-      const normalized = await adapter.normalizeTransaction(wallet, payload)
-      this.assertRequestContextActive(context)
-      const simulation = sanitizedSimulation(await adapter.simulate(wallet, normalized))
-      this.assertRequestContextActive(context)
-      await this.service.audit.append('transaction-prepared', {
-        walletId: wallet.id,
-        workspaceId: context.workspaceId,
-        origin: context.topLevelOrigin,
-        requester: context.requester,
-        networkId: wallet.network.id,
-        understood: normalized.decoded.understood,
-        method: normalized.decoded.method,
-        destination: normalized.decoded.destination,
-        simulationAttempted: simulation.attempted,
-        simulationSuccess: simulation.success,
-        estimatedFee: simulation.estimatedFee
-      }, this.now().toISOString())
-      this.assertRequestContextActive(context)
-      return {
-        status: 'prepared',
-        walletId: wallet.id,
-        chainFamily: wallet.chainFamily,
-        networkId: wallet.network.id,
-        publicAddress: wallet.publicAddress,
-        decoded: structuredClone(normalized.decoded),
-        simulation: agentSimulation(simulation)
-      }
-    })
+    return prepareAgentTransaction(this.agentWalletAccess(), context, walletId, payload)
   }
 
-  async requestAgentTransaction(
+  requestAgentTransaction(
     context: WalletBrokerContext,
     walletId: string,
     payload: unknown,
     broadcast: boolean
   ): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      const request = await this.transactionRequest(context, wallet, payload, broadcast, true)
-      this.assertRequestContextActive(context)
-      return { status: 'requested', request }
-    })
+    return requestAgentTransaction(this.agentWalletAccess(), context, walletId, payload, broadcast)
   }
 
-  async requestAgentMessage(
+  requestAgentMessage(
     context: WalletBrokerContext,
     walletId: string,
     message: Uint8Array
   ): Promise<Record<string, unknown>> {
-    return this.withAgentOperation(context, async () => {
-      const wallet = this.requireAccessibleWallet(context, walletId)
-      const permission = await this.ensureAgentAddressPermission(context, wallet)
-      if (permission) return { status: 'permission-required', request: permission }
-      const request = await this.messageRequest(context, wallet, { kind: 'message', message }, false, true)
-      this.assertRequestContextActive(context)
-      return { status: 'requested', request }
-    })
+    return requestAgentMessage(this.agentWalletAccess(), context, walletId, message)
   }
 
   agentRequestStatus(context: WalletBrokerContext, requestId: string): Record<string, unknown> {
-    const record = this.requireAgentRequest(context, requestId)
-    const wallet = this.requireWallet(record.request.walletId)
-    return agentSummary(record, wallet, this.hasAddressPermission(context, wallet))
+    return agentRequestStatus(this.agentWalletAccess(), context, requestId)
   }
 
-  /**
-   * Requests the current page made itself, so an agent driving a dApp can see what
-   * it asked for. Read-only: approval still happens only in trusted Hronaut UI.
-   */
   agentPageRequests(context: WalletBrokerContext): Record<string, unknown> {
-    if (context.requester.type !== 'agent') throw new Error('Wallet page requests are available only to agents')
-    const wallets = new Map(this.service.list().map((wallet) => [wallet.id, wallet]))
-    const records = this.service.approvals.list().filter((record) => (
-      record.request.requester.type === 'website'
-      && record.request.workspaceId === context.workspaceId
-      && record.request.tabId === context.tabId
-      && record.request.navigationGeneration === context.navigationGeneration
-      && record.request.topLevelOrigin === context.topLevelOrigin
-    ))
-    const requests = records.slice(-MAX_AGENT_PAGE_REQUESTS).map((record) => {
-      const wallet = wallets.get(record.request.walletId)
-      const result = agentSummary(record, wallet, wallet ? this.hasAddressPermission(context, wallet) : false)
-      const pendingMessage = this.pendingMessages.get(record.id)
-      const details = result.details as Record<string, unknown> | undefined
-      if (details && pendingMessage) details.method = pendingMessage.kind === 'typed-data' ? 'typed-data-signing' : 'message-signing'
-      return result
-    })
-    const hiddenAddresses = [...wallets.values()]
-      .filter((wallet) => wallet.chainFamily === 'evm' && !this.hasAddressPermission(context, wallet))
-      .map((wallet) => wallet.publicAddress)
-    const suggestedAssets = this.evmAssetSuggestions.forPage(context)
-      .map((asset) => withHiddenWalletAddresses(asset, hiddenAddresses, HIDDEN_WALLET_ADDRESS))
-    const hiddenAccounts = [...wallets.values()]
-      .filter((wallet) => !this.hasAddressPermission(context, wallet))
-      .map((wallet) => wallet.publicAddress)
-    const failedCalls = this.pageCallFailures.forPage(context).map((failure) => ({
-      ...failure,
-      method: withoutWalletAddresses(failure.method, hiddenAccounts, HIDDEN_WALLET_ADDRESS),
-      error: withoutWalletAddresses(failure.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS)
-    }))
-    const callBatches = this.agentCallBatches(context, hiddenAccounts)
-    return {
-      origin: context.topLevelOrigin,
-      requests,
-      ...(records.length > requests.length ? { omittedOlder: records.length - requests.length } : {}),
-      ...(suggestedAssets.length ? { suggestedAssets } : {}),
-      ...(failedCalls.length ? { failedCalls } : {}),
-      ...(callBatches.length ? { callBatches } : {})
-    }
+    return agentPageRequests(this.agentWalletAccess(), context)
   }
 
-  /**
-   * The site's wallet_sendCalls batches in this workspace, newest 20, so an
-   * agent can see that a batch stopped, at which call and, when the next
-   * call could not be sent, why. Each sent call shows its transaction hash
-   * and its request's status.
-   */
-  private agentCallBatches(context: WalletBrokerContext, hiddenAccounts: string[]): Array<Record<string, unknown>> {
-    const batches = this.evmCallBundles.forSite(context).slice(-MAX_AGENT_CALL_BATCHES)
-    if (!batches.length) return []
-    const statuses = new Map(this.service.approvals.list().flatMap((record) => (
-      record.transactionHash
-      && record.request.workspaceId === context.workspaceId
-      && record.request.topLevelOrigin === context.topLevelOrigin
-        ? [[record.transactionHash.toLowerCase(), record.status] as const]
-        : []
-    )))
-    return batches.map(({ id, bundle }) => ({
-      id: withoutWalletAddresses(agentCallBundleId(id), hiddenAccounts, HIDDEN_WALLET_ADDRESS),
-      networkId: bundle.wallet.network.id,
-      calls: bundle.calls,
-      state: callBundleState(bundle),
-      transactions: bundle.hashes.map((hash) => ({
-        transactionHash: hash,
-        status: statuses.get(hash.toLowerCase()) ?? 'unknown',
-        ...(this.replacedTransactionHashes.has(hash.toLowerCase()) ? { replaced: true } : {})
-      })),
-      ...(bundle.error ? { error: withoutWalletAddresses(bundle.error, hiddenAccounts, HIDDEN_WALLET_ADDRESS) } : {})
-    }))
-  }
-
-  async cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
-    const record = this.requireAgentRequest(context, requestId)
-    try {
-      const cancelled = await this.service.approvals.cancel(record.id, this.now())
-      await this.service.audit.append('request-cancelled', {
-        requestId, walletId: record.request.walletId, workspaceId: context.workspaceId,
-        requester: context.requester, origin: context.topLevelOrigin
-      }, this.now().toISOString())
-      const wallet = this.requireWallet(record.request.walletId)
-      return agentSummary(cancelled, wallet, this.hasAddressPermission(context, wallet))
-    } finally {
-      if (this.service.approvals.get(requestId)?.status === 'cancelled') {
-        this.rejectPending(requestId, new Error('Wallet request was cancelled'))
-        this.publish()
-      }
-    }
+  cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
+    return cancelAgentRequest(this.agentWalletAccess(), context, requestId)
   }
 
   updateWallet(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor> {
@@ -823,9 +430,9 @@ export class WalletBroker {
       this.assertSupportedProviderMethod(input)
       const request = WalletProviderRequestSchema.parse(input)
       const wallets = this.accessibleWallets(context, request.family)
-      if (request.family === 'evm') return await this.evmRequest(context, wallets, request.method, request.params)
-      if (request.family === 'solana') return await this.solanaRequest(context, wallets, request.method, request.params)
-      return await this.tronRequest(context, wallets, request.method, request.params)
+      if (request.family === 'evm') return await evmRequest(this.evmProviderAccess(), context, wallets, request.method, request.params)
+      if (request.family === 'solana') return await solanaRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
+      return await tronRequest(this.solanaTronProviderAccess(), context, wallets, request.method, request.params)
     } catch (error) {
       const sanitized = sanitizedError(error)
       this.recordPageCallFailure(context, input, sanitized)
@@ -1052,245 +659,65 @@ export class WalletBroker {
     if (cancellationError) throw cancellationError
   }
 
-  private async evmRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    if (method === 'personal_ecRecover') {
-      const values = paramsArray(params)
-      return recoverPersonalSigner(this.messageBytes(values[0], 'hex-or-utf8'), values[1])
-    }
-    if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') {
-      const chainId = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
-      if (method === 'wallet_addEthereumChain') return this.addEvmChain(context, wallets, chainId)
-      return this.switchEvmChain(context, wallets, chainId)
-    }
-    if (!wallets.length) {
-      if (method === 'eth_accounts') return []
-      if (method === 'wallet_getPermissions') return []
-      throw new Error('No wallet is attached to this workspace for the requested chain')
-    }
-    const activeWallets = this.activeEvmWallets(context, wallets)
-    if (method === 'eth_accounts') return this.permittedAccounts(context, activeWallets)
-    if (method === 'wallet_getPermissions') return this.evmPermissions(context, this.permittedAccounts(context, activeWallets))
-    if (method === 'wallet_revokePermissions') {
-      this.assertEthAccountsPermissionRequest(params)
-      for (const wallet of wallets.filter((entry) => this.hasAddressPermission(context, entry))) {
-        await this.disconnectWallet(context, wallet)
-      }
-      return null
-    }
-    const wallet = this.selectWallet(activeWallets)
-    if (method === 'eth_chainId') return `0x${BigInt(wallet.network.id).toString(16)}`
-    if (method === 'wallet_watchAsset') return this.watchEvmAsset(context, wallet, params)
-    if ((EVM_READ_RPC_METHODS as readonly string[]).includes(method)) {
-      const adapter = this.adapters.evm
-      if (!adapter.readRpc) throw new Error(`Unsupported EVM wallet method: ${method}`)
-      return adapter.readRpc(wallet, method, params)
-    }
-    if ((EVM_FILTER_RPC_METHODS as readonly string[]).includes(method)) return this.evmFilterRequest(context, wallet, method, params)
-    if (method === 'wallet_getCapabilities') return this.evmCapabilities(context, wallets, params)
-    if (method === 'wallet_sendCalls') return this.sendEvmCalls(context, activeWallets, wallet, params)
-    if (method === 'wallet_getCallsStatus') return this.evmCallsStatus(context, params)
-    if (method === 'eth_requestAccounts') {
-      const permitted = this.permittedAccounts(context, activeWallets)
-      return permitted.length ? permitted : this.connect(context, wallet)
-    }
-    if (method === 'wallet_requestPermissions') {
-      this.assertEthAccountsPermissionRequest(params)
-      const permitted = this.permittedAccounts(context, activeWallets)
-      const accounts = permitted.length ? permitted : await this.connect(context, wallet) as string[]
-      return this.evmPermissions(context, accounts)
-    }
-    if (method === 'eth_sendTransaction' || method === 'eth_signTransaction') {
-      const payload = paramsArray(params)[0]
-      const requestedFrom = payload && typeof payload === 'object' && !Array.isArray(payload)
-        ? (payload as { from?: unknown }).from
-        : undefined
-      const selected = requestedFrom === undefined
-        ? wallet
-        : this.selectEvmAccount(activeWallets, requestedFrom)
-      this.assertAddressPermission(context, selected, method === 'eth_sendTransaction' ? 'send' : 'sign')
-      return this.transactionRequest(context, selected, payload, method === 'eth_sendTransaction')
-    }
-    if (method === 'personal_sign' || method === 'eth_sign' || method === 'eth_signTypedData_v4' || method === 'eth_signTypedData_v3') {
-      const values = paramsArray(params)
-      const addressIndex = method === 'personal_sign' ? 1 : 0
-      const messageIndex = method === 'personal_sign' ? 0 : 1
-      const requestedAddress = values[addressIndex]
-      const selected = this.selectEvmAccount(activeWallets, requestedAddress)
-      this.assertAddressPermission(context, selected, 'sign')
-      if (method === 'eth_signTypedData_v4' || method === 'eth_signTypedData_v3') {
-        const typedData = typeof values[messageIndex] === 'string' ? JSON.parse(values[messageIndex]) : values[messageIndex]
-        if (method === 'eth_signTypedData_v3' && !typedDataV3MatchesV4(typedData)) throw new Error(TYPED_DATA_V3_UNSUPPORTED)
-        return this.messageRequest(context, selected, { kind: 'typed-data', typedData })
-      }
-      return this.messageRequest(context, selected, {
-        kind: 'message', message: this.messageBytes(values[messageIndex], 'hex-or-utf8')
-      }, method === 'eth_sign')
-    }
-    throw new Error(`Unsupported EVM wallet method: ${method}`)
-  }
-
-  private async solanaRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    const legacy = method.startsWith('legacy_')
-    const walletMethod = legacy ? method.slice('legacy_'.length) : method
-    const connectedWallet = this.activeAccountProviderWallet(context, 'solana', wallets)
-    if (walletMethod === 'disconnect') {
-      const wallet = connectedWallet ?? this.preferredPermittedWallet(context, wallets)
-      if (wallet) await this.disconnectWallet(context, wallet)
-      return undefined
-    }
-    const permittedWallet = walletMethod === 'connect'
-      ? this.preferredPermittedWallet(context, wallets)
-      : undefined
-    if (walletMethod === 'connect' && isSilentSolanaConnect(params) && !permittedWallet) return { accounts: [] }
-    const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
-    if (walletMethod === 'connect') {
-      const accounts = await this.connect(context, wallet)
-      this.trackAccountProviderSession(context, wallet)
-      return { accounts: (accounts as string[]).map((value) => ({
-        address: value,
-        publicKey: getAddressEncoder().encode(address(value)),
-        chains: [`solana:${wallet.network.id}`],
-        features: [
-          ...(wallet.capabilities.includes('sign') ? ['solana:signTransaction', 'solana:signMessage'] : []),
-          ...(wallet.capabilities.includes('send') ? ['solana:signAndSendTransaction'] : [])
-        ],
-        label: wallet.name
-      })) }
-    }
-    this.assertAddressPermission(context, wallet, walletMethod === 'signAndSendTransaction' ? 'send' : 'sign')
-    if (walletMethod === 'signIn') {
-      const message = new TextEncoder().encode(solanaSignInMessage(paramsArray(params)[0], context.topLevelOrigin, wallet.publicAddress))
-      const signature = await this.messageRequest(context, wallet, { kind: 'message', message })
-      return {
-        account: wallet.publicAddress,
-        signedMessage: message,
-        signature: this.base64ResultBytes(signature, 'Solana sign-in signature'),
-        signatureType: 'ed25519'
-      }
-    }
-    if (walletMethod === 'signTransaction' || walletMethod === 'signAllTransactions' || walletMethod === 'signAndSendTransaction') {
-      const values = paramsArray(params)
-      if (!values.length || values.length > 64) throw new Error('Solana wallet request must include between 1 and 64 transactions')
-      if (legacy && walletMethod !== 'signAllTransactions' && values.length !== 1) {
-        throw new Error('Legacy Solana wallet request must include exactly one transaction')
-      }
-      const broadcast = walletMethod === 'signAndSendTransaction'
-      const inputs = values.map((value) => (
-        value && typeof value === 'object' && 'transaction' in value
-          ? value
-          : { transaction: value, account: wallet.publicAddress, chain: `solana:${wallet.network.id}` }
-      ))
-      if (!legacy) inputs.forEach((input) => this.assertSolanaTransactionInput(wallet, input, broadcast))
-      const normalized: WalletNormalizedTransaction[] = []
-      for (const input of inputs) {
-        normalized.push(await this.adapters.solana.normalizeTransaction(wallet, input))
-        this.assertRequestContextActive(context)
-      }
-      const results: unknown[] = []
-      for (const [index, input] of inputs.entries()) {
-        const result = await this.transactionRequest(context, wallet, input, broadcast, false, normalized[index])
-        if (broadcast) {
-          const signature = getBase58Encoder().encode(String(result))
-          results.push(legacy ? String(result) : { signature })
-        } else {
-          const signedTransaction = this.base64ResultBytes(result, 'Solana signed transaction')
-          results.push(legacy ? signedTransaction : { signedTransaction })
-        }
-      }
-      return legacy && walletMethod !== 'signAllTransactions' ? results[0] : results
-    }
-    if (walletMethod === 'signMessage') {
-      const inputs = paramsArray(params) as Array<{ account?: { address?: unknown } | string; message?: unknown }>
-      if (!inputs.length || inputs.length > 64) throw new Error('Solana wallet request must include between 1 and 64 messages')
-      if (legacy && inputs.length !== 1) throw new Error('Legacy Solana wallet request must include exactly one message')
-      const messages = inputs.map((input) => {
-        const requestedAddress = typeof input?.account === 'string' ? input.account : input?.account?.address
-        if ((!legacy || requestedAddress !== undefined) && requestedAddress !== wallet.publicAddress) {
-          throw new Error('Solana message signer does not match the selected wallet')
-        }
-        return this.messageBytes(input?.message)
-      })
-      const results: unknown[] = []
-      for (const message of messages) {
-        const signature = await this.messageRequest(context, wallet, { kind: 'message', message })
-        const signatureBytes = this.base64ResultBytes(signature, 'Solana message signature')
-        results.push(legacy
-          ? { signature: signatureBytes, publicKey: wallet.publicAddress }
-          : { signedMessage: Uint8Array.from(message), signature: signatureBytes })
-      }
-      return legacy ? results[0] : results
-    }
-    throw new Error(`Unsupported Solana wallet method: ${walletMethod}`)
-  }
-
-  private assertSolanaTransactionInput(
-    wallet: WalletDescriptor,
-    input: object,
-    requireChain: boolean
-  ): void {
-    const candidate = input as { account?: unknown; chain?: unknown }
-    const requestedAddress = typeof candidate.account === 'string'
-      ? candidate.account
-      : candidate.account && typeof candidate.account === 'object'
-        ? (candidate.account as { address?: unknown }).address
-        : undefined
-    if (requestedAddress !== wallet.publicAddress) {
-      throw new Error('Solana transaction signer does not match the selected wallet')
-    }
-    const expectedChain = `solana:${wallet.network.id}`
-    if (requireChain && candidate.chain === undefined) {
-      throw new Error('Solana transaction chain is required')
-    }
-    if (candidate.chain !== undefined && candidate.chain !== expectedChain) {
-      throw new Error('Solana transaction chain does not match the selected wallet')
+  /**
+   * The narrow view the EVM page provider gets of this broker's private
+   * state and request path. It is built on each call, so it reads whether
+   * the broker is shutting down at the moment the provider asks, and the
+   * calls below return the provider's promise directly.
+   */
+  private evmProviderAccess(): EvmProviderAccess {
+    return {
+      adapters: this.adapters,
+      options: this.options,
+      evmProviderSessions: this.evmProviderSessions,
+      evmFilters: this.evmFilters,
+      evmCallBundles: this.evmCallBundles,
+      evmAssetSuggestions: this.evmAssetSuggestions,
+      closedTabs: this.closedTabs,
+      replacedTransactionHashes: this.replacedTransactionHashes,
+      isShuttingDown: () => this.shuttingDown,
+      accessibleWallets: (context, family) => this.accessibleWallets(context, family),
+      selectWallet: (wallets) => this.selectWallet(wallets),
+      hasAddressPermission: (context, wallet) => this.hasAddressPermission(context, wallet),
+      assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
+      isRequestContextActive: (context) => this.isRequestContextActive(context),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      scheduleProviderPermissionExpiry: () => this.scheduleProviderPermissionExpiry(),
+      confirmationPollIntervalMs: () => this.confirmationPollIntervalMs(),
+      connect: (context, wallet) => this.connect(context, wallet),
+      disconnectWallet: (context, wallet) => this.disconnectWallet(context, wallet),
+      transactionRequest: (context, wallet, payload, broadcast) => this.transactionRequest(context, wallet, payload, broadcast),
+      messageRequest: (context, wallet, input, rawSigning) => this.messageRequest(context, wallet, input, rawSigning),
+      messageBytes: (value, encoding) => this.messageBytes(value, encoding),
+      sanitizedError: (error) => sanitizedError(error),
+      now: () => this.now()
     }
   }
 
-  private async tronRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    const connectedWallet = this.activeAccountProviderWallet(context, 'tron', wallets)
-    const permittedWallet = this.preferredPermittedWallet(context, wallets)
-    if (method === 'eth_accounts') {
-      const wallet = connectedWallet ?? permittedWallet
-      if (wallet && this.trackAccountProviderSession(context, wallet)) {
-        this.publishTronConnection(context, wallet)
-      }
-      return wallet ? [wallet.publicAddress] : []
+  /**
+   * The narrow view the Solana and Tron page providers get of this broker's
+   * private state and request path. It is built on each call, and the calls
+   * below return the provider's promise directly.
+   */
+  private solanaTronProviderAccess(): SolanaTronProviderAccess {
+    return {
+      adapters: this.adapters,
+      options: this.options,
+      accountProviderSessions: this.accountProviderSessions,
+      accessibleWallets: (context, family) => this.accessibleWallets(context, family),
+      selectWallet: (wallets) => this.selectWallet(wallets),
+      hasAddressPermission: (context, wallet) => this.hasAddressPermission(context, wallet),
+      assertAddressPermission: (context, wallet, capability) => this.assertAddressPermission(context, wallet, capability),
+      assertRequestContextActive: (context) => this.assertRequestContextActive(context),
+      scheduleProviderPermissionExpiry: () => this.scheduleProviderPermissionExpiry(),
+      connect: (context, wallet) => this.connect(context, wallet),
+      disconnectWallet: (context, wallet) => this.disconnectWallet(context, wallet),
+      transactionRequest: (context, wallet, payload, broadcast, returnSummary, prepared) => (
+        this.transactionRequest(context, wallet, payload, broadcast, returnSummary, prepared)
+      ),
+      messageRequest: (context, wallet, input) => this.messageRequest(context, wallet, input),
+      messageBytes: (value) => this.messageBytes(value)
     }
-    const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
-    if (method === 'eth_chainId') {
-      const chainId = tronProviderChainId(wallet.network.id)
-      if (!chainId) throw new Error('Tron provider chain ID is unavailable for the configured network')
-      return chainId
-    }
-    if (method === 'eth_requestAccounts') {
-      const accounts = await this.connect(context, wallet)
-      if (this.trackAccountProviderSession(context, wallet)) this.publishTronConnection(context, wallet)
-      return accounts
-    }
-    if (method === 'wallet_switchEthereumChain') {
-      const requested = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
-      const chainId = typeof requested === 'string' ? normalizeTronProviderChainId(requested) : undefined
-      if (!chainId) throw new Error('Requested Tron chain is invalid')
-      if (chainId !== tronProviderChainId(wallet.network.id)) {
-        throw new Error('Requested Tron network is not configured for this workspace wallet')
-      }
-      return null
-    }
-    this.assertAddressPermission(context, wallet, method === 'tron_signAndSendTransaction' ? 'send' : 'sign')
-    if (method === 'tron_signTransaction' || method === 'tron_signAndSendTransaction') {
-      const broadcast = method === 'tron_signAndSendTransaction'
-      const result = await this.transactionRequest(context, wallet, paramsArray(params)[0], broadcast)
-      if (broadcast) return result
-      return this.tronSignedTransaction(result)
-    }
-    if (method === 'tron_signMessage') {
-      const values = paramsArray(params)
-      const requestedAddress = values.length > 1 ? values[0] : wallet.publicAddress
-      const message = values.length > 1 ? values[1] : values[0]
-      if (requestedAddress !== wallet.publicAddress) throw new Error('Tron message signer does not match the selected wallet')
-      return this.messageRequest(context, wallet, { kind: 'message', message: this.messageBytes(message) })
-    }
-    throw new Error(`Unsupported Tron wallet method: ${method}`)
   }
 
   private async connect(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<unknown> {
@@ -1543,7 +970,7 @@ export class WalletBroker {
         throw error
       }
       if (wallet.chainFamily === 'evm') {
-        this.reconcileEvmProviderSessions()
+        reconcileEvmProviderSessions(this.evmProviderAccess())
         this.scheduleProviderPermissionExpiry()
       }
       return [wallet.publicAddress]
@@ -1604,8 +1031,8 @@ export class WalletBroker {
     }
     const transactionHash = await adapter.broadcast(wallet, signed)
     await this.service.approvals.markSubmitted(record.id, transactionHash, this.now())
-    await this.appendTransactionAudit('transaction-submitted', record, transactionHash)
-    this.scheduleConfirmation(record.id)
+    await appendTransactionAudit(this.transactionConfirmationAccess(), 'transaction-submitted', record, transactionHash)
+    scheduleConfirmation(this.transactionConfirmationAccess(), record.id)
     return transactionHash
   }
 
@@ -1924,436 +1351,15 @@ export class WalletBroker {
     })
   }
 
-  private async ensureAgentAddressPermission(
-    context: WalletBrokerContext,
-    wallet: WalletDescriptor
-  ): Promise<Record<string, unknown> | null> {
-    if (this.hasAddressPermission(context, wallet)) return null
-    const existing = this.service.approvals.list().find((record) => (
-      record.request.operation === 'connect-account'
-      && record.request.walletId === wallet.id
-      && record.request.workspaceId === context.workspaceId
-      && record.request.tabId === context.tabId
-      && record.request.navigationGeneration === context.navigationGeneration
-      && record.request.topLevelOrigin === context.topLevelOrigin
-      && record.request.requester.type === 'agent'
-      && record.request.requester.id === context.requester.id
-      // An approved request is about to grant the permission; asking again would prompt the person twice.
-      && ['validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'].includes(record.status)
-    ))
-    const record = existing ?? (await this.createAddressPermissionRequest(context, wallet)).record
-    return agentSummary(record, wallet, false)
-  }
-
-  private requireAgentRequest(context: WalletBrokerContext, requestId: string): WalletApprovalRecord {
-    const record = this.service.approvals.get(requestId)
-    if (!record
-      || record.request.requester.type !== 'agent'
-      || context.requester.type !== 'agent'
-      || record.request.requester.id !== context.requester.id
-      || record.request.workspaceId !== context.workspaceId
-      || record.request.tabId !== context.tabId
-      || record.request.navigationGeneration !== context.navigationGeneration
-      || record.request.topLevelOrigin !== context.topLevelOrigin) {
-      throw new Error('Wallet request not found for this agent, workspace, tab, and navigation')
-    }
-    return record
-  }
-
   private selectWallet(wallets: WalletDescriptor[]): WalletDescriptor {
     const wallet = wallets.find((entry) => entry.kind !== 'watch-only') ?? wallets[0]
     if (!wallet) throw new Error('No wallet is attached to this workspace for the requested chain')
     return wallet
   }
 
-  private evmProviderSessionKey(context: WalletBrokerContext): string {
-    return JSON.stringify([
-      context.workspaceId,
-      context.tabId,
-      context.navigationGeneration,
-      context.topLevelOrigin,
-      context.requester.type,
-      context.requester.id
-    ])
-  }
-
-  private activeEvmWallets(context: WalletBrokerContext, wallets: WalletDescriptor[]): WalletDescriptor[] {
-    const key = this.evmProviderSessionKey(context)
-    const existing = this.evmProviderSessions.get(key)
-    const fallback = this.selectWallet(wallets)
-    const networkId = existing && wallets.some((wallet) => wallet.network.id === existing.networkId)
-      ? existing.networkId
-      : fallback.network.id
-    this.evmProviderSessions.set(key, {
-      workspaceId: context.workspaceId,
-      tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration,
-      topLevelOrigin: context.topLevelOrigin,
-      requester: structuredClone(context.requester),
-      networkId,
-      accounts: this.permittedAccounts(context, wallets.filter((wallet) => wallet.network.id === networkId))
-    })
-    this.scheduleProviderPermissionExpiry()
-    const active = wallets.filter((wallet) => wallet.network.id === networkId)
-    const next = this.evmProviderSessions.get(key)!
-    if (!existing) {
-      this.options.onProviderEvent?.(context.tabId, {
-        family: 'evm', event: 'connect', payload: { chainId: `0x${BigInt(networkId).toString(16)}` }
-      })
-    } else {
-      if (existing.networkId !== networkId) {
-        this.options.onProviderEvent?.(context.tabId, {
-          family: 'evm', event: 'chainChanged', payload: `0x${BigInt(networkId).toString(16)}`
-        })
-      }
-      if (!isDeepStrictEqual(existing.accounts, next.accounts)) {
-        this.options.onProviderEvent?.(context.tabId, {
-          family: 'evm', event: 'accountsChanged', payload: [...next.accounts]
-        })
-      }
-    }
-    return active
-  }
-
-  private addEvmChain(context: WalletBrokerContext, wallets: WalletDescriptor[], requestedChainId: unknown): null {
-    try {
-      return this.switchEvmChain(context, wallets, requestedChainId)
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Requested EVM chain is not configured for this workspace wallet') {
-        throw new Error('Requested EVM chain was rejected: websites cannot add networks, configure the network on a workspace wallet in Hronaut')
-      }
-      throw error
-    }
-  }
-
-  private assertEthAccountsPermissionRequest(params: unknown): void {
-    const request = paramsArray(params)[0]
-    const keys = request && typeof request === 'object' && !Array.isArray(request) ? Object.keys(request) : []
-    if (keys.length !== 1 || keys[0] !== 'eth_accounts') {
-      throw new Error('Unsupported EVM wallet permission: only eth_accounts can be requested or revoked')
-    }
-  }
-
-  private evmPermissions(context: WalletBrokerContext, accounts: string[]): unknown[] {
-    if (!accounts.length) return []
-    return [{
-      invoker: context.topLevelOrigin,
-      parentCapability: 'eth_accounts',
-      caveats: [{ type: 'restrictReturnedAccounts', value: accounts }]
-    }]
-  }
-
-  private switchEvmChain(
-    context: WalletBrokerContext,
-    wallets: WalletDescriptor[],
-    requestedChainId: unknown
-  ): null {
-    let numericChainId: bigint
-    try {
-      if (typeof requestedChainId !== 'string' || !/^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/.test(requestedChainId)) {
-        throw new Error('invalid')
-      }
-      numericChainId = BigInt(requestedChainId)
-    } catch {
-      throw new Error('Requested EVM chain is invalid')
-    }
-    const matching = wallets.filter((wallet) => BigInt(wallet.network.id) === numericChainId)
-    if (!matching.length) throw new Error('Requested EVM chain is not configured for this workspace wallet')
-    const current = this.activeEvmWallets(context, wallets)
-    const nextNetworkId = matching[0]!.network.id
-    if (current[0]?.network.id === nextNetworkId) return null
-    const key = this.evmProviderSessionKey(context)
-    this.evmProviderSessions.set(key, {
-      workspaceId: context.workspaceId,
-      tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration,
-      topLevelOrigin: context.topLevelOrigin,
-      requester: structuredClone(context.requester),
-      networkId: nextNetworkId,
-      accounts: this.permittedAccounts(context, matching)
-    })
-    this.scheduleProviderPermissionExpiry()
-    const chainId = `0x${numericChainId.toString(16)}`
-    this.options.onProviderEvent?.(context.tabId, { family: 'evm', event: 'chainChanged', payload: chainId })
-    this.options.onProviderEvent?.(context.tabId, {
-      family: 'evm',
-      event: 'accountsChanged',
-      payload: this.permittedAccounts(context, matching)
-    })
-    return null
-  }
-
-  private selectEvmAccount(wallets: WalletDescriptor[], requestedAddress: unknown): WalletDescriptor {
-    if (typeof requestedAddress !== 'string') {
-      throw new Error('EVM transaction signer does not match the selected wallet')
-    }
-    const normalized = requestedAddress.toLowerCase()
-    const wallet = wallets.find((entry) => entry.publicAddress.toLowerCase() === normalized)
-    if (!wallet) throw new Error('EVM transaction signer does not match the selected wallet')
-    return wallet
-  }
-
-  /**
-   * Node filters are forwarded like reads, but a page may poll or remove only
-   * the filters this tab and site created on this node. Any other ID gets the
-   * node's own "filter not found" answer without reaching the node.
-   */
-  private async evmFilterRequest(context: WalletBrokerContext, wallet: WalletDescriptor, method: string, params: unknown): Promise<unknown> {
-    const adapter = this.adapters.evm
-    if (!adapter.readRpc) throw new Error(`Unsupported EVM wallet method: ${method}`)
-    const owner: EvmFilterOwner = { workspaceId: context.workspaceId, tabId: context.tabId, topLevelOrigin: context.topLevelOrigin, wallet }
-    if (isEvmFilterCreateMethod(method)) {
-      // ethers and viem read this message as "filters unsupported" and poll eth_getLogs instead.
-      const full = new Error(`EVM RPC error (code -32601): the method ${method} does not exist/is not available for this page, which already keeps ${MAX_EVM_FILTERS_PER_PAGE} filters`)
-      if (this.evmFilters.isFull(owner)) throw full
-      const id = await adapter.readRpc(wallet, method, params)
-      if (!isEvmFilterId(id)) throw new Error('EVM RPC read request failed')
-      if (this.closedTabs.has(context.tabId) || this.shuttingDown) {
-        this.uninstallEvmFilters(wallet, [id])
-        return id
-      }
-      if (!this.evmFilters.add(owner, id)) {
-        this.uninstallEvmFilters(wallet, [id])
-        throw full
-      }
-      return id
-    }
-    const id = paramsArray(params)[0]
-    if (!this.evmFilters.owns(owner, id)) {
-      if (method === 'eth_uninstallFilter') return false
-      throw new Error('EVM RPC error (code -32000): filter not found')
-    }
-    const result = await adapter.readRpc(wallet, method, params)
-    if (method === 'eth_uninstallFilter') this.evmFilters.remove(owner, id)
-    return result
-  }
-
-  /**
-   * EIP-5792 capabilities of a permitted account on each network it is
-   * permitted on. Hronaut sends batched calls one at a time, so it reports
-   * atomic execution as unsupported.
-   */
-  private evmCapabilities(context: WalletBrokerContext, wallets: WalletDescriptor[], params: unknown): Record<string, unknown> {
-    const [address, chainIds] = paramsArray(params)
-    if (typeof address !== 'string') throw callBundleError(-32602, 'wallet_getCapabilities expects an account address')
-    const accounts = wallets.filter((entry) => (
-      entry.publicAddress.toLowerCase() === address.toLowerCase() && this.hasAddressPermission(context, entry)
-    ))
-    if (!accounts.length) throw callBundleError(4100, 'Wallet account access must be approved before reading its capabilities')
-    const requested = Array.isArray(chainIds)
-      ? new Set(chainIds.map((chainId) => typeof chainId === 'string' && /^0x[0-9a-fA-F]{1,64}$/.test(chainId) ? BigInt(chainId).toString() : ''))
-      : undefined
-    const capabilities: Record<string, unknown> = {}
-    for (const account of accounts) {
-      if (requested && !requested.has(account.network.id)) continue
-      capabilities[`0x${BigInt(account.network.id).toString(16)}`] = { atomic: { status: 'unsupported' } }
-    }
-    return capabilities
-  }
-
-  /**
-   * EIP-5792 batch calls, sent one after another as ordinary transactions:
-   * each goes through the same approval or policy as `eth_sendTransaction`.
-   * Later calls usually depend on earlier ones, such as a swap after its
-   * token approval, so each call is prepared only once the one before it is
-   * mined and succeeded, and Hronaut stops at the first call that is
-   * rejected, fails or reverts. When the first call does not go out, the
-   * request fails with that call's error.
-   */
-  private async sendEvmCalls(
-    context: WalletBrokerContext,
-    activeWallets: WalletDescriptor[],
-    wallet: WalletDescriptor,
-    params: unknown
-  ): Promise<{ id: string }> {
-    const request = parseSendCalls(params)
-    if (BigInt(request.chainId).toString() !== wallet.network.id) {
-      throw callBundleError(5710, `Chain ${request.chainId} is not this tab's active wallet network`)
-    }
-    const selected = request.from === undefined ? wallet : this.selectEvmAccount(activeWallets, request.from)
-    this.assertAddressPermission(context, selected, 'send')
-    const owner = { workspaceId: context.workspaceId, topLevelOrigin: context.topLevelOrigin }
-    const started = this.evmCallBundles.start(owner, selected, request.calls.length, request.id)
-    if (started === 'duplicate') throw callBundleError(5720, 'This site already sent a batch with this ID')
-    if (started === 'full') throw callBundleError(-32005, 'Too many wallet_sendCalls batches are still being sent')
-    try {
-      for (const [index, call] of request.calls.entries()) {
-        const hash = String(await this.transactionRequest(context, selected, {
-          from: selected.publicAddress,
-          ...(call.to === undefined ? {} : { to: call.to }),
-          ...(call.data === undefined ? {} : { data: call.data }),
-          ...(call.value === undefined ? {} : { value: call.value })
-        }, true))
-        started.bundle.hashes.push(hash)
-        if (index < request.calls.length - 1 && !await this.evmCallSucceeded(context, selected, hash)) break
-      }
-    } catch (error) {
-      if (!started.bundle.hashes.length) {
-        this.evmCallBundles.delete(owner, started.id)
-        throw error
-      }
-      // The page already has its batch ID, so only an agent reading the batch learns why it stopped.
-      started.bundle.error = sanitizedError(error).message
-    } finally {
-      started.bundle.finished = true
-    }
-    return { id: started.id }
-  }
-
-  /**
-   * EIP-747 token suggestions, such as a faucet's "Add token to wallet"
-   * button. Hronaut keeps no token list to add them to, so it accepts a valid
-   * suggestion without a prompt: it moves no funds and reveals no account.
-   * Like MetaMask, it refuses an ERC-20 suggestion whose symbol or decimals
-   * disagree with the contract. An agent testing the page sees every
-   * suggestion, refused or not, with the contract's own values in
-   * `wallet_page_requests`.
-   */
-  private async watchEvmAsset(context: WalletBrokerContext, wallet: WalletDescriptor, params: unknown): Promise<true> {
-    const asset = parseWatchAsset(params)
-    let contract: EvmTokenContractDetails = {}
-    if (asset.type === 'ERC20' && this.adapters.evm.tokenContractDetails) {
-      try {
-        contract = await this.adapters.evm.tokenContractDetails(wallet, asset.address)
-      } catch {
-        // As in MetaMask, a contract that cannot be read leaves the page's values unchecked.
-      }
-      this.assertRequestContextActive(context)
-    }
-    const refusal = watchAssetRefusal(asset, contract)
-    if (context.requester.type === 'website') {
-      this.evmAssetSuggestions.add(context, {
-        ...asset,
-        ...(contract.symbol === undefined ? {} : { contractSymbol: contract.symbol }),
-        ...(contract.decimals === undefined ? {} : { contractDecimals: contract.decimals }),
-        ...(refusal ? { refused: refusal.reason } : {}),
-        networkId: wallet.network.id,
-        suggestedAt: this.now().toISOString()
-      })
-    }
-    if (refusal) throw refusal.error
-    return true
-  }
-
-  /**
-   * Waits until a batch call is mined; false when it reverted, another
-   * transaction replaced it, the page left, or it was not mined in time.
-   */
-  private async evmCallSucceeded(context: WalletBrokerContext, wallet: WalletDescriptor, hash: string): Promise<boolean> {
-    const interval = Math.min(this.confirmationPollIntervalMs(), EVM_BATCH_CONFIRMATION_POLL_MS)
-    const deadline = this.now().getTime() + EVM_BATCH_CONFIRMATION_TIMEOUT_MS
-    while (this.isRequestContextActive(context) && this.now().getTime() < deadline) {
-      if (this.replacedTransactionHashes.has(hash.toLowerCase())) return false
-      try {
-        const confirmation = await this.adapters.evm.confirmation(wallet, hash)
-        if (confirmation.failed) return false
-        if (confirmation.confirmed) return true
-      } catch {
-        // A node that cannot answer yet is asked again.
-      }
-      await new Promise((resolve) => setTimeout(resolve, interval))
-    }
-    return false
-  }
-
-  private async evmCallsStatus(context: WalletBrokerContext, params: unknown): Promise<unknown> {
-    const id = paramsArray(params)[0]
-    const bundle = this.evmCallBundles.get({ workspaceId: context.workspaceId, topLevelOrigin: context.topLevelOrigin }, id)
-    if (!bundle) throw callBundleError(5730, 'Unknown batch ID')
-    if (!this.hasAddressPermission(context, bundle.wallet)) {
-      throw callBundleError(4100, 'Wallet account access must be approved before reading this batch')
-    }
-    const adapter = this.adapters.evm
-    if (!adapter.readRpc) throw new Error('Unsupported EVM wallet method: wallet_getCallsStatus')
-    const receipts = await Promise.all(bundle.hashes.map(async (hash) => (
-      callReceipt(await adapter.readRpc!(bundle.wallet, 'eth_getTransactionReceipt', [hash]))
-    )))
-    const replaced = bundle.hashes.map((hash, index) => receipts[index] === undefined && this.replacedTransactionHashes.has(hash.toLowerCase()))
-    return {
-      version: EVM_CALL_BUNDLE_VERSION,
-      id,
-      chainId: `0x${BigInt(bundle.wallet.network.id).toString(16)}`,
-      status: callBundleStatus(bundle, receipts, replaced),
-      atomic: false,
-      receipts: receipts.filter((receipt): receipt is EvmCallReceipt => receipt !== undefined)
-    }
-  }
-
-  /** Removes filters Hronaut no longer tracks from the node; the node expires any it misses. */
-  private uninstallEvmFilters(wallet: WalletDescriptor, ids: string[]): void {
-    for (const id of ids) {
-      void this.adapters.evm.readRpc?.(wallet, 'eth_uninstallFilter', [id]).catch(() => undefined)
-    }
-  }
-
   private clearEvmProviderSessions(predicate: (session: EvmProviderSession) => boolean): void {
     for (const [key, session] of this.evmProviderSessions) {
       if (predicate(session)) this.evmProviderSessions.delete(key)
-    }
-  }
-
-  private accountProviderSessionKey(context: WalletBrokerContext, family: Exclude<WalletChainFamily, 'evm'>): string {
-    return JSON.stringify([
-      family,
-      context.workspaceId,
-      context.tabId,
-      context.navigationGeneration,
-      context.topLevelOrigin,
-      context.requester.type,
-      context.requester.id
-    ])
-  }
-
-  private activeAccountProviderWallet(
-    context: WalletBrokerContext,
-    family: Exclude<WalletChainFamily, 'evm'>,
-    wallets: WalletDescriptor[]
-  ): WalletDescriptor | undefined {
-    const session = this.accountProviderSessions.get(this.accountProviderSessionKey(context, family))
-    return session
-      ? wallets.find((wallet) => (
-          wallet.id === session.walletId
-          && wallet.publicAddress === session.account
-          && this.hasAddressPermission(context, wallet)
-        ))
-      : undefined
-  }
-
-  private preferredPermittedWallet(
-    context: WalletBrokerContext,
-    wallets: WalletDescriptor[]
-  ): WalletDescriptor | undefined {
-    return wallets.find((wallet) => wallet.kind !== 'watch-only' && this.hasAddressPermission(context, wallet))
-      ?? wallets.find((wallet) => this.hasAddressPermission(context, wallet))
-  }
-
-  private trackAccountProviderSession(context: WalletBrokerContext, wallet: WalletDescriptor): boolean {
-    if (wallet.chainFamily === 'evm') return false
-    const key = this.accountProviderSessionKey(context, wallet.chainFamily)
-    const existing = this.accountProviderSessions.get(key)
-    this.accountProviderSessions.set(key, {
-      family: wallet.chainFamily,
-      walletId: wallet.id,
-      workspaceId: context.workspaceId,
-      tabId: context.tabId,
-      navigationGeneration: context.navigationGeneration,
-      topLevelOrigin: context.topLevelOrigin,
-      requester: structuredClone(context.requester),
-      account: wallet.publicAddress
-    })
-    this.scheduleProviderPermissionExpiry()
-    return !existing || existing.walletId !== wallet.id || existing.account !== wallet.publicAddress
-  }
-
-  private publishTronConnection(context: WalletBrokerContext, wallet: WalletDescriptor): void {
-    this.options.onProviderEvent?.(context.tabId, {
-      family: 'tron', event: 'accountsChanged', payload: [wallet.publicAddress]
-    })
-    const chainId = tronProviderChainId(wallet.network.id)
-    if (chainId) {
-      this.options.onProviderEvent?.(context.tabId, {
-        family: 'tron', event: 'connect', payload: { chainId }
-      })
     }
   }
 
@@ -2363,36 +1369,9 @@ export class WalletBroker {
     }
   }
 
-  private reconcileAccountProviderSessions(): void {
-    for (const [key, session] of this.accountProviderSessions) {
-      const context: WalletBrokerContext = {
-        workspaceId: session.workspaceId,
-        tabId: session.tabId,
-        navigationGeneration: session.navigationGeneration,
-        topLevelOrigin: session.topLevelOrigin,
-        requester: structuredClone(session.requester)
-      }
-      const wallet = this.accessibleWallets(context, session.family).find((entry) => entry.id === session.walletId)
-      if (wallet?.publicAddress === session.account && this.hasAddressPermission(context, wallet)) continue
-      this.accountProviderSessions.delete(key)
-      this.options.onProviderEvent?.(session.tabId, {
-        family: session.family,
-        event: 'accountsChanged',
-        payload: []
-      })
-      this.options.onProviderEvent?.(session.tabId, {
-        family: session.family,
-        event: 'disconnect',
-        ...(session.family === 'tron' ? {
-          payload: { code: 4900, message: 'Tron provider disconnected' }
-        } : {})
-      })
-    }
-  }
-
   private reconcileProviderSessions(): void {
-    this.reconcileEvmProviderSessions()
-    this.reconcileAccountProviderSessions()
+    reconcileEvmProviderSessions(this.evmProviderAccess())
+    reconcileAccountProviderSessions(this.solanaTronProviderAccess())
     this.scheduleProviderPermissionExpiry()
   }
 
@@ -2416,64 +1395,6 @@ export class WalletBroker {
       timer.unref()
       return () => clearTimeout(timer)
     })()
-  }
-
-  private reconcileEvmProviderSessions(): void {
-    for (const [key, session] of this.evmProviderSessions) {
-      const context: WalletBrokerContext = {
-        workspaceId: session.workspaceId,
-        tabId: session.tabId,
-        navigationGeneration: session.navigationGeneration,
-        topLevelOrigin: session.topLevelOrigin,
-        requester: structuredClone(session.requester)
-      }
-      const wallets = this.accessibleWallets(context, 'evm')
-      const currentNetworkWallets = wallets.filter((wallet) => wallet.network.id === session.networkId)
-      if (currentNetworkWallets.length) {
-        const accounts = this.permittedAccounts(context, currentNetworkWallets)
-        if (!isDeepStrictEqual(session.accounts, accounts)) {
-          session.accounts = [...accounts]
-          this.evmProviderSessions.set(key, session)
-          this.options.onProviderEvent?.(session.tabId, {
-            family: 'evm', event: 'accountsChanged', payload: accounts
-          })
-        }
-        continue
-      }
-      if (!wallets.length) {
-        this.evmProviderSessions.delete(key)
-        if (session.accounts.length) {
-          this.options.onProviderEvent?.(session.tabId, {
-            family: 'evm', event: 'accountsChanged', payload: []
-          })
-        }
-        this.options.onProviderEvent?.(session.tabId, {
-          family: 'evm', event: 'disconnect', payload: {
-            code: 1000,
-            message: 'EVM provider disconnected'
-          }
-        })
-        continue
-      }
-      const fallback = this.selectWallet(wallets)
-      session.networkId = fallback.network.id
-      session.accounts = this.permittedAccounts(
-        context,
-        wallets.filter((wallet) => wallet.network.id === fallback.network.id)
-      )
-      this.evmProviderSessions.set(key, session)
-      this.options.onProviderEvent?.(session.tabId, {
-        family: 'evm', event: 'chainChanged', payload: `0x${BigInt(fallback.network.id).toString(16)}`
-      })
-      this.options.onProviderEvent?.(session.tabId, {
-        family: 'evm', event: 'accountsChanged',
-        payload: [...session.accounts]
-      })
-    }
-  }
-
-  private permittedAccounts(context: WalletBrokerContext, wallets: WalletDescriptor[]): string[] {
-    return wallets.filter((wallet) => this.hasAddressPermission(context, wallet)).map((wallet) => wallet.publicAddress)
   }
 
   private assertAddressPermission(context: WalletBrokerContext, wallet: WalletDescriptor, capability: 'sign' | 'send'): void {
@@ -2500,26 +1421,6 @@ export class WalletBroker {
     const bytes = Buffer.from(value, 'utf8')
     if (bytes.length > 1_048_576) throw new Error('Wallet message is invalid')
     return bytes
-  }
-
-  private base64ResultBytes(value: unknown, label: string): Uint8Array {
-    if (typeof value !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error(`${label} is invalid`)
-    const bytes = Buffer.from(value, 'base64')
-    if (!bytes.length || bytes.toString('base64') !== value) throw new Error(`${label} is invalid`)
-    return Uint8Array.from(bytes)
-  }
-
-  private tronSignedTransaction(value: unknown): Record<string, unknown> {
-    const bytes = this.base64ResultBytes(value, 'Signed Tron transaction')
-    try {
-      const parsed = JSON.parse(Buffer.from(bytes).toString('utf8')) as unknown
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid')
-      return parsed as Record<string, unknown>
-    } catch {
-      throw new Error('Signed Tron transaction is invalid')
-    } finally {
-      bytes.fill(0)
-    }
   }
 
   private async fail(requestId: string, error: unknown): Promise<Error> {
@@ -2576,171 +1477,26 @@ export class WalletBroker {
     this.pendingMessages.delete(requestId)
   }
 
-  private resumeSubmittedConfirmations(): void {
-    for (const record of this.service.approvals.list()) {
-      if (record.status === 'submitted' && record.transactionHash) this.scheduleConfirmation(record.id)
-    }
-  }
-
-  private scheduleConfirmation(requestId: string, delay = 0): void {
-    if (this.shuttingDown) return
-    if (this.confirmationTimers.has(requestId) || this.confirmationInFlight.has(requestId)) return
-    const timer = setTimeout(() => {
-      this.confirmationTimers.delete(requestId)
-      if (this.shuttingDown) return
-      const task = this.pollConfirmation(requestId)
-      this.confirmationTasks.add(task)
-      void task.finally(() => this.confirmationTasks.delete(task)).catch(() => undefined)
-    }, delay)
-    timer.unref()
-    this.confirmationTimers.set(requestId, timer)
-  }
-
-  private async pollConfirmation(requestId: string): Promise<void> {
-    if (this.confirmationInFlight.has(requestId)) return
-    this.confirmationInFlight.add(requestId)
-    let retry = false
-    try {
-      const record = this.service.approvals.get(requestId)
-      if (record?.status !== 'submitted' || !record.transactionHash) return
-      const wallet = this.service.list().find((entry) => entry.id === record.request.walletId)
-      if (!wallet) {
-        retry = true
-        return
-      }
-      const confirmation = await this.withConfirmationShutdown(
-        this.adapters[wallet.chainFamily].confirmation(
-          wallet,
-          record.transactionHash,
-          wallet.chainFamily === 'evm' ? transactionNonce(record) : undefined
-        )
-      )
-      const current = this.service.approvals.get(requestId)
-      if (current?.status !== 'submitted') return
-      const replaced = !confirmation.confirmed && !confirmation.failed && confirmation.replaced === true && this.replacedLongEnough(requestId)
-      if (!confirmation.replaced) this.replacedChecks.delete(requestId)
-      if (confirmation.confirmed || confirmation.failed || replaced) {
-        this.replacedChecks.delete(requestId)
-        const terminalStatus = confirmation.confirmed ? 'confirmed' : 'failed'
-        try {
-          await this.service.approvals.transition(requestId, terminalStatus, this.now())
-        } finally {
-          if (this.service.approvals.get(requestId)?.status === terminalStatus) {
-            if (replaced) this.rememberReplacedTransaction(record.transactionHash)
-            await this.appendTransactionAudit(
-              confirmation.confirmed ? 'transaction-confirmed' : 'transaction-failed',
-              record,
-              record.transactionHash,
-              confirmation.blockReference,
-              replaced
-            )
-          }
-          this.publish()
-        }
-        return
-      }
-      retry = true
-    } catch {
-      retry = !this.shuttingDown && this.service.approvals.get(requestId)?.status === 'submitted'
-    } finally {
-      this.confirmationInFlight.delete(requestId)
-      if (retry && this.service.approvals.get(requestId)?.status === 'submitted') {
-        this.scheduleConfirmation(requestId, this.confirmationPollIntervalMs())
-      } else {
-        this.replacedChecks.delete(requestId)
-      }
-    }
-  }
-
   /**
-   * Whether a submitted transaction has looked replaced on enough checks, over
-   * long enough, to count as failed. A long pause between two checks, or a
-   * clock that went back, starts the count again.
+   * The narrow view transaction confirmation tracking gets of this broker's
+   * private state. It is built on each call, so it reads whether the broker
+   * is shutting down at the moment a check asks.
    */
-  private replacedLongEnough(requestId: string): boolean {
-    const now = this.now().getTime()
-    const seen = this.replacedChecks.get(requestId)
-    const maxGap = Math.max(EVM_REPLACED_MAX_CHECK_GAP_MS, 3 * this.confirmationPollIntervalMs())
-    if (!seen || now < seen.last || now - seen.last > maxGap) {
-      this.replacedChecks.set(requestId, { since: now, last: now, count: 1 })
-      return false
-    }
-    seen.last = now
-    seen.count += 1
-    return seen.count >= EVM_REPLACED_TRANSACTION_CHECKS && now - seen.since >= EVM_REPLACED_TRANSACTION_MS
-  }
-
-  private rememberReplacedTransaction(hash: string): void {
-    this.replacedTransactionHashes.add(hash.toLowerCase())
-    if (this.replacedTransactionHashes.size > MAX_REPLACED_TRANSACTION_HASHES) {
-      this.replacedTransactionHashes.delete(this.replacedTransactionHashes.values().next().value!)
-    }
-  }
-
-  private drainConfirmationTasks(): Promise<boolean> {
-    if (this.confirmationTasks.size === 0) return Promise.resolve(true)
-    return new Promise((resolve) => {
-      let settled = false
-      const finish = (drained: boolean): void => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        resolve(drained)
-      }
-      const timer = setTimeout(() => finish(false), this.shutdownDrainTimeoutMs())
-      timer.unref()
-      void Promise.allSettled([...this.confirmationTasks]).then(() => finish(true))
-    })
-  }
-
-  private withConfirmationShutdown<T>(operation: Promise<T>): Promise<T> {
-    const signal = this.confirmationShutdown.signal
-    if (signal.aborted) return Promise.reject(new Error('Wallet broker is shutting down'))
-    return new Promise<T>((resolve, reject) => {
-      let settled = false
-      const finish = (callback: (value: never) => void, value: unknown): void => {
-        if (settled) return
-        settled = true
-        signal.removeEventListener('abort', onAbort)
-        callback(value as never)
-      }
-      const onAbort = (): void => finish(reject, new Error('Wallet broker is shutting down'))
-      signal.addEventListener('abort', onAbort, { once: true })
-      void operation.then(
-        (value) => finish(resolve, value),
-        (error: unknown) => finish(reject, error)
-      )
-    })
-  }
-
-  private shutdownDrainTimeoutMs(): number {
-    const configured = this.options.shutdownDrainTimeoutMs
-    return Number.isFinite(configured) && configured !== undefined && configured >= 0
-      ? configured
-      : DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS
-  }
-
-  private async appendTransactionAudit(
-    type: 'transaction-submitted' | 'transaction-confirmed' | 'transaction-failed',
-    record: WalletApprovalRecord,
-    transactionHash: string,
-    blockReference?: string,
-    replaced = false
-  ): Promise<void> {
-    try {
-      await this.service.audit.append(type, {
-        requestId: record.id,
-        walletId: record.request.walletId,
-        workspaceId: record.request.workspaceId,
-        origin: record.request.topLevelOrigin,
-        requester: record.request.requester,
-        networkId: record.request.networkId,
-        transactionHash,
-        ...(blockReference ? { blockReference } : {}),
-        ...(replaced ? { replaced: true } : {})
-      }, this.now().toISOString())
-    } catch {
-      console.error('[wallet] Failed to persist transaction lifecycle audit event')
+  private transactionConfirmationAccess(): TransactionConfirmationAccess {
+    return {
+      service: this.service,
+      adapters: this.adapters,
+      options: this.options,
+      confirmationTimers: this.confirmationTimers,
+      confirmationInFlight: this.confirmationInFlight,
+      replacedChecks: this.replacedChecks,
+      replacedTransactionHashes: this.replacedTransactionHashes,
+      confirmationTasks: this.confirmationTasks,
+      confirmationShutdown: this.confirmationShutdown,
+      isShuttingDown: () => this.shuttingDown,
+      confirmationPollIntervalMs: () => this.confirmationPollIntervalMs(),
+      publish: () => this.publish(),
+      now: () => this.now()
     }
   }
 
