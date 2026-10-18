@@ -12,7 +12,6 @@ import { AgentCardOverlay } from './agent-card-overlay.js'
 import { ToastOverlay } from './toast-overlay.js'
 import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
 import type { AgentCardEvent } from '../shared/agent-card.js'
-import { humanWaitingDecisionOpen } from '../shared/human-waiting.js'
 import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
@@ -22,7 +21,7 @@ import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
-import { createTrayAttention } from './tray-attention.js'
+import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
 import { join, resolve } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import {
@@ -37,8 +36,7 @@ import {
   shell,
   WebContentsView,
   webContents as allWebContents,
-  type MessageBoxOptions,
-  type Session
+  type MessageBoxOptions
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { createAppUpdates } from './app-updates.js'
@@ -48,18 +46,15 @@ import { WorkspaceMetadataError } from './browser/tab-store.js'
 import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
-import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
-import { BookmarkStore } from './bookmark-store.js'
+import { workspacePartition } from './browser/workspace-storage.js'
+import { createBookmarksAndHistory, type BookmarksAndHistoryState } from './bookmarks-and-history.js'
 import { UndoOffers } from './undo-offers.js'
 import { registerUndoIpc } from './undo-ipc.js'
-import { HistoryStore } from './history-store.js'
-import { createCredentialRuntime } from './credential-runtime.js'
-import type { CredentialStore } from './credential-store.js'
+import { createCredentialRuntime, type CredentialRuntimeState } from './credential-runtime.js'
 import { registerCredentialsIpc } from './credentials-ipc.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
-import { createCommercialLicenseRuntime } from './commercial-license-runtime.js'
+import { createCommercialLicenseRuntime, type CommercialLicenseRuntimeState } from './commercial-license-runtime.js'
 import { registerLicenseIpc } from './license-ipc.js'
-import type { CommercialLicenseStore } from './commercial-license-store.js'
 import { registerUpdatesIpc } from './updates-ipc.js'
 import { createSiteData } from './site-data.js'
 import { registerBrowsingDataIpc } from './browsing-data-ipc.js'
@@ -72,17 +67,13 @@ import {
   StartupLaunchManager
 } from './startup-launch.js'
 import {
-  McpHttpServer,
-  mcpToolCatalogForSet,
-  type SiteDataType,
-  type UserAttentionRequest
+  McpHttpServer
 } from './mcp/server.js'
 import { createHomeDashboard } from './home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
 import { loadMcpToken } from './mcp-token-store.js'
-import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
-import { AuditReceiptService } from './mcp/audit-receipt-service.js'
+import { createAgentServices, type AgentServicesState } from './agent-services.js'
 import { McpPauseState } from './mcp-pause-state.js'
 import { McpActionTracker } from './mcp/action-tracker.js'
 import { createMcpRuntime, type McpRuntimeState } from './mcp-runtime.js'
@@ -90,24 +81,18 @@ import { DEFAULT_SETTINGS } from './settings-store.js'
 import { createSettingsRuntime, type SettingsState } from './settings-runtime.js'
 import { createAddressSuggestionOverlay } from './windows/address-suggestion-overlay.js'
 import { registerSettingsIpc } from './settings-ipc.js'
-import { createBrowserSession } from './browser-session.js'
-import type { SitePermissionStore } from './site-permission-store.js'
+import { createBrowserSession, type BrowserSessionState } from './browser-session.js'
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import type {
-  AppSettings,
   AppUpdateState,
   BrowserActionFailure,
-  BrowserBookmark,
-  BrowserHistoryEntry,
-  CredentialStorageStatus,
-  LanguagePreference,
-  ThemeName
+  LanguagePreference
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
-import { CYBERPUNK_TURBO_COLORS, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
+import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
 import {
   resolveLocalePreference,
   resolveSupportedLocale
@@ -287,10 +272,12 @@ let initializedTabsManager: BrowserTabsManager | null = null
 const workspaceStartupReads = new WorkspaceStartupReads()
 let workspaceStartupFailure: WorkspaceMetadataError | undefined
 let requireExistingWorkspaceMetadata = false
-let mcpCapabilityProfiles: McpCapabilityProfileStore | null = null
-let auditReceipts: AuditReceiptService | null = null
-let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
-let taskRuns: import('./mcp/task-run-service.js').TaskRunService | null = null
+const agentServices: AgentServicesState = {
+  capabilityProfiles: null,
+  auditReceipts: null,
+  humanWaiting: null,
+  taskRuns: null
+}
 const walletRuntime: WalletRuntimeState = {
   service: null,
   broker: null,
@@ -300,13 +287,12 @@ const {
   startWallets,
   assertWalletPageSender,
   currentWalletServiceStatus,
-  requireWalletBroker,
-  walletAgentContext,
-  generateWallet
+  generateWallet,
+  agentWallets
 } = createWalletRuntime({
   state: walletRuntime,
   sendToMainWindow,
-  commercialLicenseStore: () => commercialLicenseStore,
+  commercialLicenseStore: () => commercialLicenseRuntime.store,
   tabs: () => tabsManager,
   workspaceStartupFailure: () => workspaceStartupFailure,
   mainWindowRefs
@@ -346,7 +332,10 @@ const {
   setLastState: (state) => { panelWindowRefs.lastState = state },
   logPrefix: '[panel-window]'
 })
-let persistentSession: Session | null = null
+const browserSessionState: BrowserSessionState = {
+  persistentSession: null,
+  sitePermissionStore: null
+}
 const settingsState: SettingsState = {
   store: null,
   persisted: { ...DEFAULT_SETTINGS },
@@ -356,7 +345,6 @@ const settingsState: SettingsState = {
   mutationQueue: Promise.resolve()
 }
 let startupLaunchManager: StartupLaunchManager | null = null
-let sitePermissionStore: SitePermissionStore | null = null
 const {
   text,
   defaultDownloadDirectory,
@@ -374,42 +362,59 @@ const {
   mcpRuntime,
   mcpAuthDisabled: MCP_AUTH_DISABLED,
   startupLaunchManager: () => startupLaunchManager,
-  persistentSession: () => persistentSession,
+  persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabsManager
 })
-const { configureBrowserSession, configurePersistentSession } = createBrowserSession({
+const { configureBrowserSession, configurePersistentSession, flushBrowserProfile } = createBrowserSession({
   text,
   effectiveDownloadDirectory,
   showMessageBox,
-  sitePermissionStore: () => sitePermissionStore,
-  setSitePermissionStore: (store) => { sitePermissionStore = store },
-  persistentSession: () => persistentSession,
-  setPersistentSession: (value) => { persistentSession = value },
+  state: browserSessionState,
   publishSitePermissions,
   partition: PARTITION
 })
-let credentialStore: CredentialStore | null = null
-let commercialLicenseStore: CommercialLicenseStore | null = null
-let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
+const credentialRuntime: CredentialRuntimeState = {
+  storageStatus: { available: false, reason: 'Secure storage is initializing.' },
+  store: null
+}
+const commercialLicenseRuntime: CommercialLicenseRuntimeState = {
+  store: null,
+  stateTimer: undefined
+}
 const {
   configureCommercialLicenseStore,
   currentCommercialLicenseState,
   publishCommercialLicenseState,
   activateCommercialLicense,
   refreshCommercialLicense,
-  deactivateCommercialLicense
+  deactivateCommercialLicense,
+  authorizeAutomation,
+  assertAutomationAccess
 } = createCommercialLicenseRuntime({
   text,
-  credentialStorageStatus: () => credentialStorageStatus,
+  credentialStorageStatus: () => credentialRuntime.storageStatus,
   quitting: () => quitting,
   sendToShellWindows,
-  commercialLicenseStore: () => commercialLicenseStore,
-  setCommercialLicenseStore: (store) => { commercialLicenseStore = store },
-  commercialLicenseStateTimer: () => commercialLicenseStateTimer,
-  setCommercialLicenseStateTimer: (timer) => { commercialLicenseStateTimer = timer }
+  state: commercialLicenseRuntime
 })
-let bookmarkStore: BookmarkStore | null = null
-let historyStore: HistoryStore | null = null
+const bookmarksAndHistory: BookmarksAndHistoryState = {
+  bookmarks: null,
+  history: null
+}
+const {
+  publishBookmarks,
+  publishVisitHistory,
+  openBookmarks,
+  openVisitHistory,
+  recordPageVisit,
+  updatePageTitle,
+  agentBookmarks,
+  agentHistory
+} = createBookmarksAndHistory({
+  state: bookmarksAndHistory,
+  sendToShellWindows,
+  mcpServer: () => mcpRuntime.server
+})
 // The person's latest reversible action, until its Undo toast closes.
 const undoOffers = new UndoOffers((offer) => {
   if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('undo:offered', offer)
@@ -419,7 +424,6 @@ const undoOffers = new UndoOffers((offer) => {
   console.error(`[undo] Could not ${action}:`, error)
   reportBrowserActionFailure(action, error)
 })
-let credentialStorageStatus: CredentialStorageStatus = { available: false, reason: 'Secure storage is initializing.' }
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
 const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
   autoUpdater,
@@ -432,11 +436,11 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
 })
 let runtimeShutdown: Promise<void> | null = null
 const userAttentionLifecycle = new UserAttentionLifecycle()
-// The request still open for the user. It shows as needs you until it is answered or ends;
-// a click or key only quiets it, which agents see as answered in status and preflight.
-let userAttention: UserAttentionRequest | null = null
-let attentionQuiet = false
-let attentionDecisionId: string | undefined
+const userAttentionState: UserAttentionState = {
+  request: null,
+  quiet: false,
+  decisionId: undefined
+}
 const {
   setTrayContextMenu,
   shellUserAttention,
@@ -446,6 +450,9 @@ const {
   reconcileUserAttention,
   acknowledgeUserAttention,
   requestUserAttention,
+  userAttentionForAgents,
+  openUserAttentionId,
+  agentMovedOn,
   createTray
 } = createTrayAttention({
   text,
@@ -457,12 +464,7 @@ const {
   checkForUpdates,
   setQuitting: (value) => { quitting = value },
   userAttentionLifecycle,
-  userAttention: () => userAttention,
-  setUserAttention: (value) => { userAttention = value },
-  attentionQuiet: () => attentionQuiet,
-  setAttentionQuiet: (value) => { attentionQuiet = value },
-  attentionDecisionId: () => attentionDecisionId,
-  setAttentionDecisionId: (value) => { attentionDecisionId = value },
+  state: userAttentionState,
   agentPresenceSnapshot: () => agentPresenceSnapshot(),
   scheduleAgentPresencePublish: () => scheduleAgentPresencePublish(),
   activeMcpActivities: () => activeMcpActivities,
@@ -470,6 +472,12 @@ const {
   setSettings: (value) => { settingsState.current = value },
   publishSettings,
   updateSettings
+})
+const { openCapabilityProfiles, startAgentServices } = createAgentServices({
+  state: agentServices,
+  mcpActionTracker,
+  userAttention: userAttentionState,
+  endUserAttention
 })
 const {
   copyTextToClipboard,
@@ -507,18 +515,6 @@ const activeMcpActivities = new Set<string>()
 
 if (!isLoopbackHost(mcpRuntime.host)) {
   throw new Error('HRONAUT_MCP_HOST must be a loopback host. Use an authenticated TLS proxy for remote access.')
-}
-
-const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
-  light: '#f7f7fb',
-  dark: '#171821',
-  midnight: '#0b1422',
-  sepia: '#f2eadc',
-  cyberpunk: '#10071c',
-  'cyberpunk-turbo': CYBERPUNK_TURBO_COLORS.background,
-  matrix: '#020b05',
-  machine: '#13080a',
-  galactic: '#070d20'
 }
 
 const gotLock = app.requestSingleInstanceLock()
@@ -560,7 +556,7 @@ const { agentPresenceSnapshot, scheduleAgentPresencePublish, connectedAgents } =
   mcpRuntime,
   tabs: () => tabsManager,
   publishMcpControlState: (options) => publishMcpControlState(options),
-  attentionQuiet: () => attentionQuiet,
+  attentionQuiet: () => userAttentionState.quiet,
   userAttentionShown,
   endUserAttention,
   sendToMainWindow
@@ -586,20 +582,7 @@ function sendToPanelWindow(channel: string, ...args: unknown[]): void {
 }
 
 function publishCredentials(): void {
-  sendToShellWindows('credentials:changed', credentialStore?.list() ?? [])
-}
-
-function publishBookmarks(): BrowserBookmark[] {
-  const bookmarks = bookmarkStore?.list() ?? []
-  sendToShellWindows('bookmarks:changed', bookmarks)
-  sendToShellWindows('bookmark-collections:changed', bookmarkStore?.collectionSnapshot() ?? { revision: 0, collections: [] })
-  return bookmarks
-}
-
-function publishVisitHistory(): BrowserHistoryEntry[] {
-  const entries = historyStore?.list() ?? []
-  sendToShellWindows('visit-history:changed', entries)
-  return entries
+  sendToShellWindows('credentials:changed', credentialRuntime.store?.list() ?? [])
 }
 
 const { refreshHomeAfterCommittedChange, homeDashboardState } = createHomeDashboard({
@@ -632,9 +615,9 @@ const {
   refreshHomeAfterCommittedChange
 })
 
-const { currentBrowsingDataSiteSummary, clearWorkspaceSiteData } = createSiteData({
+const { currentBrowsingDataSiteSummary, agentSiteData } = createSiteData({
   tabs: () => tabsManager,
-  historyStore: () => historyStore,
+  historyStore: () => bookmarksAndHistory.history,
   publishVisitHistory
 })
 
@@ -642,23 +625,16 @@ const { handleCredentialCandidate, configureCredentialStore } = createCredential
   text,
   showMessageBox,
   mainWindow: () => mainWindowRefs.window,
-  credentialStorageStatus: () => credentialStorageStatus,
-  setCredentialStorageStatus: (status) => { credentialStorageStatus = status },
-  credentialStore: () => credentialStore,
-  setCredentialStore: (store) => { credentialStore = store },
+  state: credentialRuntime,
   publishCredentials
 })
 
 function publishSitePermissions(): void {
-  sendToShellWindows('permissions:changed', sitePermissionStore?.list() ?? [])
+  sendToShellWindows('permissions:changed', browserSessionState.sitePermissionStore?.list() ?? [])
 }
 
 function showMessageBox(options: MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
   return mainWindowRefs.window ? dialog.showMessageBox(mainWindowRefs.window, options) : dialog.showMessageBox(options)
-}
-
-function resolvedTheme(theme: ThemeName): Exclude<ThemeName, 'system'> {
-  return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
 const {
@@ -675,23 +651,17 @@ const {
   acknowledgeUserAttention
 })
 
-function applyTheme(theme: ThemeName): void {
-  nativeTheme.themeSource = theme === 'system' ? 'system' : themeColorScheme(theme)
-  applyMainWindowBackground()
-  panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
-  applyMainWindowTitleBarOverlay()
-}
-
-function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
-  for (const window of [mainWindowRefs.window, panelWindowRefs.window]) {
-    if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
-      window.webContents.setZoomFactor(scale)
-    }
-  }
-  addressSuggestionOverlay.setZoomFactor(scale)
-  applyMainWindowTitleBarOverlay()
-  toastOverlay.relayout()
-}
+const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppearance({
+  mainWindowRefs,
+  panelWindowRefs,
+  settings: () => settingsState.current,
+  applyMainWindowBackground,
+  applyMainWindowTitleBarOverlay,
+  addressSuggestionOverlay,
+  toastOverlay,
+  sendToShellWindows,
+  currentRendererSettingsState
+})
 
 function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   if (preference === 'system') settingsState.systemLocale = resolveSupportedLocale(app.getLocale())
@@ -707,7 +677,7 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
 }
 
 function registerHomeProtocol(): void {
-  if (!persistentSession) throw new Error('Persistent session must be configured before registering Hronaut Home')
+  if (!browserSessionState.persistentSession) throw new Error('Persistent session must be configured before registering Hronaut Home')
   const homeSession = session.fromPartition(workspacePartition(PARTITION, 'home'), { cache: true })
   configureBrowserSession(homeSession)
   homeSession.protocol.handle('hronaut', createHomeProtocolHandler({
@@ -723,11 +693,6 @@ function registerHomeProtocol(): void {
         platform: process.platform
     })
   }))
-}
-
-async function flushBrowserProfile(): Promise<void> {
-  if (!persistentSession) return
-  await flushBrowserSessionStorage(persistentSession)
 }
 
 if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
@@ -775,10 +740,10 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   currentRendererSettingsState,
   updateState: () => updateState,
   currentMcpControlState,
-  credentialStore: () => credentialStore,
-  sitePermissionStore: () => sitePermissionStore,
-  bookmarkStore: () => bookmarkStore,
-  historyStore: () => historyStore,
+  credentialStore: () => credentialRuntime.store,
+  sitePermissionStore: () => browserSessionState.sitePermissionStore,
+  bookmarkStore: () => bookmarksAndHistory.bookmarks,
+  historyStore: () => bookmarksAndHistory.history,
   currentPanelWindowState,
   schedulePanelWindowStateSave,
   flushPanelWindowState
@@ -856,8 +821,8 @@ function registerIpc(): void {
   registerAttentionIpc(ipcMain, {
     assertMainShellSender,
     shellUserAttention,
-    userAttention: () => userAttention,
-    attentionDecisionId: () => attentionDecisionId,
+    userAttention: () => userAttentionState.request,
+    attentionDecisionId: () => userAttentionState.decisionId,
     userAttentionLifecycle: () => userAttentionLifecycle,
     mcpServer: () => mcpRuntime.server,
     endUserAttention,
@@ -919,9 +884,9 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     tabs: () => tabsManager,
-    humanWaiting: () => humanWaiting,
-    userAttention: () => userAttention,
-    attentionDecisionId: () => attentionDecisionId,
+    humanWaiting: () => agentServices.humanWaiting,
+    userAttention: () => userAttentionState.request,
+    attentionDecisionId: () => userAttentionState.decisionId,
     mcpServer: () => mcpRuntime.server,
     quietUserAttention,
     endUserAttention,
@@ -971,8 +936,8 @@ function registerIpc(): void {
   registerCollectionIpc(ipcMain, {
     runRead: (event, read) => runWorkspaceRead(event, assertTrustedShellSender, read),
     assertTrustedSender: assertInitializedTrustedShellSender,
-    bookmarks: () => bookmarkStore!,
-    history: () => historyStore!,
+    bookmarks: () => bookmarksAndHistory.bookmarks!,
+    history: () => bookmarksAndHistory.history!,
     downloads: () => tabsManager!,
     publishBookmarks,
     publishVisitHistory,
@@ -981,9 +946,9 @@ function registerIpc(): void {
       kind: 'bookmark-removed',
       name: removed.bookmark.title,
       undo: async () => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
+        if (!bookmarksAndHistory.bookmarks) throw new Error('Bookmark storage is unavailable')
         // A bookmark saved again meanwhile stays as it is.
-        if (!await bookmarkStore.restore(removed)) return false
+        if (!await bookmarksAndHistory.bookmarks.restore(removed)) return false
         publishBookmarks()
         return true
       }
@@ -993,10 +958,10 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     tabs: () => tabsManager,
-    historyStore: () => historyStore,
-    bookmarkStore: () => bookmarkStore,
-    credentialStore: () => credentialStore,
-    sitePermissionStore: () => sitePermissionStore,
+    historyStore: () => bookmarksAndHistory.history,
+    bookmarkStore: () => bookmarksAndHistory.bookmarks,
+    credentialStore: () => credentialRuntime.store,
+    sitePermissionStore: () => browserSessionState.sitePermissionStore,
     mcpServer: () => mcpRuntime.server,
     publishVisitHistory,
     currentBrowsingDataSiteSummary
@@ -1060,18 +1025,18 @@ function registerIpc(): void {
     refreshHomeAfterCommittedChange,
     setMcpPort,
     resetMcpSettings,
-    mcpCapabilityProfiles: () => mcpCapabilityProfiles
+    mcpCapabilityProfiles: () => agentServices.capabilityProfiles
   })
   registerPermissionsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
-    sitePermissionStore: () => sitePermissionStore,
+    sitePermissionStore: () => browserSessionState.sitePermissionStore,
     publishSitePermissions
   })
   registerCredentialsIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
-    credentialStorageStatus: () => credentialStorageStatus,
-    credentialStore: () => credentialStore,
+    credentialStorageStatus: () => credentialRuntime.storageStatus,
+    credentialStore: () => credentialRuntime.store,
     publishCredentials,
     tabs: () => tabsManager,
     mainWindow: () => mainWindowRefs.window,
@@ -1101,11 +1066,9 @@ function registerIpc(): void {
 }
 
 async function createWindow(startMinimized = false): Promise<void> {
-  bookmarkStore = new BookmarkStore(join(app.getPath('userData'), 'bookmarks.json'))
-  await bookmarkStore.load()
-  historyStore = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
-  await historyStore.load()
-  persistentSession?.setDownloadPath(effectiveDownloadDirectory())
+  await openBookmarks()
+  await openVisitHistory()
+  browserSessionState.persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
   await configureCommercialLicenseStore()
   await startWallets()
@@ -1117,27 +1080,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
-  if (!humanWaiting) {
-    const { HumanWaitingService } = await import('./mcp/human-waiting-service.js')
-    const { HumanWaitingPersistence } = await import('./mcp/human-waiting-persistence.js')
-    humanWaiting = new HumanWaitingService(new HumanWaitingPersistence(join(app.getPath('userData'), 'human-waiting.json')))
-    humanWaiting.onSaved((records) => {
-      // A decision's request ends with the decision, however it ends.
-      const decisionId = attentionDecisionId
-      if (!decisionId || !userAttention) return
-      const record = records.find((candidate) => candidate.id === decisionId)
-      if (!record || !humanWaitingDecisionOpen(record.state)) endUserAttention({ keepPending: true })
-    })
-  }
-  if (!taskRuns) {
-    const { TaskRunService } = await import('./mcp/task-run-service.js')
-    const { TaskRunPersistence } = await import('./mcp/task-run-persistence.js')
-    taskRuns = new TaskRunService(new TaskRunPersistence(join(app.getPath('userData'), 'task-runs.json')))
-  }
-  auditReceipts ??= new AuditReceiptService(
-    join(app.getPath('userData'), 'audit-receipts'),
-    new Set(mcpToolCatalogForSet('complete').filter(tool => tool.name.startsWith('browser_')).map(tool => tool.name))
-  )
+  await startAgentServices()
   tabsManager = new BrowserTabsManager(mainWindowRefs.window, {
     partition: PARTITION,
     sessionDataPath: app.getPath('sessionData'),
@@ -1166,17 +1109,17 @@ async function createWindow(startMinimized = false): Promise<void> {
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
       mcpRuntime.server?.recordAgentAnswer(id, 'handedBack')
-      if (userAttention?.id === id) endUserAttention({ keepPending: true })
+      if (userAttentionState.request?.id === id) endUserAttention({ keepPending: true })
       takeOvers.resolvedOn(tabId)
     },
     onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
-      auditReceipts?.recordSiteAccess(workspaceId, decision, source)
+      agentServices.auditReceipts?.recordSiteAccess(workspaceId, decision, source)
     },
     onWorkspaceClosed: (workspaceId) => {
       mcpRuntime.server?.forgetAgentWorkspaceSteps(workspaceId)
       // Closing can itself be part of an active browser operation. Finalize
       // asynchronously so that operation can write its reserved outcome first.
-      void Promise.resolve().then(() => auditReceipts?.stop(workspaceId)).catch(() => {
+      void Promise.resolve().then(() => agentServices.auditReceipts?.stop(workspaceId)).catch(() => {
         console.error('[audit] Failed to finalize receipts for a closed workspace.')
       })
     },
@@ -1233,16 +1176,8 @@ async function createWindow(startMinimized = false): Promise<void> {
       return response === 1
     },
     ...walletLifecycleCallbacks,
-    onPageVisited: ({ url, title }) => {
-      void historyStore?.record({ url, title })
-        .then(() => publishVisitHistory())
-        .catch((error) => console.error('[history] Failed to record visit:', error))
-    },
-    onPageTitleUpdated: ({ url, title }) => {
-      void historyStore?.updateTitle({ url, title })
-        .then((updated) => { if (updated) publishVisitHistory() })
-        .catch((error) => console.error('[history] Failed to update page title:', error))
-    },
+    onPageVisited: recordPageVisit,
+    onPageTitleUpdated: updatePageTitle,
     onCredentialSubmitted: (candidate) => {
       void handleCredentialCandidate(candidate).catch((error) => {
         console.error('[credentials] Failed to save password:', error)
@@ -1327,8 +1262,8 @@ async function createWindow(startMinimized = false): Promise<void> {
       if (!tabsInitializationPromise) mainWindowRefs.window.webContents.send('browser:state-changed', tabsManager.getState())
       mainWindowRefs.window.webContents.send('updates:changed', updateState)
       mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-      mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-      mainWindowRefs.window.webContents.send('visit-history:changed', historyStore?.list() ?? [])
+      mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
+      mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
     }
   })
   mainWindowRefs.window.webContents.on('will-navigate', (event, url) => {
@@ -1363,9 +1298,9 @@ async function createWindow(startMinimized = false): Promise<void> {
     mainWindowRefs.window.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
     mainWindowRefs.window.webContents.send('updates:changed', updateState)
     mainWindowRefs.window.webContents.send('mcp:changed', currentMcpControlState())
-    mainWindowRefs.window.webContents.send('credentials:changed', credentialStore?.list() ?? [])
-    mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-    mainWindowRefs.window.webContents.send('visit-history:changed', historyStore?.list() ?? [])
+    mainWindowRefs.window.webContents.send('credentials:changed', credentialRuntime.store?.list() ?? [])
+    mainWindowRefs.window.webContents.send('bookmarks:changed', bookmarksAndHistory.bookmarks?.list() ?? [])
+    mainWindowRefs.window.webContents.send('visit-history:changed', bookmarksAndHistory.history?.list() ?? [])
   }
   if (savedWindowState?.maximized) mainWindowRefs.window.maximize()
   if (savedWindowState?.fullScreen) mainWindowRefs.window.setFullScreen(true)
@@ -1381,10 +1316,10 @@ async function releaseRuntimeResources(): Promise<void> {
   const broker = walletRuntime.broker
   mcpRuntime.server = null
   runtimeShutdown = (async () => {
-    historyStore?.dispose()
+    bookmarksAndHistory.history?.dispose()
     const results = [
       ...await Promise.allSettled([server?.stop()]),
-      ...await Promise.allSettled([auditReceipts?.stopAll()]),
+      ...await Promise.allSettled([agentServices.auditReceipts?.stopAll()]),
       // A workspace closed with Undo still on offer is deleted now, and so is one closed while quitting.
       ...await Promise.allSettled([undoOffers.close()]),
       ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
@@ -1392,11 +1327,11 @@ async function releaseRuntimeResources(): Promise<void> {
       ...await Promise.allSettled([
         manager?.flushPersist(),
         manager?.flushWorkspaceProfiles(),
-        bookmarkStore?.flush(),
-        credentialStore?.flush(),
-        historyStore?.flush(),
-        sitePermissionStore?.flush(),
-        commercialLicenseStore?.flush(),
+        bookmarksAndHistory.bookmarks?.flush(),
+        credentialRuntime.store?.flush(),
+        bookmarksAndHistory.history?.flush(),
+        browserSessionState.sitePermissionStore?.flush(),
+        commercialLicenseRuntime.store?.flush(),
         settingsState.mutationQueue,
         flushWindowState(),
         flushPanelWindowState(),
@@ -1422,94 +1357,27 @@ function createRuntimeMcpServer(
   if (!tabsManager || !mcpRuntime.tokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
     actionTracker: mcpActionTracker,
-    authorizeAutomation: async () => {
-      if (!commercialLicenseStore) throw new Error('License storage is unavailable')
-      try {
-        await commercialLicenseStore.authorizeAutomation()
-      } finally {
-        publishCommercialLicenseState()
-      }
-    },
-    assertAutomationAccess: () => {
-      if (!commercialLicenseStore) throw new Error('License storage is unavailable')
-      commercialLicenseStore.assertAutomationAccess()
-    },
-    auditReceipts: auditReceipts ?? undefined,
-    humanWaiting: humanWaiting ?? undefined,
-    taskRuns: taskRuns ?? undefined,
+    authorizeAutomation,
+    assertAutomationAccess,
+    auditReceipts: agentServices.auditReceipts ?? undefined,
+    humanWaiting: agentServices.humanWaiting ?? undefined,
+    taskRuns: agentServices.taskRuns ?? undefined,
     host: mcpRuntime.host,
     port,
     token: authenticationEnabled ? mcpRuntime.tokenConfiguration.token : undefined,
-    capabilityProfiles: mcpCapabilityProfiles ?? undefined,
+    capabilityProfiles: agentServices.capabilityProfiles ?? undefined,
     version: app.getVersion(),
     toolSet: settingsState.current.mcpToolSet,
     showWindowInactive,
     userAttentionLifecycle,
-    getUserAttention: () => (userAttention && !attentionQuiet ? { ...userAttention } : null),
-    getOpenUserAttentionId: () => userAttention?.id ?? null,
-    onAgentMovedOn: (attentionId) => {
-      // After the user responded, the agent acting again on a page ends its own request.
-      if (userAttention?.id === attentionId && attentionQuiet && !attentionDecisionId) endUserAttention({ keepPending: true })
-    },
+    getUserAttention: userAttentionForAgents,
+    getOpenUserAttentionId: openUserAttentionId,
+    onAgentMovedOn: agentMovedOn,
     requestUserAttention,
-    bookmarks: {
-      list: () => bookmarkStore?.list() ?? [],
-      add: async (url, title) => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
-        await bookmarkStore.add({ url, title })
-        return publishBookmarks()
-      },
-      rename: async (id, title) => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
-        await bookmarkStore.rename(id, title)
-        return publishBookmarks()
-      },
-      remove: async (id) => {
-        if (!bookmarkStore) throw new Error('Bookmark storage is unavailable')
-        await bookmarkStore.remove(id)
-        return publishBookmarks()
-      }
-    },
-    history: {
-      list: () => historyStore?.list() ?? [],
-      remove: async (id) => {
-        if (!historyStore) throw new Error('Visit history is unavailable')
-        await historyStore.remove(id)
-        return publishVisitHistory()
-      },
-      clear: async () => {
-        if (!historyStore) throw new Error('Visit history is unavailable')
-        await historyStore.clear()
-        // Home's feed names pages agents acted on, so it goes with the history.
-        mcpRuntime.server?.forgetHomeFeed()
-        return publishVisitHistory()
-      }
-    },
-    siteData: {
-      inspect: (workspaceId, origin) => currentBrowsingDataSiteSummary(origin, tabsManager?.workspaceSession(workspaceId)),
-      clear: (workspaceId, origin, dataTypes: SiteDataType[]) => clearWorkspaceSiteData(workspaceId, origin, dataTypes)
-    },
-    wallets: {
-      list: async (target) => requireWalletBroker().listAgentWallets(walletAgentContext(target)),
-      balance: async (target, walletId, token, spender) => requireWalletBroker().agentBalance(walletAgentContext(target), walletId, token, spender),
-      prepareTransaction: async (target, walletId, transaction) => (
-        requireWalletBroker().prepareAgentTransaction(walletAgentContext(target), walletId, transaction)
-      ),
-      requestTransaction: async (target, walletId, transaction, broadcast) => (
-        requireWalletBroker().requestAgentTransaction(walletAgentContext(target), walletId, transaction, broadcast)
-      ),
-      requestMessage: async (target, walletId, message) => (
-        requireWalletBroker().requestAgentMessage(walletAgentContext(target), walletId, message)
-      ),
-      requestStatus: async (target, requestId) => (
-        requireWalletBroker().agentRequestStatus(walletAgentContext(target), requestId)
-      ),
-      pageRequests: async (target) => requireWalletBroker().agentPageRequests(walletAgentContext(target)),
-      cancelRequest: async (target, requestId) => (
-        requireWalletBroker().cancelAgentRequest(walletAgentContext(target), requestId)
-      ),
-      cancelRequester: async (requesterId) => requireWalletBroker().cancelForRequester(requesterId)
-    },
+    bookmarks: agentBookmarks,
+    history: agentHistory,
+    siteData: agentSiteData,
+    wallets: agentWallets,
     onTabActivity: (activity, agent) => {
       if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
       else activeMcpActivities.delete(activity.activityId)
@@ -1545,27 +1413,12 @@ const { startMcpServer, setMcpPort, resetMcpSettings } = createMcpRuntime({
  * the main window and saved workspaces, the tray, the MCP listener, the update check and license refreshes.
  */
 async function startRuntime(): Promise<void> {
-  nativeTheme.on('updated', () => {
-    const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    if (settingsState.current.theme === 'system') {
-      panelWindowRefs.window?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
-      applyMainWindowTitleBarOverlay()
-    }
-    // The system theme, reduced transparency or a high-contrast mode can each bring the material or take it away.
-    applyMainWindowBackground()
-    sendToShellWindows('settings:system-theme-changed', systemTheme)
-    sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
-  })
+  followSystemTheme()
   mcpRuntime.tokenConfiguration = await loadMcpToken(
     join(app.getPath('userData'), 'mcp-token'),
     process.env.HRONAUT_MCP_TOKEN
   )
-  mcpCapabilityProfiles = new McpCapabilityProfileStore(
-    join(app.getPath('userData'), 'mcp-capability-profiles.json'),
-    () => new Date(),
-    () => mcpActionTracker.invalidatePendingDispatches()
-  )
-  await mcpCapabilityProfiles.load()
+  await openCapabilityProfiles()
   configureAutoUpdater()
   startupLaunchManager = new StartupLaunchManager({
     platform: process.platform,
@@ -1611,7 +1464,7 @@ async function startRuntime(): Promise<void> {
   {
     const refreshLicense = (): void => {
       publishCommercialLicenseState()
-      if (!commercialLicenseStore?.hasActivation() || !credentialStorageStatus.available) return
+      if (!commercialLicenseRuntime.store?.hasActivation() || !credentialRuntime.storageStatus.available) return
       void refreshCommercialLicense().catch((error: unknown) => {
         console.error('[license] Background refresh failed:', error)
       })
@@ -1628,7 +1481,7 @@ registerAppLifecycle(app, {
   setQuitting: (value) => { quitting = value },
   settings: () => settingsState.current,
   showWindow,
-  commercialLicenseStateTimer: () => commercialLicenseStateTimer,
+  commercialLicenseStateTimer: () => commercialLicenseRuntime.stateTimer,
   mainWindowRefs,
   currentWindowState,
   panelWindowRefs,

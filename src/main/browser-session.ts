@@ -1,9 +1,22 @@
 import { app, session, type MessageBoxOptions, type MessageBoxReturnValue, type Session } from 'electron'
 import { join } from 'node:path'
+import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { normalizeSitePermissionOrigin, SitePermissionStore } from './site-permission-store.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { SitePermissionDecision } from '../shared/types.js'
+
+/**
+ * The profile's persistent browser session and the site permissions the person chose, created once by index.ts and
+ * opened by startup. Download settings, Home, the permissions IPC, browsing data, the panel snapshot and shutdown read
+ * the fields when they run, so they always see the open session and store.
+ */
+export interface BrowserSessionState {
+  /** The profile's persistent browser session, once open. */
+  persistentSession: Session | null
+  /** The site permissions the person chose, once open. */
+  sitePermissionStore: SitePermissionStore | null
+}
 
 interface BrowserSessionHost {
   /** Translates into the current interface language; read on every use because the language can change. */
@@ -12,12 +25,8 @@ interface BrowserSessionHost {
   effectiveDownloadDirectory(): string
   /** Asks on the main window, or on its own while there is none. */
   showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>
-  /** The site permissions the person chose, once open; the permissions IPC, the panel snapshot and shutdown read it too. */
-  sitePermissionStore(): SitePermissionStore | null
-  setSitePermissionStore(store: SitePermissionStore): void
-  /** The profile's persistent browser session, once open; download settings, Home and shutdown read it too. */
-  persistentSession(): Session | null
-  setPersistentSession(session: Session): void
+  /** The persistent session and the site permissions; index.ts creates the record, and other features read it too. */
+  state: BrowserSessionState
   publishSitePermissions(): void
   /** The partition of the profile's persistent browser session. */
   partition: string
@@ -27,11 +36,13 @@ interface BrowserSessionHost {
  * The browser sessions pages run in: each gets the download folder, a permission check that admits only what the
  * person allowed for the site, and a permission prompt that asks one request at a time and refuses a request whose
  * frame navigated meanwhile. Camera, microphone and file system access always ask again. Home never gets a
- * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session.
+ * permission. `configurePersistentSession` opens the remembered site permissions and the profile's own session, and
+ * `flushBrowserProfile` writes that session's storage to disk at shutdown.
  */
 export function createBrowserSession(host: BrowserSessionHost): {
   configureBrowserSession(browserSession: Session): void
   configurePersistentSession(): Promise<void>
+  flushBrowserProfile(): Promise<void>
 } {
   const configuredBrowserSessions = new WeakSet<Session>()
   let permissionRequestQueue: Promise<void> = Promise.resolve()
@@ -52,7 +63,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         normalizeSitePermissionOrigin(details.securityOrigin || '') ??
         normalizeSitePermissionOrigin(requestingUrl)
       if (permission === 'media' || permission === 'fileSystem') return false
-      return Boolean(origin && host.sitePermissionStore()?.get(origin, permission) === 'allow')
+      return Boolean(origin && host.state.sitePermissionStore?.get(origin, permission) === 'allow')
     })
     browserSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
       let responded = false
@@ -72,7 +83,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
         return
       }
       const requiresFreshConsent = permission === 'media' || permission === 'fileSystem'
-      const remembered = requiresFreshConsent ? undefined : host.sitePermissionStore()?.get(origin, permission)
+      const remembered = requiresFreshConsent ? undefined : host.state.sitePermissionStore?.get(origin, permission)
       if (remembered) {
         respond(remembered === 'allow')
         return
@@ -113,7 +124,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
             respond(false)
             return
           }
-          const currentRemembered = requiresFreshConsent ? undefined : host.sitePermissionStore()?.get(origin, permission)
+          const currentRemembered = requiresFreshConsent ? undefined : host.state.sitePermissionStore?.get(origin, permission)
           if (currentRemembered) {
             respond(currentRemembered === 'allow')
             return
@@ -136,7 +147,7 @@ export function createBrowserSession(host: BrowserSessionHost): {
           const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
           try {
             if (!requiresFreshConsent) {
-              await host.sitePermissionStore()?.set(origin, permission, decision)
+              await host.state.sitePermissionStore?.set(origin, permission, decision)
               host.publishSitePermissions()
             }
           } catch (error) {
@@ -151,11 +162,16 @@ export function createBrowserSession(host: BrowserSessionHost): {
   }
 
   async function configurePersistentSession(): Promise<void> {
-    host.setSitePermissionStore(new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json')))
-    await host.sitePermissionStore()!.load()
-    host.setPersistentSession(session.fromPartition(host.partition, { cache: true }))
-    configureBrowserSession(host.persistentSession()!)
+    host.state.sitePermissionStore = new SitePermissionStore(join(app.getPath('userData'), 'site-permissions.json'))
+    await host.state.sitePermissionStore!.load()
+    host.state.persistentSession = session.fromPartition(host.partition, { cache: true })
+    configureBrowserSession(host.state.persistentSession!)
   }
 
-  return { configureBrowserSession, configurePersistentSession }
+  async function flushBrowserProfile(): Promise<void> {
+    if (!host.state.persistentSession) return
+    await flushBrowserSessionStorage(host.state.persistentSession)
+  }
+
+  return { configureBrowserSession, configurePersistentSession, flushBrowserProfile }
 }

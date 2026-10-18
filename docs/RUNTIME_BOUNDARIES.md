@@ -23,16 +23,29 @@ than the entire browser runtime.
   window's chrome and the address suggestions overlay: `main/site-data.ts`,
   `main/mcp-control-state.ts`, `main/agent-presence.ts`, `main/windows/main-window.ts`
   and `main/windows/address-suggestion-overlay.ts`, whose messages
-  `main/address-overlay-ipc.ts` checks. State that several features change is one
+  `main/address-overlay-ipc.ts` checks. Both windows' theme and interface scale,
+  bookmarks and visit history, and the services agents use beside the browser come
+  from `main/windows/appearance.ts`, `main/bookmarks-and-history.ts` and
+  `main/agent-services.ts`. State that several features change is one
   record that index.ts creates once, typed beside its owner: `McpRuntimeState` in
   `main/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
   in `main/settings-runtime.ts`, which loads, commits and publishes settings and
   translates into the interface language, `WalletRuntimeState` in
   `main/wallet/runtime.ts`, which starts wallets and admits page and agent requests,
+  `UserAttentionState` in `main/tray-attention.ts`, which shows and ends the request
+  for the person's attention, `CredentialRuntimeState`, `BrowserSessionState` and
+  `CommercialLicenseRuntimeState` in the modules that open the password store, the
+  profile's session and site permissions, and the license store,
+  `BookmarksAndHistoryState` and `AgentServicesState` in their modules,
   `MainWindowRefs` in `main/windows/main-window.ts` and `PanelWindowRefs` in
   `main/windows/panel-window.ts`, whose module and IPC take the record itself.
-  `main/app-lifecycle.ts` registers the application's events and runs index.ts's
-  `startRuntime` once Electron is ready.
+  What the MCP server offers agents is built by the feature that owns it: agents'
+  wallets in `main/wallet/runtime.ts`, site data in `main/site-data.ts`, bookmarks
+  and history in `main/bookmarks-and-history.ts`, the automation license checks in
+  `main/commercial-license-runtime.ts` and agents' view of the attention request in
+  `main/tray-attention.ts`; index.ts's `createRuntimeMcpServer` only hands them to
+  the server. `main/app-lifecycle.ts` registers the application's events and runs
+  index.ts's `startRuntime` once Electron is ready.
 - `browser/tabs-manager.ts` remains the **TabRuntime** host: Electron contents,
   navigation generations, input, storage operations, native presentation, and
   persistence. `workspace-registry.ts` owns active/archive identity transitions,

@@ -16,6 +16,21 @@ import type {
   UserAttentionRequest
 } from '../shared/types.js'
 
+/**
+ * The attention request still open for the user, created once by index.ts. It shows as needs you until it is answered
+ * or ends; a click or key only quiets it, which agents see as answered in status and preflight. The shell, Home, the
+ * IPC handlers, agent presence and the MCP server read the fields when they run, so they always see the current
+ * request.
+ */
+export interface UserAttentionState {
+  /** The request still open for the user; a newer request replaces it. */
+  request: UserAttentionRequest | null
+  /** Whether the user already responded to the open request with a click or key. */
+  quiet: boolean
+  /** The human-waiting decision the open request stands for, if any. */
+  decisionId: string | undefined
+}
+
 interface TrayAttentionHost {
   /** Translates into the current interface language; read on every use because the language can change. */
   text(key: MessageKey, parameters?: MessageParameters): string
@@ -31,15 +46,8 @@ interface TrayAttentionHost {
   setQuitting(value: boolean): void
   /** The record of attention requests agents read; it lives as long as the app. */
   userAttentionLifecycle: Pick<UserAttentionLifecycle, 'acknowledge' | 'reconcile' | 'request' | 'supersede'>
-  /** The request still open for the user; the shell, Home, the IPC handlers and agents read it too. */
-  userAttention(): UserAttentionRequest | null
-  setUserAttention(value: UserAttentionRequest | null): void
-  /** Whether the user already responded to the open request with a click or key. */
-  attentionQuiet(): boolean
-  setAttentionQuiet(value: boolean): void
-  /** The human-waiting decision the open request stands for, if any. */
-  attentionDecisionId(): string | undefined
-  setAttentionDecisionId(value: string | undefined): void
+  /** The open request; index.ts creates the record, and the shell, Home, the IPC handlers and agents read it too. */
+  state: UserAttentionState
   agentPresenceSnapshot(): AgentPresenceSnapshot
   scheduleAgentPresencePublish(): void
   /** Agent commands still running on a page; a key or click during one is not a response. */
@@ -66,8 +74,8 @@ function compactAttentionReason(reason: string): string {
 /**
  * The tray icon and its menu, and how an agent's request for the user's attention shows: a pulsing tray icon, a
  * flashing window frame, a system notification and the shell's needs-you state, until the user responds or the
- * request ends. The tray, its icons and the signal timers live here; the open request stays with the host because
- * other features read it.
+ * request ends. The tray, its icons and the signal timers live here; the open request is the UserAttentionState
+ * record index.ts creates, because other features read it.
  */
 export function createTrayAttention(host: TrayAttentionHost): {
   setTrayContextMenu(): void
@@ -78,6 +86,9 @@ export function createTrayAttention(host: TrayAttentionHost): {
   reconcileUserAttention(state: BrowserState): void
   acknowledgeUserAttention(): void
   requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest>
+  userAttentionForAgents(): UserAttentionRequest | null
+  openUserAttentionId(): string | null
+  agentMovedOn(attentionId: string): void
   createTray(): boolean
 } {
   let tray: Tray | null = null
@@ -92,18 +103,18 @@ export function createTrayAttention(host: TrayAttentionHost): {
   function setTrayContextMenu(): void {
     if (!tray || tray.isDestroyed()) return
     const contextMenu = Menu.buildFromTemplate([
-      ...(host.userAttention()
+      ...(host.state.request
         ? [
-            { label: host.text('native.tray.attention', { reason: compactAttentionReason(host.userAttention()!.reason) }), enabled: false },
+            { label: host.text('native.tray.attention', { reason: compactAttentionReason(host.state.request!.reason) }), enabled: false },
             {
               label: host.text('native.tray.showRequested'),
               click: () => {
-                const requestedAttention = host.userAttention()
+                const requestedAttention = host.state.request
                 const requestedTabId = requestedAttention?.tabId
                 if (requestedAttention && requestedTabId) {
                   host.runNativeBrowserAction('show the requested tab', async () => {
                     await host.tabs()?.selectTabAndWait(requestedTabId)
-                    if (host.userAttention()?.id !== requestedAttention.id) return
+                    if (host.state.request?.id !== requestedAttention.id) return
                     host.showWindow()
                     quietUserAttention()
                   })
@@ -117,7 +128,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
               label: host.text('native.tray.dismissAttention'),
               click: () => {
                 // Dismissing leaves a decision open, so it is not an answer to one.
-                if (host.userAttention() && !host.attentionDecisionId()) host.mcpServer()?.recordAgentAnswer(host.userAttention()!.id, 'dismissed')
+                if (host.state.request && !host.state.decisionId) host.mcpServer()?.recordAgentAnswer(host.state.request!.id, 'dismissed')
                 endUserAttention({ disposition: 'dismissed' })
               }
             },
@@ -153,8 +164,8 @@ export function createTrayAttention(host: TrayAttentionHost): {
 
   /** The open request as the shell shows it, marked when it belongs to a human-waiting decision. */
   function shellUserAttention(): UserAttentionRequest | null {
-    if (!host.userAttention()) return null
-    return { ...host.userAttention()!, ...(host.attentionDecisionId() ? { humanWaitingDecisionId: host.attentionDecisionId() } : {}) }
+    if (!host.state.request) return null
+    return { ...host.state.request!, ...(host.state.decisionId ? { humanWaitingDecisionId: host.state.decisionId } : {}) }
   }
 
   function stopAttentionSignals(): void {
@@ -169,7 +180,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
 
   /** Whether an agent's avatar shows the open request, so that its card can answer it. */
   function userAttentionShown(workspaces: AgentPresenceSnapshot['workspaces']): boolean {
-    const workspaceId = host.userAttention()?.workspaceId
+    const workspaceId = host.state.request?.workspaceId
     return Boolean(workspaceId && workspaces[workspaceId]?.some((agent) => agent.state === 'needs-you'))
   }
 
@@ -179,13 +190,13 @@ export function createTrayAttention(host: TrayAttentionHost): {
    * avatar whose card can answer it, the response ends it, as it always did.
    */
   function quietUserAttention(): void {
-    if (!host.userAttention() || host.attentionQuiet()) return
+    if (!host.state.request || host.state.quiet) return
     if (!userAttentionShown(host.agentPresenceSnapshot().workspaces)) {
       endUserAttention()
       return
     }
-    host.setAttentionQuiet(true)
-    host.userAttentionLifecycle.acknowledge(host.userAttention()!.id, 'acknowledged')
+    host.state.quiet = true
+    host.userAttentionLifecycle.acknowledge(host.state.request!.id, 'acknowledged')
     stopAttentionSignals()
   }
 
@@ -195,16 +206,16 @@ export function createTrayAttention(host: TrayAttentionHost): {
    * for an end that is about this request alone.
    */
   function endUserAttention(options: { disposition?: 'acknowledged' | 'dismissed'; keepPending?: boolean } = {}): void {
-    if (host.userAttention()) host.userAttentionLifecycle.acknowledge(host.userAttention()!.id, options.disposition ?? 'acknowledged')
+    if (host.state.request) host.userAttentionLifecycle.acknowledge(host.state.request!.id, options.disposition ?? 'acknowledged')
     if (!options.keepPending) attentionRequestGeneration += 1
-    host.setAttentionDecisionId(undefined)
-    host.setAttentionQuiet(false)
+    host.state.decisionId = undefined
+    host.state.quiet = false
     if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
     attentionExpiryTimer = null
     attentionNotification?.close()
     attentionNotification = null
-    if (!host.userAttention() && !attentionPulseTimer) return
-    host.setUserAttention(null)
+    if (!host.state.request && !attentionPulseTimer) return
+    host.state.request = null
     if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('attention:changed', null)
     host.scheduleAgentPresencePublish()
     stopAttentionSignals()
@@ -216,7 +227,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
 
   function reconcileUserAttention(state: BrowserState): void {
     host.userAttentionLifecycle.reconcile(state.tabs, state.mcpTabGroups.map(workspace => workspace.id))
-    const request = host.userAttention()
+    const request = host.state.request
     if (!request) return
     const workspaceExists = !request.workspaceId
       || state.mcpTabGroups.some((workspace) => workspace.id === request.workspaceId)
@@ -249,9 +260,9 @@ export function createTrayAttention(host: TrayAttentionHost): {
     if (input.expiresAt !== undefined && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now())) throw new Error('User attention request expired')
     if (input.workspaceId && !input.humanWaitingDecisionId) host.userAttentionLifecycle.request(request)
     else host.userAttentionLifecycle.supersede()
-    host.setUserAttention(request)
-    host.setAttentionQuiet(false)
-    host.setAttentionDecisionId(input.humanWaitingDecisionId)
+    host.state.request = request
+    host.state.quiet = false
+    host.state.decisionId = input.humanWaitingDecisionId
     attentionNotification?.close()
     attentionNotification = null
     if (host.mainWindow() && !host.mainWindow()!.webContents.isDestroyed()) host.mainWindow()!.webContents.send('attention:changed', shellUserAttention())
@@ -261,7 +272,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
     const attentionExpiresAt = input.expiresAt ?? (input.workspaceId && !input.humanWaitingDecisionId ? Date.now() + 86_400_000 : undefined)
     if (attentionExpiresAt !== undefined) {
       attentionExpiryTimer = setTimeout(() => {
-        if (host.userAttention()?.id === request.id) endUserAttention({ keepPending: true })
+        if (host.state.request?.id === request.id) endUserAttention({ keepPending: true })
       }, Math.min(86_400_000, Math.max(1, attentionExpiresAt - Date.now())))
       attentionExpiryTimer.unref()
     }
@@ -283,10 +294,10 @@ export function createTrayAttention(host: TrayAttentionHost): {
         const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || request.reason })
         attentionNotification = notification
         notification.on('click', () => {
-          if (host.userAttention()?.id !== request.id) return
+          if (host.state.request?.id !== request.id) return
           host.runNativeBrowserAction('show the requested tab', async () => {
             if (request.tabId) await host.tabs()?.selectTabAndWait(request.tabId)
-            if (host.userAttention()?.id !== request.id) return
+            if (host.state.request?.id !== request.id) return
             host.showWindow()
             quietUserAttention()
           })
@@ -297,6 +308,22 @@ export function createTrayAttention(host: TrayAttentionHost): {
       }
     }
     return { ...request }
+  }
+
+  /** The request agents see in status and preflight, as a copy: open and not yet answered by a click or key. */
+  function userAttentionForAgents(): UserAttentionRequest | null {
+    return host.state.request && !host.state.quiet ? { ...host.state.request } : null
+  }
+
+  /** The id of the request still open for the user, which agents see as needs you even once it is quiet. */
+  function openUserAttentionId(): string | null {
+    return host.state.request?.id ?? null
+  }
+
+  /** The agent that asked for the open plain request acted on a page in its workspace again. */
+  function agentMovedOn(attentionId: string): void {
+    // After the user responded, the agent acting again on a page ends its own request.
+    if (host.state.request?.id === attentionId && host.state.quiet && !host.state.decisionId) endUserAttention({ keepPending: true })
   }
 
   function createTray(): boolean {
@@ -337,6 +364,9 @@ export function createTrayAttention(host: TrayAttentionHost): {
     reconcileUserAttention,
     acknowledgeUserAttention,
     requestUserAttention,
+    userAttentionForAgents,
+    openUserAttentionId,
+    agentMovedOn,
     createTray
   }
 }
