@@ -78,6 +78,13 @@ import {
   trustedMessageRaw,
   withoutWalletAddresses
 } from './request-summary.js'
+import {
+  appendTransactionAudit,
+  drainConfirmationTasks,
+  resumeSubmittedConfirmations,
+  scheduleConfirmation,
+  type TransactionConfirmationAccess
+} from './transaction-confirmations.js'
 
 export interface WalletBrokerContext {
   workspaceId: string
@@ -156,16 +163,6 @@ const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 // A batch waits for each call to be mined before preparing the next one.
 const EVM_BATCH_CONFIRMATION_POLL_MS = 1_000
 const EVM_BATCH_CONFIRMATION_TIMEOUT_MS = 10 * 60_000
-// A load-balanced node can briefly answer from a backend that lags behind, so a
-// transaction counts as replaced only after looking so on this many checks over
-// this long, without a longer pause between two checks (such as the computer
-// sleeping) than EVM_REPLACED_MAX_CHECK_GAP_MS.
-const EVM_REPLACED_TRANSACTION_MS = 60_000
-const EVM_REPLACED_TRANSACTION_CHECKS = 3
-const EVM_REPLACED_MAX_CHECK_GAP_MS = 30_000
-// Replaced transaction hashes kept for wallet_sendCalls batches, which Hronaut also keeps only in memory.
-const MAX_REPLACED_TRANSACTION_HASHES = 1_024
-const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
   'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
@@ -207,16 +204,6 @@ function jsonBytes(value: unknown): number {
 
 function paramsArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : value === undefined ? [] : [value]
-}
-
-/** The nonce a prepared EVM transaction was signed with, if Hronaut recorded one. */
-function transactionNonce(record: WalletApprovalRecord): string | undefined {
-  if (!record.request.payload.normalized) return undefined
-  try {
-    return (restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction).nonceOrBlockhash
-  } catch {
-    return undefined
-  }
 }
 
 function isSilentSolanaConnect(value: unknown): boolean {
@@ -263,7 +250,7 @@ export class WalletBroker {
       solana: options.adapters?.solana ?? new SolanaWalletAdapter(),
       tron: options.adapters?.tron ?? new TronWalletAdapter()
     }
-    this.resumeSubmittedConfirmations()
+    resumeSubmittedConfirmations(this.transactionConfirmationAccess())
   }
 
   shutdown(): Promise<void> {
@@ -284,7 +271,7 @@ export class WalletBroker {
         for (const requestId of [...this.pending.keys()]) {
           this.rejectPending(requestId, new Error('Wallet broker is shutting down'))
         }
-        const drained = await this.drainConfirmationTasks()
+        const drained = await drainConfirmationTasks(this.transactionConfirmationAccess())
         if (!drained) {
           this.confirmationShutdown.abort()
           while (this.confirmationTasks.size > 0) {
@@ -1422,8 +1409,8 @@ export class WalletBroker {
     }
     const transactionHash = await adapter.broadcast(wallet, signed)
     await this.service.approvals.markSubmitted(record.id, transactionHash, this.now())
-    await this.appendTransactionAudit('transaction-submitted', record, transactionHash)
-    this.scheduleConfirmation(record.id)
+    await appendTransactionAudit(this.transactionConfirmationAccess(), 'transaction-submitted', record, transactionHash)
+    scheduleConfirmation(this.transactionConfirmationAccess(), record.id)
     return transactionHash
   }
 
@@ -2394,171 +2381,26 @@ export class WalletBroker {
     this.pendingMessages.delete(requestId)
   }
 
-  private resumeSubmittedConfirmations(): void {
-    for (const record of this.service.approvals.list()) {
-      if (record.status === 'submitted' && record.transactionHash) this.scheduleConfirmation(record.id)
-    }
-  }
-
-  private scheduleConfirmation(requestId: string, delay = 0): void {
-    if (this.shuttingDown) return
-    if (this.confirmationTimers.has(requestId) || this.confirmationInFlight.has(requestId)) return
-    const timer = setTimeout(() => {
-      this.confirmationTimers.delete(requestId)
-      if (this.shuttingDown) return
-      const task = this.pollConfirmation(requestId)
-      this.confirmationTasks.add(task)
-      void task.finally(() => this.confirmationTasks.delete(task)).catch(() => undefined)
-    }, delay)
-    timer.unref()
-    this.confirmationTimers.set(requestId, timer)
-  }
-
-  private async pollConfirmation(requestId: string): Promise<void> {
-    if (this.confirmationInFlight.has(requestId)) return
-    this.confirmationInFlight.add(requestId)
-    let retry = false
-    try {
-      const record = this.service.approvals.get(requestId)
-      if (record?.status !== 'submitted' || !record.transactionHash) return
-      const wallet = this.service.list().find((entry) => entry.id === record.request.walletId)
-      if (!wallet) {
-        retry = true
-        return
-      }
-      const confirmation = await this.withConfirmationShutdown(
-        this.adapters[wallet.chainFamily].confirmation(
-          wallet,
-          record.transactionHash,
-          wallet.chainFamily === 'evm' ? transactionNonce(record) : undefined
-        )
-      )
-      const current = this.service.approvals.get(requestId)
-      if (current?.status !== 'submitted') return
-      const replaced = !confirmation.confirmed && !confirmation.failed && confirmation.replaced === true && this.replacedLongEnough(requestId)
-      if (!confirmation.replaced) this.replacedChecks.delete(requestId)
-      if (confirmation.confirmed || confirmation.failed || replaced) {
-        this.replacedChecks.delete(requestId)
-        const terminalStatus = confirmation.confirmed ? 'confirmed' : 'failed'
-        try {
-          await this.service.approvals.transition(requestId, terminalStatus, this.now())
-        } finally {
-          if (this.service.approvals.get(requestId)?.status === terminalStatus) {
-            if (replaced) this.rememberReplacedTransaction(record.transactionHash)
-            await this.appendTransactionAudit(
-              confirmation.confirmed ? 'transaction-confirmed' : 'transaction-failed',
-              record,
-              record.transactionHash,
-              confirmation.blockReference,
-              replaced
-            )
-          }
-          this.publish()
-        }
-        return
-      }
-      retry = true
-    } catch {
-      retry = !this.shuttingDown && this.service.approvals.get(requestId)?.status === 'submitted'
-    } finally {
-      this.confirmationInFlight.delete(requestId)
-      if (retry && this.service.approvals.get(requestId)?.status === 'submitted') {
-        this.scheduleConfirmation(requestId, this.confirmationPollIntervalMs())
-      } else {
-        this.replacedChecks.delete(requestId)
-      }
-    }
-  }
-
   /**
-   * Whether a submitted transaction has looked replaced on enough checks, over
-   * long enough, to count as failed. A long pause between two checks, or a
-   * clock that went back, starts the count again.
+   * The narrow view transaction confirmation tracking gets of this broker's
+   * private state. It is built on each call, so it reads whether the broker
+   * is shutting down at the moment a check asks.
    */
-  private replacedLongEnough(requestId: string): boolean {
-    const now = this.now().getTime()
-    const seen = this.replacedChecks.get(requestId)
-    const maxGap = Math.max(EVM_REPLACED_MAX_CHECK_GAP_MS, 3 * this.confirmationPollIntervalMs())
-    if (!seen || now < seen.last || now - seen.last > maxGap) {
-      this.replacedChecks.set(requestId, { since: now, last: now, count: 1 })
-      return false
-    }
-    seen.last = now
-    seen.count += 1
-    return seen.count >= EVM_REPLACED_TRANSACTION_CHECKS && now - seen.since >= EVM_REPLACED_TRANSACTION_MS
-  }
-
-  private rememberReplacedTransaction(hash: string): void {
-    this.replacedTransactionHashes.add(hash.toLowerCase())
-    if (this.replacedTransactionHashes.size > MAX_REPLACED_TRANSACTION_HASHES) {
-      this.replacedTransactionHashes.delete(this.replacedTransactionHashes.values().next().value!)
-    }
-  }
-
-  private drainConfirmationTasks(): Promise<boolean> {
-    if (this.confirmationTasks.size === 0) return Promise.resolve(true)
-    return new Promise((resolve) => {
-      let settled = false
-      const finish = (drained: boolean): void => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        resolve(drained)
-      }
-      const timer = setTimeout(() => finish(false), this.shutdownDrainTimeoutMs())
-      timer.unref()
-      void Promise.allSettled([...this.confirmationTasks]).then(() => finish(true))
-    })
-  }
-
-  private withConfirmationShutdown<T>(operation: Promise<T>): Promise<T> {
-    const signal = this.confirmationShutdown.signal
-    if (signal.aborted) return Promise.reject(new Error('Wallet broker is shutting down'))
-    return new Promise<T>((resolve, reject) => {
-      let settled = false
-      const finish = (callback: (value: never) => void, value: unknown): void => {
-        if (settled) return
-        settled = true
-        signal.removeEventListener('abort', onAbort)
-        callback(value as never)
-      }
-      const onAbort = (): void => finish(reject, new Error('Wallet broker is shutting down'))
-      signal.addEventListener('abort', onAbort, { once: true })
-      void operation.then(
-        (value) => finish(resolve, value),
-        (error: unknown) => finish(reject, error)
-      )
-    })
-  }
-
-  private shutdownDrainTimeoutMs(): number {
-    const configured = this.options.shutdownDrainTimeoutMs
-    return Number.isFinite(configured) && configured !== undefined && configured >= 0
-      ? configured
-      : DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS
-  }
-
-  private async appendTransactionAudit(
-    type: 'transaction-submitted' | 'transaction-confirmed' | 'transaction-failed',
-    record: WalletApprovalRecord,
-    transactionHash: string,
-    blockReference?: string,
-    replaced = false
-  ): Promise<void> {
-    try {
-      await this.service.audit.append(type, {
-        requestId: record.id,
-        walletId: record.request.walletId,
-        workspaceId: record.request.workspaceId,
-        origin: record.request.topLevelOrigin,
-        requester: record.request.requester,
-        networkId: record.request.networkId,
-        transactionHash,
-        ...(blockReference ? { blockReference } : {}),
-        ...(replaced ? { replaced: true } : {})
-      }, this.now().toISOString())
-    } catch {
-      console.error('[wallet] Failed to persist transaction lifecycle audit event')
+  private transactionConfirmationAccess(): TransactionConfirmationAccess {
+    return {
+      service: this.service,
+      adapters: this.adapters,
+      options: this.options,
+      confirmationTimers: this.confirmationTimers,
+      confirmationInFlight: this.confirmationInFlight,
+      replacedChecks: this.replacedChecks,
+      replacedTransactionHashes: this.replacedTransactionHashes,
+      confirmationTasks: this.confirmationTasks,
+      confirmationShutdown: this.confirmationShutdown,
+      isShuttingDown: () => this.shuttingDown,
+      confirmationPollIntervalMs: () => this.confirmationPollIntervalMs(),
+      publish: () => this.publish(),
+      now: () => this.now()
     }
   }
 
