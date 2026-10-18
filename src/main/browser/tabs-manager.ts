@@ -4269,7 +4269,10 @@ export class BrowserTabsManager {
       getTab: (tabId) => this.getTab(tabId),
       findTab: (tabId) => this.tabs.get(tabId),
       snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
-      cssStatePreviewActive: (tab) => this.cssStatePreview.active(tab),
+      cssStatePreview: (tab) => {
+        const summary = this.cssStatePreview.summary(tab)
+        return summary ? { states: [...summary.states], selector: summary.selector, startedAt: summary.startedAt, ...(summary.resetUncertain ? { resetUncertain: true } : {}) } : undefined
+      },
       captureViewport: (options) => screenshot(this.screenshotsAccess(), options)
     }
   }

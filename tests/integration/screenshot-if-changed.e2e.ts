@@ -89,3 +89,20 @@ test('refuses change tracking for anything but a plain viewport screenshot', asy
   const invalid = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, ifChangedSince: 'not-an-id' } }) as CallToolResult
   expect(invalid.isError).toBe(true)
 })
+
+test('still returns the screenshot, untracked, while the page cannot answer', async ({ capabilities, electronApp }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  await onPage(electronApp, fixtureUrl, STATIC_PAGE)
+  // A script keeps the page's main thread busy, as a dialog or a debugger pause would hold it.
+  await onPage(electronApp, fixtureUrl, 'setTimeout(() => { const end = Date.now() + 4000; while (Date.now() < end); }, 50); true')
+  await new Promise(resolve => setTimeout(resolve, 300))
+  const started = Date.now()
+  const held = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, trackChanges: true } }) as CallToolResult
+  const elapsed = Date.now() - started
+  expect(held.isError, JSON.stringify(held.content)).not.toBe(true)
+  expect(observation(held).observation).toEqual({ status: 'NOT_TRACKED', reason: 'geometry-unavailable' })
+  expect(images(held)).toBe(1)
+  // One bounded geometry read, not a wait for the page.
+  expect(elapsed).toBeLessThan(3_000)
+  await expect.poll(async () => observation(await client.callTool({ name: 'browser_screenshot', arguments: { tabId, trackChanges: true } }) as CallToolResult).observation.status, { timeout: 10_000 }).toBe('NEW')
+})

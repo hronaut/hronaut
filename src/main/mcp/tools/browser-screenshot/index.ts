@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { toolDescription } from '../../tool-results.js'
 import { tabIdSchema } from '../../tool-schemas.js'
-import { pageObservationSettlement, type PageObservationSettlement } from '../page-observation-settlement.js'
 import type { McpToolContext, WorkspaceToolCall } from '../tool-context.js'
 import { ScreenshotObservations } from './screenshot-observations.js'
+import { screenshotSettlement, type ScreenshotSettlement } from './screenshot-settlement.js'
 
 export function registerBrowserScreenshot(context: McpToolContext): void {
   const { manager, registerWorkspaceTool, tabTool } = context
@@ -31,7 +31,7 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         maxHeight: z.number().int().min(64).max(7680).optional(),
         trackChanges: z.boolean().optional()
           .describe('Plain viewport capture only: also return an observationId to pass as ifChangedSince later.'),
-        ifChangedSince: z.string().uuid().optional()
+        ifChangedSince: z.uuid().optional()
           .describe('Plain viewport capture only: an observationId from this session. Returns no image when the pixels match it.')
       }
     },
@@ -48,19 +48,20 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
       maxHeight?: number
       trackChanges?: boolean
       ifChangedSince?: string
-    }, call: WorkspaceToolCall<PageObservationSettlement>) => {
+    }, call: WorkspaceToolCall<ScreenshotSettlement>) => {
       const { trackChanges, ifChangedSince, ...captureOptions } = options
       if (trackChanges || ifChangedSince !== undefined) {
         if (trackChanges === false || captureOptions.fullPage || captureOptions.ref !== undefined || captureOptions.selector !== undefined || captureOptions.clip || captureOptions.annotateRefs) {
           throw new TypeError('trackChanges and ifChangedSince support plain viewport screenshots only; omit fullPage, ref, selector, clip and annotateRefs, and do not set trackChanges to false')
         }
-        const tabId = call.tabId ?? captureOptions.tabId
+        const { tabId, format, quality, maxWidth, maxHeight } = captureOptions
         const previewBefore = manager.cssStatePreviewMarker(tabId)
-        const capture = await manager.trackedScreenshot({ ...captureOptions, tabId })
-        const observation = observations.observe(call.workspaceId, capture, ifChangedSince)
+        const capture = await manager.trackedScreenshot({ tabId, format, quality, maxWidth, maxHeight })
+        const { report: observation, commit } = observations.observe(call.workspaceId, capture, ifChangedSince)
+        call.settlement.retainObservation(commit)
         const cssStatePreview = previewBefore ?? manager.cssStatePreviewMarker(tabId)
         const note = observation.status === 'UNCHANGED'
-          ? 'The viewport pixels match that observation, so no image is returned. This does not prove that the page or its state is unchanged, that nothing changed in between, or that an action failed or succeeded.'
+          ? 'The viewport pixels match that observation, so no image is returned. This does not prove that the page or its state is unchanged, that nothing changed in between, that an action failed or succeeded, or that it may be repeated.'
           : undefined
         return { content: [
           { type: 'text' as const, text: JSON.stringify({ observation, width: capture.pixels.width, height: capture.pixels.height, ...(note ? { note } : {}) }) },
@@ -77,6 +78,6 @@ export function registerBrowserScreenshot(context: McpToolContext): void {
         { type: 'image' as const, data: image.data.toString('base64'), mimeType: image.mimeType }
       ] }
     }),
-    { settlement: () => pageObservationSettlement(manager), continuityInspection: () => true, publicObserverAllowed: true }
+    { settlement: () => screenshotSettlement(manager), continuityInspection: () => true, publicObserverAllowed: true }
   )
 }
