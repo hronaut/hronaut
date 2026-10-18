@@ -1,4 +1,5 @@
 import type { BrowserWindow, IpcMain, IpcMainInvokeEvent } from 'electron'
+import type { PanelWindowRefs } from './windows/panel-window.js'
 import { DETACHABLE_PANEL_IDS, PANEL_DOCKS, type DetachablePanelId, type PanelDock } from '../shared/types.js'
 
 interface PanelWindowIpcHost {
@@ -9,11 +10,11 @@ interface PanelWindowIpcHost {
   assertPanelShellSender(event: IpcMainInvokeEvent): void
   /** Opens the panel in its own window, or shows it in the one already open. */
   openPanelWindow(panel: DetachablePanelId): Promise<void>
-  panelWindow(): Pick<BrowserWindow, 'close' | 'setTitle'> | null
-  /** The panel the detached window shows. */
-  setPanelWindowPanel(panel: DetachablePanelId): void
-  /** Marks the detached window as closing to dock its panel again, so the shell is not told it simply closed. */
-  setPanelWindowRedocking(value: boolean): void
+  /**
+   * The detached window, the panel it shows and whether it is closing to dock its panel again, so the shell is not
+   * told it simply closed; index.ts creates the record, and the panel window's own module opens and resets it.
+   */
+  panelWindowRefs: Pick<PanelWindowRefs, 'window' | 'panel' | 'redocking'>
   detachedPanelTitle(panel: DetachablePanelId): string
   mainWindow(): Pick<BrowserWindow, 'isDestroyed' | 'webContents'> | null
 }
@@ -38,13 +39,13 @@ export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
   })
   ipcMain.handle('panel-window:close', (event) => {
     host.assertTrustedSender(event)
-    host.panelWindow()?.close()
+    host.panelWindowRefs.window?.close()
   })
   ipcMain.handle('panel-window:set-active', (event, panel: unknown) => {
     host.assertPanelShellSender(event)
     if (!isDetachablePanelId(panel)) throw new TypeError('Invalid detachable panel')
-    host.setPanelWindowPanel(panel)
-    host.panelWindow()?.setTitle(host.detachedPanelTitle(panel))
+    host.panelWindowRefs.panel = panel
+    host.panelWindowRefs.window?.setTitle(host.detachedPanelTitle(panel))
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
       host.mainWindow()!.webContents.send('panel-window:active-panel', panel)
     }
@@ -52,10 +53,10 @@ export function registerPanelWindowIpc(ipcMain: Pick<IpcMain, 'handle'>, host: P
   ipcMain.handle('panel-window:redock', (event, panel: unknown, dock: unknown) => {
     host.assertPanelShellSender(event)
     if (!isDetachablePanelId(panel) || !isPanelDock(dock) || dock === 'window') throw new TypeError('Invalid panel redock request')
-    host.setPanelWindowRedocking(true)
+    host.panelWindowRefs.redocking = true
     if (host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
       host.mainWindow()!.webContents.send('panel-window:redock-requested', { panel, dock })
     }
-    host.panelWindow()?.close()
+    host.panelWindowRefs.window?.close()
   })
 }

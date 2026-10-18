@@ -44,17 +44,12 @@ interface PanelWindowHost {
   trustedShellUrl(): string
   /** The main window the panel window opens beside; read on every use because it can close meanwhile. */
   mainWindow(): BrowserWindow | null
-  /** The detached panel window while it is open; the sender checks, shell broadcasts, theme and shutdown read it too. */
-  panelWindow(): BrowserWindow | null
-  setPanelWindow(window: BrowserWindow | null): void
-  /** The document the panel window loaded, which its sender check admits. */
-  setPanelWindowUrl(url: string | null): void
-  /** The panel the window shows; the panel IPC sets it too, and a language change retitles the window from it. */
-  panelWindowPanel(): DetachablePanelId | null
-  setPanelWindowPanel(panel: DetachablePanelId | null): void
-  /** Whether the window is closing to dock its panel again, which the panel IPC sets; the shell is then not told it closed. */
-  panelWindowRedocking(): boolean
-  setPanelWindowRedocking(value: boolean): void
+  /**
+   * The detached panel window and what it shows; index.ts creates the record. The sender checks, shell broadcasts,
+   * theme and shutdown read the window, the panel IPC sets the panel and redocking, a language change retitles the
+   * window from the panel, and before-quit records the last bounds.
+   */
+  refs: PanelWindowRefs
   sendToPanelWindow(channel: string, ...args: unknown[]): void
   /** The current settings; read on every use because each committed update replaces the object. */
   settings(): AppSettings
@@ -70,11 +65,6 @@ interface PanelWindowHost {
   sitePermissionStore(): Pick<SitePermissionStore, 'list'> | null
   bookmarkStore(): Pick<BookmarkStore, 'list'> | null
   historyStore(): Pick<HistoryStore, 'list'> | null
-  /** The panel window's state file, once the main window opened. */
-  panelWindowStateStore(): Pick<WindowStateStore, 'load'> | null
-  /** The bounds the panel window last had, which before-quit also records. */
-  lastPanelWindowState(): SavedWindowState | null
-  setLastPanelWindowState(state: SavedWindowState | null): void
   currentPanelWindowState(): SavedWindowState | null
   schedulePanelWindowStateSave(): void
   flushPanelWindowState(): Promise<void>
@@ -142,25 +132,25 @@ export function createPanelWindow(host: PanelWindowHost): {
   async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
     if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new Error('The Hronaut window is not available')
     const ownerWindow = host.mainWindow()!
-    host.setPanelWindowPanel(panel)
+    host.refs.panel = panel
     if (panelWindowOpening) {
       await panelWindowOpening
-      const requestedPanel = host.panelWindowPanel()
-      if (requestedPanel && host.panelWindow() && !host.panelWindow()!.isDestroyed()) {
-        host.panelWindow()!.setTitle(detachedPanelTitle(requestedPanel))
+      const requestedPanel = host.refs.panel
+      if (requestedPanel && host.refs.window && !host.refs.window!.isDestroyed()) {
+        host.refs.window!.setTitle(detachedPanelTitle(requestedPanel))
         host.sendToPanelWindow('panel-window:show-panel', requestedPanel)
-        if (host.panelWindow()!.isMinimized()) host.panelWindow()!.restore()
-        host.panelWindow()!.show()
-        host.panelWindow()!.focus()
+        if (host.refs.window!.isMinimized()) host.refs.window!.restore()
+        host.refs.window!.show()
+        host.refs.window!.focus()
       }
       return
     }
-    if (host.panelWindow() && !host.panelWindow()!.isDestroyed()) {
-      host.panelWindow()!.setTitle(detachedPanelTitle(panel))
+    if (host.refs.window && !host.refs.window!.isDestroyed()) {
+      host.refs.window!.setTitle(detachedPanelTitle(panel))
       host.sendToPanelWindow('panel-window:show-panel', panel)
-      if (host.panelWindow()!.isMinimized()) host.panelWindow()!.restore()
-      host.panelWindow()!.show()
-      host.panelWindow()!.focus()
+      if (host.refs.window!.isMinimized()) host.refs.window!.restore()
+      host.refs.window!.show()
+      host.refs.window!.focus()
       return
     }
 
@@ -171,7 +161,7 @@ export function createPanelWindow(host: PanelWindowHost): {
       const displays = screen.getAllDisplays()
       const primaryDisplay = screen.getPrimaryDisplay()
       const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
-      const savedPanelState = host.lastPanelWindowState() ?? await host.panelWindowStateStore()?.load() ?? null
+      const savedPanelState = host.refs.lastState ?? await host.refs.stateStore?.load() ?? null
       if (!host.mainWindow() || host.mainWindow()!.isDestroyed()) throw new Error('The Hronaut window is not available')
       const panelBounds = savedPanelState
         ? restoreWindowBounds(savedPanelState, orderedDisplays, { width, height })
@@ -181,7 +171,7 @@ export function createPanelWindow(host: PanelWindowHost): {
             x: mainBounds.x + Math.max(0, mainBounds.width - width),
             y: mainBounds.y
           }
-      const initialPanel = host.panelWindowPanel() ?? panel
+      const initialPanel = host.refs.panel ?? panel
       const expectedUrl = trustedPanelShellUrl(initialPanel)
       const created = new BrowserWindow({
         ...panelBounds,
@@ -199,16 +189,16 @@ export function createPanelWindow(host: PanelWindowHost): {
         }
       })
       created.webContents.setZoomFactor(host.settings().interfaceScale)
-      host.setPanelWindow(created)
-      host.setPanelWindowUrl(expectedUrl)
-      host.setPanelWindowRedocking(false)
+      host.refs.window = created
+      host.refs.url = expectedUrl
+      host.refs.redocking = false
       created.setMenuBarVisibility(false)
       created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
       created.webContents.on('will-navigate', (event, url) => {
         if (url !== expectedUrl) event.preventDefault()
       })
       created.webContents.once('did-finish-load', () => {
-        const requestedPanel = host.panelWindowPanel() ?? initialPanel
+        const requestedPanel = host.refs.panel ?? initialPanel
         created.webContents.setZoomFactor(host.settings().interfaceScale)
         created.setTitle(detachedPanelTitle(requestedPanel))
         sendPanelWindowSnapshot(created)
@@ -224,15 +214,15 @@ export function createPanelWindow(host: PanelWindowHost): {
       created.on('enter-full-screen', host.schedulePanelWindowStateSave)
       created.on('leave-full-screen', host.schedulePanelWindowStateSave)
       created.on('close', () => {
-        host.setLastPanelWindowState(host.currentPanelWindowState() ?? host.lastPanelWindowState())
+        host.refs.lastState = host.currentPanelWindowState() ?? host.refs.lastState
       })
       created.on('closed', () => {
-        if (host.panelWindow() !== created) return
-        const redocking = host.panelWindowRedocking()
-        host.setPanelWindow(null)
-        host.setPanelWindowUrl(null)
-        host.setPanelWindowPanel(null)
-        host.setPanelWindowRedocking(false)
+        if (host.refs.window !== created) return
+        const redocking = host.refs.redocking
+        host.refs.window = null
+        host.refs.url = null
+        host.refs.panel = null
+        host.refs.redocking = false
         void host.flushPanelWindowState().catch((error) => console.error('[panel-window] Failed to flush state:', error))
         if (!redocking && host.mainWindow() && !host.mainWindow()!.isDestroyed() && !host.mainWindow()!.webContents.isDestroyed()) {
           host.mainWindow()!.webContents.send('panel-window:closed')
@@ -240,11 +230,11 @@ export function createPanelWindow(host: PanelWindowHost): {
       })
 
       await loadNativeWindowWithRollback(created, expectedUrl, () => {
-        if (host.panelWindow() !== created) return
-        host.setPanelWindow(null)
-        host.setPanelWindowUrl(null)
-        host.setPanelWindowPanel(null)
-        host.setPanelWindowRedocking(false)
+        if (host.refs.window !== created) return
+        host.refs.window = null
+        host.refs.url = null
+        host.refs.panel = null
+        host.refs.redocking = false
       })
     })()
     panelWindowOpening = opening
