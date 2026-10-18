@@ -475,6 +475,7 @@ import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvalua
 import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
+import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVisibleViewport, assertRightClickViewport } from './input-targets/target-checks.js'
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
@@ -4329,23 +4330,12 @@ export class BrowserTabsManager {
     }
   }
 
-  private async assertRightClickViewport(webContents: BrowserTab['webContents'], x: number, y: number, validate: () => void): Promise<void> {
-    const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
-      cssVisualViewport?: { clientWidth: number; clientHeight: number; scale: number; offsetX: number; offsetY: number }
-    }
-    validate()
-    const viewport = metrics.cssVisualViewport
-    if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0
-      || !Number.isFinite(viewport.clientWidth) || !Number.isFinite(viewport.clientHeight)
-      || x < 0 || y < 0 || x >= viewport.clientWidth || y >= viewport.clientHeight) {
-      throw new Error('Right-click requires a point inside a default visible CSS viewport')
-    }
+  private assertRightClickViewport(webContents: BrowserTab['webContents'], x: number, y: number, validate: () => void): Promise<void> {
+    return assertRightClickViewport(webContents, x, y, validate)
   }
 
   private assertClickTargetEnabled(result: unknown): void {
-    if (result && typeof result === 'object' && 'nativeDisabled' in result && result.nativeDisabled === true) {
-      throw new Error('Target is natively disabled. Wait for the page to enable it, then inspect it again before clicking.')
-    }
+    assertClickTargetEnabled(result)
   }
 
   /**
@@ -4455,12 +4445,7 @@ export class BrowserTabsManager {
   }
 
   private assertNativeEditability(result: unknown): void {
-    if (!result || typeof result !== 'object' || !('nativeEditability' in result)) return
-    if (result.nativeEditability !== 'disabled' && result.nativeEditability !== 'readonly') return
-    const index = 'fieldIndex' in result ? result.fieldIndex : undefined
-    const target = typeof index === 'number' && Number.isInteger(index) && index >= 1 && index <= 50
-      ? `Form field ${index}` : 'Target'
-    throw new Error(`${target} is natively ${result.nativeEditability}; form write rejected`)
+    assertNativeEditability(result)
   }
 
   async hover(target: {
@@ -6858,21 +6843,12 @@ export class BrowserTabsManager {
     return coordinateDragPointsOrValidateTargets(options, source, target)
   }
 
-  private async assertPointInsideVisibleViewport(
+  private assertPointInsideVisibleViewport(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
     action: 'click' | 'hover' | 'drag'
   ): Promise<void> {
-    const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', true) as {
-      width: number
-      height: number
-    }
-    if (point.x >= viewport.width || point.y >= viewport.height) {
-      const actionLabel = `${action[0]!.toUpperCase()}${action.slice(1)}`
-      throw new RangeError(
-        `${actionLabel} coordinates must be inside the visible viewport (${viewport.width} x ${viewport.height})`
-      )
-    }
+    return assertPointInsideVisibleViewport(webContents, point, action)
   }
 
   private networkRequestSummary(request: BrowserNetworkRequestRecord): BrowserNetworkRequest {
