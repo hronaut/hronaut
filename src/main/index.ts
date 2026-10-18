@@ -27,7 +27,7 @@ import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention } from './tray-attention.js'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import { release as osRelease } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -54,8 +54,7 @@ import {
   type WebContents
 } from 'electron'
 import electronUpdater from 'electron-updater'
-import { updateErrorMessage, type UpdateOperation } from '../shared/update-errors.js'
-import { canStartUpdateOperation, replacedPackageVersion } from '../shared/update-runtime.js'
+import { createAppUpdates } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { WorkspaceMetadataError } from './browser/tab-store.js'
@@ -120,11 +119,6 @@ import {
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { restoreWindowBounds, WindowStateStore } from './window-state.js'
 import { applyWindowMaterial } from './window-material.js'
-import {
-  linuxUpdateExecutable,
-  scheduleLinuxUpdateRelaunch,
-  updaterShouldAutoRunAfterInstall
-} from './linux-update-relaunch.js'
 import type {
   AppSettings,
   AppUpdateState,
@@ -418,9 +412,15 @@ let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
 let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
-let updaterConfigured = false
-let updateInstallationInProgress = false
-let updateOperation: UpdateOperation | null = null
+const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloadedUpdate } = createAppUpdates({
+  autoUpdater,
+  text,
+  updateState: () => updateState,
+  setUpdateState: (state) => { updateState = state },
+  sendToShellWindows,
+  mainWindow: () => mainWindow,
+  panelWindow: () => panelWindow
+})
 let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
 let mcpTokenConfiguration: McpTokenConfiguration | null = null
@@ -770,12 +770,6 @@ function publishSettings(): void {
   sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
 }
 
-function publishUpdateState(next: Partial<AppUpdateState>): AppUpdateState {
-  updateState = { ...updateState, ...next, currentVersion: app.getVersion() }
-  sendToShellWindows('updates:changed', updateState)
-  return { ...updateState }
-}
-
 function publishCredentials(): void {
   sendToShellWindows('credentials:changed', credentialStore?.list() ?? [])
 }
@@ -1010,155 +1004,6 @@ async function configureCredentialStore(): Promise<void> {
 
 function publishSitePermissions(): void {
   sendToShellWindows('permissions:changed', sitePermissionStore?.list() ?? [])
-}
-
-function releaseNotesText(value: unknown): string | undefined {
-  if (typeof value === 'string') return value
-  if (!Array.isArray(value)) return undefined
-  const notes = value
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return ''
-      const version = 'version' in entry && typeof entry.version === 'string' ? entry.version : ''
-      const note = 'note' in entry && typeof entry.note === 'string' ? entry.note : ''
-      return [version && `Version ${version}`, note].filter(Boolean).join('\n')
-    })
-    .filter(Boolean)
-  return notes.length ? notes.join('\n\n') : undefined
-}
-
-function configureAutoUpdater(): void {
-  if (updaterConfigured) return
-  updaterConfigured = true
-  autoUpdater.autoDownload = false
-  // BaseUpdater ignores quitAndInstall's force-run argument for an interactive
-  // install and reads this property instead. A direct Linux relaunch races the
-  // old single-instance owner and loses the graphical login-session context
-  // needed by PolicyKit on the next .deb update. Our post-exit helper reopens
-  // the installed desktop application after the lock is released.
-  autoUpdater.autoRunAppAfterInstall = updaterShouldAutoRunAfterInstall(process.platform)
-  // Installation is always an explicit user action. In particular, a failed
-  // privilege prompt must not be retried unexpectedly on the next normal quit.
-  autoUpdater.autoInstallOnAppQuit = false
-
-  autoUpdater.on('checking-for-update', () => {
-    publishUpdateState({ status: 'checking', percent: undefined, message: undefined })
-  })
-  autoUpdater.on('update-available', (info) => {
-    publishUpdateState({
-      status: 'available',
-      availableVersion: info.version,
-      releaseNotes: releaseNotesText(info.releaseNotes),
-      percent: undefined,
-      message: undefined
-    })
-  })
-  autoUpdater.on('update-not-available', () => {
-    publishUpdateState({
-      status: 'up-to-date',
-      availableVersion: undefined,
-      releaseNotes: undefined,
-      percent: undefined,
-      message: undefined
-    })
-  })
-  autoUpdater.on('download-progress', (progress) => {
-    publishUpdateState({ status: 'downloading', percent: progress.percent, message: undefined })
-  })
-  autoUpdater.on('update-downloaded', (info) => {
-    publishUpdateState({
-      status: 'downloaded',
-      availableVersion: info.version,
-      releaseNotes: releaseNotesText(info.releaseNotes),
-      percent: 100,
-      message: undefined
-    })
-  })
-  autoUpdater.on('error', (error) => {
-    console.error('[updates] Auto-updater error:', error)
-    publishUpdateState({
-      status: updateOperation === 'install' ? 'install-error' : 'error',
-      percent: undefined,
-      message: updateErrorMessage(error, updateOperation, process.platform)
-    })
-  })
-}
-
-function updatesUnavailableInThisBuild(): AppUpdateState | null {
-  if (app.isPackaged && process.env.HRONAUT_DISABLE_AUTO_UPDATE !== '1') return null
-  return publishUpdateState({
-    status: 'disabled',
-    percent: undefined,
-    message:
-      process.env.HRONAUT_DISABLE_AUTO_UPDATE === '1'
-        ? 'Update checks are disabled for this launch.'
-        : 'Update checks are available in packaged builds.'
-  })
-}
-
-async function checkForUpdates(): Promise<AppUpdateState> {
-  const unavailable = updatesUnavailableInThisBuild()
-  if (unavailable) return unavailable
-  if (updateInstallationInProgress) return { ...updateState }
-  if (!canStartUpdateOperation(updateState.status, updateOperation, 'check')) return { ...updateState }
-  updateOperation = 'check'
-  try {
-    // Reserve ownership before the package read yields: concurrent checks must
-    // not independently schedule a restart for the same replaced installation.
-    if (await restartAfterPackageReplacement()) return { ...updateState }
-    publishUpdateState({ status: 'checking', percent: undefined, message: undefined })
-    await autoUpdater.checkForUpdates()
-  } catch (error) {
-    console.error('[updates] Check failed:', error)
-    publishUpdateState({ status: 'error', percent: undefined, message: updateErrorMessage(error, updateOperation, process.platform) })
-  } finally {
-    updateOperation = null
-  }
-  return { ...updateState }
-}
-
-async function downloadUpdate(): Promise<AppUpdateState> {
-  const unavailable = updatesUnavailableInThisBuild()
-  if (unavailable) return unavailable
-  if (updateInstallationInProgress) return { ...updateState }
-  if (!canStartUpdateOperation(updateState.status, updateOperation, 'download')) return { ...updateState }
-  updateOperation = 'download'
-  publishUpdateState({ status: 'downloading', percent: 0, message: undefined })
-  try {
-    await autoUpdater.downloadUpdate()
-  } catch (error) {
-    console.error('[updates] Download failed:', error)
-    publishUpdateState({ status: 'error', percent: undefined, message: updateErrorMessage(error, updateOperation, process.platform) })
-  } finally {
-    updateOperation = null
-  }
-  return { ...updateState }
-}
-
-async function restartAfterPackageReplacement(): Promise<boolean> {
-  if (!app.isPackaged || process.platform !== 'linux' || updateInstallationInProgress) return false
-  try {
-    const manifest = await readFile(join(app.getAppPath(), 'package.json'), 'utf8')
-    const replacementVersion = replacedPackageVersion(app.getVersion(), manifest)
-    if (!replacementVersion) return false
-    updateInstallationInProgress = true
-    console.warn(
-      `[updates] Package ${replacementVersion} replaced the running ${app.getVersion()} process; restarting before another updater operation.`
-    )
-    publishUpdateState({
-      status: 'installing',
-      availableVersion: replacementVersion,
-      percent: undefined,
-      message: text('native.dialog.restartingUpdate')
-    })
-    scheduleLinuxUpdateRelaunch(process.pid, linuxUpdateExecutable(process.env, process.execPath))
-    mainWindow?.hide()
-    panelWindow?.hide()
-    app.quit()
-    return true
-  } catch (error) {
-    console.warn('[updates] Could not compare the running and installed package versions:', error)
-    return false
-  }
 }
 
 function showMessageBox(options: MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
@@ -2850,51 +2695,6 @@ async function releaseRuntimeResources(): Promise<void> {
     if (walletBroker === broker) walletBroker = null
   })()
   return runtimeShutdown
-}
-
-async function installDownloadedUpdate(): Promise<boolean> {
-  if (updateInstallationInProgress) return false
-  if (updatesUnavailableInThisBuild()) return false
-  if (!canStartUpdateOperation(updateState.status, updateOperation, 'install')) return false
-  updateInstallationInProgress = true
-  updateOperation = 'install'
-  publishUpdateState({
-    status: 'installing',
-    percent: undefined,
-    message: text('native.dialog.installingUpdate')
-  })
-  try {
-    // electron-updater only asks Electron to quit after the installer has
-    // started successfully. Keep tabs and MCP alive when authorization fails;
-    // the normal before-quit/will-quit handlers perform the eventual shutdown.
-    // Linux package updaters call app.relaunch() before the current process has
-    // released Hronaut's single-instance lock. Relaunch only after this PID has
-    // exited so the newly installed binary becomes the lock owner.
-    autoUpdater.quitAndInstall(false, false)
-    const installed = updateState.status !== 'install-error'
-    if (installed && process.platform === 'linux') {
-      scheduleLinuxUpdateRelaunch(process.pid, linuxUpdateExecutable(process.env, process.execPath))
-      mainWindow?.hide()
-      panelWindow?.hide()
-      // BaseUpdater defers this with setImmediate after the synchronous Linux
-      // package installer returns. Quit now so no timer or human action can
-      // ask the old process to load files from the newly replaced app.asar.
-      app.quit()
-    }
-    if (!installed) updateInstallationInProgress = false
-    return installed
-  } catch (error) {
-    updateInstallationInProgress = false
-    console.error('[updates] Install failed:', error)
-    publishUpdateState({
-      status: 'install-error',
-      percent: undefined,
-      message: updateErrorMessage(error, updateOperation, process.platform)
-    })
-    return false
-  } finally {
-    updateOperation = null
-  }
 }
 
 function createRuntimeMcpServer(
