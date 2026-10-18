@@ -34,6 +34,8 @@ import {
   performTabOverviewPreviewCapture,
   storeTabOverviewPreview
 } from './tab-overview-previews/tab-overview-previews.js'
+import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
+import { showContextMenu } from './context-menus/page-context-menu.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
@@ -116,7 +118,6 @@ import {
   session,
   webContents as electronWebContents,
   WebContentsView,
-  type ContextMenuParams,
   type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
@@ -8554,7 +8555,7 @@ export class BrowserTabsManager {
     webContents.on('context-menu', (event, params) => {
       event.preventDefault()
       if (this.isHumanInteractionLocked(tab)) return
-      this.showContextMenu(tab, params)
+      showContextMenu(this.pageContextMenuAccess(), tab, params)
     })
     webContents.on('devtools-opened', () => {
       void this.cssStatePreview.clear(tab, 'devtools-opened').catch(() => undefined)
@@ -8981,184 +8982,26 @@ export class BrowserTabsManager {
     workspace.origins = normalizeWorkspaceStorageOrigins([...workspace.origins, new URL(url).origin])
   }
 
-  private showContextMenu(tab: BrowserTab, params: ContextMenuParams): void {
-    const webContents = tab.webContents
-    if (webContents.isDestroyed()) return
-    const groups: MenuItemConstructorOptions[][] = []
-    const reportActionFailure = (action: string, error: unknown): void => {
-      console.error(`[browser] Could not ${action} from page context menu:`, error)
-      this.options.onActionFailed?.(action, error)
+  /**
+   * The narrow view the page context menu gets of this manager's private tabs,
+   * window, options, text, tab creation, navigation and DevTools. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it.
+   */
+  private pageContextMenuAccess(): PageContextMenuAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      window: () => this.window,
+      options: () => this.options,
+      text: (key, parameters) => this.text(key, parameters),
+      createTab: (options) => this.createTab(options),
+      back: (tabId) => this.back(tabId),
+      forward: (tabId) => this.forward(tabId),
+      reload: (tabId) => this.reload(tabId),
+      reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      openDevTools: (tab) => this.openDevTools(tab)
     }
-    const withLiveContents = (actionName: string, action: () => void): (() => void) => () => {
-      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) {
-        reportActionFailure(actionName, new Error('The tab is no longer available.'))
-        return
-      }
-      try {
-        action()
-      } catch (error) {
-        reportActionFailure(actionName, error)
-      }
-    }
-    const openBackgroundTab = (url: string): void => {
-      void this.createTab({ url, active: false, mcpGroupId: tab.mcpGroupId })
-        .catch((error) => {
-          console.error(`[browser] Could not open context-menu URL ${url}:`, error)
-          this.options.onActionFailed?.('open link in new tab', error)
-        })
-    }
-    const reportCopyFailure = (kind: 'text' | 'image', error: unknown): void => {
-      console.error(`[browser] Could not copy context-menu ${kind}:`, error)
-      this.options.onClipboardCopyFailed?.(error)
-    }
-    const copyText = (text: string): void => {
-      void this.options.copyText(text).catch((error) => reportCopyFailure('text', error))
-    }
-    const copyImage = (): void => {
-      void this.options.copyImageAt(webContents, params.x, params.y)
-        .catch((error) => reportCopyFailure('image', error))
-    }
-
-    if (params.linkURL) {
-      const webLink = isWebUrl(params.linkURL)
-      groups.push([
-        {
-          id: 'open-link-new-tab',
-          label: this.text('native.context.openLink'),
-          enabled: webLink,
-          click: () => openBackgroundTab(params.linkURL)
-        },
-        {
-          id: 'copy-link-address',
-          label: this.text('native.context.copyLink'),
-          click: () => copyText(params.linkURL)
-        },
-        {
-          id: 'save-link',
-          label: this.text('native.context.saveLink'),
-          enabled: webLink,
-          click: withLiveContents('save link', () => webContents.downloadURL(params.linkURL))
-        }
-      ])
-    }
-
-    if (params.mediaType === 'image' && params.srcURL) {
-      groups.push([
-        {
-          id: 'open-image-new-tab',
-          label: this.text('native.context.openImage'),
-          enabled: isWebUrl(params.srcURL),
-          click: () => openBackgroundTab(params.srcURL)
-        },
-        {
-          id: 'copy-image',
-          label: this.text('native.context.copyImage'),
-          enabled: params.hasImageContents,
-          click: copyImage
-        },
-        {
-          id: 'copy-image-address',
-          label: this.text('native.context.copyImageAddress'),
-          click: () => copyText(params.srcURL)
-        },
-        {
-          id: 'save-image',
-          label: this.text('native.context.saveImage'),
-          enabled: isWebUrl(params.srcURL),
-          click: withLiveContents('save image', () => webContents.downloadURL(params.srcURL))
-        }
-      ])
-    }
-
-    if (params.isEditable) {
-      if (params.misspelledWord) {
-        const spellingItems: MenuItemConstructorOptions[] = params.dictionarySuggestions.slice(0, 5).map((suggestion, index) => ({
-          id: `spelling-suggestion-${index}`,
-          label: suggestion,
-          click: withLiveContents('replace misspelling', () => webContents.replaceMisspelling(suggestion))
-        }))
-        spellingItems.push({
-          id: 'add-to-dictionary',
-          label: this.text('native.context.addDictionary', { word: params.misspelledWord }),
-          click: withLiveContents('add word to dictionary', () => { webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) })
-        })
-        groups.push(spellingItems)
-      }
-      groups.push([
-        { id: 'undo', label: this.text('native.context.undo'), enabled: params.editFlags.canUndo, click: withLiveContents('undo', () => webContents.undo()) },
-        { id: 'redo', label: this.text('native.context.redo'), enabled: params.editFlags.canRedo, click: withLiveContents('redo', () => webContents.redo()) },
-        { type: 'separator' },
-        { id: 'cut', label: this.text('native.context.cut'), enabled: params.editFlags.canCut, click: withLiveContents('cut', () => webContents.cut()) },
-        { id: 'copy', label: this.text('native.context.copy'), enabled: params.editFlags.canCopy, click: withLiveContents('copy', () => webContents.copy()) },
-        { id: 'paste', label: this.text('native.context.paste'), enabled: params.editFlags.canPaste, click: withLiveContents('paste', () => webContents.paste()) },
-        { id: 'paste-and-match-style', label: this.text('native.context.pasteMatchStyle'), enabled: params.editFlags.canPaste, click: withLiveContents('paste and match style', () => webContents.pasteAndMatchStyle()) },
-        { id: 'delete', label: this.text('native.context.delete'), enabled: params.editFlags.canDelete, click: withLiveContents('delete', () => webContents.delete()) },
-        { type: 'separator' },
-        { id: 'select-all', label: this.text('native.context.selectAll'), enabled: params.editFlags.canSelectAll, click: withLiveContents('select all', () => webContents.selectAll()) }
-      ])
-    } else if (params.selectionText) {
-      groups.push([{ id: 'copy-selection', label: this.text('native.context.copy'), click: withLiveContents('copy selection', () => webContents.copy()) }])
-    }
-
-    const navigation = webContents.navigationHistory
-    groups.push([
-      {
-        id: 'back',
-        label: this.text('native.context.back'),
-        enabled: navigation.canGoBack(),
-        click: () => {
-          void this.back(tab.id).catch((error) => this.options.onActionFailed?.('go back', error))
-        }
-      },
-      {
-        id: 'forward',
-        label: this.text('native.context.forward'),
-        enabled: navigation.canGoForward(),
-        click: () => {
-          void this.forward(tab.id).catch((error) => this.options.onActionFailed?.('go forward', error))
-        }
-      },
-      {
-        id: 'reload',
-        label: this.text('native.context.reload'),
-        click: () => {
-          void this.reload(tab.id).catch((error) => this.options.onActionFailed?.('reload', error))
-        }
-      },
-      {
-        id: 'reload-ignoring-cache',
-        label: this.text('native.context.reloadWithoutCache'),
-        click: () => {
-          void this.reloadIgnoringCache(tab.id)
-            .catch((error) => this.options.onActionFailed?.('reload without cache', error))
-        }
-      },
-      {
-        id: 'copy-page-address',
-        label: this.text('native.context.copyPageAddress'),
-        click: () => copyText(tab.url)
-      },
-      {
-        id: 'inspect-element',
-        label: this.text('native.context.inspect'),
-        click: () => {
-          void this.inspectElement(tab, params.x, params.y)
-            .catch((error) => {
-              console.error('[browser] Could not inspect the selected element:', error)
-              this.options.onActionFailed?.('inspect element', error)
-            })
-        }
-      }
-    ])
-
-    const template = groups.flatMap((group, index) => index === 0
-      ? group
-      : [{ type: 'separator' as const }, ...group])
-    const menu = Menu.buildFromTemplate(template)
-    menu.popup({
-      window: this.window,
-      ...(params.frame ? { frame: params.frame } : {})
-    })
   }
 
   private async loadFavicon(tab: BrowserTab, favicons: string[]): Promise<void> {
@@ -10980,13 +10823,6 @@ export class BrowserTabsManager {
     } finally {
       this.devToolsOpening.delete(webContents.id)
     }
-  }
-
-  private async inspectElement(tab: BrowserTab, x: number, y: number): Promise<void> {
-    if (this.isHumanInteractionLocked(tab)) return
-    await this.openDevTools(tab)
-    const webContents = tab.webContents
-    if (!webContents.isDestroyed()) webContents.inspectElement(Math.round(x), Math.round(y))
   }
 
   private addInspectorIssue(tab: BrowserTab, value: unknown, notify = true): void {
