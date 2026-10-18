@@ -63,7 +63,7 @@ import { readVideoAudioFile } from './video-audio-file.js'
 import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
-import { retireNetworkPriorityObservations, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
+import { trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
@@ -156,6 +156,7 @@ import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
+import { loadFailureProblem } from './page-load-problem.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import type { SnapshotSearchOptions, SnapshotSearchResult } from '../../shared/snapshot-search.js'
@@ -446,6 +447,8 @@ import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
 import { attachDebuggerEvents } from './tab-events/debugger-events.js'
+import type { NavigationEventsAccess } from './tab-events/navigation-events-access.js'
+import { attachNavigationEvents } from './tab-events/navigation-events.js'
 import type { PageFocusEventsAccess } from './tab-events/page-focus-events-access.js'
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
 import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
@@ -539,28 +542,6 @@ const NETWORK_EMULATION = {
     connectionType: 'cellular4g'
   }
 } as const
-
-const LOAD_FAILURE_MESSAGES: Record<string, MessageKey> = {
-  ERR_ADDRESS_UNREACHABLE: 'native.pageProblem.addressUnreachable',
-  ERR_CONNECTION_CLOSED: 'native.pageProblem.connectionClosed',
-  ERR_CONNECTION_REFUSED: 'native.pageProblem.connectionRefused',
-  ERR_CONNECTION_RESET: 'native.pageProblem.connectionReset',
-  ERR_INTERNET_DISCONNECTED: 'native.pageProblem.offline',
-  ERR_NAME_NOT_RESOLVED: 'native.pageProblem.nameNotResolved',
-  ERR_NETWORK_CHANGED: 'native.pageProblem.networkChanged',
-  ERR_TIMED_OUT: 'native.pageProblem.timedOut'
-}
-
-function loadFailureProblem(locale: SupportedLocale, url: string, errorCode: number, errorDescription: string): BrowserPageProblem {
-  return {
-    kind: 'load-error',
-    title: translate(locale, 'native.pageProblem.loadTitle'),
-    message: translate(locale, LOAD_FAILURE_MESSAGES[errorDescription] ?? 'native.pageProblem.loadDefault'),
-    url,
-    errorCode,
-    errorDescription
-  }
-}
 
 function isAbortedLoad(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -6680,200 +6661,7 @@ export class BrowserTabsManager {
     this.frameObservation.track(webContents)
     attachDebuggerEvents(this.debuggerEventsAccess(), tab, webContents)
     void this.ensureDialogMonitoring(tab)
-    const syncNavigation = (): void => {
-      if (this.destroyed || webContents.isDestroyed()) return
-      tab.url = webContents.getURL() || tab.url
-      tab.loading = webContents.isLoading()
-      this.changed()
-    }
-    const recordPendingHistory = (): void => {
-      if (tab.suppressInitialHistory || tab.pendingHistoryUrl !== tab.url) return
-      tab.title = normalizeTabTitle(webContents.getTitle(), tab.title)
-      this.recordVisit(tab)
-      tab.pendingHistoryUrl = null
-    }
-    webContents.on('page-title-updated', (_event, title, explicitSet) => {
-      if (tab.sleeping) return
-      tab.discoveryTitle.observe(title, explicitSet === true)
-      const nextTitle = normalizeTabTitle(title, tab.title)
-      const titleChanged = nextTitle !== tab.title
-      tab.title = nextTitle
-      if (titleChanged) {
-        this.options.onPageTitleUpdated?.({
-          url: webContents.getURL() || tab.url,
-          title: nextTitle
-        })
-      }
-      this.changed()
-    })
-    webContents.on('did-start-loading', () => {
-      if (tab.sleeping) return
-      tab.loading = true
-      tab.sleeping = false
-      tab.lastActiveAt = Date.now()
-      tab.pageProblem = undefined
-      this.changed(false)
-    })
-    webContents.on('will-frame-navigate', (details) => {
-      if (tab.sleeping || !details.isMainFrame) return
-      if (tab.mcpGroupId
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'page')) {
-        tab.navigationPolicyDenialSequence += 1
-        details.preventDefault()
-        return
-      }
-      this.prepareDiagnosticNavigation(tab)
-    })
-    webContents.on('will-redirect', (details) => {
-      if (!tab.mcpGroupId || !details.isMainFrame) return
-      if (!this.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'redirect')) {
-        tab.navigationPolicyDenialSequence += 1
-        details.preventDefault()
-      }
-    })
-    webContents.on('did-start-navigation', (_event, _navigationUrl, isSameDocument, isMainFrame) => {
-      if (tab.sleeping || !isMainFrame) return
-      // Chromium applies lifecycle state to a document, not to the durable tab.
-      // Any main-frame navigation establishes a fresh active document. The
-      // explicit hold is never persisted or silently replayed across it.
-      tab.pageLifecycleState = 'active'
-      tab.pageLifecycleUnknownRequest = undefined
-      tab.pageLifecycleAnimations = undefined
-      tab.navigationGeneration += 1
-      retireNetworkPriorityObservations(tab)
-      this.invalidateTabOverviewPreview(tab)
-      if (!isSameDocument) {
-        tab.walletNavigationGeneration = tab.navigationGeneration
-        this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
-          this.options.onWalletNavigation?.(tab.id, tab.walletNavigationGeneration)
-        ))
-      }
-      if (isSameDocument) {
-        tab.performanceDocumentRouted = true
-        return
-      }
-      // Remove it now, not at commit: a navigation that never commits (a download or a 204) keeps the old document.
-      void this.cssStatePreview.clear(tab, 'navigation').catch(() => undefined)
-      tab.discoveryTitle.clear()
-      tab.faviconAbortController?.abort()
-      tab.faviconAbortController = undefined
-      tab.faviconRequestId += 1
-      this.cancelNativeSelectionSessions(tab)
-      tab.inspectorIssues = []
-      tab.inspectorIssuesTruncated = false
-      tab.authChallenges = []
-      tab.authChallengesTruncated = false
-      tab.authNavigationPending = true
-      tab.securitySnapshot = undefined
-      tab.domChangesRecording = undefined
-      tab.liveRegionRecording = undefined
-      this.changed(false)
-    })
-    webContents.on('page-favicon-updated', (_event, favicons) => {
-      if (tab.sleeping) return
-      void this.loadFavicon(tab, favicons)
-    })
-    // Observe only. Without preventDefault Electron cancels the challenge, so
-    // no credentials are requested, supplied or retried.
-    webContents.on('login', (_event, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo))
-    webContents.on('audio-state-changed', (event) => {
-      tab.audible = event.audible
-      tab.muted = webContents.isAudioMuted()
-      this.changed(false)
-    })
-    webContents.on('did-stop-loading', () => {
-      // An aborted provisional load still stops loading without a commit.
-      if (!webContents.isLoadingMainFrame()) tab.authNavigationPending = false
-      if (tab.sleeping) return
-      this.reconcileTabPresentation(tab)
-      syncNavigation()
-      this.reproRecorder.refreshReproScrollPosition(tab)
-      this.scheduleTabOverviewPreview(tab)
-      if (tab.suppressInitialHistory) {
-        tab.suppressInitialHistory = false
-        tab.pendingHistoryUrl = null
-        return
-      }
-      recordPendingHistory()
-      tab.pendingHistoryUrl = null
-    })
-    webContents.on('did-navigate', (_event, url) => {
-      tab.authNavigationPending = false
-      // A navigation may already have started before emulation admission.
-      tab.emulationContextGeneration++
-      if (tab.sleeping) return
-      // Reset only when a new main-frame document commits, never on a failed load.
-      tab.performanceDocumentRouted = false
-      this.trackWorkspaceOrigin(tab, url)
-      tab.memoryBaseline = undefined
-      const previousUrl = tab.url
-      try {
-        if (new URL(previousUrl).origin !== new URL(url).origin) {
-          tab.storageComparison = undefined
-        }
-      } catch {
-        tab.storageComparison = undefined
-        tab.faviconDataUrl = undefined
-      }
-      if (previousUrl !== url) tab.faviconDataUrl = undefined
-      tab.pendingHistoryUrl = isWebUrl(url) ? url : null
-      syncNavigation()
-      this.reproRecorder.navigated(tab, url, false)
-    })
-    webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
-      if (tab.sleeping) return
-      this.trackWorkspaceOrigin(tab, url)
-      // A frame's hash or history change does not represent another visit to
-      // the tab's top-level page.
-      if (!isMainFrame) return
-      tab.performanceDocumentRouted = true
-      syncNavigation()
-      this.reproRecorder.navigated(tab, url, true)
-      if (!tab.suppressInitialHistory) this.recordVisit(tab)
-      tab.pendingHistoryUrl = null
-      this.scheduleTabOverviewPreview(tab)
-    })
-    webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-      if (tab.sleeping) return
-      const previousUrl = tab.url
-      syncNavigation()
-      if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
-      tab.authNavigationPending = false
-      const failedUrl = validatedURL || tab.url
-      tab.loading = false
-      if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
-      tab.url = failedUrl
-      tab.title = 'Site unavailable'
-      tab.pageProblem = loadFailureProblem(this.options.getLocale(), failedUrl, errorCode, errorDescription)
-      appendConsoleMessage(tab, {
-        timestamp: new Date().toISOString(),
-        level: 'error',
-        message: `Page load failed: ${errorDescription} (${errorCode})`,
-        lineNumber: 0,
-        sourceId: failedUrl,
-        kind: 'lifecycle'
-      }, 'lifecycle')
-      this.changed()
-      this.scheduleTabOverviewPreview(tab)
-    })
-    webContents.on('dom-ready', () => {
-      // A page can remain loading indefinitely because of a slow image,
-      // analytics request, or other subresource. Once its main document is
-      // committed and usable, make it available to address suggestions rather
-      // than waiting for did-stop-loading.
-      recordPendingHistory()
-      this.watchCredentialSubmission(tab)
-      this.watchUnsavedFormEdits(tab)
-      void this.syncHumanInteractionInputGuard(tab).catch((error) => {
-        console.error('[browser] Could not synchronize the page interaction lock:', error)
-      })
-    })
-    webContents.on('did-frame-finish-load', () => {
-      if (!this.isHumanInteractionLocked(tab)) return
-      void this.syncHumanInteractionInputGuard(tab).catch((error) => {
-        console.error('[browser] Could not synchronize a frame interaction lock:', error)
-      })
-    })
+    attachNavigationEvents(this.navigationEventsAccess(), tab, webContents)
     attachConsoleMessageEvents(tab, webContents)
     attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
     attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
@@ -6929,6 +6717,43 @@ export class BrowserTabsManager {
       writeActiveTabId: (tabId) => { this.activeTabId = tabId },
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       changed: (persist) => this.changed(persist)
+    }
+  }
+
+  /**
+   * The narrow view a page's title, loading and navigation listeners get of
+   * this manager's private destroyed flag, history, options, workspace
+   * navigation policy, diagnostic logs, tab overview previews, wallet
+   * requests, CSS state preview, native selection sessions, favicons, sign-in
+   * challenges, presentation repair, repro recording, workspace origins,
+   * console messages, credential and form watching, interaction lock and
+   * state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it. Each member reads the manager when called.
+   */
+  private navigationEventsAccess(): NavigationEventsAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      changed: (persist) => this.changed(persist),
+      recordVisit: (tab) => this.recordVisit(tab),
+      options: () => this.options,
+      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
+      prepareDiagnosticNavigation: (tab) => this.prepareDiagnosticNavigation(tab),
+      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
+      cssStatePreview: () => this.cssStatePreview,
+      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
+      loadFavicon: (tab, favicons) => this.loadFavicon(tab, favicons),
+      recordAuthChallenge: (tab, details, authInfo) => this.recordAuthChallenge(tab, details, authInfo),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      reproRecorder: () => this.reproRecorder,
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      trackWorkspaceOrigin: (tab, url) => this.trackWorkspaceOrigin(tab, url),
+      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source),
+      watchCredentialSubmission: (tab) => this.watchCredentialSubmission(tab),
+      watchUnsavedFormEdits: (tab) => this.watchUnsavedFormEdits(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
     }
   }
 
