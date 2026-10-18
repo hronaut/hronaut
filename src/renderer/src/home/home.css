@@ -21,38 +21,29 @@ button, input { font: inherit; }
 button { color: inherit; cursor: pointer; }
 button:disabled { cursor: wait; opacity: .65; }
 [hidden] { display: none !important; }
+/* Named for assistive technology, not drawn: its control shows the same words. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: var(--type-display-size); font-weight: 600; line-height: 1.25; letter-spacing: -.035em; }
 h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; letter-spacing: -.015em; }
 .page { width: min(1240px, calc(100% - 64px)); margin: 0 auto; padding: 28px 0 20px; }
-.hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 28px; }
+.hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
 .hero-copy { min-width: 0; }
 .brand { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: var(--muted); font-size: var(--type-micro-size); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .mark { display: grid; width: 22px; height: 22px; place-items: center; border-radius: var(--corner-1); color: var(--panel); background: var(--accent); font-size: var(--type-body-size); letter-spacing: 0; }
-.hero-description { max-width: 630px; margin-top: 8px; color: var(--muted); font-size: var(--type-body-size); line-height: 1.6; }
-/* Connected agents as chips, with the way to connect one, above the status they add up to. */
-.hero-side { display: grid; flex: 0 1 auto; justify-items: end; gap: 10px; min-width: 0; }
-.agent-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.agent-chip-list { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.agent-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; min-height: 32px; padding: 4px 12px 4px 5px; border: 1px solid var(--border); border-radius: var(--corner-pill); color: var(--text); background: var(--panel); box-shadow: var(--elevation-1); font-size: var(--type-small-size); white-space: nowrap; }
-.agent-chip strong { min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; }
-.agent-chip-state { color: var(--muted); }
-.agent-chip.needs-you { border-color: var(--needs-you); }
-.agent-chip.needs-you .agent-chip-state { color: var(--needs-you); font-weight: 600; }
-.agent-chip-avatar, .agent-chip-plus { display: grid; flex: 0 0 22px; width: 22px; height: 22px; place-items: center; border-radius: 50%; font-size: var(--type-micro-size); font-weight: 600; line-height: 1; }
-.agent-chip-avatar { background: color-mix(in srgb, var(--agent-color, var(--accent)) 30%, var(--surface)); }
-.agent-chip.idle .agent-chip-avatar { color: var(--muted); background: color-mix(in srgb, var(--agent-color, var(--accent)) 12%, var(--surface)); }
-.agent-chip-plus { background: var(--soft); font-size: var(--type-body-size); }
-.agent-chip-connect { padding-left: 6px; font-weight: 600; }
-.agent-chip-connect:hover { border-color: var(--accent); }
-.hero-status { display: grid; flex: 0 0 auto; justify-items: end; gap: 2px; max-width: 320px; padding: 0 4px; }
-.status-label { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: var(--type-body-size); font-weight: 600; }
-.hero-status .status-details > summary { margin-left: auto; }
+.hero-description { max-width: 720px; margin-top: 6px; color: var(--muted); font-size: var(--type-body-size); line-height: 1.6; }
+/* What agents add up to, in one pill; the server's own facts open in a popover under it. */
+.hero-status { position: relative; display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; min-height: 36px; padding: 3px 3px 3px 14px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); box-shadow: var(--elevation-1); }
+.status-label { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text); font-size: var(--type-small-size); font-weight: 600; white-space: nowrap; }
 .status-details { color: var(--muted); font-size: var(--type-micro-size); }
-.status-details > summary { width: fit-content; min-height: 24px; padding: 2px 0; cursor: pointer; }
+.status-details > summary { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px; border-radius: var(--corner-pill); cursor: pointer; font-weight: 500; list-style: none; }
+.status-details > summary::-webkit-details-marker { display: none; }
+.status-details > summary::after { width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-1px) rotate(45deg); content: ''; }
+.status-details[open] > summary::after { transform: translateY(1px) rotate(-135deg); }
+.status-details > summary:hover, .status-details[open] > summary { color: var(--text); background: var(--soft); }
 /* Chromium wraps everything after the summary in one box, so the facts sit in their own grid. */
-.status-facts { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: baseline; gap: 6px 14px; padding-top: 6px; }
+.status-facts { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; display: grid; grid-template-columns: auto auto; justify-content: start; align-items: baseline; gap: 6px 14px; width: min(340px, calc(100vw - 32px)); padding: 14px 16px; border: 1px solid var(--overlay-border); border-radius: var(--corner-3); background: var(--panel); box-shadow: var(--overlay-ring), var(--elevation-3); }
 .status-facts .status-detail { max-width: none; text-align: left; }
 #server-detail { grid-column: 1 / -1; overflow-wrap: anywhere; }
 /* The endpoint sits with the server's other facts; it wraps rather than hiding its port. */
@@ -201,18 +192,15 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
   .connect-aside { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px; }
   .connection-check { padding: 14px 0; }
   .hero { gap: 20px; }
-  .hero-status { max-width: 250px; }
   .tool-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   .page { width: calc(100% - 28px); padding-top: 18px; }
-  .hero { flex-direction: column; align-items: stretch; gap: 14px; }
-  .hero-side { justify-items: stretch; }
-  .agent-chips, .agent-chip-list { justify-content: flex-start; }
+  .hero { flex-direction: column; align-items: flex-start; gap: 14px; }
   .brand { margin-bottom: 10px; }
-  .hero-status { display: flex; justify-items: start; max-width: none; gap: 12px; padding: 0; flex-wrap: wrap; }
-  .hero-status .status-details > summary { margin-left: 0; }
-  .status-label { flex: 1; }
+  .hero-status { max-width: 100%; }
+  .status-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .status-facts { right: auto; left: 0; }
   .status-detail { max-width: none; }
   .home-navigation { gap: 18px; margin-top: 12px; }
   .home-navigation button { font-size: var(--type-small-size); }
@@ -244,8 +232,9 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .workspace-collections button { padding: 12px 18px; border: 0; background: transparent; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 600; }
 .workspace-collections button[aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); }
 #workspace-hint { color: var(--muted); font-size: var(--type-body-size); margin: 16px 0; }
-/* Cards beside the agents' live activity; the feed moves under them on narrower windows. */
+/* Cards beside the connected agents and their live activity; that column moves under them on narrower windows. */
 .mission-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 24px; }
+.mission-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0; max-height: calc(100vh - 32px); }
 .mission-main { min-width: 0; }
 #workspace-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
 /* A card opens its workspace from anywhere but its own controls: the open button covers the card. */
@@ -301,7 +290,49 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 #workspace-error { color: var(--danger); }
 .workspace-feedback { display: flex; align-items: center; gap: 12px; font-size: var(--type-body-size); color: var(--accent-2); }
 @media (max-width: 760px) { .workspace-toolbar .search-field { flex-basis: 100%; } .workspace-toolbar > button { flex: 1; } }
-.live-feed { position: sticky; top: 16px; display: flex; flex-direction: column; max-height: calc(100vh - 32px); padding-bottom: 14px; }
+.live-feed { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 180px; padding-bottom: 14px; }
+/* Connected agents: one row per client, the busiest first, with its sessions behind a toggle. */
+.home-agents { display: flex; flex: 0 0 auto; flex-direction: column; min-height: 0; max-height: calc((100vh - 48px) * .55); }
+.side-heading { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 9px 10px 9px 16px; border-bottom: 1px solid var(--border); }
+.side-heading h2 { min-width: 0; font-size: var(--type-body-size); font-weight: 600; }
+.side-heading .count { font-variant-numeric: tabular-nums; }
+.side-action { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; min-height: 32px; margin-left: auto; padding: 5px 12px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); font-size: var(--type-small-size); font-weight: 600; }
+.side-action:hover { border-color: var(--accent); color: var(--accent); }
+.home-agent-list { display: grid; gap: 2px; min-height: 0; margin: 0; padding: 6px; overflow-y: auto; list-style: none; overscroll-behavior: contain; scrollbar-width: thin; }
+.home-agent-row { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 10px; padding: 8px 10px; border-radius: var(--corner-2); }
+.home-agent.needs-you > .home-agent-row { background: color-mix(in srgb, var(--needs-you) 10%, var(--panel)); }
+.home-agent-avatar { position: relative; display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; color: var(--text); background: color-mix(in srgb, var(--agent-color, var(--accent)) 30%, var(--surface)); font-size: var(--type-small-size); font-weight: 600; line-height: 1; }
+.home-agent.idle .home-agent-avatar { color: var(--muted); background: color-mix(in srgb, var(--agent-color, var(--accent)) 14%, var(--surface)); }
+/* The state as a dot on the avatar, in the toolbar's colors; the row says it in words too. */
+.home-agent-avatar::after { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border: 2px solid var(--panel); border-radius: 50%; background: color-mix(in srgb, var(--success) 40%, var(--border)); content: ''; }
+.home-agent.working .home-agent-avatar::after { background: var(--success); }
+.home-agent.needs-you .home-agent-avatar::after { border-color: color-mix(in srgb, var(--needs-you) 10%, var(--panel)); background: var(--needs-you); }
+.home-agent-words { display: grid; gap: 3px; min-width: 0; }
+.home-agent-name { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; min-height: 22px; }
+.home-agent-name strong { min-width: 0; max-width: 100%; overflow: hidden; font-size: var(--type-body-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.home-agent-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; padding: 1px 9px; border: 1px solid var(--border); border-radius: var(--corner-pill); color: var(--muted); background: transparent; font-size: var(--type-micro-size); font-weight: 600; white-space: nowrap; }
+.home-agent-toggle::after { width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-1px) rotate(45deg); content: ''; }
+.home-agent-toggle[aria-expanded="true"]::after { transform: translateY(1px) rotate(-135deg); }
+.home-agent-toggle:hover { border-color: var(--accent); color: var(--text); }
+.home-agent-state, .home-agent-session-state { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; color: var(--muted); font-size: var(--type-small-size); }
+.home-agent.working .home-agent-state-word, .home-agent-session.working .home-agent-state-word { color: var(--text); }
+.home-agent.needs-you > .home-agent-row .home-agent-state-word, .home-agent-session.needs-you .home-agent-state-word { color: var(--needs-you); font-weight: 600; }
+.home-agent-workspace { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 24px; padding: 2px 9px 2px 8px; border: 1px solid var(--border); border-radius: var(--corner-pill); color: var(--text); background: var(--panel); font-size: var(--type-micro-size); font-weight: 500; }
+.home-agent-workspace:hover:not(:disabled) { border-color: var(--accent); }
+.home-agent-workspace-dot { flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--workspace-color, var(--accent)); }
+.home-agent-workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-agent-more { color: var(--muted); font-size: var(--type-micro-size); font-weight: 600; }
+.home-agent-via { min-width: 0; max-width: 100%; overflow: hidden; color: var(--muted); font-size: var(--type-micro-size); text-overflow: ellipsis; white-space: nowrap; }
+/* What tells a client's sessions apart: when each connected, and its version when theirs differ. */
+.home-agent-meta { grid-column: 2; min-width: 0; overflow: hidden; color: var(--muted); font-size: var(--type-micro-size); text-overflow: ellipsis; white-space: nowrap; }
+.home-agent-sessions { display: grid; gap: 2px; margin: 0 0 6px 26px; padding: 0 0 2px 19px; list-style: none; border-left: 1px solid var(--border); }
+.home-agent-session { display: grid; grid-template-columns: 8px minmax(0, 1fr); align-items: center; gap: 1px 8px; padding: 4px 6px; }
+.home-agent-session-dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--success) 40%, var(--border)); }
+.home-agent-session.working .home-agent-session-dot { background: var(--success); }
+.home-agent-session.needs-you .home-agent-session-dot { background: var(--needs-you); }
+.home-agents-empty { display: grid; gap: 6px; padding: 16px; }
+.home-agents-empty strong { font-size: var(--type-small-size); font-weight: 600; }
+.home-agents-empty p { color: var(--muted); font-size: var(--type-small-size); line-height: 1.55; }
 .live-feed-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .live-feed-heading h2 { font-size: var(--type-body-size); font-weight: 600; }
 .live-local { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--type-micro-size); white-space: nowrap; }
@@ -322,7 +353,7 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .live-feed-empty { padding: 18px 16px 4px; color: var(--muted); font-size: var(--type-small-size); line-height: 1.6; }
 .live-feed .privacy-note { margin: 8px 16px 0; }
 @media (max-width: 1180px) { .mission-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; } }
-@media (max-width: 860px) { .mission-layout { grid-template-columns: minmax(0, 1fr); } .live-feed { position: static; max-height: 420px; } }
+@media (max-width: 860px) { .mission-layout { grid-template-columns: minmax(0, 1fr); } .mission-side { position: static; max-height: none; } .live-feed, .home-agents { max-height: 420px; } }
 .onboarding { margin-bottom: 24px; padding: 24px; }
 :root:not([data-home-selected-view=workspaces]) .onboarding { display: none; }
 button[data-open-view=workspaces] { background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 10px 14px; border-radius: var(--corner-2); }

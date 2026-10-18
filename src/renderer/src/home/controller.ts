@@ -1,8 +1,8 @@
-import { agentAvatarColorHex } from '../../../shared/agent-presence.js'
 import { agentStepKind } from '../../../shared/agent-steps.js'
 import { agentStatus, agentStatusText, agentStatusTone } from '../../../shared/agent-status.js'
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
 import { element, escapeText as h, interpolate, messageAt, pluralText, remember, renderStatus } from './dom.js'
+import { mountAgentList } from './agent-list.js'
 import { mountWorkspaces } from './workspaces.js'
 import { mountClaudeSetup } from './claude-setup.js'
 import { mcpPortProblem } from '../../../shared/mcp-port.js'
@@ -238,32 +238,18 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     text('home-view-title', selectedView === 'workspaces' ? greeting() : selectedView === 'connect' ? messages.connect.heading : selectedView === 'overview' ? messages.activity.heading : messages.navigation.tools)
     text('home-view-description', selectedView === 'workspaces' ? summary() : selectedView === 'connect' ? messages.connect.description : selectedView === 'overview' ? messages.activity.description : messages.tools.description)
   }
-  /** One chip per connected agent: its avatar, its name and what it is doing. */
-  let renderedChips = ''
-  function renderChips(): void {
-    const agents = connectedAgents()
-    const list = element('agent-chips')
-    list.hidden = !agents.length
-    const signature = JSON.stringify(agents.map(agent => [agent.key, agent.name, agent.state, agent.initial, agent.colorIndex]))
-    if (signature === renderedChips) return
-    renderedChips = signature
-    const states = data.messages.shell.agents.states
-    list.replaceChildren(...agents.map(agent => {
-      const chip = document.createElement('li')
-      chip.className = `agent-chip ${agent.state}`
-      const avatar = document.createElement('span')
-      avatar.className = 'agent-chip-avatar'
-      avatar.textContent = agent.initial
-      avatar.style.setProperty('--agent-color', agentAvatarColorHex(agent.colorIndex))
-      avatar.setAttribute('aria-hidden', 'true')
-      const name = document.createElement('strong')
-      name.textContent = agent.name || data.messages.shell.agents.unnamed
-      const state = document.createElement('span')
-      state.className = 'agent-chip-state'
-      state.textContent = states[agent.state === 'needs-you' ? 'needsYou' : agent.state]
-      chip.append(avatar, name, state)
-      return chip
-    }))
+  /** The connected agents, grouped by client, with the workspace each one is in. */
+  const connectedAgentList = mountAgentList(data, signal)
+  let workspaceState = data.workspaces
+  function renderAgents(): void {
+    connectedAgentList.update(dashboard.agents ?? [], {
+      ready: dashboard.status === 'ready',
+      status: agentStatusText(agentStatus(dashboard.status, dashboard.agents ?? []), data.messages.agentStatus, locale),
+      workspace: id => {
+        const group = workspaceState.mcpTabGroups.find(candidate => candidate.id === id)
+        return group && { name: group.name, color: group.color }
+      }
+    })
   }
   function update(next: HomeDashboard): void {
     if (signal.aborted) return
@@ -274,7 +260,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     // One wording with the toolbar; the server's own state and any error stay under Details.
     const agents = agentStatus(status, dashboard.agents ?? [])
     renderStatus(element('server-state'), agentStatusTone(agents.kind), agentStatusText(agents, data.messages.agentStatus, locale))
-    renderChips(); renderHeading()
+    renderAgents(); renderHeading()
     workspaces.setLive(dashboard)
     claudeSetup.update(dashboard)
     renderSetupOffer()
@@ -389,7 +375,9 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   }
   const workspaces = mountWorkspaces(data, api, signal, state => {
     hasWorkspaces = state.mcpTabGroups.length > 0 || state.savedTabGroups.length > 0
+    workspaceState = state
     renderOnboarding()
+    renderAgents()
   })
   const views = ['workspaces', 'connect', 'overview', 'tools'] as const
   type View = typeof views[number]
@@ -428,6 +416,17 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (button.dataset.openDetails !== undefined) document.querySelector<HTMLDetailsElement>('.overview-details')!.open = true
     selectView(button.dataset.openView, true)
   }, { signal }))
+  // Details opens over the page, so it closes on Escape or a click elsewhere, as a menu does.
+  const statusDetails = document.querySelector<HTMLDetailsElement>('.status-details')!
+  document.addEventListener('click', event => {
+    if (statusDetails.open && !statusDetails.contains(event.target as Node)) statusDetails.open = false
+  }, { signal })
+  statusDetails.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || event.isComposing || !statusDetails.open) return
+    event.preventDefault()
+    statusDetails.open = false
+    statusDetails.querySelector('summary')?.focus()
+  }, { signal })
   const unsubscribe = api?.onShowWorkspaces?.(() => selectView('workspaces'))
   element<HTMLInputElement>('agent-search').addEventListener('input', event => {
     const query = (event.target as HTMLInputElement).value.trim().toLocaleLowerCase(locale)

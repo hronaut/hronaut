@@ -571,6 +571,8 @@ describe('agent presence over MCP', () => {
     clients.push(quiet)
     expect(onAgentPresenceChanged).toHaveBeenCalled()
     expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Codex', 'idle']])
+    // Its client's version and when its session started, which tell Home's list one client's sessions apart.
+    expect(server.getConnectedAgents()[0]).toEqual(expect.objectContaining({ version: '1.0.0', connectedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u) }))
     await quietTransport.terminateSession()
     await vi.waitFor(() => expect(server.getConnectedAgents()).toEqual([]))
 
@@ -593,6 +595,8 @@ describe('agent presence over MCP', () => {
     // An agent that asked for you stays until you answer, even after its session closes.
     await claudeClient.transport.terminateSession()
     await vi.waitFor(() => expect(server.getConnectedAgents().map((agent) => [agent.name, agent.state])).toEqual([['Cursor', 'idle'], ['Claude Code', 'needs-you']]))
+    // Without a session it has no session start to show.
+    expect(server.getConnectedAgents()[1]).not.toHaveProperty('connectedAt')
   })
 
   it('gives Home each finished step, what each workspace is doing and where each agent is, never a session id', async () => {

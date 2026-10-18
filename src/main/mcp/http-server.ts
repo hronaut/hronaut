@@ -487,9 +487,11 @@ export class McpHttpServer {
 
   /**
    * Each connected agent once, by its opaque presence key (never the session id) and display name, with its strongest
-   * state in any open workspace. Home and the toolbar status say the same thing from this. A session counts while it
-   * holds a request open (such as its event stream) or for the presence window after its last one, so a client that
-   * quit without closing its session leaves as its avatar does; an agent still waiting for you stays until answered.
+   * state in any open workspace, its client's version and when its session started. Neither of those changes while it
+   * stays connected, so they never make the toolbar publish again. Home and the toolbar status say the same thing from
+   * this. A session counts while it holds a request open (such as its event stream) or for the presence window after
+   * its last one, so a client that quit without closing its session leaves as its avatar does; an agent still waiting
+   * for you stays until answered.
    */
   getConnectedAgents(presence: Record<string, AgentPresence[]> = this.getAgentPresence(), now = Date.now()): ConnectedAgent[] {
     const seen = new Map<string, { state: ConnectedAgent['state']; avatar: AgentPresence; workspaceIds: string[] }>()
@@ -516,7 +518,9 @@ export class McpHttpServer {
         initial: known?.avatar.initial ?? agentInitial(name),
         colorIndex: known?.avatar.colorIndex ?? agentColorIndex(name),
         state: known?.state ?? 'idle',
-        workspaceIds: known?.workspaceIds ?? []
+        workspaceIds: known?.workspaceIds ?? [],
+        ...(client.version ? { version: client.version } : {}),
+        connectedAt: client.initializedAt
       })
     }
     const listed = new Set(agents.map((agent) => agent.key))

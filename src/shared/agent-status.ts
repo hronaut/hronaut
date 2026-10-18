@@ -42,6 +42,10 @@ export interface ConnectedAgent extends AgentStatusAgent {
   colorIndex: number
   /** Open workspaces it was seen in recently, needs you first. */
   workspaceIds: string[]
+  /** The version its client reports, as sent; bounded in main. Render as text only. */
+  version?: string
+  /** When its session started, as an ISO time; absent for an agent listed only because it still waits for you. */
+  connectedAt?: string
 }
 
 export interface AgentStatus {
