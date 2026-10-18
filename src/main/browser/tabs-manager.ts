@@ -147,6 +147,8 @@ import { normalizeWorkspaceDescription } from '../../shared/workspace-descriptio
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
+import type { EmulationViewSizeAccess } from './emulation/emulation-view-size-access.js'
+import { setEmulationViewSize } from './emulation/emulation-view-size.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
@@ -4573,31 +4575,29 @@ export class BrowserTabsManager {
   }
 
   /**
-   * Sizes a tab's page for the emulated viewport it now has, or for its whole
-   * space. A tab in the background gets the size it would have in front, so
-   * its real viewport and captures follow a change made while it is hidden.
+   * The narrow view sizing a page for its emulated viewport gets of this
+   * manager's private tabs, window, offscreen captures, active tab, split
+   * view, layout and page geometry. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. Each member reads the manager when called.
    */
-  private setEmulationViewSize(tab: BrowserTab, viewport: { width: number; height: number } | undefined): void {
-    const size = viewport ? { width: viewport.width, height: viewport.height } : undefined
-    const resized = size?.width !== tab.emulationViewSize?.width || size?.height !== tab.emulationViewSize?.height
-    tab.emulationViewSize = size
-    if (this.destroyed || this.window.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-      || this.offscreenCaptureTabIds.has(tab.id)) return
-    try {
-      const attached = this.window.contentView.children.includes(tab.view)
-      if (attached && (this.activeTabId === tab.id || this.splitViewContains(tab.id))) {
-        if (resized) this.layout()
-        // The caption can change without the size, such as the pixel ratio.
-        else this.publishPageGeometry()
-      } else if (resized && !attached) {
-        tab.view.setBounds(this.tabViewBounds(tab, this.browserViewBounds()))
-      }
-      // An attached tab that is not in front stands in for a tab closing behind
-      // its beforeunload check, and gets its size when it is next laid out.
-    } catch (error) {
-      // Electron can tear a view down under a debugger detach or renderer exit.
-      console.warn(`[browser] Could not resize tab ${tab.id} for its viewport:`, error)
+  private emulationViewSizeAccess(): EmulationViewSizeAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      findTab: (tabId) => this.tabs.get(tabId),
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      layout: () => this.layout(),
+      publishPageGeometry: () => this.publishPageGeometry(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      browserViewBounds: () => this.browserViewBounds()
     }
+  }
+
+  private setEmulationViewSize(tab: BrowserTab, viewport: { width: number; height: number } | undefined): void {
+    setEmulationViewSize(this.emulationViewSizeAccess(), tab, viewport)
   }
 
   private publishSplitDivider(): void {
