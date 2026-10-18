@@ -20,7 +20,7 @@ describe('portable filenames', () => {
   })
 })
 
-describe.each(['pdf', 'har'] as const)('%s export filenames', (format) => {
+describe.each(['pdf', 'har', 'png'] as const)('%s export filenames', (format) => {
   it.each([
     ['multibyte', '界'.repeat(160)],
     ['emoji', '😀'.repeat(90)],
@@ -56,7 +56,7 @@ describe.each(['pdf', 'har'] as const)('%s export filenames', (format) => {
     for (const name of ['', '.', '..', '../file', 'folder\\file', 'CON', 'NUL.report', 'bad?', 'trailing.']) {
       expect(() => portableExportFilename(name, '', format)).toThrow('portable file name')
     }
-    expect(portableExportFilename(undefined, '...', format)).toBe(format === 'har' ? 'network.sanitized.har' : 'page.pdf')
-    expect(portableExportFilename(undefined, 'CON', format)).toBe(format === 'har' ? 'network-CON.sanitized.har' : 'page-CON.pdf')
+    expect(portableExportFilename(undefined, '...', format)).toBe(format === 'har' ? 'network.sanitized.har' : `page.${format}`)
+    expect(portableExportFilename(undefined, 'CON', format)).toBe(format === 'har' ? 'network-CON.sanitized.har' : `page-CON.${format}`)
   })
 })

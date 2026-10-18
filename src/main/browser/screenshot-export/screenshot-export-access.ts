@@ -1,0 +1,32 @@
+import type { WebContents, WebContentsView } from 'electron'
+
+/** The tab fields a screenshot export reads: the page and its view, its title, its workspace and its document generation. */
+export interface ScreenshotExportTab {
+  id: string
+  title: string
+  mcpGroupId?: string
+  navigationGeneration: number
+  webContents: WebContents
+  view: WebContentsView
+}
+
+/**
+ * What a screenshot export needs from the tab manager, which keeps the tabs,
+ * workspaces, inspection permissions, page presentation, the agent pointer,
+ * display scaling, download writing and the export file name private. A
+ * workspace is opaque here: the export only compares it by identity and reads
+ * its inspection permission generation.
+ */
+export interface ScreenshotExportAccess<Tab extends ScreenshotExportTab> {
+  getTab(tabId?: string): Tab
+  findTab(tabId: string): Tab | undefined
+  findWorkspace(workspaceId: string): object | undefined
+  inspectionPermission(workspace: object): number | undefined
+  isDestroyed(): boolean
+  withRenderableTab<T>(tab: Tab, operation: () => Promise<T>, mode?: 'presented-frame' | 'surface' | 'print'): Promise<T>
+  dismissAgentPointer(webContents: WebContents): Promise<void>
+  /** The device pixels per CSS pixel a capture of the tab can have: the display's or the emulated ratio, whichever is larger. */
+  screenshotPixelRatio(tab: Tab): number
+  writeUniqueDownload(filename: string, data: Buffer, validate?: () => void): Promise<string>
+  screenshotFilename(requested: string | undefined, title: string): string
+}

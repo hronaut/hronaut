@@ -80,6 +80,7 @@ import { registerBrowserZoom } from './tools/browser-zoom/index.js'
 import { registerBrowserAudio } from './tools/browser-audio/index.js'
 import { registerBrowserScreenshot } from './tools/browser-screenshot/index.js'
 import { registerBrowserPdfSave } from './tools/browser-pdf-save/index.js'
+import { registerBrowserScreenshotSave } from './tools/browser-screenshot-save/index.js'
 import { registerBrowserResize } from './tools/browser-resize/index.js'
 import { registerBrowserAccessibilityAudit } from './tools/browser-accessibility-audit/index.js'
 import { registerBrowserQualityAudit } from './tools/browser-quality-audit/index.js'
@@ -711,6 +712,7 @@ export function createBrowserMcpServer(
   registerBrowserAudio(toolContext)
   registerBrowserScreenshot(toolContext)
   registerBrowserPdfSave(toolContext)
+  registerBrowserScreenshotSave(toolContext)
   registerBrowserResize(toolContext)
   registerBrowserAccessibilityAudit(toolContext)
   registerBrowserQualityAudit(toolContext)
