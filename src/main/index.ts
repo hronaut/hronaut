@@ -95,7 +95,7 @@ import {
 import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
 import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
-import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
+import { loadMcpToken } from './mcp-token-store.js'
 import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { AuditReceiptService } from './mcp/audit-receipt-service.js'
 import { McpPauseState } from './mcp-pause-state.js'
@@ -122,7 +122,6 @@ import type {
   CredentialStorageStatus,
   DetachablePanelId,
   LanguagePreference,
-  McpServerStatus,
   RendererSettingsState,
   ThemeName,
   SupportedLocale
@@ -160,8 +159,18 @@ import { createApplicationMenu } from './windows/application-menu.js'
 import { createWindowStatePersistence } from './windows/window-state-persistence.js'
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
+import type { McpRuntimeState } from './mcp-runtime.js'
 
-let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
+const mcpRuntime: McpRuntimeState = {
+  host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
+  server: null,
+  port: DEFAULT_MCP_PORT,
+  url: '',
+  status: 'starting',
+  startupError: undefined,
+  tokenConfiguration: null
+}
+mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${mcpRuntime.port}/mcp`
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
 const PARTITION = 'persist:hronaut'
 const { autoUpdater } = electronUpdater
@@ -308,7 +317,6 @@ let initializedTabsManager: BrowserTabsManager | null = null
 const workspaceStartupReads = new WorkspaceStartupReads()
 let workspaceStartupFailure: WorkspaceMetadataError | undefined
 let requireExistingWorkspaceMetadata = false
-let mcpServer: McpHttpServer | null = null
 let mcpCapabilityProfiles: McpCapabilityProfileStore | null = null
 let auditReceipts: AuditReceiptService | null = null
 let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
@@ -316,20 +324,16 @@ let taskRuns: import('./mcp/task-run-service.js').TaskRunService | null = null
 let walletService: WalletService | null = null
 let walletBroker: WalletBroker | null = null
 let walletUnavailableStatus = walletStartupFailureStatus(undefined)
-let mcpPort = DEFAULT_MCP_PORT
-let mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${mcpPort}/mcp`
 let homePresentationRevision = 0
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
   // Command progress updates the shell without reloading a visible Home tab.
   sendToShellWindows('mcp:changed', currentMcpControlState())
 })
-let mcpRuntimeStatus: Exclude<McpServerStatus, 'paused'> = 'starting'
-let mcpStartupError: string | undefined
 /** Why the listener could not start on its port, and the free port to offer instead; cleared once it listens. */
 const mcpPortRecovery = new McpPortRecovery({
-  host: () => MCP_HOST,
-  failed: () => mcpRuntimeStatus === 'error',
+  host: () => mcpRuntime.host,
+  failed: () => mcpRuntime.status === 'error',
   listen: (port) => setMcpPort(port),
   changed: () => publishMcpControlState({ refreshHome: false })
 })
@@ -424,7 +428,6 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
 })
 let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
-let mcpTokenConfiguration: McpTokenConfiguration | null = null
 const userAttentionLifecycle = new UserAttentionLifecycle()
 // The request still open for the user. It shows as needs you until it is answered or ends;
 // a click or key only quiets it, which agents see as answered in status and preflight.
@@ -446,7 +449,7 @@ const {
   showWindow,
   mainWindow: () => mainWindow,
   tabs: () => tabsManager,
-  mcpServer: () => mcpServer,
+  mcpServer: () => mcpRuntime.server,
   runNativeBrowserAction,
   checkForUpdates,
   setQuitting: (value) => { quitting = value },
@@ -558,7 +561,7 @@ async function applyDownloadSettings(updates: Partial<AppSettings>): Promise<App
 }
 const activeMcpActivities = new Set<string>()
 
-if (!isLoopbackHost(MCP_HOST)) {
+if (!isLoopbackHost(mcpRuntime.host)) {
   throw new Error('HRONAUT_MCP_HOST must be a loopback host. Use an authenticated TLS proxy for remote access.')
 }
 
@@ -619,12 +622,12 @@ let homeFeedSentRevision = 0
 
 /** Offers a take over when the person touches a page an agent is working on, and takes it from the page's key. */
 const takeOvers = new TakeOverOffers({
-  agents: (workspaceId) => mcpServer?.getAgentPresence()[workspaceId],
+  agents: (workspaceId) => mcpRuntime.server?.getAgentPresence()[workspaceId],
   isTabAgentPaused: (tabId) => !tabsManager || tabsManager.isTabAgentPaused(tabId),
   isTabTakenOver: (tabId) => tabsManager?.isTabTakenOver(tabId) === true,
   setTabAgentPaused: (tabId, paused, options) => {
-    if (!mcpServer) throw new Error('Agent service is unavailable')
-    mcpServer.setTabAgentPaused(tabId, paused, options)
+    if (!mcpRuntime.server) throw new Error('Agent service is unavailable')
+    mcpRuntime.server.setTabAgentPaused(tabId, paused, options)
   },
   sendOffer: (offer) => sendToMainWindow('agent-presence:take-over-offer', offer),
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
@@ -634,12 +637,12 @@ const takeOvers = new TakeOverOffers({
 function agentPresenceSnapshot(): AgentPresenceSnapshot {
   let workspaces: AgentPresenceSnapshot['workspaces'] = {}
   try {
-    workspaces = mcpServer?.getAgentPresence() ?? {}
+    workspaces = mcpRuntime.server?.getAgentPresence() ?? {}
   } catch (error) {
     console.error('[mcp] Failed to read agent presence:', error)
   }
   // A step getting its picture changes only the history "All steps" reads, so it counts as a change too.
-  const serialized = JSON.stringify([workspaces, mcpServer?.agentStepHistoryRevision ?? 0])
+  const serialized = JSON.stringify([workspaces, mcpRuntime.server?.agentStepHistoryRevision ?? 0])
   if (serialized !== agentPresenceSerialized) {
     agentPresenceSerialized = serialized
     agentPresenceRevision += 1
@@ -657,7 +660,7 @@ function scheduleAgentPresencePublish(): void {
     tabsManager?.retainAgentFollow(new Set(Object.values(snapshot.workspaces).flat().map((agent) => agent.clientKey)))
     // The toolbar status names connected agents from the MCP state, so it follows them too.
     const agents = JSON.stringify(connectedAgents(snapshot.workspaces))
-    const feedRevision = mcpServer?.homeFeedRevision ?? 0
+    const feedRevision = mcpRuntime.server?.homeFeedRevision ?? 0
     if (agents !== connectedAgentsSent) {
       connectedAgentsSent = agents
       publishMcpControlState({ refreshHome: false })
@@ -707,7 +710,7 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
 /** Each connected agent once, with its strongest state; nothing when the server is not running. */
 function connectedAgents(presence?: AgentPresenceSnapshot['workspaces']): ConnectedAgent[] {
   try {
-    return mcpServer?.getConnectedAgents(presence) ?? []
+    return mcpRuntime.server?.getConnectedAgents(presence) ?? []
   } catch (error) {
     console.error('[mcp] Failed to read connected agents:', error)
     return []
@@ -723,9 +726,9 @@ const {
   mcpPauseState,
   mcpActionTracker,
   mcpPortRecovery,
-  mcpServer: () => mcpServer,
-  mcpRuntimeStatus: () => mcpRuntimeStatus,
-  mcpStartupError: () => mcpStartupError,
+  mcpServer: () => mcpRuntime.server,
+  mcpRuntimeStatus: () => mcpRuntime.status,
+  mcpStartupError: () => mcpRuntime.startupError,
   connectedAgents,
   tabs: () => tabsManager,
   sendToShellWindows,
@@ -737,7 +740,7 @@ const {
  * meanwhile, the dialog comes back with the next offer. It closes itself once the listener starts from Home or Settings.
  */
 async function showMcpStartupFailure(): Promise<void> {
-  for (let attempt = 0; attempt < 3 && mcpRuntimeStatus === 'error'; attempt++) {
+  for (let attempt = 0; attempt < 3 && mcpRuntime.status === 'error'; attempt++) {
     const failure = mcpPortRecovery.failure
     const problem = failure && failure.code !== 'other' ? failure : undefined
     const signal = mcpPortRecovery.signal
@@ -746,10 +749,10 @@ async function showMcpStartupFailure(): Promise<void> {
       title: text('native.dialog.mcpFailedTitle'),
       message: problem
         ? text(problem.code === 'port-in-use' ? 'native.dialog.mcpPortInUseMessage' : 'native.dialog.mcpPortDeniedMessage', { port: problem.port })
-        : text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: mcpPort }),
+        : text('native.dialog.mcpFailedMessage', { host: mcpRuntime.host, port: mcpRuntime.port }),
       detail: problem
         ? (problem.suggestedPort ? text('native.dialog.mcpPortSuggestion', { port: problem.suggestedPort }) : text('native.dialog.mcpPortNoneFree'))
-        : mcpStartupError,
+        : mcpRuntime.startupError,
       signal,
       ...(problem?.suggestedPort ? {
         buttons: [text('native.dialog.notNow'), text('native.dialog.mcpUsePort', { port: problem.suggestedPort })],
@@ -762,7 +765,7 @@ async function showMcpStartupFailure(): Promise<void> {
     if (signal.aborted || response !== 1 || !problem?.suggestedPort || mcpPortRecovery.failure !== failure) return
     const result = await mcpPortRecovery.move(problem.suggestedPort)
     if (result.outcome === 'failed') {
-      await showMessageBox({ type: 'error', title: text('native.dialog.mcpFailedTitle'), message: text('native.dialog.mcpFailedMessage', { host: MCP_HOST, port: result.port }) })
+      await showMessageBox({ type: 'error', title: text('native.dialog.mcpFailedTitle'), message: text('native.dialog.mcpFailedMessage', { host: mcpRuntime.host, port: result.port }) })
     }
     if (result.outcome !== 'taken') return
   }
@@ -889,8 +892,8 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
 /** Live agent data for Home, from one presence read: who is connected, what each workspace is doing, and the feed. */
 function homeAgentData(): Required<Pick<HomeDashboard, 'agents' | 'workspaceActivity' | 'feed'>> {
   try {
-    const presence = mcpServer?.getAgentPresence() ?? {}
-    return { agents: connectedAgents(presence), workspaceActivity: mcpServer?.getWorkspaceActivity(presence) ?? {}, feed: mcpServer?.getHomeFeed() ?? [] }
+    const presence = mcpRuntime.server?.getAgentPresence() ?? {}
+    return { agents: connectedAgents(presence), workspaceActivity: mcpRuntime.server?.getWorkspaceActivity(presence) ?? {}, feed: mcpRuntime.server?.getHomeFeed() ?? [] }
   } catch (error) {
     console.error('[mcp] Failed to read agent activity for Home:', error)
     return { agents: [], workspaceActivity: {}, feed: [] }
@@ -903,14 +906,14 @@ function mcpPortFailureForHome(): Pick<HomeDashboard, 'errorCode' | 'failedPort'
 }
 
 function homeDashboardState(): HomeDashboard {
-  const serverState = mcpServer?.getDashboardState()
+  const serverState = mcpRuntime.server?.getDashboardState()
   const tools = mcpToolCatalogForSet(settings.mcpToolSet)
   const status = currentMcpControlState().status
   const state = {
     ...(serverState ?? {
       name: 'hronaut',
       version: app.getVersion(),
-      endpoint: mcpUrl,
+      endpoint: mcpRuntime.url,
       startedAt: null,
       activeRequests: 0,
       totalRequests: 0,
@@ -925,19 +928,19 @@ function homeDashboardState(): HomeDashboard {
       readiness: buildMcpReadinessDiagnostic({
         checkedAt: new Date().toISOString(),
         serverStatus: status,
-        serverError: mcpStartupError,
+        serverError: mcpRuntime.startupError,
         startedAt: null,
         advertisedToolNames: tools.map((tool) => tool.name),
         clients: []
       })
     }),
-    endpoint: mcpUrl,
+    endpoint: mcpRuntime.url,
     tools,
     presentationRevision: homePresentationRevision,
     theme: resolvedTheme(settings.theme),
     status,
     ...homeAgentData(),
-    ...(mcpStartupError ? { error: mcpStartupError } : {}),
+    ...(mcpRuntime.startupError ? { error: mcpRuntime.startupError } : {}),
     ...mcpPortFailureForHome()
   }
   return {
@@ -955,7 +958,7 @@ function homeDashboardState(): HomeDashboard {
     readiness: buildMcpReadinessDiagnostic({
       checkedAt: new Date().toISOString(),
       serverStatus: status,
-      serverError: mcpStartupError,
+      serverError: mcpRuntime.startupError,
       startedAt: state.startedAt,
       advertisedToolNames: tools.map((tool) => tool.name),
       clients: state.clients
@@ -971,8 +974,8 @@ function registerHomeProtocol(): void {
     rendererDirectory: join(__dirname, '../renderer'),
     developmentOrigin: process.env.ELECTRON_RENDERER_URL,
     state: () => ({
-        endpoint: mcpUrl,
-        tokenPath: mcpTokenConfiguration?.tokenPath,
+        endpoint: mcpRuntime.url,
+        tokenPath: mcpRuntime.tokenConfiguration?.tokenPath,
         authenticationDisabled: !settings.mcpAuthentication,
         initialState: homeDashboardState(),
         workspaces: tabsManager ? homeWorkspaceState(tabsManager) : undefined,
@@ -1486,7 +1489,7 @@ function registerIpc(): void {
     handleBrowserIpc,
     runWorkspaceRead,
     tabs: () => tabsManager,
-    mcpServer: () => mcpServer,
+    mcpServer: () => mcpRuntime.server,
     takeOvers: () => takeOvers
   })
   registerAttentionIpc(ipcMain, {
@@ -1495,7 +1498,7 @@ function registerIpc(): void {
     userAttention: () => userAttention,
     attentionDecisionId: () => attentionDecisionId,
     userAttentionLifecycle: () => userAttentionLifecycle,
-    mcpServer: () => mcpServer,
+    mcpServer: () => mcpRuntime.server,
     endUserAttention,
     takeOvers: () => takeOvers
   })
@@ -1506,7 +1509,7 @@ function registerIpc(): void {
   registerAgentPresenceIpc(ipcMain, {
     assertMainShellSender,
     agentPresenceSnapshot,
-    mcpServer: () => mcpServer
+    mcpServer: () => mcpRuntime.server
   })
   registerShellIpc(ipcMain, {
     assertTrustedSender: assertTrustedShellSender,
@@ -1533,7 +1536,7 @@ function registerIpc(): void {
     mainWindow: () => mainWindow,
     copyTextToClipboard,
     reportClipboardFailure,
-    mcpUrl: () => mcpUrl,
+    mcpUrl: () => mcpRuntime.url,
     settings: () => settings,
     openExternal: (url) => shell.openExternal(url),
     mcpPortRecovery: () => mcpPortRecovery,
@@ -1558,7 +1561,7 @@ function registerIpc(): void {
     humanWaiting: () => humanWaiting,
     userAttention: () => userAttention,
     attentionDecisionId: () => attentionDecisionId,
-    mcpServer: () => mcpServer,
+    mcpServer: () => mcpRuntime.server,
     quietUserAttention,
     endUserAttention,
     mainWindow: () => mainWindow,
@@ -1581,7 +1584,7 @@ function registerIpc(): void {
     write: (destination, cookies) => fillCredentialWhileMcpPaused({
       pausePersistently: () => { setMcpPaused(true) },
       acquireTemporaryPause: acquireTemporaryMcpPause,
-      getActiveRequestCount: () => mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
+      getActiveRequestCount: () => mcpRuntime.server?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
       fill: () => tabsManager!.importBrowserCookies(destination, cookies)
     })
   })
@@ -1612,7 +1615,7 @@ function registerIpc(): void {
     downloads: () => tabsManager!,
     publishBookmarks,
     publishVisitHistory,
-    historyCleared: () => mcpServer?.forgetHomeFeed(),
+    historyCleared: () => mcpRuntime.server?.forgetHomeFeed(),
     bookmarkRemoved: (removed) => undoOffers.offer({
       kind: 'bookmark-removed',
       name: removed.bookmark.title,
@@ -1633,7 +1636,7 @@ function registerIpc(): void {
     bookmarkStore: () => bookmarkStore,
     credentialStore: () => credentialStore,
     sitePermissionStore: () => sitePermissionStore,
-    mcpServer: () => mcpServer,
+    mcpServer: () => mcpRuntime.server,
     publishVisitHistory,
     currentBrowsingDataSiteSummary
   })
@@ -1691,8 +1694,8 @@ function registerIpc(): void {
     applyDownloadSettings,
     openPath: (path) => shell.openPath(path),
     tabs: () => tabsManager,
-    mcpServer: () => mcpServer,
-    mcpTokenConfiguration: () => mcpTokenConfiguration,
+    mcpServer: () => mcpRuntime.server,
+    mcpTokenConfiguration: () => mcpRuntime.tokenConfiguration,
     refreshHomeAfterCommittedChange,
     setMcpPort,
     resetMcpSettings,
@@ -1716,7 +1719,7 @@ function registerIpc(): void {
     text,
     setMcpPaused,
     acquireTemporaryMcpPause,
-    mcpServer: () => mcpServer,
+    mcpServer: () => mcpRuntime.server,
     mcpActionTracker: () => mcpActionTracker
   })
   registerLicenseIpc(ipcMain, {
@@ -1749,9 +1752,9 @@ async function loadAuthoritativeSettings(): Promise<void> {
     settings = { ...settings, mcpPort: overriddenPort }
   }
   if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false }
-  if (settings.mcpRemoteAccess) MCP_HOST = '0.0.0.0'
-  mcpPort = settings.mcpPort
-  mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${mcpPort}/mcp`
+  if (settings.mcpRemoteAccess) mcpRuntime.host = '0.0.0.0'
+  mcpRuntime.port = settings.mcpPort
+  mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${mcpRuntime.port}/mcp`
 }
 
 async function reconcileStartupSetting(): Promise<void> {
@@ -1867,7 +1870,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     sessionDataPath: app.getPath('sessionData'),
     storePath: join(app.getPath('userData'), 'tabs.json'),
     requireExistingMetadata: requireExistingWorkspaceMetadata,
-    mcpUrl,
+    mcpUrl: mcpRuntime.url,
     profilePath: app.getPath('userData'),
     downloadDirectory: effectiveDownloadDirectory(),
     askWhereToSaveDownloads: settings.askWhereToSaveDownloads,
@@ -1889,7 +1892,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     getTabAttention: (tabId, workspaceId) => userAttentionLifecycle.forTab(tabId, workspaceId),
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
-      mcpServer?.recordAgentAnswer(id, 'handedBack')
+      mcpRuntime.server?.recordAgentAnswer(id, 'handedBack')
       if (userAttention?.id === id) endUserAttention({ keepPending: true })
       takeOvers.resolvedOn(tabId)
     },
@@ -1897,7 +1900,7 @@ async function createWindow(startMinimized = false): Promise<void> {
       auditReceipts?.recordSiteAccess(workspaceId, decision, source)
     },
     onWorkspaceClosed: (workspaceId) => {
-      mcpServer?.forgetAgentWorkspaceSteps(workspaceId)
+      mcpRuntime.server?.forgetAgentWorkspaceSteps(workspaceId)
       // Closing can itself be part of an active browser operation. Finalize
       // asynchronously so that operation can write its reserved outcome first.
       void Promise.resolve().then(() => auditReceipts?.stop(workspaceId)).catch(() => {
@@ -2137,10 +2140,10 @@ async function releaseRuntimeResources(): Promise<void> {
   if (runtimeShutdown) return runtimeShutdown
   const manager = tabsManager
   manager?.stopTabLabelEdits()
-  const server = mcpServer
+  const server = mcpRuntime.server
   const wallets = walletService
   const broker = walletBroker
-  mcpServer = null
+  mcpRuntime.server = null
   runtimeShutdown = (async () => {
     historyStore?.dispose()
     const results = [
@@ -2180,7 +2183,7 @@ function createRuntimeMcpServer(
   port: number,
   authenticationEnabled = settings.mcpAuthentication
 ): McpHttpServer {
-  if (!tabsManager || !mcpTokenConfiguration) throw new Error('MCP runtime is not initialized')
+  if (!tabsManager || !mcpRuntime.tokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
     actionTracker: mcpActionTracker,
     authorizeAutomation: async () => {
@@ -2198,9 +2201,9 @@ function createRuntimeMcpServer(
     auditReceipts: auditReceipts ?? undefined,
     humanWaiting: humanWaiting ?? undefined,
     taskRuns: taskRuns ?? undefined,
-    host: MCP_HOST,
+    host: mcpRuntime.host,
     port,
-    token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,
+    token: authenticationEnabled ? mcpRuntime.tokenConfiguration.token : undefined,
     capabilityProfiles: mcpCapabilityProfiles ?? undefined,
     version: app.getVersion(),
     toolSet: settings.mcpToolSet,
@@ -2242,7 +2245,7 @@ function createRuntimeMcpServer(
         if (!historyStore) throw new Error('Visit history is unavailable')
         await historyStore.clear()
         // Home's feed names pages agents acted on, so it goes with the history.
-        mcpServer?.forgetHomeFeed()
+        mcpRuntime.server?.forgetHomeFeed()
         return publishVisitHistory()
       }
     },
@@ -2287,7 +2290,7 @@ function createRuntimeMcpServer(
 async function setMcpPort(port: number): Promise<AppSettings> {
   assertWorkspaceInitialized()
   if (!isValidMcpPort(port)) throw new TypeError('MCP port must be an integer from 1024 through 65535')
-  if (port === mcpPort && mcpRuntimeStatus === 'ready') {
+  if (port === mcpRuntime.port && mcpRuntime.status === 'ready') {
     if (persistedSettings.mcpPort !== port) await updateSettings({ mcpPort: port })
     return { ...settings }
   }
@@ -2298,7 +2301,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
     await candidate.start()
   } catch (error) {
     await candidate.stop().catch(() => undefined)
-    throw new Error(`Could not listen on ${MCP_HOST}:${port}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+    throw new Error(`Could not listen on ${mcpRuntime.host}:${port}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
   }
 
   try {
@@ -2311,26 +2314,26 @@ async function setMcpPort(port: number): Promise<AppSettings> {
   synchronizeMcpRuntimeCandidate(candidate, () => ({
     paused: mcpPauseState.paused,
     allowTabPauseOverrides: !mcpPauseState.temporarilyPaused,
-    authenticationToken: settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined
+    authenticationToken: settings.mcpAuthentication ? mcpRuntime.tokenConfiguration?.token : undefined
   }))
-  const previous = mcpServer
-  mcpServer = candidate
-  mcpPort = port
-  mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${port}/mcp`
-  mcpRuntimeStatus = 'ready'
-  mcpStartupError = undefined
+  const previous = mcpRuntime.server
+  mcpRuntime.server = candidate
+  mcpRuntime.port = port
+  mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${port}/mcp`
+  mcpRuntime.status = 'ready'
+  mcpRuntime.startupError = undefined
   mcpPortRecovery.clear()
-  tabsManager?.setMcpUrl(mcpUrl)
+  tabsManager?.setMcpUrl(mcpRuntime.url)
   publishSettings()
   publishMcpControlState()
   await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
-  console.info(`[mcp] Moved listener to ${mcpUrl}`)
+  console.info(`[mcp] Moved listener to ${mcpRuntime.url}`)
   return { ...settings }
 }
 
 async function resetMcpSettings(): Promise<AppSettings> {
   assertWorkspaceInitialized()
-  if (mcpPort === DEFAULT_MCP_PORT && mcpRuntimeStatus === 'ready') {
+  if (mcpRuntime.port === DEFAULT_MCP_PORT && mcpRuntime.status === 'ready') {
     await updateSettings({
       mcpRemoteAccess: false,
       mcpAuthentication: false,
@@ -2338,8 +2341,8 @@ async function resetMcpSettings(): Promise<AppSettings> {
       mcpToolSet: DEFAULT_MCP_TOOL_SET,
       challengeDetectionEnabled: false
     })
-    mcpServer?.setAuthenticationToken(settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
-    mcpServer?.setToolSet(DEFAULT_MCP_TOOL_SET)
+    mcpRuntime.server?.setAuthenticationToken(settings.mcpAuthentication ? mcpRuntime.tokenConfiguration?.token : undefined)
+    mcpRuntime.server?.setToolSet(DEFAULT_MCP_TOOL_SET)
     publishSettings()
     refreshHomeAfterCommittedChange('mcp')
     console.info('[mcp] Settings reset; remote-access changes apply after restart.')
@@ -2356,7 +2359,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   } catch (error) {
     await candidate.stop().catch(() => undefined)
     throw new Error(
-      `Could not listen on ${MCP_HOST}:${DEFAULT_MCP_PORT}: ${error instanceof Error ? error.message : String(error)}`
+      `Could not listen on ${mcpRuntime.host}:${DEFAULT_MCP_PORT}: ${error instanceof Error ? error.message : String(error)}`
     )
   }
 
@@ -2376,21 +2379,21 @@ async function resetMcpSettings(): Promise<AppSettings> {
   synchronizeMcpRuntimeCandidate(candidate, () => ({
     paused: mcpPauseState.paused,
     allowTabPauseOverrides: !mcpPauseState.temporarilyPaused,
-    authenticationToken: settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined
+    authenticationToken: settings.mcpAuthentication ? mcpRuntime.tokenConfiguration?.token : undefined
   }))
-  const previous = mcpServer
+  const previous = mcpRuntime.server
   candidate.setToolSet(DEFAULT_MCP_TOOL_SET)
-  mcpServer = candidate
-  mcpPort = DEFAULT_MCP_PORT
-  mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${DEFAULT_MCP_PORT}/mcp`
-  mcpRuntimeStatus = 'ready'
-  mcpStartupError = undefined
+  mcpRuntime.server = candidate
+  mcpRuntime.port = DEFAULT_MCP_PORT
+  mcpRuntime.url = `http://${mcpLocalHost(mcpRuntime.host)}:${DEFAULT_MCP_PORT}/mcp`
+  mcpRuntime.status = 'ready'
+  mcpRuntime.startupError = undefined
   mcpPortRecovery.clear()
-  tabsManager?.setMcpUrl(mcpUrl)
+  tabsManager?.setMcpUrl(mcpRuntime.url)
   publishSettings()
   publishMcpControlState()
   await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
-  console.info(`[mcp] Reset listener to ${mcpUrl}`)
+  console.info(`[mcp] Reset listener to ${mcpRuntime.url}`)
   console.info('[mcp] Settings reset; remote-access changes apply after restart.')
   return { ...settings }
 }
@@ -2435,7 +2438,7 @@ app.whenReady().then(async () => {
     sendToShellWindows('settings:system-theme-changed', systemTheme)
     sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
   })
-  mcpTokenConfiguration = await loadMcpToken(
+  mcpRuntime.tokenConfiguration = await loadMcpToken(
     join(app.getPath('userData'), 'mcp-token'),
     process.env.HRONAUT_MCP_TOKEN
   )
@@ -2483,21 +2486,21 @@ app.whenReady().then(async () => {
     console.warn('[mcp] Authentication is disabled. Anyone who can reach the listener can control this browser profile.')
   }
   if (!createTray() && startMinimized) showWindow()
-  mcpServer = createRuntimeMcpServer(mcpPort)
-  mcpServer.setPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
+  mcpRuntime.server = createRuntimeMcpServer(mcpRuntime.port)
+  mcpRuntime.server.setPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
   try {
-    const url = await mcpServer.start()
-    mcpRuntimeStatus = 'ready'
-    mcpStartupError = undefined
+    const url = await mcpRuntime.server.start()
+    mcpRuntime.status = 'ready'
+    mcpRuntime.startupError = undefined
     mcpPortRecovery.clear()
     // Listener status is polled by Home; startup changes no bootstrap settings.
     // Reloading here races module initialization and discards early setup input.
     publishMcpControlState({ refreshHome: false })
     console.log(`[mcp] Hronaut listening at ${url}`)
   } catch (error) {
-    mcpRuntimeStatus = 'error'
-    mcpStartupError = error instanceof Error ? error.message : String(error)
-    await mcpPortRecovery.record(error, mcpPort)
+    mcpRuntime.status = 'error'
+    mcpRuntime.startupError = error instanceof Error ? error.message : String(error)
+    await mcpPortRecovery.record(error, mcpRuntime.port)
     publishMcpControlState({ refreshHome: false })
     console.error('[mcp] Failed to start:', error)
     await showMcpStartupFailure()
@@ -2520,7 +2523,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('will-quit', (event) => {
-  if (!tabsManager && !mcpServer) return
+  if (!tabsManager && !mcpRuntime.server) return
   event.preventDefault()
   if (shutdownExitScheduled) return
   shutdownExitScheduled = true
