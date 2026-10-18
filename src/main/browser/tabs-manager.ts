@@ -274,6 +274,7 @@ import {
 } from '../../shared/memory-saver.js'
 import { uuidV7 } from '../uuid-v7.js'
 import { RendererRecovery } from './renderer-recovery.js'
+import { guardPageCallsAcrossRendererExit } from './renderer-exit-guard.js'
 import type { CredentialFillContext } from './credential-fill-context.js'
 import type { CredentialFillAccess } from './credential-fill/credential-fill-access.js'
 import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
@@ -4897,6 +4898,7 @@ export class BrowserTabsManager {
 
   private attachTabEvents(tab: BrowserTab): void {
     const webContents = tab.webContents
+    guardPageCallsAcrossRendererExit(webContents)
     attachPageDestroyedEvents(this.pageDestroyedEventsAccess(), tab, webContents)
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
