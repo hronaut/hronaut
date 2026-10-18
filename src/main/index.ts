@@ -402,12 +402,12 @@ const commercialLicenseRuntime: CommercialLicenseRuntimeState = {
 const {
   configureCommercialLicenseStore,
   currentCommercialLicenseState,
-  publishCommercialLicenseState,
   activateCommercialLicense,
   refreshCommercialLicense,
   deactivateCommercialLicense,
   authorizeAutomation,
-  assertAutomationAccess
+  assertAutomationAccess,
+  startBackgroundLicenseRefresh
 } = createCommercialLicenseRuntime({
   text,
   credentialStorageStatus: () => credentialRuntime.storageStatus,
@@ -1401,18 +1401,7 @@ async function startRuntime(): Promise<void> {
   if (settingsState.current.checkForUpdatesOnStartup) {
     setTimeout(() => void checkForUpdates(), 5_000)
   }
-  {
-    const refreshLicense = (): void => {
-      publishCommercialLicenseState()
-      if (!commercialLicenseRuntime.store?.hasActivation() || !credentialRuntime.storageStatus.available) return
-      void refreshCommercialLicense().catch((error: unknown) => {
-        console.error('[license] Background refresh failed:', error)
-      })
-    }
-    publishCommercialLicenseState()
-    setTimeout(refreshLicense, 7_500).unref()
-    setInterval(refreshLicense, 60 * 60 * 1000).unref()
-  }
+  startBackgroundLicenseRefresh()
 }
 
 registerAppLifecycle(app, {
