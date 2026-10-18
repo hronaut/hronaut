@@ -108,18 +108,18 @@ export default defineConfig(
     languageOptions: { globals: globals.vitest }
   },
   {
-    files: ['src/main/browser/page-scripts/*.ts', 'src/main/browser/tabs-manager.ts', 'src/main/home-page.ts'],
-    rules: {
-      // Protocol sanitizers and generated page scripts intentionally spell escapes explicitly.
-      'no-control-regex': 'off',
-      'no-useless-escape': 'off',
-      'no-unsafe-finally': 'off',
-      'no-useless-assignment': 'off'
-    }
+    // Generated page scripts intentionally spell escapes explicitly.
+    files: ['src/main/browser/page-scripts/element-inspection-scripts.ts'],
+    rules: { 'no-useless-escape': 'off' }
   },
   {
-    // Moved out of tabs-manager.ts with that file's exemption: their cleanup
-    // deliberately reports a failed restoration or release from inside finally.
+    // A before-unload close confirmation starts out false before it is awaited.
+    files: ['src/main/browser/tabs-manager.ts'],
+    rules: { 'no-useless-assignment': 'off' }
+  },
+  {
+    // These files' cleanup deliberately reports a failed restoration or release
+    // from inside finally.
     files: [
       'src/main/browser/agent-input-authorization/agent-input-authorization.ts',
       'src/main/browser/agent-input-scope/agent-input-scope.ts',
