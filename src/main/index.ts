@@ -431,12 +431,14 @@ const {
   openVisitHistory,
   recordPageVisit,
   updatePageTitle,
+  offerBookmarkRestore,
   agentBookmarks,
   agentHistory
 } = createBookmarksAndHistory({
   state: bookmarksAndHistory,
   sendToShellWindows,
-  mcpServer: () => mcpRuntime.server
+  mcpServer: () => mcpRuntime.server,
+  offerUndo: (action) => undoOffers.offer(action)
 })
 // The person's latest reversible action, until its Undo toast closes.
 const undoOffers = new UndoOffers((offer) => {
@@ -900,17 +902,7 @@ function registerIpc(): void {
     publishBookmarks,
     publishVisitHistory,
     historyCleared: () => mcpRuntime.server?.forgetHomeFeed(),
-    bookmarkRemoved: (removed) => undoOffers.offer({
-      kind: 'bookmark-removed',
-      name: removed.bookmark.title,
-      undo: async () => {
-        if (!bookmarksAndHistory.bookmarks) throw new Error('Bookmark storage is unavailable')
-        // A bookmark saved again meanwhile stays as it is.
-        if (!await bookmarksAndHistory.bookmarks.restore(removed)) return false
-        publishBookmarks()
-        return true
-      }
-    })
+    bookmarkRemoved: offerBookmarkRestore
   })
   registerBrowsingDataIpc({
     assertTrustedSender: assertTrustedShellSender,
