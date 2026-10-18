@@ -21,6 +21,8 @@ const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
 const MAX_TAB_OVERVIEW_PAGE_BYTES = 4 * 1024 * 1024
 const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
 const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
+/** How long a tab's overview preview waits for its page to settle, unless the caller says otherwise. */
+const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
 
 /**
  * The overview's last-good frames for the given tabs, a sleeping tab's frame
@@ -212,6 +214,37 @@ export async function captureTabOverviewPreview<Tab extends TabOverviewPreviewsT
   mode: TabOverviewPreviewCaptureMode = 'visible'
 ): Promise<void> {
   return access.tabOverviewPreviewCaptures().run(tab.id, { tab, sequence, mode })
+}
+
+/**
+ * Captures the tab's overview preview once its page has settled for settleMs,
+ * restarting the wait on every call, while the tab is open, awake and in view
+ * as the active tab or a split view pane. A newer schedule supersedes the
+ * capture this one starts.
+ */
+export function scheduleTabOverviewPreview<Tab extends TabOverviewPreviewsTab>(access: TabOverviewPreviewsAccess<Tab>, tab: Tab, settleMs = TAB_OVERVIEW_PREVIEW_SETTLE_MS): void {
+  if (
+    access.isDestroyed()
+    || access.findTab(tab.id) !== tab
+    || tab.webContents.isDestroyed()
+    || tab.sleeping
+    || (tab.id !== access.activeTabId() && !access.splitViewContains(tab.id))
+  ) return
+  const sequence = ++tab.overviewPreviewSequence
+  const existing = access.tabOverviewPreviewTimers().get(tab.id)
+  if (existing) clearTimeout(existing)
+  const timer = setTimeout(() => {
+    if (access.tabOverviewPreviewTimers().get(tab.id) === timer) {
+      access.tabOverviewPreviewTimers().delete(tab.id)
+    }
+    void captureTabOverviewPreview(access, tab, sequence).catch((error) => {
+      if (!access.isDestroyed() && access.findTab(tab.id) === tab && !tab.webContents.isDestroyed()) {
+        console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
+      }
+    })
+  }, settleMs)
+  timer.unref()
+  access.tabOverviewPreviewTimers().set(tab.id, timer)
 }
 
 /** Captures the tab's current frame for the overview when it is still eligible, and keeps it as the tab's preview. */

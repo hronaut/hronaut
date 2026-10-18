@@ -6,7 +6,7 @@ import type { PageEvaluationAccess } from './page-evaluation/page-evaluation-acc
 import { evaluateFile } from './page-evaluation/evaluate-file.js'
 import type { FileEvaluationSource, FileEvaluationHooks } from '../../shared/file-evaluation.js'
 import type { StorageComparisonHooks } from './storage-comparison-operation.js'
-import { acquireNativeClickAdmission, nativeClickProgress, nativeClickObserver, NativeClickAdmissionError, type NativeClickProgress } from './native-click-admission.js'
+import { acquireNativeClickAdmission, type NativeClickProgress } from './native-click-admission.js'
 import type { StorageInspectionHooks } from './storage-inspection-operation.js'
 import type { WebStorageHooks } from './web-storage-operation.js'
 import type { SiteStorageAccess } from './site-storage/site-storage-access.js'
@@ -18,7 +18,7 @@ import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './p
 import type { VisualCompareAccess } from './visual-compare/visual-compare-access.js'
 import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
 import type { WebMcpAccess } from './webmcp/webmcp-access.js'
-import { callWebMcpTool, listWebMcpTools, webMcpStatus } from './webmcp/webmcp.js'
+import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
 import type { PwaInspectionAccess } from './pwa-inspection/pwa-inspection-access.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
@@ -27,25 +27,24 @@ import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess
 import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
 import {
-  captureTabOverviewPreview,
   getTabOverviewPagePreview,
   getTabOverviewPreviews,
   invalidateTabOverviewPreview,
   performTabOverviewPreviewCapture,
+  scheduleTabOverviewPreview,
   storeTabOverviewPreview
 } from './tab-overview-previews/tab-overview-previews.js'
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
 import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
 import type { WorkspaceContextMenuAccess } from './context-menus/workspace-context-menu-access.js'
 import { workspaceContextMenuItems } from './context-menus/workspace-context-menu.js'
-import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
+import { fillForm, scroll, select, type } from './agent-page-actions/form-input-and-scroll.js'
 import type { NativeWheelInput } from './native-wheel.js'
 import type { AgentWheelAccess } from './agent-wheel/agent-wheel-access.js'
 import { agentWheelUnderWay, wheel } from './agent-wheel/agent-wheel.js'
 import type { NativeKeyHoldInput, NativeKeyHoldProgress, NativeInputDispatchObserver } from './native-key-hold.js'
 import type { AgentKeysAccess } from './agent-keys/agent-keys-access.js'
 import { holdKey, press } from './agent-keys/agent-keys.js'
-import { NativeInputCleanupError } from './native-input-cleanup.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
@@ -84,6 +83,8 @@ import type { BrowserElementPickerResult, BrowserElementPickerSession, ElementPi
 import { cancelElementPicker, captureElementScreenshot, pickElement, queueElementPickerMouseInput } from './element-picker/element-picker.js'
 import type { BrowserScreenshotAreaSession, ScreenshotAreaAccess } from './screenshot-area/screenshot-area-access.js'
 import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput } from './screenshot-area/screenshot-area.js'
+import type { NativeSelectionsAccess } from './native-selections/native-selections-access.js'
+import { cancelNativeSelectionSessions } from './native-selections/native-selections.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
@@ -146,7 +147,8 @@ import { normalizeWorkspaceDescription } from '../../shared/workspace-descriptio
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
-import { SplitDividerController } from './split-divider-controller.js'
+import { setEmulationViewSize } from './emulation/emulation-view-size.js'
+import { createSplitDivider } from './split-view/split-divider.js'
 import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
 import { createHash } from 'node:crypto'
@@ -169,7 +171,9 @@ import {
   type Session,
   type WebContents
 } from 'electron'
-import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
+import type { BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
+import type { PageKeyboardEventsAccess } from './tab-events/page-keyboard-events-access.js'
+import { attachPageKeyboardEvents } from './tab-events/page-keyboard-events.js'
 import { MAX_BROWSER_TABS } from '../../shared/types.js'
 import type { PageFindAccess } from './page-find/page-find-access.js'
 import { findInPage, stopFindInPage } from './page-find/page-find.js'
@@ -200,7 +204,10 @@ import {
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { McpActivityFollowController, type FollowAgent } from './mcp-activity-follow-controller.js'
 import type { KeyboardDebugger } from './native-keyboard.js'
-import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
+import type { PointerDebugger } from './native-pointer.js'
+import { drag, hover } from './agent-page-actions/hover-and-drag.js'
+import type { AgentPageActionsAccess, BrowserClickTarget } from './agent-page-actions/agent-page-actions-access.js'
+import { click } from './agent-page-actions/click.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
@@ -217,11 +224,8 @@ import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { qualityAudit } from './page-audits/quality-audit.js'
-import type { WebMcpToolDescriptor } from './webmcp-bridge.js'
-import {
-  normalizeBrowserGeneratedLocator,
-  type BrowserGeneratedLocator
-} from '../../shared/playwright-locator.js'
+import type { BrowserGeneratedLocator } from '../../shared/playwright-locator.js'
+import { generatePlaywrightLocator } from './element-inspection/playwright-locator.js'
 import { networkRequestSummary } from './network-inspection/network-request-summary.js'
 import { portableExportFilename } from '../../shared/portable-filename.js'
 import type { NetworkInspectionAccess } from './network-inspection/network-inspection-access.js'
@@ -251,6 +255,7 @@ import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
 import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
+import { browserViewBounds, pageArea, setContentInsets, setToolbarHeight } from './window-layout/content-area.js'
 import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
 import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
@@ -265,12 +270,9 @@ import {
 } from '../../shared/memory-saver.js'
 import { uuidV7 } from '../uuid-v7.js'
 import { RendererRecovery } from './renderer-recovery.js'
-import {
-  credentialFillContext,
-  isCurrentCredentialFillContext,
-  type CredentialFillContext
-} from './credential-fill-context.js'
-import { credentialFillPageScript, isCredentialFillPageResult } from './credential-fill-page.js'
+import type { CredentialFillContext } from './credential-fill-context.js'
+import type { CredentialFillAccess } from './credential-fill/credential-fill-access.js'
+import { credentialContext, fillCredential } from './credential-fill/credential-fill.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -367,18 +369,7 @@ import { browserImportDestination, importBrowserCookies } from './workspace-data
 import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
-import {
-  type AgentPointerIdentity,
-  dialogAwareClickScript,
-  dialogAwareCoordinateClickScript,
-  dragPointsScript,
-  fillFormScript,
-  playwrightLocatorScript,
-  targetActionScript,
-  targetExpression,
-  targetPointScript,
-  type BrowserFormField
-} from './page-scripts.js'
+import type { AgentPointerIdentity, BrowserFormField } from './page-scripts.js'
 import { evaluate } from './page-evaluation/evaluate.js'
 import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import type { PersistedStateAccess } from './browser-state/persisted-state-access.js'
@@ -420,6 +411,7 @@ import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
+import { setWorkspacePinned } from './mcp-tab-groups/workspace-pinning.js'
 import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations/workspace-operations-access.js'
 import {
   assertWorkspaceCanOpenTab,
@@ -429,7 +421,6 @@ import {
   withWorkspaceOperation,
   withWorkspaceStorageOperation
 } from './workspace-operations/workspace-operations.js'
-import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
 import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
@@ -489,6 +480,8 @@ import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
 import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-evaluation-access.js'
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
+import type { DebuggerLeaseAccess } from './debugger-lease/debugger-lease-access.js'
+import { withDebugger } from './debugger-lease/debugger-lease.js'
 import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
 import type { RightClickEnvironmentAccess } from './native-click/right-click-environment-access.js'
@@ -498,8 +491,11 @@ import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVis
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
 import type { BeforeUnloadStagingAccess } from './tab-close/before-unload-staging-access.js'
 import { stageBeforeUnloadClose } from './tab-close/before-unload-staging.js'
+import { closeTabAfterLabelSave } from './tab-close/close-tab.js'
 import type { TabLabelsAccess } from './tab-labels/tab-labels-access.js'
 import { assertTabLabelAdmission, saveTabLabel, withTabLabelLifecycle } from './tab-labels/tab-labels.js'
+import type { TabReopeningAccess } from './tab-reopening/tab-reopening-access.js'
+import { duplicateTabAfterLabelSave, rememberClosedTab, reopenClosedTabAfterLabelSave, reopenClosedTabEntry } from './tab-reopening/tab-reopening.js'
 import type { TabArrangementAccess } from './tab-arrangement/tab-arrangement-access.js'
 import { reorderTab, setTabPinned } from './tab-arrangement/tab-arrangement.js'
 import type { BrowserWalletPageContext, WalletPagesAccess } from './wallet-pages/wallet-pages-access.js'
@@ -519,11 +515,11 @@ import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import type { TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
+import type { TrustedChromeOcclusionAccess } from './trusted-chrome-occlusion/trusted-chrome-occlusion-access.js'
+import { occlusionLayout, occlusionSnapshotPanes, setBrowserContentOccluded, setFollowAgentActivitySuspended } from './trusted-chrome-occlusion/trusted-chrome-occlusion.js'
 import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
-import { publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
-import type { PassiveSelectionAccess } from './agent-follow/passive-selection-access.js'
+import { handleMcpTabActivity, publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import { selectTabPassively } from './agent-follow/passive-selection.js'
-import type { HumanInputGuardAccess } from './interaction-lock/human-input-guard-access.js'
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
@@ -539,20 +535,9 @@ import {
 } from './workspace-archive/workspace-archive.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
-type BrowserClickTarget = {
-  tabId?: string
-  ref?: string
-  selector?: string
-  x?: number
-  y?: number
-  doubleClick?: boolean
-  native?: boolean
-  button?: 'left' | 'right'
-} & BrowserDialogHandlingOptions
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
 const MAX_ACTIVE_WORKSPACES = 50
-const MAX_CLOSED_TABS = MAX_TABS
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
   const override = Number(process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS)
@@ -565,13 +550,8 @@ function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
-/** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
-const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-const MIN_SHELL_HEIGHT = 44
 const ABORTED_LOAD_ERROR = -3
-const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const require = createRequire(import.meta.url)
 const webVitalsPath = require.resolve('web-vitals/attribution')
@@ -970,20 +950,7 @@ export class BrowserTabsManager {
   private lastSplitDividerGeometry = ''
   private lastEmulationFrames = '[]'
   private lastPageCards = '[]'
-  private readonly splitDivider = new SplitDividerController({
-    read: () => this.getSplitDivider(),
-    owns: (geometry) => this.splitViewGeneration === geometry.revision
-      && this.splitView?.firstTabId === geometry.firstTabId
-      && this.splitView?.secondTabId === geometry.secondTabId
-      && this.splitView?.orientation === geometry.orientation,
-    apply: (ratio, mode) => {
-      if (!this.splitView) return
-      this.splitView.ratio = ratio
-      if (mode === 'commit') this.splitViewGeneration += 1
-      this.layout()
-      if (mode !== 'preview') this.changed(mode === 'commit')
-    }
-  })
+  private readonly splitDivider = createSplitDivider(this.splitViewAccess())
   private allTabsMuted = false
   private allHumanInteractionLocked = false
   private allAgentsPaused = false
@@ -1371,11 +1338,12 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view agent following gets of this manager's private followed
-   * agent, follow preference, tabs, active tab and selection generation, MCP
-   * activity follower and state publication. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it.
+   * The narrow view agent following and selecting a tab without moving
+   * keyboard focus get of this manager's private followed agent, follow
+   * preference, tabs, active tab and selection generation, MCP activities,
+   * MCP activity follower, state publication, window and selection. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it.
    */
   private agentFollowAccess(): AgentFollowAccess {
     return {
@@ -1386,8 +1354,13 @@ export class BrowserTabsManager {
       activeTabId: () => this.activeTabId,
       tabSelectionGeneration: () => this.tabSelectionGeneration,
       hasTab: (tabId) => this.tabs.has(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      mcpActivitiesByTab: () => this.mcpActivitiesByTab,
       mcpActivityFollower: () => this.mcpActivityFollower,
-      changed: (persist) => this.changed(persist)
+      changed: (persist) => this.changed(persist),
+      window: () => this.window,
+      getTab: (tabId) => this.getTab(tabId),
+      selectTab: (tabId, options) => this.selectTab(tabId, options)
     }
   }
 
@@ -1518,9 +1491,10 @@ export class BrowserTabsManager {
    * archived workspaces, recently closed tabs, options, workspace operations,
    * tab label edits, workspace continuity, session store and state
    * publication. It is a prototype method rather than a field, so managers
-   * created without the constructor (as unit tests do) still provide it. The
-   * delegates below return the feature's value or promise directly, so
-   * callers see the same ticks as before.
+   * created without the constructor (as unit tests do) still provide it, and
+   * the changed and getState they stub are reached through it. The delegates
+   * below return the feature's value or promise directly, so callers see the
+   * same ticks as before.
    */
   private mcpTabGroupsAccess(): McpTabGroupsAccess<BrowserTab> {
     return {
@@ -1554,7 +1528,8 @@ export class BrowserTabsManager {
       suspendWorkspaceContinuity: (workspaceId) => this.suspendWorkspaceContinuity(workspaceId),
       retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
       invalidateReactInspectionWorkspace: (workspaceId) => this.reactInspectionController.invalidateWorkspace(workspaceId),
-      changed: (persist) => this.changed(persist)
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
   }
 
@@ -1627,23 +1602,8 @@ export class BrowserTabsManager {
     return updateMcpTabGroup(this.mcpTabGroupsAccess(), groupId, updates, allowDuplicateName)
   }
 
-  /**
-   * Pins a workspace to the top of the tab rail, after those pinned before it, or unpins it. Only the person does this,
-   * from the workspace's menu; it changes neither when the workspace was last used nor what agents may do in it.
-   */
   setWorkspacePinned(groupId: string, pinned: boolean): BrowserState {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}`)
-    if (pinned === (group.pinnedAt !== undefined)) return this.getState()
-    if (pinned) {
-      // After every earlier pin even if the clock went back since, so a new pin always goes last.
-      const latest = Math.max(0, ...[...this.mcpTabGroups.values()].map((candidate) => candidate.pinnedAt ? Date.parse(candidate.pinnedAt) || 0 : 0))
-      group.pinnedAt = new Date(Math.max(Date.now(), latest + 1)).toISOString()
-    } else {
-      delete group.pinnedAt
-    }
-    this.changed()
-    return this.getState()
+    return setWorkspacePinned(this.mcpTabGroupsAccess(), groupId, pinned)
   }
 
   requireMcpTabGroup(groupId: string): BrowserTabGroupState {
@@ -2010,19 +1970,6 @@ export class BrowserTabsManager {
     return manageStorage(this.siteStorageAccess(), options, cookieWriteHooks, webStorageHooks)
   }
 
-  private inspectionPageGuard(tab: BrowserTab, inspection: string): () => void {
-    const navigationGeneration = tab.navigationGeneration
-    const contents = tab.webContents
-    return () => {
-      if (this.tabs.get(tab.id) !== tab
-        || tab.webContents !== contents
-        || contents.isDestroyed()
-        || tab.navigationGeneration !== navigationGeneration) {
-        throw new Error(`The page changed during ${inspection}. Run a fresh inspection.`)
-      }
-    }
-  }
-
   inspectIndexedDb(options: BrowserIndexedDbOptions = {}, hooks?: StorageInspectionHooks): Promise<BrowserIndexedDbReport> {
     return inspectIndexedDb(this.siteStorageAccess(), options, hooks)
   }
@@ -2040,16 +1987,16 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view PWA inspection gets of this manager's private tabs,
-   * inspection page guard and debugger lease. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit tests
-   * do) still provide it. The delegate below returns the feature's promise
-   * directly, so no extra ticks separate its final checks from the caller.
+   * The narrow view PWA inspection gets of this manager's private tabs and
+   * debugger lease. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it. The delegate below returns the feature's promise directly,
+   * so no extra ticks separate its final checks from the caller.
    */
   private pwaInspectionAccess(): PwaInspectionAccess<BrowserTab> {
     return {
       getTab: (tabId) => this.getTab(tabId),
-      inspectionPageGuard: (tab, inspection) => this.inspectionPageGuard(tab, inspection),
+      findTab: (tabId) => this.tabs.get(tabId),
       withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
       isUnavailableCdpMethod: (error) => this.isUnavailableCdpMethod(error)
     }
@@ -2068,27 +2015,36 @@ export class BrowserTabsManager {
     return storageChanges(this.siteStorageAccess(), action, tabId, includeValues, hooks)
   }
 
-  credentialContext(tabId?: string): CredentialFillContext | null {
-    const tab = this.getTab(tabId)
-    if (tab.id !== this.activeTabId) return null
-    return credentialFillContext(tab.url, tab.navigationGeneration, this.tabSelectionGeneration)
+  /**
+   * The narrow view filling a saved credential gets of this manager's private
+   * tabs, active tab and selection generation, agent input scope and options.
+   * It is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value or promise directly, so callers see the same
+   * ticks as before.
+   */
+  private credentialFillAccess(): CredentialFillAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      activeTabId: () => this.activeTabId,
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation),
+      recordTrustedCredentialFill: (outcome, tab, now, onUserInteraction) => recordTrustedCredentialFill(outcome, tab, now, onUserInteraction),
+      options: () => this.options
+    }
   }
 
-  async fillCredential(
+  credentialContext(tabId?: string): CredentialFillContext | null {
+    return credentialContext(this.credentialFillAccess(), tabId)
+  }
+
+  fillCredential(
     tabId: string,
     expectedContext: CredentialFillContext,
     username: string,
     password: string
   ): Promise<boolean> {
-    const tab = this.getTab(tabId)
-    if (!isCurrentCredentialFillContext(expectedContext, this.credentialContext(tabId))) return false
-    const script = credentialFillPageScript(expectedContext, username, password)
-    const outcome: unknown = await this.withAgentInput(
-      tab.webContents,
-      () => tab.webContents.executeJavaScript(script, true)
-    )
-    if (!isCredentialFillPageResult(outcome)) return false
-    return recordTrustedCredentialFill(outcome, tab, Date.now(), this.options.onUserInteraction)
+    return fillCredential(this.credentialFillAccess(), tabId, expectedContext, username, password)
   }
 
   async newAgentTab(options: NewTabOptions): Promise<BrowserState> {
@@ -2135,52 +2091,39 @@ export class BrowserTabsManager {
   }
 
   reopenClosedTab(closedTabId?: string): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => this.reopenClosedTabAfterLabelSave(closedTabId))
+    return this.withTabLabelLifecycle(() => reopenClosedTabAfterLabelSave(this.tabReopeningAccess(), closedTabId))
   }
 
-  private async reopenClosedTabAfterLabelSave(closedTabId?: string): Promise<BrowserState> {
-    await this.reopenClosedTabEntry(closedTabId, true)
-    return this.getState()
-  }
-
-  private async reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<BrowserTab | undefined> {
-    const index = closedTabId === undefined
-      ? this.closedTabs.length - 1
-      : this.closedTabs.findIndex((tab) => tab.id === closedTabId)
-    if (index < 0) return undefined
-    if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
-    const [closed] = this.closedTabs.splice(index, 1)
-    if (!closed) return undefined
-    try {
-      return await this.createTab({ url: closed.url, label: closed.label, pinned: closed.pinned, active, mcpGroupId: closed.mcpGroupId, zoomIsolated: closed.zoomIsolated === true, defaultFontSize: closed.defaultFontSize })
-    } catch (error) {
-      this.closedTabs.splice(index, 0, closed)
-      throw error
+  /**
+   * The narrow view remembering, reopening and duplicating tabs gets of this
+   * manager's private recently closed tabs, tabs, tab creation, navigation
+   * history, tab order and state. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private tabReopeningAccess(): TabReopeningAccess<BrowserTab> {
+    return {
+      closedTabs: () => this.closedTabs,
+      tabCount: () => this.tabs.size,
+      getTab: (tabId) => this.getTab(tabId),
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      createTab: (options) => this.createTab(options),
+      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
+      getState: () => this.getState()
     }
+  }
+
+  private reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<BrowserTab | undefined> {
+    return reopenClosedTabEntry(this.tabReopeningAccess(), closedTabId, active)
   }
 
   duplicateTab(tabId: string): Promise<BrowserState> {
     return this.withTabLabelLifecycle(() => this.duplicateTabAfterLabelSave(tabId))
   }
 
-  private async duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
-    const source = this.getTab(tabId)
-    if (isHronautHomeUrl(source.url)) throw new Error('Hronaut Home cannot be duplicated')
-    const navigationHistory = this.navigationHistorySnapshot(source)
-    const duplicate = await this.createTab({
-      url: source.url,
-      title: source.title,
-      label: source.label,
-      pinned: source.pinned,
-      suppressInitialHistory: true,
-      active: true,
-      navigationHistory,
-      mcpGroupId: source.mcpGroupId,
-      zoomIsolated: source.zoomIsolated,
-      defaultFontSize: source.defaultFontSize
-    })
-    this.reorderTab(duplicate.id, source.id, 'after')
-    return this.getState()
+  private duplicateTabAfterLabelSave(tabId: string): Promise<BrowserState> {
+    return duplicateTabAfterLabelSave(this.tabReopeningAccess(), tabId)
   }
 
   private readonly pendingTabLabels = new Set<Promise<unknown>>()
@@ -2289,19 +2232,7 @@ export class BrowserTabsManager {
 
   /** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
   handleMcpTabActivity(activity: McpTabActivity, agent?: FollowAgent): void {
-    const tab = this.tabs.get(activity.tabId)
-    if (!tab) return
-    const activities = this.mcpActivitiesByTab.get(tab.id) ?? new Set<string>()
-    if (activity.phase === 'started') {
-      activities.add(activity.activityId)
-      this.mcpActivitiesByTab.set(tab.id, activities)
-    } else {
-      activities.delete(activity.activityId)
-      if (activities.size) this.mcpActivitiesByTab.set(tab.id, activities)
-      else this.mcpActivitiesByTab.delete(tab.id)
-      tab.lastActiveAt = activity.occurredAt
-    }
-    this.mcpActivityFollower.accept(activity, agent)
+    handleMcpTabActivity(this.agentFollowAccess(), activity, agent)
   }
 
   /**
@@ -2579,32 +2510,19 @@ export class BrowserTabsManager {
     return selectTab(this.tabSelectionAccess(), tabId, options)
   }
 
-  /**
-   * The narrow view selecting a tab without moving keyboard focus gets of
-   * this manager's private window, tabs and selection. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it.
-   */
-  private passiveSelectionAccess(): PassiveSelectionAccess {
-    return {
-      window: () => this.window,
-      getTab: (tabId) => this.getTab(tabId),
-      selectTab: (tabId, options) => this.selectTab(tabId, options)
-    }
-  }
-
   private selectTabPassively(tabId: string): void {
-    selectTabPassively(this.passiveSelectionAccess(), tabId)
+    selectTabPassively(this.agentFollowAccess(), tabId)
   }
 
   /**
-   * The narrow view a split view gets of this manager's private tabs, split
-   * view and its generation, tab selection generation, tab waking, window
-   * content view, divider drag, layout, focus and state publication. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's value or promise directly, so callers see the same
-   * ticks as before.
+   * The narrow view a split view and its divider's drag get of this manager's
+   * private tabs, split view and its generation, tab selection generation,
+   * tab waking, window content view, divider drag and geometry, layout, focus
+   * and state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it, and the field initializer that creates the divider's drag can call
+   * it. The delegates below return the feature's value or promise directly,
+   * so callers see the same ticks as before.
    */
   private splitViewAccess(): SplitViewAccess<BrowserTab> {
     return {
@@ -2621,6 +2539,7 @@ export class BrowserTabsManager {
       addChildView: (view) => this.window.contentView.addChildView(view),
       removeChildView: (view) => this.window.contentView.removeChildView(view),
       cancelSplitDivider: () => this.splitDivider.cancel(),
+      getSplitDivider: () => this.getSplitDivider(),
       layout: () => this.layout(),
       focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
       changed: (persist) => this.changed(persist),
@@ -2650,11 +2569,12 @@ export class BrowserTabsManager {
 
   /**
    * The narrow view closing tabs for the person gets of this manager's
-   * private tabs, recently closed tabs, tab closing and reopening, tab label
-   * saves, tab order, state publication and options. It is a prototype
-   * method rather than a field, so managers created without the constructor
-   * (as unit tests do) still provide it. The delegate below returns the
-   * feature's promise directly, so callers see the same ticks as before.
+   * private tabs, recently closed tabs, tab closing and reopening, closes in
+   * flight that let pages ask to stay, tab label saves, tab order, state
+   * publication and options. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's promise directly, so callers
+   * see the same ticks as before.
    */
   private personTabCloseAccess(): PersonTabCloseAccess<BrowserTab> {
     return {
@@ -2663,6 +2583,9 @@ export class BrowserTabsManager {
       orderedTabs: () => this.orderedTabs(),
       closedTabs: () => this.closedTabs,
       closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload) => this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload),
+      pendingHumanTabCloses: () => this.pendingHumanTabCloses,
+      performCloseTab: (tabId, ensureReplacement, respectBeforeUnload, forceClose) =>
+        this.performCloseTab(tabId, ensureReplacement, respectBeforeUnload, forceClose),
       reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
       withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
       reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
@@ -2767,22 +2690,7 @@ export class BrowserTabsManager {
     ensureReplacement: boolean,
     respectBeforeUnload = false
   ): Promise<BrowserState> {
-    return this.withTabLabelLifecycle(() => this.closeTabAfterLabelSave(tabId, ensureReplacement, respectBeforeUnload))
-  }
-
-  private closeTabAfterLabelSave(tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean): Promise<BrowserState> {
-    if (!respectBeforeUnload) {
-      return this.performCloseTab(tabId, ensureReplacement, false, true)
-    }
-    const tab = this.getTab(tabId)
-    const existing = this.pendingHumanTabCloses.get(tabId)
-    if (existing?.tab === tab) return existing.operation
-    const operation = this.performCloseTab(tabId, ensureReplacement, true, false)
-    this.pendingHumanTabCloses.set(tabId, { tab, operation })
-    void operation.finally(() => {
-      if (this.pendingHumanTabCloses.get(tabId)?.operation === operation) this.pendingHumanTabCloses.delete(tabId)
-    }).catch(() => undefined)
-    return operation
+    return this.withTabLabelLifecycle(() => closeTabAfterLabelSave(this.personTabCloseAccess(), tabId, ensureReplacement, respectBeforeUnload))
   }
 
   private async performCloseTab(
@@ -2924,23 +2832,24 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  /**
+   * The narrow view ending a page's native selections gets of this manager's
+   * private screenshot area selections, element pickers and human input
+   * lock. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each member
+   * reads the manager when called.
+   */
+  private nativeSelectionsAccess(): NativeSelectionsAccess<BrowserTab> {
+    return {
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab)
+    }
+  }
+
   private cancelNativeSelectionSessions(tab: BrowserTab): void {
-    const webContentsId = tab.webContents.id
-    const screenshotSession = this.screenshotAreaSessions.get(webContentsId)
-    if (screenshotSession) {
-      screenshotSession.canceled = true
-      screenshotSession.resolve({ canceled: true })
-      this.screenshotAreaSessions.delete(webContentsId)
-    }
-    const elementPickerSession = this.elementPickerSessions.get(webContentsId)
-    if (elementPickerSession) {
-      elementPickerSession.canceled = true
-      elementPickerSession.resolve({ canceled: true })
-      this.elementPickerSessions.delete(webContentsId)
-    }
-    if ((screenshotSession || elementPickerSession) && this.isHumanInteractionLocked(tab)) {
-      void this.syncHumanInteractionInputGuard(tab).catch(() => undefined)
-    }
+    cancelNativeSelectionSessions(this.nativeSelectionsAccess(), tab)
   }
 
   private async closeTabs(
@@ -2959,19 +2868,7 @@ export class BrowserTabsManager {
   }
 
   private rememberClosedTab(tab: BrowserTab): void {
-    if (isHronautHomeUrl(tab.url)) return
-    this.closedTabs.push({
-      id: uuidV7(),
-      title: tab.title || tab.url,
-      ...(tab.label ? { label: tab.label } : {}),
-      url: tab.url,
-      pinned: tab.pinned,
-      closedAt: new Date().toISOString(),
-      ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {}),
-      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
-      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {})
-    })
-    if (this.closedTabs.length > MAX_CLOSED_TABS) this.closedTabs.shift()
+    rememberClosedTab(this.tabReopeningAccess(), tab)
   }
 
   private removeTabRecord(tab: BrowserTab): void {
@@ -3171,13 +3068,15 @@ export class BrowserTabsManager {
   }
 
   /**
-   * The narrow view the person's input lock gets of this manager's private
-   * tabs, workspaces, debugger queue, dialog monitoring, lock queue and
-   * counter, global lock, native input guard, layout and state publication. It
-   * is a prototype method rather than a field, so managers created without the
+   * The narrow view the person's input lock and its native input guard get
+   * of this manager's private tabs, workspaces, debugger queue and lease,
+   * dialog monitoring, lock queue and counter, global lock, native input
+   * guard, native selection sessions, layout and state publication. It is a
+   * prototype method rather than a field, so managers created without the
    * constructor (as unit tests do) still provide it. The delegates below
    * return the feature's promise directly, so the generation and counter
-   * changes still happen before they return.
+   * changes still happen before they return, and callers see the same ticks
+   * as before.
    */
   private interactionLockAccess(): InteractionLockAccess<BrowserTab> {
     return {
@@ -3199,7 +3098,10 @@ export class BrowserTabsManager {
       syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
       layout: () => this.layout(),
       changed: (persist) => this.changed(persist),
-      getState: () => this.getState()
+      getState: () => this.getState(),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions
     }
   }
 
@@ -3421,16 +3323,8 @@ export class BrowserTabsManager {
     return imageState(this.elementInspectionAccess(), options, validateInspection, deferInspection)
   }
 
-  async generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
-    const tab = this.getTab(options.tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before generating a locator')
-    this.validateTarget(options)
-    const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      ELEMENT_INSPECTION_WORLD_ID,
-      [{ code: playwrightLocatorScript(options) }],
-      false
-    )
-    return normalizeBrowserGeneratedLocator(tab.id, raw as Record<string, unknown>)
+  generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
+    return generatePlaywrightLocator(this.elementInspectionAccess(), options)
   }
 
   cancelElementPicker(tabId?: string): Promise<boolean> {
@@ -3463,146 +3357,50 @@ export class BrowserTabsManager {
     return cancelScreenshotArea(this.screenshotAreaAccess(), tabId)
   }
 
-  async click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    let observed: { tab: BrowserTab; observation: OpenedTabObservation } | undefined
-    try {
-      const result = await this.dispatchClick(target, validateClick, recordClickProgress, retainClickAuthority, (tab) => {
-        observed = { tab, observation: this.observeOpenedTabs(tab) }
-      }, agent)
-      const current = observed
-      observed = undefined
-      const opened = current && this.stopObservingOpenedTabs(current.tab, current.observation)
-      return opened && result && typeof result === 'object' ? { ...result, tabsOpenedDuringClick: opened } : result
-    } finally {
-      if (observed) this.stopObservingOpenedTabs(observed.tab, observed.observation)
+  /**
+   * The narrow view an agent's click, typing, selecting, form filling,
+   * hovering, dragging and scrolling get of this manager's private tabs,
+   * unconfirmed semantic clicks, opened tab observations, target and viewport
+   * checks, native input authority, right-click environment, agent cursor,
+   * agent input scope, background focus isolation, website dialog handling,
+   * debugger lease and evaluation, native clicks and authorized agent input.
+   * It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see
+   * the same ticks as before.
+   */
+  private agentPageActionsAccess(): AgentPageActionsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      unconfirmedSemanticClicks: () => this.unconfirmedSemanticClicks,
+      observeOpenedTabs: (tab) => this.observeOpenedTabs(tab),
+      stopObservingOpenedTabs: (tab, observation) => this.stopObservingOpenedTabs(tab, observation),
+      validateTarget: (target) => this.validateTarget(target),
+      coordinatePointOrValidateTarget: (target, action) => this.coordinatePointOrValidateTarget(target, action),
+      coordinateDragPointsOrValidateTargets: (options, source, target) => this.coordinateDragPointsOrValidateTargets(options, source, target),
+      assertPointInsideVisibleViewport: (webContents, point, action) => this.assertPointInsideVisibleViewport(webContents, point, action),
+      assertRightClickPlatform: (platform) => assertRightClickPlatform(platform),
+      assertRightClickViewport: (webContents, x, y, validate) => this.assertRightClickViewport(webContents, x, y, validate),
+      assertClickTargetEnabled: (result) => this.assertClickTargetEnabled(result),
+      assertNativeEditability: (result) => this.assertNativeEditability(result),
+      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      rightClickEnvironment: (tab) => this.rightClickEnvironment(tab),
+      acquireNativeClickAdmission: (pageDebugger, target, validate, progress, publish) => acquireNativeClickAdmission(pageDebugger, target, validate, progress, publish),
+      showAgentPointer: (webContents, point, effect, options) => this.showAgentPointer(webContents, point, effect, options),
+      withAgentInput: (webContents, operation, options) => this.withAgentInput(webContents, operation, options),
+      withBackgroundAgentFocusGuard: (operation) => this.withBackgroundAgentFocusGuard(operation),
+      withOptionalDialogHandling: (webContents, options, operation) => this.withOptionalDialogHandling(webContents, options, operation),
+      mainWorldContextId: (webContents) => this.mainWorldContextId(webContents),
+      evaluateWithAttachedDebugger: (webContents, expression, contextId) => this.evaluateWithAttachedDebugger(webContents, expression, contextId),
+      withDebugger: (webContents, operation, validateAdmission) => this.withDebugger(webContents, operation, validateAdmission),
+      dispatchNativeClick: (webContents, point, doubleClick, validateClick, sample, observer, rightClick) =>
+        this.dispatchNativeClick(webContents, point, doubleClick, validateClick, sample, observer, rightClick),
+      agentInputDebugger: (webContents, validateInput) => this.agentInputDebugger(webContents, validateInput)
     }
   }
 
-  private async dispatchClick(target: BrowserClickTarget, validateClick: ((validateContext: () => void) => void) | undefined, recordClickProgress: ((progress: NativeClickProgress) => void) | undefined, retainClickAuthority: ((authority: { validate(): void; dispose(): void }) => void) | undefined, observeTab: (tab: BrowserTab) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    const rightClick = target.button === 'right'
-    if (rightClick) {
-      assertRightClickPlatform(process.platform)
-      if (!target.tabId || !target.native || target.doubleClick || target.x !== undefined || target.y !== undefined
-        || Boolean(target.ref) === Boolean(target.selector)) throw new Error('Right-click requires one native semantic click.')
-    }
-    const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
-    const tab = this.getTab(target.tabId)
-    observeTab(tab)
-    const webContents = tab.webContents
-    const dialogAction = target.dialogAction
-    if (target.promptText !== undefined && dialogAction !== 'accept') {
-      throw new TypeError('promptText requires dialogAction: accept')
-    }
-    if (target.doubleClick && dialogAction !== undefined) {
-      throw new TypeError('doubleClick cannot be combined with dialogAction or promptText')
-    }
-    if (target.native && dialogAction !== undefined) {
-      throw new TypeError('native cannot be combined with dialogAction or promptText')
-    }
-    // A reload may already be pending when the click begins. Its commit does
-    // not increment navigationGeneration again, but replaces the target document.
-    const authority = this.nativeInputAuthority(tab, validateClick)
-    let environment: { validate(): void; dispose(): void } | undefined
-    const assertClickCurrent = (): void => { authority.validate(); environment?.validate() }
-    let retained = false
-    try {
-      if (rightClick) { environment = this.rightClickEnvironment(tab); assertClickCurrent() }
-      if (coordinatePoint) {
-        await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
-        await this.showAgentPointer(webContents, coordinatePoint, 'click', { agent })
-        if (dialogAction !== undefined) {
-          await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
-            const contextId = await this.mainWorldContextId(webContents)
-            assertClickCurrent()
-            await this.evaluateWithAttachedDebugger(
-              webContents,
-              dialogAwareCoordinateClickScript(coordinatePoint, dialogAction, target.promptText),
-              contextId
-            )
-          }))
-        } else {
-          await this.withAgentInput(webContents, () => this.withDebugger(
-            webContents,
-            () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true, assertClickCurrent, undefined, undefined, rightClick)
-          ))
-        }
-        return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
-      }
-      if (target.doubleClick || target.native) {
-        const progress = nativeClickProgress()
-        const publish = (): void => {
-          if (progress.targetCleanup === 'unconfirmed' || progress.inputCleanupFailed) this.unconfirmedSemanticClicks.add(webContents)
-          recordClickProgress?.({ ...progress })
-        }
-        const observer = nativeClickObserver(progress, publish)
-        publish()
-        try {
-          assertClickCurrent()
-          if (this.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
-          progress.preparationAttempted = true; publish()
-          const result = await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
-            if (this.unconfirmedSemanticClicks.has(webContents)) throw new NativeClickAdmissionError('CLICK_STATE_UNCONFIRMED', { ...progress })
-            const admission = await acquireNativeClickAdmission(webContents.debugger, target, assertClickCurrent, progress, publish)
-            let failure: unknown
-            try {
-              assertClickCurrent()
-              // Retain the original before any page-owned flag setter or scroll preparation.
-              await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
-              assertClickCurrent()
-              let point = await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
-              await this.showAgentPointer(webContents, point, 'click', { agent })
-              assertClickCurrent()
-              point = await webContents.executeJavaScript(targetPointScript(target, { rejectNativeDisabled: true }), true) as typeof point
-              try { this.assertClickTargetEnabled(point) } catch (error) { throw new NativeClickAdmissionError('TARGET_DISABLED', { ...progress }, error) }
-              if (environment && retainClickAuthority && !retained) {
-                retainClickAuthority({ validate: assertClickCurrent, dispose: () => { environment?.dispose(); authority.dispose() } })
-                retained = true
-              }
-              await this.dispatchNativeClick(webContents, point, target.doubleClick === true, assertClickCurrent, rightClick ? async (x, y) => {
-                await this.assertRightClickViewport(webContents, x, y, assertClickCurrent)
-                await admission.sample(x, y)
-              } : admission.sample, observer, rightClick)
-              return { ok: true, tag: point.tag, ...(target.doubleClick ? { doubleClick: true } : {}),
-                ...(target.native ? { native: true } : {}), ...(rightClick ? { button: 'right' } : {}), admission: 'sampled', progress }
-            } catch (error) { failure = error; throw error }
-            finally {
-              if (progress.downAttempted > progress.upAcknowledged
-                || (rightClick && progress.downAttempted > progress.downAcknowledged)) this.unconfirmedSemanticClicks.add(webContents)
-              try { await admission.dispose() } catch (error) { if (!failure) throw error }
-            }
-          }, assertClickCurrent), { deferRendererFlag: true, onCleanupFailure: () => { progress.inputCleanupFailed = true; publish() } })
-          if (progress.inputCleanupFailed) throw new NativeClickAdmissionError('NATIVE_INPUT_CLEANUP_FAILED', { ...progress })
-          return result
-        } catch (error) {
-          throw new NativeClickAdmissionError(error instanceof NativeClickAdmissionError ? error.reason
-            : error instanceof NativeInputCleanupError ? 'NATIVE_INPUT_CLEANUP_FAILED' : 'CONTEXT_OR_INPUT_UNCERTAIN', { ...progress }, error)
-        }
-      }
-      const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
-        .catch(() => undefined) as { x: number; y: number } | undefined
-      if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click', { agent })
-      const result = await this.withAgentInput(webContents, () => {
-        if (dialogAction === undefined) {
-          // Pointer rendering and input preparation await page work. Recheck
-          // authority immediately before the semantic action, just as for native input.
-          assertClickCurrent()
-          return webContents.executeJavaScript(targetActionScript('click', target), true)
-        }
-        return this.withOptionalDialogHandling(webContents, target, async () => {
-          const contextId = await this.mainWorldContextId(webContents)
-          assertClickCurrent()
-          return this.evaluateWithAttachedDebugger(
-            webContents,
-            dialogAwareClickScript(target, dialogAction, target.promptText),
-            contextId
-          )
-        })
-      })
-      this.assertClickTargetEnabled(result)
-      return result
-    } finally {
-      if (!retained) { environment?.dispose(); authority.dispose() }
-    }
+  click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
+    return click(this.agentPageActionsAccess(), target, validateClick, recordClickProgress, retainClickAuthority, agent)
   }
 
   /**
@@ -3692,96 +3490,39 @@ export class BrowserTabsManager {
     return dismissAgentPointer(webContents)
   }
 
-  async type(target: {
+  type(target: {
     tabId?: string
     ref?: string
     selector?: string
     text: string
     submit?: boolean
   }): Promise<unknown> {
-    this.validateTarget(target)
-    const tab = this.getTab(target.tabId)
-    const result = await this.withAgentInput(tab.webContents, () =>
-      tab.webContents.executeJavaScript(targetActionScript('type', target, target.text, target.submit), true))
-    this.assertNativeEditability(result)
-    return result
+    return type(this.agentPageActionsAccess(), target)
   }
 
-  async select(target: { tabId?: string; ref?: string; selector?: string; value?: string; values?: string[] }, validateSelect?: (validateContext: () => void) => void, retainSelection?: (authority: { validate: () => void; dispose: () => void }) => void, markSelectionSubmitted?: () => void): Promise<unknown> {
-    this.validateTarget(target)
-    if ((target.value !== undefined) === (target.values !== undefined)) throw new Error('Provide exactly one of value or values')
-    const tab = this.getTab(target.tabId)
-    if (target.values === undefined) {
-      const result = await this.withAgentInput(tab.webContents, () =>
-        tab.webContents.executeJavaScript(targetActionScript('select', target, target.value), true))
-      this.assertNativeEditability(result)
-      return result
-    }
-    const values = normalizeSelectValues(target.values)
-    const authority = this.nativeInputAuthority(tab, validateSelect)
-    retainSelection?.(authority)
-    let submitted = false
-    try {
-      authority.validate()
-      return await this.withAgentInput(tab.webContents, async () => {
-        authority.validate()
-        submitted = true
-        markSelectionSubmitted?.()
-        const result = await tab.webContents.executeJavaScriptInIsolatedWorld(MULTI_SELECT_WORLD_ID, [{ code: multiSelectScript(target, values) }], true)
-        authority.validate()
-        return result
-      })
-    } catch {
-      return { ok: false, status: submitted ? 'OUTCOME_UNKNOWN' : 'REJECTED', effects: submitted ? 'possible' : 'none', retrySafe: false,
-        reason: submitted ? 'Selection dispatch or publication became uncertain; inspect fresh state without automatic replay' : 'Selection authority changed before dispatch' }
-    } finally { if (!retainSelection) authority.dispose() }
+  select(target: { tabId?: string; ref?: string; selector?: string; value?: string; values?: string[] }, validateSelect?: (validateContext: () => void) => void, retainSelection?: (authority: { validate: () => void; dispose: () => void }) => void, markSelectionSubmitted?: () => void): Promise<unknown> {
+    return select(this.agentPageActionsAccess(), target, validateSelect, retainSelection, markSelectionSubmitted)
   }
 
-  async fillForm(tabId: string | undefined, fields: BrowserFormField[]): Promise<unknown> {
-    if (!fields.length || fields.length > 50) throw new Error('Provide between 1 and 50 form fields')
-    for (const field of fields) this.validateTarget(field)
-    const webContents = this.getTab(tabId).webContents
-    const result = await this.withAgentInput(webContents, () => webContents.executeJavaScript(fillFormScript(fields), true))
-    this.assertNativeEditability(result)
-    return result
+  fillForm(tabId: string | undefined, fields: BrowserFormField[]): Promise<unknown> {
+    return fillForm(this.agentPageActionsAccess(), tabId, fields)
   }
 
   private assertNativeEditability(result: unknown): void {
     assertNativeEditability(result)
   }
 
-  async hover(target: {
+  hover(target: {
     tabId?: string
     ref?: string
     selector?: string
     x?: number
     y?: number
   }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'hover')
-    const tab = this.getTab(target.tabId)
-    const webContents = tab.webContents
-    const authority = this.nativeInputAuthority(tab, validateInput)
-    try {
-      const point = coordinatePoint ?? await webContents.executeJavaScript(targetPointScript(target), true) as {
-        x: number
-        y: number
-        tag: string
-      }
-      if (coordinatePoint) await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
-      await this.showAgentPointer(webContents, point, 'move', { agent })
-      await this.withAgentInput(webContents, () => this.withDebugger(webContents, () =>
-        this.agentInputDebugger(webContents, authority.validate).sendCommand('Input.dispatchMouseEvent', {
-          type: 'mouseMoved',
-          x: point.x,
-          y: point.y
-        })
-      ))
-      authority.validate()
-      return { ok: true, ...point }
-    } finally { authority.dispose() }
+    return hover(this.agentPageActionsAccess(), target, validateInput, agent)
   }
 
-  async drag(options: {
+  drag(options: {
     tabId?: string
     sourceRef?: string
     sourceSelector?: string
@@ -3792,42 +3533,19 @@ export class BrowserTabsManager {
     endX?: number
     endY?: number
   }, validateInput?: (validateContext: () => void) => void, agent?: AgentPointerIdentity): Promise<unknown> {
-    const source = { ref: options.sourceRef, selector: options.sourceSelector }
-    const target = { ref: options.targetRef, selector: options.targetSelector }
-    const coordinatePoints = this.coordinateDragPointsOrValidateTargets(options, source, target)
-    const tab = this.getTab(options.tabId)
-    const webContents = tab.webContents
-    const authority = this.nativeInputAuthority(tab, validateInput)
-    try {
-      const { from, to } = coordinatePoints
-        ?? await webContents.executeJavaScript(dragPointsScript(source, target), true) as {
-          from: { x: number; y: number; tag: string }
-          to: { x: number; y: number; tag: string }
-        }
-      if (coordinatePoints) {
-        await this.assertPointInsideVisibleViewport(webContents, from, 'drag')
-        await this.assertPointInsideVisibleViewport(webContents, to, 'drag')
-      }
-      await this.showAgentPointer(webContents, from, 'drag-start', { agent })
-      await this.withAgentInput(webContents, () => this.withDebugger(
-        webContents,
-        () => dispatchNativeDrag(this.agentInputDebugger(webContents, authority.validate), from, to, this.agentInputDebugger(webContents))
-      ))
-      authority.validate()
-      await this.showAgentPointer(webContents, to, 'drag-end', { origin: from, agent })
-      authority.validate()
-      return { ok: true, from, to }
-    } finally { authority.dispose() }
+    return drag(this.agentPageActionsAccess(), options, validateInput, agent)
   }
 
   /**
-   * The narrow view emulation gets of this manager's private tabs, debugger
-   * lease, state publication, emulation result and confirmation check, network
-   * condition checks, view sizing and native network throttling. It is a
-   * prototype method rather than a field, so managers created without the
-   * constructor (as unit tests do) still provide it. The delegates below
-   * return the feature's promise directly, so no extra ticks separate its
-   * final checks from the caller.
+   * The narrow view emulation and sizing a page for its emulated viewport get
+   * of this manager's private tabs, debugger lease, state publication,
+   * emulation result and confirmation check, network condition checks, view
+   * sizing, native network throttling, window, offscreen captures, active
+   * tab, split view, layout and page geometry. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it, and the layout they stub is reached
+   * through it. The delegates below return the feature's promise directly,
+   * so no extra ticks separate its final checks from the caller.
    */
   private emulationAccess(): EmulationAccess<BrowserTab> {
     return {
@@ -3842,7 +3560,15 @@ export class BrowserTabsManager {
       setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
       applyNetworkEmulation: (webContents, preset, routes, send) => this.applyNetworkEmulation(webContents, preset, routes, send),
       changed: (persist) => this.changed(persist),
-      emulate: (options) => this.emulate(options)
+      emulate: (options) => this.emulate(options),
+      window: () => this.window,
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      layout: () => this.layout(),
+      publishPageGeometry: () => this.publishPageGeometry(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      browserViewBounds: () => this.browserViewBounds()
     }
   }
 
@@ -3873,26 +3599,14 @@ export class BrowserTabsManager {
     return wheel(this.agentWheelAccess(), input, validateInput, markAttempted)
   }
 
-  async scroll(options: {
+  scroll(options: {
     tabId?: string
     ref?: string
     selector?: string
     deltaX?: number
     deltaY?: number
   }): Promise<unknown> {
-    if (options.ref || options.selector) this.validateTarget(options)
-    const tab = this.getTab(options.tabId)
-    const target = options.ref || options.selector ? targetExpression(options) : 'document.scrollingElement'
-    const hasExplicitDelta = options.deltaX !== undefined || options.deltaY !== undefined
-    const deltaX = Math.min(Math.max(options.deltaX ?? 0, -100_000), 100_000)
-    const deltaY = Math.min(Math.max(options.deltaY ?? (hasExplicitDelta ? 0 : 600), -100_000), 100_000)
-    return this.withBackgroundAgentFocusGuard(() => tab.webContents.executeJavaScript(`(() => {
-      const target = ${target};
-      if (!target) throw new Error('Scroll target not found.');
-      if (target === document.scrollingElement) window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
-      else target.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
-      return { x: target.scrollLeft ?? window.scrollX, y: target.scrollTop ?? window.scrollY };
-    })()`, true))
+    return scroll(this.agentPageActionsAccess(), options)
   }
 
   /**
@@ -4325,37 +4039,15 @@ export class BrowserTabsManager {
     }
   }
 
-  webMcpStatus(tabId?: string): Promise<{
-    supported: boolean
-    reason?: string
-    tabId: string
-    origin: string
-    navigationGeneration: number
-  }> {
+  webMcpStatus(tabId?: string): Promise<WebMcpStatus> {
     return webMcpStatus(this.webMcpAccess(), tabId)
   }
 
-  listWebMcpTools(tabId?: string): Promise<{
-    supported: boolean
-    reason?: string
-    status?: string
-    tabId: string
-    origin: string
-    navigationGeneration: number
-    descriptorDigest?: string
-    tools?: WebMcpToolDescriptor[]
-  }> {
+  listWebMcpTools(tabId?: string): Promise<WebMcpToolList> {
     return listWebMcpTools(this.webMcpAccess(), tabId)
   }
 
-  callWebMcpTool(input: {
-    tabId?: string
-    expectedOrigin: string
-    navigationGeneration: number
-    descriptorDigest: string
-    toolName: string
-    arguments: Record<string, unknown>
-  }): Promise<Record<string, unknown>> {
+  callWebMcpTool(input: WebMcpToolCall): Promise<Record<string, unknown>> {
     return callWebMcpTool(this.webMcpAccess(), input)
   }
 
@@ -4544,76 +4236,53 @@ export class BrowserTabsManager {
   }
 
   setToolbarHeight(height: number): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    const contentHeight = this.window.getContentBounds().height
-    this.toolbarHeight = Math.min(
-      Math.max(Math.round(height), MIN_SHELL_HEIGHT),
-      Math.max(MIN_SHELL_HEIGHT, contentHeight - 1)
-    )
-    this.layout()
+    setToolbarHeight(this.windowLayoutAccess(), height)
   }
 
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    const bounds = this.window.getContentBounds()
-    const finiteInset = (value: number, maximum: number): number => Math.min(
-      Math.max(Math.round(Number.isFinite(value) ? value : 0), 0),
-      Math.max(0, maximum)
-    )
-    this.contentInsets = {
-      top: finiteInset(insets.top, bounds.height - this.toolbarHeight - 1),
-      right: finiteInset(insets.right, bounds.width - 1),
-      bottom: finiteInset(insets.bottom, bounds.height - this.toolbarHeight - 1),
-      left: finiteInset(insets.left, bounds.width - 1)
+    setContentInsets(this.windowLayoutAccess(), insets)
+  }
+
+  /**
+   * The narrow view covering the pages with trusted chrome, the still image
+   * of them and suspending agent following get of this manager's private
+   * tabs, window, active tab, split view, occlusion and its suspension of
+   * following, previewable tabs, page geometry, MCP activity follower,
+   * website dialogs, occlusion snapshot, native frame capture, layout and
+   * focus. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it, and the
+   * layout they stub is reached through it.
+   */
+  private trustedChromeOcclusionAccess(): TrustedChromeOcclusionAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      tabs: () => this.tabs.values(),
+      findTab: (tabId) => this.tabs.get(tabId),
+      activeTabId: () => this.activeTabId,
+      splitView: () => this.splitView,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      browserContentOccluded: () => this.browserContentOccluded,
+      writeBrowserContentOccluded: (occluded) => { this.browserContentOccluded = occluded },
+      followAgentActivitySuspended: () => this.followAgentActivitySuspended,
+      writeFollowAgentActivitySuspended: (suspended) => { this.followAgentActivitySuspended = suspended },
+      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
+      getEmulationFrames: () => this.getEmulationFrames(),
+      getPageCards: () => this.getPageCards(),
+      writeOccludedEmulationFrames: (frames) => { this.occludedEmulationFrames = frames },
+      writeOccludedPageCards: (cards) => { this.occludedPageCards = cards },
+      mcpActivityFollower: () => this.mcpActivityFollower,
+      dismissWebsiteDialogForTrustedChrome: (tab) => this.dismissWebsiteDialogForTrustedChrome(tab),
+      occlusionSnapshot: () => this.occlusionSnapshot,
+      nativePreviewCapture: () => this.nativePreviewCapture,
+      layout: () => this.layout(),
+      cancelFocusAfterTrustedChrome: () => this.cancelFocusAfterTrustedChrome(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab)
     }
-    this.layout()
   }
 
   setBrowserContentOccluded(occluded: boolean): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    if (occluded !== this.browserContentOccluded) {
-      for (const tab of this.tabs.values()) tab.nativeInputEnvironmentGeneration += 1
-    }
-    const enteringTrustedChrome = occluded && !this.browserContentOccluded
-    const leavingTrustedChrome = !occluded && this.browserContentOccluded
-    if (enteringTrustedChrome) {
-      for (const tab of this.tabs.values()) {
-        if (
-          !tab.sleeping
-          && !tab.webContents.isDestroyed()
-          && tab.view.getVisible()
-          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-        ) {
-          // The trusted renderer must hide native page views to paint above
-          // them. Remember only views that were actually visible immediately
-          // before that transition so their first in-flight capture can be
-          // retried with stayHidden after the overview opens.
-          this.tabOverviewPreviewableTabs.add(tab.id)
-        }
-      }
-    }
-    // The frames around emulated pages, and the cards under all pages, stay where the snapshot shows those pages.
-    if (enteringTrustedChrome) {
-      this.occludedEmulationFrames = this.getEmulationFrames()
-      this.occludedPageCards = this.getPageCards()
-    }
-    this.browserContentOccluded = occluded
-    this.mcpActivityFollower.setOccluded(occluded || this.followAgentActivitySuspended)
-    if (enteringTrustedChrome) {
-      for (const tab of this.tabs.values()) {
-        if (tab.dialog) void this.dismissWebsiteDialogForTrustedChrome(tab)
-      }
-      // Keys typed into trusted chrome must not reach the page while it stays on screen for its snapshot.
-      if (this.window.isFocused()) this.window.webContents.focus()
-      this.occlusionSnapshot.begin()
-    } else if (!occluded) {
-      this.occlusionSnapshot.end()
-    }
-    this.layout()
-    if (leavingTrustedChrome) {
-      const tab = this.cancelFocusAfterTrustedChrome()
-      if (tab && this.tabs.get(tab.id) === tab && this.activeTabId === tab.id && !tab.webContents.isDestroyed()) this.focusTabOrTrustedChrome(tab)
-    }
+    setBrowserContentOccluded(this.trustedChromeOcclusionAccess(), occluded)
   }
 
   /**
@@ -4645,69 +4314,36 @@ export class BrowserTabsManager {
 
   /** Pages on screen now, at their current view bounds, that can be captured for the occlusion snapshot. */
   private occlusionSnapshotPanes(): Array<{ contents: Electron.WebContents; bounds: Rectangle; busy?: Promise<void> }> {
-    if (!this.window.isVisible() || this.window.isMinimized() || this.window.webContents.isDestroyed()) return []
-    return this.presentedTabs().flatMap((tab) => (
-      !tab.webContents.isDestroyed()
-      && tab.view.getVisible()
-      && this.window.contentView.children.includes(tab.view)
-        ? [{ contents: tab.webContents, bounds: tab.view.getBounds(), busy: this.nativePreviewCapture.settled(tab.webContents) }]
-        : []
-    ))
+    return occlusionSnapshotPanes(this.trustedChromeOcclusionAccess())
   }
 
-  /** The tabs shown in the page area. */
-  private presentedTabs(): BrowserTab[] {
-    const tab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    if (!tab) return []
-    const first = this.splitView ? this.tabs.get(this.splitView.firstTabId) : undefined
-    const second = this.splitView ? this.tabs.get(this.splitView.secondTabId) : undefined
-    return this.splitView && first && second ? [first, second] : [tab]
-  }
-
-  /**
-   * What decides where the occluded pages are. Page views keep their bounds
-   * while trusted chrome is open, so shell insets that change under a modal do
-   * not move them; the window size, zoom and the tabs shown do.
-   */
+  /** What decides where the occluded pages are. */
   private occlusionLayout(): string {
-    const { width, height } = this.window.getContentBounds()
-    const zoom = this.window.webContents.isDestroyed() ? 1 : this.window.webContents.getZoomFactor?.() ?? 1
-    return JSON.stringify([width, height, zoom, this.splitView?.orientation ?? null, this.splitView?.ratio ?? null,
-      ...this.presentedTabs().map((tab) => [tab.id, tab.emulationViewSize?.width ?? null, tab.emulationViewSize?.height ?? null])])
+    return occlusionLayout(this.trustedChromeOcclusionAccess())
   }
 
   setFollowAgentActivitySuspended(suspended: boolean): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    if (this.followAgentActivitySuspended === suspended) return
-    this.followAgentActivitySuspended = suspended
-    this.mcpActivityFollower.setOccluded(this.browserContentOccluded || suspended)
+    setFollowAgentActivitySuspended(this.trustedChromeOcclusionAccess(), suspended)
   }
 
   /** Where pages show, below the toolbar and beside the tab rail, in window coordinates; null once the window is gone. */
   pageArea(): Rectangle | null {
-    if (this.destroyed || this.window.isDestroyed()) return null
-    return this.browserViewBounds()
+    return pageArea(this.windowLayoutAccess())
   }
 
   private browserViewBounds(): Rectangle {
-    const bounds = this.window.getContentBounds()
-    return {
-      x: this.contentInsets.left,
-      y: this.toolbarHeight + this.contentInsets.top,
-      width: Math.max(1, bounds.width - this.contentInsets.left - this.contentInsets.right),
-      height: Math.max(1, bounds.height - this.toolbarHeight - this.contentInsets.top - this.contentInsets.bottom)
-    }
+    return browserViewBounds(this.windowLayoutAccess())
   }
 
   /**
-   * The narrow view laying out the window and publishing the split divider
-   * get of this manager's private tabs, window, active tab, split view and
-   * its revision, divider drag, toolbar height, trusted chrome occlusion,
-   * global input lock, view bounds, page corners, presentation repair, tab
-   * overview previews and page geometry. It is a prototype method rather
-   * than a field, so managers created without the constructor (as unit
-   * tests do) still provide it, and the helpers they stub are reached
-   * through it.
+   * The narrow view laying out the window, sizing its page area and
+   * publishing the split divider get of this manager's private tabs, window,
+   * active tab, split view and its revision, divider drag, toolbar height,
+   * content insets, trusted chrome occlusion, global input lock, view
+   * bounds, page corners, presentation repair, tab overview previews, page
+   * geometry and layout. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it, and the helpers they stub are reached through it.
    */
   private windowLayoutAccess(): WindowLayoutAccess<BrowserTab> {
     return {
@@ -4722,6 +4358,9 @@ export class BrowserTabsManager {
       lastSplitDividerGeometry: () => this.lastSplitDividerGeometry,
       writeLastSplitDividerGeometry: (serialized) => { this.lastSplitDividerGeometry = serialized },
       toolbarHeight: () => this.toolbarHeight,
+      writeToolbarHeight: (height) => { this.toolbarHeight = height },
+      contentInsets: () => this.contentInsets,
+      writeContentInsets: (insets) => { this.contentInsets = insets },
       browserContentOccluded: () => this.browserContentOccluded,
       occlusionSnapshot: () => this.occlusionSnapshot,
       allHumanInteractionLocked: () => this.allHumanInteractionLocked,
@@ -4731,7 +4370,8 @@ export class BrowserTabsManager {
       reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
       scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
       publishSplitDivider: () => this.publishSplitDivider(),
-      publishPageGeometry: () => this.publishPageGeometry()
+      publishPageGeometry: () => this.publishPageGeometry(),
+      layout: () => this.layout()
     }
   }
 
@@ -4801,32 +4441,8 @@ export class BrowserTabsManager {
     return emulatedViewBounds(space, tab.emulationViewSize, captionSpace)
   }
 
-  /**
-   * Sizes a tab's page for the emulated viewport it now has, or for its whole
-   * space. A tab in the background gets the size it would have in front, so
-   * its real viewport and captures follow a change made while it is hidden.
-   */
   private setEmulationViewSize(tab: BrowserTab, viewport: { width: number; height: number } | undefined): void {
-    const size = viewport ? { width: viewport.width, height: viewport.height } : undefined
-    const resized = size?.width !== tab.emulationViewSize?.width || size?.height !== tab.emulationViewSize?.height
-    tab.emulationViewSize = size
-    if (this.destroyed || this.window.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-      || this.offscreenCaptureTabIds.has(tab.id)) return
-    try {
-      const attached = this.window.contentView.children.includes(tab.view)
-      if (attached && (this.activeTabId === tab.id || this.splitViewContains(tab.id))) {
-        if (resized) this.layout()
-        // The caption can change without the size, such as the pixel ratio.
-        else this.publishPageGeometry()
-      } else if (resized && !attached) {
-        tab.view.setBounds(this.tabViewBounds(tab, this.browserViewBounds()))
-      }
-      // An attached tab that is not in front stands in for a tab closing behind
-      // its beforeunload check, and gets its size when it is next laid out.
-    } catch (error) {
-      // Electron can tear a view down under a debugger detach or renderer exit.
-      console.warn(`[browser] Could not resize tab ${tab.id} for its viewport:`, error)
-    }
+    setEmulationViewSize(this.emulationAccess(), tab, viewport)
   }
 
   private publishSplitDivider(): void {
@@ -5211,108 +4827,7 @@ export class BrowserTabsManager {
     const webContents = tab.webContents
     attachPageDestroyedEvents(this.pageDestroyedEventsAccess(), tab, webContents)
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
-    webContents.on('before-input-event', (event, input) => {
-      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
-        // Trusted chrome is open; the page is only on screen until its snapshot is shown.
-        event.preventDefault()
-        const shortcut = input.type === 'keyDown' ? browserShortcutAction({
-          key: input.key,
-          code: input.code,
-          control: input.control,
-          meta: input.meta,
-          alt: input.alt,
-          shift: input.shift,
-          repeat: input.isAutoRepeat,
-          composing: input.isComposing,
-          mac: process.platform === 'darwin'
-        }) : null
-        if (shortcut) this.options.onShortcutRequested?.(shortcut)
-        return
-      }
-      const screenshotSession = this.screenshotAreaSessions.get(webContents.id)
-      if (screenshotSession && !screenshotSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        if (
-          input.type === 'keyDown'
-          && input.key === 'Escape'
-          && !input.control
-          && !input.meta
-          && !input.alt
-        ) void this.cancelScreenshotArea(tab.id).catch(() => undefined)
-        return
-      }
-      const elementPickerSession = this.elementPickerSessions.get(webContents.id)
-      if (elementPickerSession && !elementPickerSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        const shortcut = (input.type === 'keyDown' || input.type === 'rawKeyDown') ? browserShortcutAction({
-          key: input.key,
-          code: input.code,
-          control: input.control,
-          meta: input.meta,
-          alt: input.alt,
-          shift: input.shift,
-          repeat: input.isAutoRepeat,
-          composing: input.isComposing,
-          mac: process.platform === 'darwin'
-        }) : null
-        if (
-          input.type === 'keyDown'
-          && input.key === 'Escape'
-          && !input.control
-          && !input.meta
-          && !input.alt
-        ) void this.cancelElementPicker(tab.id).catch(() => undefined)
-        else if (shortcut === 'pick-element') void this.cancelElementPicker(tab.id).catch(() => undefined)
-        return
-      }
-      const requested = input.type === 'keyDown' ? browserShortcutAction({
-        key: input.key,
-        code: input.code,
-        control: input.control,
-        meta: input.meta,
-        alt: input.alt,
-        shift: input.shift,
-        repeat: input.isAutoRepeat,
-        composing: input.isComposing,
-        mac: process.platform === 'darwin'
-      }) : null
-      // Consume one expected event even on unlocked tabs. An awaited agent
-      // operation does not establish the origin of every arriving key event.
-      const expectedAgentInput = this.consumeExpectedAgentKeyboardInput(webContents.id, input)
-      // Ctrl+. is also a page's own key, such as an editor's quick fix. It opens the agent card only
-      // when a person presses it while there are agents to show; Ctrl+Shift+O likewise takes the page
-      // over only from a person. An agent's debugger keys usually skip this handler; one that arrives
-      // here as expected agent input still reaches the page (pageShortcut).
-      const shortcut = pageShortcut(requested, {
-        available: requested ? this.options.shortcutAvailable?.(requested, tab.mcpGroupId, tab.id) !== false : false,
-        expectedAgentInput
-      })
-      const page = { tabId: tab.id, workspaceId: tab.mcpGroupId }
-      if (this.isHumanInteractionLocked(tab) && !expectedAgentInput) {
-        event.preventDefault()
-        if (shortcut) {
-          this.options.onUserInteraction?.()
-          this.options.onShortcutRequested?.(shortcut, page)
-        }
-        return
-      }
-      if (shortcut) {
-        event.preventDefault()
-        this.options.onUserInteraction?.()
-        this.options.onShortcutRequested?.(shortcut, page)
-        return
-      }
-      this.reproRecorder.observeReproKeyboard(tab, input)
-      // The overview shows the page as it was last seen, after the latest typing settles.
-      if (input.type === 'keyUp') this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-      if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !expectedAgentInput) {
-        tab.humanInteractionGeneration += 1
-        tab.lastHumanInteractionAt = Date.now()
-        tab.lastActiveAt = tab.lastHumanInteractionAt
-        this.mcpActivityFollower.noteHumanInput()
-        this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
-      }
-    })
+    attachPageKeyboardEvents(this.pageKeyboardEventsAccess(), tab, webContents)
     attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
@@ -5418,6 +4933,33 @@ export class BrowserTabsManager {
       writeActiveTabId: (tabId) => { this.activeTabId = tabId },
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       changed: (persist) => this.changed(persist)
+    }
+  }
+
+  /**
+   * The narrow view a page's keyboard listener gets of this manager's private
+   * trusted chrome occlusion, in-flight and expected agent input, native
+   * selection sessions, human input lock, repro recording, tab overview
+   * previews, MCP activity follower and options. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it. Each member reads the manager when
+   * called.
+   */
+  private pageKeyboardEventsAccess(): PageKeyboardEventsAccess<BrowserTab> {
+    return {
+      browserContentOccluded: () => this.browserContentOccluded,
+      agentInputWebContents: () => this.agentInputWebContents,
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      cancelScreenshotArea: (tabId) => this.cancelScreenshotArea(tabId),
+      elementPickerSessions: () => this.elementPickerSessions,
+      cancelElementPicker: (tabId) => this.cancelElementPicker(tabId),
+      consumeExpectedAgentKeyboardInput: (webContentsId, input) => this.consumeExpectedAgentKeyboardInput(webContentsId, input),
+      pageShortcut: (requested, input) => pageShortcut(requested, input),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      reproRecorder: () => this.reproRecorder,
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      mcpActivityFollower: () => this.mcpActivityFollower,
+      options: () => this.options
     }
   }
 
@@ -5770,27 +5312,8 @@ export class BrowserTabsManager {
     return consumeExpectedAgentKeyboardInput(this.agentInputAuthorizationAccess(), webContentsId, input)
   }
 
-  /**
-   * The narrow view the human input guard gets of this manager's private
-   * tabs, debugger queue, native selection sessions and human interaction
-   * lock. It is a prototype method rather than a field, so managers created
-   * without the constructor (as unit tests do) still provide it. The delegate
-   * below returns the feature's promise directly, so callers see the same
-   * ticks as before.
-   */
-  private humanInputGuardAccess(): HumanInputGuardAccess<BrowserTab> {
-    return {
-      isDestroyed: () => this.destroyed,
-      findTab: (tabId) => this.tabs.get(tabId),
-      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
-      screenshotAreaSessions: () => this.screenshotAreaSessions,
-      elementPickerSessions: () => this.elementPickerSessions,
-      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab)
-    }
-  }
-
   private syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
-    return syncHumanInteractionInputGuard(this.humanInputGuardAccess(), tab)
+    return syncHumanInteractionInputGuard(this.interactionLockAccess(), tab)
   }
 
   private queueScreenshotAreaMouseInput(
@@ -5941,38 +5464,25 @@ export class BrowserTabsManager {
     return /(?:method not found|wasn't found|-32601)/i.test(String(error))
   }
 
-  private async withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
-    validateAdmission?.()
-    return this.debuggerQueue.run(webContents.id, async () => {
-      validateAdmission?.()
-      await this.dialogMonitorAttachPromises.get(webContents.id)
-      validateAdmission?.()
-      if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
-        throw new Error('Close Developer Tools for this tab before using this MCP action')
-      }
-      const attachedHere = !webContents.debugger.isAttached()
-      if (attachedHere) {
-        validateAdmission?.()
-        webContents.debugger.attach('1.3')
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Page.enable')
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Runtime.enable')
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }).catch(() => undefined)
-        validateAdmission?.()
-        await webContents.debugger.sendCommand('Log.enable').catch(() => undefined)
-      }
-      validateAdmission?.()
-      try {
-        return await operation()
-      } finally {
-        if (!validateAdmission && attachedHere && webContents.debugger.isAttached() && !this.destroyed) {
-          await webContents.debugger.sendCommand('Page.enable').catch(() => undefined)
-          await webContents.debugger.sendCommand('Runtime.enable').catch(() => undefined)
-        }
-      }
-    })
+  /**
+   * The narrow view leasing a page's debugger gets of this manager's private
+   * debugger queue, dialog monitor attachments, DevTools opening set and
+   * destroyed flag. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegate below returns the feature's promise directly, so callers see the
+   * same ticks as before.
+   */
+  private debuggerLeaseAccess(): DebuggerLeaseAccess {
+    return {
+      inDebuggerQueue: (webContentsId, operation) => this.debuggerQueue.run(webContentsId, operation),
+      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      isDestroyed: () => this.destroyed
+    }
+  }
+
+  private withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>, validateAdmission?: () => void): Promise<T> {
+    return withDebugger(this.debuggerLeaseAccess(), webContents, operation, validateAdmission)
   }
 
   private withOptionalDialogHandling<T>(
@@ -6112,29 +5622,8 @@ export class BrowserTabsManager {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
   }
 
-  private scheduleTabOverviewPreview(tab: BrowserTab, settleMs = TAB_OVERVIEW_PREVIEW_SETTLE_MS): void {
-    if (
-      this.destroyed
-      || this.tabs.get(tab.id) !== tab
-      || tab.webContents.isDestroyed()
-      || tab.sleeping
-      || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))
-    ) return
-    const sequence = ++tab.overviewPreviewSequence
-    const existing = this.tabOverviewPreviewTimers.get(tab.id)
-    if (existing) clearTimeout(existing)
-    const timer = setTimeout(() => {
-      if (this.tabOverviewPreviewTimers.get(tab.id) === timer) {
-        this.tabOverviewPreviewTimers.delete(tab.id)
-      }
-      void captureTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, sequence).catch((error) => {
-        if (!this.destroyed && this.tabs.get(tab.id) === tab && !tab.webContents.isDestroyed()) {
-          console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
-        }
-      })
-    }, settleMs)
-    timer.unref()
-    this.tabOverviewPreviewTimers.set(tab.id, timer)
+  private scheduleTabOverviewPreview(tab: BrowserTab, settleMs?: number): void {
+    scheduleTabOverviewPreview(this.tabOverviewPreviewsAccess(), tab, settleMs)
   }
 
   private storeTabOverviewPreview(

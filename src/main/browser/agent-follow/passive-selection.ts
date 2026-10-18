@@ -1,5 +1,5 @@
 import { webContents as electronWebContents } from 'electron'
-import type { PassiveSelectionAccess } from './passive-selection-access.js'
+import type { AgentFollowAccess } from './agent-follow-access.js'
 
 /**
  * Shows the tab an agent works in without activating the window or giving
@@ -7,7 +7,7 @@ import type { PassiveSelectionAccess } from './passive-selection-access.js'
  * and a window that was not focused is blurred again if attaching the page
  * focused it.
  */
-export function selectTabPassively(access: PassiveSelectionAccess, tabId: string): void {
+export function selectTabPassively(access: AgentFollowAccess, tabId: string): void {
   const windowWasFocused = access.window().isFocused()
   const target = access.getTab(tabId)
   let focusGuardActive = windowWasFocused

@@ -9,14 +9,39 @@ import {
 } from '../webmcp-bridge.js'
 import type { WebMcpAccess, WebMcpTab } from './webmcp-access.js'
 
-/** Reports whether the tab's top-level HTTP(S) document exposes WebMCP. */
-export async function webMcpStatus(access: WebMcpAccess, tabId?: string): Promise<{
+/** Whether the tab's top-level document exposes WebMCP, with the origin and navigation generation it was read from. */
+export type WebMcpStatus = {
   supported: boolean
   reason?: string
   tabId: string
   origin: string
   navigationGeneration: number
-}> {
+}
+
+/** The page's WebMCP tools and their descriptor's digest, or why it has none, with the origin and navigation generation they were read from. */
+export type WebMcpToolList = {
+  supported: boolean
+  reason?: string
+  status?: string
+  tabId: string
+  origin: string
+  navigationGeneration: number
+  descriptorDigest?: string
+  tools?: WebMcpToolDescriptor[]
+}
+
+/** One call of a listed WebMCP tool, naming the origin, navigation generation and descriptor digest the agent listed it on. */
+export type WebMcpToolCall = {
+  tabId?: string
+  expectedOrigin: string
+  navigationGeneration: number
+  descriptorDigest: string
+  toolName: string
+  arguments: Record<string, unknown>
+}
+
+/** Reports whether the tab's top-level HTTP(S) document exposes WebMCP. */
+export async function webMcpStatus(access: WebMcpAccess, tabId?: string): Promise<WebMcpStatus> {
   const tab = access.getTab(tabId)
   const origin = webMcpHttpOrigin(tab.url)
   const generation = tab.navigationGeneration
@@ -41,16 +66,7 @@ export async function webMcpStatus(access: WebMcpAccess, tabId?: string): Promis
 }
 
 /** Lists the page's WebMCP tools and remembers their descriptor for later calls on the same document. */
-export async function listWebMcpTools(access: WebMcpAccess, tabId?: string): Promise<{
-  supported: boolean
-  reason?: string
-  status?: string
-  tabId: string
-  origin: string
-  navigationGeneration: number
-  descriptorDigest?: string
-  tools?: WebMcpToolDescriptor[]
-}> {
+export async function listWebMcpTools(access: WebMcpAccess, tabId?: string): Promise<WebMcpToolList> {
   const tab = access.getTab(tabId)
   const origin = webMcpHttpOrigin(tab.url)
   const generation = tab.navigationGeneration
@@ -89,14 +105,7 @@ export async function listWebMcpTools(access: WebMcpAccess, tabId?: string): Pro
 }
 
 /** Calls one listed WebMCP tool on the unchanged document and reports what changed while it ran. */
-export async function callWebMcpTool(access: WebMcpAccess, input: {
-  tabId?: string
-  expectedOrigin: string
-  navigationGeneration: number
-  descriptorDigest: string
-  toolName: string
-  arguments: Record<string, unknown>
-}): Promise<Record<string, unknown>> {
+export async function callWebMcpTool(access: WebMcpAccess, input: WebMcpToolCall): Promise<Record<string, unknown>> {
   const tab = access.getTab(input.tabId)
   const urlBefore = tab.url
   const origin = webMcpHttpOrigin(tab.url)

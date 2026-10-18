@@ -23,7 +23,7 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
   if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
     throw new Error('Offline app inspection is available only for HTTP and HTTPS tabs.')
   }
-  const requireCurrentPage = access.inspectionPageGuard(tab, 'offline app inspection')
+  const requireCurrentPage = inspectionPageGuard(access, tab, 'offline app inspection')
   const normalized = normalizeBrowserPwaOptions(options)
   const rawRegistrations = await tab.webContents.executeJavaScriptInIsolatedWorld(
     PWA_INSPECTOR_WORLD_ID,
@@ -183,4 +183,18 @@ export async function inspectPwa<Tab extends PwaInspectionTab>(access: PwaInspec
   }
   requireCurrentPage()
   return report
+}
+
+/** A check that throws once the tab closed, changed page contents or navigated after this call, naming the inspection it interrupted. */
+function inspectionPageGuard<Tab extends PwaInspectionTab>(access: PwaInspectionAccess<Tab>, tab: Tab, inspection: string): () => void {
+  const navigationGeneration = tab.navigationGeneration
+  const contents = tab.webContents
+  return () => {
+    if (access.findTab(tab.id) !== tab
+      || tab.webContents !== contents
+      || contents.isDestroyed()
+      || tab.navigationGeneration !== navigationGeneration) {
+      throw new Error(`The page changed during ${inspection}. Run a fresh inspection.`)
+    }
+  }
 }

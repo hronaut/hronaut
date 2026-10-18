@@ -15,11 +15,22 @@ export interface PersonTabCloseOptions {
 }
 
 /**
- * What closing tabs for the person, with Undo, needs from the tab manager,
- * which keeps the tabs and their order, the recently closed tabs, tab
- * closing and reopening, tab label saves, tab order, state publication and
- * its options private. The recently closed tabs are read again after each
- * close, since closing a tab adds to them.
+ * A close in flight that lets the tab's page ask to stay, with the tab it
+ * began on. Only the tab's identity is compared, so a newer tab under the
+ * same id starts its own close.
+ */
+export interface PendingHumanTabClose<Tab> {
+  tab: Tab
+  operation: Promise<BrowserState>
+}
+
+/**
+ * What closing tabs for the person, with Undo, and closing a tab once tab
+ * label saves have settled need from the tab manager, which keeps the tabs
+ * and their order, the recently closed tabs, tab closing and reopening, the
+ * closes in flight that let pages ask to stay, tab label saves, tab order,
+ * state publication and its options private. The recently closed tabs are
+ * read again after each close, since closing a tab adds to them.
  */
 export interface PersonTabCloseAccess<Tab extends PersonTabCloseTab> {
   /** The tab with this id, or the active tab; it throws when there is none. */
@@ -32,6 +43,10 @@ export interface PersonTabCloseAccess<Tab extends PersonTabCloseTab> {
   closedTabs(): readonly BrowserClosedTabState[]
   /** Closes a tab, opening a replacement when it was the last, and letting its page ask to stay when respectBeforeUnload is set. */
   closeTabInternal(tabId: string, ensureReplacement: boolean, respectBeforeUnload?: boolean): Promise<BrowserState>
+  /** The closes in flight that let the tab's page ask to stay, by tab id. */
+  pendingHumanTabCloses(): Map<string, PendingHumanTabClose<Tab>>
+  /** Closes the tab, opening a replacement when it was the last and ensureReplacement is set. */
+  performCloseTab(tabId: string, ensureReplacement: boolean, respectBeforeUnload: boolean, forceClose: boolean): Promise<BrowserState>
   /** Reopens a recently closed tab, showing it when active is set; undefined when it is no longer there. */
   reopenClosedTabEntry(closedTabId: string | undefined, active: boolean): Promise<Tab | undefined>
   /** Runs an operation once pending tab label edits settle, admitting no new edit until it ends. */
