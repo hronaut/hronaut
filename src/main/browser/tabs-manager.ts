@@ -453,6 +453,8 @@ import {
   sendAuthorizedAgentInputCommand,
   shouldBlockHumanMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
+import type { AgentFocusIsolationAccess } from './agent-input-scope/agent-input-scope-access.js'
+import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput, withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -7946,68 +7948,31 @@ export class BrowserTabsManager {
     }
   }
 
+  /**
+   * The narrow view focus isolation gets of this manager's private window,
+   * destroyed flag, background focus guard depth and the window's focusability
+   * before the guard. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's value or promise directly, so
+   * callers see the same ticks as before.
+   */
+  private agentFocusIsolationAccess(): AgentFocusIsolationAccess {
+    return {
+      window: () => this.window,
+      isDestroyed: () => this.destroyed,
+      backgroundAgentInputFocusGuardDepth: () => this.backgroundAgentInputFocusGuardDepth,
+      writeBackgroundAgentInputFocusGuardDepth: (depth) => { this.backgroundAgentInputFocusGuardDepth = depth },
+      mainWindowFocusableBeforeAgentInput: () => this.mainWindowFocusableBeforeAgentInput,
+      writeMainWindowFocusableBeforeAgentInput: (focusable) => { this.mainWindowFocusableBeforeAgentInput = focusable }
+    }
+  }
+
   private beginAgentFocusIsolation(): () => void {
-    let guardingBackgroundFocus = false
-    let released = false
-    const guardWhenBackgrounded = (): void => {
-      if (
-        released
-        || guardingBackgroundFocus
-        || this.destroyed
-        || this.window.isDestroyed()
-        || this.window.isFocused()
-      ) return
-      guardingBackgroundFocus = true
-      this.beginBackgroundAgentInputFocusGuard()
-    }
-    this.window.on('blur', guardWhenBackgrounded)
-    guardWhenBackgrounded()
-    return () => {
-      if (released) return
-      released = true
-      if (!this.window.isDestroyed()) this.window.removeListener('blur', guardWhenBackgrounded)
-      if (!guardingBackgroundFocus) return
-      if (!this.window.isDestroyed() && this.window.isFocused()) this.window.blur()
-      this.endBackgroundAgentInputFocusGuard()
-    }
+    return beginAgentFocusIsolation(this.agentFocusIsolationAccess())
   }
 
-  private beginBackgroundAgentInputFocusGuard(): void {
-    this.backgroundAgentInputFocusGuardDepth += 1
-    if (this.backgroundAgentInputFocusGuardDepth !== 1 || this.window.isDestroyed()) return
-    this.mainWindowFocusableBeforeAgentInput = this.window.isFocusable()
-    if (this.mainWindowFocusableBeforeAgentInput) this.window.setFocusable(false)
-  }
-
-  private async withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
-    const releaseFocusGuard = this.beginAgentFocusIsolation()
-    try {
-      return await operation()
-    } finally {
-      releaseFocusGuard()
-    }
-  }
-
-  private endBackgroundAgentInputFocusGuard(): void {
-    this.backgroundAgentInputFocusGuardDepth = Math.max(0, this.backgroundAgentInputFocusGuardDepth - 1)
-    if (this.backgroundAgentInputFocusGuardDepth !== 0) return
-    const restoreFocusable = this.mainWindowFocusableBeforeAgentInput
-    this.mainWindowFocusableBeforeAgentInput = true
-    const currentFocusOwner = BrowserWindow.getFocusedWindow()
-    if (restoreFocusable && !this.window.isDestroyed() && !this.window.isFocusable()) {
-      this.window.setFocusable(true)
-    }
-    // No focused Electron window means the human may have switched to another
-    // application. Never revive an owner captured before the operation.
-    const focusOwner = currentFocusOwner
-    if (focusOwner && focusOwner !== this.window && !focusOwner.isDestroyed()) {
-      focusOwner.focus()
-    } else if (!this.window.isDestroyed() && this.window.isFocused()) {
-      // Re-enabling focusability can activate the window on some Linux window
-      // managers. An external application's window is not addressable through
-      // Electron, so blur Hronaut and let the desktop restore its prior owner.
-      this.window.blur()
-    }
+  private withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
+    return withBackgroundAgentFocusGuard(this.agentFocusIsolationAccess(), operation)
   }
 
   private restoreHumanFocusAfterAgentInput(
@@ -8017,20 +7982,7 @@ export class BrowserTabsManager {
       focusedWebContentsId: number | null
     } | undefined
   ): void {
-    // Agent input must not activate Hronaut when the human is working in
-    // another window, or overwrite a newer focus change made while the tool
-    // was running.
-    if (!snapshot) return
-    if (!snapshot.mainWindowFocused) {
-      if (this.window.isFocused()) this.window.blur()
-      return
-    }
-    if (!this.window.isFocused()) return
-    const current = electronWebContents.getFocusedWebContents()
-    if (current && current.id !== targetWebContents.id && current.id !== snapshot.focusedWebContentsId) return
-    if (snapshot.focusedWebContentsId === null || current?.id === snapshot.focusedWebContentsId) return
-    const previous = electronWebContents.fromId(snapshot.focusedWebContentsId)
-    if (previous && !previous.isDestroyed()) previous.focus()
+    restoreHumanFocusAfterAgentInput(this.agentFocusIsolationAccess(), targetWebContents, snapshot)
   }
 
   private async withRenderableTab<T>(
