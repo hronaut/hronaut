@@ -80,7 +80,8 @@ import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
 import { applyNetworkEmulation } from './emulation/network-emulation.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
-import { createElementPickerSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
+import type { BrowserElementPickerResult, BrowserElementPickerSession, ElementPickerAccess } from './element-picker/element-picker-access.js'
+import { cancelElementPicker, captureElementScreenshot, pickElement, queueElementPickerMouseInput } from './element-picker/element-picker.js'
 import type { BrowserScreenshotAreaSession, ScreenshotAreaAccess } from './screenshot-area/screenshot-area-access.js'
 import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput } from './screenshot-area/screenshot-area.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
@@ -217,10 +218,6 @@ import { designOverview } from './page-audits/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { qualityAudit } from './page-audits/quality-audit.js'
 import type { WebMcpToolDescriptor } from './webmcp-bridge.js'
-import {
-  formatElementInspectionForAgent,
-  normalizeElementInspection
-} from '../../shared/element-inspection.js'
 import {
   normalizeBrowserGeneratedLocator,
   type BrowserGeneratedLocator
@@ -371,13 +368,9 @@ import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import {
   type AgentPointerIdentity,
-  cancelElementPickerScript,
   dialogAwareClickScript,
   dialogAwareCoordinateClickScript,
   dragPointsScript,
-  elementPickerInspectionAtPointScript,
-  elementPickerNativeInputScript,
-  elementPickerScript,
   fillFormScript,
   playwrightLocatorScript,
   targetActionScript,
@@ -713,25 +706,9 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
 
 import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
 
-interface BrowserElementPickerScriptResult {
-  canceled: boolean
-  inspection?: unknown
-}
-
-interface BrowserElementPickerSession extends BrowserNativeSelectionSession<BrowserElementPickerScriptResult> {
-  pointerDown: boolean
-}
-
-export interface BrowserElementPickerResult {
-  canceled: boolean
-  content?: string
-}
+export type { BrowserElementPickerResult } from './element-picker/element-picker-access.js'
 
 export type { BrowserScreenshotAreaResult } from './screenshot-area/screenshot-area-access.js'
-
-function nativeSelectionContextUnavailable(error: unknown): boolean {
-  return /context.*destroyed|frame.*removed|navigat/i.test(String(error))
-}
 
 interface BrowserVisualCapture {
   observationContext: BrowserSnapshotDeltaContext
@@ -3406,66 +3383,29 @@ export class BrowserTabsManager {
     return this.profiling.memoryReport(options)
   }
 
-  async pickElement(tabId?: string): Promise<BrowserElementPickerResult> {
-    const report = await this.selectElement(tabId)
-    if (!report) return { canceled: true }
-    return { canceled: false, content: formatElementInspectionForAgent(report) }
+  /**
+   * The narrow view picking an element gets of this manager's private tabs,
+   * pickers in progress, human input lock and screenshots. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegates below return the
+   * feature's promise directly, so callers see the same ticks as before.
+   */
+  private elementPickerAccess(): ElementPickerAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      elementPickerSessions: () => this.elementPickerSessions,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
+      screenshot: (options) => this.screenshot(options)
+    }
   }
 
-  async captureElementScreenshot(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-    const report = await this.selectElement(tabId)
-    if (!report) return { canceled: true }
-    const screenshot = await this.screenshot({ tabId: report.tabId, selector: report.selector })
-    return { canceled: false, data: screenshot.data }
+  pickElement(tabId?: string): Promise<BrowserElementPickerResult> {
+    return pickElement(this.elementPickerAccess(), tabId)
   }
 
-  private async selectElement(tabId?: string): Promise<BrowserElementInspection | null> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before selecting an element')
-    const webContents = tab.webContents
-    const existing = this.elementPickerSessions.get(webContents.id)
-    if (existing) {
-      existing.canceled = true
-      existing.resolve({ canceled: true })
-      await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
-    }
-    const session = createElementPickerSession<BrowserElementPickerScriptResult>()
-    tab.nativeInputEnvironmentGeneration += 1
-    this.elementPickerSessions.set(webContents.id, session)
-    try {
-      if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
-      void webContents.executeJavaScript(elementPickerScript(), true)
-        .then((selected: BrowserElementPickerScriptResult) => {
-          if (selected?.canceled || selected?.inspection) session.resolve(selected)
-        })
-        .catch((error: unknown) => {
-          if (nativeSelectionContextUnavailable(error)) {
-            session.resolve({ canceled: true })
-          } else {
-            session.reject(error)
-          }
-        })
-      const selected = await session.result
-      if (session.canceled || this.elementPickerSessions.get(webContents.id) !== session || selected.canceled || !selected.inspection) {
-        return null
-      }
-      return normalizeElementInspection({
-        tabId: tab.id,
-        title: tab.title,
-        url: tab.url,
-        raw: selected.inspection
-      })
-    } finally {
-      if (this.elementPickerSessions.get(webContents.id) === session) {
-        session.canceled = true
-        await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
-        // Cleanup can finish after a replacement selection starts.
-        if (this.elementPickerSessions.get(webContents.id) === session) {
-          this.elementPickerSessions.delete(webContents.id)
-          if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
-        }
-      }
-    }
+  captureElementScreenshot(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
+    return captureElementScreenshot(this.elementPickerAccess(), tabId)
   }
 
   /**
@@ -3518,14 +3458,8 @@ export class BrowserTabsManager {
     return normalizeBrowserGeneratedLocator(tab.id, raw as Record<string, unknown>)
   }
 
-  async cancelElementPicker(tabId?: string): Promise<boolean> {
-    const tab = this.getTab(tabId)
-    const session = this.elementPickerSessions.get(tab.webContents.id)
-    if (session) {
-      session.canceled = true
-      session.resolve({ canceled: true })
-    }
-    return tab.webContents.executeJavaScript(cancelElementPickerScript(), true) as Promise<boolean>
+  cancelElementPicker(tabId?: string): Promise<boolean> {
+    return cancelElementPicker(this.elementPickerAccess(), tabId)
   }
 
   /**
@@ -6040,40 +5974,7 @@ export class BrowserTabsManager {
     type: 'down' | 'move' | 'up',
     mouse: Electron.MouseInputEvent
   ): void {
-    const bounds = tab.view.getBounds()
-    if (type === 'down') session.pointerDown = true
-    const shouldSelect = type === 'up' && session.pointerDown
-    if (type === 'up') session.pointerDown = false
-    const queued = session.inputQueue.catch(() => undefined).then(async () => {
-      if (session.canceled || this.elementPickerSessions.get(tab.webContents.id) !== session) return
-      await tab.webContents.executeJavaScript(elementPickerNativeInputScript(
-        type,
-        mouse.x,
-        mouse.y,
-        Math.max(1, bounds.width),
-        Math.max(1, bounds.height)
-      ), true).catch(() => false)
-      if (!shouldSelect || session.settled || session.canceled) return
-      const inspection = await tab.webContents.executeJavaScriptInIsolatedWorld(
-        ELEMENT_INSPECTION_WORLD_ID,
-        [{ code: elementPickerInspectionAtPointScript(
-          mouse.x,
-          mouse.y,
-          Math.max(1, bounds.width),
-          Math.max(1, bounds.height)
-        ) }],
-        false
-      )
-      if (!session.canceled && this.elementPickerSessions.get(tab.webContents.id) === session) {
-        session.resolve({ canceled: false, inspection })
-      }
-    })
-    session.inputQueue = queued
-    void queued.catch((error) => {
-      if (!session.canceled && this.elementPickerSessions.get(tab.webContents.id) === session) {
-        console.error('[browser] Could not forward element picker input:', error)
-      }
-    })
+    queueElementPickerMouseInput(this.elementPickerAccess(), tab, session, type, mouse)
   }
 
   private readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
