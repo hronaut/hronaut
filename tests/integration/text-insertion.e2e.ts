@@ -10,16 +10,22 @@ interface EditorPageState {
   model: string
 }
 
-// Editors of each kind, a model-backed editor that applies text itself as rich-text frameworks do, one that refuses
-// text, and fields Hronaut must refuse. Every text event the document sees is recorded.
+// Editors of each kind, a model-backed editor that applies text itself later, as rich-text frameworks do, one that
+// refuses text, a controlled field that resets it, one whose beforeinput moves focus, an editable region with a field
+// nested inside, and fields Hronaut must refuse. Every text event the document sees is recorded.
 const EDITOR_PAGE = `(() => {
   document.body.innerHTML = '<textarea id="notes" aria-label="Notes">hello world</textarea>'
     + '<input id="name" aria-label="Name" value="Ada">'
-    + '<input id="limited" aria-label="Limited" maxlength="3" value="abc">'
+    + '<input id="limited" aria-label="Limited" maxlength="5" value="abc">'
     + '<input id="locked" aria-label="Locked" readonly value="fixed">'
+    + '<fieldset disabled><input id="off" aria-label="Off" value="off"></fieldset>'
+    + '<input id="ghost" aria-label="Ghost" style="width:0;height:0;padding:0;border:0">'
+    + '<input id="reset" aria-label="Reset">'
+    + '<textarea id="jumpy" aria-label="Jumpy">jumpy</textarea>'
     + '<div id="rich" contenteditable="true" aria-label="Rich"><p>abc <b>def</b></p></div>'
     + '<div id="model" contenteditable="true" aria-label="Model editor">Model: </div>'
     + '<div id="refuse" contenteditable="true" aria-label="Refusing editor">Fixed</div>'
+    + '<div id="host" contenteditable="true" aria-label="Host">Host <input id="nested" aria-label="Nested"></div>'
     + '<input id="other" aria-label="Other">'
     + '<iframe id="frame" srcdoc="<input id=inner>"></iframe>';
   window.editorEvents = [];
@@ -38,15 +44,18 @@ const EDITOR_PAGE = `(() => {
     if (event.inputType !== 'insertText') return;
     event.preventDefault();
     model.text += event.data;
-    queueMicrotask(() => { modelEditor.textContent = model.text; });
+    setTimeout(() => { modelEditor.textContent = model.text; }, 100);
   });
   document.querySelector('#refuse').addEventListener('beforeinput', (event) => event.preventDefault());
+  // A controlled field that rejects every change, as a framework does by restoring its state in the input handler.
+  document.querySelector('#reset').addEventListener('input', (event) => { event.target.value = ''; });
+  document.querySelector('#jumpy').addEventListener('beforeinput', () => document.getElementById('other').focus());
   return true;
 })()`
 
 const STATE = `({
   events: window.editorEvents,
-  values: Object.fromEntries(['notes', 'name', 'limited', 'locked', 'other'].map((id) => [id, document.getElementById(id).value])
+  values: Object.fromEntries(['notes', 'name', 'limited', 'locked', 'reset', 'jumpy', 'nested', 'other'].map((id) => [id, document.getElementById(id).value])
     .concat(['rich', 'model', 'refuse'].map((id) => [id, document.getElementById(id).textContent]))
     .concat([['inner', document.getElementById('frame').contentDocument.getElementById('inner').value]])),
   model: window.editorModel.text
@@ -125,29 +134,52 @@ test('inserts text natively at the caret of a focused editor, reports what the e
   // An editable region takes the text at its caret, inside the formatting around it.
   await onPage(electronApp, fixtureUrl, richCaretScript('rich', "host.querySelector('p').firstChild", 4))
   expect(JSON.parse(text(await insert({ selector: '#rich b', text: 'NEW ' })))).toMatchObject({ status: 'INSERTED', editor: 'contenteditable', insertedBy: 'browser' })
+  page = await state()
   // Chromium keeps a space at a text node's edge visible as a no-break space, as for a person's typing.
-  expect((await state()).values.rich?.replace(/\u00a0/gu, ' ')).toBe('abc NEW def')
+  expect(page.values.rich?.replace(/\u00a0/gu, ' ')).toBe('abc NEW def')
+  // The text's events go to the editing host itself, the focused element, not to the node holding the caret.
+  expect(page.events.map(event => event.type)).toEqual(['beforeinput', 'textInput', 'input'])
+  expect(page.events.every(event => event.trusted && event.target === 'rich')).toBe(true)
 
-  // An editor that cancels the native insertion and applies the text to its own model is reported as such.
+  // An editor that cancels the native insertion and applies the text to its own model later is reported as such.
   await onPage(electronApp, fixtureUrl, richCaretScript('model', 'host.firstChild', 7))
   expect(JSON.parse(text(await insert({ selector: '#model', text: 'typed' })))).toMatchObject({ status: 'INSERTED', insertedBy: 'editor' })
   page = await state()
   expect(page.model).toBe('Model: typed')
   expect(page.values.model).toBe('Model: typed')
 
-  // An editor that refuses the text, and a full field, keep their content and say so.
+  // An editor that refuses the text keeps its content and says so.
   await onPage(electronApp, fixtureUrl, richCaretScript('refuse', 'host.firstChild', 5))
   expect(JSON.parse(text(await insert({ selector: '#refuse', text: 'more' })))).toMatchObject({ status: 'NOT_ACCEPTED', note: expect.stringContaining('cancelled it') })
-  await onPage(electronApp, fixtureUrl, caretScript('limited', 3))
-  expect(JSON.parse(text(await insert({ selector: '#limited', text: 'zz' })))).toMatchObject({ status: 'NOT_ACCEPTED', editor: 'input' })
+  expect((await state()).values.refuse).toBe('Fixed')
+
+  // A controlled field that took the text and reset it may have kept it elsewhere: unconfirmed, never safe to retry.
+  await onPage(electronApp, fixtureUrl, caretScript('reset', 0))
+  expect(JSON.parse(text(await insert({ selector: '#reset', text: 'gone' })))).toMatchObject({ status: 'UNCONFIRMED', editor: 'input', note: expect.stringContaining('back to what it was') })
+  expect((await state()).values.reset).toBe('')
+
+  // An editor whose beforeinput moves focus: the insertion Chromium then aims at the new element is cancelled there.
+  await onPage(electronApp, fixtureUrl, caretScript('jumpy', 5))
+  expect(JSON.parse(text(await insert({ selector: '#jumpy', text: 'away' })))).toMatchObject({ status: 'BLOCKED' })
   page = await state()
-  expect(page.values.refuse).toBe('Fixed')
-  expect(page.values.limited).toBe('abc')
+  expect(page.values).toMatchObject({ jumpy: 'jumpy', other: '' })
+
+  // Text a length limit would cut short is refused before anything is sent; with the selection replaced it fits.
+  await onPage(electronApp, fixtureUrl, caretScript('limited', 3))
+  const limited = await insert({ selector: '#limited', text: 'zzz' })
+  expect(limited.isError, text(limited)).toBe(true)
+  expect(text(limited)).toMatch(/length limit \(maxlength\)/u)
+  expect((await state()).events).toEqual([])
+  await onPage(electronApp, fixtureUrl, caretScript('limited', 2, 3))
+  expect(JSON.parse(text(await insert({ selector: '#limited', text: 'zzz' })))).toMatchObject({ status: 'INSERTED', editor: 'input' })
+  expect((await state()).values.limited).toBe('abzzz')
 
   // Editors that are not ready are refused before any text is sent, and nothing lands elsewhere.
   const refusals: Array<[string, Record<string, unknown>, RegExp]> = [
     [caretScript('other', 0), { selector: '#name', text: 'x' }, /does not have focus/u],
     [caretScript('locked', 0), { selector: '#locked', text: 'x' }, /read-only/u],
+    [caretScript('name', 3), { selector: '#off', text: 'x' }, /disabled/u],
+    [caretScript('ghost', 0), { selector: '#ghost', text: 'x' }, /hidden or has no size/u],
     [caretScript('name', 3), { selector: '#name', text: 'a\nb' }, /single-line field/u],
     [caretScript('name', 3), { selector: 'input', text: 'x' }, /more than one element/u],
     [caretScript('name', 3), { selector: '#inner', text: 'x' }, /Editor not found/u],
@@ -158,9 +190,9 @@ test('inserts text natively at the caret of a focused editor, reports what the e
     const refused = await insert(args)
     expect(refused.isError, text(refused)).toBe(true)
     expect(text(refused)).toMatch(message)
+    expect((await state()).events, String(message)).toEqual([])
   }
   page = await state()
-  expect(page.events).toEqual([])
   expect(page.values).toMatchObject({ name: 'Ada', other: '', locked: 'fixed', inner: '' })
 
   // A locked tab blocks the person's input, not the agent's.
@@ -180,10 +212,11 @@ test('the guard cancels text aimed anywhere else in the page once armed, and rep
   const world = ISOLATED_WORLDS.textInsertion
   const state = () => onPage<EditorPageState>(electronApp, fixtureUrl, STATE)
   // The page scripts the tool runs, with the focus change between arming and the text that a busy page could make.
-  const armed = async (token: string, editor: string, moveFocus: string): Promise<TextInsertionObservation> => {
+  const armed = async (token: string, editor: string, moveFocus: string, kind = 'textarea'): Promise<TextInsertionObservation> => {
     const target = { selector: `#${editor}` }
-    expect(await onPage(electronApp, fixtureUrl, textInsertionLocateScript(target, token, 'check', false), world)).toEqual({ editor: 'textarea' })
-    expect(await onPage(electronApp, fixtureUrl, textInsertionLocateScript(target, token, 'arm', false), world)).toEqual({ editor: 'textarea' })
+    const shape = { length: 'stolen'.length, lineBreaks: false }
+    expect(await onPage(electronApp, fixtureUrl, textInsertionLocateScript(target, token, 'check', shape), world)).toEqual({ editor: kind })
+    expect(await onPage(electronApp, fixtureUrl, textInsertionLocateScript(target, token, 'arm', shape), world)).toEqual({ editor: kind })
     await onPage(electronApp, fixtureUrl, moveFocus)
     await sendNativeText(electronApp, fixtureUrl, 'stolen')
     return onPage<TextInsertionObservation>(electronApp, fixtureUrl, textInsertionObserveScript(token), world)
@@ -205,6 +238,13 @@ test('the guard cancels text aimed anywhere else in the page once armed, and rep
   expect(dropped.blocked).toBeGreaterThan(0)
   expect((await state()).values.notes).toBe('hello world')
 
+  // Focus moved into a field nested inside the editor: still not the editor, so the guard cancels the text there too.
+  await onPage(electronApp, fixtureUrl, richCaretScript('host', 'host.firstChild', 5))
+  const nested = await armed('nested', 'host', "document.getElementById('nested').focus(); true", 'contenteditable')
+  expect(nested).toMatchObject({ reached: false, changed: false, focusLeft: true })
+  expect(nested.blocked).toBeGreaterThan(0)
+  expect((await state()).values.nested).toBe('')
+
   // Focus that moved into a frame is out of the guard's reach: the editor got nothing, and the observation says focus left.
   await onPage(electronApp, fixtureUrl, caretScript('notes', 0))
   expect(await armed('frame', 'notes', "document.getElementById('frame').contentDocument.getElementById('inner').focus(); true"))
@@ -218,6 +258,6 @@ test('the guard cancels text aimed anywhere else in the page once armed, and rep
   await onPage(electronApp, fixtureUrl, caretScript('other', 0))
   await sendNativeText(electronApp, fixtureUrl, 'free')
   expect((await state()).values.other).toBe('free')
-  for (const token of ['moved', 'dropped', 'frame']) await onPage(electronApp, fixtureUrl, textInsertionDisposeScript(token), world)
+  for (const token of ['moved', 'dropped', 'nested', 'frame']) await onPage(electronApp, fixtureUrl, textInsertionDisposeScript(token), world)
   expect(await onPage(electronApp, fixtureUrl, 'globalThis.__hronautTextInsertions.size', world)).toBe(0)
 })

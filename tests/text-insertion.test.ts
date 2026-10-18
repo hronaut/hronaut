@@ -4,11 +4,12 @@ import { ISOLATED_WORLDS } from '../src/main/browser/isolated-worlds.js'
 import { insertableTextProblem, insertText, MAX_INSERTED_TEXT_LENGTH, type TextInsertionProgress } from '../src/main/browser/text-insertion/text-insertion.js'
 import type { TextInsertionAccess, TextInsertionTab } from '../src/main/browser/text-insertion/text-insertion-access.js'
 import type { TextInsertionLocation, TextInsertionObservation } from '../src/main/browser/text-insertion/text-insertion-scripts.js'
+import { registerBrowserInsertText } from '../src/main/mcp/tools/browser-insert-text/index.js'
 
 const TEXT = 'private-draft-canary 😀 мир'
 
 const observation = (overrides: Partial<TextInsertionObservation> = {}): TextInsertionObservation => ({
-  current: true, reached: true, cancelled: false, changed: true, blocked: 0, focusLeft: false, ...overrides
+  current: true, reached: true, cancelled: false, inputFired: true, changed: true, blocked: 0, focusLeft: false, ...overrides
 })
 
 /**
@@ -107,21 +108,31 @@ describe('text insertion', () => {
     expect(page.listeners()).toBe(0)
   })
 
-  it('tells the page scripts whether the text has line breaks, for single-line fields', async () => {
+  it('tells the page scripts only the text\'s length and whether it has line breaks, for length limits and single-line fields', async () => {
     const page = editorPage()
     await insertText(page.access, { selector: '#notes' }, 'first\nsecond')
     expect(page.scripts[0]!.code).toContain('const lineBreaks = true')
+    expect(page.scripts[0]!.code).toContain('const textLength = 12')
+    expect(page.scripts[1]!.code).toContain('const textLength = 12')
     const plain = editorPage()
-    await insertText(plain.access, { selector: '#notes' }, 'first\tsecond')
+    await insertText(plain.access, { selector: '#notes' }, 'first\tsecond 😀')
     expect(plain.scripts[0]!.code).toContain('const lineBreaks = false')
+    // Counted in UTF-16 code units, as maxlength is.
+    expect(plain.scripts[0]!.code).toContain('const textLength = 15')
   })
 
   it('reports an editor that applied the text itself, a cancelled or unchanged one, and a blocked insertion', async () => {
     const outcome = async (observed: Partial<TextInsertionObservation>) => insertText(editorPage({ observations: [observed] }).access, { ref: 'e4' }, TEXT)
     expect(await outcome({ cancelled: true })).toMatchObject({ status: 'INSERTED', insertedBy: 'editor' })
-    expect(await outcome({ cancelled: true, changed: false })).toMatchObject({ status: 'NOT_ACCEPTED', note: expect.stringContaining('cancelled it') })
-    expect(await outcome({ changed: false })).toMatchObject({ status: 'NOT_ACCEPTED', note: expect.stringContaining('length limit') })
+    expect(await outcome({ cancelled: true, inputFired: false, changed: false })).toMatchObject({ status: 'NOT_ACCEPTED', note: expect.stringContaining('cancelled it') })
+    expect(await outcome({ cancelled: true, inputFired: false, changed: false })).toMatchObject({ note: expect.stringContaining('read it before trying again') })
+    expect(await outcome({ inputFired: false, changed: false })).toMatchObject({ status: 'NOT_ACCEPTED', note: expect.stringContaining('reported no edit') })
+    // An editor that reported an edit but reset its content may have moved the text elsewhere: never safe to retry.
+    expect(await outcome({ changed: false })).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('back to what it was') })
     expect(await outcome({ reached: false, changed: false, blocked: 1, focusLeft: true })).toMatchObject({ status: 'BLOCKED', note: expect.stringContaining('nothing was inserted') })
+    // The editor's beforeinput moved focus, so the guard cancelled the insertion Chromium then aimed elsewhere.
+    expect(await outcome({ inputFired: false, changed: false, blocked: 1, focusLeft: true })).toMatchObject({ status: 'BLOCKED' })
+    expect(await outcome({ reached: false, blocked: 1 })).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('did not see the text arrive') })
     expect(await outcome({ reached: false, changed: false, focusLeft: true })).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('frame or another window') })
     expect(await outcome({ reached: false })).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('did not see the text arrive') })
     expect(await outcome({ reached: false, changed: false })).toMatchObject({ status: 'UNCONFIRMED', note: expect.stringContaining('No text reached the editor') })
@@ -150,6 +161,7 @@ describe('text insertion', () => {
     expect(await refused({ problem: 'ambiguous', count: 2 })).toMatch(/more than one element/u)
     expect(await refused({ problem: 'no-caret' })).toMatch(/caret or selection is not inside the editor/u)
     expect(await refused({ problem: 'single-line' })).toMatch(/single-line field turns line breaks into spaces/u)
+    expect(await refused({ problem: 'too-long' })).toMatch(/length limit \(maxlength\) leaves too little room/u)
     expect(await refused({ problem: 'not-found' })).toMatch(/frames and shadow roots cannot be targeted/u)
     // The second check, in the debugger turn, catches focus moved or the editor replaced meanwhile.
     expect(await refused({ problem: 'replaced' }, 'arm')).toMatch(/changed before the text was sent, so nothing was inserted/u)
@@ -224,5 +236,53 @@ describe('text insertion', () => {
     const pending = insertText(stalled.access, { ref: 'e4' }, TEXT)
     await vi.advanceTimersByTimeAsync(5_000)
     expect(await pending).toMatchObject({ status: 'UNCONFIRMED' })
+  })
+})
+
+describe('browser_insert_text tool', () => {
+  type Validate = (validateContext: () => void) => void
+  /** The tool's handler, over a manager whose insertion runs the given steps, and a call that records its outcome class. */
+  function tool(insert: (validateInsertion: Validate, progress: TextInsertionProgress) => Promise<unknown>, overrides: Record<string, unknown> = {}) {
+    let handler: ((input: Record<string, unknown>, call: unknown) => Promise<unknown>) | undefined
+    registerBrowserInsertText({
+      manager: { insertText: (_target: unknown, _text: string, validateInsertion: Validate, progress: TextInsertionProgress) => insert(validateInsertion, progress) },
+      tabTool: (_name: string, callback: unknown) => callback,
+      registerWorkspaceTool: (_name: string, _config: unknown, callback: typeof handler) => { handler = callback }
+    } as never)
+    const outcomes: unknown[] = []
+    const call = {
+      signal: undefined,
+      requireCurrentTarget: () => undefined,
+      requirePostWriteContext: () => undefined,
+      authorityRejection: () => undefined,
+      setInvalidatedOutcome: (outcome: unknown) => { outcomes.push(outcome) },
+      ...overrides
+    }
+    return { outcomes, run: () => handler!({ ref: 'e4', text: TEXT }, call).then(() => new Error('inserted'), (caught: unknown) => caught as Error) }
+  }
+
+  it('says nothing was inserted when its checks fail before the text is sent', async () => {
+    const rejected = tool(async validate => { validate(() => undefined) }, { authorityRejection: () => ({ content: [] }) })
+    expect((await rejected.run()).message).toMatch(/before the text was sent; nothing was inserted/u)
+    expect(rejected.outcomes).toEqual([undefined])
+    const failed = tool(async () => { throw new Error('page did not respond') })
+    expect((await failed.run()).message).toBe('page did not respond')
+    expect(failed.outcomes).toEqual([])
+  })
+
+  it('marks every failure after the text was sent as outcome-unknown and says the text may be in the editor', async () => {
+    const cancelled = tool(async (validate, progress) => {
+      progress.sent = true
+      validate(() => undefined)
+    }, { signal: { aborted: true } })
+    expect((await cancelled.run()).message).toMatch(/after the text was sent; it may be in the editor/u)
+    expect(cancelled.outcomes.at(-1)).toBe('outcome-unknown')
+    // A failure the checks never saw, such as restoring a locked tab's input guard, is not safe to replay either.
+    const cleanup = tool(async (_validate, progress) => {
+      progress.sent = true
+      throw new Error('input guard restore failed')
+    })
+    expect((await cleanup.run()).message).toBe('input guard restore failed')
+    expect(cleanup.outcomes).toEqual(['outcome-unknown'])
   })
 })

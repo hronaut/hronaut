@@ -2,14 +2,19 @@
  * Page scripts for an agent's text insertion. They run in the text
  * insertion's own isolated world, which shares the page's DOM but not its
  * scripts, so the page cannot read or replace the state they keep, one record
- * per insertion keyed by its token. They never see the text: the record keeps
- * the editor's content from just before the text is sent only to tell
- * afterwards whether it changed, and returns nothing of it.
+ * per insertion keyed by its token. They are given only the text's length.
+ * The record keeps the editor's content from just before the text is sent, to
+ * tell afterwards whether it changed, and the text's events, to tell whether
+ * a handler cancelled them, until the insertion is disposed; nothing of either
+ * is returned.
  */
+
+/** How long a guard stays armed at most: longer than the arm check and the text's delivery may take together. */
+const GUARD_LIFETIME_MS = 8_000
 
 /** Why the target cannot take the text: each maps to one message in text-insertion.ts. */
 export type TextInsertionTargetProblem =
-  'invalid-selector' | 'not-found' | 'ambiguous' | 'not-editable' | 'disabled' | 'readonly' | 'hidden' | 'not-focused' | 'no-caret' | 'single-line' | 'replaced'
+  'invalid-selector' | 'not-found' | 'ambiguous' | 'not-editable' | 'disabled' | 'readonly' | 'hidden' | 'not-focused' | 'no-caret' | 'single-line' | 'too-long' | 'replaced'
 
 /** The kind of editor the text goes into. */
 export type TextInsertionEditor = 'input' | 'textarea' | 'contenteditable'
@@ -25,6 +30,8 @@ export interface TextInsertionObservation {
   reached: boolean
   /** One of the page's handlers cancelled that beforeinput or textInput. */
   cancelled: boolean
+  /** A trusted input event on the editor reported an edit. */
+  inputFired: boolean
   /** The editor's content differs from what it was just before the text was sent. */
   changed: boolean
   /** How many text insertions aimed at another element of the page the guard cancelled. */
@@ -38,19 +45,27 @@ export interface TextInsertionObservation {
  * document and checks that it is a text field, text area or editable region
  * (for an element inside an editable region, its editing host) that is
  * visible, enabled, writable and already focused, with the caret or selection
- * inside it, and that a single-line field is not given line breaks. The check
- * phase records the editor under the token. The arm phase checks that the
- * editor is still the recorded one, notes its content and starts the guard:
- * from then until the observation, a trusted text insertion aimed anywhere
- * else in the page is cancelled, and the insertion's events on the editor and
- * focus leaving it are recorded.
+ * inside it, that a single-line field is not given line breaks, and that a
+ * field's length limit leaves room for the whole text. The check phase
+ * records the editor under the token. The arm phase checks that the editor is
+ * still the recorded one, notes its content and starts the guard: from then
+ * until the observation, for at most GUARD_LIFETIME_MS or until the document
+ * is hidden, a trusted text insertion aimed at any other element of the
+ * document is cancelled, and the insertion's events on the editor and focus
+ * leaving it are recorded.
  */
-export function textInsertionLocateScript(target: { ref?: string; selector?: string }, token: string, phase: 'check' | 'arm', lineBreaks: boolean): string {
+export function textInsertionLocateScript(
+  target: { ref?: string; selector?: string },
+  token: string,
+  phase: 'check' | 'arm',
+  text: { length: number; lineBreaks: boolean }
+): string {
   return `(() => {
     const target = ${JSON.stringify(target)};
     const token = ${JSON.stringify(token)};
     const phase = ${JSON.stringify(phase)};
-    const lineBreaks = ${JSON.stringify(lineBreaks)};
+    const textLength = ${JSON.stringify(text.length)};
+    const lineBreaks = ${JSON.stringify(text.lineBreaks)};
     let matches;
     try {
       matches = document.querySelectorAll(target.ref ? '[data-hronaut-ref="' + CSS.escape(target.ref) + '"]' : target.selector);
@@ -90,23 +105,32 @@ export function textInsertionLocateScript(target: { ref?: string; selector?: str
       }
     }
     if (lineBreaks && editor === 'input') return { problem: 'single-line' };
+    if (editor !== 'contenteditable' && host.maxLength >= 0) {
+      // Chromium cuts text that does not fit short. An email field reports no selection, so its room is counted without one.
+      const selected = typeof host.selectionStart === 'number' ? host.selectionEnd - host.selectionStart : 0;
+      if (host.value.length - selected + textLength > host.maxLength) return { problem: 'too-long' };
+    }
     if (phase === 'check') {
       insertions.set(token, { host, editor });
       return { editor };
     }
     const state = recorded;
     const content = () => editor === 'contenteditable' ? host.innerHTML : host.value;
-    Object.assign(state, { armed: true, content, before: content(), events: [], blocked: 0, focusLeft: false, wake: null });
+    Object.assign(state, { armed: true, content, before: content(), events: [], blocked: 0, inputFired: false, focusLeft: false, wake: null });
     const onText = (event) => {
       if (!event.isTrusted || !state.armed) return;
       if (event.type === 'beforeinput' && event.inputType !== 'insertText') return;
-      // Chromium aims textInput at the element holding the caret, inside the editing host.
-      if (event.target === host || (event.target instanceof Node && host.contains(event.target))) state.events.push(event);
+      // Chromium aims the text's events at the focused element, which was the editor itself: any other target,
+      // a field nested inside the editor included, means focus moved.
+      if (event.target === host) state.events.push(event);
       else {
         event.preventDefault();
         state.blocked += 1;
       }
       if (state.wake) state.wake();
+    };
+    const onInput = (event) => {
+      if (event.isTrusted && state.armed && event.target === host) state.inputFired = true;
     };
     const onFocusOut = (event) => {
       if (state.armed && event.target === host) state.focusLeft = true;
@@ -115,26 +139,29 @@ export function textInsertionLocateScript(target: { ref?: string; selector?: str
       // The window loses focus when focus moves into a frame or out of the page.
       if (state.armed && event.target === window) state.focusLeft = true;
     };
+    // A document kept in the back/forward cache must not keep cancelling a person's typing after it returns.
+    const onPageHide = () => state.stop();
+    const listeners = [['beforeinput', onText], ['textInput', onText], ['input', onInput], ['focusout', onFocusOut], ['blur', onBlur], ['pagehide', onPageHide]];
+    const expiry = setTimeout(() => state.stop(), ${GUARD_LIFETIME_MS});
+    state.stop = () => {
+      state.armed = false;
+      clearTimeout(expiry);
+      for (const [type, listener] of listeners) removeEventListener(type, listener, true);
+    };
     state.dispose = () => {
-      removeEventListener('beforeinput', onText, true);
-      removeEventListener('textInput', onText, true);
-      removeEventListener('focusout', onFocusOut, true);
-      removeEventListener('blur', onBlur, true);
+      state.stop();
       insertions.delete(token);
     };
     // Capture listeners on the window see the events before the page's own
     // handlers on the editor; the recorded events show afterwards whether one
     // of them cancelled the insertion.
-    addEventListener('beforeinput', onText, true);
-    addEventListener('textInput', onText, true);
-    addEventListener('focusout', onFocusOut, true);
-    addEventListener('blur', onBlur, true);
+    for (const [type, listener] of listeners) addEventListener(type, listener, true);
     return { editor };
   })()`
 }
 
 /**
- * Stops the guard and reports what the text's events under the token showed.
+ * Stops the guard, if it has not expired yet, and reports what the text's events under the token showed.
  * Chromium dispatches them before it acknowledges the text, so the answer
  * waits only briefly for a page that is still busy. Then it lets the page's
  * handlers and a task after them run, and gives an editor that applies the
@@ -144,14 +171,14 @@ export function textInsertionLocateScript(target: { ref?: string; selector?: str
 export function textInsertionObserveScript(token: string): string {
   return `(async () => {
     const state = globalThis.__hronautTextInsertions && globalThis.__hronautTextInsertions.get(${JSON.stringify(token)});
-    if (!state || !state.armed) return { current: false, reached: false, cancelled: false, changed: false, blocked: 0, focusLeft: false };
-    if (!state.events.length && !state.blocked) {
+    if (!state || !state.stop) return { current: false, reached: false, cancelled: false, inputFired: false, changed: false, blocked: 0, focusLeft: false };
+    if (state.armed && !state.events.length && !state.blocked) {
       await new Promise((resolve) => {
         const timer = setTimeout(() => { state.wake = null; resolve(); }, 250);
         state.wake = () => { clearTimeout(timer); state.wake = null; resolve(); };
       });
     }
-    state.armed = false;
+    state.stop();
     // A message task runs after the event's dispatch, so after the page's handlers.
     await new Promise((resolve) => {
       const channel = new MessageChannel();
@@ -166,6 +193,7 @@ export function textInsertionObserveScript(token: string): string {
       current: true,
       reached,
       cancelled: state.events.some((event) => event.defaultPrevented),
+      inputFired: state.inputFired,
       changed: changed(),
       blocked: state.blocked,
       focusLeft: state.focusLeft

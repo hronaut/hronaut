@@ -50,6 +50,7 @@ const TARGET_PROBLEMS: Record<TextInsertionTargetProblem, string> = {
   'not-focused': 'The editor does not have focus. Click it with browser_click where the text should go, then insert.',
   'no-caret': 'The caret or selection is not inside the editor. Click in the editor where the text should go, then insert.',
   'single-line': 'A single-line field turns line breaks into spaces. Insert the text without \\n, or use a textarea or editable region.',
+  'too-long': 'The field\'s length limit (maxlength) leaves too little room for the whole text, so Chromium would cut it short; nothing was inserted. Insert shorter text, or select the text it should replace first.',
   replaced: 'The editor changed before the text was sent, so nothing was inserted. Take a fresh browser_snapshot and try again.'
 }
 
@@ -69,10 +70,12 @@ export function insertableTextProblem(text: string): string | undefined {
  * input events of text a person commits from an input method, and no key
  * events. The editor must be the one text field, text area or editable region
  * of the top-level document that already has focus, visible, enabled and
- * writable, with the caret inside it; it is checked again in the debugger
- * turn just before the text is sent. From then until the outcome is read, a
- * guard in the page cancels the text's insertion into any other element of
- * it. Results and errors never carry the text or the editor's content. It
+ * writable, with the caret inside it, and with room for the whole text under
+ * a field's length limit; it is checked again in the debugger turn just
+ * before the text is sent. From then until the outcome is read, a guard in
+ * the page cancels the text's insertion into any other element of the
+ * document; it cannot reach frames, so the outcome reports focus that left
+ * for one. Results and errors never carry the text or the editor's content. It
  * throws before the text is sent when the target, the page or the call's
  * authority is not as required, and afterwards only when the call's authority
  * changed; nothing is retried.
@@ -91,7 +94,7 @@ export async function insertText<Tab extends TextInsertionTab>(
   const webContents = tab.webContents
   const authority = access.nativeInputAuthority(tab, validateInsertion)
   const token = randomUUID()
-  const lineBreaks = text.includes('\n')
+  const shape = { length: text.length, lineBreaks: text.includes('\n') }
   let navigated = false
   const navigationStarted = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>): void => {
     // Within the document too: a new route may show another editor in the same place.
@@ -100,7 +103,7 @@ export async function insertText<Tab extends TextInsertionTab>(
   webContents.on('did-start-navigation', navigationStarted)
   try {
     authority.validate()
-    editorOf(await runPageScript<TextInsertionLocation>(webContents, textInsertionLocateScript(target, token, 'check', lineBreaks)))
+    editorOf(await runPageScript<TextInsertionLocation>(webContents, textInsertionLocateScript(target, token, 'check', shape)))
     return await access.withAgentInput(webContents, () => access.withDebugger(webContents, async (): Promise<TextInsertionResult> => {
       const validate = (): void => {
         if (navigated) throw new Error('The page navigated before the text was sent, so nothing was inserted. Inspect it again before inserting.')
@@ -108,7 +111,7 @@ export async function insertText<Tab extends TextInsertionTab>(
       }
       validate()
       // Check again inside the debugger turn, and arm the guard: the page may have moved focus or replaced the editor meanwhile.
-      const editor = editorOf(await runPageScript<TextInsertionLocation>(webContents, textInsertionLocateScript(target, token, 'arm', lineBreaks)))
+      const editor = editorOf(await runPageScript<TextInsertionLocation>(webContents, textInsertionLocateScript(target, token, 'arm', shape)))
       const input = access.agentInputDebugger(webContents, () => {
         // Only the last check before the command decides whether the text was sent.
         progress.sent = false
@@ -154,20 +157,28 @@ function outcome(observed: TextInsertionObservation, editor: TextInsertionEditor
       note: 'The editor took the text and its content changed. This does not prove that the page saved it; read the editor or the page to check.'
     }
   }
+  if (observed.blocked > 0 && !observed.changed) {
+    // Also when the editor's beforeinput moved focus and Chromium aimed the text's insertion at the new element.
+    return {
+      status: 'BLOCKED',
+      editor,
+      note: 'Focus moved to another element of the page just before the text arrived, so Hronaut cancelled the insertion there and nothing was inserted. Inspect the page, click the editor again and retry.'
+    }
+  }
+  if (observed.reached && observed.inputFired) {
+    return {
+      status: 'UNCONFIRMED',
+      editor,
+      note: 'The editor reported an edit, but its content is back to what it was, as when a page moves typed text elsewhere or a controlled field resets it. Read the editor and the page before trying again; do not insert the text again without checking.'
+    }
+  }
   if (observed.reached) {
     return {
       status: 'NOT_ACCEPTED',
       editor,
       note: observed.cancelled
-        ? 'The editor received the text but cancelled it, and its content did not change.'
-        : 'The editor received the text but its content did not change, as when a length limit is reached or a controlled field rejects the change.'
-    }
-  }
-  if (observed.blocked > 0) {
-    return {
-      status: 'BLOCKED',
-      editor,
-      note: 'Focus moved to another element of the page just before the text arrived, so Hronaut cancelled the insertion there and nothing was inserted. Inspect the page, click the editor again and retry.'
+        ? 'The editor received the text but cancelled it, and its content did not change within half a second. An editor may still apply text elsewhere or later; read it before trying again.'
+        : 'The editor received the text but did not apply it: its content did not change and it reported no edit.'
     }
   }
   return {
@@ -191,7 +202,7 @@ async function observe(webContents: WebContents, token: string): Promise<TextIns
     return await runPageScript<TextInsertionObservation>(webContents, textInsertionObserveScript(token))
   } catch {
     // A page that navigated or stopped answering shows nothing.
-    return { current: false, reached: false, cancelled: false, changed: false, blocked: 0, focusLeft: false }
+    return { current: false, reached: false, cancelled: false, inputFired: false, changed: false, blocked: 0, focusLeft: false }
   }
 }
 
