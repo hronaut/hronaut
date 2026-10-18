@@ -62,6 +62,7 @@ const STEP_BY_TOOL: Readonly<Record<string, AgentStepKind>> = {
   browser_evaluate_file: 'script',
   browser_webmcp: 'script',
   browser_file_upload: 'upload',
+  browser_file_drop: 'upload',
   browser_request_user_attention: 'askYou',
   browser_human_waiting: 'askYou'
 }

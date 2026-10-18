@@ -126,6 +126,7 @@ export const BROWSER_TOOL_METADATA = {
   browser_press: destructiveTool('Press a keyboard key'),
   browser_hold_key: destructiveTool('Hold one keyboard key briefly'),
   browser_file_upload: destructiveTool('Upload a file'),
+  browser_file_drop: destructiveTool('Drop local files onto the page'),
   browser_wait: readOnlyTool('Wait for page state'),
   browser_emulate: nonDestructiveTool('Emulate a browser environment'),
   browser_page_lifecycle: nonDestructiveTool('Freeze or resume one live page'),
@@ -282,6 +283,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key or modifier combination to the active page.' },
   { name: 'browser_hold_key', category: 'Interaction', description: 'Hold one supported nonmodifier key for an explicit durationMs integer 1..5000 in an explicit workspace/tab. Sends one raw key-down and one matching key-up, without text, auto-repeat or fallback. Requires the active visible awake page outside split view, with no child frames, selections or Developer Tools. Preserves human input locks; never selects, wakes or forces focus. Timing is a requested wait, not a hard transport deadline. Uncertain down/release must not be replayed; an unconfirmed release blocks further holds on that page until closed. Use browser_press for ordinary key presses and text.' },
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
+  { name: 'browser_file_drop', category: 'Interaction', description: 'Drop 1 to 20 local files onto one page element by a CSS selector that matches only it (drop zones rarely get a snapshot ref) or a ref, as if dragged in from the file manager, for drop zones without a file input. Paths must be absolute paths to readable regular files, each named once. The page gets trusted dragenter and dragover events whose dataTransfer holds the files, and the drop only when a dragover handler accepted them with preventDefault(); otherwise the drag leaves the page without dropping and the status is NOT_ACCEPTED. The element must be in the top-level page, not a frame or inside a shadow root, visible and uncovered at its center, which is scrolled into view; pages shown at a visual viewport scale other than 1 (pinch zoom or some emulated mobile viewports) are refused. A page may upload the files as soon as they are dropped. Returns status (DROPPED, NOT_ACCEPTED or DROP_UNCONFIRMED), the file count and, for DROPPED, whether the drop handler called preventDefault(); never paths or contents. A drop is not proof that the page read or uploaded the files, so check the page afterwards. Use browser_file_upload for file inputs.' },
   { name: 'browser_wait', category: 'Navigation', description: 'Wait for navigation, a matching page URL, visible or disappearing page text, or an element to become attached, detached, visible, or hidden.' },
   { name: 'browser_emulate', category: 'Inspection', description: 'Reproduce responsive, network, cache, service-worker, Data Saver, CPU, animation-playback, CSS media, vision, locale, time-zone, JavaScript-disabled, location, request-header, and user-agent conditions, or show paint, layout-shift, layer, frame, and scrolling diagnostics in one tab. Reads distinguish unconfirmed native application from retained settings; recover:true explicitly restores the last committed settings without replaying a failed request.' },
   { name: 'browser_page_lifecycle', category: 'Inspection', description: 'Inspect, freeze, or explicitly resume the main document in one live tab without selecting, sleeping, or reloading it. A freeze is a QA hold, not a security boundary or complete browser snapshot.' },
@@ -378,6 +380,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
   'browser_screenshot_save',
+  'browser_file_drop',
   'browser_hold_key',
   'browser_wheel',
   'browser_touch',

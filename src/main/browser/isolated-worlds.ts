@@ -29,6 +29,7 @@ export const ISOLATED_WORLDS = {
   imageState: 1022,
   snapshot: 1023,
   liveRegion: 1024,
+  fileDrop: 1025,
   faviconDecoder: 1100
 } as const satisfies Record<string, number>
 
