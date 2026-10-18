@@ -472,6 +472,8 @@ import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-ev
 import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
 import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
+import type { RightClickEnvironmentAccess } from './native-click/right-click-environment-access.js'
+import { rightClickEnvironment } from './native-click/right-click-environment.js'
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
 import { assertClickTargetEnabled, assertNativeEditability, assertPointInsideVisibleViewport, assertRightClickViewport } from './input-targets/target-checks.js'
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
@@ -4218,65 +4220,31 @@ export class BrowserTabsManager {
     }
   }
 
-  /** Preserve presentation and observe even temporary native-environment changes.
-   * This owns admission only; the matching release never repeats these checks. */
-  private rightClickEnvironment(tab: BrowserTab): { validate(): void; dispose(): void } {
-    const webContents = tab.webContents
-    const generation = tab.nativeInputEnvironmentGeneration
-    const selection = this.tabSelectionGeneration
-    const split = this.splitViewGeneration
-    const bounds = JSON.stringify(tab.view.getBounds())
-    let changed = false
-    const invalidate = (): void => { changed = true }
-    const debuggerChanged = (_event: Electron.Event, method: string): void => {
-      if (['Page.frameAttached', 'Page.frameDetached', 'Page.frameResized'].includes(method)) invalidate()
-    }
-    tab.view.on('bounds-changed', invalidate)
-    webContents.on('zoom-changed', invalidate)
-    webContents.on('frame-created', invalidate)
-    webContents.on('devtools-opened', invalidate)
-    webContents.debugger.on('message', debuggerChanged)
-    webContents.debugger.on('detach', invalidate)
-    this.window.on('move', invalidate)
-    this.window.on('hide', invalidate)
-    this.window.on('minimize', invalidate)
-    screen.on('display-metrics-changed', invalidate)
+  /**
+   * The narrow view a native right-click's environment gets of this manager's
+   * private window, active tab, split view, generations, trusted chrome
+   * occlusion, human interaction lock, native selection sessions and DevTools
+   * opening. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it.
+   */
+  private rightClickEnvironmentAccess(): RightClickEnvironmentAccess<BrowserTab> {
     return {
-      validate: () => {
-        if (changed || generation !== tab.nativeInputEnvironmentGeneration
-          || selection !== this.tabSelectionGeneration || split !== this.splitViewGeneration
-          || JSON.stringify(tab.view.getBounds()) !== bounds || this.nativeInputLockMutations > 0) {
-          throw new Error('Right-click environment changed; inspect fresh state without replay')
-        }
-        if (this.activeTabId !== tab.id || this.splitView || this.browserContentOccluded
-          || !this.window.isVisible() || this.window.isMinimized() || !tab.view.getVisible()
-          || !this.window.contentView.children.includes(tab.view) || tab.sleeping || tab.pageLifecycleState !== 'active') {
-          throw new Error('Right-click requires the active visible, already awake page outside split view')
-        }
-        if (!this.isHumanInteractionLocked(tab)) throw new Error('Right-click requires a page locked in the trusted UI')
-        if (this.screenshotAreaSessions.has(webContents.id) || this.elementPickerSessions.has(webContents.id)
-          || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
-          throw new Error('Right-click is unavailable during native selection or Developer Tools')
-        }
-        if (webContents.mainFrame.framesInSubtree.length !== 1) throw new Error('Right-click does not support pages containing child frames')
-        if (webContents.getZoomFactor() !== 1 || tab.emulationApplication !== 'confirmed' || hasEmulationOverrides(tab.emulation)
-          || screen.getDisplayMatching(this.window.getBounds()).scaleFactor !== 1) {
-          throw new Error('Right-click requires default zoom, no emulation overrides, and display scale 1')
-        }
-      },
-      dispose: () => {
-        tab.view.removeListener('bounds-changed', invalidate)
-        webContents.removeListener('zoom-changed', invalidate)
-        webContents.removeListener('frame-created', invalidate)
-        webContents.removeListener('devtools-opened', invalidate)
-        webContents.debugger.removeListener('message', debuggerChanged)
-        webContents.debugger.removeListener('detach', invalidate)
-        this.window.removeListener('move', invalidate)
-        this.window.removeListener('hide', invalidate)
-        this.window.removeListener('minimize', invalidate)
-        screen.removeListener('display-metrics-changed', invalidate)
-      }
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      splitViewGeneration: () => this.splitViewGeneration,
+      splitView: () => this.splitView,
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      browserContentOccluded: () => this.browserContentOccluded,
+      nativeInputLockMutations: () => this.nativeInputLockMutations,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      devToolsOpening: () => this.devToolsOpening
     }
+  }
+
+  private rightClickEnvironment(tab: BrowserTab): { validate(): void; dispose(): void } {
+    return rightClickEnvironment(this.rightClickEnvironmentAccess(), tab)
   }
 
   private assertRightClickViewport(webContents: BrowserTab['webContents'], x: number, y: number, validate: () => void): Promise<void> {
