@@ -433,6 +433,14 @@ import type { AgentPauseAccess } from './agent-pause/agent-pause-access.js'
 import { hasAgentPauseExceptions, isTabAgentPaused, isTabTakenOver, setAllAgentsPaused, setTabAgentPaused } from './agent-pause/agent-pause.js'
 import type { InteractionLockAccess } from './interaction-lock/interaction-lock-access.js'
 import { setAllHumanInteractionLocked, setTabHumanInteractionLocked } from './interaction-lock/interaction-lock.js'
+import type { WebsiteDialogsAccess } from './website-dialogs/website-dialogs-access.js'
+import {
+  detachDialogMonitoring,
+  dismissWebsiteDialogForTrustedChrome,
+  ensureDialogMonitoring,
+  handleDialog,
+  withOptionalDialogHandling
+} from './website-dialogs/website-dialogs.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -471,9 +479,6 @@ function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
-const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
-const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
@@ -5408,16 +5413,35 @@ export class BrowserTabsManager {
     return callWebMcpTool(this.webMcpAccess(), input)
   }
 
-  async handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
+  /**
+   * The narrow view website dialogs and dialog monitoring get of this
+   * manager's private tabs, destroyed flag, debugger queue, pending monitor
+   * attachments, execution contexts, DevTools opening, human interaction lock,
+   * agent input and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private websiteDialogsAccess(): WebsiteDialogsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      dialogMonitorAttachPromises: () => this.dialogMonitorAttachPromises,
+      defaultExecutionContexts: () => this.defaultExecutionContexts,
+      isDevToolsOpening: (webContentsId) => this.devToolsOpening.has(webContentsId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      isAgentInput: (webContentsId) => this.agentInputWebContents.has(webContentsId),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
+  handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
     handled: true
     action: BrowserDialogAction
   }> {
-    const tab = this.getTab(tabId)
-    const webContents = tab.webContents
-    await this.withDebugger(webContents, () => webContents.debugger.sendCommand('Page.handleJavaScriptDialog', {
-      accept: action === 'accept'
-    }))
-    return { handled: true, action }
+    return handleDialog(this.websiteDialogsAccess(), action, tabId)
   }
 
   private async visualCompareContext(tab: BrowserTab): Promise<BrowserVisualCompareContext> {
@@ -8548,40 +8572,12 @@ export class BrowserTabsManager {
     })
   }
 
-  private async withOptionalDialogHandling<T>(
+  private withOptionalDialogHandling<T>(
     webContents: BrowserTab['view']['webContents'],
     options: BrowserDialogHandlingOptions,
     operation: () => Promise<T>
   ): Promise<T> {
-    if (options.promptText !== undefined && options.dialogAction === undefined) {
-      throw new Error('dialogAction is required when promptText is provided')
-    }
-    const dialogAction = options.dialogAction
-    if (dialogAction === undefined) return operation()
-
-    return this.withDebugger(webContents, async () => {
-      let handling = Promise.resolve()
-      let handlingError: unknown
-      const listener = (_event: Electron.Event, method: string): void => {
-        if (method !== 'Page.javascriptDialogOpening') return
-        handling = handling.then(async () => {
-          await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', {
-            accept: dialogAction === 'accept',
-            ...(options.promptText !== undefined ? { promptText: options.promptText } : {})
-          })
-        }).catch((error: unknown) => { handlingError = error })
-      }
-      webContents.debugger.on('message', listener)
-      try {
-        await webContents.debugger.sendCommand('Page.enable')
-        const result = await operation()
-        await handling
-        if (handlingError) throw handlingError
-        return result
-      } finally {
-        webContents.debugger.removeListener('message', listener)
-      }
-    })
+    return withOptionalDialogHandling(this.websiteDialogsAccess(), webContents, options, operation)
   }
 
   private async evaluateWithAttachedDebugger(
@@ -8641,83 +8637,15 @@ export class BrowserTabsManager {
   }
 
   private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {
-    this.dialogMonitorAttachPromises.delete(webContents.id)
-    this.defaultExecutionContexts.delete(webContents.id)
-    if (webContents.debugger.isAttached()) webContents.debugger.detach()
+    detachDialogMonitoring(this.websiteDialogsAccess(), webContents)
   }
 
-  private async dismissWebsiteDialogForTrustedChrome(tab: BrowserTab): Promise<void> {
-    const webContents = tab.webContents
-    if (tab.dialog) {
-      tab.dialog = undefined
-      this.changed(false)
-    }
-    if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
-    await this.ensureDialogMonitoring(tab)
-    if (
-      this.destroyed
-      || webContents.isDestroyed()
-      || this.tabs.get(tab.id) !== tab
-      || !webContents.debugger.isAttached()
-    ) return
-    // Website dialogs are native Chromium surfaces and can otherwise appear
-    // above renderer-owned trusted chrome. Reject them while a trusted modal
-    // owns the window; the page must never get to cover or impersonate the
-    // approval surface.
-    await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: false }).catch(() => undefined)
+  private dismissWebsiteDialogForTrustedChrome(tab: BrowserTab): Promise<void> {
+    return dismissWebsiteDialogForTrustedChrome(this.websiteDialogsAccess(), tab)
   }
 
   private ensureDialogMonitoring(tab: BrowserTab): Promise<void> {
-    const webContents = tab.webContents
-    const existing = this.dialogMonitorAttachPromises.get(webContents.id)
-    if (existing) return existing
-    const attaching = (async () => {
-      if (
-        this.destroyed
-        || webContents.isDestroyed()
-        || webContents.isDevToolsOpened()
-        || this.devToolsOpening.has(webContents.id)
-      ) return
-      try {
-        const attachedHere = !webContents.debugger.isAttached()
-        if (attachedHere) webContents.debugger.attach('1.3')
-        await webContents.debugger.sendCommand('Page.enable')
-        // Network Document responses also include iframes. Establish the native
-        // main-frame identity before recording any connection-security metadata.
-        const frameTree = await webContents.debugger.sendCommand('Page.getFrameTree') as {
-          frameTree?: { frame?: { id?: string } }
-        }
-        tab.mainFrameId = frameTree.frameTree?.frame?.id
-        await webContents.debugger.sendCommand('Runtime.enable')
-        await webContents.debugger.sendCommand('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }).catch(() => undefined)
-        await webContents.debugger.sendCommand('Log.enable').catch(() => undefined)
-        await webContents.debugger.sendCommand('Audits.enable')
-        await webContents.debugger.sendCommand('Network.enable', {
-          maxTotalBufferSize: MAX_NETWORK_TOTAL_BUFFER_BYTES,
-          maxResourceBufferSize: MAX_NETWORK_RESOURCE_BUFFER_BYTES,
-          maxPostDataSize: MAX_NETWORK_POST_DATA_BYTES
-        })
-        // Reattachment never restores request conditions. A detached epoch
-        // requires explicit recovery; dialog monitoring is independent.
-        tab.networkDebuggerEnabled = true
-        await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', {
-          ignore: this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(webContents.id)
-        })
-        // Emulation uncertainty also requires explicit recovery; never reapply it here.
-      } catch (error) {
-        tab.networkDebuggerEnabled = false
-        if (!this.destroyed && !webContents.isDestroyed()) {
-          console.error('[browser] Could not enable page diagnostics:', error)
-        }
-      }
-    })()
-    this.dialogMonitorAttachPromises.set(webContents.id, attaching)
-    void attaching.finally(() => {
-      if (this.dialogMonitorAttachPromises.get(webContents.id) === attaching) {
-        this.dialogMonitorAttachPromises.delete(webContents.id)
-      }
-    })
-    return attaching
+    return ensureDialogMonitoring(this.websiteDialogsAccess(), tab)
   }
 
   private openDevTools(tab: BrowserTab): Promise<void> {
