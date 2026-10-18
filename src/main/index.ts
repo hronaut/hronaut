@@ -22,7 +22,7 @@ import { registerAgentPresenceIpc } from './agent-presence-ipc.js'
 import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
-import { createTrayAttention } from './tray-attention.js'
+import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
 import { join, resolve } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import {
@@ -74,8 +74,7 @@ import {
 import {
   McpHttpServer,
   mcpToolCatalogForSet,
-  type SiteDataType,
-  type UserAttentionRequest
+  type SiteDataType
 } from './mcp/server.js'
 import { createHomeDashboard } from './home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
@@ -432,11 +431,11 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
 })
 let runtimeShutdown: Promise<void> | null = null
 const userAttentionLifecycle = new UserAttentionLifecycle()
-// The request still open for the user. It shows as needs you until it is answered or ends;
-// a click or key only quiets it, which agents see as answered in status and preflight.
-let userAttention: UserAttentionRequest | null = null
-let attentionQuiet = false
-let attentionDecisionId: string | undefined
+const userAttentionState: UserAttentionState = {
+  request: null,
+  quiet: false,
+  decisionId: undefined
+}
 const {
   setTrayContextMenu,
   shellUserAttention,
@@ -457,12 +456,7 @@ const {
   checkForUpdates,
   setQuitting: (value) => { quitting = value },
   userAttentionLifecycle,
-  userAttention: () => userAttention,
-  setUserAttention: (value) => { userAttention = value },
-  attentionQuiet: () => attentionQuiet,
-  setAttentionQuiet: (value) => { attentionQuiet = value },
-  attentionDecisionId: () => attentionDecisionId,
-  setAttentionDecisionId: (value) => { attentionDecisionId = value },
+  state: userAttentionState,
   agentPresenceSnapshot: () => agentPresenceSnapshot(),
   scheduleAgentPresencePublish: () => scheduleAgentPresencePublish(),
   activeMcpActivities: () => activeMcpActivities,
@@ -560,7 +554,7 @@ const { agentPresenceSnapshot, scheduleAgentPresencePublish, connectedAgents } =
   mcpRuntime,
   tabs: () => tabsManager,
   publishMcpControlState: (options) => publishMcpControlState(options),
-  attentionQuiet: () => attentionQuiet,
+  attentionQuiet: () => userAttentionState.quiet,
   userAttentionShown,
   endUserAttention,
   sendToMainWindow
@@ -856,8 +850,8 @@ function registerIpc(): void {
   registerAttentionIpc(ipcMain, {
     assertMainShellSender,
     shellUserAttention,
-    userAttention: () => userAttention,
-    attentionDecisionId: () => attentionDecisionId,
+    userAttention: () => userAttentionState.request,
+    attentionDecisionId: () => userAttentionState.decisionId,
     userAttentionLifecycle: () => userAttentionLifecycle,
     mcpServer: () => mcpRuntime.server,
     endUserAttention,
@@ -920,8 +914,8 @@ function registerIpc(): void {
     handleBrowserIpc,
     tabs: () => tabsManager,
     humanWaiting: () => humanWaiting,
-    userAttention: () => userAttention,
-    attentionDecisionId: () => attentionDecisionId,
+    userAttention: () => userAttentionState.request,
+    attentionDecisionId: () => userAttentionState.decisionId,
     mcpServer: () => mcpRuntime.server,
     quietUserAttention,
     endUserAttention,
@@ -1123,8 +1117,8 @@ async function createWindow(startMinimized = false): Promise<void> {
     humanWaiting = new HumanWaitingService(new HumanWaitingPersistence(join(app.getPath('userData'), 'human-waiting.json')))
     humanWaiting.onSaved((records) => {
       // A decision's request ends with the decision, however it ends.
-      const decisionId = attentionDecisionId
-      if (!decisionId || !userAttention) return
+      const decisionId = userAttentionState.decisionId
+      if (!decisionId || !userAttentionState.request) return
       const record = records.find((candidate) => candidate.id === decisionId)
       if (!record || !humanWaitingDecisionOpen(record.state)) endUserAttention({ keepPending: true })
     })
@@ -1166,7 +1160,7 @@ async function createWindow(startMinimized = false): Promise<void> {
     resolveTabAttention: (id, tabId, workspaceId) => {
       if (!userAttentionLifecycle.resolve(id, tabId, workspaceId)) return
       mcpRuntime.server?.recordAgentAnswer(id, 'handedBack')
-      if (userAttention?.id === id) endUserAttention({ keepPending: true })
+      if (userAttentionState.request?.id === id) endUserAttention({ keepPending: true })
       takeOvers.resolvedOn(tabId)
     },
     onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
@@ -1445,11 +1439,11 @@ function createRuntimeMcpServer(
     toolSet: settingsState.current.mcpToolSet,
     showWindowInactive,
     userAttentionLifecycle,
-    getUserAttention: () => (userAttention && !attentionQuiet ? { ...userAttention } : null),
-    getOpenUserAttentionId: () => userAttention?.id ?? null,
+    getUserAttention: () => (userAttentionState.request && !userAttentionState.quiet ? { ...userAttentionState.request } : null),
+    getOpenUserAttentionId: () => userAttentionState.request?.id ?? null,
     onAgentMovedOn: (attentionId) => {
       // After the user responded, the agent acting again on a page ends its own request.
-      if (userAttention?.id === attentionId && attentionQuiet && !attentionDecisionId) endUserAttention({ keepPending: true })
+      if (userAttentionState.request?.id === attentionId && userAttentionState.quiet && !userAttentionState.decisionId) endUserAttention({ keepPending: true })
     },
     requestUserAttention,
     bookmarks: {
