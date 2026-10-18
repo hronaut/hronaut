@@ -226,7 +226,6 @@ import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
-import { boundedScreenshotSize } from '../../shared/screenshot.js'
 import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import {
@@ -479,6 +478,8 @@ import { captureVisual, visualCompareContext } from './visual-compare/visual-cap
 import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import type { TabMutingAccess } from './tab-muting/tab-muting-access.js'
 import { setAllTabsMuted, setTabMuted } from './tab-muting/tab-muting.js'
+import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step-thumbnail-access.js'
+import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -519,9 +520,6 @@ const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
 /** After a click, key or scroll on the page in view, its overview preview waits this long for the page to settle. */
 const TAB_OVERVIEW_INPUT_SETTLE_MS = 1_000
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
-const MAX_AGENT_STEP_THUMBNAIL_WIDTH = 320
-const MAX_AGENT_STEP_THUMBNAIL_HEIGHT = 200
-const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
 const MIN_SHELL_HEIGHT = 44
 const ABORTED_LOAD_ERROR = -3
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
@@ -1452,46 +1450,28 @@ export class BrowserTabsManager {
   }
 
   /**
-   * A small picture of a tab after an agent's step, for the shell's "All steps". Only a tab already on screen in a
-   * visible window is pictured, from the frame it shows, so this never shows, wakes or moves a page; 'later' while the
-   * page loads or another capture of it runs. Memory only: never sent to agents, saved or reported.
+   * The narrow view picturing a tab after an agent's step gets of this
+   * manager's private tabs, workspaces, window, occlusion, active tab, split
+   * view and native frame capture. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegate below returns the feature's promise
+   * directly, so callers see the same ticks as before.
    */
-  async captureAgentStepThumbnail(tabId: string, workspaceId: string): Promise<AgentStepThumbnailImage | 'later' | undefined> {
-    const tab = this.tabs.get(tabId)
-    // Only a tab of the step's own workspace, before and after the capture: another workspace's page never shows in it.
-    const eligible = (): boolean => Boolean(tab)
-      && this.tabBelongsToMcpGroup(workspaceId, tabId)
-      && !this.destroyed
-      && !this.window.isDestroyed()
-      && this.window.isVisible()
-      && !this.window.isMinimized()
-      && this.tabs.get(tabId) === tab
-      && !tab!.webContents.isDestroyed()
-      && !tab!.sleeping
-      && !this.browserContentOccluded
-      && tab!.view.getVisible()
-      && (tabId === this.activeTabId || this.splitViewContains(tabId))
-    if (!tab || !eligible()) return undefined
-    if (tab.loading || this.nativePreviewCapture.isPending(tab.webContents)) return 'later'
-    const navigationGeneration = tab.navigationGeneration
-    let captured: Electron.NativeImage | undefined
-    try {
-      captured = await this.nativePreviewCapture.run(tab.webContents, () => tab.webContents.capturePage(), () => undefined, () => undefined)
-    } catch {
-      return undefined
+  private agentStepThumbnailAccess(): AgentStepThumbnailAccess<BrowserTab> {
+    return {
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabBelongsToMcpGroup: (workspaceId, tabId) => this.tabBelongsToMcpGroup(workspaceId, tabId),
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      browserContentOccluded: () => this.browserContentOccluded,
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      nativePreviewCapture: () => this.nativePreviewCapture
     }
-    if (!captured || captured.isEmpty() || !eligible() || tab.navigationGeneration !== navigationGeneration) return undefined
-    const original = captured.getSize()
-    const bounded = boundedScreenshotSize(original.width, original.height, MAX_AGENT_STEP_THUMBNAIL_WIDTH, MAX_AGENT_STEP_THUMBNAIL_HEIGHT)
-    const image = bounded.width === original.width && bounded.height === original.height
-      ? captured
-      : captured.resize({ width: bounded.width, height: bounded.height, quality: 'good' })
-    // A busy page compresses poorly; a lower quality keeps it within the cap, or it goes without.
-    let jpeg = image.toJPEG(60)
-    if (jpeg.length > MAX_AGENT_STEP_THUMBNAIL_BYTES) jpeg = image.toJPEG(40)
-    if (jpeg.length > MAX_AGENT_STEP_THUMBNAIL_BYTES) return undefined
-    const size = image.getSize()
-    return { jpeg, width: size.width, height: size.height }
+  }
+
+  captureAgentStepThumbnail(tabId: string, workspaceId: string): Promise<AgentStepThumbnailImage | 'later' | undefined> {
+    return captureAgentStepThumbnail(this.agentStepThumbnailAccess(), tabId, workspaceId)
   }
 
   private screenshotPixelRatio(tab: BrowserTab): number {
