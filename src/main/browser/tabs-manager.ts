@@ -359,8 +359,6 @@ import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import {
-  agentPointerScript,
-  dismissAgentPointerScript,
   type AgentPointerIdentity,
   cancelElementPickerScript,
   cancelScreenshotAreaScript,
@@ -478,6 +476,8 @@ import type { NativeClickAccess } from './native-click/native-click-access.js'
 import { dispatchNativeClick } from './native-click/native-click.js'
 import { coordinateDragPointsOrValidateTargets, coordinatePointOrValidateTarget, validateTarget } from './input-targets/input-targets.js'
 import { attemptBeforeUnloadClose } from './tab-close/before-unload-close.js'
+import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js'
+import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -526,7 +526,6 @@ const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
 const MIN_SHELL_HEIGHT = 44
 const ABORTED_LOAD_ERROR = -3
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
-const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
 const MEMORY_SAVER_SWEEP_MS = 30_000
@@ -4376,35 +4375,29 @@ export class BrowserTabsManager {
   }
 
   /**
-   * Draws the agent's cursor on the page, named and in its avatar's color when the call came from an MCP
-   * client. Nothing is drawn while agent cursors are turned off. The page gets only the point, the effect,
-   * the name and two colors, in an isolated world.
+   * The narrow view drawing the agent's cursor gets of this manager's private
+   * options. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see the
+   * same ticks as before.
    */
-  private async showAgentPointer(
+  private agentPointerAccess(): AgentPointerAccess {
+    return {
+      options: () => this.options
+    }
+  }
+
+  private showAgentPointer(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
     effect: 'move' | 'click' | 'drag-start' | 'drag-end',
-    options: { origin?: { x: number; y: number }; agent?: AgentPointerIdentity } = {}
+    options?: { origin?: { x: number; y: number }; agent?: AgentPointerIdentity }
   ): Promise<void> {
-    if (this.options.getShowAgentCursor?.() === false) return
-    await webContents.executeJavaScriptInIsolatedWorld(
-      AGENT_POINTER_WORLD_ID,
-      [{ code: agentPointerScript(point, effect, options.origin, options.agent) }],
-      false
-    ).catch(() => undefined)
+    return showAgentPointer(this.agentPointerAccess(), webContents, point, effect, options)
   }
 
-  /**
-   * Takes an agent's cursor off the page before a capture for an agent, so its screenshots and visual
-   * comparisons show the page itself. Waits for the page to paint without it, at most a moment.
-   */
-  private async dismissAgentPointer(webContents: BrowserTab['view']['webContents']): Promise<void> {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    await Promise.race([
-      webContents.executeJavaScriptInIsolatedWorld(AGENT_POINTER_WORLD_ID, [{ code: dismissAgentPointerScript() }], false).catch(() => undefined),
-      new Promise<void>((resolve) => { timer = setTimeout(resolve, 300) })
-    ])
-    clearTimeout(timer)
+  private dismissAgentPointer(webContents: BrowserTab['view']['webContents']): Promise<void> {
+    return dismissAgentPointer(webContents)
   }
 
   async type(target: {
