@@ -67,6 +67,7 @@ import { trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNet
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
 import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
+import { applyNetworkEmulation } from './emulation/network-emulation.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
 import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
@@ -529,32 +530,6 @@ const webVitalsSource = readFileSync(webVitalsPath, 'utf8')
 const webVitalsVersion = (JSON.parse(
   readFileSync(join(dirname(webVitalsPath), '..', 'package.json'), 'utf8')
 ) as { version: string }).version
-
-const NETWORK_EMULATION = {
-  none: { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 },
-  offline: { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 },
-  'slow-3g': {
-    offline: false,
-    latency: 400 * 5,
-    downloadThroughput: 500 * 1000 / 8 * 0.8,
-    uploadThroughput: 500 * 1000 / 8 * 0.8,
-    connectionType: 'cellular3g'
-  },
-  'slow-4g': {
-    offline: false,
-    latency: 150 * 3.75,
-    downloadThroughput: 1.6 * 1000 * 1000 / 8 * 0.9,
-    uploadThroughput: 750 * 1000 / 8 * 0.9,
-    connectionType: 'cellular4g'
-  },
-  'fast-4g': {
-    offline: false,
-    latency: 60 * 2.75,
-    downloadThroughput: 9 * 1000 * 1000 / 8 * 0.9,
-    uploadThroughput: 1.5 * 1000 * 1000 / 8 * 0.9,
-    connectionType: 'cellular4g'
-  }
-} as const
 
 function isAbortedLoad(error: unknown): boolean {
   if (!(error instanceof Error)) return false
@@ -7415,52 +7390,13 @@ export class BrowserTabsManager {
     )
   }
 
-  private async applyNetworkEmulation(
+  private applyNetworkEmulation(
     webContents: BrowserTab['view']['webContents'],
     preset: BrowserEmulationState['network'],
-    routes: BrowserNetworkRouteRecord[] = [],
+    routes?: BrowserNetworkRouteRecord[],
     send?: (method: string, params?: Record<string, unknown>) => Promise<unknown>
   ): Promise<void> {
-    const command = send ?? ((method: string, params?: Record<string, unknown>) => webContents.debugger.sendCommand(method, params))
-    const conditions = NETWORK_EMULATION[preset]
-    routes = routes.filter(route => route.enabled)
-    const hasIndividualThrottle = routes.some((route) => route.behavior === 'throttle')
-    const routeConditions: Array<{
-      urlPattern: string
-      offline: boolean
-      latency: number
-      downloadThroughput: number
-      uploadThroughput: number
-      connectionType?: string
-    }> = []
-    if (hasIndividualThrottle) {
-      for (const route of routes) {
-        if (route.behavior === 'throttle' && route.throttle) {
-          routeConditions.push({ urlPattern: route.urlPattern, ...NETWORK_EMULATION[route.throttle] })
-        } else if (!route.method) {
-          // Method-specific Fetch rules cannot be represented in a URL-only
-          // network condition, but they still win when fulfilled or failed.
-          routeConditions.push({ urlPattern: route.urlPattern, ...NETWORK_EMULATION.none })
-        }
-      }
-    }
-    try {
-      await command('Network.emulateNetworkConditionsByRule', {
-        offline: conditions.offline,
-        emulateOfflineServiceWorker: conditions.offline,
-        matchedNetworkConditions: [
-          ...routeConditions,
-          ...(preset === 'none' ? [] : [{ urlPattern: '', ...conditions }])
-        ]
-      })
-      await command('Network.overrideNetworkState', conditions)
-    } catch (error) {
-      if (send || !this.isUnavailableCdpMethod(error)) throw error
-      if (hasIndividualThrottle) {
-        throw new Error('Individual request throttling is unavailable in this Chromium build')
-      }
-      await command('Network.emulateNetworkConditions', conditions)
-    }
+    return applyNetworkEmulation(webContents, preset, routes, send)
   }
 
   private isUnavailableCdpMethod(error: unknown): boolean {
