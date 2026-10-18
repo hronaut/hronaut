@@ -96,6 +96,7 @@ import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
 import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
 import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
+import { createRuntimeShutdown } from './runtime-shutdown.js'
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
@@ -367,7 +368,6 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
   mainWindow: () => mainWindowRefs.window,
   panelWindow: () => panelWindowRefs.window
 })
-let runtimeShutdown: Promise<void> | null = null
 const userAttentionLifecycle = new UserAttentionLifecycle()
 const userAttentionState: UserAttentionState = {
   request: null,
@@ -1129,48 +1129,21 @@ async function createWindow(startMinimized = false): Promise<void> {
   if (!startMinimized) mainWindowRefs.window.show()
 }
 
-async function releaseRuntimeResources(): Promise<void> {
-  if (runtimeShutdown) return runtimeShutdown
-  const manager = tabRuntime.tabs
-  manager?.stopTabLabelEdits()
-  const server = mcpRuntime.server
-  const wallets = walletRuntime.service
-  const broker = walletRuntime.broker
-  mcpRuntime.server = null
-  runtimeShutdown = (async () => {
-    bookmarksAndHistory.history?.dispose()
-    const results = [
-      ...await Promise.allSettled([server?.stop()]),
-      ...await Promise.allSettled([agentServices.auditReceipts?.stopAll()]),
-      // A workspace closed with Undo still on offer is deleted now, and so is one closed while quitting.
-      ...await Promise.allSettled([undoOffers.close()]),
-      ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
-      ...await Promise.allSettled([broker?.shutdown()]),
-      ...await Promise.allSettled([
-        manager?.flushPersist(),
-        manager?.flushWorkspaceProfiles(),
-        bookmarksAndHistory.bookmarks?.flush(),
-        credentialRuntime.store?.flush(),
-        bookmarksAndHistory.history?.flush(),
-        browserSessionState.sitePermissionStore?.flush(),
-        commercialLicenseRuntime.store?.flush(),
-        settingsState.mutationQueue,
-        flushWindowState(),
-        flushPanelWindowState(),
-        flushBrowserProfile()
-      ])
-    ]
-    for (const result of results) {
-      if (result.status === 'rejected') console.error('[shutdown] Runtime cleanup failed:', result.reason)
-    }
-    manager?.destroy()
-    wallets?.dispose()
-    if (tabRuntime.tabs === manager) tabRuntime.tabs = null
-    if (walletRuntime.service === wallets) walletRuntime.service = null
-    if (walletRuntime.broker === broker) walletRuntime.broker = null
-  })()
-  return runtimeShutdown
-}
+const { releaseRuntimeResources } = createRuntimeShutdown({
+  tabRuntime,
+  mcpRuntime,
+  walletRuntime,
+  bookmarksAndHistory,
+  agentServices,
+  undoOffers,
+  credentialRuntime,
+  browserSessionState,
+  commercialLicenseRuntime,
+  settingsState,
+  flushWindowState,
+  flushPanelWindowState,
+  flushBrowserProfile
+})
 
 function createRuntimeMcpServer(
   port: number,
