@@ -19,11 +19,6 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   copyPngToClipboard(data: Buffer): Promise<{ width: number; height: number }>
   copyPageImageToClipboard(webContents: WebContents, x: number, y: number): Promise<void>
 } {
-  // Keep the current clipboard image alive while Hronaut owns the X11 clipboard.
-  // This is harmless on Windows/macOS and avoids relying on a temporary NativeImage
-  // wrapper being retained by the Linux clipboard backend.
-  let _lastScreenshotClipboardImage: NativeImage | null = null
-  let _lastCopiedText = ''
   let clipboardOperationQueue: Promise<void> = Promise.resolve()
 
   function queueClipboardOperation<T>(operation: () => Promise<T>): Promise<T> {
@@ -35,7 +30,6 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
   async function copyTextToClipboard(text: string): Promise<void> {
     await queueClipboardOperation(async () => {
       await writeVerifiedClipboardText(text, clipboard)
-      _lastCopiedText = text
     })
   }
 
@@ -59,7 +53,6 @@ export function createClipboardOperations(host: ClipboardOperationsHost): {
     const image = nativeImage.createFromBuffer(data)
     if (image.isEmpty()) throw new Error(host.text('native.errors.screenshotCreate'))
     const expectedSize = image.getSize()
-    _lastScreenshotClipboardImage = image
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       // Do not let a previous image with the same dimensions masquerade as a

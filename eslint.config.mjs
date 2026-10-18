@@ -113,13 +113,12 @@ export default defineConfig(
       // Protocol sanitizers and generated page scripts intentionally spell escapes explicitly.
       'no-control-regex': 'off',
       'no-useless-escape': 'off',
-      'no-unsafe-finally': 'off',
       'no-useless-assignment': 'off'
     }
   },
   {
-    // Moved out of tabs-manager.ts with that file's exemption: their cleanup
-    // deliberately reports a failed restoration or release from inside finally.
+    // Their cleanup deliberately reports a failed restoration or release from
+    // inside finally.
     files: [
       'src/main/browser/agent-input-authorization/agent-input-authorization.ts',
       'src/main/browser/agent-input-scope/agent-input-scope.ts',

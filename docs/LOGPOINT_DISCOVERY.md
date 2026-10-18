@@ -33,8 +33,9 @@ it does **not** bound expression execution, emitted events, or page overhead.
 
 - `profiling-controller.ts` enables `Debugger` for coverage and disables it when
   stopping/clearing coverage. A second owner cannot assume its probes survive.
-- `tabs-manager.ts` serializes debugger commands with `withDebugger` and refuses
-  competing MCP debugger actions while DevTools is open. A standalone CDP
+- `debugger-lease/debugger-lease.ts` serializes debugger commands with
+  `withDebugger` and refuses competing MCP debugger actions while DevTools is
+  open. A standalone CDP
   client does not prove safe coexistence with those application rules.
 - URL-based probes may apply again after navigation. Navigation or ownership
   changes must revoke old authority explicitly; matching a URL is not consent.
