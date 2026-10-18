@@ -34,9 +34,10 @@ h2 { font-size: var(--type-title-size); font-weight: 600; line-height: 1.4; lett
 /* What agents add up to, in one pill; the server's own facts open in a popover under it. */
 /* The pill keeps its width beside a long description (which wraps instead), up to its share of the header; words
    that do not fit end in an ellipsis before Details, with the whole status on hover. */
-.hero-status { position: relative; display: flex; flex: 0 0 auto; align-items: center; gap: 4px; min-width: 0; max-width: min(360px, 45%); min-height: 36px; padding: 3px 3px 3px 14px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); box-shadow: var(--elevation-1); }
+.hero-status { position: relative; display: flex; flex: 0 0 auto; align-items: center; gap: 4px; min-width: 0; max-width: min(360px, 45%); min-height: 36px; padding: 3px 3px 3px 11px; border: 1px solid var(--border); border-radius: var(--corner-pill); background: var(--panel); box-shadow: var(--elevation-1); }
 .status-label { display: block; min-width: 0; overflow: hidden; color: var(--text); font-size: var(--type-small-size); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.status-label .dot { display: inline-block; margin-right: 4px; vertical-align: middle; }
+/* Clear of the label's clipped edge, so the dot's ring shows whole. */
+.status-label .dot { display: inline-block; margin: 0 4px 0 3px; vertical-align: middle; }
 .status-details { flex: none; color: var(--muted); font-size: var(--type-micro-size); }
 .status-details > summary { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 10px; border-radius: var(--corner-pill); cursor: pointer; font-weight: 500; list-style: none; }
 .status-details > summary::-webkit-details-marker { display: none; }
