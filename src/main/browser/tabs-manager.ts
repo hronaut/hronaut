@@ -483,6 +483,8 @@ import type { AgentStepThumbnailAccess } from './agent-step-thumbnail/agent-step
 import { captureAgentStepThumbnail } from './agent-step-thumbnail/agent-step-thumbnail.js'
 import type { TrustedChromeFocusAccess } from './trusted-chrome-focus/trusted-chrome-focus-access.js'
 import { cancelFocusAfterTrustedChrome, focusTabOrTrustedChrome } from './trusted-chrome-focus/trusted-chrome-focus.js'
+import type { AgentFollowAccess } from './agent-follow/agent-follow-access.js'
+import { publishAgentFollowChange, publishedAgentFollow, retainAgentFollow, setFollowAgentActivity } from './agent-follow/agent-follow.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -1373,23 +1375,33 @@ export class BrowserTabsManager {
     }
   }
 
-  /** What the shell shows of following: only while the tab it showed is still the one in view. */
+  /**
+   * The narrow view agent following gets of this manager's private followed
+   * agent, follow preference, tabs, active tab and selection generation, MCP
+   * activity follower and state publication. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit tests
+   * do) still provide it.
+   */
+  private agentFollowAccess(): AgentFollowAccess {
+    return {
+      agentFollow: () => this.agentFollow,
+      setAgentFollow: (follow) => { this.agentFollow = follow },
+      followAgentActivity: () => this.followAgentActivity,
+      setFollowAgentActivityPreference: (enabled) => { this.followAgentActivity = enabled },
+      activeTabId: () => this.activeTabId,
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      hasTab: (tabId) => this.tabs.has(tabId),
+      mcpActivityFollower: () => this.mcpActivityFollower,
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
   private publishedAgentFollow(): { tabId: string; agentName: string } | undefined {
-    const follow = this.agentFollow
-    if (
-      !follow
-      || !this.followAgentActivity
-      || follow.tabId !== this.activeTabId
-      // A tab the person picked, even the same one again, is not being followed.
-      || follow.selectionGeneration !== this.tabSelectionGeneration
-      || !this.tabs.has(follow.tabId)
-    ) return undefined
-    return { tabId: follow.tabId, agentName: follow.agentName }
+    return publishedAgentFollow(this.agentFollowAccess())
   }
 
   private publishAgentFollowChange(before: { tabId: string; agentName: string } | undefined): void {
-    const after = this.publishedAgentFollow()
-    if (before?.tabId !== after?.tabId || before?.agentName !== after?.agentName) this.changed(false)
+    publishAgentFollowChange(this.agentFollowAccess(), before)
   }
 
   private agentWheelUnderWay(webContentsId: number): boolean {
@@ -1400,12 +1412,8 @@ export class BrowserTabsManager {
     return false
   }
 
-  /** Forgets the followed agent once its session has left presence, so the rail does not name an agent that is gone. */
   retainAgentFollow(agentIds: ReadonlySet<string>): void {
-    if (!this.agentFollow || agentIds.has(this.agentFollow.agentId)) return
-    const before = this.publishedAgentFollow()
-    this.agentFollow = undefined
-    this.publishAgentFollowChange(before)
+    retainAgentFollow(this.agentFollowAccess(), agentIds)
   }
 
   /**
@@ -2465,11 +2473,7 @@ export class BrowserTabsManager {
   }
 
   setFollowAgentActivity(enabled: boolean): void {
-    const before = this.publishedAgentFollow()
-    this.followAgentActivity = enabled
-    if (!enabled) this.agentFollow = undefined
-    this.publishAgentFollowChange(before)
-    this.mcpActivityFollower.refresh()
+    setFollowAgentActivity(this.agentFollowAccess(), enabled)
   }
 
   /** The agent is its session's opaque presence key and cleaned name; following holds on it and names it in the rail. */
