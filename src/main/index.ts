@@ -71,7 +71,7 @@ import {
 } from './mcp/server.js'
 import { createHomeDashboard } from './home-dashboard.js'
 import { registerWorkspacesIpc } from './workspaces-ipc.js'
-import { pinnedWorkspaceAt } from '../shared/workspace-shortcuts.js'
+import { createBrowserShortcutRouting } from './browser-shortcut-routing.js'
 import { loadMcpToken } from './mcp-token-store.js'
 import { createAgentServices, type AgentServicesState } from './agent-services.js'
 import { McpPauseState } from './mcp-pause-state.js'
@@ -543,6 +543,13 @@ const takeOvers = new TakeOverOffers({
   },
   sendOffer: (offer) => sendToMainWindow('agent-presence:take-over-offer', offer),
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
+})
+
+const { pageShortcutAvailable, runPageShortcut } = createBrowserShortcutRouting({
+  takeOvers,
+  tabs: () => tabRuntime.tabs,
+  agentPresenceSnapshot,
+  mainWindowRefs
 })
 
 const { refreshHomeAfterCommittedChange, homeDashboardState } = createHomeDashboard({
@@ -1074,29 +1081,8 @@ async function createWindow(startMinimized = false): Promise<void> {
         console.error('[audit] Failed to finalize receipts for a closed workspace.')
       })
     },
-    // Ctrl/Cmd+Shift+O takes the page over only while an agent is working on it; the page keeps it otherwise.
-    shortcutAvailable: (action, workspaceId, tabId) => action === 'take-over' ? takeOvers.available(tabId, workspaceId) !== undefined
-      // Ctrl/Cmd+K is a common website key, such as for a site's own search, so websites keep it; Home does not use it.
-      : action === 'switch-workspace' ? tabRuntime.tabs?.isHomeTab(tabId) === true
-      // A page keeps a workspace key while there is no workspace for it to go to.
-      : action === 'previous-workspace' ? (tabRuntime.tabs?.listMcpTabGroups().some((workspace) => workspace.id !== workspaceId) ?? false)
-      : action.startsWith('select-workspace-') ? pinnedWorkspaceAt(tabRuntime.tabs?.listMcpTabGroups() ?? [], Number(action.slice(-1))) !== undefined
-      : action !== 'agent-card' || (workspaceId !== undefined && (agentPresenceSnapshot().workspaces[workspaceId]?.length ?? 0) > 0),
-    onShortcutRequested: (action, page) => {
-      // From a page, the key takes over that page's tab, which may not be the one the shell shows.
-      if (action === 'take-over' && page) {
-        takeOvers.takeOverFromPage(page.tabId, page.workspaceId)
-        return
-      }
-      if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
-        // The page WebContentsView owns native focus when a website shortcut is
-        // pressed. Move it to trusted chrome before the renderer focuses a
-        // field, otherwise the DOM selection is visible while typed keys keep
-        // going to the website.
-        if (action === 'find' || action === 'focus-address') mainWindowRefs.window.webContents.focus()
-        mainWindowRefs.window.webContents.send('browser:shortcut-requested', action)
-      }
-    },
+    shortcutAvailable: pageShortcutAvailable,
+    onShortcutRequested: runPageShortcut,
     copyText: copyTextToClipboard,
     copyImageAt: copyPageImageToClipboard,
     onClipboardCopyFailed: reportClipboardFailure,
