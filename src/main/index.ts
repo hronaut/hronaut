@@ -87,16 +87,12 @@ import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
 import { createShellWindows } from './windows/shell-windows.js'
 import type {
-  AppUpdateState,
-  LanguagePreference
+  AppUpdateState
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
 import { registerNavigationIpc } from './navigation-ipc.js'
 import { createWindowAppearance, resolvedTheme, THEME_BACKGROUND } from './windows/appearance.js'
-import {
-  resolveLocalePreference,
-  resolveSupportedLocale
-} from '../shared/locale.js'
+import { createInterfaceLanguage } from './interface-language.js'
 import { registerEmulationIpc } from './emulation-ipc.js'
 import { registerPageGeometryIpc } from './page-geometry-ipc.js'
 import { DEFAULT_MCP_PORT } from '../shared/mcp-port.js'
@@ -623,19 +619,6 @@ const { applyTheme, applyInterfaceScale, followSystemTheme } = createWindowAppea
   currentRendererSettingsState
 })
 
-function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
-  if (preference === 'system') settingsState.systemLocale = resolveSupportedLocale(app.getLocale())
-  settingsState.resolvedLocale = resolveLocalePreference(preference, settingsState.systemLocale)
-  publishSettings()
-  installApplicationMenu()
-  setTrayContextMenu()
-  mainWindowRefs.window?.setTitle('Hronaut')
-  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && panelWindowRefs.panel) {
-    panelWindowRefs.window.setTitle(detachedPanelTitle(panelWindowRefs.panel))
-  }
-  refreshHomeAfterCommittedChange('settings')
-}
-
 function registerHomeProtocol(): void {
   if (!browserSessionState.persistentSession) throw new Error('Persistent session must be configured before registering Hronaut Home')
   const homeSession = session.fromPartition(workspacePartition(PARTITION, 'home'), { cache: true })
@@ -707,6 +690,17 @@ const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
   currentPanelWindowState,
   schedulePanelWindowStateSave,
   flushPanelWindowState
+})
+
+const { applyLanguagePreferenceRuntime } = createInterfaceLanguage({
+  state: settingsState,
+  publishSettings,
+  installApplicationMenu,
+  setTrayContextMenu,
+  mainWindowRefs,
+  panelWindowRefs,
+  detachedPanelTitle,
+  refreshHomeAfterCommittedChange
 })
 
 const {
