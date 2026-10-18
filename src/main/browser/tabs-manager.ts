@@ -130,7 +130,13 @@ import {
 } from './workspace-continuity/workspace-continuity.js'
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
-import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
+import type { WorkspaceDataAccess } from './workspace-data/workspace-data-access.js'
+import {
+  listWorkspaceStorageOrigins,
+  transferWorkspaceStorage,
+  withWorkspaceSiteDataCleanup,
+  workspaceSession
+} from './workspace-data/workspace-data.js'
 import { suggestWorkspaceName } from '../../shared/workspace-names.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
@@ -151,7 +157,6 @@ import {
   Menu,
   powerMonitor,
   screen,
-  session,
   WebContentsView,
   type LoadURLOptions,
   type MenuItemConstructorOptions,
@@ -355,9 +360,8 @@ import type {
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
-import { BrowserImportError } from '../browser-import/contracts.js'
 import type { ImportDestination } from '../browser-import/service.js'
-import { writeImportedCookies } from '../browser-import/write.js'
+import { browserImportDestination, importBrowserCookies } from './workspace-data/browser-cookie-import.js'
 import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
@@ -395,7 +399,6 @@ import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './pa
 import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import {
-  evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from './workspace-navigation-policy.js'
@@ -408,7 +411,6 @@ import {
 } from './workspace-navigation/workspace-navigation.js'
 import {
   normalizeWorkspaceStorageOrigins,
-  transferWorkspaceStorage,
   workspacePartition
 } from './workspace-storage.js'
 import type { QuitFlushAccess } from './quit-flush/quit-flush-access.js'
@@ -1771,116 +1773,59 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  browserImportDestination(id: string): ImportDestination {
-    const group = this.mcpTabGroups.get(id) ?? this.savedTabGroups.get(id)
-    if (!group) throw new BrowserImportError('expired')
-    return { id, name: group.name, fingerprint: JSON.stringify([group.storageId, group.navigationPolicy]) }
+  /**
+   * The narrow view workspace data gets of this manager's private open and
+   * archived workspaces, workspace operations, cookie import sessions,
+   * options and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's value or
+   * promise directly, so callers see the same ticks as before.
+   */
+  private workspaceDataAccess(): WorkspaceDataAccess {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      isClosingWorkspace: (workspaceId) => this.isClosingWorkspace(workspaceId),
+      options: () => this.options,
+      workspaceStorageOperation: () => this.workspaceStorageOperation,
+      workspaceOperations: () => this.workspaceOperations,
+      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
+      withWorkspaceOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs),
+      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
+      withGlobalWorkspaceStorageOperation: (action, operation) => this.withGlobalWorkspaceStorageOperation(action, operation),
+      withWorkspaceStorageOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceStorageOperation(workspaceId, action, operation, blocksNewTabs),
+      browserCookieImportSessions: () => this.browserCookieImportSessions,
+      changed: (persist) => this.changed(persist)
+    }
   }
 
-  async importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
-    const id = destination.id
-    if (!this.mcpTabGroups.has(id) && !this.savedTabGroups.has(id)) throw new BrowserImportError('expired')
-    if (this.workspaceStorageOperation || this.workspaceOperations.has(id) || this.savedWorkspaceOperations.has(id)) throw new BrowserImportError('workspaceBusy')
-    const action = 'importing browser cookies'
-    return this.withGlobalWorkspaceStorageOperation(action, () => {
-      const write = async () => {
-        if (this.browserImportDestination(id).fingerprint !== destination.fingerprint) throw new BrowserImportError('expired')
-        const group = (this.mcpTabGroups.get(id) ?? this.savedTabGroups.get(id))!
-        const target = session.fromPartition(workspacePartition(this.options.partition, group.storageId))
-        this.options.configureSession?.(target)
-        this.browserCookieImportSessions.add(target)
-        try {
-          const { origins, ...result } = await writeImportedCookies(target, cookies, group.origins,
-            cookie => evaluateWorkspaceNavigation(group.navigationPolicy, `${cookie.secure ? 'https' : 'http'}://${cookie.domain!.replace(/^\./, '')}/`).allowed)
-          if (result.imported || result.recoveryRequired) {
-            group.origins = normalizeWorkspaceStorageOrigins([...group.origins, ...origins])
-            this.changed()
-          }
-          return result
-        } finally {
-          this.browserCookieImportSessions.delete(target)
-          this.changed(false)
-        }
-      }
-      return this.mcpTabGroups.has(id)
-        ? this.withWorkspaceOperation(id, action, write)
-        : this.withSavedWorkspaceOperation(id, action, write)
-    })
+  browserImportDestination(id: string): ImportDestination {
+    return browserImportDestination(this.workspaceDataAccess(), id)
+  }
+
+  importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
+    return importBrowserCookies(this.workspaceDataAccess(), destination, cookies)
   }
 
   listWorkspaceStorageOrigins(workspaceId: string): string[] {
-    const workspace = this.mcpTabGroups.get(workspaceId) ?? this.savedTabGroups.get(workspaceId)
-    if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
-    return [...workspace.origins]
+    return listWorkspaceStorageOrigins(this.workspaceDataAccess(), workspaceId)
   }
 
   workspaceSession(workspaceId: string): Session {
-    const workspace = this.mcpTabGroups.get(workspaceId)
-    if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
-    const partition = workspacePartition(this.options.partition, workspace.storageId)
-    const browserSession = session.fromPartition(partition, { cache: true })
-    this.options.configureSession?.(browserSession)
-    return browserSession
+    return workspaceSession(this.workspaceDataAccess(), workspaceId)
   }
 
-  async withWorkspaceSiteDataCleanup<T>(
+  withWorkspaceSiteDataCleanup<T>(
     workspaceId: string,
     operation: (browserSession: Session) => Promise<T>
   ): Promise<T> {
-    return this.withWorkspaceStorageOperation(
-      workspaceId,
-      'clearing website data',
-      () => operation(this.workspaceSession(workspaceId)),
-      true
-    )
+    return withWorkspaceSiteDataCleanup(this.workspaceDataAccess(), workspaceId, operation)
   }
 
-  async transferWorkspaceStorage(
+  transferWorkspaceStorage(
     options: BrowserWorkspaceStorageTransferOptions
   ): Promise<BrowserWorkspaceStorageTransferResult> {
-    const sourceId = options.sourceWorkspaceId
-    const targetId = options.targetWorkspaceId
-    if (sourceId === targetId) throw new Error('Choose two different workspaces.')
-    const source = this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId)
-    const target = this.mcpTabGroups.get(targetId) ?? this.savedTabGroups.get(targetId)
-    if (!source || !target) throw new Error('Source or destination workspace is unavailable.')
-    const closing = [source, target].find((workspace) => this.isClosingWorkspace(workspace.id))
-    if (closing) throw new Error(`"${closing.name}" was just closed. Undo the close to move or copy its data.`)
-    const mode = options.mode
-    if (mode === 'move' && (!this.savedTabGroups.has(sourceId) || !this.savedTabGroups.has(targetId))) throw new Error('Archive both workspaces before moving data, or choose Copy to keep their pages open.')
-    const action = mode === 'move' ? 'moving workspace data' : 'copying workspace data'
-    const lock = <T>(id: string, operation: () => Promise<T>): Promise<T> => (
-      this.mcpTabGroups.has(id)
-        ? this.withWorkspaceOperation(id, action, operation, mode === 'move')
-        : this.withSavedWorkspaceOperation(id, action, operation)
-    )
-    return this.withGlobalWorkspaceStorageOperation(action, () => lock(sourceId, () => lock(targetId, async () => {
-      const origins = normalizeWorkspaceStorageOrigins(options.origins ?? source.origins)
-      const copy = (permissions = { allowCookieCleanup: false, allowLocalStorageCleanup: false }) => transferWorkspaceStorage({
-        ...permissions,
-        sourcePartition: workspacePartition(this.options.partition, source.storageId),
-        targetPartition: workspacePartition(this.options.partition, target.storageId),
-        mode,
-        origins,
-        copyAllCookies: options.origins === undefined,
-        copyLocalStorage: true,
-        configureSession: this.options.configureSession
-      })
-      const sourceSession = session.fromPartition(workspacePartition(this.options.partition, source.storageId))
-      const targetSession = session.fromPartition(workspacePartition(this.options.partition, target.storageId))
-      const result = mode === 'move'
-        ? await withWorkspaceMoveGuard(sourceSession, permissions => withWorkspaceMoveGuard(targetSession, () => copy(permissions)))
-        : await copy()
-      target.origins = normalizeWorkspaceStorageOrigins([...target.origins, ...origins])
-      if ('lastUsedAt' in target) target.lastUsedAt = new Date().toISOString()
-      this.changed()
-      return {
-        sourceWorkspaceId: sourceId,
-        targetWorkspaceId: targetId,
-        mode,
-        ...result
-      }
-    })))
+    return transferWorkspaceStorage(this.workspaceDataAccess(), options)
   }
 
   /**

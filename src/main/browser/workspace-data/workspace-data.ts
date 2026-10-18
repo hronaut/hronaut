@@ -1,0 +1,94 @@
+import { session, type Session } from 'electron'
+import type { BrowserWorkspaceStorageTransferOptions, BrowserWorkspaceStorageTransferResult } from '../../../shared/types.js'
+import { withWorkspaceMoveGuard } from '../workspace-move-guard.js'
+import {
+  normalizeWorkspaceStorageOrigins,
+  transferWorkspaceStorage as transferPartitionStorage,
+  workspacePartition
+} from '../workspace-storage.js'
+import type { WorkspaceDataAccess } from './workspace-data-access.js'
+
+/** The origins an open or archived workspace keeps site data for. */
+export function listWorkspaceStorageOrigins(access: WorkspaceDataAccess, workspaceId: string): string[] {
+  const workspace = access.mcpTabGroups().get(workspaceId) ?? access.savedTabGroups().get(workspaceId)
+  if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
+  return [...workspace.origins]
+}
+
+/** The configured session of an open workspace's isolated storage. */
+export function workspaceSession(access: WorkspaceDataAccess, workspaceId: string): Session {
+  const workspace = access.mcpTabGroups().get(workspaceId)
+  if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
+  const partition = workspacePartition(access.options().partition, workspace.storageId)
+  const browserSession = session.fromPartition(partition, { cache: true })
+  access.options().configureSession?.(browserSession)
+  return browserSession
+}
+
+/** Runs a website data cleanup on an open workspace's session while it holds the workspace and every workspace's storage busy. */
+export async function withWorkspaceSiteDataCleanup<T>(
+  access: WorkspaceDataAccess,
+  workspaceId: string,
+  operation: (browserSession: Session) => Promise<T>
+): Promise<T> {
+  return access.withWorkspaceStorageOperation(
+    workspaceId,
+    'clearing website data',
+    () => operation(workspaceSession(access, workspaceId)),
+    true
+  )
+}
+
+/**
+ * Copies, or for two archived workspaces moves, sign-ins and site data from
+ * one workspace to another, holding both and every workspace's storage busy,
+ * and refusing a workspace the person just closed.
+ */
+export async function transferWorkspaceStorage(
+  access: WorkspaceDataAccess,
+  options: BrowserWorkspaceStorageTransferOptions
+): Promise<BrowserWorkspaceStorageTransferResult> {
+  const sourceId = options.sourceWorkspaceId
+  const targetId = options.targetWorkspaceId
+  if (sourceId === targetId) throw new Error('Choose two different workspaces.')
+  const source = access.mcpTabGroups().get(sourceId) ?? access.savedTabGroups().get(sourceId)
+  const target = access.mcpTabGroups().get(targetId) ?? access.savedTabGroups().get(targetId)
+  if (!source || !target) throw new Error('Source or destination workspace is unavailable.')
+  const closing = [source, target].find((workspace) => access.isClosingWorkspace(workspace.id))
+  if (closing) throw new Error(`"${closing.name}" was just closed. Undo the close to move or copy its data.`)
+  const mode = options.mode
+  if (mode === 'move' && (!access.savedTabGroups().has(sourceId) || !access.savedTabGroups().has(targetId))) throw new Error('Archive both workspaces before moving data, or choose Copy to keep their pages open.')
+  const action = mode === 'move' ? 'moving workspace data' : 'copying workspace data'
+  const lock = <T>(id: string, operation: () => Promise<T>): Promise<T> => (
+    access.mcpTabGroups().has(id)
+      ? access.withWorkspaceOperation(id, action, operation, mode === 'move')
+      : access.withSavedWorkspaceOperation(id, action, operation)
+  )
+  return access.withGlobalWorkspaceStorageOperation(action, () => lock(sourceId, () => lock(targetId, async () => {
+    const origins = normalizeWorkspaceStorageOrigins(options.origins ?? source.origins)
+    const copy = (permissions = { allowCookieCleanup: false, allowLocalStorageCleanup: false }) => transferPartitionStorage({
+      ...permissions,
+      sourcePartition: workspacePartition(access.options().partition, source.storageId),
+      targetPartition: workspacePartition(access.options().partition, target.storageId),
+      mode,
+      origins,
+      copyAllCookies: options.origins === undefined,
+      copyLocalStorage: true,
+      configureSession: access.options().configureSession
+    })
+    const sourceSession = session.fromPartition(workspacePartition(access.options().partition, source.storageId))
+    const targetSession = session.fromPartition(workspacePartition(access.options().partition, target.storageId))
+    const result = mode === 'move'
+      ? await withWorkspaceMoveGuard(sourceSession, permissions => withWorkspaceMoveGuard(targetSession, () => copy(permissions)))
+      : await copy()
+    target.origins = normalizeWorkspaceStorageOrigins([...target.origins, ...origins])
+    if ('lastUsedAt' in target) target.lastUsedAt = new Date().toISOString()
+    access.changed()
+    return {
+      sourceWorkspaceId: sourceId,
+      targetWorkspaceId: targetId,
+      mode,
+      ...result
+    }
+  })))
+}
