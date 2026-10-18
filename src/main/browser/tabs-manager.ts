@@ -94,15 +94,24 @@ import { BrowserDownloadsController } from './downloads-controller.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
-import { continuityMarkerScript, readContinuityMarker } from '../../shared/workspace-continuity-marker.js'
-import { browserPostconditionScript, type BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import type { BrowserReconciliationCondition, BrowserReconciliationEvidence } from '../../shared/browser-reconciliation.js'
+import type { PostconditionReadResult } from '../mcp/post-write-browser-read.js'
+import type { WorkspaceContinuityAccess } from './workspace-continuity/workspace-continuity-access.js'
 import {
-  browserReconciliationScript,
-  type BrowserReconciliationCondition,
-  type BrowserReconciliationEvidence
-} from '../../shared/browser-reconciliation.js'
-import { readBrowserPostcondition, type PostconditionReadResult } from '../mcp/post-write-browser-read.js'
-import { compareWorkspaceContinuity } from '../mcp/workspace-continuity.js'
+  armWorkspaceContinuity,
+  beginWorkspaceContinuityAction,
+  inspectWorkspaceContinuity,
+  postWriteContextFingerprint,
+  readBrowserReconciliation,
+  readPostWritePostcondition,
+  reconcileWorkspaceContinuity,
+  requireWorkspaceContinuityDispatch,
+  requireWorkspaceContinuityReview,
+  retireWorkspaceContinuity,
+  suspendWorkspaceContinuity,
+  workspaceObservationGeneration
+} from './workspace-continuity/workspace-continuity.js'
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
@@ -483,10 +492,7 @@ const ACCESSIBILITY_AUDIT_WORLD_ID = ISOLATED_WORLDS.accessibilityAudit
 const PERFORMANCE_AUDIT_WORLD_ID = ISOLATED_WORLDS.performanceAudit
 const DESIGN_OVERVIEW_WORLD_ID = ISOLATED_WORLDS.designOverview
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
-const CONTINUITY_MARKER_WORLD_ID = ISOLATED_WORLDS.continuityMarker
-const POSTCONDITION_WORLD_ID = ISOLATED_WORLDS.postcondition
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
-const RECONCILIATION_WORLD_ID = ISOLATED_WORLDS.reconciliation
 const OBSERVATION_QUALITY_WORLD_ID = ISOLATED_WORLDS.observationQuality
 const CREDENTIAL_CAPTURE_WORLD_ID = ISOLATED_WORLDS.credentialCapture
 const VISUAL_COMPARE_WORLD_ID = ISOLATED_WORLDS.visualCompare
@@ -938,212 +944,88 @@ export class BrowserTabsManager {
   private readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
   private readonly continuityActions = new Map<string, { reads: number; writes: number }>()
 
+  /**
+   * The narrow view workspace continuity gets of this manager's private tabs,
+   * workspaces, persisted state and continuity fields, and of the recorders,
+   * previews, network waits and downloads a new observation generation ends.
+   * It is a prototype method rather than a field, so managers created without
+   * the constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value or promise directly, so no extra ticks separate
+   * its final checks from the caller.
+   */
+  private workspaceContinuityAccess(): WorkspaceContinuityAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      tabs: () => this.tabs.values(),
+      getMcpGroupState: (workspaceId) => this.getMcpGroupState(workspaceId),
+      requireMcpTabGroup: (workspaceId) => this.requireMcpTabGroup(workspaceId),
+      tabBelongsToMcpGroup: (workspaceId, tabId) => this.tabBelongsToMcpGroup(workspaceId, tabId),
+      updateMcpTabGroup: (workspaceId, updates) => this.updateMcpTabGroup(workspaceId, updates),
+      hasArchivedWorkspace: (workspaceId) => this.savedTabGroups.has(workspaceId),
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      workspaceContinuity: () => this.workspaceContinuity,
+      continuityEvidence: () => this.continuityEvidence,
+      continuityMarkers: () => this.continuityMarkers,
+      workspaceObservationGenerations: () => this.workspaceObservationGenerations,
+      continuityActions: () => this.continuityActions,
+      continuityRevision: () => this.continuityRevision,
+      setContinuityRevision: (revision) => { this.continuityRevision = revision },
+      interruptPwaLifecycle: (workspaceId, reason) => this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, reason),
+      releaseLiveRegion: (tab) => this.liveRegionRecorder.release(tab),
+      clearCssStatePreview: (tab, reason) => this.cssStatePreview.clear(tab, reason),
+      rejectNetworkWait: (tabId, message) => this.networkWaitController.reject(tabId, message),
+      advanceDownloadObservationGeneration: (workspaceId, observationGeneration) => this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
+    }
+  }
+
   beginWorkspaceContinuityAction(workspaceId: string, readOnly: boolean): () => void {
-    // A completed write can disappear from the pending map before an older
-    // marker read returns. Retain its invalidation across that async interval.
-    if (!readOnly) this.continuityRevision += 1
-    const pending = this.continuityActions.get(workspaceId) ?? { reads: 0, writes: 0 }
-    this.continuityActions.set(workspaceId, pending)
-    const field = readOnly ? 'reads' : 'writes'
-    pending[field] += 1
-    let finished = false
-    return () => {
-      if (finished) return
-      finished = true
-      pending[field] -= 1
-      if (!pending.reads && !pending.writes && this.continuityActions.get(workspaceId) === pending) this.continuityActions.delete(workspaceId)
-    }
-  }
-
-
-  private workspaceContinuitySnapshot(workspaceId: string) {
-    const state = this.getMcpGroupState(workspaceId)
-    const tab = state.tabs.find(candidate => candidate.id === state.activeTabId) ?? null
-    return {
-      evidence: this.continuityEvidence.capture({ workspaceId, tab, policy: this.requireMcpTabGroup(workspaceId).navigationPolicy }),
-      pageSettled: !!tab && !tab.loading && !tab.sleeping
-    }
-  }
-
-  private async currentWorkspaceContinuity(workspaceId: string, selector: string | undefined) {
-    const revision = this.continuityRevision
-    const before = this.workspaceContinuitySnapshot(workspaceId)
-    if (selector === undefined || !before.evidence || !before.pageSettled) return before
-    const tab = this.getTab(before.evidence.tabId)
-    const marker = await readContinuityMarker(() => tab.webContents.executeJavaScriptInIsolatedWorld(
-      CONTINUITY_MARKER_WORLD_ID, [{ code: continuityMarkerScript(selector) }], false
-    ))
-    const after = this.workspaceContinuitySnapshot(workspaceId)
-    if (revision !== this.continuityRevision || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
-      return { evidence: null, pageSettled: after.pageSettled }
-    }
-    const state = this.getMcpGroupState(workspaceId)
-    return {
-      evidence: this.continuityEvidence.capture({
-        workspaceId, tab: state.tabs.find(candidate => candidate.id === state.activeTabId) ?? null,
-        policy: this.requireMcpTabGroup(workspaceId).navigationPolicy, marker: { requested: true, value: marker }
-      }),
-      pageSettled: after.pageSettled
-    }
+    return beginWorkspaceContinuityAction(this.workspaceContinuityAccess(), workspaceId, readOnly)
   }
 
   private retireWorkspaceContinuity(workspaceId: string): void {
-    this.workspaceContinuity.retire(workspaceId)
-    this.continuityMarkers.delete(workspaceId)
-    this.workspaceObservationGenerations.delete(workspaceId)
+    retireWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
   }
 
   postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {
-    browserPostconditionScript(condition)
-    const snapshot = this.workspaceContinuitySnapshot(workspaceId)
-    if (!snapshot.evidence || snapshot.evidence.tabId !== tabId || !snapshot.pageSettled
-      || !this.tabBelongsToMcpGroup(workspaceId, tabId)) throw new Error('Post-write verification target is unavailable')
-    const tab = this.getTab(tabId)
-    let origin: string
-    try { origin = new URL(tab.url).origin } catch { throw new Error('Post-write verification target is unavailable') }
-    if (origin !== condition.expectedOrigin) throw new Error('Post-write verification origin does not match the target tab')
-    return this.continuityEvidence.postWriteFingerprint(snapshot.evidence, condition)
+    return postWriteContextFingerprint(this.workspaceContinuityAccess(), workspaceId, tabId, condition)
   }
 
-  async readPostWritePostcondition(workspaceId: string, tabId: string, condition: BrowserPostcondition, validateCurrent: () => void, signal?: AbortSignal): Promise<PostconditionReadResult> {
-    validateCurrent()
-    const before = this.workspaceContinuitySnapshot(workspaceId)
-    if (!before.evidence || !before.pageSettled) return 'unavailable'
-    if (before.evidence.tabId !== tabId || !this.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
-    if (this.continuityActions.get(workspaceId)?.writes) return 'unavailable'
-    const revision = this.continuityRevision
-    const tab = this.getTab(tabId)
-    const validate = (): void => {
-      validateCurrent()
-      const after = this.workspaceContinuitySnapshot(workspaceId)
-      if (revision !== this.continuityRevision || this.continuityActions.get(workspaceId)?.writes
-        || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
-        throw new Error('Browser verification context changed')
-      }
-    }
-    return readBrowserPostcondition({ condition, validateCurrent: validate, signal,
-      evaluate: script => tab.webContents.executeJavaScriptInIsolatedWorld(POSTCONDITION_WORLD_ID, [{ code: script }], false)
-    })
+  readPostWritePostcondition(workspaceId: string, tabId: string, condition: BrowserPostcondition, validateCurrent: () => void, signal?: AbortSignal): Promise<PostconditionReadResult> {
+    return readPostWritePostcondition(this.workspaceContinuityAccess(), workspaceId, tabId, condition, validateCurrent, signal)
   }
 
-  async readBrowserReconciliation(workspaceId: string, tabId: string, condition: BrowserReconciliationCondition,
+  readBrowserReconciliation(workspaceId: string, tabId: string, condition: BrowserReconciliationCondition,
     validateCurrent: () => void, signal?: AbortSignal): Promise<BrowserReconciliationEvidence> {
-    validateCurrent()
-    const before = this.workspaceContinuitySnapshot(workspaceId)
-    if (!before.evidence || !before.pageSettled) return 'unavailable'
-    if (before.evidence.tabId !== tabId || !this.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
-    if (this.continuityActions.get(workspaceId)?.writes) return 'unavailable'
-    const revision = this.continuityRevision
-    const tab = this.getTab(tabId)
-    const validate = (): void => {
-      validateCurrent()
-      const after = this.workspaceContinuitySnapshot(workspaceId)
-      if (revision !== this.continuityRevision || this.continuityActions.get(workspaceId)?.writes
-        || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
-        throw new Error('Browser reconciliation context changed')
-      }
-    }
-    validate()
-    const result = await readContinuityMarker(() => {
-      validate()
-      return tab.webContents.executeJavaScriptInIsolatedWorld(
-        RECONCILIATION_WORLD_ID, [{ code: browserReconciliationScript(condition) }], false
-      )
-    }, signal)
-    validate()
-    return result === 'matches' || result === 'missing' || result === 'differs'
-      || result === 'precondition-changed' || result === 'context-changed'
-      || result === 'ambiguous' ? result : 'unavailable'
+    return readBrowserReconciliation(this.workspaceContinuityAccess(), workspaceId, tabId, condition, validateCurrent, signal)
   }
 
-  async armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
-    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before creating a checkpoint')
-    if (markerSelector !== undefined) continuityMarkerScript(markerSelector)
-    const revision = this.continuityRevision
-    const { evidence, pageSettled } = await this.currentWorkspaceContinuity(workspaceId, markerSelector)
-    if (this.continuityActions.has(workspaceId) || revision !== this.continuityRevision) throw new Error('Workspace control changed while capturing continuity')
-    if (!evidence || !pageSettled) throw new Error('Inspect a settled web page before creating a continuity checkpoint')
-    validateCurrent()
-    const checkpointId = this.workspaceContinuity.arm(evidence)
-    this.continuityRevision += 1
-    if (markerSelector === undefined) this.continuityMarkers.delete(workspaceId)
-    else this.continuityMarkers.set(workspaceId, markerSelector)
-    try {
-      await this.store.save(() => this.persistedState())
-    } catch {
-      this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
-      throw new Error('Could not save the continuity checkpoint; inspect before retrying')
-    }
-    return checkpointId
+  armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
+    return armWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, markerSelector, validateCurrent)
   }
 
-  async requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
-    this.continuityRevision += 1
-    this.requireMcpTabGroup(workspaceId)
-    this.advanceWorkspaceObservationGeneration(workspaceId)
-    if (this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)) this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
-    else this.workspaceContinuity.restoreStale(workspaceId)
-    try {
-      await this.store.save(() => this.persistedState())
-      return true
-    } catch {
-      // Keep the in-memory guard and revoke direct agent access when its durable
-      // marker cannot be acknowledged. Recovery remains available to the operator.
-      this.updateMcpTabGroup(workspaceId, { agentAccess: false })
-      return false
-    }
+  requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
+    return requireWorkspaceContinuityReview(this.workspaceContinuityAccess(), workspaceId)
   }
 
   suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): boolean {
-    this.continuityRevision += 1
-    this.advanceWorkspaceObservationGeneration(workspaceId)
-    const pending = this.continuityActions.get(workspaceId)
-    this.workspaceContinuity.suspend(workspaceId, pending?.writes ? 'OUTCOME_UNKNOWN' : outcome !== 'NONE' ? outcome : pending?.reads ? 'STALE_OBSERVATION' : 'NONE')
-    return this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)
-  }
-
-  private advanceWorkspaceObservationGeneration(workspaceId: string): void {
-    this.pwaLifecycleRecorder.interruptWorkspace(workspaceId, 'workspace-control-changed')
-    const observationGeneration = this.workspaceObservationGeneration(workspaceId) + 1
-    this.workspaceObservationGenerations.set(workspaceId, observationGeneration)
-    for (const tab of this.tabs.values()) {
-      if (tab.mcpGroupId !== workspaceId) continue
-      tab.observationGeneration = observationGeneration
-      tab.pendingRuntimeConsoleMessages = []
-      tab.inspectorIssues = []
-      tab.inspectorIssuesTruncated = false
-      tab.authChallenges = []
-      tab.authChallengesTruncated = false
-      tab.securitySnapshot = undefined
-      this.liveRegionRecorder.release(tab)
-      void this.cssStatePreview.clear(tab, 'workspace-control-changed').catch(() => undefined)
-      this.networkWaitController.reject(tab.id, 'Workspace control changed while waiting for network activity.')
-    }
-    this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
+    return suspendWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, outcome)
   }
 
   private workspaceObservationGeneration(workspaceId: string): number {
-    return this.workspaceObservationGenerations.get(workspaceId) ?? 0
+    return workspaceObservationGeneration(this.workspaceContinuityAccess(), workspaceId)
   }
 
-  async inspectWorkspaceContinuity(workspaceId: string) {
-    // An archive has no live page to review. Preserve its guard and report
-    // unavailable evidence until it is opened and inspected afresh.
-    if (this.savedTabGroups.has(workspaceId)) return this.workspaceContinuity.inspect(workspaceId, null, false)
-    const { evidence, pageSettled } = await this.currentWorkspaceContinuity(workspaceId, this.continuityMarkers.get(workspaceId))
-    return this.workspaceContinuity.inspect(workspaceId, evidence, pageSettled)
+  inspectWorkspaceContinuity(workspaceId: string) {
+    return inspectWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId)
   }
 
-  async reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
-    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before reconciling continuity')
-    const { evidence, pageSettled } = await this.currentWorkspaceContinuity(workspaceId, this.continuityMarkers.get(workspaceId))
-    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before reconciling continuity')
-    validateCurrent()
-    this.workspaceContinuity.reconcile(workspaceId, reviewId, evidence, pageSettled, acknowledgeUnknownOutcome)
+  reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean, validateCurrent: () => void = () => undefined): Promise<void> {
+    return reconcileWorkspaceContinuity(this.workspaceContinuityAccess(), workspaceId, reviewId, acknowledgeUnknownOutcome, validateCurrent)
   }
 
   requireWorkspaceContinuityDispatch(workspaceId: string): void {
-    this.workspaceContinuity.requireDispatch(workspaceId)
+    requireWorkspaceContinuityDispatch(this.workspaceContinuityAccess(), workspaceId)
   }
 
   private readonly tabs = new Map<string, BrowserTab>()
