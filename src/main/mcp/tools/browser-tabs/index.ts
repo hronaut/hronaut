@@ -1,7 +1,7 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { TAB_DISCOVERY_LIMITS, type TabDiscoverySearch, compactTabDiscovery } from '../../tab-discovery.js'
-import { mcpWorkspaceTab, textResult, toolDescription } from '../../tool-results.js'
+import { mcpWorkspaceTab, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import type { McpToolContext, ToolCallSettlement } from '../tool-context.js'
 
 // A search result is published only if the workspace, control and capability still hold when the call settles.
@@ -34,9 +34,10 @@ export function registerBrowserTabs(context: McpToolContext): void {
       }).strict().optional().describe('Opt in to compact discovery of live HTTP(S) tabs. Addresses omit credentials, fragments and recognized secret query values. Only current-document titles confirmed by explicit native title events are included; unverified and URL fallback titles are empty. Title/address projections are bounded; counts cover projected fields only. Omit search to keep the existing full tab-state response.')
     } },
     tool(async ({ workspaceId, search }: { workspaceId?: string; search?: TabDiscoverySearch }) => {
+      const omitUrlDetail = urlDetailOmitted(manager)
       return textResult(search === undefined
-        ? manager.getMcpGroupState(workspaceId!).tabs.map(mcpWorkspaceTab)
-        : compactTabDiscovery(manager.getMcpDiscoveryTabs(workspaceId!), search))
+        ? manager.getMcpGroupState(workspaceId!).tabs.map(tab => mcpWorkspaceTab(tab, omitUrlDetail))
+        : compactTabDiscovery(manager.getMcpDiscoveryTabs(workspaceId!), search, omitUrlDetail))
     }),
     {
       settlement: input => input.search !== undefined ? tabDiscoverySettlement() : undefined,

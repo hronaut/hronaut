@@ -42,6 +42,17 @@ describe('SettingsStore', () => {
     expect((await store.load()).challengeDetectionEnabled).toBe(false)
   })
 
+  it.each([undefined, false, true, 'true', 1])('loads and persists the strict omit-URL-detail preference %s', async (value) => {
+    const { path, store } = await createStore()
+    await store.save({ ...DEFAULT_SETTINGS })
+    await writeFile(path, JSON.stringify({ omitAgentUrlDetail: value }))
+    const loaded = await store.load()
+    expect(DEFAULT_SETTINGS.omitAgentUrlDetail).toBe(false)
+    expect(loaded.omitAgentUrlDetail).toBe(value === true)
+    await store.save({ ...loaded, omitAgentUrlDetail: true })
+    expect((await store.load()).omitAgentUrlDetail).toBe(true)
+  })
+
   it('preserves optional authentication when restoring a remote-access profile', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
@@ -63,6 +74,7 @@ describe('SettingsStore', () => {
       attentionSound: false,
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
+      omitAgentUrlDetail: false,
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -89,6 +101,7 @@ describe('SettingsStore', () => {
       attentionSound: false,
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
+      omitAgentUrlDetail: false,
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -115,6 +128,7 @@ describe('SettingsStore', () => {
       attentionSound: false,
       attentionSoundCue: 'bell',
       challengeDetectionEnabled: false,
+      omitAgentUrlDetail: false,
       followAgentActivity: true,
       showAgentCursor: false,
       pinAgentLiveStatus: true,
@@ -181,6 +195,7 @@ describe('SettingsStore', () => {
       attentionSound: true,
       attentionSoundCue: 'warning',
       challengeDetectionEnabled: false,
+      omitAgentUrlDetail: false,
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,

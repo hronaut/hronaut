@@ -1,4 +1,4 @@
-import { mcpWorkspaceState, textResult, toolDescription } from '../../tool-results.js'
+import { mcpWorkspaceState, textResult, toolDescription, urlDetailOmitted } from '../../tool-results.js'
 import type { McpToolContext } from '../tool-context.js'
 
 export function registerBrowserStatus(context: McpToolContext): void {
@@ -15,7 +15,7 @@ export function registerBrowserStatus(context: McpToolContext): void {
           && attention.tabId !== undefined
           && manager.tabBelongsToMcpGroup(workspaceId!, attention.tabId))
       ) ? attention : null
-      return textResult({ ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), userAttention: visibleAttention })
+      return textResult({ ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!), urlDetailOmitted(manager)), userAttention: visibleAttention })
     }),
     { recordsReadiness: () => true, tabTarget: 'none', continuityInspection: () => true, pageOrigins: 'all-tabs' }
   )

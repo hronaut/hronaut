@@ -20,7 +20,7 @@ import {
   type BrowserActionAuthorityReason
 } from './browser-action-authority.js'
 import type { BrowserState } from '../../shared/types.js'
-import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition } from './tool-results.js'
+import { type PublicBrowserReconciliation, classifyMcpActivityResult, closedTabWaitResult, isTimeoutError, mcpWorkspaceState, nativeClickFailureResult, nativeInputCleanupResult, nativeKeyHoldUnknownResult, nativeWheelUnknownResult, publicBrowserReconciliation, textResult, toolDefinition, urlDetailOmitted } from './tool-results.js'
 import { mcpCapabilityOperationClass } from './capability-classification.js'
 import { workspaceIdSchema } from './tool-schemas.js'
 import type { McpToolContext, ToolActivityClassification, ToolCallSettlement, ToolOptions, WorkspaceToolCall, WorkspaceToolHandler, WorkspaceToolOptions } from './tools/tool-context.js'
@@ -30,7 +30,7 @@ function publicObserverAllowsTool(name: string, allowed: boolean): boolean {
   return name.startsWith('browser_') && (toolDefinition(name).annotations.readOnlyHint || allowed)
 }
 
-function scopeBrowserStateResult(result: CallToolResult, state: BrowserState): CallToolResult {
+function scopeBrowserStateResult(result: CallToolResult, state: BrowserState, omitUrlDetail: boolean): CallToolResult {
   if (result.isError) return result
   return {
     ...result,
@@ -40,7 +40,7 @@ function scopeBrowserStateResult(result: CallToolResult, state: BrowserState): C
         const value = JSON.parse(item.text) as Record<string, unknown>
         if (!Array.isArray(value.tabs) || typeof value.profilePath !== 'string') return item
         const { tabs: _tabs, closedTabs: _closedTabs, mcpTabGroups: _groups, savedTabGroups: _savedGroups, ...valueRest } = value
-        return { ...item, text: JSON.stringify({ ...valueRest, ...mcpWorkspaceState(state) }, null, 2) }
+        return { ...item, text: JSON.stringify({ ...valueRest, ...mcpWorkspaceState(state, omitUrlDetail) }, null, 2) }
       } catch {
         return item
       }
@@ -512,7 +512,7 @@ export function createWorkspaceToolRegistrar(scope: WorkspaceToolScope): McpTool
               await finishReviewedAttempt('unknown')
               return { ...textResult(outcome), structuredContent: outcome, isError: true }
             }
-            const scoped = scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
+            const scoped = scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId), urlDetailOmitted(manager))
             if (scoped.isError) await finishReviewedAttempt('unknown')
             return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
           } catch (error) {

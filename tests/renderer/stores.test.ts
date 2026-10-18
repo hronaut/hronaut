@@ -50,6 +50,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       attentionSound: true,
       attentionSoundCue: 'warning',
       challengeDetectionEnabled: false,
+      omitAgentUrlDetail: false,
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,

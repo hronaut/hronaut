@@ -318,6 +318,13 @@ export function registerSettingsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Sett
     host.publishSettings()
     return { ...host.settings() }
   })
+  ipcMain.handle('settings:set-omit-agent-url-detail', async (event, enabled: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Omitting URL detail must be a boolean')
+    await host.updateSettings({ omitAgentUrlDetail: enabled })
+    host.publishSettings()
+    return { ...host.settings() }
+  })
   ipcMain.handle('settings:set-mcp-remote-access', async (event, enabled: unknown) => {
     host.assertTrustedSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Remote MCP access must be a boolean')

@@ -48,6 +48,8 @@ export interface AppSettings {
   attentionSound: boolean
   attentionSoundCue: AttentionSoundCue
   challengeDetectionEnabled: boolean
+  /** Agents see tab addresses as origin and path, without credentials, query or fragment. */
+  omitAgentUrlDetail: boolean
   followAgentActivity: boolean
   /** Draw each agent's named cursor on the page where it clicks, points or drags. */
   showAgentCursor: boolean

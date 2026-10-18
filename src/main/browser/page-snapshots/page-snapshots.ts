@@ -41,11 +41,12 @@ export async function snapshotDetails<Tab extends PageSnapshotsTab>(access: Page
     throw new TypeError('Snapshot root must be a non-empty CSS selector of at most 512 characters')
   }
   const context = access.snapshotDeltaContext(tab)
+  const omitUrlDetail = access.options().getOmitAgentUrlDetail?.() === true
   // The isolated world retains control identity across captures of one
   // document without exposing it to, or accepting it from, page JavaScript.
   const snapshot = await tab.webContents.executeJavaScriptInIsolatedWorld(
     SNAPSHOT_WORLD_ID,
-    [{ code: snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true, rootSelector) }],
+    [{ code: snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true, rootSelector, omitUrlDetail) }],
     false
   ) as BrowserSnapshot & { scopeError?: string; targetNames?: unknown }
   if (snapshot.scopeError) {
@@ -71,8 +72,9 @@ export async function snapshotDetails<Tab extends PageSnapshotsTab>(access: Page
   if (invalidation) {
     throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
   }
-  const { targetNames, ...published } = snapshot
+  const { targetNames, ...captured } = snapshot
   rememberAgentStepNames(current, targetNames)
+  const published = omitUrlDetail ? { ...captured, urlDetail: 'omitted' as const } : captured
   return rootSelector === undefined ? published : { ...published, captureId: randomUUID() }
 }
 
@@ -304,6 +306,20 @@ export async function snapshotDelta<Tab extends PageSnapshotsTab>(access: PageSn
     )
   ) {
     throw new Error('Snapshot baseline changed while delta capture was pending. Run the requested action again.')
+  }
+  // The person changed whether the URL line carries its detail: comparing the two lines would repeat the detail
+  // they chose to omit, or report a change the page never made.
+  if (snapshot.urlDetail !== baseline.snapshot.urlDetail) {
+    return {
+      action: 'delta' as const,
+      status: 'invalidated' as const,
+      baselineId: options.baselineId,
+      context,
+      invalidationReason: 'snapshot-format' as const,
+      maxOutputChars,
+      truncated: false,
+      changes: []
+    }
   }
   const { text, ...sourceSnapshot } = snapshot
   const result = boundedSnapshotDelta(baseline.snapshot.text, text, maxOutputChars, {

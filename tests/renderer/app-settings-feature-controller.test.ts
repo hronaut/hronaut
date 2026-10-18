@@ -57,6 +57,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
     setMcpAuthentication: vi.fn(async (mcpAuthentication: boolean) => applySettings({ ...settings.value, mcpAuthentication })),
       setMcpPort: vi.fn(async (mcpPort: number) => applySettings({ ...settings.value, mcpPort })),
       setChallengeDetectionEnabled: vi.fn(async (challengeDetectionEnabled: boolean) => applySettings({ ...settings.value, challengeDetectionEnabled })),
+      setOmitAgentUrlDetail: vi.fn(async (omitAgentUrlDetail: boolean) => applySettings({ ...settings.value, omitAgentUrlDetail })),
       setMcpToolSet: vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => applySettings({ ...settings.value, mcpToolSet })),
       resetMcp: vi.fn(async () => applySettings({
         ...settings.value,

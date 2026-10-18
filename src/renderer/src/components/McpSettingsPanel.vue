@@ -27,6 +27,7 @@ const {
   setRemoteAccess,
   setAuthentication,
   setChallengeDetectionEnabled,
+  setOmitAgentUrlDetail,
   setToolSet,
   applyPort,
   applySuggestedPort,
@@ -124,6 +125,11 @@ async function changeChallengeDetection(event: Event): Promise<void> {
   if (!(await setChallengeDetectionEnabled(input.checked))) input.checked = settings.value.challengeDetectionEnabled
 }
 
+async function changeOmitUrlDetail(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await setOmitAgentUrlDetail(input.checked))) input.checked = settings.value.omitAgentUrlDetail
+}
+
 async function changeToolSet(event: Event): Promise<void> {
   const select = event.target as HTMLSelectElement
   if (!isMcpToolSet(select.value) || !(await setToolSet(select.value))) {
@@ -182,6 +188,14 @@ function handlePortKeydown(event: KeyboardEvent): void {
         </span>
         <UiCheckbox bare appearance="switch" id="setting-challenge-detection" :checked="settings.challengeDetectionEnabled"
           :disabled="busy" @change="changeChallengeDetection" />
+      </label>
+      <label class="settings-row" for="setting-omit-url-detail">
+        <span>
+          <strong>{{ t('settings.mcp.omitUrlDetail') }}</strong>
+          <small>{{ t('settings.mcp.omitUrlDetailDescription') }}</small>
+        </span>
+        <UiCheckbox bare appearance="switch" id="setting-omit-url-detail" :checked="settings.omitAgentUrlDetail"
+          :disabled="busy" @change="changeOmitUrlDetail" />
       </label>
       <label class="settings-row" for="setting-mcp-tool-set">
         <span>

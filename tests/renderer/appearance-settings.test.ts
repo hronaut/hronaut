@@ -23,6 +23,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       attentionSound: true,
       attentionSoundCue: 'warning',
       challengeDetectionEnabled: false,
+      omitAgentUrlDetail: false,
       followAgentActivity: false,
       showAgentCursor: true,
       pinAgentLiveStatus: false,

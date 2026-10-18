@@ -748,6 +748,8 @@ export interface TabsManagerOptions {
   /** Whether agents' cursors are drawn on the page; on unless this says false. */
   getShowAgentCursor?: () => boolean
   getChallengeDetectionEnabled?: () => boolean
+  /** Agents see tab addresses without query or fragment (the person's setting); read at each publication. */
+  getOmitAgentUrlDetail?: () => boolean
   getSearchEngine?: () => SearchEngineName
   getLocale: () => SupportedLocale
   getTabPosition: () => TabPosition
@@ -1836,6 +1838,11 @@ export class BrowserTabsManager {
 
   getMcpGroupState(groupId: string): BrowserState {
     return getMcpGroupState(this.workspaceScopeAccess(), groupId)
+  }
+
+  /** Whether the person chose to keep URL query strings and fragments out of what agents read. */
+  omitAgentUrlDetail(): boolean {
+    return this.options.getOmitAgentUrlDetail?.() === true
   }
 
   getMcpDiscoveryTabs(groupId: string): Array<Pick<BrowserTabState, 'id' | 'title' | 'url'>> {
@@ -3194,7 +3201,8 @@ export class BrowserTabsManager {
     return {
       getTab: (tabId) => this.getTab(tabId),
       findTab: (tabId) => this.tabs.get(tabId),
-      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab)
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab),
+      omitUrlDetail: () => this.omitAgentUrlDetail()
     }
   }
 

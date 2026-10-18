@@ -43,6 +43,7 @@ interface AppSettingsFeatureStore {
   setPinAgentLiveStatus(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setChallengeDetectionEnabled(enabled: boolean): Promise<AppSettings>
+  setOmitAgentUrlDetail(enabled: boolean): Promise<AppSettings>
   setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
@@ -223,6 +224,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     setRemoteAccess: (enabled) => options.settingsStore.setMcpRemoteAccess(enabled),
     setAuthentication: (enabled) => options.settingsStore.setMcpAuthentication(enabled),
     setChallengeDetectionEnabled: (enabled) => options.settingsStore.setChallengeDetectionEnabled(enabled),
+    setOmitAgentUrlDetail: (enabled) => options.settingsStore.setOmitAgentUrlDetail(enabled),
     setToolSet: (toolSet) => options.settingsStore.setMcpToolSet(toolSet),
     setPort: (port) => options.settingsStore.setMcpPort(port),
     resetSettings: () => options.settingsStore.resetMcp(),
