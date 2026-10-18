@@ -76,6 +76,7 @@ import {
   type AgentWalletAccess
 } from './agent-wallet-requests.js'
 import { providerRequest, type ProviderRequestsAccess } from './broker/provider-requests.js'
+import { approve, reject, type HumanApprovalsAccess } from './broker/human-approvals.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -87,7 +88,7 @@ export interface WalletBrokerContext {
   signal?: AbortSignal
 }
 
-interface PendingResult {
+export interface PendingResult {
   resolve(value: unknown): void
   reject(error: Error): void
 }
@@ -418,71 +419,33 @@ export class WalletBroker {
     return providerRequest(this.providerRequestsAccess(), context, input)
   }
 
+  /**
+   * The narrow view a person's approval or rejection in the wallet prompt
+   * gets of this broker's private state and request path. It is built on
+   * each call, so it reads the lock generation at the moment it is asked.
+   */
+  private humanApprovalsAccess(): HumanApprovalsAccess {
+    return {
+      service: this.service,
+      pending: this.pending,
+      lockGeneration: () => this.lockGeneration,
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      execute: (record) => this.execute(record),
+      fail: (requestId, error) => this.fail(requestId, error),
+      rejectPending: (requestId, error) => this.rejectPending(requestId, error),
+      clearRequestExpiry: (requestId) => this.clearRequestExpiry(requestId),
+      requireWallet: (walletId) => this.requireWallet(walletId),
+      publish: () => this.publish(),
+      now: () => this.now()
+    }
+  }
+
   approve(requestId: string): Promise<WalletRequestSummary> {
-    const lockGeneration = this.lockGeneration
-    return this.queueLifecycle(() => {
-      if (lockGeneration !== this.lockGeneration) {
-        throw new Error('Wallet request was cancelled because signing keys were locked')
-      }
-      return this.approveRequest(requestId)
-    })
+    return approve(this.humanApprovalsAccess(), requestId)
   }
 
-  private async approveRequest(requestId: string): Promise<WalletRequestSummary> {
-    const record = this.service.approvals.get(requestId)
-    if (!record) throw new Error('Wallet request not found')
-    if (record.status !== 'awaiting-human') throw new Error('Wallet request is not awaiting human approval')
-    try {
-      await this.service.approvals.approve(record.id, record.request, this.now())
-    } catch (error) {
-      const current = this.service.approvals.get(record.id)
-      if (current?.status === 'expired') {
-        const expired = new Error('Wallet request expired before approval')
-        try {
-          await this.service.audit.append('request-expired', {
-            requestId: record.id,
-            walletId: record.request.walletId,
-            requester: record.request.requester,
-            origin: record.request.topLevelOrigin
-          }, this.now().toISOString())
-        } finally {
-          this.rejectPending(record.id, expired)
-          this.publish()
-        }
-        throw expired
-      }
-      if (current?.status === 'approved') throw await this.fail(record.id, error)
-      throw sanitizedError(error)
-    }
-    try {
-      await this.service.audit.append('request-approved', {
-        requestId: record.id, walletId: record.request.walletId, approvalHash: record.requestHash,
-        requester: record.request.requester, origin: record.request.topLevelOrigin
-      }, this.now().toISOString())
-      const result = await this.execute(this.service.approvals.get(record.id)!)
-      this.pending.get(record.id)?.resolve(result)
-      this.pending.delete(record.id)
-      this.clearRequestExpiry(record.id)
-      this.publish()
-      return summary(this.service.approvals.get(record.id)!, this.requireWallet(record.request.walletId))
-    } catch (error) {
-      throw await this.fail(record.id, error)
-    }
-  }
-
-  async reject(requestId: string): Promise<WalletRequestSummary> {
-    try {
-      const record = await this.service.approvals.transition(requestId, 'rejected', this.now())
-      await this.service.audit.append('request-rejected', {
-        requestId, walletId: record.request.walletId, requester: record.request.requester, origin: record.request.topLevelOrigin
-      }, this.now().toISOString())
-      return summary(record, this.service.list().find((wallet) => wallet.id === record.request.walletId))
-    } finally {
-      if (this.service.approvals.get(requestId)?.status === 'rejected') {
-        this.rejectPending(requestId, new Error('Wallet request was rejected by the user'))
-        this.publish()
-      }
-    }
+  reject(requestId: string): Promise<WalletRequestSummary> {
+    return reject(this.humanApprovalsAccess(), requestId)
   }
 
   async cancelForNavigation(tabId: string, generation: number): Promise<void> {
