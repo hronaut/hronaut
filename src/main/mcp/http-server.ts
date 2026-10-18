@@ -488,9 +488,8 @@ export class McpHttpServer {
   /**
    * Each connected agent once, by its opaque presence key (never the session id) and display name, with its strongest
    * state in any open workspace and the workspaces where it has that state, its client's version and when its session
-   * started. Neither of those changes while it
-   * stays connected, so they never make the toolbar publish again. Home and the toolbar status say the same thing from
-   * this. A session counts while it holds a request open (such as its event stream) or for the presence window after
+   * started. The version and start never change while it stays connected, so they never make the toolbar publish
+   * again. Home and the toolbar status say the same thing from this. A session counts while it holds a request open (such as its event stream) or for the presence window after
    * its last one, so a client that quit without closing its session leaves as its avatar does; an agent still waiting
    * for you stays until answered.
    */

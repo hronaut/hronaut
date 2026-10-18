@@ -210,14 +210,21 @@ export function mountAgentList(data: HomeBootstrap, signal: AbortSignal) {
     if (signature === rendered) return
     rendered = signature
     const focused = list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.focusKey : undefined
+    const focusedRow = [...list.children].findIndex(item => item.contains(document.activeElement))
     list.replaceChildren(...groups.map(group => groupRow(group, context, now)))
     if (focused) {
-      // The same control if it is still shown; otherwise its group's toggle or first control, so focus stays in the list.
+      // The same control if it is still shown; otherwise its group's toggle or first control, then the first control of
+      // the row now in its place, so focus stays in the list; with no rows left, Connect.
       const group = focused.slice(0, focused.indexOf('\n'))
-      const shown = [...list.querySelectorAll<HTMLElement>('[data-focus-key]')].filter(control => !control.closest('[hidden]'))
-      const target = shown.find(control => control.dataset.focusKey === focused)
-        ?? shown.find(control => control.dataset.focusKey === `${group}\ntoggle`)
-        ?? shown.find(control => control.dataset.focusKey!.startsWith(`${group}\n`))
+      const shown = (within: ParentNode) => [...within.querySelectorAll<HTMLElement>('[data-focus-key]')].filter(control => !control.closest('[hidden]'))
+      const controls = shown(list)
+      const nearest = list.children[Math.min(focusedRow, list.children.length - 1)]
+      const target = controls.find(control => control.dataset.focusKey === focused)
+        ?? controls.find(control => control.dataset.focusKey === `${group}\ntoggle`)
+        ?? controls.find(control => control.dataset.focusKey!.startsWith(`${group}\n`))
+        ?? (nearest ? shown(nearest)[0] : undefined)
+        ?? controls[0]
+        ?? document.querySelector<HTMLElement>('#home-agents .side-action')
       target?.focus({ preventScroll: true })
     }
   }

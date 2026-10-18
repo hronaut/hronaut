@@ -18,11 +18,12 @@ import {
   sanitizeAgentName,
   sanitizeAgentStepTarget,
   sanitizeAgentVersion,
-  AGENT_VERSION_MAX_GRAPHEMES,
+  AGENT_VERSION_MAX_UNITS,
   type AgentPresenceContext
 } from '../src/main/mcp/agent-presence.js'
 import { McpHttpServer, type McpHttpServerOptions, type UserAttentionInput, type UserAttentionRequest } from '../src/main/mcp/server.js'
 import { AGENT_AVATAR_COLORS, AGENT_AVATAR_INK, agentAvatarColorHex } from '../src/shared/agent-presence.js'
+import { WalletRequesterSchema } from '../src/shared/wallet.js'
 import type { McpTabActivity } from '../src/shared/types.js'
 
 const workspace = 'workspace-a'
@@ -420,10 +421,17 @@ describe('agent names', () => {
     // A right-to-left override would flip "· connected 5 minutes ago" after it on Home and in the wallet dialog.
     expect(sanitizeAgentVersion('1.0\u202E.3\u0000')).toBe('1.0 .3')
     expect(sanitizeAgentVersion('\u200B\u2066')).toBeUndefined()
-    const long = sanitizeAgentVersion('👩‍💻'.repeat(100))!
-    expect([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(long)]).toHaveLength(AGENT_VERSION_MAX_GRAPHEMES)
+    // Bounded in UTF-16 units, not only graphemes: skin-tone emoji take four units each, and a grapheme of combining
+    // marks can be any length. A version of either used to make the wallet's requester name too long to ask with.
+    expect(sanitizeAgentVersion('👍🏽'.repeat(100))).toBe('👍🏽'.repeat(AGENT_VERSION_MAX_UNITS / '👍🏽'.length))
+    // The longest name intake keeps (128 units) with such a version still names a wallet request's requester.
+    const requester = { type: 'agent', id: 'client', name: `${'n'.repeat(128)} ${sanitizeAgentVersion('👍🏽'.repeat(100))}` }
+    expect(WalletRequesterSchema.safeParse(requester).success).toBe(true)
+    expect(sanitizeAgentVersion(`2.0.${'é'.repeat(1_000)}`)!.length).toBe(AGENT_VERSION_MAX_UNITS)
+    expect(sanitizeAgentVersion(`1${'\u0301'.repeat(1_900_000)}`)).toBeUndefined()
+    expect(sanitizeAgentVersion(`1.2 ${'\u0301'.repeat(1_900_000)}`)).toBe('1.2')
     // Cut between graphemes, never inside a surrogate pair, which would throw here.
-    expect(() => encodeURIComponent(long)).not.toThrow()
+    expect(() => encodeURIComponent(sanitizeAgentVersion('x😀'.repeat(200))!)).not.toThrow()
   })
 
   it('keeps a client-supplied name as plain, bounded text', () => {

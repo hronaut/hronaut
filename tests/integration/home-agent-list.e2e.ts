@@ -67,3 +67,39 @@ test('Home lists connected agents by client, with their sessions, and opens the 
     await closeFixtureServer(site)
   }
 })
+
+test('Home keeps the agent status pill to its share of the header when a long agent name is in it', async ({ electronApp, appWindow, mcpPort, mcpToken }) => {
+  const name = 'local-agent-mode-hronaut (via mcp-remote 0.1.37)'
+  const client = new Client({ name, version: '1.0.0' })
+  try {
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+    }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    await appWindow.evaluate('window.hronaut.openHome()')
+    await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
+    const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+    // One connected agent is named in the status, so the pill carries its whole name.
+    await expect(home.locator('#server-state')).toHaveText(`${name} connected`)
+    for (const width of [1200, 760]) {
+      await electronApp.evaluate(({ BrowserWindow }, next) => BrowserWindow.getAllWindows()[0]!.setSize(next, 900), width)
+      await expect.poll(() => home.evaluate(() => innerWidth)).toBeLessThan(width)
+      await expect.poll(() => home.evaluate(() => {
+        const hero = document.querySelector('.hero')!.getBoundingClientRect()
+        const pill = document.querySelector('.hero-status')!.getBoundingClientRect()
+        const heading = document.getElementById('home-view-title')!
+        const range = document.createRange()
+        range.selectNodeContents(heading)
+        return {
+          share: pill.width <= hero.width * 0.45 + 1,
+          clear: range.getBoundingClientRect().right <= pill.left,
+          scroll: document.documentElement.scrollWidth - innerWidth <= 1
+        }
+      }), `${width} px`).toEqual({ share: true, clear: true, scroll: true })
+      // What does not fit is cut with an ellipsis, and the whole status is there on hover.
+      await expect(home.locator('#server-state')).toHaveAttribute('title', `${name} connected`)
+    }
+  } finally {
+    await client.close().catch(() => {})
+  }
+})

@@ -185,6 +185,13 @@ describe('Home connected agents list', () => {
     home.show({ ...live, agents: [live.agents[0]!] })
     expect(row('Claude Code').querySelector('.home-agent-sessions')).toBeNull()
     expect(document.activeElement).toBe(query('.home-agent-state .home-agent-workspace', row('Claude Code')))
+    // A whole client leaving moves focus to the row now in its place, and the last one leaving to Connect.
+    home.show({ ...live, agents: [live.agents[0]!, agent('k1', 'Codex', 'idle', { workspaceIds: ['docs'] })] })
+    expect(document.activeElement).toBe(query('.home-agent-state .home-agent-workspace', row('Claude Code')))
+    home.show({ ...live, agents: [agent('k1', 'Codex', 'idle', { workspaceIds: ['docs'] })] })
+    expect(document.activeElement).toBe(query('.home-agent-workspace', row('Codex')))
+    home.show({ ...live, agents: [] })
+    expect(document.activeElement).toBe(query('#home-agents .side-action'))
   })
 
   it('says which bridge a client came through, and when a single session connected on hover', async () => {
