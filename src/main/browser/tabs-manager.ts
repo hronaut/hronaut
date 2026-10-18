@@ -221,10 +221,7 @@ import {
   saveNetworkHar,
   waitForNetworkRequest
 } from './network-inspection/network-inspection.js'
-import {
-  networkRequestMatchesWait,
-  type NormalizedBrowserNetworkWaitOptions
-} from '../../shared/network-wait.js'
+import type { NormalizedBrowserNetworkWaitOptions } from '../../shared/network-wait.js'
 import type { BrowserStorageSnapshot } from '../../shared/storage-changes.js'
 import type { ScreenshotAnnotationReport } from '../../shared/screenshot-annotations.js'
 import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
@@ -479,6 +476,7 @@ import type { AgentPointerAccess } from './agent-pointer/agent-pointer-access.js
 import { dismissAgentPointer, showAgentPointer } from './agent-pointer/agent-pointer.js'
 import type { VisualCaptureAccess } from './visual-compare/visual-capture-access.js'
 import { captureVisual, visualCompareContext } from './visual-compare/visual-capture.js'
+import { currentNetworkRequests, matchingNetworkWaitRequest } from './network-inspection/network-request-records.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -6810,7 +6808,7 @@ export class BrowserTabsManager {
   }
 
   private currentNetworkRequests(tab: BrowserTab): BrowserNetworkRequestRecord[] {
-    return tab.networkRequests.filter(request => request.observationGeneration === tab.observationGeneration)
+    return currentNetworkRequests(tab)
   }
 
   private matchingNetworkWaitRequest(
@@ -6818,10 +6816,7 @@ export class BrowserTabsManager {
     options: NormalizedBrowserNetworkWaitOptions,
     minCaptureSequence: number
   ): BrowserNetworkRequestRecord | undefined {
-    return [...tab.networkRequests].reverse().find((request) => (
-      request.observationGeneration === tab.observationGeneration
-      && request.captureSequence > minCaptureSequence && networkRequestMatchesWait(request, options)
-    ))
+    return matchingNetworkWaitRequest(tab, options, minCaptureSequence)
   }
 
   private applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
