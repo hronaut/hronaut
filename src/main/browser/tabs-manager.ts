@@ -133,7 +133,6 @@ import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import type { FileUploadAccess } from './file-upload/file-upload-access.js'
 import { uploadFiles } from './file-upload/file-upload.js'
-import { validateHeaderValue } from 'node:http'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
@@ -147,9 +146,7 @@ import {
   type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
-  type PostBody,
   type Rectangle,
-  type Referrer,
   type Session,
   type WebContents
 } from 'electron'
@@ -456,6 +453,8 @@ import {
 import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
+import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
+import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -593,20 +592,6 @@ function isAbortedLoad(error: unknown): boolean {
     || details.errno === ABORTED_LOAD_ERROR
     || details.code === 'ERR_ABORTED'
     || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
-}
-
-function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: Referrer): LoadURLOptions | undefined {
-  const options: LoadURLOptions = {}
-  if (referrer.url) options.httpReferrer = referrer
-  if (postBody) {
-    const contentType = postBody.boundary
-      ? `${postBody.contentType}; boundary=${postBody.boundary}`
-      : postBody.contentType
-    validateHeaderValue('Content-Type', contentType)
-    options.postData = postBody.data
-    options.extraHeaders = `Content-Type: ${contentType}`
-  }
-  return Object.keys(options).length ? options : undefined
 }
 
 function pdfFilename(requested: string | undefined, title: string): string {
@@ -7092,40 +7077,26 @@ export class BrowserTabsManager {
       tab.pageProblem = undefined
       this.changed(false)
     })
-    webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
-      const observations = [...(this.openedTabObservations.get(tab) ?? [])]
-      const blocked = (): { action: 'deny' } => {
-        for (const observation of observations) observation.blockedRequest()
-        return { action: 'deny' }
-      }
-      if (tab.mcpGroupId && isHronautHomeUrl(url)) return blocked()
-      if (tab.mcpGroupId
-        && !this.workspaceNavigationAllowed(tab.mcpGroupId, url, 'popup')) return blocked()
-      let loadOptions: LoadURLOptions | undefined
-      try {
-        loadOptions = interceptedWindowLoadOptions(postBody, referrer)
-      } catch (error) {
-        console.error(`[browser] Could not preserve the requested page navigation to ${url}:`, error)
-        this.options.onActionFailed?.('open page in new tab', error)
-        for (const observation of observations) observation.failedRequest()
-        return { action: 'deny' }
-      }
-      const creations = observations.map(observation => observation.creationStarted())
-      void this.createTab({
-        url,
-        active: disposition !== 'background-tab',
-        selectVisible: !this.agentInputWebContents.has(webContents.id) || this.followAgentActivity,
-        mcpGroupId: tab.mcpGroupId,
-        loadOptions,
-        onCreated: (created) => { for (const creation of creations) creation.created(created.id) }
-      })
-        .catch((error) => {
-          for (const creation of creations) creation.failed()
-          console.error(`[browser] Could not open requested page ${url}:`, error)
-          this.options.onActionFailed?.('open page in new tab', error)
-        })
-      return { action: 'deny' }
-    })
+    attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
+  }
+
+  /**
+   * The narrow view a page's window open handler gets of this manager's
+   * private opened tab observations, workspace navigation policy, options,
+   * tab creation, in-flight agent input and activity following. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. Each member reads the
+   * manager when called.
+   */
+  private windowOpenHandlerAccess(): WindowOpenHandlerAccess<BrowserTab> {
+    return {
+      openedTabObservations: () => this.openedTabObservations,
+      workspaceNavigationAllowed: (groupId, url, source) => this.workspaceNavigationAllowed(groupId, url, source),
+      options: () => this.options,
+      createTab: (options) => this.createTab(options),
+      agentInputWebContents: () => this.agentInputWebContents,
+      followAgentActivity: () => this.followAgentActivity
+    }
   }
 
   private recordVisit(tab: BrowserTab): void {
