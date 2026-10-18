@@ -163,7 +163,9 @@ import { uploadFiles } from './file-upload/file-upload.js'
 import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
 import type { FileDropAccess } from './file-drop/file-drop-access.js'
 import { insertText, type TextInsertionProgress, type TextInsertionResult } from './text-insertion/text-insertion.js'
+import { fillFromFile, type TextFileFillProgress, type TextFileFillResult } from './text-file-fill/text-file-fill.js'
 import type { TextInsertionAccess } from './text-insertion/text-insertion-access.js'
+import type { TextFileFillAccess } from './text-file-fill/text-file-fill-access.js'
 import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
 import type { ShadowSnapshotAccess } from './shadow-snapshot/shadow-snapshot-access.js'
 import { trackedViewportScreenshot, type TrackedScreenshot, type TrackedScreenshotAccess, type TrackedScreenshotOptions } from './screenshot-observations/tracked-screenshot.js'
@@ -4073,6 +4075,24 @@ export class BrowserTabsManager {
     progress?: TextInsertionProgress
   ): Promise<TextInsertionResult> {
     return insertText(this.textInsertionAccess(), target, text, validateInsertion, progress)
+  }
+
+  private textFileFillAccess(): TextFileFillAccess<BrowserTab> {
+    return {
+      validateTarget: (target) => this.validateTarget(target),
+      getTab: (tabId) => this.getTab(tabId),
+      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      withAgentInput: (webContents, operation) => this.withAgentInput(webContents, operation)
+    }
+  }
+
+  fillFromFile(
+    target: { tabId?: string; ref?: string; selector?: string },
+    source: { path: string; expectedOrigin: string; sha256?: string },
+    validateFill?: (validateContext: () => void) => void,
+    progress?: TextFileFillProgress
+  ): Promise<TextFileFillResult> {
+    return fillFromFile(this.textFileFillAccess(), target, source, validateFill, progress)
   }
 
   /**

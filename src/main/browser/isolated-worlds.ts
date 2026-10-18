@@ -33,6 +33,7 @@ export const ISOLATED_WORLDS = {
   shadowSnapshot: 1026,
   screenshotObservation: 1027,
   textInsertion: 1028,
+  textFileFill: 1029,
   faviconDecoder: 1100
 } as const satisfies Record<string, number>
 
