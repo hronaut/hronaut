@@ -23,6 +23,8 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
         frameSelector: z.string().trim().min(1).max(512).optional().describe('Unique directly embedded same-origin HTTP(S) iframe; capture only, no refs or context switch. Unsupported history is unavailable.'),
         rootSelector: z.string().trim().min(1).max(512).optional()
           .describe('Unique CSS component root for capture or set-baseline. Delta reuses the stored root; an explicit different selector is rejected. No whole-page fallback.'),
+        shadowHostSelector: z.string().trim().min(1).max(512).optional()
+          .describe('Unique top-level element with an open shadow root, such as a web component; capture only. Read-only text of its shadow content, nested open roots and slotted content, with no refs. Not with root, frame, baseline, delta or quality options.'),
         baselineId: z.string().uuid().optional()
           .describe('Opaque baseline handle required by delta and optional for clear-baseline.'),
         maxOutputChars: z.number().int().min(1_000).max(50_000).optional()
@@ -37,12 +39,13 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
           .describe('Private required visible CSS selector checked during assess-quality and never returned.')
       }
     },
-    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector, rootSelector, frameSelector }: {
+    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector, rootSelector, frameSelector, shadowHostSelector }: {
       action: 'capture' | 'set-baseline' | 'delta' | 'clear-baseline' | 'assess-quality'
       tabId?: string
       maxChars?: number
       rootSelector?: string
       frameSelector?: string
+      shadowHostSelector?: string
       baselineId?: string
       maxOutputChars?: number
       advanceBaseline?: boolean
@@ -50,6 +53,13 @@ export function registerBrowserSnapshot(context: McpToolContext): void {
       expectedText?: string
       expectedSelector?: string
     }, call: WorkspaceToolCall<SnapshotSettlement>) => {
+      if (shadowHostSelector !== undefined) {
+        if (action !== 'capture' || [rootSelector, frameSelector, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector].some(option => option !== undefined)) {
+          throw new TypeError('shadowHostSelector is supported only for capture, without root, frame, baseline, delta or quality options')
+        }
+        const capture = await manager.shadowSnapshot(tabId, shadowHostSelector, maxChars)
+        return { ...textResult(capture.text), structuredContent: { ...capture } }
+      }
       if (frameSelector !== undefined) {
         const settlement = call.settlement
         if (!tabId || !('retain' in settlement)) throw new Error('Frame observation authority unavailable')

@@ -162,6 +162,8 @@ import type { FileUploadAccess } from './file-upload/file-upload-access.js'
 import { uploadFiles } from './file-upload/file-upload.js'
 import { dropFiles, type FileDropResult } from './file-drop/file-drop.js'
 import type { FileDropAccess } from './file-drop/file-drop-access.js'
+import { shadowSnapshot, type BrowserShadowSnapshot } from './shadow-snapshot/shadow-snapshot.js'
+import type { ShadowSnapshotAccess } from './shadow-snapshot/shadow-snapshot-access.js'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
@@ -3179,6 +3181,24 @@ export class BrowserTabsManager {
 
   snapshotDetails(tabId?: string, maxChars = 30_000, rootSelector?: string): Promise<BrowserSnapshot> {
     return snapshotDetails(this.pageSnapshotsAccess(), tabId, maxChars, rootSelector)
+  }
+
+  /**
+   * The narrow view a shadow snapshot gets of this manager's private tabs and
+   * observation context. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still
+   * provide it.
+   */
+  private shadowSnapshotAccess(): ShadowSnapshotAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      snapshotDeltaContext: (tab) => this.snapshotDeltaContext(tab)
+    }
+  }
+
+  shadowSnapshot(tabId: string | undefined, hostSelector: string, maxChars?: number): Promise<BrowserShadowSnapshot> {
+    return shadowSnapshot(this.shadowSnapshotAccess(), tabId, hostSelector, maxChars)
   }
 
   /**
