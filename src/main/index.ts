@@ -153,7 +153,7 @@ import {
 } from '../shared/title-bar.js'
 import { registerShellIpc } from './shell-ipc.js'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
-import { loadNativeWindowWithRollback } from './native-window-load.js'
+import { createPanelWindow } from './windows/panel-window.js'
 import type {
   AddressSuggestion,
   AddressSuggestionOverlayRequest,
@@ -306,7 +306,6 @@ const shellTooltips = new ShellTooltipOverlay({
 let panelWindowUrl: string | null = null
 let panelWindowPanel: DetachablePanelId | null = null
 let panelWindowRedocking = false
-let panelWindowOpening: Promise<void> | null = null
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
 let initializedTabsManager: BrowserTabsManager | null = null
@@ -1410,39 +1409,36 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
   }
 }
 
-function detachedPanelTitle(panel: DetachablePanelId): string {
-  const keys: Record<DetachablePanelId, MessageKey> = {
-    'site-controls': 'panels.siteControls',
-    'site-storage': 'panels.siteStorage',
-    'page-tools': 'panels.pageTools',
-    'responsive-preview': 'panels.responsivePreview',
-    environment: 'panels.environment',
-    accessibility: 'panels.accessibility',
-    'quality-audit': 'panels.qualityAudit',
-    performance: 'panels.performance',
-    'design-overview': 'panels.designOverview',
-    'page-metadata': 'panels.pageMetadata',
-    security: 'panels.security',
-    coverage: 'panels.coverage',
-    'cpu-profile': 'panels.cpuProfile',
-    memory: 'panels.memory',
-    console: 'panels.console',
-    network: 'panels.network',
-    'debug-report': 'panels.debugReport',
-    'repro-recorder': 'panels.reproRecorder',
-    'dom-changes': 'panels.domChanges',
-    'visual-compare': 'panels.visualCompare',
-    issues: 'panels.issues',
-    bookmarks: 'panels.bookmarks'
-  }
-  return text('panels.title', { panel: text(keys[panel]) })
-}
-
-function trustedPanelShellUrl(panel: DetachablePanelId): string {
-  const url = new URL(trustedShellUrl())
-  url.searchParams.set('hronautPanel', panel)
-  return url.href
-}
+const { detachedPanelTitle, openPanelWindow } = createPanelWindow({
+  text,
+  trustedShellUrl,
+  mainWindow: () => mainWindow,
+  panelWindow: () => panelWindow,
+  setPanelWindow: (window) => { panelWindow = window },
+  setPanelWindowUrl: (url) => { panelWindowUrl = url },
+  panelWindowPanel: () => panelWindowPanel,
+  setPanelWindowPanel: (panel) => { panelWindowPanel = panel },
+  panelWindowRedocking: () => panelWindowRedocking,
+  setPanelWindowRedocking: (value) => { panelWindowRedocking = value },
+  sendToPanelWindow,
+  settings: () => settings,
+  resolvedTheme,
+  themeBackground: THEME_BACKGROUND,
+  tabs: () => tabsManager,
+  currentRendererSettingsState,
+  updateState: () => updateState,
+  currentMcpControlState,
+  credentialStore: () => credentialStore,
+  sitePermissionStore: () => sitePermissionStore,
+  bookmarkStore: () => bookmarkStore,
+  historyStore: () => historyStore,
+  panelWindowStateStore: () => panelWindowStateStore,
+  lastPanelWindowState: () => lastPanelWindowState,
+  setLastPanelWindowState: (state) => { lastPanelWindowState = state },
+  currentPanelWindowState,
+  schedulePanelWindowStateSave,
+  flushPanelWindowState
+})
 
 function trustedUrlMatches(actual: string | undefined, expected: string): boolean {
   return Boolean(actual && (actual === expected || actual.startsWith(`${expected}#`)))
@@ -1509,136 +1505,6 @@ function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext 
       name: target.client.version ? `${target.client.name} ${target.client.version}` : target.client.name
     },
     ...(target.signal ? { signal: target.signal } : {})
-  }
-}
-
-function sendPanelWindowSnapshot(target: BrowserWindow): void {
-  if (target.isDestroyed() || target.webContents.isDestroyed()) return
-  target.webContents.send('browser:state-changed', tabsManager?.getState())
-  target.webContents.send('browser:downloads-changed', tabsManager?.listDownloads() ?? [])
-  target.webContents.send('settings:changed', settings)
-  target.webContents.send('settings:renderer-state-changed', currentRendererSettingsState())
-  target.webContents.send('updates:changed', updateState)
-  target.webContents.send('mcp:changed', currentMcpControlState())
-  target.webContents.send('credentials:changed', credentialStore?.list() ?? [])
-  target.webContents.send('permissions:changed', sitePermissionStore?.list() ?? [])
-  target.webContents.send('bookmarks:changed', bookmarkStore?.list() ?? [])
-  target.webContents.send('visit-history:changed', historyStore?.list() ?? [])
-}
-
-async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
-  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The Hronaut window is not available')
-  const ownerWindow = mainWindow
-  panelWindowPanel = panel
-  if (panelWindowOpening) {
-    await panelWindowOpening
-    const requestedPanel = panelWindowPanel
-    if (requestedPanel && panelWindow && !panelWindow.isDestroyed()) {
-      panelWindow.setTitle(detachedPanelTitle(requestedPanel))
-      sendToPanelWindow('panel-window:show-panel', requestedPanel)
-      if (panelWindow.isMinimized()) panelWindow.restore()
-      panelWindow.show()
-      panelWindow.focus()
-    }
-    return
-  }
-  if (panelWindow && !panelWindow.isDestroyed()) {
-    panelWindow.setTitle(detachedPanelTitle(panel))
-    sendToPanelWindow('panel-window:show-panel', panel)
-    if (panelWindow.isMinimized()) panelWindow.restore()
-    panelWindow.show()
-    panelWindow.focus()
-    return
-  }
-
-  const opening = (async () => {
-    const mainBounds = ownerWindow.getBounds()
-    const width = Math.min(720, Math.max(480, Math.round(mainBounds.width * 0.42)))
-    const height = Math.min(900, Math.max(560, mainBounds.height))
-    const displays = screen.getAllDisplays()
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
-    const savedPanelState = lastPanelWindowState ?? await panelWindowStateStore?.load() ?? null
-    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The Hronaut window is not available')
-    const panelBounds = savedPanelState
-      ? restoreWindowBounds(savedPanelState, orderedDisplays, { width, height })
-      : {
-          width,
-          height,
-          x: mainBounds.x + Math.max(0, mainBounds.width - width),
-          y: mainBounds.y
-        }
-    const initialPanel = panelWindowPanel ?? panel
-    const expectedUrl = trustedPanelShellUrl(initialPanel)
-    const created = new BrowserWindow({
-      ...panelBounds,
-      minWidth: 420,
-      minHeight: 440,
-      show: false,
-      title: detachedPanelTitle(initialPanel),
-      autoHideMenuBar: true,
-      backgroundColor: THEME_BACKGROUND[resolvedTheme(settings.theme)],
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.cjs'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true
-      }
-    })
-    created.webContents.setZoomFactor(settings.interfaceScale)
-    panelWindow = created
-    panelWindowUrl = expectedUrl
-    panelWindowRedocking = false
-    created.setMenuBarVisibility(false)
-    created.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    created.webContents.on('will-navigate', (event, url) => {
-      if (url !== expectedUrl) event.preventDefault()
-    })
-    created.webContents.once('did-finish-load', () => {
-      const requestedPanel = panelWindowPanel ?? initialPanel
-      created.webContents.setZoomFactor(settings.interfaceScale)
-      created.setTitle(detachedPanelTitle(requestedPanel))
-      sendPanelWindowSnapshot(created)
-      created.webContents.send('panel-window:show-panel', requestedPanel)
-    })
-    created.once('ready-to-show', () => {
-      if (!created.isDestroyed()) created.show()
-    })
-    created.on('resize', schedulePanelWindowStateSave)
-    created.on('move', schedulePanelWindowStateSave)
-    created.on('maximize', schedulePanelWindowStateSave)
-    created.on('unmaximize', schedulePanelWindowStateSave)
-    created.on('enter-full-screen', schedulePanelWindowStateSave)
-    created.on('leave-full-screen', schedulePanelWindowStateSave)
-    created.on('close', () => {
-      lastPanelWindowState = currentPanelWindowState() ?? lastPanelWindowState
-    })
-    created.on('closed', () => {
-      if (panelWindow !== created) return
-      const redocking = panelWindowRedocking
-      panelWindow = null
-      panelWindowUrl = null
-      panelWindowPanel = null
-      panelWindowRedocking = false
-      void flushPanelWindowState().catch((error) => console.error('[panel-window] Failed to flush state:', error))
-      if (!redocking && mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send('panel-window:closed')
-      }
-    })
-
-    await loadNativeWindowWithRollback(created, expectedUrl, () => {
-      if (panelWindow !== created) return
-      panelWindow = null
-      panelWindowUrl = null
-      panelWindowPanel = null
-      panelWindowRedocking = false
-    })
-  })()
-  panelWindowOpening = opening
-  try {
-    await opening
-  } finally {
-    if (panelWindowOpening === opening) panelWindowOpening = null
   }
 }
 
