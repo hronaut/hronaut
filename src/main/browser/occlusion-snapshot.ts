@@ -1,5 +1,6 @@
 import type { Rectangle } from 'electron'
 import type { BrowserOcclusionSnapshot } from '../../shared/types.js'
+import { RendererExitedError } from './renderer-exit-guard.js'
 
 export const OCCLUSION_SNAPSHOT_TIMEOUT_MS = 250
 const OCCLUSION_SNAPSHOT_JPEG_QUALITY = 85
@@ -113,8 +114,13 @@ export class OcclusionSnapshot {
             await pane.busy
             if (this.pending?.id !== id) throw new Error('Occlusion snapshot was replaced')
           }
-          // Do not wake a hidden page or count as a visible viewer of it.
-          return { pane, image: await pane.contents.capturePage(undefined, { stayHidden: true, stayAwake: false }) }
+          // Do not wake a hidden page or count as a visible viewer of it. A crashed pane has no picture; the other
+          // pane's snapshot still shows.
+          const image = await pane.contents.capturePage(undefined, { stayHidden: true, stayAwake: false }).catch((error: unknown) => {
+            if (error instanceof RendererExitedError) return undefined
+            throw error
+          })
+          return { pane, image }
         } finally {
           this.capturing.delete(pane.contents)
         }
@@ -129,7 +135,7 @@ export class OcclusionSnapshot {
       const cssScale = this.ports.cssScale()
       const deviceScale = this.ports.deviceScale()
       const snapshotPanes = captured.flatMap(({ pane, image }) => {
-        if (image.isEmpty()) return []
+        if (!image || image.isEmpty()) return []
         const width = Math.max(1, Math.round(pane.bounds.width * deviceScale))
         const sized = image.getSize().width > width ? image.resize({ width, quality: 'good' }) : image
         return [{

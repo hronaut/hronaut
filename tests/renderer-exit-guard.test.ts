@@ -24,6 +24,8 @@ function fakePage() {
     on: (event: string, listener: () => void) => { if (event === 'render-process-gone') gone.push(listener) },
     executeJavaScript: record('script'),
     executeJavaScriptInIsolatedWorld: record('isolated'),
+    capturePage: record('capture'),
+    printToPDF: record('print'),
     debugger: { sendCommand: record('command') }
   }
   guardPageCallsAcrossRendererExit(page as never)
@@ -45,6 +47,21 @@ describe('page calls across a renderer exit', () => {
     // Electron settles nothing late; if it did, the outcome is already reported.
     for (const call of calls) call.reply.reject(new Error('Target crashed'))
     await Promise.resolve()
+  })
+
+  it('rejects a capture or a print in flight when the renderer exits, and refuses both unsent while it stays gone', async () => {
+    const { page, calls, exit } = fakePage()
+    const capture = page.capturePage()
+    const print = page.printToPDF({})
+    exit()
+    await expect(capture).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+    await expect(print).rejects.toMatchObject({ name: 'RendererExitedError', sent: true })
+    for (const call of calls) call.reply.reject(new Error('Target crashed'))
+    calls.length = 0
+    // Printing a page whose renderer exited ends the application, so it never reaches Electron.
+    await expect(page.printToPDF({})).rejects.toMatchObject({ name: 'RendererExitedError', sent: false })
+    await expect(page.capturePage({ x: 0, y: 0, width: 10, height: 10 })).rejects.toThrow('nothing was sent')
+    expect(calls).toEqual([])
   })
 
   it('fails at once and unsent while the renderer stays gone, without reaching the page', async () => {
@@ -99,12 +116,19 @@ describe('page calls across a renderer exit', () => {
     const evaluated = page.debugger.sendCommand('Runtime.evaluate', { expression: '1' }, 'session-1')
     const script = page.executeJavaScript('document.title', true)
     const isolated = page.executeJavaScriptInIsolatedWorld(7, [{ code: '2' }], true)
+    void page.capturePage({ x: 1, y: 2, width: 3, height: 4 }, { stayHidden: true, stayAwake: false })
+    void page.printToPDF({ landscape: true })
     expect(calls.map(call => [call.kind, ...call.args])).toEqual([
       ['command', 'Page.enable'],
       ['command', 'Runtime.evaluate', { expression: '1' }, 'session-1'],
       ['script', 'document.title', true],
-      ['isolated', 7, [{ code: '2' }], true]
+      ['isolated', 7, [{ code: '2' }], true],
+      ['capture', { x: 1, y: 2, width: 3, height: 4 }, { stayHidden: true, stayAwake: false }],
+      ['print', { landscape: true }]
     ])
+    // Hidden captures pass an explicit undefined rect, which must reach Electron as given.
+    void page.capturePage(undefined, { stayHidden: true, stayAwake: false })
+    expect(calls.at(-1)!.args).toStrictEqual([undefined, { stayHidden: true, stayAwake: false }])
     calls[0]!.reply.resolve({})
     calls[1]!.reply.resolve({ result: 1 })
     calls[2]!.reply.reject(new Error('Script failed'))

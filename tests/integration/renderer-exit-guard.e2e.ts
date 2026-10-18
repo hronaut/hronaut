@@ -65,14 +65,17 @@ test('page tools fail at once on a crashed page and work again after it loads', 
   try {
     await crashPage(electronApp, fixtureUrl)
 
-    // Without the guard each of these waits on the crashed renderer until the client times out.
+    // Without the guard the first three wait on the crashed renderer until the client times out, a screenshot
+    // returns an image that is not the page, and printing to PDF ends the whole application.
     for (const [name, args] of [
-      ['browser_snapshot', {}], ['browser_click', { x: 10, y: 10 }], ['browser_type', { selector: 'input', text: 'x' }]
+      ['browser_snapshot', {}], ['browser_click', { x: 10, y: 10 }], ['browser_type', { selector: 'input', text: 'x' }],
+      ['browser_screenshot', {}], ['browser_pdf_save', { filename: 'crashed page' }]
     ] as const) {
       const failed = await call(name, args)
       expect(failed.isError, `${name}: ${text(failed)}`).toBe(true)
       expect(text(failed), name).toContain('renderer exited')
     }
+    expect(await electronApp.evaluate(({ app }) => app.isReady()), 'Hronaut is still running').toBe(true)
     // A native click reports its own outcome; nothing was pressed and nothing is left to clean up.
     const nativeClick = await call('browser_click', { selector: '#hover', native: true })
     expect(nativeClick.isError, text(nativeClick)).toBe(true)
@@ -93,10 +96,35 @@ test('page tools fail at once on a crashed page and work again after it loads', 
     const snapshot = await call('browser_snapshot', {})
     expect(snapshot.isError, text(snapshot)).not.toBe(true)
     expect(text(snapshot)).toContain('Routed after crash')
+    const screenshot = await call('browser_screenshot', {})
+    expect(screenshot.isError, text(screenshot)).not.toBe(true)
+    const pdf = await call('browser_pdf_save', { filename: 'after crash' })
+    expect(pdf.isError, text(pdf)).not.toBe(true)
     // The refused native click left nothing unconfirmed on the tab.
     const clicked = await call('browser_click', { selector: '#routed', native: true })
     expect(clicked.isError, text(clicked)).not.toBe(true)
   } finally {
     await call('browser_network_routes', { action: 'clear' }).catch(() => undefined)
   }
+})
+
+// A tab that is not on screen is presented offscreen and waits for a frame before a capture; a crashed page never
+// presents one, so without the check that wait ran to its 15 s timeout with a misleading error.
+test('captures of a crashed background tab fail at once', async ({ capabilities, electronApp }) => {
+  const { client, fixtureUrl } = capabilities
+  const backgroundUrl = `${fixtureUrl}&background=1`
+  const opened = await client.callTool({ name: 'browser_new_tab', arguments: { url: backgroundUrl, active: false } }, undefined, { timeout: 15_000 }) as CallToolResult
+  expect(opened.isError, text(opened)).not.toBe(true)
+  const background = (JSON.parse(text(opened)) as { tabs: Array<{ id: string; url: string }> }).tabs.find(tab => tab.url.includes('background=1'))!
+  await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+    webContents.getAllWebContents().some(page => page.getURL() === url && !page.isLoading()), backgroundUrl)).toBe(true)
+  await crashPage(electronApp, backgroundUrl)
+  for (const [name, args] of [['browser_screenshot', {}], ['browser_pdf_save', { filename: 'background crash' }]] as const) {
+    const started = Date.now()
+    const failed = await client.callTool({ name, arguments: { tabId: background.id, ...args } }, undefined, { timeout: 30_000 }) as CallToolResult
+    expect(failed.isError, `${name}: ${text(failed)}`).toBe(true)
+    expect(text(failed), name).toContain('renderer exited')
+    expect(Date.now() - started, name).toBeLessThan(5_000)
+  }
+  expect(await electronApp.evaluate(({ app }) => app.isReady()), 'Hronaut is still running').toBe(true)
 })

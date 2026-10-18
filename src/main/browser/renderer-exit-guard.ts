@@ -1,6 +1,6 @@
 import type { Debugger, WebContents } from 'electron'
 
-/** A page script or DevTools command that cannot finish because the page's renderer exited. */
+/** A page script, DevTools command, capture or print that cannot finish because the page's renderer exited. */
 export class RendererExitedError extends Error {
   /** Whether the call reached the page before its renderer exited; false when it was refused unsent. */
   readonly sent: boolean
@@ -14,7 +14,7 @@ export class RendererExitedError extends Error {
   }
 }
 
-type GuardedPage = Pick<WebContents, 'isDestroyed' | 'isCrashed' | 'executeJavaScript' | 'executeJavaScriptInIsolatedWorld'> & {
+type GuardedPage = Pick<WebContents, 'isDestroyed' | 'isCrashed' | 'executeJavaScript' | 'executeJavaScriptInIsolatedWorld' | 'capturePage' | 'printToPDF'> & {
   on(event: 'render-process-gone', listener: () => void): unknown
   debugger: Pick<Debugger, 'sendCommand'>
 }
@@ -33,10 +33,12 @@ const BROWSER_PROCESS_DOMAINS = ['Fetch.']
  * executeJavaScriptInIsolatedWorld call once its renderer exits, and holds
  * renderer DevTools commands until the next load. An operation awaiting one
  * would keep its tab, debugger queue and workspace busy indefinitely.
- * Installed once on each tab's page, this makes those calls fail with
- * RendererExitedError when the renderer exits and fail at once, unsent, while
- * it stays gone, so operations settle and run their cleanup. A new load
- * starts a new renderer and calls work again. Nothing is retried or replayed.
+ * printToPDF on a page whose renderer exited ends the whole application, and
+ * capturePage returns an image that is not the page. Installed once on each
+ * tab's page, this makes those calls fail with RendererExitedError when the
+ * renderer exits and fail at once, unsent, while it stays gone, so operations
+ * settle and run their cleanup. A new load starts a new renderer and calls
+ * work again. Nothing is retried or replayed.
  */
 export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
   // Only calls in flight are held, so a long-lived page keeps nothing per call.
@@ -57,8 +59,12 @@ export function guardPageCallsAcrossRendererExit(page: GuardedPage): void {
   const executeJavaScript = page.executeJavaScript.bind(page)
   const executeJavaScriptInIsolatedWorld = page.executeJavaScriptInIsolatedWorld.bind(page)
   const sendCommand = page.debugger.sendCommand.bind(page.debugger)
+  const capturePage = page.capturePage.bind(page)
+  const printToPDF = page.printToPDF.bind(page)
   page.executeJavaScript = (...args) => settleBeforeExit(() => executeJavaScript(...args))
   page.executeJavaScriptInIsolatedWorld = (...args) => settleBeforeExit(() => executeJavaScriptInIsolatedWorld(...args))
+  page.capturePage = (...args: Parameters<typeof capturePage>) => settleBeforeExit(() => capturePage(...args))
+  page.printToPDF = (...args) => settleBeforeExit(() => printToPDF(...args))
   page.debugger.sendCommand = (method, ...args) => answeredByBrowserProcess(method)
     ? sendCommand(method, ...args)
     : settleBeforeExit(() => sendCommand(method, ...args))
