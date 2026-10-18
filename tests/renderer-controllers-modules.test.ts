@@ -20,6 +20,17 @@ describe('renderer controller modules', () => {
     expect(oversized).toEqual([])
   })
 
+  it.each(controllers)('keeps every feature module in the folder of $file independent of the others', ({ modules }) => {
+    // Feature composables may share only the type-only request contract in diagnostics-request.ts.
+    const siblingImports = moduleFiles(modules).flatMap(name => [...readFileSync(`${modules}/${name}`, 'utf8')
+      .matchAll(/(import\s+type\s+[^'"]*?\sfrom\s*|\bfrom\s*|\bimport\s*\(?\s*)['"](\.\.?\/[^'"]*)['"]/gu)]
+      .map(([, prefix = '', path = '']) => ({ typeOnly: prefix.startsWith('import type'), path }))
+      .filter(({ typeOnly, path }) => !(typeOnly && path === './diagnostics-request.js'))
+      .filter(({ path }) => path.startsWith('./') || /^\.\.\/use(?:Diagnostics|Network)Controller\.js$/u.test(path))
+      .map(({ path }) => `${name}: ${path}`))
+    expect(siblingImports).toEqual([])
+  })
+
   it.each(controllers)('composes every feature composable of its folder in $file', ({ file, modules }) => {
     const source = readFileSync(file, 'utf8')
     const folder = modules.slice(modules.lastIndexOf('/') + 1)

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { flushPromises } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDiagnosticsController } from '../../src/renderer/src/composables/useDiagnosticsController.js'
 import type {
   BrowserDomChangesReport,
@@ -64,6 +64,13 @@ function domReport(tabId: string): BrowserDomChangesReport {
 // reset for the new page first and then refresh, rather than refresh first and
 // have the reset discard that refresh.
 describe('diagnostics watcher order', () => {
+  const controllers: ReturnType<typeof useDiagnosticsController>[] = []
+
+  // Dispose even when an assertion fails, so no DOM changes refresh timer outlives its test.
+  afterEach(() => {
+    for (const controller of controllers.splice(0)) controller.dispose()
+  })
+
   function createController() {
     const activeTab = ref<BrowserTabState | undefined>(tab('tab-1'))
     const browser = {
@@ -78,6 +85,7 @@ describe('diagnostics watcher order', () => {
       closeTransientPanels: vi.fn(),
       keepsSeparatePanelOpen: () => true
     })
+    controllers.push(controller)
     return { activeTab, controller }
   }
 
@@ -93,7 +101,6 @@ describe('diagnostics watcher order', () => {
     expect(controller.reproPanelOpen.value).toBe(true)
     expect(controller.reproState.value).toBe('ready')
     expect(controller.reproRecording.value?.tabId).toBe('tab-2')
-    controller.dispose()
   })
 
   it('refreshes a separately open DOM changes panel for the new tab after the context reset', async () => {
@@ -108,6 +115,5 @@ describe('diagnostics watcher order', () => {
     expect(controller.domChangesPanelOpen.value).toBe(true)
     expect(controller.domChangesState.value).toBe('ready')
     expect(controller.domChangesReport.value?.tabId).toBe('tab-2')
-    controller.dispose()
   })
 })
