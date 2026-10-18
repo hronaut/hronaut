@@ -124,7 +124,8 @@ import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { resizeViewport } from './emulation/resize-viewport.js'
 import { SplitDividerController } from './split-divider-controller.js'
-import { decodeWebsiteFavicon } from './favicon.js'
+import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
+import { loadFavicon } from './tab-favicon/tab-favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
@@ -136,7 +137,6 @@ import axe from 'axe-core'
 import {
   BrowserWindow,
   Menu,
-  nativeImage,
   powerMonitor,
   screen,
   session,
@@ -153,7 +153,9 @@ import {
 } from 'electron'
 import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { parseBrowserKeyPress } from '../../shared/keyboard-input.js'
-import { MAX_BROWSER_TABS, MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
+import { MAX_BROWSER_TABS } from '../../shared/types.js'
+import type { PageFindAccess } from './page-find/page-find-access.js'
+import { findInPage, stopFindInPage } from './page-find/page-find.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
@@ -184,7 +186,8 @@ import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import type { PageAuditsAccess } from './page-audits/page-audits-access.js'
 import { accessibilityAudit } from './page-audits/accessibility-audit.js'
-import { buildBrowserDebugReport } from '../../shared/debug-report.js'
+import type { DebugReportAccess } from './debug-report/debug-report-access.js'
+import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnosticLogState, setDiagnosticLogPreservation } from './debug-report/debug-report.js'
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import {
   normalizeConsoleLogEntry,
@@ -197,7 +200,6 @@ import {
   type CdpRuntimeConsoleCall,
   type CdpRuntimeExceptionDetails
 } from '../../shared/console-exceptions.js'
-import { countConsoleEvents } from '../../shared/console-messages.js'
 import { securityReport } from './page-audits/security-report.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 import { WorkspaceTemplateImporter } from './workspace-template-import.js'
@@ -243,8 +245,6 @@ import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
 import {
   SPLIT_VIEW_GAP,
-  isBrowserSplitOrientation,
-  normalizeSplitViewRatio,
   splitViewBounds,
   splitViewGeometry,
   type SplitDividerGeometry,
@@ -252,6 +252,8 @@ import {
   type BrowserSplitOrientation,
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
+import type { SplitViewAccess } from './split-view/split-view-access.js'
+import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
 import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -393,10 +395,14 @@ import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import type { DevToolsAccess } from './devtools/devtools-access.js'
+import { openDevTools, toggleDevTools } from './devtools/devtools.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
 import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './page-navigation/page-navigation.js'
+import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
+import { setZoom } from './page-zoom/page-zoom.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
@@ -471,7 +477,6 @@ function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-const MAX_FAVICON_BYTES = 512 * 1024
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
 const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
 const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
@@ -485,7 +490,6 @@ const MAX_AGENT_STEP_THUMBNAIL_WIDTH = 320
 const MAX_AGENT_STEP_THUMBNAIL_HEIGHT = 200
 const MAX_AGENT_STEP_THUMBNAIL_BYTES = 48 * 1024
 const MIN_SHELL_HEIGHT = 44
-const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400] as const
 const ABORTED_LOAD_ERROR = -3
 const ELEMENT_INSPECTION_WORLD_ID = ISOLATED_WORLDS.elementInspection
 const AGENT_POINTER_WORLD_ID = ISOLATED_WORLDS.agentPointer
@@ -3258,21 +3262,31 @@ export class BrowserTabsManager {
     menu.popup({ window: this.window })
   }
 
-  async toggleDevTools(tabId?: string): Promise<boolean> {
-    const tab = this.getTab(tabId)
-    await this.wakeTab(tab.id)
-    const webContents = tab.webContents
-    if (isHronautHomeUrl(tab.url)) return false
-    if (this.isHumanInteractionLocked(tab)) {
-      if (webContents.isDevToolsOpened()) webContents.closeDevTools()
-      return false
+  /**
+   * The narrow view Developer Tools get of this manager's private tabs, tab
+   * waking, input lock, request conditions and routes, opening set, dialog
+   * monitoring and debugger queue. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private devToolsAccess(): DevToolsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      requireNetworkConditionsKnown: (tab) => this.requireNetworkConditionsKnown(tab),
+      applyNetworkRoutes: (tab, validate, recovery, mutate) => this.applyNetworkRoutes(tab, validate, recovery, mutate),
+      devToolsOpening: () => this.devToolsOpening,
+      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
+      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId)
     }
-    if (webContents.isDevToolsOpened()) {
-      webContents.closeDevTools()
-      return false
-    }
-    await this.openDevTools(tab)
-    return true
+  }
+
+  toggleDevTools(tabId?: string): Promise<boolean> {
+    return toggleDevTools(this.devToolsAccess(), tabId)
   }
 
   setMcpUrl(url: string): BrowserState {
@@ -3412,107 +3426,51 @@ export class BrowserTabsManager {
     if (electronWebContents.getFocusedWebContents()?.id === target.webContents.id) redirectWebsiteFocus()
   }
 
-  async openSplitViewAndWait(tabId: string): Promise<BrowserState> {
-    const current = this.getActiveTab()
-    const target = this.getTab(tabId)
-    if (current.id === target.id) throw new Error('Choose a different tab for split view.')
-    if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new Error('Hronaut Home cannot be opened in split view.')
-    if (current.webContents.isDestroyed()) {
-      throw new Error('The current tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+  /**
+   * The narrow view a split view gets of this manager's private tabs, split
+   * view and its generation, tab selection generation, tab waking, window
+   * content view, divider drag, layout, focus and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value or promise directly, so callers see the same
+   * ticks as before.
+   */
+  private splitViewAccess(): SplitViewAccess<BrowserTab> {
+    return {
+      getActiveTab: () => this.getActiveTab(),
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      splitViewGeneration: () => this.splitViewGeneration,
+      writeSplitViewGeneration: (generation) => { this.splitViewGeneration = generation },
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      activeTabId: () => this.activeTabId,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      addChildView: (view) => this.window.contentView.addChildView(view),
+      removeChildView: (view) => this.window.contentView.removeChildView(view),
+      cancelSplitDivider: () => this.splitDivider.cancel(),
+      layout: () => this.layout(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    if (target.webContents.isDestroyed()) {
-      throw new Error('The selected tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    const splitGeneration = ++this.splitViewGeneration
-    const selectionGeneration = this.tabSelectionGeneration
-    await Promise.all([
-      this.wakeTab(current.id),
-      this.wakeTab(target.id)
-    ])
-    if (
-      splitGeneration !== this.splitViewGeneration
-      || selectionGeneration !== this.tabSelectionGeneration
-      || this.activeTabId !== current.id
-    ) return this.getState()
-    return this.openSplitView(target.id)
+  }
+
+  openSplitViewAndWait(tabId: string): Promise<BrowserState> {
+    return openSplitViewAndWait(this.splitViewAccess(), tabId)
   }
 
   openSplitView(tabId: string): BrowserState {
-    const current = this.getActiveTab()
-    const target = this.getTab(tabId)
-    if (current.id === target.id) throw new Error('Choose a different tab for split view.')
-    if (isHronautHomeUrl(current.url) || isHronautHomeUrl(target.url)) throw new Error('Hronaut Home cannot be opened in split view.')
-    // A WebContentsView can outlive its WebContents when Electron or DevTools
-    // tears the renderer down independently. Validate both panes before
-    // mutating split state; addChildView/setBounds throw native exceptions for
-    // a destroyed child and would otherwise leave splitView half-applied.
-    if (current.webContents.isDestroyed()) {
-      throw new Error('The current tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    if (target.webContents.isDestroyed()) {
-      throw new Error('The selected tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    this.splitViewGeneration += 1
-    current.lastActiveAt = Date.now()
-    target.lastActiveAt = Date.now()
-    if (current.sleeping) void this.wakeTab(current.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
-    if (target.sleeping) void this.wakeTab(target.id).catch((error) => console.error('[browser] Could not wake split tab:', error))
-
-    if (this.splitView) {
-      for (const visibleTabId of [this.splitView.firstTabId, this.splitView.secondTabId]) {
-        const visibleTab = this.tabs.get(visibleTabId)
-        if (visibleTab && visibleTab.id !== current.id && visibleTab.id !== target.id) {
-          this.window.contentView.removeChildView(visibleTab.view)
-        }
-      }
-    }
-    this.splitView = {
-      firstTabId: current.id,
-      secondTabId: target.id,
-      orientation: 'vertical',
-      ratio: 0.5
-    }
-    this.window.contentView.addChildView(target.view)
-    this.layout()
-    this.focusTabOrTrustedChrome(current)
-    this.changed()
-    return this.getState()
+    return openSplitView(this.splitViewAccess(), tabId)
   }
 
   updateSplitView(updates: { orientation?: BrowserSplitOrientation; ratio?: number; swap?: boolean }): BrowserState {
-    if (!this.splitView) throw new Error('Split view is not open.')
-    if (updates.orientation !== undefined && !isBrowserSplitOrientation(updates.orientation)) {
-      throw new TypeError('Split orientation must be vertical or horizontal.')
-    }
-    if (updates.ratio !== undefined && !Number.isFinite(updates.ratio)) throw new TypeError('Split ratio must be a finite number.')
-    this.splitDivider.cancel()
-    this.splitViewGeneration += 1
-    if (updates.orientation !== undefined) this.splitView.orientation = updates.orientation
-    if (updates.ratio !== undefined) this.splitView.ratio = normalizeSplitViewRatio(updates.ratio)
-    if (updates.swap) {
-      const firstTabId = this.splitView.firstTabId
-      this.splitView.firstTabId = this.splitView.secondTabId
-      this.splitView.secondTabId = firstTabId
-    }
-    this.layout()
-    this.changed()
-    return this.getState()
+    return updateSplitView(this.splitViewAccess(), updates)
   }
 
   closeSplitView(): BrowserState {
-    this.splitViewGeneration += 1
-    if (!this.splitView) return this.getState()
-    const activeTab = this.getActiveTab()
-    const otherTabId = this.splitView.firstTabId === activeTab.id
-      ? this.splitView.secondTabId
-      : this.splitView.firstTabId
-    const otherTab = this.tabs.get(otherTabId)
-    if (otherTab) this.window.contentView.removeChildView(otherTab.view)
-    this.splitView = null
-    this.layout()
-    this.focusTabOrTrustedChrome(activeTab)
-    this.changed()
-    return this.getState()
+    return closeSplitView(this.splitViewAccess())
   }
 
   async closeTab(tabId: string, respectBeforeUnload = false): Promise<BrowserState> {
@@ -4012,41 +3970,49 @@ export class BrowserTabsManager {
     return reloadIgnoringCache(this.pageNavigationAccess(), tabId)
   }
 
-  async findInPage(
+  /**
+   * The narrow view finding text in a page gets of this manager's private
+   * tabs and page find controller. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private pageFindAccess(): PageFindAccess {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      searchPage: (webContents, query, options) => this.pageFind.search(webContents, query, options),
+      stopPageSearch: (webContents) => this.pageFind.stop(webContents)
+    }
+  }
+
+  findInPage(
     query: string,
     options: { tabId?: string; forward?: boolean; findNext?: boolean; caseSensitive?: boolean } = {}
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
-    if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new Error('Find query must contain between 1 and 1,000 characters')
-    const webContents = this.getTab(options.tabId).webContents
-    return this.pageFind.search(webContents, query, {
-      forward: options.forward ?? true,
-      findNext: options.findNext ?? true,
-      matchCase: options.caseSensitive ?? false
-    })
+    return findInPage(this.pageFindAccess(), query, options)
   }
 
   stopFindInPage(tabId?: string): void {
-    this.pageFind.stop(this.getTab(tabId).webContents)
+    stopFindInPage(this.pageFindAccess(), tabId)
+  }
+
+  /**
+   * The narrow view zooming a page gets of this manager's private tabs and
+   * state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegate below returns the feature's value directly, and stays
+   * synchronous.
+   */
+  private pageZoomAccess(): PageZoomAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
+    }
   }
 
   setZoom(options: { tabId?: string; action: 'in' | 'out' | 'reset' | 'set'; percent?: number }): BrowserState {
-    const tab = this.getTab(options.tabId)
-    const webContents = tab.webContents
-    tab.nativeInputEnvironmentGeneration += 1
-    const current = Math.round(webContents.getZoomFactor() * 100)
-    let percent: number
-    if (options.action === 'reset') percent = 100
-    else if (options.action === 'in') percent = PAGE_ZOOM_STEPS.find((step) => step > current) ?? PAGE_ZOOM_STEPS.at(-1)!
-    else if (options.action === 'out') percent = [...PAGE_ZOOM_STEPS].reverse().find((step) => step < current) ?? PAGE_ZOOM_STEPS[0]
-    else {
-      if (options.percent === undefined || !Number.isInteger(options.percent) || options.percent < 50 || options.percent > 400) {
-        throw new Error('Page zoom percent must be an integer from 50 to 400')
-      }
-      percent = options.percent
-    }
-    webContents.setZoomFactor(percent / 100)
-    this.changed(false)
-    return this.getState()
+    return setZoom(this.pageZoomAccess(), options)
   }
 
   /**
@@ -5195,19 +5161,27 @@ export class BrowserTabsManager {
     return saveNetworkHar(this.networkInspectionAccess(), options)
   }
 
+  /**
+   * The narrow view the debug report and the diagnostic logs get of this
+   * manager's private tabs, emulation projection, console message reading,
+   * current request list, request summaries and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's value directly, and stay synchronous.
+   */
+  private debugReportAccess(): DebugReportAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      emulationProjection: (tab) => this.emulationProjection(tab),
+      consoleMessages: (tabId) => this.consoleMessages(tabId),
+      currentNetworkRequests: (tab) => this.currentNetworkRequests(tab),
+      networkRequestSummary: (request) => this.networkRequestSummary(request),
+      changed: (persist) => this.changed(persist)
+    }
+  }
+
   debugReport(options: BrowserDebugReportOptions = {}): BrowserDebugReport {
-    const tab = this.getTab(options.tabId)
-    return buildBrowserDebugReport({
-      tabId: tab.id,
-      title: tab.title,
-      url: tab.url,
-      ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
-      ...this.emulationProjection(tab),
-      networkRouteCount: tab.networkRoutes.length,
-      consoleMessages: this.consoleMessages(tab.id),
-      networkRequests: this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
-      options
-    })
+    return debugReport(this.debugReportAccess(), options)
   }
 
   auditEvidenceAvailability(tabId: string): {
@@ -5218,49 +5192,19 @@ export class BrowserTabsManager {
     storageSupported: boolean
     reproduction: boolean
   } {
-    const tab = this.getTab(tabId)
-    let origin: string | undefined
-    try {
-      const url = new URL(tab.url)
-      if (url.protocol === 'http:' || url.protocol === 'https:') origin = url.origin
-    } catch {
-      // Invalid or internal URLs do not support storage-change snapshots.
-    }
-    return {
-      diagnostic: true,
-      network: true,
-      domChanges: tab.domChangesRecording?.observationGeneration === tab.observationGeneration,
-      storageChanges: !!origin && tab.storageComparison?.baseline.origin === origin,
-      storageSupported: origin !== undefined,
-      reproduction: tab.reproRecording !== undefined
-    }
+    return auditEvidenceAvailability(this.debugReportAccess(), tabId)
   }
 
   diagnosticLogState(tabId?: string): BrowserDiagnosticLogState {
-    const tab = this.getTab(tabId)
-    return {
-      tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
-      preserveAcrossNavigation: tab.preserveDiagnosticLogs,
-      consoleMessageCount: countConsoleEvents(tab.consoleMessages.filter(message => message.observationGeneration === tab.observationGeneration)),
-      networkRequestCount: this.currentNetworkRequests(tab).length
-    }
+    return diagnosticLogState(this.debugReportAccess(), tabId)
   }
 
   setDiagnosticLogPreservation(tabId: string, preserve: boolean): BrowserDiagnosticLogState {
-    const tab = this.getTab(tabId)
-    tab.preserveDiagnosticLogs = preserve
-    this.changed(false)
-    return this.diagnosticLogState(tab.id)
+    return setDiagnosticLogPreservation(this.debugReportAccess(), tabId, preserve)
   }
 
   clearDiagnosticLogs(tabId?: string): BrowserDiagnosticLogState {
-    const tab = this.getTab(tabId)
-    tab.consoleMessages = []
-    tab.pendingRuntimeConsoleMessages = []
-    tab.networkRequests = []
-    this.changed(false)
-    return this.diagnosticLogState(tab.id)
+    return clearDiagnosticLogs(this.debugReportAccess(), tabId)
   }
 
   async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined, signal?: AbortSignal): Promise<BrowserVideoState> {
@@ -7441,70 +7385,23 @@ export class BrowserTabsManager {
     }
   }
 
-  private async loadFavicon(tab: BrowserTab, favicons: string[]): Promise<void> {
-    tab.faviconAbortController?.abort()
-    const controller = new AbortController()
-    tab.faviconAbortController = controller
-    const requestId = ++tab.faviconRequestId
-    try {
-      const dataUrl = await Promise.any(favicons.slice(0, 8).map(faviconUrl => (
-        this.loadFaviconCandidate(tab, faviconUrl, controller.signal)
-      )))
-      if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
-      tab.faviconDataUrl = dataUrl
-      // A favicon can finish well after navigation's debounced state save.
-      // Persist this update explicitly so a later crash or forced restart
-      // does not replace the restored tab icon with the generic globe.
-      this.changed()
-    } catch {
-      // Keep the existing icon when every candidate is invalid or unavailable.
-    } finally {
-      controller.abort()
-      if (tab.faviconAbortController === controller) tab.faviconAbortController = undefined
+  /**
+   * The narrow view loading a website's icon gets of this manager's destroyed
+   * flag, the shell's own page and state publication. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegate below returns the feature's
+   * promise directly.
+   */
+  private tabFaviconAccess(): TabFaviconAccess {
+    return {
+      isDestroyed: () => this.destroyed,
+      windowWebContents: () => this.window.webContents,
+      changed: (persist) => this.changed(persist)
     }
   }
 
-  private async loadFaviconCandidate(tab: BrowserTab, faviconUrl: string, cancellation: AbortSignal): Promise<string> {
-    let image = nativeImage.createEmpty()
-    if (faviconUrl.startsWith('data:')) {
-      if (faviconUrl.length > MAX_FAVICON_BYTES * 2) throw new Error('Favicon exceeds the safe encoded size limit')
-      // Node's data-URL decoder does not make a network request. Chromium's
-      // session.fetch does not support fetching this scheme.
-      const response = await fetch(faviconUrl, { signal: cancellation })
-      const bytes = Buffer.from(await response.arrayBuffer())
-      if (bytes.length > MAX_FAVICON_BYTES) throw new Error('Favicon exceeds the safe size limit')
-      image = await decodeWebsiteFavicon(bytes, response.headers.get('content-type') ?? '', this.window.webContents)
-    } else {
-      const parsed = new URL(faviconUrl)
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Unsupported favicon URL')
-      const response = await tab.webContents.session.fetch(parsed.href, {
-        credentials: 'include',
-        signal: AbortSignal.any([cancellation, AbortSignal.timeout(5_000)])
-      })
-      if (!response.ok) throw new Error('Favicon request failed')
-      const declaredLength = Number(response.headers.get('content-length') ?? 0)
-      if (declaredLength > MAX_FAVICON_BYTES) {
-        await response.body?.cancel()
-        throw new Error('Favicon exceeds the safe size limit')
-      }
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('Favicon response body is unavailable')
-      const chunks: Buffer[] = []
-      let total = 0
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        total += value.byteLength
-        if (total > MAX_FAVICON_BYTES) {
-          await reader.cancel()
-          throw new Error('Favicon exceeds the safe size limit')
-        }
-        chunks.push(Buffer.from(value))
-      }
-      image = await decodeWebsiteFavicon(Buffer.concat(chunks), response.headers.get('content-type') ?? '', this.window.webContents)
-    }
-    if (image.isEmpty()) throw new Error('Favicon could not be decoded')
-    return `data:image/png;base64,${image.resize({ width: 32, height: 32, quality: 'best' }).toPNG().toString('base64')}`
+  private loadFavicon(tab: BrowserTab, favicons: string[]): Promise<void> {
+    return loadFavicon(this.tabFaviconAccess(), tab, favicons)
   }
 
   private watchCredentialSubmission(tab: BrowserTab): void {
@@ -9049,58 +8946,8 @@ export class BrowserTabsManager {
     return attaching
   }
 
-  private async openDevTools(tab: BrowserTab): Promise<void> {
-    const webContents = tab.webContents
-    if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
-    const debuggerEpoch = tab.networkDebuggerEpoch
-    const validateOwnership = (): void => {
-      if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Developer Tools handoff target changed')
-      this.requireNetworkConditionsKnown(tab)
-    }
-    const requireConfirmed = (): void => {
-      validateOwnership()
-      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application is pending. Wait for it to settle before opening Developer Tools.')
-    }
-    requireConfirmed()
-    // DevTools cleanup is an ordinary mutation, never explicit recovery authority.
-    // Its queue admission must reject uncertainty created by an earlier operation.
-    if (tab.networkRoutes.length) await this.applyNetworkRoutes(tab, validateOwnership, false, () => { tab.networkRoutes = [] })
-    this.devToolsOpening.add(webContents.id)
-    try {
-      await this.dialogMonitorAttachPromises.get(webContents.id)
-      const pendingDebugger = this.debuggerQueue.pending(webContents.id)
-      if (pendingDebugger) await pendingDebugger
-      // The queue tail settles even after failure. Check current health and the
-      // original owner at the handoff itself, with no await before detachment.
-      requireConfirmed()
-      if (tab.networkRoutes.length) throw new Error('Request conditions changed before Developer Tools handoff')
-      if (webContents.isDevToolsOpened()) return
-      if (webContents.debugger.isAttached()) webContents.debugger.detach()
-      await new Promise<void>((resolve, reject) => {
-        const cleanup = (): void => {
-          webContents.removeListener('devtools-opened', finish)
-          webContents.removeListener('destroyed', finish)
-        }
-        const finish = (): void => {
-          cleanup()
-          resolve()
-        }
-        webContents.once('devtools-opened', finish)
-        webContents.once('destroyed', finish)
-        try {
-          webContents.openDevTools({
-            mode: 'detach',
-            title: `Hronaut Developer Tools — ${tab.title || 'Website'}`
-          })
-          if (webContents.isDevToolsOpened()) finish()
-        } catch (error) {
-          cleanup()
-          reject(error)
-        }
-      })
-    } finally {
-      this.devToolsOpening.delete(webContents.id)
-    }
+  private openDevTools(tab: BrowserTab): Promise<void> {
+    return openDevTools(this.devToolsAccess(), tab)
   }
 
   private addInspectorIssue(tab: BrowserTab, value: unknown, notify = true): void {
