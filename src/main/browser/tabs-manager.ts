@@ -52,7 +52,8 @@ import type { PendingPdfExport } from './pdf-export-publication.js'
 import type { PdfExportAccess } from './pdf-export/pdf-export-access.js'
 import { savePdf } from './pdf-export/pdf-export.js'
 import { FrameObservationController } from './frame-observation.js'
-import { reactInspectionMenu } from './react-inspection-menu.js'
+import type { TabContextMenuAccess } from './context-menus/tab-context-menu-access.js'
+import { showTabContextMenu } from './context-menus/tab-context-menu.js'
 import { ReactInspectionController, type ReactInspectionAuthority } from './react-inspection.js'
 import type { ReactInspectionCommand } from '../../shared/react-inspection.js'
 import { BrowserPwaLifecycle } from './pwa-lifecycle.js'
@@ -79,7 +80,10 @@ import type { EmulationAccess } from './emulation/emulation-access.js'
 import { emulate } from './emulation/emulation.js'
 import { applyNetworkEmulation } from './emulation/network-emulation.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides } from './emulation-state.js'
-import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
+import type { BrowserElementPickerResult, BrowserElementPickerSession, ElementPickerAccess } from './element-picker/element-picker-access.js'
+import { cancelElementPicker, captureElementScreenshot, pickElement, queueElementPickerMouseInput } from './element-picker/element-picker.js'
+import type { BrowserScreenshotAreaSession, ScreenshotAreaAccess } from './screenshot-area/screenshot-area-access.js'
+import { cancelScreenshotArea, captureScreenshotArea, queueScreenshotAreaMouseInput } from './screenshot-area/screenshot-area.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { PreviewCaptureQueue } from './preview-capture-queue.js'
 import { NativePreviewCapture } from './native-preview-capture.js'
@@ -130,8 +134,14 @@ import {
 } from './workspace-continuity/workspace-continuity.js'
 import type { AgentStepThumbnailImage } from '../mcp/agent-presence.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
-import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
-import { suggestWorkspaceName } from '../../shared/workspace-names.js'
+import type { WorkspaceDataAccess } from './workspace-data/workspace-data-access.js'
+import {
+  listWorkspaceStorageOrigins,
+  transferWorkspaceStorage,
+  withWorkspaceSiteDataCleanup,
+  workspaceSession
+} from './workspace-data/workspace-data.js'
+import { ensureHumanWorkspace } from './workspace-creation/human-workspace.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { pinnedWorkspacesFirst } from '../../shared/workspace-rail.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
@@ -139,7 +149,7 @@ import { resizeViewport } from './emulation/resize-viewport.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import type { TabFaviconAccess } from './tab-favicon/tab-favicon-access.js'
 import { loadFavicon } from './tab-favicon/tab-favicon.js'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import type { FileUploadAccess } from './file-upload/file-upload-access.js'
@@ -151,7 +161,6 @@ import {
   Menu,
   powerMonitor,
   screen,
-  session,
   WebContentsView,
   type LoadURLOptions,
   type MenuItemConstructorOptions,
@@ -200,18 +209,15 @@ import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnostic
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
-import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
-import { WorkspaceTemplateImporter } from './workspace-template-import.js'
+import type { WorkspaceCreationAccess } from './workspace-creation/workspace-creation-access.js'
+import { createWorkspace, importWorkspaceTemplate } from './workspace-creation/workspace-creation.js'
+import type { WorkspaceTemplateImporter } from './workspace-template-import.js'
 import type { WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
 import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { qualityAudit } from './page-audits/quality-audit.js'
 import type { WebMcpToolDescriptor } from './webmcp-bridge.js'
-import {
-  formatElementInspectionForAgent,
-  normalizeElementInspection
-} from '../../shared/element-inspection.js'
 import {
   normalizeBrowserGeneratedLocator,
   type BrowserGeneratedLocator
@@ -235,22 +241,23 @@ import type { ScreenshotsAccess } from './screenshots/screenshots-access.js'
 import { screenshot } from './screenshots/screenshots.js'
 import type { InspectorIssuesAccess } from './inspector-issues/inspector-issues-access.js'
 import { addInspectorIssue, inspectorIssues, recordAuthChallenge } from './inspector-issues/inspector-issues.js'
-import {
-  SPLIT_VIEW_GAP,
-  splitViewBounds,
-  splitViewGeometry,
-  type SplitDividerGeometry,
-  type SplitDividerSession,
-  type BrowserSplitOrientation,
-  type BrowserSplitViewState
+import type {
+  SplitDividerGeometry,
+  SplitDividerSession,
+  BrowserSplitOrientation,
+  BrowserSplitViewState
 } from '../../shared/split-view.js'
 import type { SplitViewAccess } from './split-view/split-view-access.js'
 import { closeSplitView, openSplitView, openSplitViewAndWait, updateSplitView } from './split-view/split-view.js'
+import type { WindowLayoutAccess } from './window-layout/window-layout-access.js'
+import { getSplitDivider, layout, publishSplitDivider } from './window-layout/window-layout.js'
+import type { BrowserTabSelectionOptions, TabSelectionAccess } from './tab-selection/tab-selection-access.js'
+import { selectAgentTabAndWait, selectTab, selectTabAndWait } from './tab-selection/tab-selection.js'
 import { EMULATION_FRAME_CAPTION_SPACE, emulatedViewBounds, type EmulationFrameGeometry } from '../../shared/emulation-frame.js'
 import { PAGE_CARD_RADIUS, type PageCardGeometry } from '../../shared/page-card.js'
 import type { PageGeometryAccess } from './page-geometry/page-geometry-access.js'
 import { getEmulationFrames, getPageCards, publishPageGeometry } from './page-geometry/page-geometry.js'
-import { defaultTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
+import type { BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
   isMemorySaverTimeoutMinutes,
@@ -355,36 +362,34 @@ import type {
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
-import { BrowserImportError } from '../browser-import/contracts.js'
 import type { ImportDestination } from '../browser-import/service.js'
-import { writeImportedCookies } from '../browser-import/write.js'
+import { browserImportDestination, importBrowserCookies } from './workspace-data/browser-cookie-import.js'
 import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import {
   type AgentPointerIdentity,
-  cancelElementPickerScript,
-  cancelScreenshotAreaScript,
   dialogAwareClickScript,
   dialogAwareCoordinateClickScript,
   dragPointsScript,
-  elementPickerInspectionAtPointScript,
-  elementPickerNativeInputScript,
-  elementPickerScript,
   fillFormScript,
   playwrightLocatorScript,
-  screenshotAreaScript,
-  screenshotAreaNativeInputScript,
   targetActionScript,
   targetExpression,
   targetPointScript,
   type BrowserFormField
 } from './page-scripts.js'
 import { evaluate } from './page-evaluation/evaluate.js'
-import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
+import { TabStateStore, type PersistedBrowserState } from './tab-store.js'
+import type { PersistedStateAccess } from './browser-state/persisted-state-access.js'
+import { persistedState } from './browser-state/persisted-state.js'
+import type { BrowserStateAccess } from './browser-state/browser-state-access.js'
+import { getState } from './browser-state/browser-state.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import type { PersonTabCloseAccess } from './tab-close/close-tabs-for-person-access.js'
+import { closeTabsForPerson } from './tab-close/close-tabs-for-person.js'
 import type { DevToolsAccess } from './devtools/devtools-access.js'
 import { openDevTools, toggleDevTools } from './devtools/devtools.js'
 import { attachDevToolsEvents } from './devtools/devtools-events.js'
@@ -395,7 +400,6 @@ import { back, forward, navigate, reload, reloadIgnoringCache, stop } from './pa
 import type { PageZoomAccess } from './page-zoom/page-zoom-access.js'
 import { setZoom } from './page-zoom/page-zoom.js'
 import {
-  evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy,
   type WorkspaceNavigationDecision
 } from './workspace-navigation-policy.js'
@@ -407,9 +411,7 @@ import {
   workspaceNavigationAllowed
 } from './workspace-navigation/workspace-navigation.js'
 import {
-  destroyWorkspaceStorage,
   normalizeWorkspaceStorageOrigins,
-  transferWorkspaceStorage,
   workspacePartition
 } from './workspace-storage.js'
 import type { QuitFlushAccess } from './quit-flush/quit-flush-access.js'
@@ -418,6 +420,15 @@ import type { McpTabGroupsAccess } from './mcp-tab-groups/mcp-tab-groups-access.
 import { closeMcpTabGroup, closeMcpTabGroupInternal } from './mcp-tab-groups/close-mcp-tab-group.js'
 import { createMcpTabGroup } from './mcp-tab-groups/create-mcp-tab-group.js'
 import { listMcpTabGroups, renameMcpTabGroup, requireMcpTabGroup, updateMcpTabGroup } from './mcp-tab-groups/mcp-tab-groups.js'
+import type { BrowserWorkspaceOperation, WorkspaceOperationsAccess } from './workspace-operations/workspace-operations-access.js'
+import {
+  assertWorkspaceCanOpenTab,
+  assertWorkspaceIdle,
+  withGlobalWorkspaceStorageOperation,
+  withSavedWorkspaceOperation,
+  withWorkspaceOperation,
+  withWorkspaceStorageOperation
+} from './workspace-operations/workspace-operations.js'
 import { ISOLATED_WORLDS } from './isolated-worlds.js'
 import { OpenedTabObservation, type TabsOpenedDuringClick } from './click-opened-tabs.js'
 import { pageShortcut, type TakeOverMark } from './take-over.js'
@@ -455,6 +466,8 @@ import type { NavigationEventsAccess } from './tab-events/navigation-events-acce
 import { attachNavigationEvents } from './tab-events/navigation-events.js'
 import type { PageFocusEventsAccess } from './tab-events/page-focus-events-access.js'
 import { attachPageFocusEvents } from './tab-events/page-focus-events.js'
+import type { PagePointerEventsAccess } from './tab-events/page-pointer-events-access.js'
+import { attachPagePointerEvents } from './tab-events/page-pointer-events.js'
 import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
@@ -514,6 +527,16 @@ import type { HumanInputGuardAccess } from './interaction-lock/human-input-guard
 import { syncHumanInteractionInputGuard } from './interaction-lock/human-input-guard.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
+import type { WorkspaceArchiveAccess } from './workspace-archive/workspace-archive-access.js'
+import {
+  archiveWorkspaceForPerson,
+  closeWorkspaceForPerson,
+  deleteSavedTabGroup,
+  isClosingWorkspace,
+  restoreSavedTabGroup,
+  saveAndCloseTabGroup,
+  updateArchivedWorkspacePreferences
+} from './workspace-archive/workspace-archive.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 type BrowserClickTarget = {
@@ -528,8 +551,6 @@ type BrowserClickTarget = {
 } & BrowserDialogHandlingOptions
 const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = MAX_ARCHIVED_WORKSPACES
-/** How long deleting a closed workspace waits for an operation on its archive before leaving it archived. */
-const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
@@ -694,44 +715,9 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
 
 import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
 
-interface BrowserWorkspaceOperation {
-  action: string
-  blocksNewTabs: boolean
-  token: symbol
-  /** Settles when an archived workspace's operation ends. */
-  settled?: Promise<void>
-}
+export type { BrowserElementPickerResult } from './element-picker/element-picker-access.js'
 
-interface BrowserElementPickerScriptResult {
-  canceled: boolean
-  inspection?: unknown
-}
-
-interface BrowserElementPickerSession extends BrowserNativeSelectionSession<BrowserElementPickerScriptResult> {
-  pointerDown: boolean
-}
-
-export interface BrowserElementPickerResult {
-  canceled: boolean
-  content?: string
-}
-
-export interface BrowserScreenshotAreaResult {
-  canceled: boolean
-  clip?: { x: number; y: number; width: number; height: number }
-  pageClip?: { x: number; y: number; width: number; height: number }
-  viewport?: { width: number; height: number }
-  url?: string
-}
-
-interface BrowserScreenshotAreaSession extends BrowserNativeSelectionSession<BrowserScreenshotAreaResult> {
-  start?: { x: number; y: number }
-  current?: { x: number; y: number }
-}
-
-function nativeSelectionContextUnavailable(error: unknown): boolean {
-  return /context.*destroyed|frame.*removed|navigat/i.test(String(error))
-}
+export type { BrowserScreenshotAreaResult } from './screenshot-area/screenshot-area-access.js'
 
 interface BrowserVisualCapture {
   observationContext: BrowserSnapshotDeltaContext
@@ -752,11 +738,6 @@ export type { BrowserVisualCompareResult }
 export type { BrowserCredentialCandidate }
 
 export type { BrowserWalletPageContext }
-
-interface BrowserTabSelectionOptions {
-  /** Keep an already-visible split pane from claiming keyboard focus. */
-  focus?: boolean
-}
 
 export interface TabsManagerOptions {
   partition: string
@@ -1347,22 +1328,46 @@ export class BrowserTabsManager {
     this.memorySaverTimer.unref()
   }
 
-  getState(): BrowserState {
-    const agentFollow = this.publishedAgentFollow()
+  /**
+   * The narrow view publishing the browser state gets of this manager's
+   * private tabs, recently closed tabs, active tab, split view, global mute,
+   * lock and pause, MCP address, options, workspaces, agent following,
+   * navigation history, human input lock, agent pauses, video recording,
+   * emulation, network conditions, PWA lifecycle recording and CSS state
+   * preview. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it.
+   * Each member reads the manager when called.
+   */
+  private browserStateAccess(): BrowserStateAccess<BrowserTab> {
     return {
-      tabs: this.orderedTabs().map((tab) => this.toState(tab)),
-      closedTabs: [...this.closedTabs].reverse().map((tab) => ({ ...tab })),
-      activeTabId: this.activeTabId,
-      ...(this.splitView ? { splitView: { ...this.splitView } } : {}),
-      allTabsMuted: this.allTabsMuted,
-      allHumanInteractionLocked: this.allHumanInteractionLocked,
-      agentControlLocked: this.allAgentsPaused && !this.agentPauseOverridesAllowed,
-      mcpUrl: this.mcpUrl,
-      profilePath: this.options.profilePath,
-      mcpTabGroups: this.listMcpTabGroups(),
-      savedTabGroups: this.listSavedTabGroups(),
-      ...(agentFollow ? { agentFollow } : {})
+      publishedAgentFollow: () => this.publishedAgentFollow(),
+      orderedTabs: () => this.orderedTabs(),
+      closedTabs: () => this.closedTabs,
+      activeTabId: () => this.activeTabId,
+      splitView: () => this.splitView,
+      allTabsMuted: () => this.allTabsMuted,
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      allAgentsPaused: () => this.allAgentsPaused,
+      agentPauseOverridesAllowed: () => this.agentPauseOverridesAllowed,
+      mcpUrl: () => this.mcpUrl,
+      options: () => this.options,
+      listMcpTabGroups: () => this.listMcpTabGroups(),
+      listSavedTabGroups: () => this.listSavedTabGroups(),
+      navigationHistorySnapshot: (tab) => this.navigationHistorySnapshot(tab),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      isTabAgentPaused: (tabId) => this.isTabAgentPaused(tabId),
+      isTabTakenOver: (tabId) => this.isTabTakenOver(tabId),
+      videoRecorder: () => this.videoRecorder,
+      emulationProjection: (tab) => this.emulationProjection(tab),
+      networkConditionState: (tabId) => this.networkConditionState(tabId),
+      pwaLifecycleRecorder: () => this.pwaLifecycleRecorder,
+      cssStatePreview: () => this.cssStatePreview,
+      mcpTabGroups: () => this.mcpTabGroups
     }
+  }
+
+  getState(): BrowserState {
+    return getState(this.browserStateAccess())
   }
 
   /**
@@ -1706,56 +1711,41 @@ export class BrowserTabsManager {
       .digest('base64url')}`
   }
 
-  async importWorkspaceTemplate(text: string): Promise<WorkspaceTemplateImportResult> {
-    this.workspaceTemplateImporter ??= new WorkspaceTemplateImporter({
-      existingWorkspaces: () => [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
-        .map(({ id, name }) => ({ id, name })),
-      create: async (entry) => {
-        const workspace = await this.createMcpTabGroup(entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
-        this.updateMcpTabGroup(workspace.id, { agentAccess: false })
-        return workspace.id
-      },
-      openStartPages: async (workspaceId, urls) => {
-        for (const url of urls.length ? urls : ['about:blank']) {
-          await this.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId })
-        }
-      },
-      remove: async (workspaceId) => { await this.closeMcpTabGroup(workspaceId) }
-    })
-    return this.workspaceTemplateImporter.import(text)
+  /**
+   * The narrow view creating workspaces for the person gets of this
+   * manager's private tabs, active tab, open and archived workspaces,
+   * template importer, workspace creation, changes and closing, tab
+   * creation, selection and state publication. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates below return the feature's
+   * value or promise directly, so callers see the same ticks as before.
+   */
+  private workspaceCreationAccess(): WorkspaceCreationAccess {
+    return {
+      activeTabId: () => this.activeTabId,
+      tabs: () => this.tabs,
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      assertActiveWorkspaceCapacity: () => this.assertActiveWorkspaceCapacity(),
+      createMcpTabGroup: (name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass) => (
+        this.createMcpTabGroup(name, color, storage, origins, allowDuplicateName, navigationPolicy, sourceWorkspaceId, description, contextClass)
+      ),
+      updateMcpTabGroup: (groupId, updates) => this.updateMcpTabGroup(groupId, updates),
+      closeMcpTabGroup: (groupId) => this.closeMcpTabGroup(groupId),
+      createTab: (options) => this.createTab(options),
+      selectTab: (tabId) => this.selectTab(tabId),
+      getState: () => this.getState(),
+      workspaceTemplateImporter: () => this.workspaceTemplateImporter,
+      setWorkspaceTemplateImporter: (importer) => { this.workspaceTemplateImporter = importer }
+    }
   }
 
-  async createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
-    if (!options.name.trim()) throw new TypeError('Workspace name cannot be empty.')
-    const workspace = await this.createMcpTabGroup(
-      options.name,
-      options.color,
-      options.storage,
-      options.origins,
-      false,
-      options.navigationPolicy,
-      options.sourceWorkspaceId,
-      options.description,
-      options.contextClass
-    )
-    if (options.agentAccess !== undefined) this.updateMcpTabGroup(workspace.id, { agentAccess: options.agentAccess })
-    try {
-      if (workspace.activeTabId) this.selectTab(workspace.activeTabId)
-      else await this.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
-      this.updateMcpTabGroup(workspace.id, { hiddenFromSidebar: options.hiddenFromSidebar === true, deletionProtected: options.deletionProtected === true })
-      return this.getState()
-    } catch (error) {
-      try {
-        await this.closeMcpTabGroup(workspace.id)
-      } catch (cleanupError) {
-        throw new RetainedBrowserWorkspaceError(
-          [error, cleanupError],
-          workspace.id,
-          `Workspace ${workspace.id} could not be created or cleaned up. It remains listed so its isolated data can be deleted safely.`
-        )
-      }
-      throw error
-    }
+  importWorkspaceTemplate(text: string): Promise<WorkspaceTemplateImportResult> {
+    return importWorkspaceTemplate(this.workspaceCreationAccess(), text)
+  }
+
+  createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
+    return createWorkspace(this.workspaceCreationAccess(), options)
   }
 
   async closeWorkspace(workspaceId: string): Promise<BrowserState> {
@@ -1763,116 +1753,59 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  browserImportDestination(id: string): ImportDestination {
-    const group = this.mcpTabGroups.get(id) ?? this.savedTabGroups.get(id)
-    if (!group) throw new BrowserImportError('expired')
-    return { id, name: group.name, fingerprint: JSON.stringify([group.storageId, group.navigationPolicy]) }
+  /**
+   * The narrow view workspace data gets of this manager's private open and
+   * archived workspaces, workspace operations, cookie import sessions,
+   * options and state publication. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's value or
+   * promise directly, so callers see the same ticks as before.
+   */
+  private workspaceDataAccess(): WorkspaceDataAccess {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      isClosingWorkspace: (workspaceId) => this.isClosingWorkspace(workspaceId),
+      options: () => this.options,
+      workspaceStorageOperation: () => this.workspaceStorageOperation,
+      workspaceOperations: () => this.workspaceOperations,
+      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
+      withWorkspaceOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs),
+      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
+      withGlobalWorkspaceStorageOperation: (action, operation) => this.withGlobalWorkspaceStorageOperation(action, operation),
+      withWorkspaceStorageOperation: (workspaceId, action, operation, blocksNewTabs) => this.withWorkspaceStorageOperation(workspaceId, action, operation, blocksNewTabs),
+      browserCookieImportSessions: () => this.browserCookieImportSessions,
+      changed: (persist) => this.changed(persist)
+    }
   }
 
-  async importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
-    const id = destination.id
-    if (!this.mcpTabGroups.has(id) && !this.savedTabGroups.has(id)) throw new BrowserImportError('expired')
-    if (this.workspaceStorageOperation || this.workspaceOperations.has(id) || this.savedWorkspaceOperations.has(id)) throw new BrowserImportError('workspaceBusy')
-    const action = 'importing browser cookies'
-    return this.withGlobalWorkspaceStorageOperation(action, () => {
-      const write = async () => {
-        if (this.browserImportDestination(id).fingerprint !== destination.fingerprint) throw new BrowserImportError('expired')
-        const group = (this.mcpTabGroups.get(id) ?? this.savedTabGroups.get(id))!
-        const target = session.fromPartition(workspacePartition(this.options.partition, group.storageId))
-        this.options.configureSession?.(target)
-        this.browserCookieImportSessions.add(target)
-        try {
-          const { origins, ...result } = await writeImportedCookies(target, cookies, group.origins,
-            cookie => evaluateWorkspaceNavigation(group.navigationPolicy, `${cookie.secure ? 'https' : 'http'}://${cookie.domain!.replace(/^\./, '')}/`).allowed)
-          if (result.imported || result.recoveryRequired) {
-            group.origins = normalizeWorkspaceStorageOrigins([...group.origins, ...origins])
-            this.changed()
-          }
-          return result
-        } finally {
-          this.browserCookieImportSessions.delete(target)
-          this.changed(false)
-        }
-      }
-      return this.mcpTabGroups.has(id)
-        ? this.withWorkspaceOperation(id, action, write)
-        : this.withSavedWorkspaceOperation(id, action, write)
-    })
+  browserImportDestination(id: string): ImportDestination {
+    return browserImportDestination(this.workspaceDataAccess(), id)
+  }
+
+  importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
+    return importBrowserCookies(this.workspaceDataAccess(), destination, cookies)
   }
 
   listWorkspaceStorageOrigins(workspaceId: string): string[] {
-    const workspace = this.mcpTabGroups.get(workspaceId) ?? this.savedTabGroups.get(workspaceId)
-    if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
-    return [...workspace.origins]
+    return listWorkspaceStorageOrigins(this.workspaceDataAccess(), workspaceId)
   }
 
   workspaceSession(workspaceId: string): Session {
-    const workspace = this.mcpTabGroups.get(workspaceId)
-    if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
-    const partition = workspacePartition(this.options.partition, workspace.storageId)
-    const browserSession = session.fromPartition(partition, { cache: true })
-    this.options.configureSession?.(browserSession)
-    return browserSession
+    return workspaceSession(this.workspaceDataAccess(), workspaceId)
   }
 
-  async withWorkspaceSiteDataCleanup<T>(
+  withWorkspaceSiteDataCleanup<T>(
     workspaceId: string,
     operation: (browserSession: Session) => Promise<T>
   ): Promise<T> {
-    return this.withWorkspaceStorageOperation(
-      workspaceId,
-      'clearing website data',
-      () => operation(this.workspaceSession(workspaceId)),
-      true
-    )
+    return withWorkspaceSiteDataCleanup(this.workspaceDataAccess(), workspaceId, operation)
   }
 
-  async transferWorkspaceStorage(
+  transferWorkspaceStorage(
     options: BrowserWorkspaceStorageTransferOptions
   ): Promise<BrowserWorkspaceStorageTransferResult> {
-    const sourceId = options.sourceWorkspaceId
-    const targetId = options.targetWorkspaceId
-    if (sourceId === targetId) throw new Error('Choose two different workspaces.')
-    const source = this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId)
-    const target = this.mcpTabGroups.get(targetId) ?? this.savedTabGroups.get(targetId)
-    if (!source || !target) throw new Error('Source or destination workspace is unavailable.')
-    const closing = [source, target].find((workspace) => this.isClosingWorkspace(workspace.id))
-    if (closing) throw new Error(`"${closing.name}" was just closed. Undo the close to move or copy its data.`)
-    const mode = options.mode
-    if (mode === 'move' && (!this.savedTabGroups.has(sourceId) || !this.savedTabGroups.has(targetId))) throw new Error('Archive both workspaces before moving data, or choose Copy to keep their pages open.')
-    const action = mode === 'move' ? 'moving workspace data' : 'copying workspace data'
-    const lock = <T>(id: string, operation: () => Promise<T>): Promise<T> => (
-      this.mcpTabGroups.has(id)
-        ? this.withWorkspaceOperation(id, action, operation, mode === 'move')
-        : this.withSavedWorkspaceOperation(id, action, operation)
-    )
-    return this.withGlobalWorkspaceStorageOperation(action, () => lock(sourceId, () => lock(targetId, async () => {
-      const origins = normalizeWorkspaceStorageOrigins(options.origins ?? source.origins)
-      const copy = (permissions = { allowCookieCleanup: false, allowLocalStorageCleanup: false }) => transferWorkspaceStorage({
-        ...permissions,
-        sourcePartition: workspacePartition(this.options.partition, source.storageId),
-        targetPartition: workspacePartition(this.options.partition, target.storageId),
-        mode,
-        origins,
-        copyAllCookies: options.origins === undefined,
-        copyLocalStorage: true,
-        configureSession: this.options.configureSession
-      })
-      const sourceSession = session.fromPartition(workspacePartition(this.options.partition, source.storageId))
-      const targetSession = session.fromPartition(workspacePartition(this.options.partition, target.storageId))
-      const result = mode === 'move'
-        ? await withWorkspaceMoveGuard(sourceSession, permissions => withWorkspaceMoveGuard(targetSession, () => copy(permissions)))
-        : await copy()
-      target.origins = normalizeWorkspaceStorageOrigins([...target.origins, ...origins])
-      if ('lastUsedAt' in target) target.lastUsedAt = new Date().toISOString()
-      this.changed()
-      return {
-        sourceWorkspaceId: sourceId,
-        targetWorkspaceId: targetId,
-        mode,
-        ...result
-      }
-    })))
+    return transferWorkspaceStorage(this.workspaceDataAccess(), options)
   }
 
   /**
@@ -1941,119 +1874,64 @@ export class BrowserTabsManager {
     return closeMcpTabGroupInternal(this.mcpTabGroupsAccess(), groupId, preserveStorage)
   }
 
-  async saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return this.withTabLabelLifecycle(() => this.workspaceRegistry.archive(groupId))
-  }
-
-  /** Archives a workspace for the person, with Undo to bring it back. */
-  async archiveWorkspaceForPerson(groupId: string): Promise<BrowserSavedTabGroupState> {
-    const archived = await this.saveAndCloseTabGroup(groupId)
-    this.options.offerUndo?.({
-      kind: 'workspace-archived',
-      name: archived.name,
-      undo: () => this.restoreArchiveForUndo(archived.id)
-    })
-    return archived
-  }
-
-  /** Restores an archive for Undo; false when it was already restored or deleted. */
-  private async restoreArchiveForUndo(savedGroupId: string): Promise<boolean> {
-    if (!this.savedTabGroups.has(savedGroupId)) {
-      if (this.closingWorkspace?.id === savedGroupId) this.closingWorkspace = undefined
-      return false
-    }
-    await this.restoreSavedTabGroup(savedGroupId)
-    return true
-  }
-
-  /** Whether the person just closed this workspace and it waits to be deleted. */
-  isClosingWorkspace(workspaceId: string): boolean {
-    return this.closingWorkspace?.id === workspaceId
-  }
-
   /**
-   * Closes a workspace for the person with Undo: it is archived first, and its tabs, sign-ins and site data are deleted
-   * only once Undo is no longer offered or Hronaut quits. Restored meanwhile, from Undo or elsewhere, it is kept.
+   * The narrow view archiving and closing workspaces for the person get of
+   * this manager's private open and archived workspaces, workspace registry,
+   * workspace operations, workspace closing with Undo, options, tab label
+   * edits, storage deletion check, workspace continuity, session store and
+   * state publication. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's value or promise directly,
+   * so callers see the same ticks as before.
    */
-  async closeWorkspaceForPerson(groupId: string): Promise<BrowserState> {
-    const group = this.mcpTabGroups.get(groupId)
-    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    if (group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
-    // A workspace closed just before is deleted first, so it does not take the archive place this one needs.
-    await this.options.endUndo?.()
-    // Undo needs an archive place; the editor asks first and closes without Undo when the archive is full.
-    if (this.savedTabGroups.size >= MAX_SAVED_TAB_GROUPS) {
-      throw new Error(`Hronaut keeps at most ${MAX_SAVED_TAB_GROUPS} archived workspaces, so "${group.name}" cannot be closed with Undo. Delete an archived workspace in Home, then try again.`)
+  private workspaceArchiveAccess(): WorkspaceArchiveAccess {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
+      closingWorkspace: () => this.closingWorkspace,
+      setClosingWorkspace: (closing) => { this.closingWorkspace = closing },
+      options: () => this.options,
+      workspaceRegistry: () => this.workspaceRegistry,
+      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      withSavedWorkspaceOperation: (savedWorkspaceId, action, operation) => this.withSavedWorkspaceOperation(savedWorkspaceId, action, operation),
+      assertStorageDeletionOwnership: (workspaceId, storageId) => this.assertStorageDeletionOwnership(workspaceId, storageId),
+      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
+      retireWorkspaceContinuity: (workspaceId) => this.retireWorkspaceContinuity(workspaceId),
+      store: () => this.store,
+      persistedState: () => this.persistedState(),
+      listSavedTabGroups: () => this.listSavedTabGroups(),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    const archived = await this.saveAndCloseTabGroup(groupId)
-    // Only this archive is deleted: not one made after the workspace was restored and archived again.
-    const saved = this.savedTabGroups.get(archived.id)
-    const closing = { id: archived.id, kept: false }
-    this.closingWorkspace = closing
-    this.options.offerUndo?.({
-      kind: 'workspace-closed',
-      name: archived.name,
-      undo: () => this.restoreArchiveForUndo(archived.id),
-      finalize: async () => {
-        // It stays marked as closing until deleted, so a restore tried meanwhile still keeps it.
-        try {
-          if (closing.kept || !saved || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
-          // An operation already running on the archive finishes first; one that runs on keeps it archived.
-          const deadline = Date.now() + CLOSING_WORKSPACE_BUSY_WAIT_MS
-          for (let operation = this.savedWorkspaceOperations.get(archived.id); operation; operation = this.savedWorkspaceOperations.get(archived.id)) {
-            const remaining = deadline - Date.now()
-            if (!operation.settled || remaining <= 0) return
-            await Promise.race([operation.settled, new Promise<void>((resolve) => setTimeout(resolve, remaining).unref())])
-            await new Promise<void>((resolve) => setImmediate(resolve))
-          }
-          if (closing.kept || this.savedTabGroups.get(archived.id) !== saved || saved.deletionProtected) return
-          await this.deleteSavedTabGroup(archived.id)
-        } finally {
-          if (this.closingWorkspace === closing) this.closingWorkspace = undefined
-        }
-      }
-    })
-    return this.getState()
   }
 
-  async restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
-    // Any attempt to bring back a workspace the person just closed keeps it, even one that fails.
-    if (this.closingWorkspace?.id === savedGroupId) {
-      this.closingWorkspace.kept = true
-      this.closingWorkspace = undefined
-    }
-    return this.withTabLabelLifecycle(() => this.workspaceRegistry.restore(savedGroupId))
+  saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
+    return saveAndCloseTabGroup(this.workspaceArchiveAccess(), groupId)
+  }
+
+  archiveWorkspaceForPerson(groupId: string): Promise<BrowserSavedTabGroupState> {
+    return archiveWorkspaceForPerson(this.workspaceArchiveAccess(), groupId)
+  }
+
+  isClosingWorkspace(workspaceId: string): boolean {
+    return isClosingWorkspace(this.workspaceArchiveAccess(), workspaceId)
+  }
+
+  closeWorkspaceForPerson(groupId: string): Promise<BrowserState> {
+    return closeWorkspaceForPerson(this.workspaceArchiveAccess(), groupId)
+  }
+
+  restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
+    return restoreSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId)
   }
 
   updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
-    const group = this.savedTabGroups.get(workspaceId)
-    if (!group) throw new Error('Archived workspace is unavailable.')
-    const operation = this.savedWorkspaceOperations.get(workspaceId)
-    if (operation) throw new Error(`Archived workspace "${group.name}" is busy ${operation.action}. Try again after that operation finishes.`)
-    if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
-    if (updates.deletionProtected !== undefined) group.deletionProtected = updates.deletionProtected
-    this.changed()
+    updateArchivedWorkspacePreferences(this.workspaceArchiveAccess(), workspaceId, updates)
   }
 
-  async deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
-    return this.withSavedWorkspaceOperation(savedGroupId, 'deleting the archived workspace', async () => {
-      const saved = this.savedTabGroups.get(savedGroupId)
-      if (!saved) throw new Error(`Unknown saved workspace: ${savedGroupId}.`)
-      if (saved.deletionProtected) throw new Error(`Workspace "${saved.name}" is protected from deletion. Turn off deletion protection in Home first.`)
-      {
-        await this.assertStorageDeletionOwnership(savedGroupId, saved.storageId)
-        await destroyWorkspaceStorage(
-          workspacePartition(this.options.partition, saved.storageId),
-          this.options.configureSession
-        )
-      }
-      this.savedTabGroups.delete(savedGroupId)
-      this.deletedWorkspaceStorageIds.add(canonicalStorageId(saved.storageId)!)
-      this.retireWorkspaceContinuity(savedGroupId)
-      this.changed()
-      await this.store.save(() => this.persistedState())
-      return this.listSavedTabGroups()
-    })
+  deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
+    return deleteSavedTabGroup(this.workspaceArchiveAccess(), savedGroupId)
   }
 
   private async assertStorageDeletionOwnership(workspaceId: string, storageId: string): Promise<void> {
@@ -2567,227 +2445,52 @@ export class BrowserTabsManager {
     Menu.buildFromTemplate(this.workspaceContextMenuItems(group)).popup({ window: this.window })
   }
 
+  /**
+   * The narrow view the tab context menu gets of this manager's private tabs,
+   * active tab, open workspaces, split view, recently closed tabs, window,
+   * options, localized text, React inspection and the tab commands the menu
+   * offers. It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each action
+   * calls through it when it runs, so it reaches the manager as it is then.
+   */
+  private tabContextMenuAccess(): TabContextMenuAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      orderedTabs: () => this.orderedTabs(),
+      activeTabId: () => this.activeTabId,
+      findTab: (tabId) => this.tabs.get(tabId),
+      options: () => this.options,
+      mcpTabGroups: () => this.mcpTabGroups,
+      text: (key, parameters) => this.text(key, parameters),
+      workspaceContextMenuItems: (group) => this.workspaceContextMenuItems(group),
+      selectTabAndWait: (tabId) => this.selectTabAndWait(tabId),
+      openSplitViewAndWait: (tabId) => this.openSplitViewAndWait(tabId),
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      splitView: () => this.splitView,
+      updateSplitView: (updates) => this.updateSplitView(updates),
+      closeSplitView: () => this.closeSplitView(),
+      newTab: () => this.newTab(),
+      reload: (tabId) => this.reload(tabId),
+      reloadIgnoringCache: (tabId) => this.reloadIgnoringCache(tabId),
+      duplicateTab: (tabId) => this.duplicateTab(tabId),
+      reactInspectionController: () => this.reactInspectionController,
+      reactInspection: (tabId, command, authority) => this.reactInspection(tabId, command, authority),
+      setTabMuted: (tabId, muted) => this.setTabMuted(tabId, muted),
+      setTabPinned: (tabId, pinned) => this.setTabPinned(tabId, pinned),
+      setTabPageLifecycle: (tabId, state) => this.setTabPageLifecycle(tabId, state),
+      sleepBlockReason: (tab, allowActiveTab) => this.sleepBlockReason(tab, allowActiveTab),
+      sleepFallbackTab: (tab) => this.sleepFallbackTab(tab),
+      setTabSleepingFromContextMenu: (tabId, sleeping) => this.setTabSleepingFromContextMenu(tabId, sleeping),
+      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
+      closeTabsForPerson: (tabIds) => this.closeTabsForPerson(tabIds),
+      closedTabs: () => this.closedTabs,
+      reopenClosedTab: () => this.reopenClosedTab(),
+      window: () => this.window
+    }
+  }
+
   showTabContextMenu(tabId: string): void {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) return
-    const websiteTabs = this.orderedTabs().filter((candidate) => !isHronautHomeUrl(candidate.url))
-    const workspaceTabs = websiteTabs.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
-    const workspaceIndex = workspaceTabs.indexOf(tab)
-    const peers = workspaceTabs.filter((candidate) => candidate.pinned === tab.pinned)
-    const peerIndex = peers.indexOf(tab)
-    const otherTabs = workspaceTabs.filter((candidate) => !candidate.pinned && candidate.id !== tab.id)
-    const tabsToRight = tab.pinned
-      ? []
-      : workspaceTabs.slice(workspaceIndex + 1).filter((candidate) => !candidate.pinned)
-    const duplicateTabs = workspaceTabs.filter((candidate) => (
-      !candidate.pinned && candidate.id !== tab.id && candidate.url === tab.url
-    ))
-    const activeWebsiteTab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    const reportError = (action: string) => (error: unknown): void => {
-      console.error(`[browser] Could not ${action} from tab context menu:`, error)
-      this.options.onActionFailed?.(action, error)
-    }
-    const runAction = (action: string, callback: () => unknown): void => {
-      try {
-        void Promise.resolve(callback()).catch(reportError(action))
-      } catch (error) {
-        reportError(action)(error)
-      }
-    }
-    const currentGroup = tab.mcpGroupId ? this.mcpTabGroups.get(tab.mcpGroupId) : undefined
-    const groupMenu: MenuItemConstructorOptions = currentGroup
-      ? {
-          id: 'workspace',
-          label: this.text('native.context.workspace', { name: currentGroup.name }),
-          submenu: this.workspaceContextMenuItems(currentGroup)
-        }
-      : {
-          id: 'workspace',
-          label: this.text('native.context.workspaceUnavailable'),
-          enabled: false
-        }
-    const openSplitWith = async (firstTabId: string, secondTabId: string): Promise<BrowserState> => {
-      const selected = await this.selectTabAndWait(firstTabId)
-      if (selected.activeTabId !== firstTabId) return selected
-      return this.openSplitViewAndWait(secondTabId)
-    }
-    const splitCandidates = websiteTabs.filter((candidate) => candidate.id !== tab.id)
-    const splitMenu: MenuItemConstructorOptions = this.splitViewContains(tab.id)
-      ? {
-          id: 'split-view',
-          label: this.text('native.context.splitView'),
-          submenu: [
-            {
-              id: 'split-side-by-side',
-              label: this.text('native.context.sideBySide'),
-              type: 'radio',
-              checked: this.splitView?.orientation === 'vertical',
-              click: () => runAction('change the split view layout', () => this.updateSplitView({ orientation: 'vertical' }))
-            },
-            {
-              id: 'split-stacked',
-              label: this.text('native.context.stacked'),
-              type: 'radio',
-              checked: this.splitView?.orientation === 'horizontal',
-              click: () => runAction('change the split view layout', () => this.updateSplitView({ orientation: 'horizontal' }))
-            },
-            { type: 'separator' },
-            {
-              id: 'swap-split-tabs',
-              label: this.text('native.context.swapTabs'),
-              click: () => runAction('swap the split view tabs', () => this.updateSplitView({ swap: true }))
-            },
-            {
-              id: 'close-split-view',
-              label: this.text('native.context.exitSplit'),
-              click: () => runAction('close the split view', () => this.closeSplitView())
-            }
-          ]
-        }
-      : activeWebsiteTab && !isHronautHomeUrl(activeWebsiteTab.url) && activeWebsiteTab.id !== tab.id
-        ? {
-            id: 'open-in-split-view',
-            label: this.text('native.context.openSplit'),
-            click: () => runAction('open the tab in split view', () => openSplitWith(activeWebsiteTab.id, tab.id))
-          }
-        : {
-            id: 'open-in-split-view',
-            label: this.text('native.context.openBeside'),
-            enabled: splitCandidates.length > 0,
-            submenu: splitCandidates.map((candidate) => ({
-              id: `split-with-${candidate.id}`,
-              label: (candidate.title || candidate.url).slice(0, 72),
-              click: () => runAction('open the tab in split view', () => openSplitWith(tab.id, candidate.id))
-            }))
-          }
-    const shouldSleepTab = !tab.sleeping
-    const verticalTabs = this.options.getTabPosition() === 'left'
-    const attentionWorkspaceId = tab.mcpGroupId
-    const attention = this.options.getTabAttention?.(tab.id, attentionWorkspaceId)
-    const menu = Menu.buildFromTemplate([
-      ...(attention ? [{
-        id: 'resolve-attention',
-        label: this.text('native.context.resolveAttention'),
-        click: () => runAction('resolve the attention request', () => {
-          if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()
-            || tab.mcpGroupId !== attentionWorkspaceId) return
-          this.options.resolveTabAttention?.(attention.id, tab.id, attentionWorkspaceId)
-        })
-      }, { type: 'separator' as const }] : []),
-      {
-        id: 'new-tab',
-        label: this.text('native.context.newTab'),
-        click: () => runAction('open a new tab', () => this.newTab())
-      },
-      {
-        id: 'reload-tab',
-        label: this.text('native.context.reloadTab'),
-        click: () => runAction('reload the tab', () => this.reload(tab.id))
-      },
-      {
-        id: 'reload-tab-ignoring-cache',
-        label: this.text('native.context.reloadNoCache'),
-        click: () => runAction('reload the tab without cache', () => this.reloadIgnoringCache(tab.id))
-      },
-      {
-        id: 'duplicate-tab',
-        label: this.text('native.context.duplicateTab'),
-        click: () => runAction('duplicate the tab', () => this.duplicateTab(tab.id))
-      },
-      splitMenu,
-      reactInspectionMenu(this.reactInspectionController.status(tab.id), {
-        title: this.text('reactInspection.title'), enable: this.text('reactInspection.enable'),
-        disabled: this.text('reactInspection.disabled'), reloadRequired: this.text('reactInspection.reloadRequired'),
-        installed: this.text('reactInspection.installed'), residue: this.text('reactInspection.residue')
-      }, enabled => runAction('change React inspection', () => this.reactInspection(tab.id, { action: enabled ? 'enable' : 'disable' }, {
-        epoch: 'human-tab-control',
-        assertCurrent: () => { if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed()) throw new Error('The tab changed') }
-      })), /^https?:/.test(tab.url) && !tab.sleeping),
-      {
-        id: tab.muted ? 'unmute-tab' : 'mute-tab',
-        label: this.text(tab.muted ? 'native.context.unmuteTab' : 'native.context.muteTab'),
-        click: () => runAction(tab.muted ? 'unmute the tab' : 'mute the tab', () => this.setTabMuted(tab.id, !tab.muted))
-      },
-      { type: 'separator' },
-      {
-        id: tab.pinned ? 'unpin-tab' : 'pin-tab',
-        label: this.text(tab.pinned ? 'native.context.unpinTab' : 'native.context.pinTab'),
-        click: () => runAction(tab.pinned ? 'unpin the tab' : 'pin the tab', () => this.setTabPinned(tab.id, !tab.pinned))
-      },
-      {
-        id: tab.pageLifecycleState === 'frozen' ? 'resume-page' : 'freeze-page',
-        label: this.text(tab.pageLifecycleState === 'frozen'
-          ? 'native.context.resumePage'
-          : tab.pageLifecycleState === 'unknown'
-            ? 'native.context.pageLifecycleUnknown'
-            : 'native.context.freezePage'),
-        enabled: tab.pageLifecycleState !== 'unknown' && !tab.sleeping && !tab.loading,
-        click: () => runAction(
-          tab.pageLifecycleState === 'frozen' ? 'resume the page' : 'freeze the page',
-          () => this.setTabPageLifecycle(tab.id, tab.pageLifecycleState === 'frozen' ? 'active' : 'frozen')
-        )
-      },
-      {
-        id: shouldSleepTab ? 'sleep-tab' : 'wake-tab',
-        label: this.text(shouldSleepTab ? 'native.context.sleepTab' : 'native.context.wakeTab'),
-        enabled: !shouldSleepTab || this.sleepBlockReason(
-          tab,
-          tab.id === this.activeTabId
-            && !this.splitViewContains(tab.id)
-            && this.sleepFallbackTab(tab) !== undefined
-        ) === undefined,
-        click: () => runAction(
-          shouldSleepTab ? 'put the tab to sleep' : 'wake the tab',
-          () => this.setTabSleepingFromContextMenu(tab.id, shouldSleepTab)
-        )
-      },
-      groupMenu,
-      { type: 'separator' },
-      {
-        id: 'move-tab-left',
-        label: this.text(verticalTabs ? 'native.context.moveUp' : 'native.context.moveLeft'),
-        enabled: peerIndex > 0,
-        click: () => runAction('move the tab left', () => this.reorderTab(tab.id, peers[peerIndex - 1]!.id, 'before'))
-      },
-      {
-        id: 'move-tab-right',
-        label: this.text(verticalTabs ? 'native.context.moveDown' : 'native.context.moveRight'),
-        enabled: peerIndex >= 0 && peerIndex < peers.length - 1,
-        click: () => runAction('move the tab right', () => this.reorderTab(tab.id, peers[peerIndex + 1]!.id, 'after'))
-      },
-      { type: 'separator' },
-      {
-        id: 'close-tab',
-        label: this.text('native.context.closeTab'),
-        click: () => runAction('close the tab', () => this.closeTabsForPerson([tab.id]))
-      },
-      {
-        id: 'close-other-tabs',
-        label: this.text('native.context.closeOthers'),
-        enabled: otherTabs.length > 0,
-        click: () => runAction('close other tabs', () => this.closeTabsForPerson(otherTabs.map((candidate) => candidate.id)))
-      },
-      {
-        id: 'close-tabs-to-right',
-        label: this.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
-        enabled: tabsToRight.length > 0,
-        click: () => runAction('close tabs to the right', () => this.closeTabsForPerson(tabsToRight.map((candidate) => candidate.id)))
-      },
-      {
-        id: 'close-duplicate-tabs',
-        label: this.text('native.context.closeDuplicates'),
-        enabled: duplicateTabs.length > 0,
-        click: () => runAction('close duplicate tabs', () => this.closeTabsForPerson(duplicateTabs.map((candidate) => candidate.id)))
-      },
-      { type: 'separator' },
-      {
-        id: 'reopen-closed-tab',
-        label: this.text('native.context.reopenClosed'),
-        enabled: this.closedTabs.length > 0,
-        click: () => runAction('reopen a closed tab', () => this.reopenClosedTab())
-      }
-    ])
-    menu.popup({ window: this.window })
+    showTabContextMenu(this.tabContextMenuAccess(), tabId)
   }
 
   /**
@@ -2833,73 +2536,47 @@ export class BrowserTabsManager {
     this.options.askWhereToSaveDownloads = askWhereToSaveDownloads
   }
 
-  async selectTabAndWait(tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
-    const next = this.getTab(tabId)
-    if (next.webContents.isDestroyed()) {
-      throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
+  /**
+   * The narrow view selecting a tab gets of this manager's private tabs,
+   * selection generation, active tab, split view, window, agent following,
+   * tab waking, workspace activation, layout, focus and state publication.
+   * It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's value or promise directly, so
+   * callers see the same ticks as before.
+   */
+  private tabSelectionAccess(): TabSelectionAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      writeTabSelectionGeneration: (generation) => { this.tabSelectionGeneration = generation },
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      window: () => this.window,
+      followAgentActivity: () => this.followAgentActivity,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      layout: () => this.layout(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      getState: () => this.getState()
     }
-    const selectionGeneration = ++this.tabSelectionGeneration
-    if (next.sleeping || next.wakePromise) {
-      try {
-        await this.wakeTab(next.id)
-      } catch (error) {
-        if (
-          selectionGeneration !== this.tabSelectionGeneration
-          || this.tabs.get(next.id) !== next
-        ) return this.getState()
-        throw error
-      }
-    }
-    if (
-      selectionGeneration !== this.tabSelectionGeneration
-      || this.tabs.get(next.id) !== next
-    ) return this.getState()
-    return this.selectTab(next.id, options)
   }
 
-  async selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
-    if (this.followAgentActivity) return this.selectTabAndWait(tabId, { focus: false })
-    const tab = this.getTab(tabId)
-    await this.wakeTab(tabId)
-    if (this.tabs.get(tabId) !== tab) return this.getState()
-    this.markTabActiveInGroup(tab)
-    this.changed()
-    return this.getState()
+  selectTabAndWait(tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
+    return selectTabAndWait(this.tabSelectionAccess(), tabId, options)
+  }
+
+  selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
+    return selectAgentTabAndWait(this.tabSelectionAccess(), tabId)
   }
 
   selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
-    const next = this.getTab(tabId)
-    if (next.webContents.isDestroyed()) {
-      throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
-    }
-    this.tabSelectionGeneration += 1
-    next.lastActiveAt = Date.now()
-    if (next.sleeping) void this.wakeTab(next.id).catch((error) => console.error('[browser] Could not wake selected tab:', error))
-    if (this.splitView && this.splitViewContains(tabId)) {
-      this.activeTabId = next.id
-      this.markTabActiveInGroup(next)
-      this.layout()
-      if (options.focus !== false) this.focusTabOrTrustedChrome(next)
-      this.changed()
-      return this.getState()
-    }
-    const current = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-    if (this.splitView) {
-      for (const visibleTabId of [this.splitView.firstTabId, this.splitView.secondTabId]) {
-        const visibleTab = this.tabs.get(visibleTabId)
-        if (visibleTab && visibleTab.id !== next.id) this.window.contentView.removeChildView(visibleTab.view)
-      }
-      this.splitView = null
-    } else if (current && current.id !== next.id) {
-      this.window.contentView.removeChildView(current.view)
-    }
-    if (current?.id !== next.id) this.window.contentView.addChildView(next.view)
-    this.activeTabId = next.id
-    this.markTabActiveInGroup(next)
-    this.layout()
-    if (options.focus !== false) this.focusTabOrTrustedChrome(next)
-    this.changed()
-    return this.getState()
+    return selectTab(this.tabSelectionAccess(), tabId, options)
   }
 
   /**
@@ -2972,57 +2649,30 @@ export class BrowserTabsManager {
   }
 
   /**
-   * Closes tabs for the person, in order, stopping at one whose page asks to stay. Undo reopens those that closed, each
-   * in its place among its workspace's tabs.
+   * The narrow view closing tabs for the person gets of this manager's
+   * private tabs, recently closed tabs, tab closing and reopening, tab label
+   * saves, tab order, state publication and options. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegate below returns the
+   * feature's promise directly, so callers see the same ticks as before.
    */
-  async closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
-    const closed: { closedTabId: string; index: number; title: string }[] = []
-    try {
-      for (const tabId of tabIds) {
-        const tab = tabIds.length === 1 ? this.getTab(tabId) : this.tabs.get(tabId)
-        if (!tab) continue
-        const index = this.tabPeers(tab).indexOf(tab)
-        const remembered = new Set(this.closedTabs.map((entry) => entry.id))
-        await this.closeTabInternal(tabId, true, true)
-        if (this.tabs.get(tabId) === tab) break
-        const entry = this.closedTabs.findLast((candidate) => !remembered.has(candidate.id) && candidate.url === tab.url && candidate.mcpGroupId === tab.mcpGroupId)
-        if (entry) closed.push({ closedTabId: entry.id, index, title: entry.label || entry.title })
-      }
-    } finally {
-      if (closed.length) {
-        this.options.offerUndo?.({
-          kind: 'tabs-closed',
-          name: closed.at(-1)!.title,
-          count: closed.length,
-          undo: () => this.reopenClosedTabsInPlace(closed)
-        })
-      }
+  private personTabCloseAccess(): PersonTabCloseAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      orderedTabs: () => this.orderedTabs(),
+      closedTabs: () => this.closedTabs,
+      closeTabInternal: (tabId, ensureReplacement, respectBeforeUnload) => this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload),
+      reopenClosedTabEntry: (closedTabId, active) => this.reopenClosedTabEntry(closedTabId, active),
+      withTabLabelLifecycle: (run) => this.withTabLabelLifecycle(run),
+      reorderTab: (tabId, targetTabId, placement) => this.reorderTab(tabId, targetTabId, placement),
+      getState: () => this.getState(),
+      options: () => this.options
     }
-    return this.getState()
   }
 
-  /** The website tabs a tab moves among: its workspace's, pinned or not as it is. */
-  private tabPeers(tab: BrowserTab): BrowserTab[] {
-    return this.orderedTabs().filter((candidate) => (
-      candidate.mcpGroupId === tab.mcpGroupId && candidate.pinned === tab.pinned && !isHronautHomeUrl(candidate.url)
-    ))
-  }
-
-  /** Reopens tabs closed together, the last closed first, so each goes back where it was; one tab is shown again. */
-  /** False when none of them could be reopened, such as after Reopen closed tab took them. */
-  private reopenClosedTabsInPlace(closed: readonly { closedTabId: string; index: number }[]): Promise<boolean> {
-    return this.withTabLabelLifecycle(async () => {
-      let reopened = 0
-      for (const { closedTabId, index } of [...closed].reverse()) {
-        const tab = await this.reopenClosedTabEntry(closedTabId, closed.length === 1)
-        if (!tab) continue
-        reopened += 1
-        const peers = this.tabPeers(tab).filter((candidate) => candidate !== tab)
-        const target = peers[Math.min(index, peers.length - 1)]
-        if (target) this.reorderTab(tab.id, target.id, index < peers.length ? 'before' : 'after')
-      }
-      return reopened > 0
-    })
+  closeTabsForPerson(tabIds: readonly string[]): Promise<BrowserState> {
+    return closeTabsForPerson(this.personTabCloseAccess(), tabIds)
   }
 
   /**
@@ -3708,66 +3358,29 @@ export class BrowserTabsManager {
     return this.profiling.memoryReport(options)
   }
 
-  async pickElement(tabId?: string): Promise<BrowserElementPickerResult> {
-    const report = await this.selectElement(tabId)
-    if (!report) return { canceled: true }
-    return { canceled: false, content: formatElementInspectionForAgent(report) }
+  /**
+   * The narrow view picking an element gets of this manager's private tabs,
+   * pickers in progress, human input lock and screenshots. It is a prototype
+   * method rather than a field, so managers created without the constructor
+   * (as unit tests do) still provide it. The delegates below return the
+   * feature's promise directly, so callers see the same ticks as before.
+   */
+  private elementPickerAccess(): ElementPickerAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      elementPickerSessions: () => this.elementPickerSessions,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
+      screenshot: (options) => this.screenshot(options)
+    }
   }
 
-  async captureElementScreenshot(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-    const report = await this.selectElement(tabId)
-    if (!report) return { canceled: true }
-    const screenshot = await this.screenshot({ tabId: report.tabId, selector: report.selector })
-    return { canceled: false, data: screenshot.data }
+  pickElement(tabId?: string): Promise<BrowserElementPickerResult> {
+    return pickElement(this.elementPickerAccess(), tabId)
   }
 
-  private async selectElement(tabId?: string): Promise<BrowserElementInspection | null> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before selecting an element')
-    const webContents = tab.webContents
-    const existing = this.elementPickerSessions.get(webContents.id)
-    if (existing) {
-      existing.canceled = true
-      existing.resolve({ canceled: true })
-      await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
-    }
-    const session = createElementPickerSession<BrowserElementPickerScriptResult>()
-    tab.nativeInputEnvironmentGeneration += 1
-    this.elementPickerSessions.set(webContents.id, session)
-    try {
-      if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
-      void webContents.executeJavaScript(elementPickerScript(), true)
-        .then((selected: BrowserElementPickerScriptResult) => {
-          if (selected?.canceled || selected?.inspection) session.resolve(selected)
-        })
-        .catch((error: unknown) => {
-          if (nativeSelectionContextUnavailable(error)) {
-            session.resolve({ canceled: true })
-          } else {
-            session.reject(error)
-          }
-        })
-      const selected = await session.result
-      if (session.canceled || this.elementPickerSessions.get(webContents.id) !== session || selected.canceled || !selected.inspection) {
-        return null
-      }
-      return normalizeElementInspection({
-        tabId: tab.id,
-        title: tab.title,
-        url: tab.url,
-        raw: selected.inspection
-      })
-    } finally {
-      if (this.elementPickerSessions.get(webContents.id) === session) {
-        session.canceled = true
-        await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
-        // Cleanup can finish after a replacement selection starts.
-        if (this.elementPickerSessions.get(webContents.id) === session) {
-          this.elementPickerSessions.delete(webContents.id)
-          if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
-        }
-      }
-    }
+  captureElementScreenshot(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
+    return captureElementScreenshot(this.elementPickerAccess(), tabId)
   }
 
   /**
@@ -3820,102 +3433,34 @@ export class BrowserTabsManager {
     return normalizeBrowserGeneratedLocator(tab.id, raw as Record<string, unknown>)
   }
 
-  async cancelElementPicker(tabId?: string): Promise<boolean> {
-    const tab = this.getTab(tabId)
-    const session = this.elementPickerSessions.get(tab.webContents.id)
-    if (session) {
-      session.canceled = true
-      session.resolve({ canceled: true })
-    }
-    return tab.webContents.executeJavaScript(cancelElementPickerScript(), true) as Promise<boolean>
+  cancelElementPicker(tabId?: string): Promise<boolean> {
+    return cancelElementPicker(this.elementPickerAccess(), tabId)
   }
 
-  async captureScreenshotArea(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before capturing an area')
-    const webContents = tab.webContents
-    const existing = this.screenshotAreaSessions.get(webContents.id)
-    if (existing) {
-      existing.canceled = true
-      existing.resolve({ canceled: true })
-      await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
-    }
-    const session = createNativeSelectionSession<BrowserScreenshotAreaResult>() as BrowserScreenshotAreaSession
-    tab.nativeInputEnvironmentGeneration += 1
-    this.screenshotAreaSessions.set(webContents.id, session)
-    try {
-      if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
-      void webContents.executeJavaScript(screenshotAreaScript(), true)
-        .then((selection: BrowserScreenshotAreaResult) => {
-          if (selection?.canceled || (selection?.clip && selection?.viewport)) session.resolve(selection)
-        })
-        .catch((error: unknown) => {
-          if (nativeSelectionContextUnavailable(error)) {
-            session.resolve({ canceled: true })
-          } else {
-            session.reject(error)
-          }
-        })
-      const selection = await session.result
-      if (session.canceled || this.screenshotAreaSessions.get(webContents.id) !== session || selection.canceled) {
-        return { canceled: true }
-      }
-      await session.inputQueue.catch(() => undefined)
-      await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
-      const data = await this.captureScreenshotAreaSelection(tab, selection)
-      if (session.canceled || this.screenshotAreaSessions.get(webContents.id) !== session) return { canceled: true }
-      return { canceled: false, data }
-    } finally {
-      if (this.screenshotAreaSessions.get(webContents.id) === session) {
-        session.canceled = true
-        await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
-        // Cleanup can finish after a replacement selection starts.
-        if (this.screenshotAreaSessions.get(webContents.id) === session) {
-          this.screenshotAreaSessions.delete(webContents.id)
-          if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
-        }
-      }
+  /**
+   * The narrow view selecting a screenshot area gets of this manager's
+   * private tabs, selections in progress, human input lock and offscreen
+   * rendering. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see the
+   * same ticks as before.
+   */
+  private screenshotAreaAccess(): ScreenshotAreaAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab),
+      withRenderableTab: (tab, operation) => this.withRenderableTab(tab, operation)
     }
   }
 
-  async cancelScreenshotArea(tabId?: string): Promise<boolean> {
-    const tab = this.getTab(tabId)
-    const session = this.screenshotAreaSessions.get(tab.webContents.id)
-    if (session) {
-      session.canceled = true
-      session.resolve({ canceled: true })
-    }
-    return tab.webContents.executeJavaScript(cancelScreenshotAreaScript(), true) as Promise<boolean>
+  captureScreenshotArea(tabId?: string): Promise<{ canceled: boolean; data?: Buffer }> {
+    return captureScreenshotArea(this.screenshotAreaAccess(), tabId)
   }
 
-  private async captureScreenshotAreaSelection(tab: BrowserTab, selection: BrowserScreenshotAreaResult): Promise<Buffer> {
-    const { clip, viewport } = selection
-    if (!clip || !viewport) throw new Error('The selected screenshot area was incomplete; try selecting it again')
-    if ([clip.x, clip.y, clip.width, clip.height, viewport.width, viewport.height]
-      .some((value) => !Number.isFinite(value))) {
-      throw new Error('Could not determine a finite screenshot area')
-    }
-    if (clip.width < 2 || clip.height < 2 || viewport.width < 1 || viewport.height < 1) {
-      throw new Error('Drag a larger screenshot area')
-    }
-    const webContents = tab.webContents
-
-    return this.withRenderableTab(tab, async () => {
-      const bounds = tab.view.getBounds()
-      const scaleX = bounds.width / viewport.width
-      const scaleY = bounds.height / viewport.height
-      const captureRect = {
-        x: Math.max(0, Math.floor(clip.x * scaleX)),
-        y: Math.max(0, Math.floor(clip.y * scaleY)),
-        width: Math.max(1, Math.min(bounds.width, Math.ceil(clip.width * scaleX))),
-        height: Math.max(1, Math.min(bounds.height, Math.ceil(clip.height * scaleY)))
-      }
-      captureRect.width = Math.min(captureRect.width, Math.max(1, bounds.width - captureRect.x))
-      captureRect.height = Math.min(captureRect.height, Math.max(1, bounds.height - captureRect.y))
-      const image = await webContents.capturePage(captureRect)
-      if (image.isEmpty()) throw new Error('The selected website area did not produce an image')
-      return image.toPNG()
-    })
+  cancelScreenshotArea(tabId?: string): Promise<boolean> {
+    return cancelScreenshotArea(this.screenshotAreaAccess(), tabId)
   }
 
   async click(target: BrowserClickTarget, validateClick?: (validateContext: () => void) => void, recordClickProgress?: (progress: NativeClickProgress) => void, retainClickAuthority?: (authority: { validate(): void; dispose(): void }) => void, agent?: AgentPointerIdentity): Promise<unknown> {
@@ -5154,24 +4699,44 @@ export class BrowserTabsManager {
     }
   }
 
+  /**
+   * The narrow view laying out the window and publishing the split divider
+   * get of this manager's private tabs, window, active tab, split view and
+   * its revision, divider drag, toolbar height, trusted chrome occlusion,
+   * global input lock, view bounds, page corners, presentation repair, tab
+   * overview previews and page geometry. It is a prototype method rather
+   * than a field, so managers created without the constructor (as unit
+   * tests do) still provide it, and the helpers they stub are reached
+   * through it.
+   */
+  private windowLayoutAccess(): WindowLayoutAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      findTab: (tabId) => this.tabs.get(tabId),
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      splitViewGeneration: () => this.splitViewGeneration,
+      splitDivider: () => this.splitDivider,
+      lastSplitDividerGeometry: () => this.lastSplitDividerGeometry,
+      writeLastSplitDividerGeometry: (serialized) => { this.lastSplitDividerGeometry = serialized },
+      toolbarHeight: () => this.toolbarHeight,
+      browserContentOccluded: () => this.browserContentOccluded,
+      occlusionSnapshot: () => this.occlusionSnapshot,
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      browserViewBounds: () => this.browserViewBounds(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      roundPageCorners: (view) => this.roundPageCorners(view),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab),
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      publishSplitDivider: () => this.publishSplitDivider(),
+      publishPageGeometry: () => this.publishPageGeometry()
+    }
+  }
+
   getSplitDivider(): SplitDividerGeometry | null {
-    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()
-      || !this.activeTabId || !this.splitView || this.allHumanInteractionLocked || this.browserContentOccluded) return null
-    const area = this.browserViewBounds()
-    const scale = this.window.webContents.getZoomFactor?.() ?? 1
-    const first = this.tabs.get(this.splitView.firstTabId)
-    const second = this.tabs.get(this.splitView.secondTabId)
-    if (!first || !second || first.sleeping || second.sleeping
-      || first.webContents.isDestroyed() || second.webContents.isDestroyed()
-      || this.toolbarHeight >= this.window.getContentBounds().height - 1) return null
-    const gap = Math.round(SPLIT_VIEW_GAP * scale)
-    const length = this.splitView.orientation === 'vertical' ? area.width : area.height
-    if (length < gap + 2 || area.width < 1 || area.height < 1) return null
-    const { divider } = splitViewGeometry(area, this.splitView.orientation, this.splitView.ratio, gap)
-    const cssBounds = (rect: Rectangle): Rectangle => ({
-      x: rect.x / scale, y: rect.y / scale, width: rect.width / scale, height: rect.height / scale
-    })
-    return { ...this.splitView, revision: this.splitViewGeneration, bounds: cssBounds(divider), area: cssBounds(area), gap: gap / scale, scale }
+    return getSplitDivider(this.windowLayoutAccess())
   }
 
   cancelSplitDivider(): void { this.splitDivider.cancel() }
@@ -5265,11 +4830,7 @@ export class BrowserTabsManager {
   }
 
   private publishSplitDivider(): void {
-    const geometry = this.getSplitDivider()
-    const serialized = JSON.stringify(geometry)
-    if (serialized === this.lastSplitDividerGeometry) return
-    this.lastSplitDividerGeometry = serialized
-    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('split-divider:changed', geometry)
+    publishSplitDivider(this.windowLayoutAccess())
   }
 
   private reconcileTabPresentation(tab: BrowserTab): void {
@@ -5281,57 +4842,7 @@ export class BrowserTabsManager {
   }
 
   layout(): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    this.occlusionSnapshot.reconcile()
-    if (!this.activeTabId) {
-      // A frame must not outlive the last tab.
-      this.publishPageGeometry()
-      return
-    }
-    this.splitDivider.reconcile()
-    const tab = this.tabs.get(this.activeTabId)
-    if (!tab) return
-    const bounds = this.window.getContentBounds()
-    // Renderer-owned trusted modals cannot be placed above a native
-    // WebContentsView. Hiding the page is more reliable than collapsing it to
-    // a one-pixel bound, which may not repaint until the BrowserWindow resizes.
-    // Preserve hidden view bounds, then restore geometry before showing them.
-    const browserContentVisible = (!this.browserContentOccluded || this.occlusionSnapshot.holdingPages) && this.toolbarHeight < bounds.height - 1
-    // Views held on screen under trusted chrome keep their place; they get new bounds before they are shown again.
-    const placeViews = browserContentVisible && !this.browserContentOccluded
-    const viewBounds = this.browserViewBounds()
-    if (this.splitView) {
-      const firstTab = this.tabs.get(this.splitView.firstTabId)
-      const secondTab = this.tabs.get(this.splitView.secondTabId)
-      if (firstTab && secondTab) {
-        const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * (this.window.webContents.getZoomFactor?.() ?? 1)))
-        if (placeViews) {
-          firstTab.view.setBounds(this.tabViewBounds(firstTab, splitBounds.first))
-          secondTab.view.setBounds(this.tabViewBounds(secondTab, splitBounds.second))
-          this.roundPageCorners(firstTab.view)
-          this.roundPageCorners(secondTab.view)
-        }
-        firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
-        secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
-        this.reconcileTabPresentation(firstTab)
-        this.reconcileTabPresentation(secondTab)
-        this.scheduleTabOverviewPreview(firstTab)
-        this.scheduleTabOverviewPreview(secondTab)
-        this.publishSplitDivider()
-        this.publishPageGeometry()
-        return
-      }
-      this.splitView = null
-    }
-    if (placeViews) {
-      tab.view.setBounds(this.tabViewBounds(tab, viewBounds))
-      this.roundPageCorners(tab.view)
-    }
-    tab.view.setVisible(browserContentVisible)
-    this.reconcileTabPresentation(tab)
-    this.scheduleTabOverviewPreview(tab)
-    this.publishSplitDivider()
-    this.publishPageGeometry()
+    layout(this.windowLayoutAccess())
   }
 
   /**
@@ -5608,28 +5119,7 @@ export class BrowserTabsManager {
   }
 
   private ensureHumanWorkspace(): string {
-    const activeGroupId = this.activeTabId ? this.tabs.get(this.activeTabId)?.mcpGroupId : undefined
-    if (activeGroupId && this.mcpTabGroups.has(activeGroupId)) return activeGroupId
-    const existing = this.mcpTabGroups.keys().next().value as string | undefined
-    if (existing) return existing
-    this.assertActiveWorkspaceCapacity()
-    const now = new Date().toISOString()
-    const id = uuidV7()
-    this.mcpTabGroups.set(id, {
-      id,
-      name: suggestWorkspaceName([...this.mcpTabGroups.values(), ...this.savedTabGroups.values()].map(group => group.name)),
-      description: '',
-      color: defaultTabGroupColor(id),
-      storageId: randomUUID(),
-      createdAt: now,
-      lastUsedAt: now,
-      activeTabId: null,
-      origins: [],
-      navigationPolicy: { mode: 'unrestricted', rules: [] },
-      navigationAudit: [],
-      contextClass: 'standard'
-    })
-    return id
+    return ensureHumanWorkspace(this.workspaceCreationAccess())
   }
 
   private assertActiveWorkspaceCapacity(): void {
@@ -5656,98 +5146,65 @@ export class BrowserTabsManager {
     if (collision) throw new Error(`A workspace named "${name}" already exists. Workspace names must be unique.`)
   }
 
-  private assertWorkspaceIdle(workspaceId: string): void {
-    const operation = this.workspaceOperations.get(workspaceId)
-    if (!operation) return
-    const name = this.mcpTabGroups.get(workspaceId)?.name ?? workspaceId
-    throw new Error(`Workspace "${name}" is busy ${operation.action}. Try again after that operation finishes.`)
-  }
-
-  private assertWorkspaceCanOpenTab(workspaceId: string): void {
-    const operation = this.workspaceOperations.get(workspaceId)
-    if (!operation?.blocksNewTabs) return
-    const name = this.mcpTabGroups.get(workspaceId)?.name ?? workspaceId
-    throw new Error(`Workspace "${name}" is busy ${operation.action}. Try again after that operation finishes.`)
-  }
-
-  private async withWorkspaceOperation<T>(
-    workspaceId: string,
-    action: string,
-    operation: () => Promise<T>,
-    blocksNewTabs = true
-  ): Promise<T> {
-    if (!this.mcpTabGroups.has(workspaceId)) throw new Error(`Unknown workspace: ${workspaceId}.`)
-    this.assertWorkspaceIdle(workspaceId)
-    const current: BrowserWorkspaceOperation = { action, blocksNewTabs, token: Symbol(action) }
-    this.workspaceOperations.set(workspaceId, current)
-    try {
-      return await this.trackWorkspaceOperation(operation)
-    } finally {
-      if (this.workspaceOperations.get(workspaceId)?.token === current.token) {
-        this.workspaceOperations.delete(workspaceId)
-      }
+  /**
+   * The narrow view holding workspaces busy gets of this manager's private
+   * open and archived workspaces and the operations in flight. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegates below
+   * return the feature's promise directly, so callers see the same ticks as
+   * before.
+   */
+  private workspaceOperationsAccess(): WorkspaceOperationsAccess {
+    return {
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      workspaceOperations: () => this.workspaceOperations,
+      savedWorkspaceOperations: () => this.savedWorkspaceOperations,
+      workspaceStorageOperation: () => this.workspaceStorageOperation,
+      setWorkspaceStorageOperation: (operation) => { this.workspaceStorageOperation = operation },
+      pendingWorkspaceOperationPromises: () => this.pendingWorkspaceOperationPromises
     }
   }
 
-  private async withSavedWorkspaceOperation<T>(
+  private assertWorkspaceIdle(workspaceId: string): void {
+    assertWorkspaceIdle(this.workspaceOperationsAccess(), workspaceId)
+  }
+
+  private assertWorkspaceCanOpenTab(workspaceId: string): void {
+    assertWorkspaceCanOpenTab(this.workspaceOperationsAccess(), workspaceId)
+  }
+
+  private withWorkspaceOperation<T>(
+    workspaceId: string,
+    action: string,
+    operation: () => Promise<T>,
+    blocksNewTabs?: boolean
+  ): Promise<T> {
+    return withWorkspaceOperation(this.workspaceOperationsAccess(), workspaceId, action, operation, blocksNewTabs)
+  }
+
+  private withSavedWorkspaceOperation<T>(
     savedWorkspaceId: string,
     action: string,
     operation: () => Promise<T>
   ): Promise<T> {
-    if (!this.savedTabGroups.has(savedWorkspaceId)) throw new Error(`Unknown archived workspace: ${savedWorkspaceId}.`)
-    const existing = this.savedWorkspaceOperations.get(savedWorkspaceId)
-    if (existing) {
-      const name = this.savedTabGroups.get(savedWorkspaceId)?.name ?? savedWorkspaceId
-      throw new Error(`Archived workspace "${name}" is busy ${existing.action}. Try again after that operation finishes.`)
-    }
-    const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
-    this.savedWorkspaceOperations.set(savedWorkspaceId, current)
-    try {
-      const running = this.trackWorkspaceOperation(operation)
-      current.settled = running.then(() => undefined, () => undefined)
-      return await running
-    } finally {
-      if (this.savedWorkspaceOperations.get(savedWorkspaceId)?.token === current.token) {
-        this.savedWorkspaceOperations.delete(savedWorkspaceId)
-      }
-    }
+    return withSavedWorkspaceOperation(this.workspaceOperationsAccess(), savedWorkspaceId, action, operation)
   }
 
-  private async withWorkspaceStorageOperation<T>(
+  private withWorkspaceStorageOperation<T>(
     workspaceId: string,
     action: string,
     operation: () => Promise<T>,
-    blocksNewTabs = false
+    blocksNewTabs?: boolean
   ): Promise<T> {
-    return this.withGlobalWorkspaceStorageOperation(action, () => (
-      this.withWorkspaceOperation(workspaceId, action, operation, blocksNewTabs)
-    ))
+    return withWorkspaceStorageOperation(this.workspaceOperationsAccess(), workspaceId, action, operation, blocksNewTabs)
   }
 
-  private async withGlobalWorkspaceStorageOperation<T>(
+  private withGlobalWorkspaceStorageOperation<T>(
     action: string,
     operation: () => Promise<T>
   ): Promise<T> {
-    if (this.workspaceStorageOperation) {
-      throw new Error(`Workspace storage is busy ${this.workspaceStorageOperation.action}. Try again after that operation finishes.`)
-    }
-    const current: BrowserWorkspaceOperation = { action, blocksNewTabs: false, token: Symbol(action) }
-    this.workspaceStorageOperation = current
-    try {
-      return await this.trackWorkspaceOperation(operation)
-    } finally {
-      if (this.workspaceStorageOperation?.token === current.token) this.workspaceStorageOperation = null
-    }
-  }
-
-  private async trackWorkspaceOperation<T>(operation: () => Promise<T>): Promise<T> {
-    const pending = operation()
-    this.pendingWorkspaceOperationPromises.add(pending)
-    try {
-      return await pending
-    } finally {
-      this.pendingWorkspaceOperationPromises.delete(pending)
-    }
+    return withGlobalWorkspaceStorageOperation(this.workspaceOperationsAccess(), action, operation)
   }
 
   private attachTabEvents(tab: BrowserTab): void {
@@ -5856,67 +5313,7 @@ export class BrowserTabsManager {
         this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
       }
     })
-    // Wheel and touch input never reach before-mouse-event; while the person scrolls or touches
-    // the page, following waits.
-    const webContentsId = webContents.id
-    webContents.on('input-event', (_event, input) => {
-      if (input.type !== 'mouseWheel' && input.type !== 'touchStart') return
-      this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-      if (this.agentInputWebContents.has(webContentsId) || this.agentWheelUnderWay(webContentsId)) return
-      this.mcpActivityFollower.noteHumanInput()
-    })
-    webContents.once('destroyed', () => this.agentWheel.delete(webContentsId))
-    webContents.on('before-mouse-event', (event, mouse) => {
-      if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
-        // Trusted chrome is open; a click must not give the page focus, activation or the active split pane.
-        event.preventDefault()
-        return
-      }
-      const screenshotSession = this.screenshotAreaSessions.get(webContents.id)
-      if (screenshotSession && !screenshotSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        if (mouse.type === 'mouseDown' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueScreenshotAreaMouseInput(tab, screenshotSession, 'down', mouse)
-        } else if (mouse.type === 'mouseMove') {
-          this.queueScreenshotAreaMouseInput(tab, screenshotSession, 'move', mouse)
-        } else if (mouse.type === 'mouseUp' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueScreenshotAreaMouseInput(tab, screenshotSession, 'up', mouse)
-        }
-        return
-      }
-      const elementPickerSession = this.elementPickerSessions.get(webContents.id)
-      if (elementPickerSession && !elementPickerSession.canceled && !this.agentInputWebContents.has(webContents.id)) {
-        event.preventDefault()
-        if (mouse.type === 'mouseDown' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueElementPickerMouseInput(tab, elementPickerSession, 'down', mouse)
-        } else if (mouse.type === 'mouseMove') {
-          this.queueElementPickerMouseInput(tab, elementPickerSession, 'move', mouse)
-        } else if (mouse.type === 'mouseUp' && (mouse.button === undefined || mouse.button === 'left')) {
-          this.queueElementPickerMouseInput(tab, elementPickerSession, 'up', mouse)
-        }
-        return
-      }
-      if (this.shouldBlockHumanMouseInput(tab, mouse)) {
-        event.preventDefault()
-        return
-      }
-      this.reproRecorder.observeReproMouse(tab, mouse)
-      if (mouse.type === 'mouseUp') this.scheduleTabOverviewPreview(tab, TAB_OVERVIEW_INPUT_SETTLE_MS)
-      if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !this.agentInputWebContents.has(webContents.id)) {
-        tab.humanInteractionGeneration += 1
-        tab.lastHumanInteractionAt = Date.now()
-        tab.lastActiveAt = tab.lastHumanInteractionAt
-        this.mcpActivityFollower.noteHumanInput()
-        if (this.splitViewContains(tab.id) && this.activeTabId !== tab.id) {
-          // The person picked the other pane, which following did not show.
-          this.agentFollow = undefined
-          this.activeTabId = tab.id
-          this.markTabActiveInGroup(tab)
-          this.changed()
-        }
-        this.options.onUserInteraction?.({ tabId: tab.id, workspaceId: tab.mcpGroupId })
-      }
-    })
+    attachPagePointerEvents(this.pagePointerEventsAccess(), tab, webContents)
     attachPageContextMenuEvents(this.pageContextMenuAccess(), tab, webContents)
     attachDevToolsEvents(this.devToolsAccess(), tab, webContents)
     this.frameObservation.track(webContents)
@@ -6021,6 +5418,40 @@ export class BrowserTabsManager {
       writeActiveTabId: (tabId) => { this.activeTabId = tabId },
       markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
       changed: (persist) => this.changed(persist)
+    }
+  }
+
+  /**
+   * The narrow view a page's mouse, wheel and touch listeners get of this
+   * manager's private trusted chrome occlusion, in-flight agent input, agent
+   * wheel scrolling, native selection sessions, human input lock, repro
+   * recording, tab overview previews, MCP activity follower, split view,
+   * active tab, agent following, workspace activation, state publication and
+   * options. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it.
+   * Each member reads the manager when called.
+   */
+  private pagePointerEventsAccess(): PagePointerEventsAccess<BrowserTab> {
+    return {
+      browserContentOccluded: () => this.browserContentOccluded,
+      agentInputWebContents: () => this.agentInputWebContents,
+      agentWheelUnderWay: (webContentsId) => this.agentWheelUnderWay(webContentsId),
+      agentWheel: () => this.agentWheel,
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      queueScreenshotAreaMouseInput: (tab, session, type, mouse) => this.queueScreenshotAreaMouseInput(tab, session, type, mouse),
+      elementPickerSessions: () => this.elementPickerSessions,
+      queueElementPickerMouseInput: (tab, session, type, mouse) => this.queueElementPickerMouseInput(tab, session, type, mouse),
+      shouldBlockHumanMouseInput: (tab, mouse) => this.shouldBlockHumanMouseInput(tab, mouse),
+      reproRecorder: () => this.reproRecorder,
+      scheduleTabOverviewPreview: (tab, settleMs) => this.scheduleTabOverviewPreview(tab, settleMs),
+      mcpActivityFollower: () => this.mcpActivityFollower,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      setAgentFollow: (follow) => { this.agentFollow = follow },
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      changed: (persist) => this.changed(persist),
+      options: () => this.options
     }
   }
 
@@ -6186,87 +5617,6 @@ export class BrowserTabsManager {
 
   private sweepMemorySaver(force: boolean): Promise<void> {
     return sweepMemorySaver(this.memorySaverAccess(), force)
-  }
-
-  private toState(tab: BrowserTab): BrowserTabState {
-    const navigation = this.navigationHistorySnapshot(tab)
-    const webContentsDestroyed = tab.webContents.isDestroyed()
-    return {
-      id: tab.id,
-      title: tab.title,
-      ...(tab.labelDurabilityUnconfirmed ? { labelDurabilityUnconfirmed: true } : {}),
-      ...(tab.label ? { label: tab.label } : {}),
-      url: tab.url,
-      loading: tab.loading,
-      navigationGeneration: tab.navigationGeneration,
-      observationGeneration: tab.observationGeneration,
-      humanInteractionGeneration: tab.humanInteractionGeneration,
-      browserSessionGeneration: tab.browserSessionGeneration,
-      canGoBack: navigation.index > 0,
-      canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
-      active: tab.id === this.activeTabId,
-      pinned: tab.pinned,
-      sleeping: tab.sleeping,
-      pageLifecycleState: tab.pageLifecycleState,
-      humanInteractionLocked: tab.humanInteractionLocked,
-      tabAgentPaused: tab.tabAgentPaused,
-      humanInteractionInputLocked: this.isHumanInteractionLocked(tab),
-      agentPaused: this.isTabAgentPaused(tab.id),
-      ...(this.isTabTakenOver(tab.id) ? { takenOverAt: tab.takeOver!.at } : {}),
-      ...(tab.handedBack ? { handedBack: { ...tab.handedBack } } : {}),
-      preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
-      videoRecording: this.videoRecorder.state(tab.id).status,
-      zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
-      ...(tab.zoomIsolated ? { zoomIsolated: true } : {}),
-      ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-      ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
-      audible: tab.audible,
-      tabMuted: tab.tabMuted,
-      muted: tab.muted,
-      devToolsOpen: !webContentsDestroyed && tab.webContents.isDevToolsOpened(),
-      ...this.emulationProjection(tab),
-      ...(tab.networkRoutes.length ? { networkRouteCount: tab.networkRoutes.length } : {}),
-      networkConditionState: this.networkConditionState(tab.id),
-      ...(tab.inspectorIssues.length ? { inspectorIssueCount: tab.inspectorIssues.length } : {}),
-      ...(tab.reproRecording ? {
-        reproRecording: {
-          active: tab.reproRecording.active,
-          stepCount: tab.reproRecording.steps.length,
-          startedAt: tab.reproRecording.startedAt
-        }
-      } : {}),
-      pwaLifecycleActive: this.pwaLifecycleRecorder.active(tab.id),
-      ...(this.cssStatePreview.summary(tab) ? { cssStatePreview: this.cssStatePreview.summary(tab) } : {}),
-      ...(tab.domChangesRecording?.observationGeneration === tab.observationGeneration ? {
-        domChangesRecording: {
-          active: tab.domChangesRecording.active,
-          changeCount: tab.domChangesRecording.changeCount,
-          startedAt: tab.domChangesRecording.startedAt
-        }
-      } : {}),
-      ...(tab.codeCoverage?.recording ? {
-        codeCoverageRecording: {
-          startedAt: tab.codeCoverage.recording.startedAt,
-          mode: tab.codeCoverage.recording.mode
-        }
-      } : {}),
-      ...(tab.cpuProfile?.recording ? {
-        cpuProfileRecording: {
-          startedAt: tab.cpuProfile.recording.startedAt
-        }
-      } : {}),
-      ...(tab.memoryAllocation?.recording ? {
-        memoryAllocationRecording: {
-          startedAt: tab.memoryAllocation.recording.startedAt
-        }
-      } : {}),
-      ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
-      ...(tab.dialog ? { dialog: { ...tab.dialog } } : {}),
-      ...(tab.mcpGroupId ? {
-        mcpGroupId: tab.mcpGroupId,
-        mcpGroupName: this.mcpTabGroups.get(tab.mcpGroupId)?.name ?? 'Unknown group'
-      } : {})
-    }
   }
 
   private navigationHistorySnapshot(tab: BrowserTab): { entries: NavigationEntry[]; index: number } {
@@ -6449,60 +5799,7 @@ export class BrowserTabsManager {
     type: 'down' | 'move' | 'up',
     mouse: Electron.MouseInputEvent
   ): void {
-    const bounds = tab.view.getBounds()
-    const point = {
-      x: Math.max(0, Math.min(bounds.width, Number(mouse.x))),
-      y: Math.max(0, Math.min(bounds.height, Number(mouse.y)))
-    }
-    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return
-    if (type === 'down') {
-      session.start = point
-      session.current = point
-    } else if (session.start) {
-      session.current = point
-    }
-    let fallbackSelection: BrowserScreenshotAreaResult | undefined
-    if (type === 'up' && session.start && session.current) {
-      const left = Math.floor(Math.min(session.start.x, session.current.x))
-      const top = Math.floor(Math.min(session.start.y, session.current.y))
-      const right = Math.ceil(Math.max(session.start.x, session.current.x))
-      const bottom = Math.ceil(Math.max(session.start.y, session.current.y))
-      const clip = { x: left, y: top, width: right - left, height: bottom - top }
-      if (clip.width >= 2 && clip.height >= 2) {
-        fallbackSelection = {
-          canceled: false,
-          clip,
-          viewport: { width: Math.max(1, bounds.width), height: Math.max(1, bounds.height) },
-          url: tab.url
-        }
-      }
-      session.start = undefined
-      session.current = undefined
-    }
-    const queued = session.inputQueue.catch(() => undefined).then(async () => {
-      if (session.canceled || this.screenshotAreaSessions.get(tab.webContents.id) !== session) return
-      await tab.webContents.executeJavaScript(screenshotAreaNativeInputScript(
-        type,
-        mouse.x,
-        mouse.y,
-        Math.max(1, bounds.width),
-        Math.max(1, bounds.height)
-      ), true)
-    })
-    session.inputQueue = queued
-    if (fallbackSelection) {
-      const selection = fallbackSelection
-      void queued.catch(() => undefined).then(() => {
-        if (!session.canceled && this.screenshotAreaSessions.get(tab.webContents.id) === session) {
-          session.resolve(selection)
-        }
-      })
-    }
-    void queued.catch((error) => {
-      if (!session.canceled && this.screenshotAreaSessions.get(tab.webContents.id) === session) {
-        console.error('[browser] Could not forward screenshot selection input:', error)
-      }
-    })
+    queueScreenshotAreaMouseInput(this.screenshotAreaAccess(), tab, session, type, mouse)
   }
 
   private queueElementPickerMouseInput(
@@ -6511,40 +5808,7 @@ export class BrowserTabsManager {
     type: 'down' | 'move' | 'up',
     mouse: Electron.MouseInputEvent
   ): void {
-    const bounds = tab.view.getBounds()
-    if (type === 'down') session.pointerDown = true
-    const shouldSelect = type === 'up' && session.pointerDown
-    if (type === 'up') session.pointerDown = false
-    const queued = session.inputQueue.catch(() => undefined).then(async () => {
-      if (session.canceled || this.elementPickerSessions.get(tab.webContents.id) !== session) return
-      await tab.webContents.executeJavaScript(elementPickerNativeInputScript(
-        type,
-        mouse.x,
-        mouse.y,
-        Math.max(1, bounds.width),
-        Math.max(1, bounds.height)
-      ), true).catch(() => false)
-      if (!shouldSelect || session.settled || session.canceled) return
-      const inspection = await tab.webContents.executeJavaScriptInIsolatedWorld(
-        ELEMENT_INSPECTION_WORLD_ID,
-        [{ code: elementPickerInspectionAtPointScript(
-          mouse.x,
-          mouse.y,
-          Math.max(1, bounds.width),
-          Math.max(1, bounds.height)
-        ) }],
-        false
-      )
-      if (!session.canceled && this.elementPickerSessions.get(tab.webContents.id) === session) {
-        session.resolve({ canceled: false, inspection })
-      }
-    })
-    session.inputQueue = queued
-    void queued.catch((error) => {
-      if (!session.canceled && this.elementPickerSessions.get(tab.webContents.id) === session) {
-        console.error('[browser] Could not forward element picker input:', error)
-      }
-    })
+    queueElementPickerMouseInput(this.elementPickerAccess(), tab, session, type, mouse)
   }
 
   private readonly unconfirmedSemanticClicks = new WeakSet<BrowserTab['view']['webContents']>()
@@ -6902,51 +6166,32 @@ export class BrowserTabsManager {
     })
   }
 
-  private persistedState(): PersistedBrowserState {
-    if (this.destroyed) throw new Error('Browser is closing; session save canceled.')
+  /**
+   * The narrow view saving the browser state gets of this manager's private
+   * destroyed flag, workspace storage records, workspace continuity, active
+   * tab, split view and divider, global mute and lock, workspaces and tabs.
+   * It is a prototype method rather than a field, so managers created
+   * without the constructor (as unit tests do) still provide it. Each member
+   * reads the manager when called.
+   */
+  private persistedStateAccess(): PersistedStateAccess<BrowserTab> {
     return {
-      version: TAB_STATE_VERSION,
-      ...(this.deletedWorkspaceStorageIds.size ? { deletedWorkspaceStorageIds: [...this.deletedWorkspaceStorageIds] } : {}),
-      ...(this.workspaceStorageCleanupBlocked ? { workspaceStorageCleanupBlocked: true } : {}),
-      continuityWorkspaceIds: this.workspaceContinuity.guardedWorkspaceIds(),
-      activeTabId: this.activeTabId,
-      ...(this.splitView ? { splitView: { ...this.splitView, ratio: this.splitDivider.persistedRatio(this.splitView.ratio) } } : {}),
-      allTabsMuted: this.allTabsMuted,
-      allHumanInteractionLocked: this.allHumanInteractionLocked,
-      mcpTabGroups: [...this.mcpTabGroups.values()].map((group) => ({ ...group })),
-      savedTabGroups: [...this.savedTabGroups.values()].map((group) => ({
-        id: group.id,
-        name: group.name,
-        description: group.description,
-        color: group.color,
-        savedAt: group.savedAt,
-        hiddenFromSidebar: group.hiddenFromSidebar === true,
-        deletionProtected: group.deletionProtected === true,
-        agentAccess: group.agentAccess !== false,
-        contextClass: group.contextClass,
-        storageId: group.storageId,
-        origins: [...group.origins],
-        navigationPolicy: {
-          mode: group.navigationPolicy.mode,
-          rules: [...group.navigationPolicy.rules]
-        },
-        navigationAudit: group.navigationAudit.map((entry) => ({ ...entry })),
-        tabs: group.tabs.map((tab) => ({ ...tab }))
-      })),
-      tabs: this.orderedTabs().map((tab) => ({
-        id: tab.id,
-        title: tab.title,
-        ...(tab.label ? { label: tab.label } : {}),
-        url: tab.url,
-        pinned: tab.pinned,
-        muted: tab.tabMuted,
-        humanInteractionLocked: tab.humanInteractionLocked,
-        tabAgentPaused: tab.tabAgentPaused,
-        ...(tab.zoomIsolated ? { zoomIsolated: true as const } : {}),
-        ...(tab.defaultFontSize ? { defaultFontSize: tab.defaultFontSize } : {}),
-        ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
-        ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
-      }))
+      isDestroyed: () => this.destroyed,
+      deletedWorkspaceStorageIds: () => this.deletedWorkspaceStorageIds,
+      workspaceStorageCleanupBlocked: () => this.workspaceStorageCleanupBlocked,
+      workspaceContinuity: () => this.workspaceContinuity,
+      activeTabId: () => this.activeTabId,
+      splitView: () => this.splitView,
+      splitDivider: () => this.splitDivider,
+      allTabsMuted: () => this.allTabsMuted,
+      allHumanInteractionLocked: () => this.allHumanInteractionLocked,
+      mcpTabGroups: () => this.mcpTabGroups,
+      savedTabGroups: () => this.savedTabGroups,
+      orderedTabs: () => this.orderedTabs()
     }
+  }
+
+  private persistedState(): PersistedBrowserState {
+    return persistedState(this.persistedStateAccess())
   }
 }
