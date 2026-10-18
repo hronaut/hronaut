@@ -393,6 +393,8 @@ import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './
 import { normalizeTabTitle } from './tab-metadata.js'
 import { TabDiscoveryTitle } from './tab-discovery-title.js'
 import { isHronautHomeUrl, isWebUrl, normalizeAddress } from './url.js'
+import type { DevToolsAccess } from './devtools/devtools-access.js'
+import { openDevTools, toggleDevTools } from './devtools/devtools.js'
 import type { PageLifecycleAccess } from './page-lifecycle/page-lifecycle-access.js'
 import { controlPageLifecycle, pageLifecycle, setTabPageLifecycle } from './page-lifecycle/page-lifecycle.js'
 import type { PageNavigationAccess } from './page-navigation/page-navigation-access.js'
@@ -3258,21 +3260,31 @@ export class BrowserTabsManager {
     menu.popup({ window: this.window })
   }
 
-  async toggleDevTools(tabId?: string): Promise<boolean> {
-    const tab = this.getTab(tabId)
-    await this.wakeTab(tab.id)
-    const webContents = tab.webContents
-    if (isHronautHomeUrl(tab.url)) return false
-    if (this.isHumanInteractionLocked(tab)) {
-      if (webContents.isDevToolsOpened()) webContents.closeDevTools()
-      return false
+  /**
+   * The narrow view Developer Tools get of this manager's private tabs, tab
+   * waking, input lock, request conditions and routes, opening set, dialog
+   * monitoring and debugger queue. It is a prototype method rather than a
+   * field, so managers created without the constructor (as unit tests do)
+   * still provide it. The delegates below return the feature's promise
+   * directly, so callers see the same ticks as before.
+   */
+  private devToolsAccess(): DevToolsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      wakeTab: (tabId) => this.wakeTab(tabId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      requireNetworkConditionsKnown: (tab) => this.requireNetworkConditionsKnown(tab),
+      applyNetworkRoutes: (tab, validate, recovery, mutate) => this.applyNetworkRoutes(tab, validate, recovery, mutate),
+      devToolsOpening: () => this.devToolsOpening,
+      dialogMonitorAttach: (webContentsId) => this.dialogMonitorAttachPromises.get(webContentsId),
+      pendingDebuggerCommand: (webContentsId) => this.debuggerQueue.pending(webContentsId)
     }
-    if (webContents.isDevToolsOpened()) {
-      webContents.closeDevTools()
-      return false
-    }
-    await this.openDevTools(tab)
-    return true
+  }
+
+  toggleDevTools(tabId?: string): Promise<boolean> {
+    return toggleDevTools(this.devToolsAccess(), tabId)
   }
 
   setMcpUrl(url: string): BrowserState {
@@ -8971,58 +8983,8 @@ export class BrowserTabsManager {
     return attaching
   }
 
-  private async openDevTools(tab: BrowserTab): Promise<void> {
-    const webContents = tab.webContents
-    if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
-    const debuggerEpoch = tab.networkDebuggerEpoch
-    const validateOwnership = (): void => {
-      if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Developer Tools handoff target changed')
-      this.requireNetworkConditionsKnown(tab)
-    }
-    const requireConfirmed = (): void => {
-      validateOwnership()
-      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application is pending. Wait for it to settle before opening Developer Tools.')
-    }
-    requireConfirmed()
-    // DevTools cleanup is an ordinary mutation, never explicit recovery authority.
-    // Its queue admission must reject uncertainty created by an earlier operation.
-    if (tab.networkRoutes.length) await this.applyNetworkRoutes(tab, validateOwnership, false, () => { tab.networkRoutes = [] })
-    this.devToolsOpening.add(webContents.id)
-    try {
-      await this.dialogMonitorAttachPromises.get(webContents.id)
-      const pendingDebugger = this.debuggerQueue.pending(webContents.id)
-      if (pendingDebugger) await pendingDebugger
-      // The queue tail settles even after failure. Check current health and the
-      // original owner at the handoff itself, with no await before detachment.
-      requireConfirmed()
-      if (tab.networkRoutes.length) throw new Error('Request conditions changed before Developer Tools handoff')
-      if (webContents.isDevToolsOpened()) return
-      if (webContents.debugger.isAttached()) webContents.debugger.detach()
-      await new Promise<void>((resolve, reject) => {
-        const cleanup = (): void => {
-          webContents.removeListener('devtools-opened', finish)
-          webContents.removeListener('destroyed', finish)
-        }
-        const finish = (): void => {
-          cleanup()
-          resolve()
-        }
-        webContents.once('devtools-opened', finish)
-        webContents.once('destroyed', finish)
-        try {
-          webContents.openDevTools({
-            mode: 'detach',
-            title: `Hronaut Developer Tools — ${tab.title || 'Website'}`
-          })
-          if (webContents.isDevToolsOpened()) finish()
-        } catch (error) {
-          cleanup()
-          reject(error)
-        }
-      })
-    } finally {
-      this.devToolsOpening.delete(webContents.id)
-    }
+  private openDevTools(tab: BrowserTab): Promise<void> {
+    return openDevTools(this.devToolsAccess(), tab)
   }
 
   private addInspectorIssue(tab: BrowserTab, value: unknown, notify = true): void {
