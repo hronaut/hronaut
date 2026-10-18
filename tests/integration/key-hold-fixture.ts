@@ -1,4 +1,4 @@
-import type { ElectronApplication } from '@playwright/test'
+import { expect, type ElectronApplication } from '@playwright/test'
 
 export type HoldFailure = 'none' | 'down-ack' | 'release' | 'relock' | 'persistent-relock' | 'emergency-preparation' | 'final-restoration' | 'before-down' | 'delayed-ack'
 export type HoldProbe = {
@@ -16,10 +16,29 @@ export type HoldProbe = {
 export type HoldScope = typeof globalThis & { holdProbe?: HoldProbe }
 
 export async function setupHoldPage(app: ElectronApplication, url: string): Promise<void> {
+  await waitForSettledPageBounds(app, url)
   await app.evaluate(async ({ webContents }, url) => {
     const page = webContents.getAllWebContents().find(p => p.getURL() === url)!
     await page.executeJavaScript(`document.body.innerHTML='<canvas id="canvas" tabindex="0" width="400" height="200"></canvas><input id="text">';window.holdEffects={events:[],held:false,frames:0};for(const type of ['keydown','keyup'])document.addEventListener(type,e=>{window.holdEffects.events.push({type,key:e.key,code:e.code,repeat:e.repeat,trusted:e.isTrusted,time:performance.now(),wallTime:Date.now()});if(e.key==='ArrowRight'){window.holdEffects.held=type==='keydown';e.preventDefault()}});function frame(){if(window.holdEffects.held){window.holdEffects.frames++;const ctx=document.querySelector('canvas').getContext('2d');ctx.fillRect(window.holdEffects.frames%390,10,10,10)}requestAnimationFrame(frame)}requestAnimationFrame(frame);document.querySelector('canvas').focus();void 0`)
   }, url)
+}
+
+/**
+ * A hold refuses to start when main moves its page, and the toolbar can still
+ * be settling just after a tab is selected. Wait until the page's bounds stop
+ * changing so a hold sees only the movement a test causes.
+ */
+async function waitForSettledPageBounds(app: ElectronApplication, url: string): Promise<void> {
+  let last: string | undefined
+  let since = Date.now()
+  await expect.poll(async () => {
+    const bounds = await app.evaluate(({ BrowserWindow, WebContentsView }, url) => BrowserWindow.getAllWindows()
+      .flatMap(window => window.contentView.children)
+      .find(view => view instanceof WebContentsView && view.webContents.getURL() === url)?.getBounds(), url)
+    const current = JSON.stringify(bounds)
+    if (current !== last) { last = current; since = Date.now() }
+    return bounds ? Date.now() - since : 0
+  }, { message: 'the page stops moving', intervals: [100] }).toBeGreaterThanOrEqual(500)
 }
 
 export async function observeHold(app: ElectronApplication, url: string, failure: HoldFailure = 'none'): Promise<void> {

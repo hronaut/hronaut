@@ -1,11 +1,15 @@
 import type { WebContents } from 'electron'
 import type { BrowserDialogAction, BrowserDialogHandlingOptions } from '../../../shared/types.js'
+import { RendererExitedError } from '../renderer-exit-guard.js'
 import type { WebsiteDialogsAccess, WebsiteDialogsTab } from './website-dialogs-access.js'
 
 /** The buffer limits dialog monitoring gives the page's network domain, so retained request data stays bounded. */
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
 const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
 const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
+
+/** Pages whose monitoring stopped at an exited renderer and starts again on their next load. */
+const monitoringAfterNextLoad = new WeakSet<WebContents>()
 
 /** Accepts or dismisses the website dialog the tab shows. */
 export async function handleDialog<Tab extends WebsiteDialogsTab>(access: WebsiteDialogsAccess<Tab>, action: BrowserDialogAction, tabId?: string): Promise<{
@@ -140,9 +144,19 @@ export function ensureDialogMonitoring<Tab extends WebsiteDialogsTab>(access: We
       // Emulation uncertainty also requires explicit recovery; never reapply it here.
     } catch (error) {
       tab.networkDebuggerEnabled = false
-      if (!access.isDestroyed() && !webContents.isDestroyed()) {
-        console.error('[browser] Could not enable page diagnostics:', error)
+      if (access.isDestroyed() || webContents.isDestroyed()) return
+      if (error instanceof RendererExitedError) {
+        // A crashed page has nothing to monitor; its next load does.
+        if (!monitoringAfterNextLoad.has(webContents)) {
+          monitoringAfterNextLoad.add(webContents)
+          webContents.once('dom-ready', () => {
+            monitoringAfterNextLoad.delete(webContents)
+            void ensureDialogMonitoring(access, tab)
+          })
+        }
+        return
       }
+      console.error('[browser] Could not enable page diagnostics:', error)
     }
   })()
   access.dialogMonitorAttachPromises().set(webContents.id, attaching)

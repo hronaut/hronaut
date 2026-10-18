@@ -55,7 +55,8 @@ test('page tools fail at once on a crashed page and work again after it loads', 
   const { client, tabId, fixtureUrl } = capabilities
   const call = (name: string, args: Record<string, unknown>) =>
     client.callTool({ name, arguments: { tabId, ...args } }, undefined, { timeout: 15_000 }) as Promise<CallToolResult>
-  // A request rule pauses the reload of the crashed page; Chromium answers it without a renderer.
+  // A request rule set before the crash still lets the page load again. Chromium has already replaced the crashed
+  // frame when the request pauses, so the unit tests cover the Fetch commands sent while the page is gone.
   const routed = await call('browser_network_routes', {
     action: 'add', urlPattern: '*after-crash*',
     response: { status: 200, headers: { 'content-type': 'text/html' }, body: '<title>Routed</title><h1>Routed after crash</h1><button id="routed">Routed button</button>' }

@@ -65,18 +65,20 @@ describe('page calls across a renderer exit', () => {
       page.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false }),
       page.debugger.sendCommand('Fetch.continueRequest', { requestId: 'r1' }),
       page.debugger.sendCommand('Network.deleteCookies', { name: 'n', domain: 'example.test' }),
-      page.debugger.sendCommand('Network.getAllCookies')
+      page.debugger.sendCommand('Network.getAllCookies'),
+      page.debugger.sendCommand('Page.setWebLifecycleState', { state: 'active' })
     ]
     expect(calls.map(call => call.args)).toEqual([
       ['Input.setIgnoreInputEvents', { ignore: true }],
       ['Input.setIgnoreInputEvents', { ignore: false }],
       ['Fetch.continueRequest', { requestId: 'r1' }],
       ['Network.deleteCookies', { name: 'n', domain: 'example.test' }],
-      ['Network.getAllCookies']
+      ['Network.getAllCookies'],
+      ['Page.setWebLifecycleState', { state: 'active' }]
     ])
     for (const call of calls) call.reply.resolve({})
     await expect(before).resolves.toEqual({})
-    await expect(Promise.all(during)).resolves.toEqual([{}, {}, {}, {}])
+    await expect(Promise.all(during)).resolves.toEqual([{}, {}, {}, {}, {}])
   })
 
   it('lets calls through again for the next renderer, and guards them against its exit', async () => {

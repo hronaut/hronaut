@@ -23,7 +23,8 @@ type GuardedPage = Pick<WebContents, 'isDestroyed' | 'isCrashed' | 'executeJavaS
 // input barrier must keep following the person's lock, request rules must let
 // the reload of a crashed page through, and cookies stay manageable.
 const BROWSER_PROCESS_COMMANDS = new Set([
-  'Input.setIgnoreInputEvents', 'Network.getAllCookies', 'Network.deleteCookies', 'Storage.getUsageAndQuota'
+  'Input.setIgnoreInputEvents', 'Network.getAllCookies', 'Network.deleteCookies', 'Page.setWebLifecycleState',
+  'Storage.getUsageAndQuota'
 ])
 const BROWSER_PROCESS_DOMAINS = ['Fetch.']
 
