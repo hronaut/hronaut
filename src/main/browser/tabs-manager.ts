@@ -453,6 +453,8 @@ import {
 import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
+import type { RendererHealthEventsAccess } from './tab-events/renderer-health-events-access.js'
+import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
 import type { UndoableAction } from '../undo-offers.js'
@@ -554,15 +556,6 @@ const LOAD_FAILURE_MESSAGES: Record<string, MessageKey> = {
   ERR_TIMED_OUT: 'native.pageProblem.timedOut'
 }
 
-const RENDERER_FAILURE_MESSAGES: Record<string, MessageKey> = {
-  'abnormal-exit': 'native.pageProblem.abnormalExit',
-  crashed: 'native.pageProblem.crashed',
-  'integrity-failure': 'native.pageProblem.integrityFailure',
-  killed: 'native.pageProblem.killed',
-  'launch-failed': 'native.pageProblem.launchFailed',
-  oom: 'native.pageProblem.outOfMemory'
-}
-
 function loadFailureProblem(locale: SupportedLocale, url: string, errorCode: number, errorDescription: string): BrowserPageProblem {
   return {
     kind: 'load-error',
@@ -571,17 +564,6 @@ function loadFailureProblem(locale: SupportedLocale, url: string, errorCode: num
     url,
     errorCode,
     errorDescription
-  }
-}
-
-function rendererFailureProblem(locale: SupportedLocale, url: string, reason: string, exitCode: number): BrowserPageProblem {
-  return {
-    kind: 'renderer-gone',
-    title: translate(locale, 'native.pageProblem.rendererTitle'),
-    message: translate(locale, RENDERER_FAILURE_MESSAGES[reason] ?? 'native.pageProblem.rendererDefault'),
-    url,
-    reason,
-    exitCode
   }
 }
 
@@ -7032,52 +7014,34 @@ export class BrowserTabsManager {
       })
     })
     attachConsoleMessageEvents(tab, webContents)
-    webContents.on('render-process-gone', (_event, details) => {
-      if (tab.networkConditionApplication === 'pending') this.markNetworkConditionsUnknown(tab)
-      tab.emulationContextGeneration++
-      tab.emulationRevision++
-      tab.emulationApplication = 'unknown'
-      tab.nativeInputEnvironmentGeneration++
-      this.changed(false)
-      this.setEmulationViewSize(tab, undefined)
-      this.invalidateTabOverviewPreview(tab)
-      this.tabOverviewPreviewCaptures.cancelPending(tab.id)
-      this.tabOverviewPreviewableTabs.delete(tab.id)
-      if (this.rendererRecovery.expectsExit(webContents)) return
-      this.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
-      this.cancelNativeSelectionSessions(tab)
-      if (tab.pageLifecycleState !== 'active') {
-        tab.pageLifecycleState = 'unknown'
-        tab.pageLifecycleUnknownRequest ??= 'frozen'
-      }
-      tab.loading = false
-      tab.title = this.text('native.dialog.pageUnavailable')
-      tab.pageProblem = rendererFailureProblem(this.options.getLocale(), tab.url, details.reason, details.exitCode)
-      appendConsoleMessage(tab, {
-        timestamp: new Date().toISOString(),
-        level: 'error',
-        message: `Renderer process exited: ${details.reason} (exit code ${details.exitCode})`,
-        lineNumber: 0,
-        sourceId: tab.url,
-        kind: 'lifecycle'
-      }, 'lifecycle')
-      this.changed()
-    })
-    webContents.on('unresponsive', () => {
-      tab.pageProblem = {
-        kind: 'unresponsive',
-        title: this.text('native.dialog.unresponsiveTitle'),
-        message: this.text('native.dialog.unresponsiveMessage'),
-        url: tab.url
-      }
-      this.changed(false)
-    })
-    webContents.on('responsive', () => {
-      if (tab.pageProblem?.kind !== 'unresponsive') return
-      tab.pageProblem = undefined
-      this.changed(false)
-    })
+    attachRendererHealthEvents(this.rendererHealthEventsAccess(), tab, webContents)
     attachWindowOpenHandler(this.windowOpenHandlerAccess(), tab, webContents)
+  }
+
+  /**
+   * The narrow view a page's renderer exit and hang listeners get of this
+   * manager's private request conditions, emulation sizing, tab overview
+   * previews, renderer recovery, network waits, native selection sessions,
+   * localized text, options, console messages and state publication. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. Each member reads the
+   * manager when called.
+   */
+  private rendererHealthEventsAccess(): RendererHealthEventsAccess<BrowserTab> {
+    return {
+      markNetworkConditionsUnknown: (tab) => this.markNetworkConditionsUnknown(tab),
+      changed: (persist) => this.changed(persist),
+      setEmulationViewSize: (tab, viewport) => this.setEmulationViewSize(tab, viewport),
+      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
+      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
+      rendererRecovery: () => this.rendererRecovery,
+      networkWaitController: () => this.networkWaitController,
+      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
+      text: (key, parameters) => this.text(key, parameters),
+      options: () => this.options,
+      appendConsoleMessage: (tab, message, source) => appendConsoleMessage(tab, message, source)
+    }
   }
 
   /**
