@@ -77,7 +77,19 @@ import { BrowserCssStatePreview } from './css-state-preview.js'
 import { DEFAULT_FONT_SIZE_LIMITS, isDefaultFontSize, normalizeDefaultFontSize } from '../../shared/default-font-size.js'
 import { BrowserLiveRegionRecorder, liveRegionRecordingKeepsTabAwake, type BrowserLiveRegionRecordingState } from './live-region-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
-import { normalizeNetworkRouteInput } from './network-route-input.js'
+import type { BrowserNetworkRouteRecord, NetworkConditionsAccess } from './network-conditions/network-conditions-access.js'
+import {
+  addNetworkRoute,
+  clearNetworkRoutes,
+  markNetworkConditionsUnknown,
+  moveNetworkRoute,
+  networkConditionPublication,
+  networkConditionState,
+  networkRoutes,
+  removeNetworkRoute,
+  requireNetworkConditionsKnown,
+  setNetworkRouteEnabled
+} from './network-conditions/network-conditions.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
@@ -448,7 +460,6 @@ const MAX_FAVICON_BYTES = 512 * 1024
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
 const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
 const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
-const MAX_NETWORK_ROUTES = 50
 const MAX_INSPECTOR_ISSUES = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
@@ -733,11 +744,6 @@ function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string 
   } catch {
     return undefined
   }
-}
-
-interface BrowserNetworkRouteRecord extends BrowserNetworkRouteSummary {
-  responseHeaders?: Record<string, string>
-  responseBody?: string
 }
 
 interface BrowserElementPickerScriptResult {
@@ -6442,98 +6448,60 @@ export class BrowserTabsManager {
     return replayNetworkRequest(this.networkInspectionAccess(), tabId, requestId, confirmSideEffects)
   }
 
+  /**
+   * The narrow view request conditions get of this manager's private tabs and
+   * native rule application. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's value or promise directly, so
+   * no extra ticks separate its final checks from the caller.
+   */
+  private networkConditionsAccess(): NetworkConditionsAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      findTab: (tabId) => this.tabs.get(tabId),
+      isDestroyed: () => this.destroyed,
+      applyNetworkRoutes: (tab, validate, recovery, mutate, markSubmitted, admission) => this.applyNetworkRoutes(tab, validate, recovery, mutate, markSubmitted, admission)
+    }
+  }
+
   networkConditionState(tabId?: string): import('../../shared/types.js').BrowserNetworkConditionState {
-    const tab = this.getTab(tabId)
-    return { application: tab.networkConditionApplication, retainedRules: tab.networkRoutes.map(route => this.networkRouteSummary(route)) }
+    return networkConditionState(this.networkConditionsAccess(), tabId)
   }
 
   networkRoutes(tabId?: string): BrowserNetworkRouteSummary[] {
-    const state = this.networkConditionState(tabId)
-    if (state.application !== 'confirmed') throw new Error('Native request-condition application is not confirmed. Explicitly clear conditions to recover; do not replay the failed operation.')
-    return state.retainedRules
+    return networkRoutes(this.networkConditionsAccess(), tabId)
   }
 
   networkConditionPublication(tabId: string | undefined, expected: BrowserNetworkRouteSummary[]): () => void {
-    const tab = this.getTab(tabId)
-    const routes = tab.networkRoutes
-    const epoch = tab.networkConditionEpoch
-    const serialized = JSON.stringify(expected)
-    const assert = (): void => {
-      if (this.tabs.get(tab.id) !== tab || tab.webContents.isDestroyed() || tab.networkRoutes !== routes || tab.networkConditionEpoch !== epoch || tab.networkConditionApplication !== 'confirmed' || JSON.stringify(this.networkConditionState(tab.id).retainedRules) !== serialized) throw new Error('Request-condition observation changed before publication')
-    }
-    assert()
-    return assert
+    return networkConditionPublication(this.networkConditionsAccess(), tabId, expected)
   }
 
   private markNetworkConditionsUnknown(tab: BrowserTab): void {
-    tab.networkConditionEpoch++
-    tab.networkConditionApplication = 'unknown'
+    markNetworkConditionsUnknown(tab)
   }
 
   private requireNetworkConditionsKnown(tab: BrowserTab): void {
-    if (tab.networkConditionApplication === 'unknown') throw new Error('Native request-condition application is unknown. Explicitly clear conditions to recover.')
+    requireNetworkConditionsKnown(tab)
   }
 
-  async addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    const normalized = normalizeNetworkRouteInput(input)
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
-      if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) throw new Error(`Network route limit reached (${MAX_NETWORK_ROUTES})`)
-      tab.networkRoutes = [...tab.networkRoutes, { ...normalized, id: randomUUID(), createdAt: new Date().toISOString() }]
-    }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  addNetworkRoute(tabId: string | undefined, input: BrowserNetworkRouteInput, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return addNetworkRoute(this.networkConditionsAccess(), tabId, input, validate, markSubmitted)
   }
 
-  async setNetworkRouteEnabled(tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    if (typeof enabled !== 'boolean' || !routeId) throw new TypeError('routeId and boolean enabled are required')
-    const tab = this.getTab(tabId)
-    const contents = tab.webContents
-    const debuggerEpoch = tab.networkDebuggerEpoch
-    const admission = (): void => {
-      validate()
-      if (this.destroyed || contents.isDestroyed() || this.tabs.get(tab.id) !== tab || tab.webContents !== contents || tab.networkDebuggerEpoch !== debuggerEpoch) throw new Error('Request-condition target changed before toggle')
-      if (tab.networkConditionApplication !== 'confirmed') throw new Error('Request-condition application must be confirmed before enabling or disabling a rule. Explicitly clear unknown conditions to recover.')
-      if (!tab.networkRoutes.some(route => route.id === routeId)) throw new Error(`Network route not found: ${routeId}`)
-    }
-    admission()
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      // Read the current record only at admission: a paused request may already
-      // have reserved its budget. Never restore a caller's earlier snapshot.
-      tab.networkRoutes = tab.networkRoutes.map(route => route.id === routeId ? { ...route, enabled } : route)
-    }, markSubmitted, admission)
-    return this.networkRoutes(tab.id)
+  setNetworkRouteEnabled(tabId: string | undefined, routeId: string, enabled: boolean, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return setNetworkRouteEnabled(this.networkConditionsAccess(), tabId, routeId, enabled, validate, markSubmitted)
   }
 
-  async removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      const remaining = tab.networkRoutes.filter(route => route.id !== routeId)
-      if (remaining.length === tab.networkRoutes.length) throw new Error(`Network route not found: ${routeId}`)
-      tab.networkRoutes = remaining
-    }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  removeNetworkRoute(tabId: string | undefined, routeId: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return removeNetworkRoute(this.networkConditionsAccess(), tabId, routeId, validate, markSubmitted)
   }
 
-  async moveNetworkRoute(tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    await this.applyNetworkRoutes(tab, validate, false, () => {
-      const index = tab.networkRoutes.findIndex(route => route.id === routeId)
-      if (index < 0) throw new Error(`Network route not found: ${routeId}`)
-      const target = direction === 'up' ? index - 1 : index + 1
-      if (target < 0 || target >= tab.networkRoutes.length) return
-      const reordered = [...tab.networkRoutes]
-      const [route] = reordered.splice(index, 1)
-      reordered.splice(target, 0, route!)
-      tab.networkRoutes = reordered
-    }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  moveNetworkRoute(tabId: string | undefined, routeId: string, direction: BrowserNetworkRouteMoveDirection, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return moveNetworkRoute(this.networkConditionsAccess(), tabId, routeId, direction, validate, markSubmitted)
   }
 
-  async clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
-    const tab = this.getTab(tabId)
-    await this.applyNetworkRoutes(tab, validate, true, () => { tab.networkRoutes = [] }, markSubmitted)
-    return this.networkRoutes(tab.id)
+  clearNetworkRoutes(tabId?: string, validate: () => void = () => {}, markSubmitted: () => void = () => {}): Promise<BrowserNetworkRouteSummary[]> {
+    return clearNetworkRoutes(this.networkConditionsAccess(), tabId, validate, markSubmitted)
   }
 
   listDownloads(): BrowserDownloadState[] {
@@ -9265,21 +9233,6 @@ export class BrowserTabsManager {
       request.observationGeneration === tab.observationGeneration
       && request.captureSequence > minCaptureSequence && networkRequestMatchesWait(request, options)
     ))
-  }
-
-  private networkRouteSummary(route: BrowserNetworkRouteRecord): BrowserNetworkRouteSummary {
-    return {
-      id: route.id,
-      enabled: route.enabled,
-      urlPattern: route.urlPattern,
-      ...(route.method ? { method: route.method } : {}),
-      behavior: route.behavior,
-      ...(route.remainingMatches !== undefined ? { remainingMatches: route.remainingMatches } : {}),
-      createdAt: route.createdAt,
-      ...(route.response ? { response: { ...route.response, headerNames: [...route.response.headerNames] } } : {}),
-      ...(route.abort ? { abort: route.abort } : {}),
-      ...(route.throttle ? { throttle: route.throttle } : {})
-    }
   }
 
   private async applyNetworkRoutes(tab: BrowserTab, validate: () => void = () => {}, recovery = false, mutate?: () => void, markSubmitted: () => void = () => {}, admission?: () => void): Promise<void> {
