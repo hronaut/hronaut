@@ -3,6 +3,7 @@ import { app, Menu, nativeImage, Notification, Tray, type BrowserWindow, type Na
 import { bindTrayActivation } from './tray-activation.js'
 import trayIconPath from '../../build/icons/24x24.png?asset'
 import trayAttentionIconPath from '../../build/icons/tray-attention.png?asset'
+import type { AppQuitState } from './app-lifecycle.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpHttpServer } from './mcp/server.js'
 import type { UserAttentionLifecycle } from './user-attention-lifecycle.js'
@@ -12,6 +13,7 @@ import type {
   AppSettings,
   AppUpdateState,
   BrowserState,
+  McpTabActivity,
   UserAttentionInput,
   UserAttentionRequest
 } from '../shared/types.js'
@@ -42,16 +44,14 @@ interface TrayAttentionHost {
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
   checkForUpdates(): Promise<AppUpdateState>
-  /** Marks the app as quitting, so closing the window quits instead of hiding it in the tray. */
-  setQuitting(value: boolean): void
+  /** Whether the app is quitting; the tray's Quit sets it, so closing the window quits instead of hiding it in the tray. */
+  quit: AppQuitState
   /** The record of attention requests agents read; it lives as long as the app. */
   userAttentionLifecycle: Pick<UserAttentionLifecycle, 'acknowledge' | 'reconcile' | 'request' | 'supersede'>
   /** The open request; index.ts creates the record, and the shell, Home, the IPC handlers and agents read it too. */
   state: UserAttentionState
   agentPresenceSnapshot(): AgentPresenceSnapshot
   scheduleAgentPresencePublish(): void
-  /** Agent commands still running on a page; a key or click during one is not a response. */
-  activeMcpActivities(): ReadonlySet<string>
   /** The current settings; read on every use because each committed update replaces the object. */
   settings(): AppSettings
   /** Replaces the runtime settings without saving them. */
@@ -74,8 +74,9 @@ function compactAttentionReason(reason: string): string {
 /**
  * The tray icon and its menu, and how an agent's request for the user's attention shows: a pulsing tray icon, a
  * flashing window frame, a system notification and the shell's needs-you state, until the user responds or the
- * request ends. The tray, its icons and the signal timers live here; the open request is the UserAttentionState
- * record index.ts creates, because other features read it.
+ * request ends. The tray, its icons, the signal timers and the agent commands still running on pages, during which a
+ * key or click is not a response, live here; the open request is the UserAttentionState record index.ts creates,
+ * because other features read it.
  */
 export function createTrayAttention(host: TrayAttentionHost): {
   setTrayContextMenu(): void
@@ -89,6 +90,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
   userAttentionForAgents(): UserAttentionRequest | null
   openUserAttentionId(): string | null
   agentMovedOn(attentionId: string): void
+  noteMcpTabActivity(activity: Pick<McpTabActivity, 'activityId' | 'phase'>): void
   createTray(): boolean
 } {
   let tray: Tray | null = null
@@ -99,6 +101,8 @@ export function createTrayAttention(host: TrayAttentionHost): {
   let attentionNotification: Notification | null = null
   let trayIcon: NativeImage | null = null
   let trayAttentionIcon: NativeImage | null = null
+  /** Agent commands still running on a page; a key or click during one is not a response. */
+  const activeMcpActivities = new Set<string>()
 
   function setTrayContextMenu(): void {
     if (!tray || tray.isDestroyed()) return
@@ -148,7 +152,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
       {
         label: host.text('native.tray.quit'),
         click: () => {
-          host.setQuitting(true)
+          host.quit.quitting = true
           app.quit()
         }
       }
@@ -240,7 +244,13 @@ export function createTrayAttention(host: TrayAttentionHost): {
   }
 
   function acknowledgeUserAttention(): void {
-    if (host.activeMcpActivities().size === 0) quietUserAttention()
+    if (activeMcpActivities.size === 0) quietUserAttention()
+  }
+
+  /** An agent command started or settled on a page, as the MCP server reports its tab activity. */
+  function noteMcpTabActivity(activity: Pick<McpTabActivity, 'activityId' | 'phase'>): void {
+    if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
+    else activeMcpActivities.delete(activity.activityId)
   }
 
   async function requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest> {
@@ -367,6 +377,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
     userAttentionForAgents,
     openUserAttentionId,
     agentMovedOn,
+    noteMcpTabActivity,
     createTray
   }
 }

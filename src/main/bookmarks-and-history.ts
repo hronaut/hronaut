@@ -22,7 +22,7 @@ interface BookmarksAndHistoryHost {
   /** The two stores; index.ts creates the record, and most of the main process reads it. */
   state: BookmarksAndHistoryState
   sendToShellWindows(channel: string, ...args: unknown[]): void
-  /** The MCP listener while it runs, whose Home feed goes when an agent clears the history. */
+  /** The MCP listener while it runs, whose Home feed goes when the person or an agent clears the history. */
   mcpServer(): Pick<McpHttpServer, 'forgetHomeFeed'> | null
   /** Offers the person's latest reversible action for Undo, replacing the previous offer. */
   offerUndo(action: UndoableAction): void
@@ -30,8 +30,8 @@ interface BookmarksAndHistoryHost {
 
 /**
  * Bookmarks and visit history at runtime: opening both stores, recording the pages tabs visit, telling both shell
- * windows what they hold after each change, offering to undo a bookmark the person removed, and the operations the MCP
- * server offers agents on them, `agentBookmarks` and `agentHistory`.
+ * windows what they hold after each change, offering to undo a bookmark the person removed, forgetting Home's feed with
+ * the history, and the operations the MCP server offers agents on them, `agentBookmarks` and `agentHistory`.
  */
 export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   publishBookmarks(): BrowserBookmark[]
@@ -41,6 +41,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   recordPageVisit(visit: { url: string; title: string }): void
   updatePageTitle(page: { url: string; title: string }): void
   offerBookmarkRestore(removed: RemovedBookmark): void
+  historyCleared(): void
   agentBookmarks: BookmarkOperations
   agentHistory: HistoryOperations
 } {
@@ -98,6 +99,11 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     })
   }
 
+  /** The history was cleared, by the person or an agent; Home's feed names pages agents acted on, so it goes too. */
+  function historyCleared(): void {
+    host.mcpServer()?.forgetHomeFeed()
+  }
+
   /** Agents' bookmark operations; each change is published to both shell windows. */
   const agentBookmarks: BookmarkOperations = {
     list: () => host.state.bookmarks?.list() ?? [],
@@ -129,8 +135,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     clear: async () => {
       if (!host.state.history) throw new Error('Visit history is unavailable')
       await host.state.history.clear()
-      // Home's feed names pages agents acted on, so it goes with the history.
-      host.mcpServer()?.forgetHomeFeed()
+      historyCleared()
       return publishVisitHistory()
     }
   }
@@ -143,6 +148,7 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     recordPageVisit,
     updatePageTitle,
     offerBookmarkRestore,
+    historyCleared,
     agentBookmarks,
     agentHistory
   }

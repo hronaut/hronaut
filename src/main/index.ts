@@ -7,12 +7,8 @@ import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { registerNetworkRoutesIpc } from './network-routes-ipc.js'
 import { registerWalletIpc } from './wallet/ipc.js'
-import { ShellOverlayView } from './shell-overlay-view.js'
-import { AgentCardOverlay } from './agent-card-overlay.js'
-import { ToastOverlay } from './toast-overlay.js'
-import type { ToastOverlayEvent } from '../shared/toast-overlay.js'
-import type { AgentCardEvent } from '../shared/agent-card.js'
-import { ShellTooltipOverlay } from './shell-tooltip-overlay.js'
+import type { FollowSuspensionState } from './agent-card-overlay.js'
+import { createShellOverlays } from './windows/shell-overlays.js'
 import { registerOverlayViewsIpc } from './overlay-views-ipc.js'
 import { registerPanelWindowIpc } from './panel-window-ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
@@ -22,7 +18,7 @@ import { TakeOverOffers } from './take-over-offers.js'
 import { homeWorkspaceState } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { createTrayAttention, type UserAttentionState } from './tray-attention.js'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { createIpcGuards, trustedShellUrl, trustedUrlMatches } from './ipc-guards.js'
 import {
   app,
@@ -33,9 +29,7 @@ import {
   nativeTheme,
   protocol,
   session,
-  shell,
-  WebContentsView,
-  webContents as allWebContents
+  shell
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { enableNativeWebMcp } from './native-webmcp-switch.js'
@@ -64,8 +58,7 @@ import { registerHomeIpc } from './home-ipc.js'
 import { McpPortRecovery } from './mcp-port-suggestion.js'
 import { registerMcpControlIpc } from './mcp-control-ipc.js'
 import {
-  shouldStartMinimized,
-  StartupLaunchManager
+  shouldStartMinimized
 } from './startup-launch.js'
 import {
   McpHttpServer
@@ -102,7 +95,8 @@ import { createWindowStatePersistence } from './windows/window-state-persistence
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
 import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
-import { registerAppLifecycle } from './app-lifecycle.js'
+import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
+import { createRuntimeShutdown } from './runtime-shutdown.js'
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
@@ -170,103 +164,33 @@ const addressSuggestionOverlay = createAddressSuggestionOverlay({
   settings: () => settingsState.current,
   resolvedLocale: () => settingsState.resolvedLocale
 })
-const tooltipView = new ShellOverlayView({
-  name: 'tooltip',
-  preload: join(__dirname, '../preload/tooltipOverlay.cjs'),
-  url: () => trustedTooltipOverlayUrl(),
-  window: () => mainWindowRefs.window,
-  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
-  onLost: () => shellTooltips.surfaceLost()
-})
-const agentCardView = new ShellOverlayView({
-  name: 'agent card',
-  preload: join(__dirname, '../preload/agentCard.cjs'),
-  url: () => trustedAgentCardUrl(),
-  window: () => mainWindowRefs.window,
-  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
-  onLost: () => agentCards.surfaceLost()
-})
-let shellFollowAgentActivitySuspended = false
-let agentCardOpen = false
-const agentCards = new AgentCardOverlay({
-  surface: () => ensureAgentCardSurface(),
-  windowSize: () => {
-    if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || !mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) return null
-    const [width = 0, height = 0] = mainWindowRefs.window.getContentSize()
-    return { width, height }
-  },
-  emit: (event: AgentCardEvent) => {
-    if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('agent-card:event', event)
-  },
-  focusShell: () => {
-    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.focus()
-  },
-  openChanged: (open) => {
-    agentCardOpen = open
-    // Follow would switch tabs under the open card.
-    tabRuntime.tabs?.setFollowAgentActivitySuspended(shellFollowAgentActivitySuspended || agentCardOpen)
-  },
-  focusOwner: () => allWebContents.getFocusedWebContents()?.id ?? null
-})
-const toastOverlayView = new ShellOverlayView({
-  name: 'toast',
-  preload: join(__dirname, '../preload/toastOverlay.cjs'),
-  url: () => trustedToastOverlayUrl(),
-  window: () => mainWindowRefs.window,
-  urlMatches: (actual, expected) => trustedUrlMatches(actual, expected),
-  onLost: () => toastOverlay.surfaceLost(),
-  // A toast is about something the person did; the agent card, a tooltip or address suggestions they open go above it.
-  keepAbove: () => [agentCardView.currentView(), tooltipView.currentView(), addressSuggestionOverlay.currentView()].filter((view) => !!view)
-})
-const toastOverlay = new ToastOverlay({
-  surface: () => ensureToastOverlaySurface(),
-  layout: () => {
-    if (tabRuntime.startupFailure || !mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || mainWindowRefs.window.webContents.isDestroyed()) return null
-    // No page area until the saved workspaces are up, or after they failed to come up; the shell shows its own copy.
-    if (!tabRuntime.tabs || tabRuntime.initializedTabs !== tabRuntime.tabs) return null
-    const area = tabRuntime.tabs.pageArea()
-    return area ? { area, zoom: mainWindowRefs.window.webContents.getZoomFactor() } : null
-  },
-  emit: (event: ToastOverlayEvent) => {
-    if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) mainWindowRefs.window.webContents.send('toast-overlay:event', event)
-  },
-  focusOwner: () => {
-    const focused = allWebContents.getFocusedWebContents()
-    return focused && !toastOverlayView.owns(focused) ? focused : null
-  },
-  restoreFocus: (owner) => {
-    // Focus moves to the view while the click lands; moving it back in the same task does not stick.
-    setImmediate(() => {
-      const window = mainWindowRefs.window
-      if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
-      const focused = allWebContents.getFocusedWebContents()
-      // Only while the view still has it: the toast's action may have moved focus on purpose meanwhile.
-      if (!focused || !toastOverlayView.owns(focused)) return
-      const previous = owner as Electron.WebContents | null
-      const overlay = !!previous && (toastOverlayView.owns(previous) || agentCardView.owns(previous) || tooltipView.owns(previous)
-        || addressSuggestionOverlay.owns(previous))
-      // Back to a page only while it still shows; from an overlay that has since closed, or a page that went, the shell.
-      const page = previous && !previous.isDestroyed() && !overlay && window.contentView.children.some((child) => (
-        child.getVisible() && 'webContents' in child && (child as WebContentsView).webContents === previous
-      )) ? previous : null
-      ;(page ?? window.webContents).focus()
-    })
-  }
-})
-const shellTooltips = new ShellTooltipOverlay({
-  surface: () => ensureTooltipSurface(),
-  windowSize: () => {
-    if (!mainWindowRefs.window || mainWindowRefs.window.isDestroyed() || !mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) return null
-    const [width = 0, height = 0] = mainWindowRefs.window.getContentSize()
-    return { width, height }
-  }
-})
 const tabRuntime: TabRuntimeState = {
   tabs: null,
   initialization: null,
   initializedTabs: null,
   startupFailure: undefined
 }
+const followSuspension: FollowSuspensionState = { shellSuspended: false, agentCardOpen: false }
+const {
+  tooltipView,
+  agentCardView,
+  agentCards,
+  toastOverlayView,
+  toastOverlay,
+  shellTooltips
+} = createShellOverlays({
+  trustedUrlMatches,
+  mainWindowRefs,
+  addressSuggestionOverlay,
+  followSuspension,
+  tabRuntime,
+  trustedAgentCardUrl: () => trustedAgentCardUrl(),
+  ensureAgentCardSurface: () => ensureAgentCardSurface(),
+  trustedToastOverlayUrl: () => trustedToastOverlayUrl(),
+  ensureToastOverlaySurface: () => ensureToastOverlaySurface(),
+  trustedTooltipOverlayUrl: () => trustedTooltipOverlayUrl(),
+  ensureTooltipSurface: () => ensureTooltipSurface()
+})
 const workspaceStartupReads = new WorkspaceStartupReads()
 let requireExistingWorkspaceMetadata = false
 const { runNativeBrowserAction, showWorkspaceRecoveryNotice } = createTabRuntimeStartup({
@@ -312,7 +236,7 @@ const mcpPortRecovery = new McpPortRecovery({
   listen: (port) => setMcpPort(port),
   changed: () => publishMcpControlState({ refreshHome: false })
 })
-let quitting = false
+const appQuitState: AppQuitState = { quitting: false }
 const {
   currentState: currentWindowState,
   scheduleSave: scheduleWindowStateSave,
@@ -345,9 +269,9 @@ const settingsState: SettingsState = {
   current: { ...DEFAULT_SETTINGS },
   systemLocale: 'en-US',
   resolvedLocale: 'en-US',
-  mutationQueue: Promise.resolve()
+  mutationQueue: Promise.resolve(),
+  startupLaunchManager: null
 }
-let startupLaunchManager: StartupLaunchManager | null = null
 const {
   text,
   defaultDownloadDirectory,
@@ -356,6 +280,7 @@ const {
   currentRendererSettingsState,
   applyDownloadSettings,
   publishSettings,
+  createStartupLaunchManager,
   loadAuthoritativeSettings,
   reconcileStartupSetting
 } = createSettingsRuntime({
@@ -364,7 +289,6 @@ const {
   sendToShellWindows,
   mcpRuntime,
   mcpAuthDisabled: MCP_AUTH_DISABLED,
-  startupLaunchManager: () => startupLaunchManager,
   persistentSession: () => browserSessionState.persistentSession,
   tabs: () => tabRuntime.tabs
 })
@@ -401,7 +325,7 @@ const {
 } = createCommercialLicenseRuntime({
   text,
   credentialStorageStatus: () => credentialRuntime.storageStatus,
-  quitting: () => quitting,
+  quit: appQuitState,
   sendToShellWindows,
   state: commercialLicenseRuntime
 })
@@ -417,6 +341,7 @@ const {
   recordPageVisit,
   updatePageTitle,
   offerBookmarkRestore,
+  historyCleared,
   agentBookmarks,
   agentHistory
 } = createBookmarksAndHistory({
@@ -443,7 +368,6 @@ const { configureAutoUpdater, checkForUpdates, downloadUpdate, installDownloaded
   mainWindow: () => mainWindowRefs.window,
   panelWindow: () => panelWindowRefs.window
 })
-let runtimeShutdown: Promise<void> | null = null
 const userAttentionLifecycle = new UserAttentionLifecycle()
 const userAttentionState: UserAttentionState = {
   request: null,
@@ -462,6 +386,7 @@ const {
   userAttentionForAgents,
   openUserAttentionId,
   agentMovedOn,
+  noteMcpTabActivity,
   createTray
 } = createTrayAttention({
   text,
@@ -471,12 +396,11 @@ const {
   mcpServer: () => mcpRuntime.server,
   runNativeBrowserAction,
   checkForUpdates,
-  setQuitting: (value) => { quitting = value },
+  quit: appQuitState,
   userAttentionLifecycle,
   state: userAttentionState,
   agentPresenceSnapshot: () => agentPresenceSnapshot(),
   scheduleAgentPresencePublish: () => scheduleAgentPresencePublish(),
-  activeMcpActivities: () => activeMcpActivities,
   settings: () => settingsState.current,
   setSettings: (value) => { settingsState.current = value },
   publishSettings,
@@ -497,8 +421,6 @@ const {
   text,
   mainWindow: () => mainWindowRefs.window
 })
-
-const activeMcpActivities = new Set<string>()
 
 if (!isLoopbackHost(mcpRuntime.host)) {
   throw new Error('HRONAUT_MCP_HOST must be a loopback host. Use an authenticated TLS proxy for remote access.')
@@ -639,7 +561,7 @@ const { installApplicationMenu } = createApplicationMenu({
   showWindow,
   mainWindow: () => mainWindowRefs.window,
   checkForUpdates,
-  setQuitting: (value) => { quitting = value },
+  quit: appQuitState,
   runNativeBrowserAction,
   tabs: () => tabRuntime.tabs
 })
@@ -788,16 +710,14 @@ function registerIpc(): void {
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     copyTextToClipboard,
     showWindow,
-    setQuitting: (value) => { quitting = value },
+    quit: appQuitState,
     quitApp: () => app.quit(),
     windowFromWebContents: (webContents) => BrowserWindow.fromWebContents(webContents),
     tabs: () => tabRuntime.tabs,
     toastOverlay: () => toastOverlay,
     setWindowControlsScrim: (scrim) => { mainWindowRefs.controlsScrim = scrim },
     applyMainWindowTitleBarOverlay,
-    shellFollowAgentActivitySuspended: () => shellFollowAgentActivitySuspended,
-    setShellFollowAgentActivitySuspended: (value) => { shellFollowAgentActivitySuspended = value },
-    agentCardOpen: () => agentCardOpen
+    followSuspension
   })
   registerHomeIpc({
     handleBrowserIpc,
@@ -885,7 +805,7 @@ function registerIpc(): void {
     downloads: () => tabRuntime.tabs!,
     publishBookmarks,
     publishVisitHistory,
-    historyCleared: () => mcpRuntime.server?.forgetHomeFeed(),
+    historyCleared,
     bookmarkRemoved: offerBookmarkRestore
   })
   registerBrowsingDataIpc({
@@ -939,7 +859,7 @@ function registerIpc(): void {
     applyLanguagePreferenceRuntime,
     applyMainWindowTitleBarOverlay,
     applyMainWindowBackground,
-    startupLaunchManager: () => startupLaunchManager,
+    startupLaunchManager: () => settingsState.startupLaunchManager,
     defaultDownloadDirectory,
     effectiveDownloadDirectory: () => effectiveDownloadDirectory(),
     chooseDownloadDirectory: () => {
@@ -1133,15 +1053,15 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.on('enter-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('leave-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('close', (event) => {
-    if (!quitting && settingsState.current.hideInTray) {
+    if (!appQuitState.quitting && settingsState.current.hideInTray) {
       event.preventDefault()
       panelWindowRefs.window?.hide()
       mainWindowRefs.window?.hide()
       return
     }
-    if (!quitting) {
+    if (!appQuitState.quitting) {
       event.preventDefault()
-      quitting = true
+      appQuitState.quitting = true
       setImmediate(() => app.quit())
     }
   })
@@ -1209,48 +1129,21 @@ async function createWindow(startMinimized = false): Promise<void> {
   if (!startMinimized) mainWindowRefs.window.show()
 }
 
-async function releaseRuntimeResources(): Promise<void> {
-  if (runtimeShutdown) return runtimeShutdown
-  const manager = tabRuntime.tabs
-  manager?.stopTabLabelEdits()
-  const server = mcpRuntime.server
-  const wallets = walletRuntime.service
-  const broker = walletRuntime.broker
-  mcpRuntime.server = null
-  runtimeShutdown = (async () => {
-    bookmarksAndHistory.history?.dispose()
-    const results = [
-      ...await Promise.allSettled([server?.stop()]),
-      ...await Promise.allSettled([agentServices.auditReceipts?.stopAll()]),
-      // A workspace closed with Undo still on offer is deleted now, and so is one closed while quitting.
-      ...await Promise.allSettled([undoOffers.close()]),
-      ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
-      ...await Promise.allSettled([broker?.shutdown()]),
-      ...await Promise.allSettled([
-        manager?.flushPersist(),
-        manager?.flushWorkspaceProfiles(),
-        bookmarksAndHistory.bookmarks?.flush(),
-        credentialRuntime.store?.flush(),
-        bookmarksAndHistory.history?.flush(),
-        browserSessionState.sitePermissionStore?.flush(),
-        commercialLicenseRuntime.store?.flush(),
-        settingsState.mutationQueue,
-        flushWindowState(),
-        flushPanelWindowState(),
-        flushBrowserProfile()
-      ])
-    ]
-    for (const result of results) {
-      if (result.status === 'rejected') console.error('[shutdown] Runtime cleanup failed:', result.reason)
-    }
-    manager?.destroy()
-    wallets?.dispose()
-    if (tabRuntime.tabs === manager) tabRuntime.tabs = null
-    if (walletRuntime.service === wallets) walletRuntime.service = null
-    if (walletRuntime.broker === broker) walletRuntime.broker = null
-  })()
-  return runtimeShutdown
-}
+const { releaseRuntimeResources } = createRuntimeShutdown({
+  tabRuntime,
+  mcpRuntime,
+  walletRuntime,
+  bookmarksAndHistory,
+  agentServices,
+  undoOffers,
+  credentialRuntime,
+  browserSessionState,
+  commercialLicenseRuntime,
+  settingsState,
+  flushWindowState,
+  flushPanelWindowState,
+  flushBrowserProfile
+})
 
 function createRuntimeMcpServer(
   port: number,
@@ -1281,8 +1174,7 @@ function createRuntimeMcpServer(
     siteData: agentSiteData,
     wallets: agentWallets,
     onTabActivity: (activity, agent) => {
-      if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)
-      else activeMcpActivities.delete(activity.activityId)
+      noteMcpTabActivity(activity)
       tabRuntime.tabs?.handleMcpTabActivity(activity, agent)
       if (mainWindowRefs.window && !mainWindowRefs.window.webContents.isDestroyed()) {
         mainWindowRefs.window.webContents.send('browser:mcp-tab-activity', activity)
@@ -1322,16 +1214,7 @@ async function startRuntime(): Promise<void> {
   )
   await openCapabilityProfiles()
   configureAutoUpdater()
-  startupLaunchManager = new StartupLaunchManager({
-    platform: process.platform,
-    isPackaged: app.isPackaged,
-    executablePath: process.platform === 'linux' && process.env.APPIMAGE
-      ? resolve(process.env.APPIMAGE)
-      : process.execPath,
-    autostartDirectory: join(app.getPath('appData'), 'autostart'),
-    nativeLoginItems: app,
-    warn: (message, error) => { console.warn(`[startup] ${message}:`, error) }
-  })
+  const startupLaunchManager = createStartupLaunchManager()
   await loadAuthoritativeSettings()
   if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
@@ -1360,7 +1243,7 @@ async function startRuntime(): Promise<void> {
 registerAppLifecycle(app, {
   gotLock,
   quitRequestedAtStartup,
-  setQuitting: (value) => { quitting = value },
+  quit: appQuitState,
   settings: () => settingsState.current,
   showWindow,
   commercialLicenseStateTimer: () => commercialLicenseRuntime.stateTimer,

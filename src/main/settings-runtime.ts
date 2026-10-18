@@ -5,7 +5,7 @@ import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { SettingsStore } from './settings-store.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpRuntimeState } from './mcp-runtime.js'
-import type { StartupLaunchManager } from './startup-launch.js'
+import { StartupLaunchManager } from './startup-launch.js'
 import type { MainWindowRefs } from './windows/main-window.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 import { resolveLocalePreference, resolveSupportedLocale } from '../shared/locale.js'
@@ -14,9 +14,9 @@ import { isValidMcpPort } from '../shared/mcp-port.js'
 import type { AppSettings, RendererSettingsState, SupportedLocale } from '../shared/types.js'
 
 /**
- * The settings the app runs with and the interface language, created once by index.ts. A committed update replaces
- * the current and saved settings together; every reader reads the fields when it runs, so it always sees the
- * committed values.
+ * The settings the app runs with, the interface language and the operating system's launch at login setting, created
+ * once by index.ts. A committed update replaces the current and saved settings together; every reader reads the fields
+ * when it runs, so it always sees the committed values.
  */
 export interface SettingsState {
   /** The settings file, once startup loaded it. */
@@ -31,6 +31,8 @@ export interface SettingsState {
   resolvedLocale: SupportedLocale
   /** The settings updates still running, chained so each starts from the one before; shutdown waits for them. */
   mutationQueue: Promise<void>
+  /** The operating system's launch at login setting, once startup created its manager; settings IPC changes it too. */
+  startupLaunchManager: StartupLaunchManager | null
 }
 
 interface SettingsRuntimeHost {
@@ -43,8 +45,6 @@ interface SettingsRuntimeHost {
   mcpRuntime: Pick<McpRuntimeState, 'host' | 'port' | 'url'>
   /** Whether HRONAUT_DISABLE_MCP_AUTH turned MCP authentication off for this run; index.ts reads it while loading. */
   mcpAuthDisabled: boolean
-  /** The operating system's launch at login setting, once startup created its manager; settings IPC changes it too. */
-  startupLaunchManager(): Pick<StartupLaunchManager, 'isEnabled'> | null
   /** The browser profile's session, whose download folder follows the setting; null until startup configures it. */
   persistentSession(): Pick<Session, 'setDownloadPath'> | null
   /** The tab runtime, whose downloads follow the settings; null until the window opens. */
@@ -54,7 +54,8 @@ interface SettingsRuntimeHost {
 /**
  * Settings at runtime: loading them at startup with the environment's overrides, translating into the interface
  * language, committing updates one after another so each is saved before it becomes current, telling both shell
- * windows, the download folder, and matching the launch at login setting to the operating system's.
+ * windows, the download folder, and creating the manager of the operating system's launch at login setting and
+ * matching the setting to it.
  */
 export function createSettingsRuntime(host: SettingsRuntimeHost): {
   text(key: MessageKey, parameters?: MessageParameters): string
@@ -67,6 +68,7 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
   currentRendererSettingsState(): RendererSettingsState
   applyDownloadSettings(updates: Partial<AppSettings>): Promise<AppSettings>
   publishSettings(): void
+  createStartupLaunchManager(): StartupLaunchManager
   loadAuthoritativeSettings(): Promise<void>
   reconcileStartupSetting(): Promise<void>
 } {
@@ -135,6 +137,21 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
     host.sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())
   }
 
+  /** Creates the manager of the operating system's launch at login setting, keeps it in the state and returns it. */
+  function createStartupLaunchManager(): StartupLaunchManager {
+    host.state.startupLaunchManager = new StartupLaunchManager({
+      platform: process.platform,
+      isPackaged: app.isPackaged,
+      executablePath: process.platform === 'linux' && process.env.APPIMAGE
+        ? resolve(process.env.APPIMAGE)
+        : process.execPath,
+      autostartDirectory: join(app.getPath('appData'), 'autostart'),
+      nativeLoginItems: app,
+      warn: (message, error) => { console.warn(`[startup] ${message}:`, error) }
+    })
+    return host.state.startupLaunchManager
+  }
+
   async function loadAuthoritativeSettings(): Promise<void> {
     host.state.store = new SettingsStore(join(app.getPath('userData'), 'settings.json'))
     host.state.persisted = await host.state.store.load()
@@ -154,9 +171,9 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
   }
 
   async function reconcileStartupSetting(): Promise<void> {
-    if (!host.startupLaunchManager()) return
+    if (!host.state.startupLaunchManager) return
     try {
-      const launchAtStartup = await host.startupLaunchManager()!.isEnabled()
+      const launchAtStartup = await host.state.startupLaunchManager!.isEnabled()
       if (launchAtStartup !== host.state.current.launchAtStartup) await updateSettings({ launchAtStartup })
     } catch (error) {
       console.warn('[startup] Could not read the operating-system startup setting:', error)
@@ -171,6 +188,7 @@ export function createSettingsRuntime(host: SettingsRuntimeHost): {
     currentRendererSettingsState,
     applyDownloadSettings,
     publishSettings,
+    createStartupLaunchManager,
     loadAuthoritativeSettings,
     reconcileStartupSetting
   }

@@ -30,15 +30,23 @@ than the entire browser runtime.
   asking on the main window, changing the interface language, routing browser
   shortcuts pressed in pages and enabling Chromium's native WebMCP come from
   `main/windows/shell-windows.ts`, `main/interface-language.ts`,
-  `main/browser-shortcut-routing.ts` and `main/native-webmcp-switch.ts`. Most state
-  that several features read or change is one record that index.ts creates once, typed
-  beside its owner: `McpRuntimeState` in
+  `main/browser-shortcut-routing.ts` and `main/native-webmcp-switch.ts`. The shell's
+  tooltip, agent card and toast overlays and the runtime's orderly shutdown come from
+  `main/windows/shell-overlays.ts` and `main/runtime-shutdown.ts`. State that several
+  features read or change is one record that index.ts creates once, typed beside its
+  owner: `McpRuntimeState` in
   `main/mcp-runtime.ts`, which starts, moves and resets the listener, `SettingsState`
-  in `main/settings-runtime.ts`, which loads, commits and publishes settings and
-  translates into the interface language, `WalletRuntimeState` in
+  in `main/settings-runtime.ts`, which loads, commits and publishes settings,
+  translates into the interface language and creates the manager of the operating
+  system's launch at login setting, `WalletRuntimeState` in
   `main/wallet/runtime.ts`, which starts wallets and admits page and agent requests,
   `UserAttentionState` in `main/tray-attention.ts`, which shows and ends the request
-  for the person's attention, `TabRuntimeState` in `main/tab-runtime-startup.ts`, the
+  for the person's attention, `AppQuitState` in `main/app-lifecycle.ts`, whether the
+  app is quitting, which the tray, the application menu, the shell IPC, the lifecycle
+  events and the main window's close set and the license runtime reads,
+  `FollowSuspensionState` in `main/agent-card-overlay.ts`, the shell's request and an
+  open agent card, either of which keeps Follow from switching tabs,
+  `TabRuntimeState` in `main/tab-runtime-startup.ts`, the
   tab runtime and how far its saved workspaces got in starting, whose module skips
   native browser actions until they are up and shows the recovery notice when their
   metadata is rejected, `CredentialRuntimeState`, `BrowserSessionState` and
@@ -47,6 +55,9 @@ than the entire browser runtime.
   `BookmarksAndHistoryState`, `AgentServicesState` and `AppUpdatesState` in their
   modules, `MainWindowRefs` in `main/windows/main-window.ts` and `PanelWindowRefs` in
   `main/windows/panel-window.ts`, whose module and IPC take the record itself.
+  The only loose variable left in index.ts is whether saved workspace metadata must
+  already exist, which its `startRuntime` learns while discarding obsolete browser
+  data and its `createWindow` reads; no other feature touches it.
   What the MCP server offers agents is built by the feature that owns it: agents'
   wallets in `main/wallet/runtime.ts`, site data in `main/site-data.ts`, bookmarks
   and history in `main/bookmarks-and-history.ts`, the automation license checks in
