@@ -445,6 +445,8 @@ import {
 import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
 import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
 import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
+import type { PageDestroyedEventsAccess } from './tab-events/page-destroyed-events-access.js'
+import { attachPageDestroyedEvents } from './tab-events/page-destroyed-events.js'
 import type { DebuggerEventsAccess } from './tab-events/debugger-events-access.js'
 import { attachDebuggerEvents } from './tab-events/debugger-events.js'
 import type { NavigationEventsAccess } from './tab-events/navigation-events-access.js'
@@ -6412,86 +6414,7 @@ export class BrowserTabsManager {
 
   private attachTabEvents(tab: BrowserTab): void {
     const webContents = tab.webContents
-    webContents.once('destroyed', () => {
-      tab.faviconAbortController?.abort()
-      tab.faviconAbortController = undefined
-      this.invalidateTabOverviewPreview(tab)
-      this.tabOverviewPreviewCaptures.cancelPending(tab.id)
-      this.tabOverviewPreviewableTabs.delete(tab.id)
-      this.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
-      this.cancelNativeSelectionSessions(tab)
-      if (this.expectedTabClosures.has(webContents)) {
-        this.dialogMonitorAttachPromises.delete(webContents.id)
-        this.defaultExecutionContexts.delete(webContents.id)
-        return
-      }
-      if (this.destroyed || this.tabs.get(tab.id) !== tab) return
-      this.runWalletLifecycleAction('cancel wallet requests after a tab renderer closes', () => (
-        this.options.onWalletTabClosed?.(tab.id)
-      ))
-      tab.loading = false
-      tab.pageProblem = {
-        kind: 'renderer-gone',
-        title: this.text('native.dialog.pageDestroyedTitle'),
-        message: this.text('native.dialog.pageDestroyedMessage'),
-        url: tab.url,
-        reason: 'renderer-destroyed'
-      }
-      if (this.splitViewContains(tab.id)) {
-        const split = this.splitView!
-        const partnerId = split.firstTabId === tab.id ? split.secondTabId : split.firstTabId
-        const partner = this.tabs.get(partnerId)
-        this.splitView = null
-        try {
-          this.window.contentView.removeChildView(tab.view)
-        } catch (error) {
-          console.warn(`[browser] Could not detach destroyed split pane ${tab.id}:`, error)
-        }
-        if (partner && !partner.webContents.isDestroyed()) {
-          if (this.activeTabId === tab.id) {
-            this.activeTabId = partner.id
-            partner.lastActiveAt = Date.now()
-            this.markTabActiveInGroup(partner)
-          }
-          this.layout()
-          if (this.activeTabId === partner.id) this.focusTabOrTrustedChrome(partner)
-          this.changed()
-          return
-        }
-      }
-
-      const active = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
-      if (active && !active.webContents.isDestroyed()) {
-        this.changed()
-        return
-      }
-      const replacement = this.orderedTabs().find((candidate) => (
-        candidate.id !== tab.id && !candidate.webContents.isDestroyed()
-      ))
-      if (replacement) {
-        try {
-          this.selectTab(replacement.id)
-          return
-        } catch (error) {
-          console.error('[browser] Could not activate a live tab after renderer teardown:', error)
-        }
-      }
-      if (active) {
-        try {
-          this.window.contentView.removeChildView(active.view)
-        } catch (error) {
-          console.warn(`[browser] Could not detach destroyed active pane ${active.id}:`, error)
-        }
-      }
-      this.activeTabId = null
-      this.changed(false)
-      this.publishPageGeometry()
-      void this.createTab({ url: HRONAUT_HOME_URL, active: true })
-        .catch((error) => {
-          console.error('[browser] Could not create a replacement tab after renderer teardown:', error)
-          this.options.onActionFailed?.('recover from a closed page renderer', error)
-        })
-    })
+    attachPageDestroyedEvents(this.pageDestroyedEventsAccess(), tab, webContents)
     attachPageFocusEvents(this.pageFocusEventsAccess(), tab, webContents)
     webContents.on('before-input-event', (event, input) => {
       if (this.browserContentOccluded && !this.agentInputWebContents.has(webContents.id)) {
@@ -6694,6 +6617,49 @@ export class BrowserTabsManager {
       hasTab: (tabId) => this.tabs.has(tabId),
       devToolsOpening: () => this.devToolsOpening,
       ensureDialogMonitoring: (tab) => this.ensureDialogMonitoring(tab)
+    }
+  }
+
+  /**
+   * The narrow view a page's destroyed listener gets of this manager's
+   * private tab overview previews, network waits, native selection sessions,
+   * expected closures, dialog monitoring, execution contexts, destroyed flag,
+   * tabs, wallet requests, options, localized text, split view, window, active
+   * tab, workspace activation, layout, focus, tab order, selection, page
+   * geometry, tab creation and state publication. It is a prototype method
+   * rather than a field, so managers created without the constructor (as
+   * unit tests do) still provide it. Each member reads the manager when
+   * called.
+   */
+  private pageDestroyedEventsAccess(): PageDestroyedEventsAccess<BrowserTab> {
+    return {
+      invalidateTabOverviewPreview: (tab) => this.invalidateTabOverviewPreview(tab),
+      tabOverviewPreviewCaptures: () => this.tabOverviewPreviewCaptures,
+      tabOverviewPreviewableTabs: () => this.tabOverviewPreviewableTabs,
+      networkWaitController: () => this.networkWaitController,
+      cancelNativeSelectionSessions: (tab) => this.cancelNativeSelectionSessions(tab),
+      expectedTabClosures: () => this.expectedTabClosures,
+      dialogMonitorAttachPromises: () => this.dialogMonitorAttachPromises,
+      defaultExecutionContexts: () => this.defaultExecutionContexts,
+      isDestroyed: () => this.destroyed,
+      findTab: (tabId) => this.tabs.get(tabId),
+      runWalletLifecycleAction: (action, callback) => this.runWalletLifecycleAction(action, callback),
+      options: () => this.options,
+      text: (key, parameters) => this.text(key, parameters),
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      splitView: () => this.splitView,
+      writeSplitView: (splitView) => { this.splitView = splitView },
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      writeActiveTabId: (tabId) => { this.activeTabId = tabId },
+      markTabActiveInGroup: (tab) => this.markTabActiveInGroup(tab),
+      layout: () => this.layout(),
+      focusTabOrTrustedChrome: (tab) => this.focusTabOrTrustedChrome(tab),
+      changed: (persist) => this.changed(persist),
+      orderedTabs: () => this.orderedTabs(),
+      selectTab: (tabId) => this.selectTab(tabId),
+      publishPageGeometry: () => this.publishPageGeometry(),
+      createTab: (options) => this.createTab(options)
     }
   }
 
