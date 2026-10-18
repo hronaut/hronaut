@@ -40,7 +40,7 @@ import { showContextMenu } from './context-menus/page-context-menu.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
 import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
-import { clearRendererAgentInputFlag, NativeInputCleanupError } from './native-input-cleanup.js'
+import { NativeInputCleanupError } from './native-input-cleanup.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
 import type { PendingElementInspection } from './element-inspection-publication.js'
 import type { PendingPdfExport } from './pdf-export-publication.js'
@@ -453,8 +453,9 @@ import {
   sendAuthorizedAgentInputCommand,
   shouldBlockHumanMouseInput
 } from './agent-input-authorization/agent-input-authorization.js'
-import type { AgentFocusIsolationAccess } from './agent-input-scope/agent-input-scope-access.js'
-import { beginAgentFocusIsolation, restoreHumanFocusAfterAgentInput, withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
+import type { AgentInputScopeAccess } from './agent-input-scope/agent-input-scope-access.js'
+import { withAgentInput } from './agent-input-scope/agent-input-scope.js'
+import { withBackgroundAgentFocusGuard } from './agent-input-scope/focus-isolation.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -7882,107 +7883,44 @@ export class BrowserTabsManager {
     return sourceCurrent ? report : undefined
   }
 
-  private async withAgentInput<T>(
-    webContents: BrowserTab['view']['webContents'],
-    operation: () => Promise<T>,
-    options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
-  ): Promise<T> {
-    const depth = (this.agentInputWebContents.get(webContents.id) ?? 0) + 1
-    if (depth === 1) {
-      const mainWindowFocused = this.window.isFocused()
-      this.agentInputFocusGuardReleases.set(webContents.id, this.beginAgentFocusIsolation())
-      this.agentInputFocusSnapshots.set(webContents.id, {
-        mainWindowFocused,
-        focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null
-      })
-    }
-    this.agentInputWebContents.set(webContents.id, depth)
-    let nativeCleanupFailure: NativeInputCleanupError | undefined
-    try {
-      if (depth === 1 && !options.deferRendererFlag && !webContents.isDestroyed()) {
-        await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
-      }
-      return await operation()
-    } catch (error) {
-      if (error instanceof NativeInputCleanupError) nativeCleanupFailure = error
-      throw error
-    } finally {
-      try {
-        const remaining = Math.max(0, (this.agentInputWebContents.get(webContents.id) ?? 1) - 1)
-        if (remaining > 0) {
-          this.agentInputWebContents.set(webContents.id, remaining)
-        } else {
-          this.agentInputWebContents.delete(webContents.id)
-          const focusSnapshot = this.agentInputFocusSnapshots.get(webContents.id)
-          this.agentInputFocusSnapshots.delete(webContents.id)
-          try {
-            if (!webContents.isDestroyed()) {
-              await clearRendererAgentInputFlag(webContents, options.onCleanupFailure)
-              const tabId = this.webContentsToTab.get(webContents.id)
-              const tab = tabId ? this.tabs.get(tabId) : undefined
-              if (!webContents.isDestroyed() && tab && this.isHumanInteractionLocked(tab)) {
-                try {
-                  await this.syncHumanInteractionInputGuard(tab)
-                } catch (error) {
-                  options.onCleanupFailure?.()
-                  // Preserve acknowledged input uncertainty, but otherwise keep
-                  // restoration failures visible after focus cleanup runs.
-                  if (!nativeCleanupFailure) throw error
-                }
-              }
-            }
-          } finally {
-            try {
-              this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
-            } finally {
-              const releaseFocusGuard = this.agentInputFocusGuardReleases.get(webContents.id)
-              this.agentInputFocusGuardReleases.delete(webContents.id)
-              releaseFocusGuard?.()
-            }
-          }
-        }
-      } catch (error) {
-        options.onCleanupFailure?.()
-        throw error
-      }
-    }
-  }
-
   /**
-   * The narrow view focus isolation gets of this manager's private window,
-   * destroyed flag, background focus guard depth and the window's focusability
-   * before the guard. It is a prototype method rather than a field, so
-   * managers created without the constructor (as unit tests do) still provide
-   * it. The delegates below return the feature's value or promise directly, so
-   * callers see the same ticks as before.
+   * The narrow view agent input and focus isolation get of this manager's
+   * private window, destroyed flag, background focus guard depth, the window's
+   * focusability before the guard, in-flight agent input, focus snapshots and
+   * releases, tabs, page-to-tab index, human interaction lock and its native
+   * input guard. It is a prototype method rather than a field, so managers
+   * created without the constructor (as unit tests do) still provide it. The
+   * delegates below return the feature's promise directly, so callers see the
+   * same ticks as before.
    */
-  private agentFocusIsolationAccess(): AgentFocusIsolationAccess {
+  private agentInputScopeAccess(): AgentInputScopeAccess<BrowserTab> {
     return {
       window: () => this.window,
       isDestroyed: () => this.destroyed,
       backgroundAgentInputFocusGuardDepth: () => this.backgroundAgentInputFocusGuardDepth,
       writeBackgroundAgentInputFocusGuardDepth: (depth) => { this.backgroundAgentInputFocusGuardDepth = depth },
       mainWindowFocusableBeforeAgentInput: () => this.mainWindowFocusableBeforeAgentInput,
-      writeMainWindowFocusableBeforeAgentInput: (focusable) => { this.mainWindowFocusableBeforeAgentInput = focusable }
+      writeMainWindowFocusableBeforeAgentInput: (focusable) => { this.mainWindowFocusableBeforeAgentInput = focusable },
+      agentInputWebContents: () => this.agentInputWebContents,
+      agentInputFocusSnapshots: () => this.agentInputFocusSnapshots,
+      agentInputFocusGuardReleases: () => this.agentInputFocusGuardReleases,
+      findTab: (tabId) => this.tabs.get(tabId),
+      tabIdForWebContents: (webContentsId) => this.webContentsToTab.get(webContentsId),
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      syncHumanInteractionInputGuard: (tab) => this.syncHumanInteractionInputGuard(tab)
     }
   }
 
-  private beginAgentFocusIsolation(): () => void {
-    return beginAgentFocusIsolation(this.agentFocusIsolationAccess())
+  private withAgentInput<T>(
+    webContents: BrowserTab['view']['webContents'],
+    operation: () => Promise<T>,
+    options: { deferRendererFlag?: boolean; onCleanupFailure?: () => void } = {}
+  ): Promise<T> {
+    return withAgentInput(this.agentInputScopeAccess(), webContents, operation, options)
   }
 
   private withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
-    return withBackgroundAgentFocusGuard(this.agentFocusIsolationAccess(), operation)
-  }
-
-  private restoreHumanFocusAfterAgentInput(
-    targetWebContents: BrowserTab['webContents'],
-    snapshot: {
-      mainWindowFocused: boolean
-      focusedWebContentsId: number | null
-    } | undefined
-  ): void {
-    restoreHumanFocusAfterAgentInput(this.agentFocusIsolationAccess(), targetWebContents, snapshot)
+    return withBackgroundAgentFocusGuard(this.agentInputScopeAccess(), operation)
   }
 
   private async withRenderableTab<T>(
