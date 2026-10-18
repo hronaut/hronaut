@@ -35,7 +35,6 @@ import {
   nativeImage,
   nativeTheme,
   protocol,
-  safeStorage,
   session,
   shell,
   WebContentsView,
@@ -48,11 +47,7 @@ import { createAppUpdates } from './app-updates.js'
 import { registerPageInspectionIpc } from './page-inspection-ipc.js'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import { WorkspaceMetadataError } from './browser/tab-store.js'
-import { WalletBroker, type WalletBrokerContext } from './wallet/broker.js'
-import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
-import type { WalletSafeStorage } from './wallet/key-provider.js'
-import { generateWalletWithRecoveryConfirmation } from './wallet/onboarding.js'
-import { WalletService } from './wallet/service.js'
+import { createWalletRuntime, type WalletRuntimeState } from './wallet/runtime.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
@@ -82,7 +77,6 @@ import {
   McpHttpServer,
   mcpToolCatalogForSet,
   type SiteDataType,
-  type WalletAgentToolTarget,
   type UserAttentionRequest
 } from './mcp/server.js'
 import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
@@ -299,9 +293,26 @@ let mcpCapabilityProfiles: McpCapabilityProfileStore | null = null
 let auditReceipts: AuditReceiptService | null = null
 let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
 let taskRuns: import('./mcp/task-run-service.js').TaskRunService | null = null
-let walletService: WalletService | null = null
-let walletBroker: WalletBroker | null = null
-let walletUnavailableStatus = walletStartupFailureStatus(undefined)
+const walletRuntime: WalletRuntimeState = {
+  service: null,
+  broker: null,
+  unavailableStatus: walletStartupFailureStatus(undefined)
+}
+const {
+  startWallets,
+  assertWalletPageSender,
+  currentWalletServiceStatus,
+  requireWalletBroker,
+  walletAgentContext,
+  generateWallet
+} = createWalletRuntime({
+  state: walletRuntime,
+  sendToMainWindow,
+  commercialLicenseStore: () => commercialLicenseStore,
+  tabs: () => tabsManager,
+  workspaceStartupFailure: () => workspaceStartupFailure,
+  mainWindowRefs
+})
 let homePresentationRevision = 0
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
@@ -945,43 +956,6 @@ function assertPanelShellSender(event: Electron.IpcMainInvokeEvent | Electron.Ip
   }
 }
 
-function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
-  if (workspaceStartupFailure) throw workspaceStartupFailure
-  if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
-  return walletBrokerContextFromIpc(event, tabsManager)
-}
-
-function requireWalletService(): WalletService {
-  if (!walletService) throw new Error('Wallet service is unavailable')
-  return walletService
-}
-
-function currentWalletServiceStatus() {
-  return walletService?.status() ?? structuredClone(walletUnavailableStatus)
-}
-
-function requireWalletBroker(): WalletBroker {
-  if (!walletBroker) throw new Error('Wallet broker is unavailable')
-  return walletBroker
-}
-
-function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext {
-  if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
-  const page = tabsManager.walletPageContextForMcpTab(target.workspaceId, target.tabId)
-  return {
-    workspaceId: page.workspaceId,
-    tabId: page.tabId,
-    navigationGeneration: page.navigationGeneration,
-    topLevelOrigin: page.topLevelOrigin,
-    requester: {
-      type: 'agent',
-      id: target.client.id,
-      name: target.client.version ? `${target.client.name} ${target.client.version}` : target.client.name
-    },
-    ...(target.signal ? { signal: target.signal } : {})
-  }
-}
-
 // Readiness is separate from sender trust. Never admit browser mutations into
 // the partially initialized model, including while metadata IO is pending.
 function assertWorkspaceInitialized(): void {
@@ -1051,28 +1025,10 @@ function registerIpc(): void {
   registerWalletIpc(ipcMain, {
     assertMainShellSender,
     assertWalletPageSender,
-    service: () => walletService,
-    broker: () => walletBroker,
+    service: () => walletRuntime.service,
+    broker: () => walletRuntime.broker,
     status: currentWalletServiceStatus,
-    generateWallet: async (input) => {
-      const service = requireWalletService()
-      const owner = mainWindowRefs.window
-      if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
-      return generateWalletWithRecoveryConfirmation(service, input, async (recoveryMaterial) => {
-        if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
-        const { response } = await dialog.showMessageBox(owner, {
-          type: 'warning',
-          title: 'Save wallet recovery material',
-          message: 'Write down this recovery phrase and store it offline.',
-          detail: `${recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
-          buttons: ['I saved it', 'Not yet'],
-          defaultId: 1,
-          cancelId: 1,
-          noLink: true
-        })
-        return response === 0
-      })
-    }
+    generateWallet
   })
   registerTabsIpc({
     assertTrustedSender: assertTrustedShellSender,
@@ -1338,35 +1294,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
   await configureCommercialLicenseStore()
-  const candidateWalletService = new WalletService({
-    directory: join(app.getPath('userData'), 'wallet'),
-    platform: process.platform,
-    safeStorage: safeStorage as unknown as WalletSafeStorage,
-    onChanged: (wallets) => {
-      sendToMainWindow('wallets:changed', wallets)
-      walletBroker?.refreshProviderSessions()
-    },
-    onStatusChanged: (status) => sendToMainWindow('wallets:status-changed', status),
-    warn: (message) => console.warn(`[wallet] ${message}`)
-  })
-  try {
-    await candidateWalletService.initialize()
-    walletService = candidateWalletService
-    walletBroker = new WalletBroker(candidateWalletService, {
-      assertAgentAccess: () => {
-        if (!commercialLicenseStore) throw new Error('License storage is unavailable')
-        commercialLicenseStore.assertAutomationAccess()
-      },
-      onPendingChanged: (requests) => sendToMainWindow('wallets:requests-changed', requests),
-      onProviderEvent: (tabId, event) => tabsManager?.sendWalletProviderEvent(tabId, event)
-    })
-  } catch (error) {
-    candidateWalletService.dispose()
-    walletService = null
-    walletBroker = null
-    walletUnavailableStatus = walletStartupFailureStatus(error)
-    console.error(`[wallet] Wallet startup disabled (${walletUnavailableStatus.backend}).`)
-  }
+  await startWallets()
   applyTheme(settingsState.current.theme)
   mainWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowRefs.stateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
@@ -1374,7 +1302,7 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window = openMainWindow(savedWindowState)
   mainWindowRefs.window.webContents.setZoomFactor(settingsState.current.interfaceScale)
 
-  const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
+  const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletRuntime.broker)
   if (!humanWaiting) {
     const { HumanWaitingService } = await import('./mcp/human-waiting-service.js')
     const { HumanWaitingPersistence } = await import('./mcp/human-waiting-persistence.js')
@@ -1635,8 +1563,8 @@ async function releaseRuntimeResources(): Promise<void> {
   const manager = tabsManager
   manager?.stopTabLabelEdits()
   const server = mcpRuntime.server
-  const wallets = walletService
-  const broker = walletBroker
+  const wallets = walletRuntime.service
+  const broker = walletRuntime.broker
   mcpRuntime.server = null
   runtimeShutdown = (async () => {
     historyStore?.dispose()
@@ -1667,8 +1595,8 @@ async function releaseRuntimeResources(): Promise<void> {
     manager?.destroy()
     wallets?.dispose()
     if (tabsManager === manager) tabsManager = null
-    if (walletService === wallets) walletService = null
-    if (walletBroker === broker) walletBroker = null
+    if (walletRuntime.service === wallets) walletRuntime.service = null
+    if (walletRuntime.broker === broker) walletRuntime.broker = null
   })()
   return runtimeShutdown
 }
