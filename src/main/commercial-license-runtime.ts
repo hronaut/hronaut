@@ -34,9 +34,9 @@ interface CommercialLicenseRuntimeHost {
 }
 
 /**
- * The commercial license on this device: opening its encrypted store, its state for the shell, and activating,
- * refreshing and removing it through the license service. Mutations run one at a time, and a refresh that a
- * mutation overtook leaves the state alone.
+ * The commercial license on this device: opening its encrypted store, its state for the shell, activating,
+ * refreshing and removing it through the license service, and admitting agents' automation under it. Mutations run
+ * one at a time, and a refresh that a mutation overtook leaves the state alone.
  */
 export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHost): {
   configureCommercialLicenseStore(): Promise<void>
@@ -45,6 +45,8 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
   activateCommercialLicense(value: unknown): Promise<CommercialLicenseState>
   refreshCommercialLicense(): Promise<CommercialLicenseState>
   deactivateCommercialLicense(): Promise<CommercialLicenseState>
+  authorizeAutomation(): Promise<void>
+  assertAutomationAccess(): void
 } {
   let commercialLicenseClient: CommercialLicenseClient | null = null
   let commercialLicenseMessage: string | undefined
@@ -172,12 +174,30 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
     return commercialLicenseOperations.mutate(() => deactivateCommercialLicenseNow())
   }
 
+  /** Admits an agent's automation under the license, which can change its state, so the state is published after. */
+  async function authorizeAutomation(): Promise<void> {
+    if (!host.state.store) throw new Error('License storage is unavailable')
+    try {
+      await host.state.store.authorizeAutomation()
+    } finally {
+      publishCommercialLicenseState()
+    }
+  }
+
+  /** Refuses automation that the license does not allow, without changing its state. */
+  function assertAutomationAccess(): void {
+    if (!host.state.store) throw new Error('License storage is unavailable')
+    host.state.store.assertAutomationAccess()
+  }
+
   return {
     configureCommercialLicenseStore,
     currentCommercialLicenseState,
     publishCommercialLicenseState,
     activateCommercialLicense,
     refreshCommercialLicense,
-    deactivateCommercialLicense
+    deactivateCommercialLicense,
+    authorizeAutomation,
+    assertAutomationAccess
   }
 }

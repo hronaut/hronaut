@@ -387,7 +387,9 @@ const {
   publishCommercialLicenseState,
   activateCommercialLicense,
   refreshCommercialLicense,
-  deactivateCommercialLicense
+  deactivateCommercialLicense,
+  authorizeAutomation,
+  assertAutomationAccess
 } = createCommercialLicenseRuntime({
   text,
   credentialStorageStatus: () => credentialRuntime.storageStatus,
@@ -1363,18 +1365,8 @@ function createRuntimeMcpServer(
   if (!tabsManager || !mcpRuntime.tokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
     actionTracker: mcpActionTracker,
-    authorizeAutomation: async () => {
-      if (!commercialLicenseRuntime.store) throw new Error('License storage is unavailable')
-      try {
-        await commercialLicenseRuntime.store.authorizeAutomation()
-      } finally {
-        publishCommercialLicenseState()
-      }
-    },
-    assertAutomationAccess: () => {
-      if (!commercialLicenseRuntime.store) throw new Error('License storage is unavailable')
-      commercialLicenseRuntime.store.assertAutomationAccess()
-    },
+    authorizeAutomation,
+    assertAutomationAccess,
     auditReceipts: agentServices.auditReceipts ?? undefined,
     humanWaiting: agentServices.humanWaiting ?? undefined,
     taskRuns: agentServices.taskRuns ?? undefined,
