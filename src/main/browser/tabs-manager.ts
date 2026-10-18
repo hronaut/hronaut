@@ -457,6 +457,8 @@ import type { RendererHealthEventsAccess } from './tab-events/renderer-health-ev
 import { attachRendererHealthEvents } from './tab-events/renderer-health-events.js'
 import type { WindowOpenHandlerAccess } from './tab-events/window-open-handler-access.js'
 import { attachWindowOpenHandler } from './tab-events/window-open-handler.js'
+import type { RenderableTabAccess } from './renderable-tab/renderable-tab-access.js'
+import { withRenderableTab } from './renderable-tab/renderable-tab.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -480,7 +482,6 @@ const MAX_CLOSED_TABS = MAX_TABS
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
 /** How long wheel events after an agent's wheel call still count as the agent's. */
 const AGENT_WHEEL_SETTLE_MS = 250
-const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
 
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
@@ -489,7 +490,6 @@ function occlusionSnapshotTimeoutMs(): number {
     ? override
     : OCCLUSION_SNAPSHOT_TIMEOUT_MS
 }
-const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
 
 function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
@@ -7540,204 +7540,37 @@ export class BrowserTabsManager {
     return withBackgroundAgentFocusGuard(this.agentInputScopeAccess(), operation)
   }
 
-  private async withRenderableTab<T>(
+  /**
+   * The narrow view rendering a hidden tab gets of this manager's private
+   * destroyed flag, window, tabs, render queues, offscreen capture set, active
+   * tab, split view, layout, view bounds and presentation repair. It is a
+   * prototype method rather than a field, so managers created without the
+   * constructor (as unit tests do) still provide it. The delegate below
+   * returns the feature's promise directly, so callers see the same ticks as
+   * before.
+   */
+  private renderableTabAccess(): RenderableTabAccess<BrowserTab> {
+    return {
+      isDestroyed: () => this.destroyed,
+      window: () => this.window,
+      findTab: (tabId) => this.tabs.get(tabId),
+      renderQueues: () => this.renderQueues,
+      offscreenCaptureTabIds: () => this.offscreenCaptureTabIds,
+      activeTabId: () => this.activeTabId,
+      splitViewContains: (tabId) => this.splitViewContains(tabId),
+      layout: () => this.layout(),
+      tabViewBounds: (tab, space) => this.tabViewBounds(tab, space),
+      browserViewBounds: () => this.browserViewBounds(),
+      reconcileTabPresentation: (tab) => this.reconcileTabPresentation(tab)
+    }
+  }
+
+  private withRenderableTab<T>(
     tab: BrowserTab,
     operation: () => Promise<T>,
     mode: 'presented-frame' | 'surface' | 'print' = 'presented-frame'
   ): Promise<T> {
-    const webContents = tab.webContents
-    const webContentsId = webContents.id
-    const tabIsLive = (): boolean => (
-      !this.destroyed
-      && !this.window.isDestroyed()
-      && this.tabs.get(tab.id) === tab
-      && !webContents.isDestroyed()
-    )
-    const previous = this.renderQueues.get(webContentsId) ?? Promise.resolve()
-    let releaseQueue!: () => void
-    const gate = new Promise<void>((resolve) => { releaseQueue = resolve })
-    const tail = previous.then(() => gate)
-    this.renderQueues.set(webContentsId, tail)
-    await previous
-
-    try {
-      if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
-      try {
-        if (
-          this.window.isVisible()
-          && !this.window.isMinimized()
-          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-        ) return await operation()
-
-        const originalBounds = tab.view.getBounds()
-        const viewSizeAtStart = tab.emulationViewSize
-        // A visible host already has a compositor surface. Position the capture
-        // view outside its viewport so it cannot cover the UI or activate another
-        // native window. Wayland can activate even a non-focusable showInactive
-        // window. Hidden screenshots still need a separate presented surface;
-        // PDF printing can use an attached host without mapping its window.
-        const reuseHost = this.window.isVisible() && !this.window.isMinimized()
-        const captureWindow = reuseHost ? this.window : new BrowserWindow({
-          x: -32_000,
-          y: -32_000,
-          width: Math.max(1, originalBounds.width),
-          height: Math.max(1, originalBounds.height),
-          show: false,
-          frame: false,
-          focusable: false,
-          skipTaskbar: true
-        })
-
-        try {
-          const width = Math.max(1, originalBounds.width)
-          const height = Math.max(1, originalBounds.height)
-          this.offscreenCaptureTabIds.add(tab.id)
-          tab.view.setBounds({ x: reuseHost ? -width : 0, y: 0, width, height })
-          captureWindow.contentView.addChildView(tab.view, reuseHost ? 0 : undefined)
-          // Printing works with an attached hidden host. Mapping it on Wayland
-          // can interrupt another application's focus even with showInactive.
-          if (!reuseHost && mode !== 'print') captureWindow.showInactive()
-          // Electron's print pipeline does not consume a compositor screenshot.
-          // Waiting for a subscribed frame before printToPDF can stall forever
-          // under renderer pressure even though PDF generation is ready.
-          if (mode === 'presented-frame') await this.waitForPresentation(webContents)
-          return await operation()
-        } finally {
-          this.offscreenCaptureTabIds.delete(tab.id)
-          let cleanupError: unknown
-          // Human selection can make this the presented view while capture is
-          // pending. Detaching it from the shared host would discard that focus.
-          const keepPresented = reuseHost && tabIsLive()
-            && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
-          try {
-            if (!keepPresented && !captureWindow.isDestroyed()) captureWindow.contentView.removeChildView(tab.view)
-          } catch (error) {
-            cleanupError = error
-          }
-          try {
-            if (!reuseHost && !captureWindow.isDestroyed()) captureWindow.destroy()
-          } catch (error) {
-            cleanupError ??= error
-          }
-          // Closing a tab destroys its WebContentsView. Never restore or add
-          // that stale child to the shell after the offscreen operation ends.
-          if (tabIsLive()) {
-            try {
-              // Selection may change while an offscreen capture is pending.
-              // Restore the current visible layout rather than stale ownership
-              // or bounds from when the capture began.
-              if (tab.id === this.activeTabId || this.splitViewContains(tab.id)) {
-                if (!this.window.contentView.children.includes(tab.view)) this.window.contentView.addChildView(tab.view)
-                this.layout()
-              } else {
-                // A viewport change during the capture left the view's size to this restore.
-                tab.view.setBounds(tab.emulationViewSize === viewSizeAtStart ? originalBounds : this.tabViewBounds(tab, this.browserViewBounds()))
-              }
-            } catch (error) {
-              cleanupError ??= error
-            }
-          }
-          if (cleanupError) throw cleanupError
-        }
-      } catch (error) {
-        if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
-        throw error
-      }
-    } finally {
-      releaseQueue()
-      if (this.renderQueues.get(webContentsId) === tail) this.renderQueues.delete(webContentsId)
-      if (tabIsLive()) this.reconcileTabPresentation(tab)
-    }
-  }
-
-  private async waitForPresentation(webContents: BrowserTab['view']['webContents']): Promise<void> {
-    await new Promise<void>((resolve, reject) => {
-      let finished = false
-      let invalidateTimer: NodeJS.Timeout | undefined
-      let captureProbeTimer: NodeJS.Timeout | undefined
-      let captureProbeInFlight = false
-      let frameSubscriptionActive = false
-      const endFrameSubscription = (): void => {
-        if (!frameSubscriptionActive) return
-        frameSubscriptionActive = false
-        try {
-          webContents.endFrameSubscription()
-        } catch {
-          // The tab may have been destroyed while waiting for its compositor frame.
-        }
-      }
-      const finish = (error?: Error): void => {
-        if (finished) return
-        finished = true
-        clearTimeout(timer)
-        if (invalidateTimer) clearInterval(invalidateTimer)
-        if (captureProbeTimer) clearTimeout(captureProbeTimer)
-        endFrameSubscription()
-        if (error) reject(error)
-        else resolve()
-      }
-      // A hidden Chromium compositor can take longer to produce its first frame
-      // when several renderer processes have recently been active. Keep this
-      // bounded, but allow enough time for tray captures and visual comparisons on
-      // slower or heavily loaded machines.
-      const timer = setTimeout(
-        () => finish(new Error('Timed out waiting for the tab to become renderable')),
-        OFFSCREEN_PRESENTATION_TIMEOUT_MS
-      )
-      try {
-        frameSubscriptionActive = true
-        webContents.beginFrameSubscription(false, () => finish())
-        const invalidate = (): void => {
-          if (webContents.isDestroyed()) {
-            finish(new Error('The tab closed while waiting for a renderable frame'))
-            return
-          }
-          try {
-            webContents.invalidate()
-          } catch (error) {
-            finish(error instanceof Error ? error : new Error(String(error)))
-          }
-        }
-        // A newly shown offscreen host can occasionally miss Chromium's first
-        // invalidation while the compositor is busy. Retry within the existing
-        // bounded wait instead of turning transient suite load into a false timeout.
-        invalidateTimer = setInterval(invalidate, 250)
-        invalidateTimer.unref()
-        invalidate()
-
-        const probeCapture = async (): Promise<void> => {
-          if (finished || captureProbeInFlight) return
-          if (webContents.isDestroyed()) {
-            finish(new Error('The tab closed while waiting for a renderable frame'))
-            return
-          }
-          captureProbeInFlight = true
-          try {
-            // capturePage manages its own capturer count. Probe only after ending
-            // the missed frame subscription: overlapping both capture mechanisms
-            // can leave the direct capture pending under renderer pressure.
-            const image = await webContents.capturePage()
-            if (!image.isEmpty()) finish()
-          } catch {
-            // The compositor may still be attaching. Retry within the same
-            // bounded wait; invalidate() continues to request fresh frames.
-          } finally {
-            captureProbeInFlight = false
-            if (!finished) {
-              captureProbeTimer = setTimeout(() => { void probeCapture() }, 250)
-              captureProbeTimer.unref()
-            }
-          }
-        }
-        captureProbeTimer = setTimeout(() => {
-          endFrameSubscription()
-          void probeCapture()
-        }, OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS)
-        captureProbeTimer.unref()
-      } catch (error) {
-        finish(error instanceof Error ? error : new Error(String(error)))
-      }
-    })
+    return withRenderableTab(this.renderableTabAccess(), tab, operation, mode)
   }
 
   private performanceEnvironment(tab: BrowserTab): BrowserPerformanceEnvironment {

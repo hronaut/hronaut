@@ -122,7 +122,8 @@ export default defineConfig(
     // deliberately reports a failed restoration from inside finally.
     files: [
       'src/main/browser/agent-input-authorization/agent-input-authorization.ts',
-      'src/main/browser/agent-input-scope/agent-input-scope.ts'
+      'src/main/browser/agent-input-scope/agent-input-scope.ts',
+      'src/main/browser/renderable-tab/renderable-tab.ts'
     ],
     rules: { 'no-unsafe-finally': 'off' }
   },
