@@ -35,8 +35,7 @@ import {
   session,
   shell,
   WebContentsView,
-  webContents as allWebContents,
-  type MessageBoxOptions
+  webContents as allWebContents
 } from 'electron'
 import electronUpdater from 'electron-updater'
 import { createAppUpdates } from './app-updates.js'
@@ -85,9 +84,9 @@ import { createBrowserSession, type BrowserSessionState } from './browser-sessio
 import { registerPermissionsIpc } from './permissions-ipc.js'
 import { WindowStateStore } from './window-state.js'
 import { createMainWindow, type MainWindowRefs } from './windows/main-window.js'
+import { createShellWindows } from './windows/shell-windows.js'
 import type {
   AppUpdateState,
-  BrowserActionFailure,
   LanguagePreference
 } from '../shared/types.js'
 import { registerTabsIpc } from './tabs-ipc.js'
@@ -168,6 +167,20 @@ const panelWindowRefs: PanelWindowRefs = {
   stateStore: null,
   lastState: null
 }
+const {
+  reportBrowserActionFailure,
+  showWindow,
+  showWindowInactive,
+  sendToShellWindows,
+  sendToMainWindow,
+  sendToPanelWindow,
+  showMessageBox
+} = createShellWindows({
+  mainWindowRefs,
+  panelWindowRefs,
+  workspaceStartupFailure: () => workspaceStartupFailure,
+  text: (key, parameters) => text(key, parameters)
+})
 const addressSuggestionOverlay = createAddressSuggestionOverlay({
   trustedShellUrl,
   trustedUrlMatches,
@@ -489,19 +502,6 @@ const {
   mainWindow: () => mainWindowRefs.window
 })
 
-function reportBrowserActionFailure(action: string, error: unknown): void {
-  const rawMessage = error instanceof Error ? error.message : ''
-  const failure: BrowserActionFailure = {
-    action,
-    message: /^Tab not found:/i.test(rawMessage)
-      ? text('native.errors.tabUnavailable')
-      : rawMessage || text('native.errors.actionFailed')
-  }
-  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
-    mainWindowRefs.window.webContents.send('browser:action-failed', failure)
-  }
-}
-
 function runNativeBrowserAction(action: string, callback: () => unknown): void {
   if (workspaceStartupFailure || tabsInitializationPromise) return
   try {
@@ -520,37 +520,6 @@ if (!isLoopbackHost(mcpRuntime.host)) {
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
 const quitRequestedAtStartup = process.argv.includes('--quit')
-
-function showWindow(): void {
-  if (workspaceStartupFailure) return
-  if (!mainWindowRefs.window) return
-  if (mainWindowRefs.window.isMinimized()) mainWindowRefs.window.restore()
-  mainWindowRefs.window.show()
-  mainWindowRefs.window.focus()
-  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.isVisible()) panelWindowRefs.window.show()
-}
-
-function showWindowInactive(): void {
-  if (!mainWindowRefs.window) return
-  // showInactive can raise an already visible window above another app.
-  // Agent requests ensure visibility without changing the current stacking.
-  if (!mainWindowRefs.window.isVisible() || mainWindowRefs.window.isMinimized()) mainWindowRefs.window.showInactive()
-  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.isVisible()) panelWindowRefs.window.showInactive()
-}
-
-function sendToShellWindows(channel: string, ...args: unknown[]): void {
-  for (const window of [mainWindowRefs.window, panelWindowRefs.window]) {
-    if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
-      window.webContents.send(channel, ...args)
-    }
-  }
-}
-
-function sendToMainWindow(channel: string, ...args: unknown[]): void {
-  if (mainWindowRefs.window && !mainWindowRefs.window.isDestroyed() && !mainWindowRefs.window.webContents.isDestroyed()) {
-    mainWindowRefs.window.webContents.send(channel, ...args)
-  }
-}
 
 const { agentPresenceSnapshot, scheduleAgentPresencePublish, connectedAgents } = createAgentPresence({
   mcpRuntime,
@@ -574,12 +543,6 @@ const takeOvers = new TakeOverOffers({
   sendOffer: (offer) => sendToMainWindow('agent-presence:take-over-offer', offer),
   onError: () => console.error('[take-over] Failed to change agent control for a tab.')
 })
-
-function sendToPanelWindow(channel: string, ...args: unknown[]): void {
-  if (panelWindowRefs.window && !panelWindowRefs.window.isDestroyed() && !panelWindowRefs.window.webContents.isDestroyed()) {
-    panelWindowRefs.window.webContents.send(channel, ...args)
-  }
-}
 
 function publishCredentials(): void {
   sendToShellWindows('credentials:changed', credentialRuntime.store?.list() ?? [])
@@ -632,10 +595,6 @@ const { offerToSaveCredential, configureCredentialStore } = createCredentialRunt
 
 function publishSitePermissions(): void {
   sendToShellWindows('permissions:changed', browserSessionState.sitePermissionStore?.list() ?? [])
-}
-
-function showMessageBox(options: MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
-  return mainWindowRefs.window ? dialog.showMessageBox(mainWindowRefs.window, options) : dialog.showMessageBox(options)
 }
 
 const {
