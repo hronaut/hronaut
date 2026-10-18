@@ -7,13 +7,26 @@ import type { MainWindowRefs } from './windows/main-window.js'
 import type { PanelWindowRefs } from './windows/panel-window.js'
 import type { AppSettings } from '../shared/types.js'
 
+/**
+ * Whether the app is quitting, created once by index.ts. It is set once and stays set: closing the main window then
+ * quits instead of hiding it in the tray, and the license state stops refreshing itself. Every reader reads the field
+ * when it runs.
+ */
+export interface AppQuitState {
+  /**
+   * Set by a second launch with --quit and by before-quit, by the tray's, the application menu's and the shell's
+   * Quit, and by closing the main window while it does not hide in the tray.
+   */
+  quitting: boolean
+}
+
 interface AppLifecycleHost {
   /** Whether this process got the single-instance lock when index.ts asked for it while loading. */
   gotLock: boolean
   /** Whether this process was launched with --quit. */
   quitRequestedAtStartup: boolean
-  /** Marks the app as quitting, so closing the main window quits instead of hiding it; the tray, menu and shell IPC set it too. */
-  setQuitting(value: boolean): void
+  /** Whether the app is quitting; a second launch with --quit and before-quit set it here, and the tray, menu and shell IPC too. */
+  quit: AppQuitState
   /** The current settings; read on every use because each committed update replaces them. */
   settings(): AppSettings
   /** Shows and focuses the main window, and the panel window when it is open. */
@@ -47,7 +60,7 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
 
   app.on('second-instance', (_event, argv) => {
     if (argv.includes('--quit')) {
-      host.setQuitting(true)
+      host.quit.quitting = true
       app.quit()
       return
     }
@@ -59,7 +72,7 @@ export function registerAppLifecycle(app: Pick<App, 'on' | 'whenReady' | 'quit' 
   })
   app.on('before-quit', () => {
     clearTimeout(host.commercialLicenseStateTimer())
-    host.setQuitting(true)
+    host.quit.quitting = true
     host.mainWindowRefs.lastState = host.currentWindowState() ?? host.mainWindowRefs.lastState
     host.panelWindowRefs.lastState = host.currentPanelWindowState() ?? host.panelWindowRefs.lastState
   })

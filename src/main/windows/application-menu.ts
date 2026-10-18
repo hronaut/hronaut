@@ -1,4 +1,5 @@
 import { app, Menu, type BrowserWindow } from 'electron'
+import type { AppQuitState } from '../app-lifecycle.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
 import type { MessageKey, MessageParameters } from '../../shared/i18n.js'
 import type { AppUpdateState, HelpMenuAction } from '../../shared/types.js'
@@ -10,8 +11,8 @@ interface ApplicationMenuHost {
   /** The main window; read on every use because it is created after the menu and goes when it closes. */
   mainWindow(): Pick<BrowserWindow, 'webContents'> | null
   checkForUpdates(): Promise<AppUpdateState>
-  /** Marks the app as quitting, so closing the window quits instead of hiding it in the tray. */
-  setQuitting(value: boolean): void
+  /** Whether the app is quitting; the menu's Quit sets it, so closing the window quits instead of hiding it in the tray. */
+  quit: AppQuitState
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
   tabs(): Pick<BrowserTabsManager, 'newTab' | 'reload' | 'reloadIgnoringCache' | 'toggleDevTools' | 'setZoom'> | null
@@ -55,7 +56,7 @@ export function createApplicationMenu(host: ApplicationMenuHost): { installAppli
               label: host.text('native.menu.quit'),
               accelerator: 'CmdOrCtrl+Q',
               click: () => {
-                host.setQuitting(true)
+                host.quit.quitting = true
                 app.quit()
               }
             }

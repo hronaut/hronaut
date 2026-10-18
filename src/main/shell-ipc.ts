@@ -1,4 +1,5 @@
 import type { BrowserWindow, IpcMain, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { AppQuitState } from './app-lifecycle.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { ToastOverlay } from './toast-overlay.js'
 import { scaleShellMetric } from '../shared/interface-scale.js'
@@ -19,8 +20,8 @@ interface ShellIpcHost {
   /** Writes text to the system clipboard after earlier clipboard writes, verifying it arrived. */
   copyTextToClipboard(text: string): Promise<void>
   showWindow(): void
-  /** Marks the app as quitting, so closing the window quits instead of hiding it in the tray. */
-  setQuitting(value: boolean): void
+  /** Whether the app is quitting; the shell's Quit sets it, so closing the window quits instead of hiding it in the tray. */
+  quit: AppQuitState
   /** Electron's `app.quit`. */
   quitApp(): void
   /** Electron's `BrowserWindow.fromWebContents`. */
@@ -50,7 +51,7 @@ export function registerShellIpc(ipcMain: Pick<IpcMain, 'handle' | 'on'>, host: 
   host.handleBrowserIpc('browser:show', (event) => { host.assertTrustedSender(event); host.showWindow() })
   host.handleBrowserIpc('browser:quit', (event) => {
     host.assertTrustedSender(event)
-    host.setQuitting(true)
+    host.quit.quitting = true
     host.quitApp()
   })
   ipcMain.handle('shell:is-window-focused', (event) => {

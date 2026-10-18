@@ -102,7 +102,7 @@ import { createWindowStatePersistence } from './windows/window-state-persistence
 import { createOverlaySurfaces } from './windows/overlay-surfaces.js'
 import { createMcpControlState } from './mcp-control-state.js'
 import { registerAddressOverlayIpc } from './address-overlay-ipc.js'
-import { registerAppLifecycle } from './app-lifecycle.js'
+import { registerAppLifecycle, type AppQuitState } from './app-lifecycle.js'
 
 const mcpRuntime: McpRuntimeState = {
   host: process.env.HRONAUT_MCP_HOST || '127.0.0.1',
@@ -312,7 +312,7 @@ const mcpPortRecovery = new McpPortRecovery({
   listen: (port) => setMcpPort(port),
   changed: () => publishMcpControlState({ refreshHome: false })
 })
-let quitting = false
+const appQuitState: AppQuitState = { quitting: false }
 const {
   currentState: currentWindowState,
   scheduleSave: scheduleWindowStateSave,
@@ -401,7 +401,7 @@ const {
 } = createCommercialLicenseRuntime({
   text,
   credentialStorageStatus: () => credentialRuntime.storageStatus,
-  quitting: () => quitting,
+  quit: appQuitState,
   sendToShellWindows,
   state: commercialLicenseRuntime
 })
@@ -471,7 +471,7 @@ const {
   mcpServer: () => mcpRuntime.server,
   runNativeBrowserAction,
   checkForUpdates,
-  setQuitting: (value) => { quitting = value },
+  quit: appQuitState,
   userAttentionLifecycle,
   state: userAttentionState,
   agentPresenceSnapshot: () => agentPresenceSnapshot(),
@@ -639,7 +639,7 @@ const { installApplicationMenu } = createApplicationMenu({
   showWindow,
   mainWindow: () => mainWindowRefs.window,
   checkForUpdates,
-  setQuitting: (value) => { quitting = value },
+  quit: appQuitState,
   runNativeBrowserAction,
   tabs: () => tabRuntime.tabs
 })
@@ -788,7 +788,7 @@ function registerIpc(): void {
     workspaceStartupFailure: () => tabRuntime.startupFailure,
     copyTextToClipboard,
     showWindow,
-    setQuitting: (value) => { quitting = value },
+    quit: appQuitState,
     quitApp: () => app.quit(),
     windowFromWebContents: (webContents) => BrowserWindow.fromWebContents(webContents),
     tabs: () => tabRuntime.tabs,
@@ -1133,15 +1133,15 @@ async function createWindow(startMinimized = false): Promise<void> {
   mainWindowRefs.window.on('enter-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('leave-full-screen', scheduleWindowStateSave)
   mainWindowRefs.window.on('close', (event) => {
-    if (!quitting && settingsState.current.hideInTray) {
+    if (!appQuitState.quitting && settingsState.current.hideInTray) {
       event.preventDefault()
       panelWindowRefs.window?.hide()
       mainWindowRefs.window?.hide()
       return
     }
-    if (!quitting) {
+    if (!appQuitState.quitting) {
       event.preventDefault()
-      quitting = true
+      appQuitState.quitting = true
       setImmediate(() => app.quit())
     }
   })
@@ -1360,7 +1360,7 @@ async function startRuntime(): Promise<void> {
 registerAppLifecycle(app, {
   gotLock,
   quitRequestedAtStartup,
-  setQuitting: (value) => { quitting = value },
+  quit: appQuitState,
   settings: () => settingsState.current,
   showWindow,
   commercialLicenseStateTimer: () => commercialLicenseRuntime.stateTimer,

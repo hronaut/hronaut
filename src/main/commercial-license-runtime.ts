@@ -4,6 +4,7 @@ import { CommercialLicenseClient, CommercialLicenseError } from './commercial-li
 import { COMMERCIAL_LICENSE_API_BASE_URL } from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
+import type { AppQuitState } from './app-lifecycle.js'
 import type { MessageKey, MessageParameters } from '../shared/i18n.js'
 import type { CommercialLicenseState, CredentialStorageStatus } from '../shared/types.js'
 
@@ -26,8 +27,8 @@ interface CommercialLicenseRuntimeHost {
   text(key: MessageKey, parameters?: MessageParameters): string
   /** Whether secure storage is available, and why not; read on every use because it is known only after startup. */
   credentialStorageStatus(): CredentialStorageStatus
-  /** Whether the app is quitting, when the state stops refreshing itself. */
-  quitting(): boolean
+  /** Whether the app is quitting, when the state stops refreshing itself; read on every publish. */
+  quit: AppQuitState
   sendToShellWindows(channel: string, ...args: unknown[]): void
   /** The license store and its state timer; index.ts creates the record, and other features read it too. */
   state: CommercialLicenseRuntimeState
@@ -77,7 +78,7 @@ export function createCommercialLicenseRuntime(host: CommercialLicenseRuntimeHos
     const state = currentCommercialLicenseState()
     host.sendToShellWindows('license:changed', state)
     clearTimeout(host.state.stateTimer)
-    if (!host.quitting()) host.state.stateTimer = setTimeout(publishCommercialLicenseState, commercialLicenseStateRefreshDelay(state)).unref()
+    if (!host.quit.quitting) host.state.stateTimer = setTimeout(publishCommercialLicenseState, commercialLicenseStateRefreshDelay(state)).unref()
     return state
   }
 

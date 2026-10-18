@@ -3,6 +3,7 @@ import { app, Menu, nativeImage, Notification, Tray, type BrowserWindow, type Na
 import { bindTrayActivation } from './tray-activation.js'
 import trayIconPath from '../../build/icons/24x24.png?asset'
 import trayAttentionIconPath from '../../build/icons/tray-attention.png?asset'
+import type { AppQuitState } from './app-lifecycle.js'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { McpHttpServer } from './mcp/server.js'
 import type { UserAttentionLifecycle } from './user-attention-lifecycle.js'
@@ -42,8 +43,8 @@ interface TrayAttentionHost {
   /** Runs a browser action from native UI and reports its failure to the shell; skipped until saved workspaces are up. */
   runNativeBrowserAction(action: string, callback: () => unknown): void
   checkForUpdates(): Promise<AppUpdateState>
-  /** Marks the app as quitting, so closing the window quits instead of hiding it in the tray. */
-  setQuitting(value: boolean): void
+  /** Whether the app is quitting; the tray's Quit sets it, so closing the window quits instead of hiding it in the tray. */
+  quit: AppQuitState
   /** The record of attention requests agents read; it lives as long as the app. */
   userAttentionLifecycle: Pick<UserAttentionLifecycle, 'acknowledge' | 'reconcile' | 'request' | 'supersede'>
   /** The open request; index.ts creates the record, and the shell, Home, the IPC handlers and agents read it too. */
@@ -148,7 +149,7 @@ export function createTrayAttention(host: TrayAttentionHost): {
       {
         label: host.text('native.tray.quit'),
         click: () => {
-          host.setQuitting(true)
+          host.quit.quitting = true
           app.quit()
         }
       }
