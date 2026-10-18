@@ -25,7 +25,7 @@ import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
 import { elementInspection, imageState, mediaState } from './element-inspection/element-inspection.js'
 import type { BrowserConsoleMessageRecord, ConsoleCapture, ConsoleMessagesAccess } from './console-messages/console-messages-access.js'
-import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage, withPendingRuntimeConsoleMessage } from './console-messages/console-messages.js'
+import { appendConsoleMessage, consoleMessages, retainRuntimeConsoleMessage } from './console-messages/console-messages.js'
 import type { TabOverviewPreviewCaptureRequest, TabOverviewPreviewsAccess } from './tab-overview-previews/tab-overview-previews-access.js'
 import {
   captureTabOverviewPreview,
@@ -193,15 +193,14 @@ import { auditEvidenceAvailability, clearDiagnosticLogs, debugReport, diagnostic
 import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import {
   normalizeConsoleLogEntry,
-  normalizePageException,
   normalizeRuntimeConsoleCall,
   normalizeRuntimeConsolePresentation,
   normalizeRuntimeException,
   type CdpLogEntry,
-  type PageExceptionPayload,
   type CdpRuntimeConsoleCall,
   type CdpRuntimeExceptionDetails
 } from '../../shared/console-exceptions.js'
+import { attachConsoleMessageEvents } from './console-messages/console-message-events.js'
 import { securityReport } from './page-audits/security-report.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 import { WorkspaceTemplateImporter } from './workspace-template-import.js'
@@ -7053,23 +7052,7 @@ export class BrowserTabsManager {
         console.error('[browser] Could not synchronize a frame interaction lock:', error)
       })
     })
-    webContents.on('console-message', (details) => {
-      const { message, runtimeMatched } = withPendingRuntimeConsoleMessage(tab, {
-        timestamp: new Date().toISOString(),
-        level: details.level,
-        message: details.message,
-        lineNumber: details.lineNumber,
-        sourceId: details.sourceId,
-        kind: 'console'
-      })
-      appendConsoleMessage(tab, message, 'electron')
-      if (runtimeMatched) tab.consoleMessages.at(-1)?.captureSources.add('runtime-console')
-    })
-    webContents.on('ipc-message', (_event, channel, payload: unknown) => {
-      if (channel !== 'hronaut:page-exception') return
-      const message = normalizePageException(payload as PageExceptionPayload)
-      if (message) appendConsoleMessage(tab, message, 'preload')
-    })
+    attachConsoleMessageEvents(tab, webContents)
     webContents.on('render-process-gone', (_event, details) => {
       if (tab.networkConditionApplication === 'pending') this.markNetworkConditionsUnknown(tab)
       tab.emulationContextGeneration++
