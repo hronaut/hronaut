@@ -40,8 +40,8 @@ describe('MCP tool folders', () => {
   })
 
   it('keeps tool names out of the shared call wrappers, which read each tool\'s options and settlement instead', () => {
-    const [server, workspaceWrapper] = wrapperSources()
-    const wrappers = `${server.slice(server.indexOf('function createBrowserMcpServer('))}\n${workspaceWrapper}`
-    expect([...wrappers.matchAll(/'(?:browser|wallet)_[a-z_]+'/gu)].map(match => match[0])).toEqual([])
+    // Whole files and any quote style, so a name list cannot come back at module level or in another literal form.
+    const wrappers = wrapperSources().join('\n')
+    expect([...wrappers.matchAll(/['"`](?:browser|wallet)_[a-z_]+/gu)].map(match => match[0])).toEqual([])
   })
 })
