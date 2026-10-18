@@ -7,8 +7,8 @@ import type { BrowserBookmark, BrowserHistoryEntry } from '../shared/types.js'
 
 /**
  * The bookmarks and the visit history, created once by index.ts and opened when the main window opens. The shell, the
- * panel snapshot, the collection and browsing data IPC, site data, the tab runtime and shutdown read the fields when
- * they run, so they always see the open stores.
+ * panel snapshot, the collection and browsing data IPC, site data and shutdown read the fields when they run, so they
+ * always see the open stores.
  */
 export interface BookmarksAndHistoryState {
   /** The bookmarks and their collections, once open. */
@@ -26,14 +26,17 @@ interface BookmarksAndHistoryHost {
 }
 
 /**
- * Bookmarks and visit history at runtime: opening both stores, telling both shell windows what they hold after each
- * change, and the operations the MCP server offers agents on them, `agentBookmarks` and `agentHistory`.
+ * Bookmarks and visit history at runtime: opening both stores, recording the pages tabs visit, telling both shell
+ * windows what they hold after each change, and the operations the MCP server offers agents on them, `agentBookmarks`
+ * and `agentHistory`.
  */
 export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   publishBookmarks(): BrowserBookmark[]
   publishVisitHistory(): BrowserHistoryEntry[]
   openBookmarks(): Promise<BrowserBookmark[]>
   openVisitHistory(): Promise<BrowserHistoryEntry[]>
+  recordPageVisit(visit: { url: string; title: string }): void
+  updatePageTitle(page: { url: string; title: string }): void
   agentBookmarks: BookmarkOperations
   agentHistory: HistoryOperations
 } {
@@ -60,6 +63,20 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
   function openVisitHistory(): Promise<BrowserHistoryEntry[]> {
     host.state.history = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
     return host.state.history.load()
+  }
+
+  /** Records a page a tab visited and publishes the history once the visit is saved. */
+  function recordPageVisit({ url, title }: { url: string; title: string }): void {
+    void host.state.history?.record({ url, title })
+      .then(() => publishVisitHistory())
+      .catch((error) => console.error('[history] Failed to record visit:', error))
+  }
+
+  /** Gives a visited page its new title and publishes the history when the title changed. */
+  function updatePageTitle({ url, title }: { url: string; title: string }): void {
+    void host.state.history?.updateTitle({ url, title })
+      .then((updated) => { if (updated) publishVisitHistory() })
+      .catch((error) => console.error('[history] Failed to update page title:', error))
   }
 
   /** Agents' bookmark operations; each change is published to both shell windows. */
@@ -99,5 +116,14 @@ export function createBookmarksAndHistory(host: BookmarksAndHistoryHost): {
     }
   }
 
-  return { publishBookmarks, publishVisitHistory, openBookmarks, openVisitHistory, agentBookmarks, agentHistory }
+  return {
+    publishBookmarks,
+    publishVisitHistory,
+    openBookmarks,
+    openVisitHistory,
+    recordPageVisit,
+    updatePageTitle,
+    agentBookmarks,
+    agentHistory
+  }
 }

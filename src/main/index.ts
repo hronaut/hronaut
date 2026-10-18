@@ -406,6 +406,8 @@ const {
   publishVisitHistory,
   openBookmarks,
   openVisitHistory,
+  recordPageVisit,
+  updatePageTitle,
   agentBookmarks,
   agentHistory
 } = createBookmarksAndHistory({
@@ -1174,16 +1176,8 @@ async function createWindow(startMinimized = false): Promise<void> {
       return response === 1
     },
     ...walletLifecycleCallbacks,
-    onPageVisited: ({ url, title }) => {
-      void bookmarksAndHistory.history?.record({ url, title })
-        .then(() => publishVisitHistory())
-        .catch((error) => console.error('[history] Failed to record visit:', error))
-    },
-    onPageTitleUpdated: ({ url, title }) => {
-      void bookmarksAndHistory.history?.updateTitle({ url, title })
-        .then((updated) => { if (updated) publishVisitHistory() })
-        .catch((error) => console.error('[history] Failed to update page title:', error))
-    },
+    onPageVisited: recordPageVisit,
+    onPageTitleUpdated: updatePageTitle,
     onCredentialSubmitted: (candidate) => {
       void handleCredentialCandidate(candidate).catch((error) => {
         console.error('[credentials] Failed to save password:', error)
