@@ -528,4 +528,21 @@ describe('MCP capability profile store', () => {
     await expect(value.derive(grant, { ...input, argumentValueDigests: { 'browser_evaluate_file.source': [mcpCapabilityArgumentValueDigest({ ...source, path: other.path })] } })).rejects.toThrow()
   })
 
+  it('copies downloads only into the exact folders a profile lists', async () => {
+    const value = await store()
+    const input: McpCapabilityProfileInput = { name: 'Report folders', allowedTools: ['browser_download_copy'], operationClasses: ['external-request'] }
+    await expect(value.create(input)).rejects.toThrow(/exact destination folder/)
+    await expect(value.create({ ...input, argumentValueDigests: { 'browser_download_copy.filename': [mcpCapabilityArgumentValueDigest('copy.txt')] } })).rejects.toThrow(/exact destination folder/)
+    const created = await value.create({ ...input, argumentValueDigests: { 'browser_download_copy.directory': [mcpCapabilityArgumentValueDigest('/home/person/reports')] } })
+    const grant = value.authenticate(created.credential)!
+    const request: McpCapabilityRequest = {
+      toolName: 'browser_download_copy', operationClass: 'external-request', workspaceId,
+      arguments: { downloadId: 'download', directory: '/home/person/reports', filename: 'copy.txt' }
+    }
+    expect(() => value.authorize(grant, request)).not.toThrow()
+    for (const directory of ['/home/person/reports/', '/home/person/reports/nested', '/home/person', '/home/person/.ssh']) {
+      expect(() => value.authorize(grant, { ...request, arguments: { ...request.arguments, directory } }), directory).toThrow(McpCapabilityAuthorizationError)
+    }
+  })
+
 })

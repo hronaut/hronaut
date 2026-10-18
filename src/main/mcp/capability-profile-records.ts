@@ -4,6 +4,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { isUuidV7 } from '../uuid-v7.js'
 import {
   MCP_CAPABILITY_OPERATION_CLASSES,
+  MCP_REQUIRED_ARGUMENT_CONSTRAINTS,
   type McpCapabilityOperationClass,
   type McpCapabilityProfile,
   type McpCapabilityProfileInput
@@ -143,8 +144,8 @@ export function normalizeProfileInput(input: McpCapabilityProfileInput, now: Dat
     }
     if (!Object.keys(argumentValueDigests).length) argumentValueDigests = undefined
   }
-  if (allowedToolSet.has('browser_evaluate_file') && !argumentValueDigests?.['browser_evaluate_file.source']?.length) {
-    throw new TypeError('File evaluation requires an exact source tuple constraint')
+  for (const [tool, required] of Object.entries(MCP_REQUIRED_ARGUMENT_CONSTRAINTS)) {
+    if (allowedToolSet.has(tool) && !argumentValueDigests?.[required.path]?.length) throw new TypeError(required.message)
   }
   let expiresAt: string | undefined
   if (input.expiresAt !== undefined) {

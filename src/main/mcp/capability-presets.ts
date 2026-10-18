@@ -2,6 +2,7 @@ import { BROWSER_TOOL_CATALOG, mcpToolCatalogForSet } from './tool-catalog.js'
 import { MCP_CAPABILITY_OPERATION_CLASSES, mcpCapabilityArgumentValueDigest, type McpCapabilityProfileInput } from './capability-profile-store.js'
 import type { McpCapabilityProfileCreateInput } from '../../shared/types.js'
 import { READ_ONLY_MULTI_ACTIONS } from './capability-classification.js'
+import { MCP_REQUIRED_ARGUMENT_CONSTRAINTS } from './capability-profile-contracts.js'
 
 /** Turns a capability profile preset chosen in the shell into the profile the capability store saves. */
 export function mcpCapabilityProfileInputFromPreset(
@@ -33,8 +34,8 @@ export function mcpCapabilityProfileInputFromPreset(
     : undefined
   return {
     name: input.name,
-    allowedTools: catalog.filter(tool => tool.name !== 'browser_evaluate_file'
-      || input.preset !== 'read-only' && !!argumentValueDigests?.['browser_evaluate_file.source']?.length).map(tool => tool.name),
+    allowedTools: catalog.filter(tool => !MCP_REQUIRED_ARGUMENT_CONSTRAINTS[tool.name]
+      || input.preset !== 'read-only' && !!argumentValueDigests?.[MCP_REQUIRED_ARGUMENT_CONSTRAINTS[tool.name]!.path]?.length).map(tool => tool.name),
     ...(allowedActions && Object.keys(allowedActions).length ? { allowedActions } : {}),
     operationClasses: input.preset === 'read-only' ? ['read'] : [...MCP_CAPABILITY_OPERATION_CLASSES],
     ...(input.workspaceIds ? { workspaceIds: input.workspaceIds } : {}),

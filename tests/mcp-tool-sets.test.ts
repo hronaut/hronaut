@@ -52,6 +52,18 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityProfileInputFromPreset({ name: 'Incomplete tuple', preset: 'complete', argumentConstraints: { 'browser_evaluate_file.source.path': [source.path] } }).allowedTools).not.toContain('browser_evaluate_file')
   })
 
+  it('reaches download copies only through a profile that names the destination folders', () => {
+    for (const preset of ['complete', 'qa', 'essentials', 'read-only'] as const) {
+      expect(mcpCapabilityProfileInputFromPreset({ name: 'Ordinary', preset }).allowedTools).not.toContain('browser_download_copy')
+    }
+    const folders = { 'browser_download_copy.directory': ['/home/person/reports'] }
+    for (const preset of ['complete', 'qa'] as const) {
+      expect(mcpCapabilityProfileInputFromPreset({ name: 'Report folder', preset, argumentConstraints: folders }).allowedTools).toContain('browser_download_copy')
+    }
+    expect(mcpCapabilityProfileInputFromPreset({ name: 'Read only', preset: 'read-only', argumentConstraints: folders }).allowedTools).not.toContain('browser_download_copy')
+    expect(mcpCapabilityProfileInputFromPreset({ name: 'Names only', preset: 'complete', argumentConstraints: { 'browser_download_copy.filename': ['copy.txt'] } }).allowedTools).not.toContain('browser_download_copy')
+  })
+
   let server: McpHttpServer | undefined
   const clients: Client[] = []
 
@@ -118,6 +130,8 @@ describe('MCP tool sets', () => {
     expect(browse).not.toContain('browser_insert_text')
     expect(qa).toContain('browser_fill_from_file')
     expect(browse).not.toContain('browser_fill_from_file')
+    expect(qa).toContain('browser_download_copy')
+    expect(browse).not.toContain('browser_download_copy')
     expect(browse).not.toContain('browser_hold_key')
     expect(browse).not.toContain('browser_touch')
     expect(browse).not.toContain('browser_wheel')
@@ -136,7 +150,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(97)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(98)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -219,6 +233,8 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityOperationClass('browser_video', { action: 'remove-audio' })).toBe('browser-state')
     // It reads a local file the person did not hand over, like browser_file_upload.
     expect(mcpCapabilityOperationClass('browser_fill_from_file', { selector: '#notes', path: '/tmp/notes.txt', expectedOrigin: 'https://app.example' })).toBe('external-request')
+    // Listing downloads is a read; writing a copy of one to disk is not.
+    expect(mcpCapabilityOperationClass('browser_download_copy', { downloadId: 'download', directory: '/tmp', filename: 'copy.txt' })).toBe('external-request')
     expect(mcpCapabilityOperationClass('browser_network_routes', { action: 'set-enabled', routeId: 'retained', enabled: false })).toBe('network')
     expect(mcpCapabilityArgumentValueDigest(true)).not.toBe(mcpCapabilityArgumentValueDigest(false))
     expect(mcpCapabilityOperationClass('browser_console', {})).toBe('read')

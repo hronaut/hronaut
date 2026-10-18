@@ -116,6 +116,8 @@ import {
   setNetworkRouteEnabled
 } from './network-conditions/network-conditions.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
+import type { DownloadCopyAccess } from './download-copy/download-copy-access.js'
+import { copyDownload, type DownloadCopyProgress, type DownloadCopyRequest, type DownloadCopyResult } from './download-copy/download-copy.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
@@ -3980,6 +3982,15 @@ export class BrowserTabsManager {
     downloadId?: string
   ): BrowserDownloadState[] {
     return this.downloadController.manageWorkspaceDownloads(workspaceId, action, downloadId)
+  }
+
+  private downloadCopyAccess(): DownloadCopyAccess {
+    return { completedDownloadFile: (workspaceId, downloadId) => this.downloadController.completedWorkspaceDownloadFile(workspaceId, downloadId) }
+  }
+
+  /** Copies a download the workspace finished into an existing folder under a new name; see copyDownload. */
+  copyWorkspaceDownload(workspaceId: string, request: DownloadCopyRequest, validate?: () => void, progress?: DownloadCopyProgress): Promise<DownloadCopyResult> {
+    return copyDownload(this.downloadCopyAccess(), workspaceId, request, validate, progress)
   }
 
   private remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
