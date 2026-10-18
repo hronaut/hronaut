@@ -157,8 +157,6 @@ import {
   type BrowserNetworkSearchOptions,
   type BrowserBookmark,
   type BrowserHistoryEntry,
-  type BrowserEnvironmentSettings,
-  type BrowserViewportEmulation,
   type BrowsingDataSiteSummary,
   type CredentialStorageStatus,
   type CommercialLicenseState,
@@ -181,8 +179,7 @@ import {
   resolveLocalePreference,
   resolveSupportedLocale
 } from '../shared/locale.js'
-import { isBrowserViewportEmulation } from '../shared/viewport-presets.js'
-import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
+import { registerEmulationIpc } from './emulation-ipc.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import {
   dimTitleBarOverlay,
@@ -2781,10 +2778,10 @@ function registerIpc(): void {
       || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split divider ratio')
     return tabsManager!.setSplitDividerRatio(revision, ratio)
   })
-  handleBrowserIpc('browser:clear-css-state-preview', (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid CSS state preview tab')
-    return tabsManager!.clearCssStatePreview(tabId)
+  registerEmulationIpc({
+    assertTrustedSender: assertTrustedShellSender,
+    handleBrowserIpc,
+    tabs: () => tabsManager
   })
   registerWorkspacesIpc({
     assertTrustedSender: assertTrustedShellSender,
@@ -2826,41 +2823,6 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     handleBrowserIpc,
     tabs: () => tabsManager
-  })
-  handleBrowserIpc('browser:set-tab-viewport', async (event, tabId: unknown, viewport: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    if (viewport !== null && !isBrowserViewportEmulation(viewport)) throw new TypeError('Invalid viewport emulation')
-    const normalizedViewport: BrowserViewportEmulation | null = viewport === null ? null : {
-      width: viewport.width,
-      height: viewport.height,
-      deviceScaleFactor: viewport.deviceScaleFactor,
-      mobile: viewport.mobile,
-      touch: viewport.touch,
-      orientation: viewport.orientation
-    }
-    await tabsManager!.emulate({ tabId, viewport: normalizedViewport })
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:set-tab-environment', async (event, tabId: unknown, environment: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || !isBrowserEnvironmentSettings(environment)) {
-      throw new TypeError('Invalid browser environment')
-    }
-    await tabsManager!.emulate({ tabId, ...(environment as BrowserEnvironmentSettings) })
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:reset-tab-emulation', async (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    await tabsManager!.emulate({ tabId, reset: true })
-    return tabsManager!.getState()
-  })
-  handleBrowserIpc('browser:recover-tab-emulation', async (event, tabId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    await tabsManager!.emulate({ tabId, recover: true })
-    return tabsManager!.getState()
   })
   handleBrowserIpc('browser:list-network-routes', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
