@@ -18,7 +18,7 @@ import { waitForElement, waitForPage, waitForText, waitForUrlPattern } from './p
 import type { VisualCompareAccess } from './visual-compare/visual-compare-access.js'
 import { visualCompare, visualDiff, type BrowserVisualCompareResult } from './visual-compare/visual-compare.js'
 import type { WebMcpAccess } from './webmcp/webmcp-access.js'
-import { callWebMcpTool, listWebMcpTools, webMcpStatus } from './webmcp/webmcp.js'
+import { callWebMcpTool, listWebMcpTools, webMcpStatus, type WebMcpStatus, type WebMcpToolCall, type WebMcpToolList } from './webmcp/webmcp.js'
 import type { PwaInspectionAccess } from './pwa-inspection/pwa-inspection-access.js'
 import { inspectPwa } from './pwa-inspection/pwa-inspection.js'
 import type { ElementInspectionAccess } from './element-inspection/element-inspection-access.js'
@@ -224,7 +224,6 @@ import { performanceReport } from './page-audits/performance-report.js'
 import { designOverview } from './page-audits/design-overview.js'
 import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { qualityAudit } from './page-audits/quality-audit.js'
-import type { WebMcpToolDescriptor } from './webmcp-bridge.js'
 import {
   normalizeBrowserGeneratedLocator,
   type BrowserGeneratedLocator
@@ -4096,37 +4095,15 @@ export class BrowserTabsManager {
     }
   }
 
-  webMcpStatus(tabId?: string): Promise<{
-    supported: boolean
-    reason?: string
-    tabId: string
-    origin: string
-    navigationGeneration: number
-  }> {
+  webMcpStatus(tabId?: string): Promise<WebMcpStatus> {
     return webMcpStatus(this.webMcpAccess(), tabId)
   }
 
-  listWebMcpTools(tabId?: string): Promise<{
-    supported: boolean
-    reason?: string
-    status?: string
-    tabId: string
-    origin: string
-    navigationGeneration: number
-    descriptorDigest?: string
-    tools?: WebMcpToolDescriptor[]
-  }> {
+  listWebMcpTools(tabId?: string): Promise<WebMcpToolList> {
     return listWebMcpTools(this.webMcpAccess(), tabId)
   }
 
-  callWebMcpTool(input: {
-    tabId?: string
-    expectedOrigin: string
-    navigationGeneration: number
-    descriptorDigest: string
-    toolName: string
-    arguments: Record<string, unknown>
-  }): Promise<Record<string, unknown>> {
+  callWebMcpTool(input: WebMcpToolCall): Promise<Record<string, unknown>> {
     return callWebMcpTool(this.webMcpAccess(), input)
   }
 
