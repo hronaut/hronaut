@@ -92,6 +92,12 @@ import {
 import { clearRequestExpiry, createRequest, fail, wait, type RequestRecordsAccess } from './broker/request-records.js'
 import { execute, type RequestExecutionAccess } from './broker/request-execution.js'
 import { approveWebsiteSignIn, websiteSignInDecision, type WebsiteSignInAccess } from './broker/website-sign-in.js'
+import {
+  connect,
+  createAddressPermissionRequest,
+  disconnectWallet,
+  type AccountConnectionsAccess
+} from './broker/account-connections.js'
 import { sanitizedError } from './broker/sanitized-error.js'
 
 export interface WalletBrokerContext {
@@ -591,29 +597,30 @@ export class WalletBroker {
     }
   }
 
-  private async connect(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<unknown> {
-    if (this.hasAddressPermission(context, wallet)) return [wallet.publicAddress]
-    const key = JSON.stringify([
-      wallet.id,
-      context.workspaceId,
-      context.tabId,
-      context.navigationGeneration,
-      context.topLevelOrigin,
-      context.requester.type,
-      context.requester.id
-    ])
-    const existing = this.pendingConnections.get(key)
-    if (existing) return existing
-    const connection = (async () => {
-      const request = await this.createAddressPermissionRequest(context, wallet, true)
-      return request.approved ? request.result : this.wait(request.record.id)
-    })()
-    this.pendingConnections.set(key, connection)
-    try {
-      return await connection
-    } finally {
-      if (this.pendingConnections.get(key) === connection) this.pendingConnections.delete(key)
+  /** The narrow view account connections get of this broker's private state and request path. */
+  private accountConnectionsAccess(): AccountConnectionsAccess {
+    return {
+      service: this.service,
+      options: this.options,
+      pendingConnections: this.pendingConnections,
+      hasAddressPermission: (context, wallet) => this.hasAddressPermission(context, wallet),
+      requireAccessibleWallet: (context, walletId) => this.requireAccessibleWallet(context, walletId),
+      createRequest: (context, wallet, operation, capability, payload) => this.createRequest(context, wallet, operation, capability, payload),
+      wait: (requestId) => this.wait(requestId),
+      fail: (requestId, error) => this.fail(requestId, error),
+      websiteSignInDecision: (context, wallet, recordId) => this.websiteSignInDecision(context, wallet, recordId),
+      approveWebsiteSignIn: (context, wallet, recordId, policies, policyId) => this.approveWebsiteSignIn(context, wallet, recordId, policies, policyId),
+      clearRequestExpiry: (requestId) => this.clearRequestExpiry(requestId),
+      clearAccountProviderSessions: (predicate) => this.clearAccountProviderSessions(predicate),
+      queueLifecycle: (operation) => this.queueLifecycle(operation),
+      rejectCancelled: () => this.rejectCancelled(),
+      publish: () => this.publish(),
+      now: () => this.now()
     }
+  }
+
+  private connect(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<unknown> {
+    return connect(this.accountConnectionsAccess(), context, wallet)
   }
 
   private async transactionRequest(
@@ -892,84 +899,15 @@ export class WalletBroker {
   }
 
   private disconnectWallet(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<void> {
-    return this.queueLifecycle(async () => {
-      const permission = this.service.permissions.list().find((entry) => (
-        entry.walletId === wallet.id
-        && entry.workspaceId === context.workspaceId
-        && entry.origin === context.topLevelOrigin
-        && entry.account === wallet.publicAddress
-        && entry.chainFamily === wallet.chainFamily
-        && entry.networkId === wallet.network.id
-        && (entry.requester?.type ?? 'website') === context.requester.type
-        && (entry.requester?.id ?? entry.origin) === context.requester.id
-      ))
-      try {
-        await this.service.approvals.cancelForPermission({
-          walletId: wallet.id,
-          workspaceId: context.workspaceId,
-          origin: context.topLevelOrigin,
-          networkId: wallet.network.id,
-          requester: context.requester
-        })
-        if (permission && await this.service.permissions.revoke(permission.id)) {
-          await this.service.audit.append('permission-revoked', {
-            permissionId: permission.id,
-            walletId: permission.walletId,
-            workspaceId: permission.workspaceId,
-            origin: permission.origin,
-            requester: permission.requester
-          }, this.now().toISOString())
-        }
-        this.clearAccountProviderSessions((session) => (
-          session.family === wallet.chainFamily
-          && session.walletId === wallet.id
-          && session.workspaceId === context.workspaceId
-          && session.tabId === context.tabId
-          && session.navigationGeneration === context.navigationGeneration
-          && session.topLevelOrigin === context.topLevelOrigin
-          && session.requester.type === context.requester.type
-          && session.requester.id === context.requester.id
-        ))
-        this.options.onProviderEvent?.(context.tabId, { family: wallet.chainFamily, event: 'disconnect' })
-      } finally {
-        this.rejectCancelled()
-      }
-    })
+    return disconnectWallet(this.accountConnectionsAccess(), context, wallet)
   }
 
-  private async createAddressPermissionRequest(
+  private createAddressPermissionRequest(
     context: WalletBrokerContext,
     wallet: WalletDescriptor,
     allowWebsiteSignIn = false
   ): Promise<{ record: WalletApprovalRecord; approved: false } | { record: WalletApprovalRecord; approved: true; result: unknown }> {
-    const currentWallet = this.requireAccessibleWallet(context, wallet.id)
-    const record = await this.createRequest(context, currentWallet, 'connect-account', 'read', { account: currentWallet.publicAddress })
-    try {
-      await this.service.approvals.transition(record.id, 'validated', this.now())
-      await this.service.approvals.recordSimulation(record.id, { attempted: false, success: false }, this.now())
-      await this.service.approvals.transition(record.id, 'simulated', this.now())
-      await this.service.approvals.transition(record.id, 'policy-decision', this.now())
-      const signIn = allowWebsiteSignIn ? this.websiteSignInDecision(context, currentWallet, record.id) : undefined
-      if (signIn) {
-        await this.service.audit.append('request-simulated', {
-          requestId: record.id, walletId: currentWallet.id, success: false, attempted: false,
-          policyDecision: signIn.decision.outcome, reason: signIn.decision.reason
-        }, this.now().toISOString())
-        if (signIn.decision.outcome === 'approved') {
-          const automatic = await this.approveWebsiteSignIn(context, currentWallet, record.id, signIn.policies, signIn.decision.policyId)
-          if (automatic.approved) {
-            this.clearRequestExpiry(record.id)
-            this.publish()
-            return { record: this.service.approvals.get(record.id)!, approved: true, result: automatic.result }
-          }
-        }
-      }
-      await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-      this.publish()
-      return { record: this.service.approvals.get(record.id)!, approved: false }
-    } catch (error) {
-      throw await this.fail(record.id, error)
-    }
+    return createAddressPermissionRequest(this.accountConnectionsAccess(), context, wallet, allowWebsiteSignIn)
   }
 
   /** The narrow view website sign-in policies get of this broker's policy engine and request path. */
