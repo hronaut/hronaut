@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { dropFiles } from '../src/main/browser/file-drop/file-drop.js'
 import type { FileDropAccess, FileDropTab } from '../src/main/browser/file-drop/file-drop-access.js'
 import type { FileDropLocation, FileDropObservation } from '../src/main/browser/file-drop/file-drop-scripts.js'
@@ -20,7 +20,8 @@ const observation = (overrides: Partial<FileDropObservation> = {}): FileDropObse
 function dropPage(options: {
   locations?: FileDropLocation[]
   observations?: Partial<Record<'enter' | 'over' | 'drop', Array<Partial<FileDropObservation> | Error>>>
-  onCommand?: (command: Command) => void
+  /** Runs after a command passed its checks and was recorded; what it returns or throws is Chromium's answer. */
+  onCommand?: (command: Command) => unknown
 } = {}) {
   const commands: Command[] = []
   const scripts: Array<{ world: number; kind: string }> = []
@@ -71,8 +72,7 @@ function dropPage(options: {
         const data = params.data as { files?: string[] }
         const command = { type: String(params.type), x: Number(params.x), y: Number(params.y), files: data.files, validated: Boolean(validateInput) }
         commands.push(command)
-        options.onCommand?.(command)
-        return {}
+        return (await options.onCommand?.(command)) ?? {}
       }
     })
   }
@@ -101,6 +101,7 @@ describe('file drop', () => {
   })
 
   afterEach(async () => {
+    vi.useRealTimers()
     await rm(folder, { recursive: true, force: true })
   })
 
@@ -172,6 +173,48 @@ describe('file drop', () => {
     expect(page.disposed()).toBe(1)
   })
 
+  it('reports a drop Chromium rejects after its checks passed as unconfirmed, since it may have reached the page', async () => {
+    const page = dropPage({ onCommand: (command) => { if (command.type === 'drop' && command.files) throw new Error('Target closed') } })
+    const result = await dropFiles(page.access, { selector: '#zone' }, [notes])
+    expect(result).toMatchObject({ status: 'DROP_UNCONFIRMED', files: 1 })
+    expect(result.note).toContain('may have reached the page')
+    expect(page.commands.slice(-2)).toMatchObject([{ type: 'dragOver', x: -100, y: -100, files: undefined }, { type: 'drop', x: -100, y: -100, files: undefined }])
+  })
+
+  it('gives up on a drag event Chromium does not answer: before the drop it stops and leaves, at the drop it is unconfirmed', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let reached!: () => void
+    const reachedDragOver = new Promise<void>((resolve) => { reached = resolve })
+    const stalledOver = dropPage({
+      onCommand: (command) => {
+        if (command.type !== 'dragOver' || !command.files) return undefined
+        reached()
+        return new Promise(() => undefined)
+      }
+    })
+    const stopped = dropFiles(stalledOver.access, { selector: '#zone' }, [notes]).then(() => undefined, (error: unknown) => error as Error)
+    await reachedDragOver
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect((await stopped)?.message).toMatch(/did not take the drag event in time/)
+    expect(stalledOver.commands.map(command => [command.type, command.files ? 'files' : 'none'])).toEqual([
+      ['dragEnter', 'files'], ['dragOver', 'files'], ['dragOver', 'none'], ['drop', 'none']
+    ])
+
+    let reachedDrop!: () => void
+    const dropReached = new Promise<void>((resolve) => { reachedDrop = resolve })
+    const stalledDrop = dropPage({
+      onCommand: (command) => {
+        if (command.type !== 'drop' || !command.files) return undefined
+        reachedDrop()
+        return new Promise(() => undefined)
+      }
+    })
+    const unconfirmed = dropFiles(stalledDrop.access, { selector: '#zone' }, [notes])
+    await dropReached
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(await unconfirmed).toMatchObject({ status: 'DROP_UNCONFIRMED', files: 1 })
+  })
+
   it('stops when the page stops answering during the drag', async () => {
     const page = dropPage({ observations: { over: [new Error('Script failed to execute')] } })
     await expect(dropFiles(page.access, { selector: '#zone' }, [notes])).rejects.toThrow('stopped answering')
@@ -185,6 +228,7 @@ describe('file drop', () => {
       [{ problem: 'not-found' }, /not found/],
       [{ problem: 'ambiguous', count: 2 }, /more than one element/],
       [{ problem: 'frame' }, /frame is not supported/],
+      [{ problem: 'pinch-zoom' }, /pinch-zoomed/],
       [{ problem: 'hidden' }, /hidden or has no size/],
       [{ problem: 'outside' }, /viewport/],
       [{ problem: 'covered' }, /covers the center/]

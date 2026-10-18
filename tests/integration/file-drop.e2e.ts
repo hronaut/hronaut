@@ -10,7 +10,7 @@ interface DropPageState {
 }
 
 // A drop zone with no file input: it reads every dropped file and records each drag event it sees.
-const DROP_PAGE = `
+const DROP_PAGE = `(() => {
   document.body.innerHTML = '<div id="zone" style="position:absolute;left:40px;top:40px;width:320px;height:200px;background:#eef">Drop files here</div>';
   window.dropState = { events: [], received: [] };
   const zone = document.querySelector('#zone');
@@ -25,8 +25,8 @@ const DROP_PAGE = `
     event.preventDefault();
     for (const file of event.dataTransfer.files) window.dropState.received.push({ name: file.name, size: file.size, text: await file.text() });
   });
-  true;
-`
+  return true;
+})()`
 
 async function onPage<T>(app: ElectronApplication, url: string, script: string): Promise<T> {
   return app.evaluate(async ({ webContents }, { url, script }) => {
@@ -76,6 +76,7 @@ test('drops local files onto a drop zone without a file input, and ends a drag t
   expect(JSON.parse(text(refused))).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
   const refusedState = await pageState(electronApp, fixtureUrl)
   expect(refusedState.received).toEqual([])
+  expect(refusedState.events.map(event => event.type).slice(0, 2)).toEqual(['dragenter', 'dragover'])
   expect(refusedState.events.map(event => event.type)).not.toContain('drop')
   // Chromium answers the cancel before the page handles it, so its dragleave can arrive just after the result.
   await expect.poll(async () => (await pageState(electronApp, fixtureUrl)).events.map(event => event.type)).toContain('dragleave')
@@ -151,6 +152,7 @@ test('reports a drop the page refuses at release, follows an overlay shown on dr
   `)
   const refusedAtRelease = await drop({ selector: '#zone', paths: [file] })
   expect(JSON.parse(text(refusedAtRelease))).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
+  expect(JSON.parse(text(refusedAtRelease)).note).toContain('refused the drop')
   expect((await pageState(electronApp, fixtureUrl)).events.map(event => event.type)).not.toContain('drop')
   expect((await pageState(electronApp, fixtureUrl)).received).toEqual([])
 
@@ -169,7 +171,11 @@ test('reports a drop the page refuses at release, follows an overlay shown on dr
     });
     return true;
   })()`)
-  const overlay = await drop({ selector: '#attach', paths: [file] })
+  // The button has a snapshot ref, so this drop names its target by ref.
+  const snapshot = text(await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult)
+  const attachRef = /\[(e\d+)\] button[^[]*?Attach/.exec(snapshot)?.[1]
+  expect(attachRef, snapshot).toBeTruthy()
+  const overlay = await drop({ ref: attachRef, paths: [file] })
   expect(JSON.parse(text(overlay)), text(overlay)).toMatchObject({ status: 'DROPPED', files: 1, pageHandledDrop: true })
   await expect.poll(async () => (await pageState(electronApp, fixtureUrl)).received.map(entry => entry.text)).toEqual(['drop fixture'])
 
@@ -184,4 +190,97 @@ test('reports a drop the page refuses at release, follows an overlay shown on dr
   expect(JSON.parse(text(input))).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
   expect(text(input)).toContain('browser_file_upload')
   expect(await onPage(electronApp, fixtureUrl, "({ files: document.querySelector('#picker').files.length, changes: window.pickerChanges })")).toEqual({ files: 0, changes: 0 })
+})
+
+test('leaves a drag the page accepted on dragenter without dropping when no update arrives as a dragover', async ({ capabilities, electronApp, profileDirectory }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  const folder = join(profileDirectory, 'drop-fixtures')
+  await mkdir(folder, { recursive: true })
+  const file = join(folder, 'notes.txt')
+  await writeFile(file, 'drop fixture', 'utf8')
+  // Two tiles share one spot, one shown at a time. Every dragenter accepts the files and swaps them,
+  // so each drag update reaches the page as a dragenter onto the other tile and never as a dragover:
+  // Chromium's drag operation is accepted when Hronaut gives up and leaves the page. Both tiles stay
+  // in the document, so a dragleave or drop sent to either one reaches the document's listeners.
+  await onPage(electronApp, fixtureUrl, `(() => {
+    document.body.innerHTML = '<style>.tile { position: absolute; inset: 0 } .tile[hidden] { display: none }</style>'
+      + '<div id="slot" style="position:absolute;left:40px;top:40px;width:300px;height:200px"><div class="tile" id="a"></div><div class="tile" id="b" hidden></div></div>';
+    window.dropState = { events: [], received: [] };
+    for (const type of ['dragenter', 'dragover', 'dragleave', 'drop']) {
+      document.addEventListener(type, (event) => window.dropState.events.push({ type, trusted: event.isTrusted, target: event.target.id || event.target.nodeName, files: 0 }), true);
+    }
+    document.addEventListener('dragenter', (event) => {
+      event.preventDefault();
+      for (const tile of document.querySelectorAll('.tile')) tile.hidden = !tile.hidden;
+    });
+    document.addEventListener('dragover', (event) => event.preventDefault());
+    document.addEventListener('drop', (event) => { event.preventDefault(); window.dropState.received.push({ name: 'dropped', size: 0, text: '' }); });
+    return true;
+  })()`)
+  const result = await client.callTool({ name: 'browser_file_drop', arguments: { tabId, selector: '#slot', paths: [file] } }) as CallToolResult
+  expect(JSON.parse(text(result)), text(result)).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
+  // One dragenter for the enter and each of the four updates, a dragleave for each swap, and one more
+  // dragleave when the drag leaves the page; then nothing may follow it.
+  await expect.poll(async () => (await pageState(electronApp, fixtureUrl)).events.map(event => event.type)).toEqual([
+    'dragenter', 'dragenter', 'dragleave', 'dragenter', 'dragleave', 'dragenter', 'dragleave', 'dragenter', 'dragleave', 'dragleave'
+  ])
+  await new Promise(resolve => setTimeout(resolve, 500))
+  const state = await pageState(electronApp, fixtureUrl)
+  expect(state.events.map(event => event.type)).not.toContain('drop')
+  expect(state.events.map(event => event.type)).not.toContain('dragover')
+  expect(state.received).toEqual([])
+})
+
+test('reports only what trusted drag events showed: synthetic events, a drop the page hides and a drop it does not handle', async ({ capabilities, electronApp, profileDirectory }) => {
+  const { client, tabId, fixtureUrl } = capabilities
+  const folder = join(profileDirectory, 'drop-fixtures')
+  await mkdir(folder, { recursive: true })
+  const file = join(folder, 'notes.txt')
+  await writeFile(file, 'drop fixture', 'utf8')
+  const drop = (args: Record<string, unknown>) => client.callTool({ name: 'browser_file_drop', arguments: { tabId, ...args } }) as Promise<CallToolResult>
+
+  // The page answers each real dragenter with a synthetic, cancelled dragover and a synthetic drop, but never accepts a real dragover.
+  await onPage(electronApp, fixtureUrl, DROP_PAGE)
+  await onPage(electronApp, fixtureUrl, `(() => {
+    window.acceptDrops = false;
+    const zone = document.querySelector('#zone');
+    zone.addEventListener('dragenter', (event) => {
+      if (!event.isTrusted) return;
+      const fake = new DragEvent('dragover', { bubbles: true, cancelable: true });
+      fake.preventDefault();
+      zone.dispatchEvent(fake);
+      zone.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true }));
+    });
+    return true;
+  })()`)
+  const synthetic = await drop({ selector: '#zone', paths: [file] })
+  expect(JSON.parse(text(synthetic)), text(synthetic)).toMatchObject({ status: 'NOT_ACCEPTED', files: 1 })
+  expect((await pageState(electronApp, fixtureUrl)).events.filter(event => event.type === 'drop').every(event => !event.trusted)).toBe(true)
+
+  // A capture listener the page added first stops the drop before Hronaut sees it: the files arrive, the drop is unconfirmed.
+  await onPage(electronApp, fixtureUrl, DROP_PAGE)
+  await onPage(electronApp, fixtureUrl, `(() => {
+    window.hiddenDrop = 0;
+    window.hideDrop = (event) => { event.preventDefault(); event.stopImmediatePropagation(); window.hiddenDrop = event.dataTransfer.files.length; };
+    addEventListener('drop', window.hideDrop, true);
+    return true;
+  })()`)
+  // Hronaut's own listeners are added for each drop, after the page's.
+  const hidden = await drop({ selector: '#zone', paths: [file] })
+  expect(JSON.parse(text(hidden)), text(hidden)).toMatchObject({ status: 'DROP_UNCONFIRMED', files: 1 })
+  expect(await onPage(electronApp, fixtureUrl, 'window.hiddenDrop')).toBe(1)
+
+  // A page that accepts the dragover but lets its drop handler skip preventDefault() still gets the drop.
+  await onPage(electronApp, fixtureUrl, `(() => {
+    removeEventListener('drop', window.hideDrop, true);
+    document.body.innerHTML = '<div id="loose" style="position:absolute;left:40px;top:40px;width:300px;height:200px">loose</div>';
+    window.looseDrops = 0;
+    const loose = document.querySelector('#loose');
+    loose.addEventListener('dragover', (event) => event.preventDefault());
+    loose.addEventListener('drop', (event) => { window.looseDrops += event.dataTransfer.files.length; });
+    return true;
+  })()`)
+  const loose = await drop({ selector: '#loose', paths: [file] })
+  expect(JSON.parse(text(loose)), text(loose)).toMatchObject({ status: 'DROPPED', files: 1, pageHandledDrop: false })
+  expect(await onPage(electronApp, fixtureUrl, 'window.looseDrops')).toBe(1)
 })

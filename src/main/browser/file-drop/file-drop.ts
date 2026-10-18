@@ -24,8 +24,8 @@ const FILE_MANAGER_DRAG_OPERATIONS = 1 | 2 | 16
 /** How many drag updates a drop sends before it treats the target as not accepting the files. */
 const MAX_DRAG_UPDATES = 4
 
-/** How long one page script may take before the drop gives up on an unresponsive page. */
-const PAGE_SCRIPT_TIMEOUT_MS = 5_000
+/** How long one page script or drag event may take before the drop gives up on an unresponsive page. */
+const PAGE_RESPONSE_TIMEOUT_MS = 5_000
 
 /** How a file drop ended. Neither status proves that the page read or uploaded the files. */
 export type FileDropStatus = 'DROPPED' | 'NOT_ACCEPTED' | 'DROP_UNCONFIRMED'
@@ -40,9 +40,10 @@ export interface FileDropResult {
 
 const TARGET_PROBLEMS: Record<FileDropTargetProblem, string> = {
   'invalid-selector': 'The selector is not valid CSS.',
-  'not-found': 'Drop target not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.',
+  'not-found': 'Drop target not found. Drop zones rarely get a snapshot ref, so provide a CSS selector that matches the drop zone, or a ref from a fresh browser_snapshot.',
   ambiguous: 'The selector matches more than one element; use a ref or a selector that matches only the drop target.',
   frame: 'Dropping files into a frame is not supported; target an element of the top-level page.',
+  'pinch-zoom': 'The page is pinch-zoomed, so the drag cannot be placed reliably; reset its zoom first.',
   hidden: 'The drop target is hidden or has no size.',
   outside: 'The center of the drop target cannot be scrolled into the viewport.',
   covered: 'Another element covers the center of the drop target, so a drop there would reach that element instead.',
@@ -90,12 +91,12 @@ export async function dropFiles<Tab extends FileDropTab>(
         authority.validate()
         // Counted from the attempt: a rejected command may still have reached the page.
         entered = true
-        await input.sendCommand('Input.dispatchDragEvent', { type: 'dragEnter', ...point, data })
+        await sendDragEvent(input, { type: 'dragEnter', ...point, data })
         let over = await observe(webContents, token, 'enter')
         // A person's drag sends updates while the pointer rests; keep updating while
         // each one only moved the drag onto a new element, such as an overlay.
         for (let update = 0; over.current && update < MAX_DRAG_UPDATES; update += 1) {
-          await input.sendCommand('Input.dispatchDragEvent', { type: 'dragOver', ...point, data })
+          await sendDragEvent(input, { type: 'dragOver', ...point, data })
           over = await observe(webContents, token, 'over')
           if (over.dragOverArrived) break
         }
@@ -110,7 +111,23 @@ export async function dropFiles<Tab extends FileDropTab>(
             note: 'The target did not accept the files: no dragover handler called preventDefault() where Hronaut could see it, so the drag left the page and nothing was dropped. For a file input, use browser_file_upload.'
           }
         }
-        await input.sendCommand('Input.dispatchDragEvent', { type: 'drop', ...point, data })
+        // Whether the drop's last check before dispatch passed: a failure after it may have reached the page.
+        let dropChecked = false
+        const dropInput = access.agentInputDebugger(webContents, () => {
+          dropChecked = false
+          authority.validate()
+          dropChecked = true
+        })
+        try {
+          await sendDragEvent(dropInput, { type: 'drop', ...point, data })
+        } catch (error) {
+          if (!dropChecked) throw error
+          return {
+            status: 'DROP_UNCONFIRMED',
+            files,
+            note: 'The drop was sent, but Chromium reported an error or did not answer in time, so the files may have reached the page. Check the page state before trying again.'
+          }
+        }
         dropAcknowledged = true
         const dropped = await observe(webContents, token, 'drop')
         if (dropped.dropSeen) {
@@ -152,8 +169,13 @@ export async function dropFiles<Tab extends FileDropTab>(
  */
 async function leavePage(debuggerApi: PointerDebugger): Promise<void> {
   const outside = { x: -100, y: -100, data: { items: [], dragOperationsMask: FILE_MANAGER_DRAG_OPERATIONS } }
-  await debuggerApi.sendCommand('Input.dispatchDragEvent', { type: 'dragOver', ...outside }).catch(() => undefined)
-  await debuggerApi.sendCommand('Input.dispatchDragEvent', { type: 'drop', ...outside }).catch(() => undefined)
+  await sendDragEvent(debuggerApi, { type: 'dragOver', ...outside }).catch(() => undefined)
+  await sendDragEvent(debuggerApi, { type: 'drop', ...outside }).catch(() => undefined)
+}
+
+/** Sends one drag event, giving up when Chromium does not answer in time, as for a page that blocks in its drag handler. */
+function sendDragEvent(debuggerApi: PointerDebugger, params: Record<string, unknown>): Promise<unknown> {
+  return withTimeout(debuggerApi.sendCommand('Input.dispatchDragEvent', params), 'Chromium did not take the drag event in time; nothing more was sent to the page')
 }
 
 /** Throws before anything reaches the page unless there are 1 to 20 distinct absolute paths to readable files; messages name a path by its position only. */
@@ -183,13 +205,20 @@ async function observe(webContents: WebContents, token: string, phase: 'enter' |
   }
 }
 
-async function runPageScript<T>(webContents: WebContents, code: string): Promise<T> {
+function runPageScript<T>(webContents: WebContents, code: string): Promise<T> {
+  return withTimeout(
+    webContents.executeJavaScriptInIsolatedWorld(FILE_DROP_WORLD_ID, [{ code }], false) as Promise<T>,
+    'The page did not respond in time; nothing more was sent to it'
+  )
+}
+
+async function withTimeout<T>(operation: Promise<T>, message: string): Promise<T> {
   let timer: NodeJS.Timeout | undefined
   try {
     return await Promise.race([
-      webContents.executeJavaScriptInIsolatedWorld(FILE_DROP_WORLD_ID, [{ code }], false) as Promise<T>,
+      operation,
       new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('The page did not respond in time; nothing more was sent to it')), PAGE_SCRIPT_TIMEOUT_MS)
+        timer = setTimeout(() => reject(new Error(message)), PAGE_RESPONSE_TIMEOUT_MS)
       })
     ])
   } finally {

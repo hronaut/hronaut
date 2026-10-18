@@ -6,7 +6,7 @@
  */
 
 /** Why the drop target cannot take a drop: each maps to one message in file-drop.ts. */
-export type FileDropTargetProblem = 'invalid-selector' | 'not-found' | 'ambiguous' | 'frame' | 'hidden' | 'outside' | 'covered' | 'replaced'
+export type FileDropTargetProblem = 'invalid-selector' | 'not-found' | 'ambiguous' | 'frame' | 'pinch-zoom' | 'hidden' | 'outside' | 'covered' | 'replaced'
 
 /** The point to drop on, or why there is none. */
 export type FileDropLocation = { x: number; y: number } | { problem: FileDropTargetProblem; count?: number }
@@ -55,6 +55,8 @@ export function fileDropLocateScript(target: { ref?: string; selector?: string }
     if (!install && (!recorded || recorded.element !== element)) return { problem: 'replaced' };
     const isFrame = (node) => /^(IFRAME|FRAME|OBJECT|EMBED|FENCEDFRAME|PORTAL)$/.test(node.tagName);
     if (isFrame(element)) return { problem: 'frame' };
+    // Drag points are in the layout viewport only at a pinch-zoom scale of 1; the off-page point needs it too.
+    if (window.visualViewport && Math.abs(window.visualViewport.scale - 1) > 0.001) return { problem: 'pinch-zoom' };
     element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
