@@ -473,6 +473,8 @@ import {
 } from './tab-sleep/tab-sleep.js'
 import type { MemorySaverAccess } from './tab-sleep/memory-saver-access.js'
 import { setMemorySaverSettings, sleepInactiveTabs, sweepMemorySaver } from './tab-sleep/memory-saver.js'
+import type { DebuggerEvaluationAccess } from './debugger-evaluation/debugger-evaluation-access.js'
+import { evaluateWithAttachedDebugger, mainWorldContextId, releaseDebuggerEvaluationObjects } from './debugger-evaluation/debugger-evaluation.js'
 import type { UndoableAction } from '../undo-offers.js'
 import { MAX_ARCHIVED_WORKSPACES } from '../../shared/undo.js'
 
@@ -7417,60 +7419,39 @@ export class BrowserTabsManager {
     return withOptionalDialogHandling(this.websiteDialogsAccess(), webContents, options, operation)
   }
 
-  private async evaluateWithAttachedDebugger(
+  private evaluateWithAttachedDebugger(
     webContents: BrowserTab['view']['webContents'],
     expression: string,
     contextId?: number
   ): Promise<unknown> {
-    const response = await webContents.debugger.sendCommand('Runtime.evaluate', {
-      expression,
-      ...(contextId !== undefined ? { contextId } : {}),
-      awaitPromise: true,
-      allowUnsafeEvalBlockedByCSP: true,
-      returnByValue: true,
-      userGesture: true
-    }) as {
-      result?: { value?: unknown; unserializableValue?: string; objectId?: string }
-      exceptionDetails?: { text?: string; exception?: { description?: string; objectId?: string } }
-    }
-    try {
-      if (response.exceptionDetails) {
-        throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Page script failed')
-      }
-      return response.result && Object.hasOwn(response.result, 'value')
-        ? response.result.value
-        : response.result?.unserializableValue
-    } finally {
-      await this.releaseDebuggerEvaluationObjects(webContents, response)
-    }
+    return evaluateWithAttachedDebugger(webContents, expression, contextId)
   }
 
-  private async releaseDebuggerEvaluationObjects(
+  private releaseDebuggerEvaluationObjects(
     webContents: BrowserTab['view']['webContents'],
     response: {
       result?: { objectId?: string }
       exceptionDetails?: { exception?: { objectId?: string } }
     }
   ): Promise<void> {
-    // Exceptions can allocate separate result and exception handles, even with
-    // returnByValue enabled. Cleanup must not replace the operation's error.
-    const objectIds = new Set([
-      response.result?.objectId,
-      response.exceptionDetails?.exception?.objectId
-    ].filter((objectId): objectId is string => typeof objectId === 'string'))
-    await Promise.allSettled([...objectIds].map(async (objectId) => {
-      await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId })
-    }))
+    return releaseDebuggerEvaluationObjects(webContents, response)
   }
 
-  private async mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
-    const frameTree = await webContents.debugger.sendCommand('Page.getFrameTree') as {
-      frameTree?: { frame?: { id?: string } }
+  /**
+   * The narrow view finding a page's main world context gets of this
+   * manager's private default execution contexts. It is a prototype method
+   * rather than a field, so managers created without the constructor (as unit
+   * tests do) still provide it. The delegates around it return the feature's
+   * promise directly, so callers see the same ticks as before.
+   */
+  private debuggerEvaluationAccess(): DebuggerEvaluationAccess {
+    return {
+      defaultExecutionContexts: () => this.defaultExecutionContexts
     }
-    const frameId = frameTree.frameTree?.frame?.id
-    const contextId = frameId ? this.defaultExecutionContexts.get(webContents.id)?.get(frameId)?.id : undefined
-    if (contextId === undefined) throw new Error('Could not locate the website JavaScript context for prompt handling')
-    return contextId
+  }
+
+  private mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {
+    return mainWorldContextId(this.debuggerEvaluationAccess(), webContents)
   }
 
   private detachDialogMonitoring(webContents: BrowserTab['view']['webContents']): void {
