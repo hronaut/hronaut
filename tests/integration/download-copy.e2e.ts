@@ -1,10 +1,10 @@
-import { appendFile, mkdir, readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { access, appendFile, mkdir, readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { connectMcpWorkspace } from '../../scripts/mcp-workspace.js'
-import type { HronautSettingsApi } from '../../src/shared/types.js'
+import type { HronautApi, HronautSettingsApi } from '../../src/shared/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 interface DownloadRecord {
@@ -102,3 +102,103 @@ test('copies a finished download only into a folder its capability profile names
     await client.close()
   }
 })
+
+type CopyGate = { held: boolean; release(): void; restore(): void }
+type CopyGateGlobal = typeof globalThis & { __downloadCopyGate?: CopyGate }
+
+// Each stage holds the copy at one point, withdraws access there, and checks what the agent is told once the shared
+// checks discard the call's own result. The audit outcome is saved after the workspace checks, so the last stage
+// revokes the capability profile, which is checked again before the result is published.
+for (const stage of ['before the copy is created', 'after the copy is created', 'after the copy is written'] as const) {
+  test(`reports what a copy left behind when its access is withdrawn ${stage}`, async ({ capabilities, appWindow, electronApp, mcpPort, profileDirectory }) => {
+    const { client: owner, tabId, workspace } = capabilities
+    await owner.callTool({ name: 'browser_click', arguments: { tabId, selector: '#download' } })
+    let download: DownloadRecord | undefined
+    await expect.poll(async () => {
+      const listed = await owner.callTool({ name: 'browser_downloads', arguments: {} }) as CallToolResult
+      download = (JSON.parse(text(listed)) as DownloadRecord[]).find(entry => entry.filename === 'capability.txt' && entry.state === 'completed')
+      return download !== undefined
+    }).toBe(true)
+    const folder = join(profileDirectory, 'held-copies')
+    await mkdir(folder, { recursive: true })
+    await owner.callTool({ name: 'browser_workspaces', arguments: { action: 'release-ownership', workspaceId: workspace.workspaceId } })
+    await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.setMcpAuthentication(true))
+    const grant = await appWindow.evaluate(directory => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.createMcpCapabilityProfile({
+      name: 'Held copy folder', preset: 'complete', argumentConstraints: { 'browser_download_copy.directory': [directory] }
+    }), folder)
+    const client = new Client({ name: 'download-copy-held', version: '1' })
+    let pending: Promise<CallToolResult> | undefined
+    try {
+      await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${grant.credential}` } } }))
+      await connectMcpWorkspace(client, 'Held copy scope', false, workspace)
+      if (stage === 'after the copy is written') {
+        const started = await client.callTool({ name: 'browser_audit_receipts', arguments: { action: 'start' } }) as CallToolResult
+        expect(started.isError, text(started)).not.toBe(true)
+      }
+      // Holds the source opening, the copy's creation, or the call's audit outcome after the copy, by stage.
+      await electronApp.evaluate((_electron, { stage, source, target }) => {
+        const fs = (process.getBuiltinModule('fs') as typeof import('node:fs')).promises
+        const { syncBuiltinESMExports } = process.getBuiltinModule('module') as typeof import('node:module')
+        const open = fs.open
+        let release!: () => void
+        const barrier = new Promise<void>(resolve => { release = resolve })
+        const gate: CopyGate = { held: false, release, restore: () => { fs.open = open; syncBuiltinESMExports() } }
+        ;(globalThis as CopyGateGlobal).__downloadCopyGate = gate
+        let actionId = ''
+        fs.open = async function (...args) {
+          const path = String(args[0])
+          if (!gate.held && (stage === 'before the copy is created' && path === source || stage === 'after the copy is created' && path === target)) {
+            gate.held = true
+            await barrier
+          }
+          const handle = await open.apply(this, args)
+          if (stage === 'after the copy is written' && path.includes('/audit-receipts/') && args[1] === 'a') {
+            const write = handle.writeFile.bind(handle)
+            handle.writeFile = async (data, options) => {
+              const event = JSON.parse(String(data)).event as { phase: string; toolName?: string; actionId?: string }
+              if (event.phase === 'decision' && event.toolName === 'browser_download_copy') actionId = event.actionId!
+              if (event.phase === 'outcome' && event.actionId === actionId && !gate.held) {
+                gate.held = true
+                await barrier
+              }
+              return write(data, options)
+            }
+          }
+          return handle
+        }
+        syncBuiltinESMExports()
+      }, { stage, source: download!.savePath!, target: join(await realpath(folder), 'held copy.txt') })
+      pending = client.callTool({ name: 'browser_download_copy', arguments: { downloadId: download!.id, directory: folder, filename: 'held copy.txt' } }) as Promise<CallToolResult>
+      await expect.poll(() => electronApp.evaluate(() => (globalThis as CopyGateGlobal).__downloadCopyGate?.held)).toBe(true)
+      if (stage === 'after the copy is written') {
+        await appWindow.evaluate(id => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.revokeMcpCapabilityProfile(id), grant.profile.id)
+      } else {
+        await appWindow.evaluate(async workspaceId => {
+          await (window as unknown as { hronaut: HronautApi }).hronaut.updateTabGroup(workspaceId, { agentAccess: false })
+        }, workspace.workspaceId)
+      }
+      await electronApp.evaluate(() => (globalThis as CopyGateGlobal).__downloadCopyGate!.release())
+      const result = await pending
+      expect(result.isError, text(result)).toBe(true)
+      const target = join(folder, 'held copy.txt')
+      if (stage === 'after the copy is written') {
+        expect(result.structuredContent).toMatchObject({ status: 'COPIED_UNCONFIRMED', effects: 'file-written', retrySafe: false })
+        expect(await readFile(target, 'utf8')).toBe(CONTENT)
+      } else {
+        // Nothing was created, or the partial copy was removed: the agent is told nothing was copied.
+        expect(result.structuredContent).toMatchObject({ status: 'NOT_COPIED', dispatch: 'dispatched', effects: 'none' })
+        await expect(access(target)).rejects.toThrow()
+      }
+      expect(text(result)).not.toContain(profileDirectory)
+    } finally {
+      await electronApp.evaluate(() => {
+        const scope = globalThis as CopyGateGlobal
+        scope.__downloadCopyGate?.release()
+        scope.__downloadCopyGate?.restore()
+        delete scope.__downloadCopyGate
+      }).catch(() => undefined)
+      await pending?.catch(() => undefined)
+      await client.close()
+    }
+  })
+}

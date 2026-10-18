@@ -267,15 +267,32 @@ describe('browser_download_copy tool', () => {
     expect(remained.outcomes).toEqual(['outcome-unknown'])
     expect(status(remained.settlement.publish(failed))).toBe('COPY_OUTCOME_UNKNOWN')
     expect(remained.settlement.effectsPossible()).toBe(true)
-    const activity = { readOnly: false, dispatched: true, invalidatedOutcome: undefined }
-    expect(remained.settlement.classifyActivity(activity, true)).toEqual({ ...activity, invalidatedOutcome: 'outcome-unknown' })
 
     const removed = tool(async (_validate, progress) => { progress.created = true; progress.removed = true; throw new Error('removed') })
     await expect(removed.run()).rejects.toThrow('removed')
     expect(removed.outcomes).toEqual([])
-    expect(removed.settlement.publish(failed)).toBeUndefined()
+    expect(removed.settlement.effectsPossible()).toBe(false)
     expect(removed.settlement.settleError()).toBeUndefined()
-    expect(removed.settlement.classifyActivity(activity, true)).toEqual(activity)
+    // The shared wrapper turns the thrown error into its own result; that refusal is published as it is.
+    removed.settlement.afterDispatch(failed)
+    expect(removed.settlement.publish(failed)).toBeUndefined()
+  })
+
+  it('tells the agent nothing was copied when the call discarded a result that left nothing behind', async () => {
+    const stopped = tool(async () => { throw new Error('Download copy cancelled') })
+    await expect(stopped.run()).rejects.toThrow('cancelled')
+    stopped.settlement.afterDispatch(failed)
+    // The shared result that replaces a result discarded after a pause, a lease change or lost access.
+    const discarded = { content: [{ type: 'text' as const, text: 'discarded' }], structuredContent: { status: 'OUTCOME_UNKNOWN' }, isError: true }
+    for (const result of [stopped.settlement.publish(discarded), stopped.settlement.publicationRevoked(), stopped.settlement.settleDenied()]) {
+      expect(result?.structuredContent).toMatchObject({ status: 'NOT_COPIED', dispatch: 'dispatched', effects: 'none', retrySafe: false })
+    }
+
+    // A rejection before the copy ran is reported as it is.
+    const rejected = downloadCopySettlement(true)
+    const rejection = { content: [{ type: 'text' as const, text: 'rejected' }], structuredContent: { status: 'POLICY_REJECTED' }, isError: true }
+    expect(rejected.publish(rejection)).toBeUndefined()
+    expect(rejected.publicationRevoked().structuredContent).toMatchObject({ status: 'NOT_COPIED', dispatch: 'not-dispatched', effects: 'none' })
   })
 
   it('refuses full-access credentials before anything else', () => {
