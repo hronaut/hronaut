@@ -38,7 +38,9 @@ import {
 import type { PageContextMenuAccess } from './context-menus/page-context-menu-access.js'
 import { attachPageContextMenuEvents } from './context-menus/page-context-menu-events.js'
 import { MULTI_SELECT_WORLD_ID, multiSelectScript, normalizeSelectValues } from './semantic-multi-select.js'
-import { nativeWheelInput, NativeWheelOutcomeUnknownError, type NativeWheelInput } from './native-wheel.js'
+import type { NativeWheelInput } from './native-wheel.js'
+import type { AgentWheelAccess } from './agent-wheel/agent-wheel-access.js'
+import { agentWheelUnderWay, wheel } from './agent-wheel/agent-wheel.js'
 import { nativeKeyHoldInput, nativeHeldKeyCommands, waitForNativeKeyHold, NativeKeyHoldOutcomeUnknownError, type NativeKeyHoldInput, type NativeKeyHoldProgress, type NativeInputDispatchObserver } from './native-key-hold.js'
 import { NativeInputCleanupError } from './native-input-cleanup.js'
 import type { BrowserImageState, BrowserMediaState } from '../../shared/types.js'
@@ -510,9 +512,6 @@ const CLOSING_WORKSPACE_BUSY_WAIT_MS = 3_000
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
-/** How long wheel events after an agent's wheel call still count as the agent's. */
-const AGENT_WHEEL_SETTLE_MS = 250
-
 /** Integration tests on a loaded machine can give the snapshot more time, so its ordering check is not a race. */
 function occlusionSnapshotTimeoutMs(): number {
   const override = Number(process.env.HRONAUT_TEST_OCCLUSION_SNAPSHOT_TIMEOUT_MS)
@@ -1381,12 +1380,39 @@ export class BrowserTabsManager {
     publishAgentFollowChange(this.agentFollowAccess(), before)
   }
 
+  /**
+   * The narrow view an agent's native wheel gets of this manager's private
+   * tabs, window, active tab, split view, generations, trusted chrome
+   * occlusion, human interaction lock, native selection sessions, DevTools
+   * opening, emulation check, native input authority, debugger queue and
+   * agent wheel markers. It is a prototype method rather than a field, so
+   * managers created without the constructor (as unit tests do) still provide
+   * it. The delegates below return the feature's promise directly, so callers
+   * see the same ticks as before.
+   */
+  private agentWheelAccess(): AgentWheelAccess<BrowserTab> {
+    return {
+      getTab: (tabId) => this.getTab(tabId),
+      tabSelectionGeneration: () => this.tabSelectionGeneration,
+      splitViewGeneration: () => this.splitViewGeneration,
+      splitView: () => this.splitView,
+      window: () => this.window,
+      activeTabId: () => this.activeTabId,
+      browserContentOccluded: () => this.browserContentOccluded,
+      nativeInputLockMutations: () => this.nativeInputLockMutations,
+      isHumanInteractionLocked: (tab) => this.isHumanInteractionLocked(tab),
+      screenshotAreaSessions: () => this.screenshotAreaSessions,
+      elementPickerSessions: () => this.elementPickerSessions,
+      devToolsOpening: () => this.devToolsOpening,
+      hasEmulationOverrides: (state) => hasEmulationOverrides(state),
+      nativeInputAuthority: (tab, validateInput) => this.nativeInputAuthority(tab, validateInput),
+      withDebugger: (webContents, operation) => this.withDebugger(webContents, operation),
+      agentWheel: () => this.agentWheel
+    }
+  }
+
   private agentWheelUnderWay(webContentsId: number): boolean {
-    const marker = this.agentWheel.get(webContentsId)
-    if (!marker) return false
-    if (marker.pending > 0 || performance.now() < marker.until) return true
-    this.agentWheel.delete(webContentsId)
-    return false
+    return agentWheelUnderWay(this.agentWheelAccess(), webContentsId)
   }
 
   retainAgentFollow(agentIds: ReadonlySet<string>): void {
@@ -4489,111 +4515,8 @@ export class BrowserTabsManager {
     return emulate(this.emulationAccess(), options, validate, markSubmitted, retainPublication)
   }
 
-  async wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
-    const options = nativeWheelInput.parse(input)
-    const tab = this.getTab(options.tabId)
-    const webContents = tab.webContents
-    const generation = tab.nativeInputEnvironmentGeneration
-    const selectionGeneration = this.tabSelectionGeneration
-    const splitGeneration = this.splitViewGeneration
-    const bounds = JSON.stringify(tab.view.getBounds())
-    const authority = this.nativeInputAuthority(tab, validateInput)
-    let environmentChanged = false
-    let attempted = false
-    const changed = (): void => { environmentChanged = true }
-    const debuggerChanged = (_event: Electron.Event, method: string): void => {
-      if (['Page.frameAttached', 'Page.frameDetached', 'Page.frameResized'].includes(method)) changed()
-    }
-    // Observe transitions before entering the debugger queue, including changes
-    // which revert to the original value while another operation is pending.
-    tab.view.on('bounds-changed', changed)
-    webContents.on('zoom-changed', changed)
-    webContents.on('frame-created', changed)
-    webContents.on('devtools-opened', changed)
-    webContents.debugger.on('message', debuggerChanged)
-    webContents.debugger.on('detach', changed)
-    this.window.on('move', changed)
-    this.window.on('hide', changed)
-    this.window.on('minimize', changed)
-    screen.on('display-metrics-changed', changed)
-    const validate = (): void => {
-      authority.validate()
-      if (environmentChanged || generation !== tab.nativeInputEnvironmentGeneration
-        || selectionGeneration !== this.tabSelectionGeneration || splitGeneration !== this.splitViewGeneration
-        || JSON.stringify(tab.view.getBounds()) !== bounds) {
-        throw new Error('Wheel environment changed; inspect fresh state before a new call')
-      }
-      if (this.activeTabId !== tab.id || this.splitView || this.browserContentOccluded
-        || !this.window.isVisible() || this.window.isMinimized() || !tab.view.getVisible()
-        || !this.window.contentView.children.includes(tab.view)) {
-        throw new Error('Wheel requires the active visible page outside split view; select it in the trusted UI first')
-      }
-      if (tab.sleeping || tab.pageLifecycleState !== 'active') throw new Error('Wheel requires an already awake, active page')
-      if (this.nativeInputLockMutations > 0 || this.isHumanInteractionLocked(tab)) throw new Error('Wheel requires an explicitly unlocked page; unlock it in the trusted UI first')
-      if (this.screenshotAreaSessions.has(webContents.id) || this.elementPickerSessions.has(webContents.id)
-        || this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
-        throw new Error('Wheel is unavailable during native selection or Developer Tools')
-      }
-      if (webContents.getZoomFactor() !== 1 || tab.emulationApplication !== 'confirmed' || hasEmulationOverrides(tab.emulation)
-        || screen.getDisplayMatching(this.window.getBounds()).scaleFactor !== 1) {
-        throw new Error('Wheel requires default zoom, no emulation overrides, and display scale 1')
-      }
-      // Native frame metadata, not a page-authored DOM query. Reject all child
-      // frames rather than guessing which renderer receives the input.
-      if (webContents.mainFrame.framesInSubtree.length !== 1) throw new Error('Wheel does not support pages containing child frames')
-    }
-    try {
-      validate()
-      return await this.withDebugger(webContents, async () => {
-        validate()
-        const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
-          cssVisualViewport?: { clientWidth: number; clientHeight: number; scale: number; offsetX: number; offsetY: number }
-        }
-        validate()
-        const viewport = metrics.cssVisualViewport
-        if (!viewport || viewport.scale !== 1 || viewport.offsetX !== 0 || viewport.offsetY !== 0
-          || !Number.isFinite(viewport.clientWidth) || !Number.isFinite(viewport.clientHeight)
-          || options.x >= viewport.clientWidth || options.y >= viewport.clientHeight) {
-          throw new Error('Wheel point must be inside a default visible CSS viewport')
-        }
-        // No await, focus transfer, synthetic pointer movement, or compositor
-        // unlock between the final admission check and the single command.
-        validate()
-        markAttempted()
-        attempted = true
-        // The agent's own wheel input is not the person scrolling. Chromium sends the wheel's
-        // phase end after the command returns, so the mark outlives the call briefly.
-        const marker = this.agentWheel.get(webContents.id) ?? { pending: 0, until: 0 }
-        marker.pending += 1
-        this.agentWheel.set(webContents.id, marker)
-        try {
-          await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-            type: 'mouseWheel', x: options.x, y: options.y,
-            deltaX: options.deltaX, deltaY: options.deltaY, buttons: 0, modifiers: 0
-          })
-        } finally {
-          marker.pending -= 1
-          marker.until = performance.now() + AGENT_WHEEL_SETTLE_MS
-        }
-        validate()
-        return { status: 'DISPATCH_ACKNOWLEDGED', x: options.x, y: options.y, deltaX: options.deltaX, deltaY: options.deltaY }
-      })
-    } catch (error) {
-      if (attempted) throw new NativeWheelOutcomeUnknownError(error)
-      throw error
-    } finally {
-      authority.dispose()
-      tab.view.removeListener('bounds-changed', changed)
-      webContents.removeListener('zoom-changed', changed)
-      webContents.removeListener('frame-created', changed)
-      webContents.removeListener('devtools-opened', changed)
-      webContents.debugger.removeListener('message', debuggerChanged)
-      webContents.debugger.removeListener('detach', changed)
-      this.window.removeListener('move', changed)
-      this.window.removeListener('hide', changed)
-      this.window.removeListener('minimize', changed)
-      screen.removeListener('display-metrics-changed', changed)
-    }
+  wheel(input: NativeWheelInput, validateInput: (validateContext: () => void) => void, markAttempted: () => void): Promise<unknown> {
+    return wheel(this.agentWheelAccess(), input, validateInput, markAttempted)
   }
 
   async scroll(options: {
